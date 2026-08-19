@@ -73,8 +73,14 @@ const DISCOVERY_TIMEOUT_MS = 30_000;
 /** Default Retry-After (seconds) when a 202 "waking" response omits the header. */
 const DEFAULT_WAKING_RETRY_AFTER_SECONDS = 5;
 
-/** How many recent tasks to scan for sandbox sessions during discovery. */
+/** How many recent tasks to scan for sandbox sessions during discovery, per page. */
 const DISCOVERY_TASK_SCAN_LIMIT = 100;
+
+/**
+ * Ceiling on discovery pages, so a large task history cannot make discovery unbounded. Reaching it
+ * with a full page means tasks went unscanned, which downgrades the result to `partial`.
+ */
+const DISCOVERY_TASK_PAGE_LIMIT = 10;
 
 /** Fallback scopes when the product does not configure `defaultChatAgent.providerScopes`. */
 const FALLBACK_SCOPES = ['read:user', 'user:email', 'repo', 'workflow'];
@@ -137,19 +143,48 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	 *
 	 * The result distinguishes a full scan from a partial or failed one: a caller that reconciles
 	 * against this list would otherwise treat a transient request failure as "these sessions no
-	 * longer exist" and tear down live providers.
+	 * longer exist" and tear down live providers. A truncated scan is `partial` for the same
+	 * reason — the tasks it never looked at are indistinguishable from tasks that are gone.
 	 */
 	async listSessions(token: CancellationToken): Promise<ICloudSandboxDiscoveryResult> {
-		let tasks: readonly ITaskSummary[];
-		try {
-			const context = await this._sendTask(`${this._tasksBaseUrl()}/tasks?per_page=${DISCOVERY_TASK_SCAN_LIMIT}`, 'list', token);
-			const response = await this._readJson<{ tasks?: readonly ITaskSummary[] }>(context);
-			if (!response?.tasks) {
-				return { kind: 'failed', reason: `listTasks returned no 'tasks' array` };
+		const tasks: ITaskSummary[] = [];
+		let truncated = false;
+		for (let page = 1; page <= DISCOVERY_TASK_PAGE_LIMIT; page++) {
+			let batch: readonly ITaskSummary[];
+			try {
+				const context = await this._sendTask(`${this._tasksBaseUrl()}/tasks?per_page=${DISCOVERY_TASK_SCAN_LIMIT}&page=${page}`, 'list', token);
+				const response = await this._readJson<{ tasks?: readonly ITaskSummary[] }>(context);
+				if (!response?.tasks) {
+					// Nothing usable came back. A later page failing still leaves the earlier ones
+					// worth seeding, so only give up outright when the first one does.
+					if (page === 1) {
+						return { kind: 'failed', reason: `listTasks returned no 'tasks' array` };
+					}
+					truncated = true;
+					break;
+				}
+				batch = response.tasks;
+			} catch (error) {
+				if (page === 1) {
+					return { kind: 'failed', reason: `listTasks failed: ${toErrorMessage(error)}` };
+				}
+				this._logService.warn(`${LOG_PREFIX} Discovery page ${page} failed: ${toErrorMessage(error)}`);
+				truncated = true;
+				break;
 			}
-			tasks = response.tasks;
-		} catch (error) {
-			return { kind: 'failed', reason: `listTasks failed: ${toErrorMessage(error)}` };
+			tasks.push(...batch);
+			// A short page is the last one. A full page means there may be more, and hitting the
+			// ceiling with one still full leaves tasks unscanned.
+			if (batch.length < DISCOVERY_TASK_SCAN_LIMIT) {
+				break;
+			}
+			if (page === DISCOVERY_TASK_PAGE_LIMIT) {
+				truncated = true;
+			}
+			if (token.isCancellationRequested) {
+				truncated = true;
+				break;
+			}
 		}
 
 		const sandboxTasks = tasks.filter(task => !task.archived_at && isCloudSandboxTask(task));
@@ -186,8 +221,8 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 
 		const sessions = discovered.filter((session): session is ICloudSandboxDiscoveredSession => session !== undefined);
 		const unnamed = sessions.filter(session => !session.repoName).length;
-		this._logService.info(`${LOG_PREFIX} Discovery found ${sessions.length} sandbox session(s) from ${sandboxTasks.length} sandbox task(s) out of ${tasks.length} scanned${unresolved > 0 ? `; ${unresolved} unresolved` : ''}${unnamed > 0 ? `; ${unnamed} without a repository name (they group under "Unknown")` : ''}.`);
-		return { kind: unresolved > 0 ? 'partial' : 'complete', sessions };
+		this._logService.info(`${LOG_PREFIX} Discovery found ${sessions.length} sandbox session(s) from ${sandboxTasks.length} sandbox task(s) out of ${tasks.length} scanned${truncated ? ' (scan truncated)' : ''}${unresolved > 0 ? `; ${unresolved} unresolved` : ''}${unnamed > 0 ? `; ${unnamed} without a repository name (they group under "Unknown")` : ''}.`);
+		return { kind: unresolved > 0 || truncated ? 'partial' : 'complete', sessions };
 	}
 
 	/**
@@ -209,7 +244,6 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			// Mission Control shows the prompt even though no run was started for it.
 			prompt: request.prompt,
 			...(repository && { repositories: [repository] }),
-			...(request.baseRef && { base_ref: request.baseRef }),
 		});
 		if (!isSuccess(context)) {
 			await this._throwForStatus('task create', context);
@@ -494,6 +528,14 @@ function parseRetryAfter(value: string | string[] | undefined): number {
 /**
  * Whether a task is a cloud sandbox task: owned by {@link CLOUD_SANDBOX_AGENT_SLUG} and running on
  * the `sandboxes` compute provider. Reads list-level fields only.
+ *
+ * ⚠️ The slug half of this test must be settled before `chat.agentHost.cloudSandbox.enabled` is
+ * turned on for anyone. Sandbox tasks are expected to move under a different agent slug (see
+ * {@link CLOUD_SANDBOX_AGENT_SLUG}), and because both halves are required, that migration would
+ * make discovery return *zero* sessions — silently, since an empty scan is a valid `complete`
+ * result. `compute.provider` is the durable signal; Mission Control also now reports
+ * `current_environment.kind === 'managed-sandbox'` on list payloads, which names the same property
+ * semantically. Either is a better primary test than the slug.
  */
 function isCloudSandboxTask(task: ITaskSummary): boolean {
 	const isCloudCodingAgent = task.agent_collaborators?.some(c => c.slug === CLOUD_SANDBOX_AGENT_SLUG) ?? false;

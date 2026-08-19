@@ -68,6 +68,10 @@ export function cloudSandboxEnvironmentId(address: string): string | undefined {
  * not overlap. Sandbox tasks are expected to move under one of those slugs eventually, at which
  * point both providers would list the same task and the sessions list would show it twice — the
  * setting keeps that from reaching everyone before the overlap is resolved.
+ *
+ * ⚠️ That migration also breaks discovery, which requires this slug *and* the `sandboxes` compute
+ * provider to recognize a task. Both the double-listing and the recognition test must be resolved
+ * before {@link CloudSandboxEnabledSettingId} is enabled by default.
  */
 export const CLOUD_SANDBOX_AGENT_SLUG = 'copilot-developer-cli';
 
@@ -83,8 +87,6 @@ export const CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID = 'github-sandbox';
 export interface ICloudSandboxCreateSessionRequest {
 	/** Repository to bind the sandbox to, as `owner/name`. Omitted for a repo-less sandbox. */
 	readonly repoNwo?: string;
-	/** Base branch the sandbox's worktree starts from. The host names the working branch. */
-	readonly baseRef?: string;
 	/**
 	 * First user turn. Mission Control persists it on the session but starts no run for an
 	 * environment-bound task, so the client still has to send it over the relay.

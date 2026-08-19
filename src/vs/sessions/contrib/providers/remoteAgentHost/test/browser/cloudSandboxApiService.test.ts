@@ -67,7 +67,10 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 				const id = url.split('/').pop()!;
 				return jsonResponse(options.tasks.find(t => (t as { id: string }).id === decodeURIComponent(id)));
 			}
-			return jsonResponse({ tasks: options.tasks });
+			// Paginate like Mission Control does, so a scan that spans pages is exercised.
+			const perPage = Number(url.match(/[?&]per_page=(\d+)/)?.[1] ?? options.tasks.length);
+			const page = Number(url.match(/[?&]page=(\d+)/)?.[1] ?? 1);
+			return jsonResponse({ tasks: options.tasks.slice((page - 1) * perPage, page * perPage) });
 		}
 	}());
 	instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
@@ -166,6 +169,46 @@ suite('CloudSandboxApiService repository resolution', () => {
 			repoLookups: 2,
 		});
 	});
+
+	test('scans past the first page and stays complete', async () => {
+		// A full first page means there may be more; a sandbox task on the second must be found.
+		const filler = Array.from({ length: 100 }, (_, i) => task(`filler-${i}`, 'x', undefined, `fs-${i}`, `fe-${i}`));
+		const { service, requestedUrls } = createService(store, {
+			tasks: [...filler, task('task-old', 'older sandbox', undefined, 'sess-old', 'env-old')],
+			repositories: new Map(),
+		});
+
+		const result = await service.listSessions(CancellationToken.None);
+
+		assert.deepStrictEqual({
+			kind: result.kind,
+			found: result.kind === 'failed' ? [] : result.sessions.filter(s => s.sessionId === 'sess-old').map(s => s.sessionId),
+			listPages: requestedUrls.filter(u => /[?&]per_page=/.test(u)).length,
+		}, {
+			kind: 'complete',
+			found: ['sess-old'],
+			listPages: 2,
+		});
+	});
+
+	test('a truncated scan is partial, so callers do not reconcile against it', async () => {
+		// Every page comes back full, so the page ceiling is hit with tasks still unscanned.
+		// Reporting `complete` here would let the caller tear down sessions it simply never saw.
+		const tasks = Array.from({ length: 100 * 12 }, (_, i) => task(`t-${i}`, 'x', undefined, `s-${i}`, `e-${i}`));
+		const { service, requestedUrls } = createService(store, { tasks, repositories: new Map() });
+
+		const result = await service.listSessions(CancellationToken.None);
+
+		assert.deepStrictEqual({
+			kind: result.kind,
+			sessions: result.kind === 'failed' ? -1 : result.sessions.length,
+			listPages: requestedUrls.filter(u => /[?&]per_page=/.test(u)).length,
+		}, {
+			kind: 'partial',
+			sessions: 1000,
+			listPages: 10,
+		});
+	});
 });
 
 interface ICreateCall {
@@ -208,7 +251,7 @@ suite('CloudSandboxApiService session creation', () => {
 			sessions: [{ id: 'sess-1', environment_id: 'env-concrete' }],
 		});
 
-		const created = await service.createSession({ repoNwo: 'osortega/simple-server', baseRef: 'main', prompt: 'fix it' }, CancellationToken.None);
+		const created = await service.createSession({ repoNwo: 'osortega/simple-server', prompt: 'fix it' }, CancellationToken.None);
 
 		assert.deepStrictEqual({
 			created,
@@ -223,12 +266,11 @@ suite('CloudSandboxApiService session creation', () => {
 				environment_id: CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID,
 				prompt: 'fix it',
 				repositories: [{ owner: 'osortega', name: 'simple-server' }],
-				base_ref: 'main',
 			},
 		});
 	});
 
-	test('omits the repository and base ref when they are not supplied', async () => {
+	test('omits the repository when it is not supplied', async () => {
 		const { service, calls } = createServiceForCreate(store, {
 			id: 'task-2',
 			sessions: [{ id: 'sess-2', environment_id: 'env-2' }],
