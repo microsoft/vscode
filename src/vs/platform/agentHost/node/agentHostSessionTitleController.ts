@@ -11,6 +11,7 @@ import { ILogService } from '../../log/common/log.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { SessionServerToolName } from '../common/serverToolNames.js';
 import { ActionType } from '../common/state/sessionActions.js';
+import { ChatOriginKind } from '../common/state/protocol/state.js';
 import { buildDefaultChatUri, isAhpChatChannel, isDefaultChatUri, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { buildConversationContext, renderResponseMarkdown, truncateMiddle } from '../common/agentHostConversationContext.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
@@ -448,6 +449,9 @@ export class AgentHostSessionTitleController extends Disposable {
 			return undefined;
 		}
 		const independentChat = this._independentChatChannel(channel, chatChannel);
+		if (independentChat && this._stateManager.getChatOrigin(independentChat)?.kind === ChatOriginKind.SideChat) {
+			return undefined;
+		}
 		const key = independentChat ?? channel;
 		if (this._renamedTitles.has(key)) {
 			return undefined;
