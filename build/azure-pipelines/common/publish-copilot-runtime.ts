@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'path';
+import { createVscodeSourceMetadata, RUNTIME_NPM_NAME } from './copilotSource.ts';
 import { assembleRuntimePackages, publishPackage } from './copilotSourcePublish.ts';
 
 function requiredEnv(name: string): string {
@@ -19,7 +20,14 @@ const outputDir = path.resolve(requiredEnv('COPILOT_RUNTIME_PACKAGES_DIR'));
 const version = requiredEnv('COPILOT_SOURCE_VERSION');
 const registry = requiredEnv('COPILOT_SOURCE_REGISTRY');
 const runtimeRef = requiredEnv('COPILOT_RUNTIME_SOURCE_REF');
+const vscodeSource = createVscodeSourceMetadata(
+	path.join(import.meta.dirname, '../../..'),
+	RUNTIME_NPM_NAME,
+	requiredEnv('BUILD_SOURCEVERSION'),
+	runtimeRef,
+	requiredEnv('BUILD_BUILDID'),
+);
 
-for (const packageDir of assembleRuntimePackages(artifactsDir, outputDir, version, runtimeRef)) {
+for (const packageDir of assembleRuntimePackages(artifactsDir, outputDir, version, runtimeRef, vscodeSource)) {
 	publishPackage(packageDir, registry);
 }

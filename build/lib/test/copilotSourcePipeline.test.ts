@@ -8,15 +8,17 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { afterEach, beforeEach, suite, test } from 'node:test';
+import { collectBuildOverrides } from '../../azure-pipelines/common/apply-sdk-canary-override.ts';
 import { sourceNpmrc } from '../../azure-pipelines/common/configure-copilot-source-registry.ts';
-import { assertCommitSha } from '../../azure-pipelines/common/copilotSource.ts';
+import { assertCommitSha, copilotSourceVersion, createVscodeSourceMetadata, readCopilotBuildOverrides, RUNTIME_NPM_NAME, SDK_NPM_NAME, type VscodeSourceMetadata } from '../../azure-pipelines/common/copilotSource.ts';
 import { assembleRuntimePackages } from '../../azure-pipelines/common/copilotSourcePublish.ts';
 import { createProductBuildRequest } from '../../azure-pipelines/common/queue-copilot-product-build.ts';
-import { copilotSourceVersion } from '../../azure-pipelines/common/set-copilot-source-version.ts';
 import { copilotPlatforms } from '../copilotPlatforms.ts';
 import { pnpmVersion, runtimeArtifactName } from '../copilotRuntimeSource.ts';
 
 const RUNTIME_REF = 'a'.repeat(40);
+const SDK_REF = 'b'.repeat(40);
+const VSCODE_COMMIT = 'c'.repeat(40);
 const PIPELINE_PATH = path.join(import.meta.dirname, '../../azure-pipelines/copilot-source-build.yml');
 let workspace: string;
 
@@ -52,6 +54,21 @@ function errorMessage(callback: () => void): string {
 		return error instanceof Error ? error.message : String(error);
 	}
 	throw new Error('Expected callback to throw.');
+}
+
+function writeRootPackage(root: string, buildOverrides: object = {
+	[SDK_NPM_NAME]: SDK_REF,
+	[RUNTIME_NPM_NAME]: RUNTIME_REF,
+}): void {
+	fs.mkdirSync(root, { recursive: true });
+	fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({
+		version: '1.134.0',
+		buildOverrides,
+		dependencies: {
+			[SDK_NPM_NAME]: '1.0.10-preview.0',
+			[RUNTIME_NPM_NAME]: '1.0.79',
+		},
+	}));
 }
 
 suite('Copilot source pipeline', () => {
@@ -94,18 +111,94 @@ suite('Copilot source pipeline', () => {
 		const pipeline = fs.readFileSync(PIPELINE_PATH, 'utf8');
 		const downloadedArtifacts = [...pipeline.matchAll(/^\s+artifact: (copilot_runtime_\w+)$/gm)].map(match => match[1]);
 
-		assert.deepStrictEqual(downloadedArtifacts, copilotPlatforms.map(runtimeArtifactName));
+		assert.deepStrictEqual({
+			downloadedArtifacts,
+			hasSourceParameters: /COPILOT_(?:SDK|RUNTIME)_SOURCE_REF\s*\n\s*displayName:/.test(pipeline),
+			hasProductBranchParameter: /name: VSCODE_PRODUCT_SOURCE_BRANCH/.test(pipeline),
+		}, {
+			downloadedArtifacts: copilotPlatforms.map(runtimeArtifactName),
+			hasSourceParameters: false,
+			hasProductBranchParameter: false,
+		});
 	});
 
-	test('uses the VS Code version and pipeline build ID in source package versions', () => {
+	test('reads package.json build overrides', () => {
+		const root = path.join(workspace, 'root');
+		writeRootPackage(root);
+		const incompleteRoot = path.join(workspace, 'incomplete');
+		writeRootPackage(incompleteRoot, { [SDK_NPM_NAME]: SDK_REF });
+
 		assert.deepStrictEqual({
-			version: copilotSourceVersion('1.134.0', '464620'),
-			invalidVersion: errorMessage(() => copilotSourceVersion('1.134.0-insider', '464620')),
-			invalidBuildId: errorMessage(() => copilotSourceVersion('1.134.0', '20260818.1')),
+			overrides: readCopilotBuildOverrides(root),
+			incomplete: errorMessage(() => readCopilotBuildOverrides(incompleteRoot)),
 		}, {
-			version: '0.0.0-vscode.1.134.0.464620',
-			invalidVersion: '[copilot-source-version] Invalid VS Code package version "1.134.0-insider". Expected a numeric major.minor.patch version.',
-			invalidBuildId: '[copilot-source-version] Invalid Azure Pipelines build ID "20260818.1". Expected a non-negative integer.',
+			overrides: {
+				sdkRef: SDK_REF,
+				runtimeRef: RUNTIME_REF,
+				sdkVersion: '1.0.10-preview.0',
+				runtimeVersion: '1.0.79',
+				vscodeVersion: '1.134.0',
+			},
+			incomplete: `[copilot-source] package.json buildOverrides must specify both ${SDK_NPM_NAME} and ${RUNTIME_NPM_NAME}.`,
+		});
+	});
+
+	test('validates product package provenance against build overrides', () => {
+		const root = path.join(workspace, 'root');
+		writeRootPackage(root);
+		const buildOverrides = readCopilotBuildOverrides(root);
+		if (!buildOverrides) {
+			throw new Error('Expected Copilot build overrides.');
+		}
+		const version = copilotSourceVersion('1.134.0', VSCODE_COMMIT);
+		const metadataByPackage = new Map<string, VscodeSourceMetadata>([
+			[SDK_NPM_NAME, {
+				vscodeCommit: VSCODE_COMMIT,
+				sourceCommit: SDK_REF,
+				sourceVersion: '1.0.10-preview.0',
+				sourceBuildId: '465834',
+			}],
+			[RUNTIME_NPM_NAME, {
+				vscodeCommit: VSCODE_COMMIT,
+				sourceCommit: RUNTIME_REF,
+				sourceVersion: '1.0.79',
+				sourceBuildId: '465834',
+			}],
+		]);
+		const readMetadata = (packageName: string): VscodeSourceMetadata => {
+			const metadata = metadataByPackage.get(packageName);
+			if (!metadata) {
+				throw new Error(`Missing test metadata for ${packageName}.`);
+			}
+			return metadata;
+		};
+
+		assert.deepStrictEqual({
+			overrides: collectBuildOverrides(buildOverrides, VSCODE_COMMIT, readMetadata),
+			queuedCanary: errorMessage(() => collectBuildOverrides(buildOverrides, VSCODE_COMMIT, readMetadata, '1.2.3')),
+			mismatch: errorMessage(() => collectBuildOverrides(buildOverrides, VSCODE_COMMIT, packageName => ({
+				...readMetadata(packageName),
+				sourceCommit: 'd'.repeat(40),
+			}))),
+		}, {
+			overrides: [
+				{ name: SDK_NPM_NAME, version },
+				{ name: RUNTIME_NPM_NAME, version },
+			],
+			queuedCanary: '[build-override] package.json buildOverrides cannot be combined with VSCODE_SDK_CANARY_VERSION or VSCODE_CLI_CANARY_VERSION.',
+			mismatch: `[build-override] ${SDK_NPM_NAME}@${version} does not match package.json buildOverrides (sourceCommit: expected ${SDK_REF}, got ${'d'.repeat(40)}). Run the Copilot source pipeline: https://dev.azure.com/monacotools/Monaco/_build?definitionId=704`,
+		});
+	});
+
+	test('uses the VS Code version and commit in source package versions', () => {
+		assert.deepStrictEqual({
+			version: copilotSourceVersion('1.134.0', VSCODE_COMMIT),
+			invalidVersion: errorMessage(() => copilotSourceVersion('^1.134.0', VSCODE_COMMIT)),
+			invalidCommit: errorMessage(() => copilotSourceVersion('1.134.0', 'main')),
+		}, {
+			version: `0.0.0-vscode.1.134.0.g${VSCODE_COMMIT}`,
+			invalidVersion: '[copilot-source] VS Code must have an exact semantic version in package.json dependencies.',
+			invalidCommit: '[copilot-source] BUILD_SOURCEVERSION must be a full 40-character lowercase commit SHA.',
 		});
 	});
 
@@ -115,7 +208,13 @@ suite('Copilot source pipeline', () => {
 		}
 
 		const output = path.join(workspace, 'packages');
-		const packageDirs = assembleRuntimePackages(path.join(workspace, 'artifacts'), output, '0.0.0-vscode.123', RUNTIME_REF);
+		const vscodeSource: VscodeSourceMetadata = {
+			vscodeCommit: VSCODE_COMMIT,
+			sourceCommit: RUNTIME_REF,
+			sourceVersion: '1.0.79',
+			sourceBuildId: '123',
+		};
+		const packageDirs = assembleRuntimePackages(path.join(workspace, 'artifacts'), output, '0.0.0-vscode.123', RUNTIME_REF, vscodeSource);
 		const mainManifest = JSON.parse(fs.readFileSync(path.join(output, 'copilot', 'package.json'), 'utf8'));
 		const muslManifest = JSON.parse(fs.readFileSync(path.join(output, 'linuxmusl-arm64', 'package.json'), 'utf8'));
 
@@ -126,6 +225,7 @@ suite('Copilot source pipeline', () => {
 				version: mainManifest.version,
 				dependencies: mainManifest.dependencies,
 				optionalDependencies: mainManifest.optionalDependencies,
+				vscodeSource: mainManifest.vscodeSource,
 			},
 			musl: {
 				name: muslManifest.name,
@@ -134,6 +234,7 @@ suite('Copilot source pipeline', () => {
 				cpu: muslManifest.cpu,
 				libc: muslManifest.libc,
 				exports: muslManifest.exports,
+				vscodeSource: muslManifest.vscodeSource,
 			},
 		}, {
 			packageCount: 9,
@@ -142,6 +243,7 @@ suite('Copilot source pipeline', () => {
 				version: '0.0.0-vscode.123',
 				dependencies: { 'detect-libc': '^2.1.2' },
 				optionalDependencies: Object.fromEntries(copilotPlatforms.map(target => [`@github/copilot-${target}`, '0.0.0-vscode.123'])),
+				vscodeSource,
 			},
 			musl: {
 				name: '@github/copilot-linuxmusl-arm64',
@@ -156,7 +258,19 @@ suite('Copilot source pipeline', () => {
 						import: './sdk/index.js',
 					},
 				},
+				vscodeSource,
 			},
+		});
+	});
+
+	test('creates package provenance from the root manifest', () => {
+		const root = path.join(workspace, 'root');
+		writeRootPackage(root);
+		assert.deepStrictEqual(createVscodeSourceMetadata(root, SDK_NPM_NAME, VSCODE_COMMIT, SDK_REF, '465834'), {
+			vscodeCommit: VSCODE_COMMIT,
+			sourceCommit: SDK_REF,
+			sourceVersion: '1.0.10-preview.0',
+			sourceBuildId: '465834',
 		});
 	});
 
@@ -167,7 +281,12 @@ suite('Copilot source pipeline', () => {
 		writeRuntimeArtifact('linux-x64', 'b'.repeat(40));
 
 		assert.throws(
-			() => assembleRuntimePackages(path.join(workspace, 'artifacts'), path.join(workspace, 'packages'), '0.0.0-vscode.123', RUNTIME_REF),
+			() => assembleRuntimePackages(path.join(workspace, 'artifacts'), path.join(workspace, 'packages'), '0.0.0-vscode.123', RUNTIME_REF, {
+				vscodeCommit: VSCODE_COMMIT,
+				sourceCommit: RUNTIME_REF,
+				sourceVersion: '1.0.79',
+				sourceBuildId: '123',
+			}),
 			/copilot_runtime_linux_x64 was built from b{40}, but this build requires a{40}/,
 		);
 	});
@@ -176,20 +295,18 @@ suite('Copilot source pipeline', () => {
 		assert.deepStrictEqual(createProductBuildRequest({
 			definitionId: 111,
 			sourceBranch: 'feature/copilot-source',
+			sourceVersion: VSCODE_COMMIT,
 			quality: 'insider',
 			registry: 'https://example.test/npm/',
-			sdkVersion: '0.0.0-vscode.123',
-			runtimeVersion: '0.0.0-vscode.123',
 			publish: false,
 			release: false,
 		}), {
 			definition: { id: 111 },
 			sourceBranch: 'refs/heads/feature/copilot-source',
+			sourceVersion: VSCODE_COMMIT,
 			templateParameters: {
 				VSCODE_QUALITY: 'insider',
 				NPM_REGISTRY: 'https://example.test/npm/',
-				VSCODE_SDK_CANARY_VERSION: '0.0.0-vscode.123',
-				VSCODE_CLI_CANARY_VERSION: '0.0.0-vscode.123',
 				VSCODE_PUBLISH: false,
 				VSCODE_RELEASE: false,
 				VSCODE_RUN_ARTIFACT_SANITY_TESTS: true,

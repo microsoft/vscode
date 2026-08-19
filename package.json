@@ -2,6 +2,10 @@
   "name": "code-oss-dev",
   "version": "1.134.0",
   "distro": "384f3af0570f20635bd381ec1a6a49a833f6dc47",
+  "buildOverrides": {
+    "@github/copilot-sdk": "846b34b3becccfd440f048339248d2e50a3dc57c",
+    "@github/copilot": "65f2c0fc4df3a1c54b3f6647ae8bd16c57ab62ed"
+  },
   "author": {
     "name": "Microsoft Corporation"
   },

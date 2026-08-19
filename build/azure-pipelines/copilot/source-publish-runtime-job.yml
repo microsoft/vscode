@@ -1,13 +1,12 @@
 parameters:
   - name: target
     type: string
-  - name: sourceRef
-    type: string
 
 jobs:
   - job: Runtime_${{ replace(parameters.target, '-', '_') }}
     displayName: ${{ parameters.target }}
     timeoutInMinutes: 60
+    dependsOn: ResolveCopilotBuildOverrides
     ${{ if startsWith(parameters.target, 'win32') }}:
       pool:
         name: 1es-windows-2022-x64
@@ -25,6 +24,7 @@ jobs:
     variables:
       VSCODE_COPILOT_TARGET: ${{ parameters.target }}
       COPILOT_RUNTIME_STAGING: $(Build.ArtifactStagingDirectory)/copilot-runtime
+      COPILOT_RUNTIME_SOURCE_REF: $[ dependencies.ResolveCopilotBuildOverrides.outputs['resolve.COPILOT_RUNTIME_SOURCE_REF'] ]
     templateContext:
       outputs:
         - output: pipelineArtifact
@@ -79,7 +79,7 @@ jobs:
 
       - script: node build/azure-pipelines/common/prepare-copilot-runtime-source.ts
         env:
-          COPILOT_RUNTIME_SOURCE_REF: ${{ parameters.sourceRef }}
+          COPILOT_RUNTIME_SOURCE_REF: $(COPILOT_RUNTIME_SOURCE_REF)
           GITHUB_APP_ID: "4297675"
           GITHUB_APP_PRIVATE_KEY: $(copilot-agent-runtime-gh-app)
         displayName: Prepare Copilot runtime source

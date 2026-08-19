@@ -6,6 +6,7 @@
 import { spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
+import type { VscodeSourceMetadata } from './copilotSource.ts';
 import { copilotPlatforms } from '../../lib/copilotPlatforms.ts';
 import { runtimeArtifactName } from '../../lib/copilotRuntimeSource.ts';
 
@@ -30,6 +31,7 @@ interface PackageManifest {
 	os?: string[];
 	cpu?: string[];
 	libc?: string[];
+	vscodeSource?: VscodeSourceMetadata;
 }
 
 export function assertSourceVersion(version: string): void {
@@ -82,7 +84,7 @@ function assertRuntimePackage(dir: string, target: string, expectedRef: string):
  * Converts the eight target artifacts into the package layout consumed by npm:
  * one thin `@github/copilot` loader plus one full JS/native package per target.
  */
-export function assembleRuntimePackages(artifactsDir: string, outputDir: string, version: string, runtimeRef: string): string[] {
+export function assembleRuntimePackages(artifactsDir: string, outputDir: string, version: string, runtimeRef: string, vscodeSource: VscodeSourceMetadata): string[] {
 	assertSourceVersion(version);
 	fs.rmSync(outputDir, { recursive: true, force: true });
 	fs.mkdirSync(outputDir, { recursive: true });
@@ -122,6 +124,7 @@ export function assembleRuntimePackages(artifactsDir: string, outputDir: string,
 				},
 			},
 			files: sourceManifest.files,
+			vscodeSource,
 		};
 		if (libc) {
 			manifest.libc = [libc];
@@ -158,6 +161,7 @@ export function assembleRuntimePackages(artifactsDir: string, outputDir: string,
 		dependencies: sourceManifest.dependencies,
 		optionalDependencies,
 		files: ['npm-loader.js', 'README.md', 'LICENSE.md'],
+		vscodeSource,
 	});
 
 	return [...packageDirs, mainDir];

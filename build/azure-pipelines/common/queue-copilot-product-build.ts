@@ -6,11 +6,10 @@
 interface ProductBuildRequest {
 	readonly definition: { readonly id: number };
 	readonly sourceBranch: string;
+	readonly sourceVersion: string;
 	readonly templateParameters: {
 		readonly VSCODE_QUALITY: string;
 		readonly NPM_REGISTRY: string;
-		readonly VSCODE_SDK_CANARY_VERSION: string;
-		readonly VSCODE_CLI_CANARY_VERSION: string;
 		readonly VSCODE_PUBLISH: boolean;
 		readonly VSCODE_RELEASE: boolean;
 		readonly VSCODE_RUN_ARTIFACT_SANITY_TESTS: boolean;
@@ -28,10 +27,9 @@ interface BuildResponse {
 interface QueueOptions {
 	readonly definitionId: number;
 	readonly sourceBranch: string;
+	readonly sourceVersion: string;
 	readonly quality: string;
 	readonly registry: string;
-	readonly sdkVersion: string;
-	readonly runtimeVersion: string;
 	readonly publish: boolean;
 	readonly release: boolean;
 }
@@ -63,11 +61,10 @@ export function createProductBuildRequest(options: QueueOptions): ProductBuildRe
 	return {
 		definition: { id: options.definitionId },
 		sourceBranch: sourceBranch(options.sourceBranch),
+		sourceVersion: options.sourceVersion,
 		templateParameters: {
 			VSCODE_QUALITY: options.quality,
 			NPM_REGISTRY: options.registry,
-			VSCODE_SDK_CANARY_VERSION: options.sdkVersion,
-			VSCODE_CLI_CANARY_VERSION: options.runtimeVersion,
 			VSCODE_PUBLISH: options.publish,
 			VSCODE_RELEASE: options.release,
 			VSCODE_RUN_ARTIFACT_SANITY_TESTS: !options.publish,
@@ -119,10 +116,9 @@ async function main(): Promise<void> {
 	const request = createProductBuildRequest({
 		definitionId,
 		sourceBranch: requiredEnv('VSCODE_PRODUCT_SOURCE_BRANCH'),
+		sourceVersion: requiredEnv('VSCODE_PRODUCT_SOURCE_VERSION'),
 		quality: requiredEnv('VSCODE_QUALITY'),
 		registry: requiredEnv('NPM_REGISTRY'),
-		sdkVersion: requiredEnv('COPILOT_SDK_SOURCE_VERSION'),
-		runtimeVersion: requiredEnv('COPILOT_RUNTIME_SOURCE_VERSION'),
 		publish: booleanEnv('VSCODE_PUBLISH', false),
 		release: booleanEnv('VSCODE_RELEASE', false),
 	});

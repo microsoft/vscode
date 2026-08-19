@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { execFileSync } from 'child_process';
-import { sourceBuildVersion, type CopilotGitSource } from './copilotSource.ts';
+import { sourceBuildVersion, type CopilotGitSource, type VscodeSourceMetadata } from './copilotSource.ts';
 import { gitAuthArgs, gitEnv, redactedError, redactSecrets, withGitHubRetries } from '../../lib/copilotRuntimeSource.ts';
 
 /**
@@ -70,7 +70,7 @@ function cloneRepo(repo: string, sha: string, dest: string): void {
  * packed `.tgz`. Pure TypeScript: install dev deps (ignoring native lifecycle
  * scripts), run the package's own esbuild + `tsc`, then `npm pack`.
  */
-export function buildSdkTarball(source: CopilotGitSource, options: { version?: string; runtimeVersion?: string } = {}): string {
+export function buildSdkTarball(source: CopilotGitSource, options: { version?: string; runtimeVersion?: string; vscodeSource?: VscodeSourceMetadata } = {}): string {
 	const srcDir = path.join(OVERRIDES_DIR, 'sdk-src');
 	cloneRepo(source.repo, source.ref, srcDir);
 
@@ -87,7 +87,7 @@ export function buildSdkTarball(source: CopilotGitSource, options: { version?: s
 	// script. The in-repo manifest carries a fixed `0.0.0-dev`, so without this
 	// every commit packs to the same filename — see `sourceBuildVersion`.
 	const version = options.version ?? sourceBuildVersion(source.ref);
-	stampVersion(pkgDir, version, options.runtimeVersion);
+	stampVersion(pkgDir, version, options.runtimeVersion, options.vscodeSource);
 
 	const outDir = path.join(OVERRIDES_DIR, 'sdk-pack');
 	fs.rmSync(outDir, { recursive: true, force: true });
@@ -107,13 +107,16 @@ export function buildSdkTarball(source: CopilotGitSource, options: { version?: s
 }
 
 /** Rewrites the package version so the packed tarball name is commit-unique. */
-function stampVersion(pkgDir: string, version: string, runtimeVersion?: string): void {
+function stampVersion(pkgDir: string, version: string, runtimeVersion?: string, vscodeSource?: VscodeSourceMetadata): void {
 	const manifestPath = path.join(pkgDir, 'package.json');
 	const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 	manifest.version = version;
 	if (runtimeVersion) {
 		manifest.dependencies ??= {};
 		manifest.dependencies['@github/copilot'] = runtimeVersion;
+	}
+	if (vscodeSource) {
+		manifest.vscodeSource = vscodeSource;
 	}
 	fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
 }
