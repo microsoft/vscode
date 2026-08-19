@@ -153,6 +153,7 @@ export interface IExplorerViewPaneOptions extends IViewPaneOptions {
 export class ExplorerView extends ViewPane implements IExplorerView {
 
 	private static readonly preserveWorkspaceNameCaseClass = 'preserve-workspace-name-case';
+	private static readonly preserveMergedWorkspaceNameCaseClass = 'preserve-merged-workspace-name-case';
 	static readonly TREE_VIEW_STATE_STORAGE_KEY: string = 'workbench.explorer.treeViewState';
 
 	private tree!: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>;
@@ -237,7 +238,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this.viewVisibleContextKey = FoldersViewVisibleContext.bindTo(contextKeyService);
 
 		this.explorerService.registerView(this);
-		this._register(toDisposable(() => this.workspaceTitleContainer?.classList.remove(ExplorerView.preserveWorkspaceNameCaseClass)));
+		this._register(toDisposable(() => this.clearWorkspaceTitleContainer()));
 	}
 
 	get autoReveal() {
@@ -260,7 +261,19 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		// noop
 	}
 
+	override get headerVisible(): boolean {
+		return super.headerVisible;
+	}
+
+	override set headerVisible(visible: boolean) {
+		super.headerVisible = visible;
+		this.updateWorkspaceTitleCase();
+	}
+
 	override setVisible(visible: boolean): void {
+		if (!visible) {
+			this.clearWorkspaceTitleContainer();
+		}
 		this.viewVisibleContextKey.set(visible);
 		super.setVisible(visible);
 		if (visible) {
@@ -305,16 +318,23 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	private updateWorkspaceTitleContainer(): void {
 		const workspaceTitleContainer = DOM.findParentWithClass(this.element, 'part') ?? undefined;
 		if (this.workspaceTitleContainer !== workspaceTitleContainer) {
-			this.workspaceTitleContainer?.classList.remove(ExplorerView.preserveWorkspaceNameCaseClass);
+			this.workspaceTitleContainer?.classList.remove(ExplorerView.preserveMergedWorkspaceNameCaseClass);
 			this.workspaceTitleContainer = workspaceTitleContainer;
 		}
 		this.updateWorkspaceTitleCase();
 	}
 
+	private clearWorkspaceTitleContainer(): void {
+		this.workspaceTitleContainer?.classList.remove(ExplorerView.preserveMergedWorkspaceNameCaseClass);
+		this.workspaceTitleContainer = undefined;
+	}
+
 	private updateWorkspaceTitleCase(): void {
 		const workspace = this.contextService.getWorkspace();
 		const isUntitled = workspace.configuration ? isUntitledWorkspace(workspace.configuration, this.environmentService) : false;
-		this.workspaceTitleContainer?.classList.toggle(ExplorerView.preserveWorkspaceNameCaseClass, !isUntitled);
+		const preserveWorkspaceNameCase = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && !isUntitled;
+		this.element.classList.toggle(ExplorerView.preserveWorkspaceNameCaseClass, preserveWorkspaceNameCase);
+		this.workspaceTitleContainer?.classList.toggle(ExplorerView.preserveMergedWorkspaceNameCaseClass, preserveWorkspaceNameCase && this.isVisible() && !this.headerVisible);
 	}
 
 	protected override layoutBody(height: number, width: number): void {

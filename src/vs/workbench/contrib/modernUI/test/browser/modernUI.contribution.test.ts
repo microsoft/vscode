@@ -282,14 +282,22 @@ suite('ModernUIContribution', () => {
 		const paneHeader = appendElement(appendElement(paneView, 'pane'), 'pane-header');
 		const paneTitle = appendElement(paneHeader, 'title');
 
-		const explorerPart = appendElement(layoutService.mainContainer, 'part preserve-workspace-name-case');
+		const explorerPart = appendElement(layoutService.mainContainer, 'part preserve-merged-workspace-name-case');
 		explorerPart.dataset.activeComposite = 'workbench.views.service.sidebar.custom';
 		const explorerTitleLabel = appendElement(appendElement(explorerPart, 'title'), 'title-label');
 		const explorerTitle = document.createElement('h2');
 		explorerTitleLabel.appendChild(explorerTitle);
-		const explorerPaneHeader = appendElement(appendElement(appendElement(explorerPart, 'monaco-pane-view'), 'pane'), 'pane-header');
+		const explorerPaneHeader = appendElement(appendElement(appendElement(explorerPart, 'monaco-pane-view'), 'pane preserve-workspace-name-case'), 'pane-header');
 		appendElement(explorerPaneHeader, 'icon codicon-explorer-view-icon');
 		const explorerPaneTitle = appendElement(explorerPaneHeader, 'title');
+		const multiViewPart = appendElement(layoutService.mainContainer, 'part');
+		multiViewPart.dataset.activeComposite = 'workbench.views.service.sidebar.multiView';
+		const multiViewTitleLabel = appendElement(appendElement(multiViewPart, 'title'), 'title-label');
+		const multiViewTitle = document.createElement('h2');
+		multiViewTitleLabel.appendChild(multiViewTitle);
+		const multiViewExplorerPaneHeader = appendElement(appendElement(appendElement(multiViewPart, 'monaco-pane-view'), 'pane preserve-workspace-name-case'), 'pane-header');
+		appendElement(multiViewExplorerPaneHeader, 'icon codicon-explorer-view-icon');
+		const multiViewExplorerPaneTitle = appendElement(multiViewExplorerPaneHeader, 'title');
 		const extensionsPart = appendElement(layoutService.mainContainer, 'part');
 		const extensionsTitleLabel = appendElement(appendElement(extensionsPart, 'title'), 'title-label');
 		const extensionsTitle = document.createElement('h2');
@@ -304,6 +312,8 @@ suite('ModernUIContribution', () => {
 			paneTitleTransform: targetWindow.getComputedStyle(paneTitle).textTransform,
 			explorerTitleTransform: targetWindow.getComputedStyle(explorerTitle).textTransform,
 			explorerPaneTitleTransform: targetWindow.getComputedStyle(explorerPaneTitle).textTransform,
+			multiViewTitleTransform: targetWindow.getComputedStyle(multiViewTitle).textTransform,
+			multiViewExplorerPaneTitleTransform: targetWindow.getComputedStyle(multiViewExplorerPaneTitle).textTransform,
 			extensionsTitleTransform: targetWindow.getComputedStyle(extensionsTitle).textTransform,
 			panelTabTransform: targetWindow.getComputedStyle(panelTab).textTransform,
 			layoutCount: layoutService.layoutCount,
@@ -323,6 +333,8 @@ suite('ModernUIContribution', () => {
 			paneTitleTransform: targetWindow.getComputedStyle(paneTitle).textTransform,
 			explorerTitleTransform: targetWindow.getComputedStyle(explorerTitle).textTransform,
 			explorerPaneTitleTransform: targetWindow.getComputedStyle(explorerPaneTitle).textTransform,
+			multiViewTitleTransform: targetWindow.getComputedStyle(multiViewTitle).textTransform,
+			multiViewExplorerPaneTitleTransform: targetWindow.getComputedStyle(multiViewExplorerPaneTitle).textTransform,
 			extensionsTitleTransform: targetWindow.getComputedStyle(extensionsTitle).textTransform,
 			panelTabTransform: targetWindow.getComputedStyle(panelTab).textTransform,
 			layoutCount: layoutService.layoutCount,
@@ -332,6 +344,8 @@ suite('ModernUIContribution', () => {
 				paneTitleTransform: 'capitalize',
 				explorerTitleTransform: 'none',
 				explorerPaneTitleTransform: 'none',
+				multiViewTitleTransform: 'capitalize',
+				multiViewExplorerPaneTitleTransform: 'none',
 				extensionsTitleTransform: 'capitalize',
 				panelTabTransform: 'capitalize',
 				layoutCount: 0,
@@ -340,6 +354,8 @@ suite('ModernUIContribution', () => {
 			paneTitleTransform: 'uppercase',
 			explorerTitleTransform: 'uppercase',
 			explorerPaneTitleTransform: 'uppercase',
+			multiViewTitleTransform: 'uppercase',
+			multiViewExplorerPaneTitleTransform: 'uppercase',
 			extensionsTitleTransform: 'uppercase',
 			panelTabTransform: 'uppercase',
 			layoutCount: 0,

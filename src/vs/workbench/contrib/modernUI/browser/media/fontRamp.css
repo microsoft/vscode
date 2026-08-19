@@ -137,8 +137,8 @@
  * Named File Explorer workspace titles preserve the casing supplied by the
  * user. Untitled workspaces continue to use the standard capitalized header.
  */
-.modern-ui.monaco-workbench .part.preserve-workspace-name-case > .title > .title-label h2,
-.modern-ui .part.preserve-workspace-name-case .pane-header > .icon.codicon-explorer-view-icon + .title {
+.modern-ui.monaco-workbench .part.preserve-merged-workspace-name-case > .title > .title-label h2,
+.modern-ui .pane.preserve-workspace-name-case > .pane-header > .icon.codicon-explorer-view-icon + .title {
 	text-transform: none;
 }
 
