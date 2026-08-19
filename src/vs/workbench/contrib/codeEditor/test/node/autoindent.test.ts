@@ -548,7 +548,6 @@ suite('Auto-Reindentation - YAML', () => {
 		languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
 		disposables.add(instantiationService);
 		disposables.add(registerLanguage(instantiationService, languageId));
-		disposables.add(registerLanguageConfiguration(instantiationService, languageId));
 	});
 
 	teardown(() => {
