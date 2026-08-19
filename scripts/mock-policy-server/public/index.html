@@ -64,7 +64,10 @@
 								<p>Routes policy requests from Code OSS, Stable, Insiders, Copilot CLI, and SDK/runtime clients.</p>
 							</label>
 						</div>
-						<div id="proxy-status" class="status-pill" data-state="checking" role="status" aria-live="polite">Checking…</div>
+						<div class="method-status">
+							<div id="proxy-status" class="status-pill" data-state="checking" role="status" aria-live="polite">Checking…</div>
+							<p id="proxy-check-detail">Waiting for the automatic connection check.</p>
+						</div>
 					</div>
 
 					<ol id="proxy-method-steps" class="setup-steps">
@@ -102,7 +105,6 @@
 									</div>
 									<button id="copy-proxy-settings" type="button" class="btn-secondary">Copy VS Code Setting</button>
 								</details>
-								<p id="proxy-check-detail" class="method-feedback">Waiting for the automatic connection check.</p>
 							</div>
 						</li>
 						<li>

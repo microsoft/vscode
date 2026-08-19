@@ -505,6 +505,23 @@ h2 {
 	animation: status-detecting 1s ease-in-out infinite;
 }
 
+.method-status {
+	display: flex;
+	flex: none;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 6px;
+	max-width: 280px;
+}
+
+.method-status p {
+	margin: 0;
+	color: var(--text-secondary);
+	font-size: 11px;
+	line-height: 1.4;
+	text-align: right;
+}
+
 .setup-steps {
 	display: flex;
 	flex-direction: column;
@@ -601,11 +618,6 @@ h2 {
 	margin-bottom: 10px;
 }
 
-.method-feedback {
-	padding-top: 12px;
-	border-top: 1px solid var(--border);
-}
-
 .setup-steps.compact .step-content > p {
 	margin-bottom: 10px;
 }
@@ -685,6 +697,15 @@ button:disabled {
 
 	.method-heading {
 		flex-direction: column;
+	}
+
+	.method-status {
+		align-items: flex-start;
+		max-width: none;
+	}
+
+	.method-status p {
+		text-align: left;
 	}
 
 	.mapping-grid {
