@@ -11,7 +11,7 @@ import { Categories } from '../../../../platform/action/common/actionCommonCateg
 import { MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
-import { ProductContribution, UpdateContribution, CONTEXT_UPDATE_STATE, CONTEXT_UPDATE_TITLE_BAR_CHAT_IN_PROGRESS, SwitchProductQualityContribution, showReleaseNotesInEditor, DefaultAccountUpdateContribution } from './update.js';
+import { ProductContribution, UpdateContribution, CONTEXT_UPDATE_STATE, SwitchProductQualityContribution, showReleaseNotesInEditor, DefaultAccountUpdateContribution } from './update.js';
 import { UpdateTitleBarContribution } from './updateTitleBarEntry.js';
 import { PostUpdateWidgetContribution } from './postUpdateWidget.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
@@ -21,7 +21,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { isWindows } from '../../../../base/common/platform.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { mnemonicButtonLabel } from '../../../../base/common/labels.js';
-import { ShowCurrentReleaseNotesActionId, ShowCurrentReleaseNotesFromCurrentFileActionId } from '../common/update.js';
+import { ShowCurrentReleaseNotesActionId, ShowCurrentReleaseNotesFromCurrentFileActionId, UpdateTitleBarChatInProgressContext } from '../common/update.js';
 import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -170,7 +170,7 @@ class RestartToUpdateAction extends Action2 {
 			f1: true,
 			precondition: ContextKeyExpr.and(
 				CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready),
-				CONTEXT_UPDATE_TITLE_BAR_CHAT_IN_PROGRESS.negate()
+				UpdateTitleBarChatInProgressContext.negate()
 			)
 		});
 	}

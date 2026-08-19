@@ -178,11 +178,8 @@ export interface IChatSetupRequirement {
 }
 
 /**
- * Single source of truth for whether Chat still requires setup before it can
- * service a request. Shared by the setup agent (which routes a sent message
- * through setup) and the model picker (which surfaces a "Sign in to use Copilot"
- * state instead of a misleading lone "Auto"). BYOK models and anonymous access
- * intentionally satisfy the entitlement-based checks so those flows keep working.
+ * Returns whether Chat requires setup before it can service a request.
+ * The model picker uses a narrower condition that only surfaces interactive setup.
  */
 export function chatRequiresSetup(context: IChatSetupRequirement): boolean {
 	return (
@@ -656,6 +653,8 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 				exceeded: (oldQuota?.percentRemaining === 0) !== (newQuota?.percentRemaining === 0),
 				remaining: oldQuota?.percentRemaining !== newQuota?.percentRemaining
 					|| oldQuota?.usageBasedBilling !== newQuota?.usageBasedBilling
+					// Unlimited plans report a constant percentage, so consumed credits are the only signal that usage moved.
+					|| oldQuota?.creditsUsed !== newQuota?.creditsUsed
 			}
 		};
 	}
@@ -810,6 +809,96 @@ export interface IQuotaSnapshot {
 	readonly entitlement?: number;
 	readonly quotaRemaining?: number;
 	readonly creditsUsed?: number;
+}
+
+export const enum QuotaUsageKind {
+
+	/**
+	 * Consumption measured against a known entitlement, best surfaced as a percentage.
+	 */
+	Percentage,
+
+	/**
+	 * Absolute credits consumed. Used for plans without a cap to measure a percentage against.
+	 */
+	CreditsUsed
+}
+
+export type IQuotaUsage = {
+	readonly kind: QuotaUsageKind.Percentage;
+	readonly usedPercentage: number;
+	/**
+	 * Credits consumed and the entitlement they are measured against. Both are
+	 * `undefined` when the plan reports no entitlement to break the percentage down into.
+	 */
+	readonly used: number | undefined;
+	readonly total: number | undefined;
+} | {
+	readonly kind: QuotaUsageKind.CreditsUsed;
+	readonly creditsUsed: number;
+};
+
+/**
+ * Derives how a quota snapshot should be surfaced, so that every quota display agrees on
+ * what "used" means. Returns `undefined` when the snapshot carries no usage worth showing,
+ * i.e. an unlimited plan that reports no credits, or a depleted pooled organization quota.
+ */
+export function getQuotaUsage(quota: IQuotaSnapshot | undefined): IQuotaUsage | undefined {
+	if (!quota) {
+		return undefined;
+	}
+
+	if (quota.unlimited) {
+		if (quota.hasQuota === false || typeof quota.creditsUsed !== 'number') {
+			return undefined;
+		}
+
+		return { kind: QuotaUsageKind.CreditsUsed, creditsUsed: quota.creditsUsed };
+	}
+
+	// An entitlement of `0` carries no ratio to report, so it is treated as absent.
+	const total = quota.entitlement || undefined;
+	let used: number | undefined;
+	if (total !== undefined) {
+		used = quota.creditsUsed ?? (quota.quotaRemaining !== undefined
+			? total - quota.quotaRemaining
+			: total * (100 - quota.percentRemaining) / 100);
+	}
+
+	return {
+		kind: QuotaUsageKind.Percentage,
+		usedPercentage: Math.max(0, 100 - quota.percentRemaining),
+		used,
+		total
+	};
+}
+
+export interface IQuotaReset {
+	readonly date: Date;
+	/** Whether the underlying source carries a time of day worth surfacing. */
+	readonly hasTime: boolean;
+}
+
+/**
+ * Resolves which reset applies to a quota. A snapshot's own `resetAt` is authoritative for
+ * that category and wins over the coarser account-level reset, so that a quota is never
+ * paired with a clock that does not govern it.
+ */
+export function getQuotaReset(quota: IQuotaSnapshot | undefined, accountReset: { readonly resetDate?: string; readonly resetDateHasTime?: boolean }): IQuotaReset | undefined {
+	if (quota?.resetAt) {
+		return { date: new Date(quota.resetAt * 1000), hasTime: true };
+	}
+
+	if (!accountReset.resetDate) {
+		return undefined;
+	}
+
+	const parsed = Date.parse(accountReset.resetDate);
+	if (isNaN(parsed)) {
+		return undefined;
+	}
+
+	return { date: new Date(parsed), hasTime: !!accountReset.resetDateHasTime };
 }
 
 export interface IRateLimitSnapshot {

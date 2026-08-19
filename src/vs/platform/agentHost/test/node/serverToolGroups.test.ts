@@ -27,15 +27,17 @@ suite('serverToolGroups display', () => {
 		assert.deepStrictEqual({
 			add: display('addComment'),
 			list: display('listComments'),
+			reply: display('replyToComment'),
 			del: display('deleteComments'),
 			resolve: display('resolveComments'),
 			view: display('viewUnreviewedComments'),
 		}, {
-			add: { displayName: 'Add Comment', invocation: 'Adding comment' },
-			list: { displayName: 'List Comments', invocation: 'Checking comments' },
-			del: { displayName: 'Delete Comments', invocation: 'Deleting comments' },
-			resolve: { displayName: 'Resolve Comments', invocation: 'Resolving comments' },
-			view: { displayName: 'View Comments', invocation: 'Viewing comments' },
+			add: { displayName: 'Add Comment', invocation: 'Add comment' },
+			list: { displayName: 'List Comments', invocation: 'List comments' },
+			reply: { displayName: 'Reply to Comment', invocation: 'Reply to comment' },
+			del: { displayName: 'Delete Comments', invocation: 'Delete comments' },
+			resolve: { displayName: 'Resolve Comments', invocation: 'Resolve comments' },
+			view: { displayName: 'View Comments', invocation: 'View comments' },
 		});
 	});
 
@@ -53,41 +55,34 @@ suite('serverToolGroups display', () => {
 			context: display('get_session_context'),
 			del: display('delete_session'),
 		}, {
-			list: { displayName: 'List Sessions', invocation: 'Checking sessions' },
-			current: { displayName: 'Get Current Session', invocation: 'Checking current session' },
+			list: { displayName: 'List Sessions', invocation: 'List sessions' },
+			current: { displayName: 'Get Current Session', invocation: 'Get current session' },
 			create: { displayName: 'Create Session', invocation: 'Creating session' },
-			chat: { displayName: 'Create Chat', invocation: 'Creating chat' },
-			send: { displayName: 'Send Message', invocation: 'Sending message' },
-			context: { displayName: 'Get Session Context', invocation: 'Reading session context' },
+			chat: { displayName: 'Create Chat', invocation: 'Create chat' },
+			send: { displayName: 'Send Message', invocation: 'Send message' },
+			context: { displayName: 'Get Session Context', invocation: 'Read session context' },
 			del: { displayName: 'Delete Session', invocation: 'Deleting session' },
 		});
 	});
 
-	test('listComments past tense reflects the comment count parsed from the result', () => {
+	test('fast tools omit a duplicate completion message', () => {
 		const past = (resultText?: string) =>
 			text(getServerToolDisplay('listComments', undefined, { text: resultText, success: true })?.pastTenseMessage);
-		const withComments = (n: number) => JSON.stringify({ comments: Array.from({ length: n }, (_, i) => ({ id: `${i}` })) });
 		assert.deepStrictEqual({
-			zero: past(withComments(0)),
-			one: past(withComments(1)),
-			many: past(withComments(3)),
+			withResult: past(JSON.stringify({ comments: [{ id: 'a' }] })),
 			noResult: past(),
 			malformed: past('not json'),
-			noComments: past(JSON.stringify({ other: 1 })),
 		}, {
-			zero: 'Checked 0 comments',
-			one: 'Checked 1 comment',
-			many: 'Checked 3 comments',
-			noResult: 'Checked comments',
-			malformed: 'Checked comments',
-			noComments: 'Checked comments',
+			withResult: undefined,
+			noResult: undefined,
+			malformed: undefined,
 		});
 	});
 
 	test('non-listComments past tense ignores the result text', () => {
 		assert.strictEqual(
 			text(getServerToolDisplay('resolveComments', undefined, { text: 'anything', success: true })?.pastTenseMessage),
-			'Resolved comments',
+			undefined,
 		);
 	});
 
@@ -97,7 +92,7 @@ suite('serverToolGroups display', () => {
 			past: text(getServerToolDisplay('mcp__host__listComments', undefined, { text: JSON.stringify({ comments: [{ id: 'a' }, { id: 'b' }] }), success: true })?.pastTenseMessage),
 		}, {
 			display: 'List Comments',
-			past: 'Checked 2 comments',
+			past: undefined,
 		});
 	});
 

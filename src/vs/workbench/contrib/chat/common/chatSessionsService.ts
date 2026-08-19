@@ -18,6 +18,7 @@ import { LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../platform/agentHost/c
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './participants/chatAgents.js';
 import { IChatEditingSession } from './editing/chatEditingService.js';
 import { IChatRequestModeInstructions, IChatRequestVariableData, ISerializableChatModelInputState } from './model/chatModel.js';
+import { IChatRequestOrigin } from './chatRequestOrigin.js';
 import { IChatProgress, IChatResponseErrorDetails, IChatSessionTiming } from './chatService/chatService.js';
 import { Target } from './promptSyntax/promptTypes.js';
 
@@ -86,7 +87,7 @@ export interface IChatSessionProviderOptionModelMetadata {
 	readonly promo?: {
 		readonly id: string;
 		readonly discountPercent: number;
-		readonly endsAt: string;
+		readonly endsAt?: string;
 		readonly message: string;
 	};
 	readonly maxInputTokens?: number;
@@ -195,8 +196,21 @@ export interface IChatSessionsExtensionPoint {
 	 * Whether this type needs a GitHub Copilot account and so is unusable until the user signs in. Set by
 	 * Copilot-backed types (Copilot CLI / agent host, cloud agent) where BYOK isn't supported. Defaults to false, so
 	 * third-party types that don't depend on Copilot stay usable while signed out.
+	 *
+	 * May be a function for programmatically-registered types (e.g. agent host) that derive the requirement
+	 * dynamically — for instance from the agent's currently-advertised protected resources, re-evaluated whenever
+	 * {@link IChatSessionAvailabilityNotifier.notifyChanged} fires. Declaratively-contributed extensions can only
+	 * supply a static boolean (parsed from JSON).
 	 */
-	readonly requiresCopilotSignIn?: boolean;
+	readonly requiresCopilotSignIn?: boolean | (() => boolean);
+	/**
+	 * Fires when a functional {@link requiresCopilotSignIn} would return a
+	 * different value (e.g. an agent-host agent flipped between proxy and native).
+	 * The sessions service re-fires {@link IChatSessionsService.onDidChangeAvailability}
+	 * in response. Only meaningful for programmatically-registered contributions —
+	 * declaratively-contributed extensions supply a static boolean and omit this.
+	 */
+	readonly onDidChangeRequiresCopilotSignIn?: Event<void>;
 	/**
 	 * When false, the delegation picker is hidden for this session type.
 	 * Defaults to true.
@@ -292,8 +306,10 @@ export type IChatSessionHistoryItem = {
 	timestamp?: number;
 	modeInstructions?: IChatRequestModeInstructions;
 	isSystemInitiated?: boolean;
+	isHidden?: boolean;
 	systemInitiatedLabel?: string;
 	isTerminalRequest?: boolean;
+	origin?: IChatRequestOrigin;
 } | {
 	type: 'response';
 	parts: IChatProgress[];
@@ -320,8 +336,10 @@ export interface IChatSessionServerRequest {
 	readonly variableData?: IChatRequestVariableData;
 	readonly timestamp?: number;
 	readonly isSystemInitiated?: boolean;
+	readonly isHidden?: boolean;
 	readonly systemInitiatedLabel?: string;
 	readonly isTerminalRequest?: boolean;
+	readonly origin?: IChatRequestOrigin;
 }
 
 /**
@@ -341,7 +359,6 @@ export namespace SessionType {
 	export const CopilotCLI = 'copilotcli';
 	export const CopilotCloud = 'copilot-cloud-agent';
 	export const Local = 'local';
-	export const ClaudeCode = 'claude-code';
 	export const Codex = 'openai-codex';
 	export const Growth = 'copilot-growth';
 	export const AgentHostCopilot = 'agent-host-copilotcli';
@@ -759,6 +776,11 @@ export interface IChatSessionsService {
 
 	getChatSessionContribution(chatSessionType: string): ResolvedChatSessionsExtensionPoint | undefined;
 	getAllChatSessionContributions(): ResolvedChatSessionsExtensionPoint[];
+	/**
+	 * Reads a session's history without retaining a contributed session in the
+	 * global session cache. Intended for lightweight ranking and previews.
+	 */
+	getChatSessionHistory(sessionResource: URI, token: CancellationToken): Promise<readonly IChatSessionHistoryItem[]>;
 
 	/**
 	 * Programmatically register a chat session contribution (for internal session types
@@ -882,7 +904,9 @@ export interface IChatSessionsService {
 
 	/**
 	 * Whether the session type needs a Copilot account and so is unusable until the user signs in (BYOK isn't
-	 * supported). Defaults to false, so third-party types stay usable while signed out.
+	 * supported). A type's {@link IChatSessionsExtensionPoint.requiresCopilotSignIn} may be a static boolean or a
+	 * function evaluated on demand (e.g. agent-host types derive it from the agent's currently-advertised protected
+	 * resources); defaults to false so third-party types stay usable while signed out.
 	 */
 	requiresCopilotSignInForSessionType(chatSessionType: string): boolean;
 

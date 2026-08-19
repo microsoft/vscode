@@ -32,10 +32,10 @@ import { Event } from '../../../../base/common/event.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { getInternalOrg } from '../../../../platform/assignment/common/assignment.js';
 import { IVersion, tryParseVersion } from '../common/updateUtils.js';
+import { UpdateGlobalActivityBadgeVisibleContext, UpdateTitleBarChatInProgressContext } from '../common/update.js';
 
 export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
 export const MAJOR_MINOR_UPDATE_AVAILABLE = new RawContextKey<boolean>('majorMinorUpdateAvailable', false);
-export const CONTEXT_UPDATE_TITLE_BAR_CHAT_IN_PROGRESS = new RawContextKey<boolean>('updateTitleBarChatRequestInProgress', false);
 
 let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 
@@ -155,7 +155,7 @@ export function appendUpdateMenuItems(menuId: MenuId, group: string): void {
 		},
 		when: ContextKeyExpr.and(
 			CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready),
-			CONTEXT_UPDATE_TITLE_BAR_CHAT_IN_PROGRESS.negate()
+			UpdateTitleBarChatInProgressContext.negate()
 		)
 	});
 }
@@ -230,7 +230,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		@IDialogService private readonly dialogService: IDialogService,
 		@IUpdateService private readonly updateService: IUpdateService,
 		@IActivityService private readonly activityService: IActivityService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IProductService private readonly productService: IProductService,
 		@IHostService private readonly hostService: IHostService,
 	) {
@@ -240,6 +240,14 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		this.majorMinorUpdateAvailableContextKey = MAJOR_MINOR_UPDATE_AVAILABLE.bindTo(contextKeyService);
 
 		this._register(updateService.onStateChange(this.onUpdateStateChange, this));
+
+		const updateGlobalActivityBadgeContextKeys = new Set(UpdateGlobalActivityBadgeVisibleContext.keys());
+		this._register(contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(updateGlobalActivityBadgeContextKeys)) {
+				this.updateBadge(this.updateService.state);
+			}
+		}));
+
 		this.onUpdateStateChange(this.updateService.state);
 
 		/*
@@ -284,7 +292,13 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			}
 		}
 
-		let badge: IBadge | undefined = undefined;
+		this.updateBadge(state);
+
+		this.state = state;
+	}
+
+	private updateBadge(state: UpdateState): void {
+		let badge: IBadge | undefined;
 
 		if (state.type === StateType.AvailableForDownload || state.type === StateType.Downloaded || state.type === StateType.Ready) {
 			badge = new NumberBadge(1, () => nls.localize('updateIsReady', "New {0} update available.", this.productService.nameShort));
@@ -300,11 +314,9 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 		this.badgeDisposable.clear();
 
-		if (badge) {
+		if (badge && this.contextKeyService.contextMatchesRules(UpdateGlobalActivityBadgeVisibleContext)) {
 			this.badgeDisposable.value = this.activityService.showGlobalActivity({ badge });
 		}
-
-		this.state = state;
 	}
 
 	private registerGlobalActivityActions(): void {
