@@ -55,7 +55,7 @@ export function createTestAgentService(
 		resolveProxy: async () => undefined,
 		fetch: fetchFn,
 	};
-	const instantiationService = new InstantiationService(new ServiceCollection(
+	const bootstrapInstantiationService = new InstantiationService(new ServiceCollection(
 		[ILogService, logService],
 		[IFileService, fileService],
 		[ISessionDataService, sessionDataService],
@@ -74,13 +74,13 @@ export function createTestAgentService(
 		orchestratorDatabase,
 		now,
 	};
-	const application = createAgentHostApplication(instantiationService, options, (applicationInstantiationService, services) => {
-		return applicationInstantiationService.createInstance(TestAgentService, options, services);
+	const application = createAgentHostApplication(bootstrapInstantiationService, options, (applicationInstantiationService, applicationServices) => {
+		return applicationInstantiationService.createInstance(TestAgentService, options, applicationServices);
 	});
 	const service = application.agentService;
 	if (!fileMonitorService) {
 		service.registerTestDependency(effectiveFileMonitorService);
 	}
-	service.registerTestDependency(instantiationService);
+	service.registerTestDependency(bootstrapInstantiationService);
 	return service;
 }

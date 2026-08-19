@@ -148,8 +148,8 @@ async function startAgentHost(): Promise<void> {
 
 	// Create the real service implementation that lives in this process
 	let agentService: AgentService;
-	let instantiationService: IInstantiationService;
-	let rootInstantiationService: IInstantiationService | undefined;
+	let applicationInstantiationService: IInstantiationService;
+	let bootstrapInstantiationService: IInstantiationService | undefined;
 	// Hoisted out of the `try` below so the protocol handlers (constructed
 	// after the block) can forward agent-SDK download progress to clients.
 	let sdkDownloadProgress: Event<IAgentSdkDownloadProgress> | undefined;
@@ -160,75 +160,74 @@ async function startAgentHost(): Promise<void> {
 	try {
 		// Build the process DI container and network stack before telemetry so every
 		// outbound fetch, including restricted telemetry, uses the same proxy resolver.
-		const diServices = new ServiceCollection();
-		diServices.set(INativeEnvironmentService, environmentService);
-		diServices.set(ILogService, logService);
-		diServices.set(IFileService, fileService);
-		diServices.set(ISessionDataService, sessionDataService);
-		diServices.set(IProductService, productService);
-		const networkServices = await registerAgentHostNetworkServices(diServices, fileService, environmentService, logService, disposables);
+		const bootstrapServices = new ServiceCollection();
+		bootstrapServices.set(INativeEnvironmentService, environmentService);
+		bootstrapServices.set(ILogService, logService);
+		bootstrapServices.set(IFileService, fileService);
+		bootstrapServices.set(ISessionDataService, sessionDataService);
+		bootstrapServices.set(IProductService, productService);
+		const networkServices = await registerAgentHostNetworkServices(bootstrapServices, fileService, environmentService, logService, disposables);
 		proxyResolver = networkServices.proxyResolver;
 		const fetchFn = proxyResolver.fetch.bind(proxyResolver);
 		const telemetryService = await createAgentHostTelemetryService({ environmentService, productService, fileService, loggerService, logService, disposables, fetchFn, requestService: networkServices.requestService });
 		errorTelemetry.value = new ErrorTelemetry(telemetryService);
-		diServices.set(ITelemetryService, telemetryService);
-		rootInstantiationService = new InstantiationService(diServices, /*strict*/ true);
-		instantiationService = rootInstantiationService;
-		const fileMonitorService = disposables.add(instantiationService.createInstance(AgentHostFileMonitorService));
-		diServices.set(IAgentHostFileMonitorService, fileMonitorService);
-		diServices.set(IWindowsMxcTerminalSandboxRuntime, instantiationService.createInstance(WindowsMxcTerminalSandboxRuntime));
-		diServices.set(ISandboxHelperService, new SandboxHelperService());
-		const gitService = instantiationService.createInstance(AgentHostGitService);
-		diServices.set(IAgentHostGitService, gitService);
+		bootstrapServices.set(ITelemetryService, telemetryService);
+		bootstrapInstantiationService = new InstantiationService(bootstrapServices, /*strict*/ true);
+		const fileMonitorService = disposables.add(bootstrapInstantiationService.createInstance(AgentHostFileMonitorService));
+		bootstrapServices.set(IAgentHostFileMonitorService, fileMonitorService);
+		bootstrapServices.set(IWindowsMxcTerminalSandboxRuntime, bootstrapInstantiationService.createInstance(WindowsMxcTerminalSandboxRuntime));
+		bootstrapServices.set(ISandboxHelperService, new SandboxHelperService());
+		const gitService = bootstrapInstantiationService.createInstance(AgentHostGitService);
+		bootstrapServices.set(IAgentHostGitService, gitService);
 		// Register the agent SDK downloader BEFORE any service that injects it
 		// (ClaudeAgentSdkService and CodexAgent below). The downloader resolves
 		// dev-override env var → on-disk cache → product.agentSdks download.
-		const agentSdkDownloader = disposables.add(instantiationService.createInstance(AgentSdkDownloader));
-		diServices.set(IAgentSdkDownloader, agentSdkDownloader);
+		const agentSdkDownloader = disposables.add(bootstrapInstantiationService.createInstance(AgentSdkDownloader));
+		bootstrapServices.set(IAgentSdkDownloader, agentSdkDownloader);
 		sdkDownloadProgress = agentSdkDownloader.onDidDownloadProgress;
-		const claudeAgentSdkService = instantiationService.createInstance(ClaudeAgentSdkService);
-		diServices.set(IClaudeAgentSdkService, claudeAgentSdkService);
+		const claudeAgentSdkService = bootstrapInstantiationService.createInstance(ClaudeAgentSdkService);
+		bootstrapServices.set(IClaudeAgentSdkService, claudeAgentSdkService);
 		// BYOK infrastructure is always wired; synchronized root config gates model
 		// publication and per-session provider configuration.
 		byokLmBridgeRegistry = new ByokLmBridgeRegistry();
-		diServices.set(IByokLmBridgeRegistry, byokLmBridgeRegistry);
-		const byokLmProxyService = disposables.add(instantiationService.createInstance(ByokLmProxyService));
-		diServices.set(IByokLmProxyService, byokLmProxyService);
-		const agentHostOTelService = disposables.add(instantiationService.createInstance(AgentHostOTelService, fetchFn));
-		diServices.set(IAgentHostOTelService, agentHostOTelService);
-		const application = createAgentHostApplication(instantiationService, {
+		bootstrapServices.set(IByokLmBridgeRegistry, byokLmBridgeRegistry);
+		const byokLmProxyService = disposables.add(bootstrapInstantiationService.createInstance(ByokLmProxyService));
+		bootstrapServices.set(IByokLmProxyService, byokLmProxyService);
+		const agentHostOTelService = disposables.add(bootstrapInstantiationService.createInstance(AgentHostOTelService, fetchFn));
+		bootstrapServices.set(IAgentHostOTelService, agentHostOTelService);
+		const application = createAgentHostApplication(bootstrapInstantiationService, {
 			rootConfigResource,
 			providerConfigurations: [createCodexProviderConfiguration(environmentService.userHome)],
 			hostLaunchKind,
 			storageResource,
 		});
 		agentService = application.agentService;
-		instantiationService = application.instantiationService;
-		const agentServices = application.services;
-		const networkDiagnosticsService = instantiationService.createInstance(NetworkDiagnosticsService);
-		agentServices.set(INetworkDiagnosticsService, networkDiagnosticsService);
+		applicationInstantiationService = application.applicationInstantiationService;
+		const applicationServices = application.applicationServices;
+		const networkDiagnosticsService = applicationInstantiationService.createInstance(NetworkDiagnosticsService);
+		applicationServices.set(INetworkDiagnosticsService, networkDiagnosticsService);
 		agentService.setNetworkDiagnosticsService(networkDiagnosticsService);
 		const pluginManager = new AgentPluginManager(URI.file(environmentService.userDataPath), fileService, logService);
-		agentServices.set(IAgentPluginManager, pluginManager);
+		applicationServices.set(IAgentPluginManager, pluginManager);
 		const diffComputeService = disposables.add(new NodeWorkerDiffComputeService(logService));
-		agentServices.set(IDiffComputeService, diffComputeService);
-		const editAttributionService = disposables.add(instantiationService.createInstance(AgentEditAttributionService, undefined, undefined));
-		agentServices.set(IAgentEditAttributionService, editAttributionService);
+		applicationServices.set(IDiffComputeService, diffComputeService);
+		const editAttributionService = disposables.add(applicationInstantiationService.createInstance(AgentEditAttributionService, undefined, undefined));
+		applicationServices.set(IAgentEditAttributionService, editAttributionService);
 		agentService.setEditAttributionService(editAttributionService);
-		agentServices.set(IEditSurvivalReporterFactory, instantiationService.createInstance(EditSurvivalReporterFactory));
-		const editArcReporterService = disposables.add(instantiationService.createInstance(EditArcReporterService, undefined));
-		agentServices.set(IEditArcReporterService, editArcReporterService);
+		applicationServices.set(IEditSurvivalReporterFactory, applicationInstantiationService.createInstance(EditSurvivalReporterFactory));
+		const editArcReporterService = disposables.add(applicationInstantiationService.createInstance(EditArcReporterService, undefined));
+		applicationServices.set(IEditArcReporterService, editArcReporterService);
 		// Host-owned worktree isolation controller: a single instance drives folder
 		// / worktree isolation for every agent, so providers stay unaware of it. It
 		// owns its branch-name generator, created from ICopilotApiService.
-		const worktreeIsolation = disposables.add(instantiationService.createInstance(WorktreeIsolation, undefined));
-		agentServices.set(IAgentHostWorktreeIsolation, worktreeIsolation);
+		const worktreeIsolation = disposables.add(applicationInstantiationService.createInstance(WorktreeIsolation, undefined));
+		applicationServices.set(IAgentHostWorktreeIsolation, worktreeIsolation);
 		agentService.setWorktreeIsolation(worktreeIsolation);
-		const claudeProxyService = disposables.add(instantiationService.createInstance(ClaudeProxyService));
-		agentServices.set(IClaudeProxyService, claudeProxyService);
-		const codexProxyService = disposables.add(instantiationService.createInstance(CodexProxyService));
-		agentServices.set(ICodexProxyService, codexProxyService);
-		agentService.registerProvider(instantiationService.createInstance(CopilotAgent));
+		const claudeProxyService = disposables.add(applicationInstantiationService.createInstance(ClaudeProxyService));
+		applicationServices.set(IClaudeProxyService, claudeProxyService);
+		const codexProxyService = disposables.add(applicationInstantiationService.createInstance(CodexProxyService));
+		applicationServices.set(ICodexProxyService, codexProxyService);
+		agentService.registerProvider(applicationInstantiationService.createInstance(CopilotAgent));
 		// Claude and Codex providers are gated on two things:
 		//  1. The user-facing enable toggle (`chat.agentHost.<x>Agent.enabled`,
 		//     forwarded as an env var by the starters). Claude defaults to on,
@@ -243,7 +242,7 @@ async function startAgentHost(): Promise<void> {
 		// If either gate fails, the provider is not registered and never appears
 		// in the agent picker (matches the pre-CDN UX exactly).
 		if (isAgentEnabled(process.env[AgentHostClaudeAgentEnabledEnvVar], true) && (!environmentService.isBuilt || agentSdkDownloader.isAvailable(ClaudeSdkPackage))) {
-			agentService.registerProvider(instantiationService.createInstance(ClaudeAgent));
+			agentService.registerProvider(applicationInstantiationService.createInstance(ClaudeAgent));
 		}
 		// Codex registration is one-way (register-on-enable): the env-var toggle
 		// or the renderer-forwarded `codexAgentEnabled` root config enables it.
@@ -259,14 +258,14 @@ async function startAgentHost(): Promise<void> {
 				const enabledByRootConfig = agentConfigurationService.getRootValue(platformRootSchema, AgentHostCodexEnabledConfigKey) === true;
 				if (enabledByEnv || enabledByRootConfig) {
 					codexRegistered = true;
-					agentService.registerProvider(instantiationService.createInstance(CodexAgent));
+					agentService.registerProvider(applicationInstantiationService.createInstance(CodexAgent));
 				}
 			};
 			registerCodexIfEnabled();
 			disposables.add(agentConfigurationService.onDidRootConfigChange(registerCodexIfEnabled));
 		}
 	} catch (err) {
-		rootInstantiationService?.dispose();
+		bootstrapInstantiationService?.dispose();
 		logService.error('Failed to create AgentService', err);
 		throw err;
 	}
@@ -278,7 +277,7 @@ async function startAgentHost(): Promise<void> {
 	// lifetime, rather than inside `AgentHostService`: a service that arms a
 	// recurring timer in its constructor is one that no faked-timer unit test
 	// can ever drain.
-	disposables.add(instantiationService.createInstance(AgentModelRefreshScheduler, agentService.agents, agentService.onDidStartTurn, MODEL_REFRESH_INTERVAL_MS));
+	disposables.add(applicationInstantiationService.createInstance(AgentModelRefreshScheduler, agentService.agents, agentService.onDidStartTurn, MODEL_REFRESH_INTERVAL_MS));
 
 	// Surface agent-SDK download progress to clients as generic `progress`
 	// notifications. The downloader fires process-global frames keyed by package
@@ -326,7 +325,7 @@ async function startAgentHost(): Promise<void> {
 		};
 		try {
 			// Handler for the renderer's MessagePort data plane.
-			const messagePortProtocolHandler = localDataPlaneDisposables.add(instantiationService.createInstance(
+			const messagePortProtocolHandler = localDataPlaneDisposables.add(applicationInstantiationService.createInstance(
 				ProtocolServerHandler,
 				agentService,
 				agentService.stateManager,
@@ -390,7 +389,7 @@ async function startAgentHost(): Promise<void> {
 			const localEndpoint = await startLocalAgentHostEndpoint(
 				environmentService.userDataPath,
 				logService,
-				instantiationService,
+				applicationInstantiationService,
 				environmentService.logsHome,
 			);
 			if (localEndpoint) {
@@ -399,7 +398,7 @@ async function startAgentHost(): Promise<void> {
 				// publishing the metadata that advertises it, so a client can't connect
 				// in the gap and be missed.
 				localDataPlaneDisposables.add(localEndpoint.server);
-				const localEndpointProtocolHandler = localDataPlaneDisposables.add(instantiationService.createInstance(
+				const localEndpointProtocolHandler = localDataPlaneDisposables.add(applicationInstantiationService.createInstance(
 					ProtocolServerHandler,
 					agentService,
 					agentService.stateManager,
@@ -448,7 +447,7 @@ async function startAgentHost(): Promise<void> {
 			const wsServer = await WebSocketProtocolServer.create(
 				{ socketPath },
 				logService,
-				{ instantiationService, logsHome: environmentService.logsHome },
+				{ instantiationService: applicationInstantiationService, logsHome: environmentService.logsHome },
 			);
 			if (protocolIngressDisposables.isDisposed) {
 				wsServer.dispose();
@@ -456,7 +455,7 @@ async function startAgentHost(): Promise<void> {
 			}
 			protocolIngressDisposables.add(wsServer);
 
-			const protocolHandler = protocolIngressDisposables.add(instantiationService.createInstance(
+			const protocolHandler = protocolIngressDisposables.add(applicationInstantiationService.createInstance(
 				ProtocolServerHandler,
 				agentService,
 				agentService.stateManager,
@@ -525,7 +524,7 @@ async function startAgentHost(): Promise<void> {
 			}
 		},
 	};
-	server.registerChannel(AgentHostIpcChannels.Management, ProxyChannel.fromService(instantiationService.createInstance(
+	server.registerChannel(AgentHostIpcChannels.Management, ProxyChannel.fromService(applicationInstantiationService.createInstance(
 		AgentHostManagementService,
 		agentService,
 		connectionTrackerService,
@@ -543,7 +542,7 @@ async function startAgentHost(): Promise<void> {
 	const configuredWebSocketServerStart = startWebSocketServer(
 		agentService,
 		clientFileSystemProvider,
-		instantiationService,
+		applicationInstantiationService,
 		environmentService.logsHome,
 		logService,
 		otlpLogEmitter,
@@ -562,7 +561,7 @@ async function startAgentHost(): Promise<void> {
 		agentService.dispose();
 		logService.dispose();
 		disposables.dispose();
-		rootInstantiationService?.dispose();
+		bootstrapInstantiationService?.dispose();
 	});
 }
 
@@ -574,7 +573,7 @@ interface ILocalAgentHostEndpoint {
 async function startLocalAgentHostEndpoint(
 	userDataPath: string,
 	logService: ILogService,
-	instantiationService: IInstantiationService,
+	applicationInstantiationService: IInstantiationService,
 	logsHome: URI,
 ): Promise<ILocalAgentHostEndpoint | undefined> {
 	let metadata: ILocalAgentHostEndpointMetadata | undefined;
@@ -592,7 +591,7 @@ async function startLocalAgentHostEndpoint(
 				connectionTokenValidate: token => token === endpointMetadata.connectionToken,
 			},
 			logService,
-			{ instantiationService, logsHome },
+			{ instantiationService: applicationInstantiationService, logsHome },
 		);
 		await server.whenListening;
 		return { metadata: endpointMetadata, server };
@@ -636,7 +635,7 @@ function cleanupLocalAgentHostEndpoint(
 async function startWebSocketServer(
 	agentService: AgentService,
 	clientFileSystemProvider: AgentHostClientFileSystemProvider,
-	instantiationService: IInstantiationService,
+	applicationInstantiationService: IInstantiationService,
 	logsHome: URI,
 	logService: ILogService,
 	otlpLogEmitter: OtlpLogEmitter,
@@ -672,7 +671,7 @@ async function startWebSocketServer(
 					: undefined,
 			},
 		logService,
-		{ instantiationService, logsHome },
+		{ instantiationService: applicationInstantiationService, logsHome },
 	);
 	if (disposables.isDisposed) {
 		wsServer.dispose();
@@ -680,7 +679,7 @@ async function startWebSocketServer(
 	}
 	disposables.add(wsServer);
 
-	const protocolHandler = disposables.add(instantiationService.createInstance(
+	const protocolHandler = disposables.add(applicationInstantiationService.createInstance(
 		ProtocolServerHandler,
 		agentService,
 		agentService.stateManager,

@@ -559,8 +559,8 @@ export class AgentService extends Disposable implements IAgentService {
 
 	constructor(
 		options: IAgentServiceOptions,
-		services: ServiceCollection,
-		@IInstantiationService instantiationService: IInstantiationService,
+		applicationServices: ServiceCollection,
+		@IInstantiationService applicationInstantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@IFileService private readonly _fileService: IFileService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
@@ -632,13 +632,13 @@ export class AgentService extends Disposable implements IAgentService {
 		}));
 		this._storageService = this._register(new AgentHostStorageService(options.storageResource, this._logService));
 		updateAgentHostTelemetryLevelFromConfig(this._telemetryService, this._stateManager.rootState.config?.values);
-		services.set(IAgentService, this);
-		services.set(IAgentConfigurationService, configurationService);
-		services.set(IAgentHostStateManager, this._stateManager);
-		services.set(IAgentHostStorageService, this._storageService);
-		services.set(IAgentHostManagedSettingsService, this._managedSettingsService);
-		this._gitHubEndpointService = this._register(instantiationService.createInstance(AgentHostGitHubEndpointService));
-		services.set(IAgentHostGitHubEndpointService, this._gitHubEndpointService);
+		applicationServices.set(IAgentService, this);
+		applicationServices.set(IAgentConfigurationService, configurationService);
+		applicationServices.set(IAgentHostStateManager, this._stateManager);
+		applicationServices.set(IAgentHostStorageService, this._storageService);
+		applicationServices.set(IAgentHostManagedSettingsService, this._managedSettingsService);
+		this._gitHubEndpointService = this._register(applicationInstantiationService.createInstance(AgentHostGitHubEndpointService));
+		applicationServices.set(IAgentHostGitHubEndpointService, this._gitHubEndpointService);
 		// A GitHub Enterprise URI change repoints every agent's GitHub resource
 		// identity to a different authorization server, so the client must obtain a
 		// token for the new resource. One root-channel `auth/required` covers all
@@ -649,9 +649,9 @@ export class AgentService extends Disposable implements IAgentService {
 				reason: AuthRequiredReason.Required,
 			});
 		}));
-		const agentHostOctoKitService = instantiationService.createInstance(AgentHostOctoKitService, fetchFn);
-		services.set(IAgentHostOctoKitService, agentHostOctoKitService);
-		const gitHubService = this._register(instantiationService.createInstance(GitHubService, {
+		const agentHostOctoKitService = applicationInstantiationService.createInstance(AgentHostOctoKitService, fetchFn);
+		applicationServices.set(IAgentHostOctoKitService, agentHostOctoKitService);
+		const gitHubService = this._register(applicationInstantiationService.createInstance(GitHubService, {
 			endpoint: this._gitHubEndpointService,
 			tokenProvider: {
 				getToken: () => {
@@ -664,61 +664,61 @@ export class AgentService extends Disposable implements IAgentService {
 			},
 			fetch: fetchFn,
 		}));
-		services.set(IGitHubService, gitHubService);
-		this._copilotApiService = options.copilotApiService ?? instantiationService.createInstance(CopilotApiService, fetchFn);
-		services.set(ICopilotApiService, this._copilotApiService);
-		this._customizationEnablementService = this._register(instantiationService.createInstance(AgentHostCustomizationEnablementService));
-		services.set(IAgentHostCustomizationEnablementService, this._customizationEnablementService);
+		applicationServices.set(IGitHubService, gitHubService);
+		this._copilotApiService = options.copilotApiService ?? applicationInstantiationService.createInstance(CopilotApiService, fetchFn);
+		applicationServices.set(ICopilotApiService, this._copilotApiService);
+		this._customizationEnablementService = this._register(applicationInstantiationService.createInstance(AgentHostCustomizationEnablementService));
+		applicationServices.set(IAgentHostCustomizationEnablementService, this._customizationEnablementService);
 
-		this._gitStateService = this._register(instantiationService.createInstance(AgentHostGitStateService));
-		services.set(IAgentHostGitStateService, this._gitStateService);
-		this._agentMergeController = this._register(instantiationService.createInstance(AgentMergeController, {
+		this._gitStateService = this._register(applicationInstantiationService.createInstance(AgentHostGitStateService));
+		applicationServices.set(IAgentHostGitStateService, this._gitStateService);
+		this._agentMergeController = this._register(applicationInstantiationService.createInstance(AgentMergeController, {
 			startTurn: (session, turnId, prompt) => this._startAgentMergePrompt(session, turnId, prompt),
 			cancelTurn: (session, turnId) => this._cancelAgentMergePrompt(session, turnId),
 			getAutonomousSessionConfig: (session, config) => this._findProviderForSession(session)?.getAutonomousSessionConfig?.(config),
 		}));
 
-		this._checkpointService = this._register(instantiationService.createInstance(AgentHostCheckpointService));
-		services.set(IAgentHostCheckpointService, this._checkpointService);
+		this._checkpointService = this._register(applicationInstantiationService.createInstance(AgentHostCheckpointService));
+		applicationServices.set(IAgentHostCheckpointService, this._checkpointService);
 
-		this._promptCache = instantiationService.createInstance(AgentHostPromptCache);
-		services.set(IAgentHostPromptCache, this._promptCache);
-		this._sessionTitleSignal = this._register(instantiationService.createInstance(AgentHostSessionTitleSignal));
-		services.set(IAgentHostSessionTitleSignal, this._sessionTitleSignal);
+		this._promptCache = applicationInstantiationService.createInstance(AgentHostPromptCache);
+		applicationServices.set(IAgentHostPromptCache, this._promptCache);
+		this._sessionTitleSignal = this._register(applicationInstantiationService.createInstance(AgentHostSessionTitleSignal));
+		applicationServices.set(IAgentHostSessionTitleSignal, this._sessionTitleSignal);
 
 		// The subscription service manages the lifecycle of changeset subscriptions. The service
 		// is also consulted by other services when refreshing changesets and changeset operations.
-		this._changesetSubscriptions = instantiationService.createInstance(AgentHostChangesetSubscriptionService);
-		services.set(IAgentHostChangesetSubscriptionService, this._changesetSubscriptions);
+		this._changesetSubscriptions = applicationInstantiationService.createInstance(AgentHostChangesetSubscriptionService);
+		applicationServices.set(IAgentHostChangesetSubscriptionService, this._changesetSubscriptions);
 
 		// The operation contribution service manages the lifecycle of changeset operations.
-		this._changesetOperationService = this._register(instantiationService.createInstance(AgentHostChangesetOperationService));
-		services.set(IAgentHostChangesetOperationService, this._changesetOperationService);
+		this._changesetOperationService = this._register(applicationInstantiationService.createInstance(AgentHostChangesetOperationService));
+		applicationServices.set(IAgentHostChangesetOperationService, this._changesetOperationService);
 
 		// The changes review service is responsible for managing review/unreview state for changeset changes.
-		this._reviewService = this._register(instantiationService.createInstance(AgentHostReviewService));
-		services.set(IAgentHostReviewService, this._reviewService);
+		this._reviewService = this._register(applicationInstantiationService.createInstance(AgentHostReviewService));
+		applicationServices.set(IAgentHostReviewService, this._reviewService);
 
 		// The changeset service is responsible for computing, publishing, and persisting changesets.
-		this._changesets = this._register(instantiationService.createInstance(AgentHostChangesetService));
-		services.set(IAgentHostChangesetService, this._changesets);
+		this._changesets = this._register(applicationInstantiationService.createInstance(AgentHostChangesetService));
+		applicationServices.set(IAgentHostChangesetService, this._changesets);
 
 		// The coordinator owns all AgentService-side orchestration of the changeset feature: lifecycle
 		// hooks, listSessions overlay, subscription URI routing, and the deferred-refresh state machine.
-		this._changesetCoordinator = this._register(instantiationService.createInstance(AgentHostChangesetCoordinator));
+		this._changesetCoordinator = this._register(applicationInstantiationService.createInstance(AgentHostChangesetCoordinator));
 		this._register(this._stateManager.onDidChangeSessionActiveTurn(e => this._changesetCoordinator.onSessionTurnActiveChanged(e.session, e.active)));
 
 		// Register the changeset operation contributions.
-		this._register(this._changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostCommitOperationContribution)));
-		this._register(this._changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostPullRequestOperationContribution)));
-		this._register(this._changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostMergeOperationContribution)));
-		this._register(this._changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostSyncOperationContribution)));
-		this._register(this._changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostDiscardChangesOperationContribution)));
+		this._register(this._changesetOperationService.registerContribution(applicationInstantiationService.createInstance(AgentHostCommitOperationContribution)));
+		this._register(this._changesetOperationService.registerContribution(applicationInstantiationService.createInstance(AgentHostPullRequestOperationContribution)));
+		this._register(this._changesetOperationService.registerContribution(applicationInstantiationService.createInstance(AgentHostMergeOperationContribution)));
+		this._register(this._changesetOperationService.registerContribution(applicationInstantiationService.createInstance(AgentHostSyncOperationContribution)));
+		this._register(this._changesetOperationService.registerContribution(applicationInstantiationService.createInstance(AgentHostDiscardChangesOperationContribution)));
 
-		this._completions = this._register(instantiationService.createInstance(AgentHostCompletions));
-		services.set(IAgentHostCompletions, this._completions);
+		this._completions = this._register(applicationInstantiationService.createInstance(AgentHostCompletions));
+		applicationServices.set(IAgentHostCompletions, this._completions);
 		// Built-in generic provider: completes files in the session's workspace folder.
-		const workspaceFiles = this._register(instantiationService.createInstance(AgentHostWorkspaceFiles));
+		const workspaceFiles = this._register(applicationInstantiationService.createInstance(AgentHostWorkspaceFiles));
 		this._register(this._completions.registerProvider(
 			new AgentHostFileCompletionProvider(this._stateManager, workspaceFiles, this._logService),
 		));
@@ -746,12 +746,12 @@ export class AgentService extends Disposable implements IAgentService {
 		// Created before AgentSideEffects and registered in the local scope so
 		// AgentSideEffects can consume it via DI (for inline `!command`
 		// execution).
-		this._terminalManager = this._register(instantiationService.createInstance(AgentHostTerminalManager));
-		services.set(IAgentHostTerminalManager, this._terminalManager);
+		this._terminalManager = this._register(applicationInstantiationService.createInstance(AgentHostTerminalManager));
+		applicationServices.set(IAgentHostTerminalManager, this._terminalManager);
 
 		this._localTurns = new AgentHostLocalTurns(this._sessionDataService, this._logService);
 
-		this._sideEffects = this._register(instantiationService.createInstance(AgentSideEffects, this._stateManager, this._customizationEnablementService, {
+		this._sideEffects = this._register(applicationInstantiationService.createInstance(AgentSideEffects, this._stateManager, this._customizationEnablementService, {
 			getAgent: session => this._findProviderForSession(session),
 			sessionDataService: this._sessionDataService,
 			localTurns: this._localTurns,
@@ -797,7 +797,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// state. The set of groups (and their display) is the single source of
 		// truth in `serverToolGroups.ts`; the session-management group's runtime
 		// dependency (this service) is injected via the accessor.
-		const agentMergeTools = instantiationService.createInstance(
+		const agentMergeTools = applicationInstantiationService.createInstance(
 			AgentMergeTools,
 			() => this._agentMergeController.isEnabled(),
 			session => this._agentMergeController.getTurnContext(session),

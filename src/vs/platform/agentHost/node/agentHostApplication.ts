@@ -9,24 +9,24 @@ import { AgentService, IAgentServiceOptions } from './agentService.js';
 
 export interface IAgentHostApplication<T extends AgentService = AgentService> {
 	readonly agentService: T;
-	readonly instantiationService: IInstantiationService;
-	readonly services: ServiceCollection;
+	readonly applicationInstantiationService: IInstantiationService;
+	readonly applicationServices: ServiceCollection;
 }
 
-type AgentServiceFactory<T extends AgentService> = (instantiationService: IInstantiationService, services: ServiceCollection) => T;
+type AgentServiceFactory<T extends AgentService> = (applicationInstantiationService: IInstantiationService, applicationServices: ServiceCollection) => T;
 
-export function createAgentHostApplication(parentInstantiationService: IInstantiationService, options: IAgentServiceOptions): IAgentHostApplication;
-export function createAgentHostApplication<T extends AgentService>(parentInstantiationService: IInstantiationService, options: IAgentServiceOptions, factory: AgentServiceFactory<T>): IAgentHostApplication<T>;
-export function createAgentHostApplication(parentInstantiationService: IInstantiationService, options: IAgentServiceOptions, factory?: AgentServiceFactory<AgentService>): IAgentHostApplication {
-	const services = new ServiceCollection();
-	const instantiationService = parentInstantiationService.createChild(services);
+export function createAgentHostApplication(bootstrapInstantiationService: IInstantiationService, options: IAgentServiceOptions): IAgentHostApplication;
+export function createAgentHostApplication<T extends AgentService>(bootstrapInstantiationService: IInstantiationService, options: IAgentServiceOptions, factory: AgentServiceFactory<T>): IAgentHostApplication<T>;
+export function createAgentHostApplication(bootstrapInstantiationService: IInstantiationService, options: IAgentServiceOptions, factory?: AgentServiceFactory<AgentService>): IAgentHostApplication {
+	const applicationServices = new ServiceCollection();
+	const applicationInstantiationService = bootstrapInstantiationService.createChild(applicationServices);
 	try {
 		const agentService = factory
-			? factory(instantiationService, services)
-			: instantiationService.createInstance(AgentService, options, services);
-		return { agentService, instantiationService, services };
+			? factory(applicationInstantiationService, applicationServices)
+			: applicationInstantiationService.createInstance(AgentService, options, applicationServices);
+		return { agentService, applicationInstantiationService, applicationServices };
 	} catch (error) {
-		instantiationService.dispose();
+		applicationInstantiationService.dispose();
 		throw error;
 	}
 }
