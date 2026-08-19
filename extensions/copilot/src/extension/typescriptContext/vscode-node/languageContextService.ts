@@ -1644,7 +1644,7 @@ class CachePopulationTrigger implements vscode.Disposable {
 				this.onInlineCompletion(document, position, context);
 				return undefined;
 			}
-		}, { debounceDelayMs: 0, groupId: 'contextService' }));
+		}, { debounceDelayMs: 0, groupId: 'contextService', meteredNetworkAware: true }));
 	}
 
 	public dispose() {

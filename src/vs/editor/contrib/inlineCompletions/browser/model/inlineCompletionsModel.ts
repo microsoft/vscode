@@ -336,6 +336,7 @@ export class InlineCompletionsModel extends Disposable {
 				inlineCompletionTriggerKind: InlineCompletionTriggerKind.Automatic,
 				onlyRequestInlineEdits: false,
 				shouldDebounce: true,
+				forceUpdate: false,
 				provider: undefined as InlineCompletionsProvider | undefined,
 				changeHint: undefined as IInlineCompletionChangeHint | undefined,
 				textChange: false,
@@ -357,9 +358,11 @@ export class InlineCompletionsModel extends Disposable {
 					changeSummary.dontRefetch = true;
 				} else if (ctx.didChange(this._onlyRequestInlineEditsSignal)) {
 					changeSummary.onlyRequestInlineEdits = true;
+					changeSummary.forceUpdate = true;
 				} else if (ctx.didChange(this._fetchSpecificProviderSignal)) {
 					changeSummary.provider = ctx.change?.provider;
 					changeSummary.changeHint = ctx.change?.changeHint;
+					changeSummary.forceUpdate = true;
 				}
 				return true;
 			},
@@ -454,17 +457,18 @@ export class InlineCompletionsModel extends Disposable {
 		const providers = changeSummary.provider
 			? { providers: [changeSummary.provider], label: 'single:' + changeSummary.provider.providerId?.toString() }
 			: { providers: this._languageFeaturesService.inlineCompletionsProvider.all(this.textModel), label: undefined }; // TODO: should use inlineCompletionProviders
-		const availableProviders = this.getAvailableProviders(providers.providers);
+		const availableProviders = this.getAvailableProviders(providers.providers, context);
 		requestInfo.availableProviders = availableProviders.map(p => p.providerId).filter(isDefined);
 
-		return this._source.fetch(availableProviders, providers.label, context, itemToPreserve?.identity, changeSummary.shouldDebounce, userJumpedToActiveCompletion, requestInfo);
+		return this._source.fetch(availableProviders, providers.label, context, itemToPreserve?.identity, changeSummary.shouldDebounce, userJumpedToActiveCompletion, requestInfo, changeSummary.forceUpdate);
 	});
 
 	// TODO: This is not an ideal implementation of excludesGroupIds, however as this is currently still behind proposed API
 	// and due to the time constraints, we are using a simplified approach
-	private getAvailableProviders(providers: InlineCompletionsProvider[]): InlineCompletionsProvider[] {
+	private getAvailableProviders(providers: InlineCompletionsProvider[], context: InlineCompletionContextWithoutUuid): InlineCompletionsProvider[] {
+		const eligibleProviders = providers.filter(provider => provider.isAvailable?.(context) !== false);
 		const suppressedProviderGroupIds = this._suppressedInlineCompletionGroupIds.get();
-		const unsuppressedProviders = providers.filter(provider => !(provider.groupId && suppressedProviderGroupIds.has(provider.groupId)));
+		const unsuppressedProviders = eligibleProviders.filter(provider => !(provider.groupId && suppressedProviderGroupIds.has(provider.groupId)));
 
 		const excludedGroupIds = new Set<string>();
 		for (const provider of unsuppressedProviders) {

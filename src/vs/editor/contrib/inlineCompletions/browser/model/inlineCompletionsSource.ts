@@ -160,17 +160,20 @@ export class InlineCompletionsSource extends Disposable {
 		activeInlineCompletion: InlineSuggestionIdentity | undefined,
 		withDebounce: boolean,
 		userJumpedToActiveCompletion: IObservable<boolean>,
-		requestInfo: InlineSuggestRequestInfo
+		requestInfo: InlineSuggestRequestInfo,
+		forceUpdate = false,
 	): Promise<boolean> {
 		const position = this._cursorPosition.get();
 		const request = new UpdateRequest(position, context, this._textModel.getVersionId(), new Set(providers));
 
 		const target = context.selectedSuggestionInfo ? this.suggestWidgetInlineCompletions.get() : this.inlineCompletions.get();
 
-		if (this._updateOperation.value?.request.satisfies(request)) {
-			return this._updateOperation.value.promise;
-		} else if (target?.request?.satisfies(request)) {
-			return Promise.resolve(true);
+		if (!forceUpdate) {
+			if (this._updateOperation.value?.request.satisfies(request)) {
+				return this._updateOperation.value.promise;
+			} else if (target?.request?.satisfies(request)) {
+				return Promise.resolve(true);
+			}
 		}
 
 		const updateOngoing = !!this._updateOperation.value;

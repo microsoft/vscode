@@ -91,10 +91,11 @@ declare module 'vscode' {
 
 	export interface InlineCompletionItemProviderMetadata {
 		/**
-		 * Whether this provider may make network requests when computing inline completions.
-		 * Defaults to `true`.
+		 * Whether this provider can safely provide inline completions on a metered connection,
+		 * either because it does not use the network or because it handles metered connections itself.
+		 * Defaults to `false`.
 		 */
-		usesNetworkRequests?: boolean;
+		meteredNetworkAware?: boolean;
 
 		/**
 		 * Specifies a list of extension ids that this provider yields to if they return a result.

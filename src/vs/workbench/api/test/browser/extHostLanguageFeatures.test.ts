@@ -194,7 +194,7 @@ suite('ExtHostLanguageFeatures', function () {
 		});
 
 		disposables.add(extHost.registerInlineCompletionsProvider(defaultExtension, defaultSelector, createProvider('network'), { groupId: 'network' }));
-		disposables.add(extHost.registerInlineCompletionsProvider(defaultExtension, defaultSelector, createProvider('local'), { groupId: 'local', usesNetworkRequests: false }));
+		disposables.add(extHost.registerInlineCompletionsProvider(defaultExtension, defaultSelector, createProvider('local'), { groupId: 'local', meteredNetworkAware: true }));
 		disposables.add(extHost.registerInlineCompletionsProvider(defaultExtension, defaultSelector, createProvider('delayed'), { groupId: 'delayed' }));
 		await rpcProtocol.sync();
 
@@ -205,6 +205,9 @@ suite('ExtHostLanguageFeatures', function () {
 		assert.ok(networkProvider);
 		assert.ok(localProvider);
 		assert.ok(delayedProvider);
+		assert.ok(networkProvider.onDidChangeInlineCompletions);
+		let networkAvailabilityChanges = 0;
+		disposables.add(networkProvider.onDidChangeInlineCompletions(() => networkAvailabilityChanges++));
 
 		const context = (triggerKind: languages.InlineCompletionTriggerKind): languages.InlineCompletionContext => ({
 			triggerKind,
@@ -217,11 +220,15 @@ suite('ExtHostLanguageFeatures', function () {
 		});
 
 		meteredConnectionService.setIsConnectionMetered(true);
+		const networkAutomaticAvailable = networkProvider.isAvailable?.(context(languages.InlineCompletionTriggerKind.Automatic));
+		const localAutomaticAvailable = localProvider.isAvailable?.(context(languages.InlineCompletionTriggerKind.Automatic));
+		const networkExplicitAvailable = networkProvider.isAvailable?.(context(languages.InlineCompletionTriggerKind.Explicit));
 		const networkAutomatic = await networkProvider.provideInlineCompletions(model, new EditorPosition(1, 1), context(languages.InlineCompletionTriggerKind.Automatic), CancellationToken.None);
 		const localAutomatic = await localProvider.provideInlineCompletions(model, new EditorPosition(1, 1), context(languages.InlineCompletionTriggerKind.Automatic), CancellationToken.None);
 		const networkExplicit = await networkProvider.provideInlineCompletions(model, new EditorPosition(1, 1), context(languages.InlineCompletionTriggerKind.Explicit), CancellationToken.None);
 
 		meteredConnectionService.setIsConnectionMetered(false);
+		const networkUnmeteredAvailable = networkProvider.isAvailable?.(context(languages.InlineCompletionTriggerKind.Automatic));
 		const networkUnmetered = await networkProvider.provideInlineCompletions(model, new EditorPosition(1, 1), context(languages.InlineCompletionTriggerKind.Automatic), CancellationToken.None);
 		const delayedPromise = delayedProvider.provideInlineCompletions(model, new EditorPosition(1, 1), context(languages.InlineCompletionTriggerKind.Automatic), CancellationToken.None);
 		meteredConnectionService.setIsConnectionMetered(true);
@@ -230,6 +237,11 @@ suite('ExtHostLanguageFeatures', function () {
 
 		assert.deepStrictEqual({
 			calls,
+			networkAvailabilityChanges,
+			networkAutomaticAvailable,
+			localAutomaticAvailable,
+			networkExplicitAvailable,
+			networkUnmeteredAvailable,
 			networkAutomatic: networkAutomatic?.items.length,
 			localAutomatic: localAutomatic?.items.length,
 			networkExplicit: networkExplicit?.items.length,
@@ -237,6 +249,11 @@ suite('ExtHostLanguageFeatures', function () {
 			inFlightAfterMetered: inFlightAfterMetered?.items.length,
 		}, {
 			calls: ['local:automatic', 'network:explicit', 'network:automatic', 'delayed:automatic'],
+			networkAvailabilityChanges: 1,
+			networkAutomaticAvailable: false,
+			localAutomaticAvailable: true,
+			networkExplicitAvailable: true,
+			networkUnmeteredAvailable: true,
 			networkAutomatic: undefined,
 			localAutomatic: 1,
 			networkExplicit: 1,

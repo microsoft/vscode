@@ -656,7 +656,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		displayName: string | undefined,
 		debounceDelayMs: number | undefined,
 		excludesExtensionIds: string[],
-		usesNetworkRequests: boolean,
+		meteredNetworkAware: boolean,
 		supportsOnDidChange: boolean,
 		supportsSetModelId: boolean,
 		initialModelInfo: IInlineCompletionModelInfoDto | undefined,
@@ -674,7 +674,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 			providerId,
 			yieldsToExtensionIds,
 			excludesExtensionIds,
-			usesNetworkRequests,
+			meteredNetworkAware,
 			debounceDelayMs,
 			displayName,
 			initialModelInfo,
@@ -1322,7 +1322,7 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 		public readonly providerId: languages.ProviderId,
 		public readonly yieldsToGroupIds: string[],
 		public readonly excludesGroupIds: string[],
-		private readonly _usesNetworkRequests: boolean,
+		private readonly _meteredNetworkAware: boolean,
 		public readonly debounceDelayMs: number | undefined,
 		public readonly displayName: string | undefined,
 		public modelInfo: languages.IInlineCompletionModelInfo | undefined,
@@ -1350,9 +1350,13 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 			await this._proxy.$handleInlineCompletionSetProviderOption(this.handle, optionId, valueId);
 		} : undefined;
 
-		this.onDidChangeInlineCompletions = this._supportsOnDidChange ? this._onDidChangeEmitter.event : undefined;
+		this.onDidChangeInlineCompletions = this._supportsOnDidChange || !this._meteredNetworkAware ? this._onDidChangeEmitter.event : undefined;
 		this.onDidChangeModelInfo = this._supportsOnDidChangeModelInfo ? this._onDidChangeModelInfoEmitter.event : undefined;
 		this.onDidProviderOptionsChange = this._supportsOnDidChangeProviderOptions ? this._onDidProviderOptionsChangeEmitter.event : undefined;
+
+		if (!this._meteredNetworkAware) {
+			this._register(Event.filter(this._meteredConnectionService.onDidChangeIsConnectionMetered, isMetered => !isMetered)(() => this._onDidChangeEmitter.fire()));
+		}
 
 		this._register(this._languageFeaturesService.inlineCompletionsProvider.register(this._selector, this));
 	}
@@ -1377,10 +1381,14 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 		}
 	}
 
+	public isAvailable(context: Pick<languages.InlineCompletionContext, 'triggerKind'>): boolean {
+		return this._meteredNetworkAware
+			|| context.triggerKind !== languages.InlineCompletionTriggerKind.Automatic
+			|| !this._meteredConnectionService.isConnectionMetered;
+	}
+
 	public async provideInlineCompletions(model: ITextModel, position: EditorPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined> {
-		if (this._usesNetworkRequests
-			&& context.triggerKind === languages.InlineCompletionTriggerKind.Automatic
-			&& this._meteredConnectionService.isConnectionMetered) {
+		if (!this.isAvailable(context)) {
 			return undefined;
 		}
 		return this._proxy.$provideInlineCompletions(this.handle, model.uri, position, context, token);

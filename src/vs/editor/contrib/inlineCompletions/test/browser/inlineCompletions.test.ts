@@ -20,6 +20,7 @@ import { InlineCompletionsSource } from '../../browser/model/inlineCompletionsSo
 import { IWithAsyncTestCodeEditorAndInlineCompletionsModel, MockInlineCompletionsProvider, withAsyncTestCodeEditorAndInlineCompletionsModel } from './utils.js';
 import { ITestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { Selection } from '../../../../common/core/selection.js';
+import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
 
 suite('Inline Completions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -848,10 +849,6 @@ suite('Multi Cursor Support', () => {
 				assert.strictEqual(firstCallHistory.length, 1);
 				assert.strictEqual((firstCallHistory[0] as { changeHint?: unknown }).changeHint, undefined);
 
-				// Change cursor position to avoid cache hit
-				editor.setPosition({ lineNumber: 1, column: 3 });
-
-
 				const changeHintData = { reason: 'modelUpdated', version: 42 };
 				provider.setReturnValue({ insertText: 'foobaz', range: new Range(1, 1, 1, 4) });
 				provider.fireOnDidChange({ data: changeHintData });
@@ -868,7 +865,7 @@ suite('Multi Cursor Support', () => {
 								version: 42,
 							}
 						},
-						position: '(1,3)',
+						position: '(1,4)',
 						text: 'foo',
 						triggerKind: 0
 					}]
@@ -880,7 +877,7 @@ suite('Multi Cursor Support', () => {
 	test('Change hint is undefined when onDidChange fires without hint', async function () {
 		const provider = new MockInlineCompletionsProvider();
 		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
-			{ fakeClock: true, provider, inlineSuggest: { enabled: true } },
+			{ fakeClock: true, provider, inlineSuggest: { enabled: true, triggerCommandOnProviderChange: true } },
 			async ({ editor, editorViewModel, model, context }) => {
 				context.keyboardType('foo');
 				provider.setReturnValue({ insertText: 'foobar', range: new Range(1, 1, 1, 4) });
@@ -888,9 +885,6 @@ suite('Multi Cursor Support', () => {
 				await timeout(1000);
 
 				provider.getAndClearCallHistory();
-
-				// Change cursor position to avoid cache hit
-				editor.setPosition({ lineNumber: 1, column: 3 });
 
 				provider.setReturnValue({ insertText: 'foobaz', range: new Range(1, 1, 1, 4) });
 				provider.fireOnDidChange();
@@ -901,11 +895,57 @@ suite('Multi Cursor Support', () => {
 				assert.deepStrictEqual(
 					callHistory,
 					[{
-						position: '(1,3)',
+						position: '(1,4)',
 						text: 'foo',
 						triggerKind: 0
 					}]
 				);
+			}
+		);
+	});
+});
+
+suite('Provider Selection', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('Unavailable providers do not exclude available providers', async function () {
+		const localProvider = Object.assign(new MockInlineCompletionsProvider(), {
+			groupId: 'local',
+		});
+		const networkProvider = Object.assign(new MockInlineCompletionsProvider(), {
+			groupId: 'network',
+			excludesGroupIds: ['local'],
+			isAvailable: (context: { triggerKind: InlineCompletionTriggerKind }) => context.triggerKind === InlineCompletionTriggerKind.Explicit,
+		});
+		localProvider.setReturnValue({ insertText: 'local' });
+		networkProvider.setReturnValue({ insertText: 'network' });
+
+		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
+			{ fakeClock: true, provider: localProvider, inlineSuggest: { enabled: true } },
+			async ({ context, instantiationService, model, store }) => {
+				const languageFeaturesService = instantiationService.get(ILanguageFeaturesService);
+				store.add(languageFeaturesService.inlineCompletionsProvider.register({ pattern: '**' }, networkProvider));
+
+				context.keyboardType('a');
+				await timeout(1000);
+				const automaticLocalCalls = localProvider.getAndClearCallHistory().length;
+				const automaticNetworkCalls = networkProvider.getAndClearCallHistory().length;
+
+				await model.triggerExplicitly();
+				const explicitLocalCalls = localProvider.getAndClearCallHistory().length;
+				const explicitNetworkCalls = networkProvider.getAndClearCallHistory().length;
+
+				assert.deepStrictEqual({
+					automaticLocalCalls,
+					automaticNetworkCalls,
+					explicitLocalCalls,
+					explicitNetworkCalls,
+				}, {
+					automaticLocalCalls: 1,
+					automaticNetworkCalls: 0,
+					explicitLocalCalls: 0,
+					explicitNetworkCalls: 1,
+				});
 			}
 		);
 	});
