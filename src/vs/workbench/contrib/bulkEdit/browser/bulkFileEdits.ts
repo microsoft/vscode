@@ -5,8 +5,8 @@
 
 
 import { WorkspaceFileEditOptions } from '../../../../editor/common/languages.js';
-import { IFileService, FileSystemProviderCapabilities, IFileContent, IFileStatWithMetadata } from '../../../../platform/files/common/files.js';
-import { IProgress } from '../../../../platform/progress/common/progress.js';
+import { IFileService, FileSystemProviderCapabilities, IFileContent, IFileStatWithMetadata, IFileCopyProgress, ByteSize } from '../../../../platform/files/common/files.js';
+import { IProgress, IProgressStep } from '../../../../platform/progress/common/progress.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkingCopyFileService, IFileOperationUndoRedoInfo, IMoveOperation, ICopyOperation, IDeleteOperation, ICreateOperation, ICreateFileOperation } from '../../../services/workingCopy/common/workingCopyFileService.js';
 import { IWorkspaceUndoRedoElement, UndoRedoElementType, IUndoRedoService, UndoRedoGroup, UndoRedoSource } from '../../../../platform/undoRedo/common/undoRedo.js';
@@ -99,6 +99,7 @@ class CopyOperation implements IFileOperation {
 	constructor(
 		private readonly _edits: CopyEdit[],
 		private readonly _undoRedoInfo: IFileOperationUndoRedoInfo,
+		private readonly _progress: IProgress<IProgressStep>,
 		@IWorkingCopyFileService private readonly _workingCopyFileService: IWorkingCopyFileService,
 		@IFileService private readonly _fileService: IFileService,
 		@IInstantiationService private readonly _instaService: IInstantiationService
@@ -123,9 +124,30 @@ class CopyOperation implements IFileOperation {
 		if (copies.length === 0) {
 			return new Noop();
 		}
+		let lastPercentage = -1;
 
+		const copyProgress: IProgress<IFileCopyProgress> = {
+			report: ({ bytes, total }) => {
+				if (typeof total !== 'number' || total <= 0) {
+					this._progress.report({
+						message: ByteSize.formatSize(bytes)
+					});
+					return;
+				}
+				const percentage = Math.floor((bytes / total) * 100);
+
+				if (percentage === lastPercentage) {
+					return;
+				}
+				lastPercentage = percentage;
+				this._progress.report({
+					message: `${ByteSize.formatSize(bytes)} / ${ByteSize.formatSize(total)} — ${percentage}%`
+				});
+			}
+		};
 		// (2) perform the actual copy and use the return stats to build undo edits
-		const stats = await this._workingCopyFileService.copy(copies, token, this._undoRedoInfo);
+		const stats = await this._workingCopyFileService.copy(copies, token, this._undoRedoInfo, copyProgress);
+
 		const undoes: DeleteEdit[] = [];
 
 		for (let i = 0; i < stats.length; i++) {
@@ -333,6 +355,7 @@ export class BulkFileEdits {
 		private readonly _undoRedoSource: UndoRedoSource | undefined,
 		private readonly _confirmBeforeUndo: boolean,
 		private readonly _progress: IProgress<void>,
+		private readonly _fileProgress: IProgress<IProgressStep>,
 		private readonly _token: CancellationToken,
 		private readonly _edits: ResourceFileEdit[],
 		@IInstantiationService private readonly _instaService: IInstantiationService,
@@ -385,7 +408,7 @@ export class BulkFileEdits {
 					op = this._instaService.createInstance(RenameOperation, <RenameEdit[]>group, undoRedoInfo);
 					break;
 				case 'copy':
-					op = this._instaService.createInstance(CopyOperation, <CopyEdit[]>group, undoRedoInfo);
+					op = this._instaService.createInstance(CopyOperation, <CopyEdit[]>group, undoRedoInfo, this._fileProgress);
 					break;
 				case 'delete':
 					op = this._instaService.createInstance(DeleteOperation, <DeleteEdit[]>group, undoRedoInfo);

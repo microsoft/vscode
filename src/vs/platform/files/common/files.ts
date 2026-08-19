@@ -20,6 +20,7 @@ import { isWeb } from '../../../base/common/platform.js';
 import { Schemas } from '../../../base/common/network.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { Lazy } from '../../../base/common/lazy.js';
+import { IProgress } from '../../progress/common/progress.js';
 
 //#region file service & providers
 
@@ -185,7 +186,7 @@ export interface IFileService {
 	 *
 	 * Emits a `FileOperation.COPY` file operation event when successful.
 	 */
-	copy(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
+	copy(source: URI, target: URI, overwrite?: boolean, progress?: IProgress<IFileCopyProgress>): Promise<IFileStatWithMetadata>;
 
 	/**
 	 * Find out if a copy operation is possible given the arguments. No changes on disk will
@@ -269,6 +270,18 @@ export interface IFileService {
 	dispose(): void;
 }
 
+export interface IFileCopyProgress {
+
+	/**
+	 * Number of bytes copied so far.
+	 */
+	readonly bytes: number;
+
+	/**
+	 * Total number of bytes to copy, when known.
+	 */
+	readonly total?: number;
+}
 export interface IFileOverwriteOptions {
 
 	/**
