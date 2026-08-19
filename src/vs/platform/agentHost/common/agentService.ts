@@ -107,6 +107,9 @@ export interface IAgentHostDebugLogsChunk {
 /** Configuration key controlling automatic OS system proxy discovery for agent-host Copilot sessions. */
 export const AgentHostSystemProxyEnabledSettingId = 'chat.agentHost.systemProxy.enabled';
 
+/** Configuration key controlling the GitHub MCP server in agent-host sessions. */
+export const AgentHostGitHubMcpServerEnabledSettingId = 'chat.agentHost.githubMcpServer.enabled';
+
 /** Configuration key gating active-agent session and chat title generation. */
 export const AgentHostActiveAgentTitleGenerationSettingId = 'chat.agentHost.experimental.activeAgentTitleGeneration';
 
