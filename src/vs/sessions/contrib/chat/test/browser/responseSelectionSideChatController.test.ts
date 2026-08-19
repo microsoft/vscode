@@ -5,9 +5,10 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../base/browser/dom.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -18,10 +19,12 @@ import { TestNotificationService } from '../../../../../platform/notification/te
 import { IChatWidget } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatResponseViewModel } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { ResponseSelectionSideChatController } from '../../browser/responseSelectionSideChatController.js';
+import { ITransientSideChatService } from '../../browser/transientSideChatService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISideChatOrchestrationService, SideChatOrchestrationService } from '../../browser/sideChatOrchestration.js';
 
 class RecordingNotificationService extends TestNotificationService {
 	readonly notifications: { severity: Severity; message: string }[] = [];
@@ -42,6 +45,8 @@ suite('ResponseSelectionSideChatController', () => {
 		createSideChatInSession?: ISessionsManagementService['createSideChatInSession'];
 		sendRequest?: ISessionsManagementService['sendRequest'];
 		getElementFromNode?: IChatWidget['getElementFromNode'];
+		presentTransiently?: boolean;
+		failurePresented?: boolean;
 	}) {
 		const store = disposables.add(new DisposableStore());
 		const instantiationService = store.add(new TestInstantiationService());
@@ -114,6 +119,7 @@ suite('ResponseSelectionSideChatController', () => {
 			focusNode: activeRange.endContainer,
 			rangeCount: 1,
 			getRangeAt: () => activeRange,
+			removeAllRanges: () => { selectionText = ''; },
 		});
 		store.add(toDisposable(() => { mutableWindow.getSelection = originalGetSelection; }));
 
@@ -156,6 +162,8 @@ suite('ResponseSelectionSideChatController', () => {
 			isArchived: constObservable(false),
 			capabilities: constObservable({ supportsMultipleChats: true, supportsSideChat: true }),
 		});
+		const activeChat = observableValue<IChat>('test.activeChat', chat);
+		const activeSession = upcastPartial<IActiveSession>({ ...session, activeChat });
 
 		const callOrder: string[] = [];
 		const notificationService = new RecordingNotificationService();
@@ -170,13 +178,23 @@ suite('ResponseSelectionSideChatController', () => {
 			}),
 		}));
 		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
+			activeSession: constObservable(activeSession),
 			openChat: async (_session, chatUri) => {
 				callOrder.push(`open:${chatUri.toString()}`);
+				activeChat.set(sideChat, undefined);
 			},
 		}));
 		instantiationService.stub(ISessionsPartService, upcastPartial<ISessionsPartService>({
 			getSessionView: () => undefined,
 		}));
+		instantiationService.stub(ITransientSideChatService, upcastPartial<ITransientSideChatService>({
+			show: async () => options?.presentTransiently ?? false,
+			markFailed: resource => {
+				callOrder.push(`failed:${resource.toString()}`);
+				return options?.failurePresented !== false;
+			},
+		}));
+		instantiationService.stub(ISideChatOrchestrationService, instantiationService.createInstance(SideChatOrchestrationService));
 		instantiationService.stub(INotificationService, notificationService);
 		instantiationService.stub(ILogService, new NullLogService());
 
@@ -501,6 +519,82 @@ suite('ResponseSelectionSideChatController', () => {
 			`send:${sideChat.resource.toString()}:what does this mean?`,
 		]);
 		assert.strictEqual(isInputBusy(controller), false, 'busy clears once the orchestration settles');
+	});
+
+	test('dismisses the selection overlay as soon as transient presentation succeeds', async () => {
+		const sendStarted = new DeferredPromise<void>();
+		const sendCompleted = new DeferredPromise<void>();
+		const { controller, setSelection, autoScrollHolds } = setup({
+			presentTransiently: true,
+			sendRequest: async () => {
+				sendStarted.complete();
+				await sendCompleted.p;
+			},
+		});
+		setSelection('hello world');
+
+		submitViaClick(controller, 'what does this mean?');
+		await sendStarted.p;
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.deepStrictEqual({
+			visible: inputDomNode(controller).style.display !== 'none',
+			busy: isInputBusy(controller),
+			autoScrollHolds: autoScrollHolds(),
+		}, {
+			visible: false,
+			busy: false,
+			autoScrollHolds: 0,
+		});
+
+		sendCompleted.complete();
+	});
+
+	test('uses the transient card as the only send-failure surface', async () => {
+		const sendStarted = new DeferredPromise<void>();
+		const { controller, setSelection, notificationService, callOrder } = setup({
+			presentTransiently: true,
+			sendRequest: async () => {
+				sendStarted.complete();
+				throw new Error('send failed');
+			},
+		});
+		setSelection('hello world');
+
+		submitViaClick(controller, 'what does this mean?');
+		await sendStarted.p;
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.deepStrictEqual({
+			visible: inputDomNode(controller).style.display !== 'none',
+			notifications: notificationService.notifications,
+			failed: callOrder.filter(call => call.startsWith('failed:')),
+		}, {
+			visible: false,
+			notifications: [],
+			failed: [`failed:${URI.parse('test:///chat/side').toString()}`],
+		});
+	});
+
+	test('notifies when a transient card is dismissed before its send fails', async () => {
+		const sendStarted = new DeferredPromise<void>();
+		const { controller, setSelection, notificationService } = setup({
+			presentTransiently: true,
+			failurePresented: false,
+			sendRequest: async () => {
+				sendStarted.complete();
+				throw new Error('send failed');
+			},
+		});
+		setSelection('hello world');
+
+		submitViaClick(controller, 'what does this mean?');
+		await sendStarted.p;
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.deepStrictEqual(notificationService.notifications.map(notification => notification.message), [
+			'The side question could not be answered.',
+		]);
 	});
 
 	test('prevents duplicate submission (click and Enter) while a request is pending', async () => {

@@ -32,6 +32,15 @@ export interface IChatSideChatOrigin {
 	readonly selection?: IChatSideChatSelection;
 }
 
+export const enum ChatSideChatSendResultKind {
+	Sent = 'sent',
+	FailedAndPresented = 'failedAndPresented',
+}
+
+export type ChatSideChatSendResult =
+	| { readonly kind: ChatSideChatSendResultKind.Sent }
+	| { readonly kind: ChatSideChatSendResultKind.FailedAndPresented; readonly error: unknown };
+
 /**
  * Supplies the ability to branch a conversation into a side chat — a question
  * answered alongside the conversation without being added to it.
@@ -50,9 +59,10 @@ export interface IChatSideChatProvider {
 
 	/**
 	 * Branches a side chat from the conversation's latest turn, reveals it, and
-	 * sends `query` on it. Rejects if the side chat could not be created.
+	 * sends `query` on it. Rejects unless a created side-chat surface already
+	 * presents the failure.
 	 */
-	askInSideChat(sessionResource: URI, query: string, selection?: IChatSideChatSelection): Promise<void>;
+	askInSideChat(sessionResource: URI, query: string, selection?: IChatSideChatSelection): Promise<ChatSideChatSendResult>;
 
 	/**
 	 * Observes how `sessionResource` came to exist as a side chat, or `undefined`
@@ -79,7 +89,7 @@ export interface IChatSideChatService {
 	canAskInSideChat(sessionResource: URI): boolean;
 
 	/** @see IChatSideChatProvider.askInSideChat */
-	askInSideChat(sessionResource: URI, query: string, selection?: IChatSideChatSelection): Promise<void>;
+	askInSideChat(sessionResource: URI, query: string, selection?: IChatSideChatSelection): Promise<ChatSideChatSendResult>;
 
 	/** @see IChatSideChatProvider.observeSideChatOrigin */
 	observeSideChatOrigin(sessionResource: URI): IObservable<IChatSideChatOrigin | undefined>;
@@ -114,12 +124,12 @@ export class ChatSideChatService extends Disposable implements IChatSideChatServ
 		return !!this._findProvider(sessionResource);
 	}
 
-	async askInSideChat(sessionResource: URI, query: string, selection?: IChatSideChatSelection): Promise<void> {
+	async askInSideChat(sessionResource: URI, query: string, selection?: IChatSideChatSelection): Promise<ChatSideChatSendResult> {
 		const provider = this._findProvider(sessionResource);
 		if (!provider) {
 			throw new Error(`No side chat provider for ${sessionResource.toString()}`);
 		}
-		await provider.askInSideChat(sessionResource, query, selection);
+		return provider.askInSideChat(sessionResource, query, selection);
 	}
 
 	observeSideChatOrigin(sessionResource: URI): IObservable<IChatSideChatOrigin | undefined> {

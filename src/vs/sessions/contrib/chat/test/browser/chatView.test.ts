@@ -603,6 +603,18 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
+	test('keeps inline request-editing composers in block layout', () => {
+		const workbench = dom.$('.agent-sessions-workbench');
+		const sessionsPart = dom.append(workbench, dom.$('.part.sessionspart'));
+		const session = dom.append(sessionsPart, dom.$('.interactive-session'));
+		const editInputContainer = dom.append(session, dom.$('.chat-edit-input-container'));
+		const editInput = dom.append(editInputContainer, dom.$('.interactive-input-part'));
+		dom.getActiveDocument().body.append(workbench);
+		disposables.add(toDisposable(() => workbench.remove()));
+
+		assert.strictEqual(dom.getWindow(editInput).getComputedStyle(editInput).display, 'block');
+	});
+
 	test('stores view state independently by chat resource', () => {
 		const service = new SessionsChatViewStateService();
 		const first = URI.parse('test:///first');

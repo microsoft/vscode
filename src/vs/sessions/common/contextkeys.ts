@@ -48,6 +48,9 @@ export const SessionsChatBackgroundAvailableContext = new RawContextKey<boolean>
 export const SessionsChatBackgroundConfiguredContext = new RawContextKey<boolean>('sessionsChatBackgroundConfigured', false, localize('sessionsChatBackgroundConfigured', "Whether a chat background is configured for the current color theme"));
 export const SessionsChatBackgroundImageConfiguredContext = new RawContextKey<boolean>('sessionsChatBackgroundImageConfigured', false, localize('sessionsChatBackgroundImageConfigured', "Whether a chat background image is configured for the current color theme"));
 export const IsQuickChatSessionContext = new RawContextKey<boolean>('isQuickChatSession', false, localize('isQuickChatSession', "Whether the session in scope is a workspace-less quick chat"));
+export const TransientSideChatDismissibleContext = new RawContextKey<boolean>('transientSideChatDismissible', false, localize('transientSideChatDismissible', "Whether the session view has a transient side question that can be dismissed"));
+export const TransientSideChatFocusedContext = new RawContextKey<boolean>('transientSideChatFocused', false, localize('transientSideChatFocused', "Whether keyboard focus is inside a transient side-question card"));
+export const TransientSideChatSourceContext = new RawContextKey<string>('transientSideChatSource', '', localize('transientSideChatSource', "The source chat resource for the transient side question in scope"));
 
 //#endregion
 
