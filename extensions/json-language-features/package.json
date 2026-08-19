@@ -177,6 +177,9 @@
     "jsonValidationRegistry": [
       {
         "url": "vscode://schemas-associations/schemas-associations.json"
+      },
+      {
+        "url": "https://www.schemastore.org/api/json/catalog.json"
       }
     ],
     "commands": [
