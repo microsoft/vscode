@@ -2129,7 +2129,6 @@ export class SettingsEditor2 extends EditorPane {
 
 		if (token.isCancellationRequested || this._store.isDisposed) {
 			// Handle cancellation like this because cancellation is lost inside the search provider due to async/await.
-			// Also bail out if disposed while awaiting; disposed services throw.
 			return null;
 		}
 
