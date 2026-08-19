@@ -246,6 +246,21 @@ describe('CustomEndpointBYOKModelProvider', () => {
 			});
 		});
 
+		it('enables store and previous_response_id for Custom Endpoint Responses requests when zeroDataRetentionEnabled is false', async () => {
+			const endpoint = await createConfiguredResponsesEndpoint(false);
+			const body = createResponsesBody(endpoint);
+
+			expect({
+				storePresent: 'store' in body,
+				store: body.store,
+				previousResponseId: body.previous_response_id,
+			}).toEqual({
+				storePresent: true,
+				store: true,
+				previousResponseId: customResponsesMarker,
+			});
+		});
+
 		it('disables store and previous_response_id for Custom Endpoint ZDR Responses requests', async () => {
 			const endpoint = await createConfiguredResponsesEndpoint(true);
 			const body = createResponsesBody(endpoint);
