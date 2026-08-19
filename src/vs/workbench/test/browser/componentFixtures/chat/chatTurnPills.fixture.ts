@@ -155,12 +155,14 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 			}),
 		}),
 
-		// The external README remains in the preview pill and out of the expanded
-		// workspace changes list.
+		// Expanded workspace changes list. External README stays in the preview
+		// pill (not this list). Workspace markdown rows get the per-row Preview
+		// icon; non-md rows have no row action.
 		ChangesAndExternalPreview_Expanded: defineComponentFixture({
 			render: (ctx) => renderTurnPills(ctx, {
 				expanded: true,
 				diffs: [
+					fileDiff('docs.md', 12, 2, true),
 					fileDiff('index.html', 30, 4, true),
 					fileDiff('app.ts', 8, 3, false),
 					fileDiff('styles.css', 4, 1, false),
