@@ -107,6 +107,9 @@ export interface IAgentHostDebugLogsChunk {
 /** Configuration key controlling automatic OS system proxy discovery for agent-host Copilot sessions. */
 export const AgentHostSystemProxyEnabledSettingId = 'chat.agentHost.systemProxy.enabled';
 
+/** Configuration key controlling the GitHub MCP server in agent-host sessions. */
+export const AgentHostGitHubMcpServerEnabledSettingId = 'chat.agentHost.githubMcpServer.enabled';
+
 /** Configuration key gating active-agent session and chat title generation. */
 export const AgentHostActiveAgentTitleGenerationSettingId = 'chat.agentHost.experimental.activeAgentTitleGeneration';
 
@@ -773,6 +776,7 @@ export interface IAgentHostManagementService {
 	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo>;
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult>;
+	getSessionStateFile(session: URI): Promise<URI | undefined>;
 	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact>;
 	readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk>;
 	startWebSocketServer(): Promise<IAgentHostSocketInfo>;
@@ -906,6 +910,8 @@ export interface IAgentService {
 	 * Diagnostics" developer command.
 	 */
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult>;
+
+	getSessionStateFile?(session: URI): Promise<URI | undefined>;
 
 	collectDebugLogs?(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact>;
 
@@ -1137,6 +1143,8 @@ export interface IAgentConnection {
 	 * environment the Copilot SDK actually runs in.
 	 */
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult>;
+
+	getSessionStateFile(session: URI): Promise<URI | undefined>;
 
 	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact>;
 

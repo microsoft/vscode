@@ -53,6 +53,7 @@ import { AgentHostOTelService } from './otel/agentHostOTelService.js';
 import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AgentModelRefreshScheduler, MODEL_REFRESH_INTERVAL_MS } from './agentModelRefreshScheduler.js';
 import { AgentService } from './agentService.js';
+import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostPromptCache } from './agentHostPromptCache.js';
 import { IAgentHostSessionTitleSignal } from './agentHostSessionTitleSignal.js';
@@ -270,6 +271,7 @@ async function main(): Promise<void> {
 	});
 	disposables.add(agentService);
 	diServices.set(IAgentService, agentService);
+	diServices.set(IAgentHostAuthenticationService, agentService.authenticationService);
 	diServices.set(IAgentHostStateManager, agentService.stateManager);
 	// Narrow host seams providers consume instead of the whole state manager.
 	diServices.set(IAgentHostPromptCache, agentService.promptCache);

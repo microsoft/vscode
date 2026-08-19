@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IConfigurationValue } from '../../../configuration/common/configuration.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, createSchema, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, createSchema, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 
@@ -40,6 +40,12 @@ suite('agentHostSchema', () => {
 		const property = platformRootSchema.toProtocol().properties[AgentHostMarkdownPlanRichLinksEnabledConfigKey];
 		assert.strictEqual(property.type, 'boolean');
 		assert.strictEqual(property.default, false);
+	});
+
+	test('GitHub MCP is an additive enabled-by-default root setting', () => {
+		const property = platformRootSchema.toProtocol().properties[AgentHostGitHubMcpServerEnabledConfigKey];
+		assert.strictEqual(property.type, 'boolean');
+		assert.strictEqual(property.default, true);
 	});
 
 	// ---- schemaProperty / individual validators ---------------------------

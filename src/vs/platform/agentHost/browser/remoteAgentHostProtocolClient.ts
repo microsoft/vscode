@@ -20,7 +20,7 @@ import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../.
 import { ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
 import { AgentSession, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
 import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
-import { CollectAgentHostDebugLogsExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, type IAgentHostExtensionCommandMap } from '../common/agentHostExtensionProtocol.js';
+import { CollectAgentHostDebugLogsExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, type IAgentHostExtensionCommandMap } from '../common/agentHostExtensionProtocol.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY } from '../common/agentHostConnectionsService.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
@@ -1125,6 +1125,20 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 	async getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]> {
 		return this._sendExtensionRequest('getManagedSettingsDiagnostics');
+	}
+
+	async getSessionStateFile(session: URI): Promise<URI | undefined> {
+		const result = await this._sendExtensionRequest(GetAgentHostSessionStateFileExtensionMethod, {
+			session: session.toString(),
+		});
+		if (!result.resource) {
+			return undefined;
+		}
+		const resource = URI.parse(result.resource, true);
+		if (resource.scheme !== Schemas.file) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Agent Host returned a non-file session state resource: ${resource.toString()}`);
+		}
+		return toAgentHostUri(resource, this._connectionAuthority);
 	}
 
 	async collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> {

@@ -1385,6 +1385,57 @@ suite('RemoteAgentHostProtocolClient', () => {
 		});
 	});
 
+	test('getSessionStateFile maps the returned host resource', async () => {
+		const { client, transport } = createClient();
+		const session = URI.parse('copilotcli:/session-1');
+		const resultPromise = client.getSessionStateFile(session);
+
+		assert.deepStrictEqual(transport.sentMessages[0], {
+			jsonrpc: '2.0',
+			id: 1,
+			method: 'vscode/getAgentHostSessionStateFile',
+			params: { session: session.toString() },
+		});
+
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: 1,
+			result: { resource: 'file:///state/sdk-session/events.jsonl' },
+		});
+
+		assert.strictEqual(
+			(await resultPromise)?.toString(),
+			'vscode-agent-host://test.example__1234/state/sdk-session/events.jsonl?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0',
+		);
+	});
+
+	test('getSessionStateFile rejects a non-file host resource', async () => {
+		const { client, transport } = createClient();
+		const resultPromise = client.getSessionStateFile(URI.parse('copilotcli:/session-1'));
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: 1,
+			result: { resource: 'vscode-userdata:/User/settings.json' },
+		});
+
+		await assertRemoteProtocolError(resultPromise, {
+			code: JsonRpcErrorCodes.InvalidParams,
+			message: 'Agent Host returned a non-file session state resource: vscode-userdata:/User/settings.json',
+		});
+	});
+
+	test('getSessionStateFile returns undefined when the host has no state file', async () => {
+		const { client, transport } = createClient();
+		const resultPromise = client.getSessionStateFile(URI.parse('copilotcli:/session-1'));
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: 1,
+			result: {},
+		});
+
+		assert.strictEqual(await resultPromise, undefined);
+	});
+
 	test('collectDebugLogs accepts an archive with a larger uncompressed size', async () => {
 		const { client, transport } = createClient();
 		const resultPromise = client.collectDebugLogs(URI.parse('copilotcli:/session-1'), 'archive');
