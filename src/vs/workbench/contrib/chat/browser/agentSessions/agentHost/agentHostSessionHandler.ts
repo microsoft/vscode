@@ -711,13 +711,6 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		this.progressObs.set([...current, ...items], undefined);
 	}
 
-	/**
-	 * Marks the active turn as complete.
-	 */
-	complete(): void {
-		this._responseTurnId = undefined;
-		this.isCompleteObs.set(true, undefined);
-	}
 
 	/**
 	 * Marks the response complete on behalf of `turnId`, ignoring the signal when a
