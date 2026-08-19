@@ -8,6 +8,7 @@ import { Client as TelemetryClient } from '../../../base/parts/ipc/node/ipc.cp.j
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { ILoggerService } from '../../log/common/log.js';
+import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
 import { IProductService } from '../../product/common/productService.js';
 import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryService } from '../common/telemetry.js';
 import { TelemetryAppenderClient } from '../common/telemetryIpc.js';
@@ -24,7 +25,8 @@ export class CustomEndpointTelemetryService implements ICustomEndpointTelemetryS
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILoggerService private readonly loggerService: ILoggerService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IMeteredConnectionService private readonly meteredConnectionService: IMeteredConnectionService,
 	) { }
 
 	private getCustomTelemetryService(endpoint: ITelemetryEndpoint): ITelemetryService {
@@ -55,7 +57,8 @@ export class CustomEndpointTelemetryService implements ICustomEndpointTelemetryS
 
 			this.customTelemetryServices.set(endpoint.id, new TelemetryService({
 				appenders,
-				sendErrorTelemetry: endpoint.sendErrorTelemetry
+				sendErrorTelemetry: endpoint.sendErrorTelemetry,
+				meteredConnectionService: this.meteredConnectionService,
 			}, this.configurationService, this.productService));
 		}
 
@@ -63,11 +66,17 @@ export class CustomEndpointTelemetryService implements ICustomEndpointTelemetryS
 	}
 
 	publicLog(telemetryEndpoint: ITelemetryEndpoint, eventName: string, data?: ITelemetryData) {
+		if (this.meteredConnectionService.isConnectionMetered) {
+			return;
+		}
 		const customTelemetryService = this.getCustomTelemetryService(telemetryEndpoint);
 		customTelemetryService.publicLog(eventName, data);
 	}
 
 	publicLogError(telemetryEndpoint: ITelemetryEndpoint, errorEventName: string, data?: ITelemetryData) {
+		if (this.meteredConnectionService.isConnectionMetered) {
+			return;
+		}
 		const customTelemetryService = this.getCustomTelemetryService(telemetryEndpoint);
 		customTelemetryService.publicLogError(errorEventName, data);
 	}

@@ -24,6 +24,7 @@ export class NativeMeteredConnectionService extends AbstractMeteredConnectionSer
 	) {
 		super(configurationService, getIsBrowserConnectionMetered());
 		this._channel = mainProcessService.getChannel(METERED_CONNECTION_CHANNEL);
+		void this._channel.call(MeteredConnectionCommand.SetIsBrowserConnectionMetered, this.isBrowserConnectionMetered);
 
 		const connection = (navigator as NavigatorWithConnection).connection;
 		if (connection) {

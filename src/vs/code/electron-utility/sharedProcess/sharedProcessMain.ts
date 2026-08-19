@@ -354,7 +354,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		services.set(ITelemetryService, telemetryService);
 
 		// Custom Endpoint Telemetry
-		const customEndpointTelemetryService = new CustomEndpointTelemetryService(configurationService, telemetryService, loggerService, environmentService, productService);
+		const customEndpointTelemetryService = new CustomEndpointTelemetryService(configurationService, telemetryService, loggerService, environmentService, productService, meteredConnectionService);
 		services.set(ICustomEndpointTelemetryService, customEndpointTelemetryService);
 
 		// Extension Management
