@@ -87,7 +87,15 @@ const identityProvider = {
 			return `new:${stat.getId()}`;
 		}
 
-		return stat.getId();
+		if (stat && typeof stat.getId === 'function') {
+			return stat.getId();
+		}
+
+		if (Array.isArray(stat)) {
+			return (stat as (ExplorerItem | undefined)[]).map(s => typeof s?.getId === 'function' ? s.getId() : String(s)).join('/');
+		}
+
+		return String(stat);
 	}
 };
 

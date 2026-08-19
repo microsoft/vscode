@@ -138,6 +138,36 @@ suite('AsyncDataTree', function () {
 		assert.strictEqual(container.querySelectorAll('.monaco-list-row').length, 1);
 	});
 
+	test('issue #330873: updateChildren on unknown root element throws TreeError instead of TypeError when identityProvider is configured', async () => {
+		const container = document.createElement('div');
+		const model = new Model({
+			id: 'root',
+			children: [{ id: 'a' }]
+		});
+
+		const tree = store.add(new AsyncDataTree<Element[], Element>('test', container, new VirtualDelegate(), [new Renderer()], new class implements IAsyncDataSource<Element[], Element> {
+			hasChildren(element: Element[] | Element): boolean {
+				return Array.isArray(element) ? element.length > 0 : !!element.children && element.children.length > 0;
+			}
+			getChildren(element: Element[] | Element): Promise<Element[]> {
+				return Promise.resolve(Array.isArray(element) ? element : (element.children || []));
+			}
+		}(), { identityProvider: new IdentityProvider() }));
+		tree.layout(200);
+
+		const rootInput = [model.get('a')];
+		await tree.setInput(rootInput);
+
+		const otherRootInput: Element[] = [];
+		await assert.rejects(
+			async () => tree.updateChildren(otherRootInput),
+			(err: Error) => {
+				assert.strictEqual(err.name, 'TreeError');
+				return true;
+			}
+		);
+	});
+
 	test('issue #68648', async () => {
 		const container = document.createElement('div');
 
