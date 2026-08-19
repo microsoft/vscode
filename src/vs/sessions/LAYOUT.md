@@ -28,7 +28,7 @@ The Agents Window workbench (`Workbench` in `sessions/browser/workbench.ts`) pro
 
 The **Sessions Part** is the primary content surface. It hosts an internal grid of one or more **Session Views** (left-to-right) — see [§4 Sessions Part](#4-sessions-part) for the visibility model.
 
-Editors open as modal overlays via `ModalEditorPart`. The main editor part exists in the workbench grid but is hidden by default.
+The Agents window defaults `workbench.editor.useModal` to `some`: editors that require a modal open via `ModalEditorPart`, while ordinary editors open in the main editor part. The main editor part exists in the workbench grid but is hidden until needed.
 
 ### 2.1 Parts
 
@@ -275,13 +275,14 @@ On phone-class viewports the Sessions Part is replaced by `MobileSessionsPart` (
 
 ---
 
-## 5. Editor Modal
+## 5. Editor Presentation
 
-Editors open as modal overlays rather than occupying grid space. The configuration `workbench.editor.useModal: 'all'` redirects all editor opens (without an explicit preferred group) to `ModalEditorPart`.
+The Agents window defaults `workbench.editor.useModal` to `some`. Editors that require a modal, such as Settings and Keyboard Shortcuts, open in `ModalEditorPart`; ordinary editors open in the main editor part.
 
 | Trigger | Behavior |
 |---------|----------|
-| Editor opens (no explicit group) | Opens in modal overlay |
+| Ordinary editor opens (no explicit group) | Opens in the main editor part |
+| Editor requiring a modal opens | Opens in modal overlay |
 | All editors closed / Escape / backdrop click | Modal closes and is disposed |
 
 When the editor part is shown in the grid (not as a modal), its title toolbar (`MenuId.EditorTitleLayout`, right of the tabs) hosts layout actions registered in `contrib/editor/browser/editor.contribution.ts`, ordered left-to-right as: open in modal editor, **maximize / restore editor area**, a single **Toggle Details** action for the auxiliary bar (labelled "Toggle Secondary Side Bar" in the non-single-pane layout), and **close editor area**. The auxiliary-bar toggle sits to the right of maximize/restore because it changes the right-hand side of the layout. It reuses the core `workbench.action.toggleAuxiliaryBar` command (already registered in the agents window by the workbench auxiliary bar part, and available in the Command Palette under **View**) surfaced through two `when`-gated menu items in `browser/layoutActions.ts` so the icon flips without rendering a checked/highlighted state: the `right-panel-show` codicon shows when the auxiliary bar is hidden (`AuxiliaryBarVisibleContext` negated, click to show) and the `right-panel-hide` codicon shows when it is visible (click to hide). In the Agents-window tab strip, the editor-actions side first shrinks down to 50px before the tab scroller starts shrinking. When tab actions are placed on the left, tabs retain trailing spacing consistent with the modern editor tab style.
@@ -299,11 +300,11 @@ The Toggle Details action (Toggle Secondary Side Bar in the non-single-pane layo
 
 The main editor part can be explicitly revealed for workflows that target it directly.
 
-### Single-pane redesign (experimental — `sessions.layout.singlePaneDetailPanel`, default OFF)
+### Single-pane redesign (experimental — `sessions.layout.singlePaneDetailPanel`, default ON)
 
 > See [SINGLE_PANE_SCENARIOS.md](SINGLE_PANE_SCENARIOS.md) for the full scenario/state/transition catalog and the manual validation checklist.
 
-The entire third-pane redesign is gated behind the experimental setting `sessions.layout.singlePaneDetailPanel`, read **once at startup** (a window reload applies a change). When the setting is **off** (default) the Agents window renders exactly as documented above (auxiliary bar as its own grid column with its composite tab strip + title, the standard multi-diff Changes editor). When **on**, the third pane becomes a **single pane with one full-width editor title region**. It supports `workbench.editor.showTabs` values `multiple` and `single`; while the unsupported `none` value is configured, the Agents editor part conditionally enforces `single`. When only the docked Auxiliary Bar is visible and the editor area is hidden, it enforces `multiple` so every managed detail tab remains directly available.
+The entire third-pane redesign is gated behind the experimental setting `sessions.layout.singlePaneDetailPanel`, read **once at startup** (a window reload applies a change). When the setting is **on** (default), the third pane becomes a **single pane with one full-width editor title region**. When **off**, the Agents window renders the classic layout documented above (auxiliary bar as its own grid column with its composite tab strip + title, the standard multi-diff Changes editor). The single-pane layout supports `workbench.editor.showTabs` values `multiple` and `single`; while the unsupported `none` value is configured, the Agents editor part conditionally enforces `single`. When only the docked Auxiliary Bar is visible and the editor area is hidden, it enforces `multiple` so every managed detail tab remains directly available.
 
 - The auxiliary bar is removed from the workbench grid and **docked inside the editor part** (absolutely positioned on the right, below the editor tab strip); the grid's top-right row becomes `Sessions | Editor`, and the editor part spans the editor + detail-panel width.
 - The editor group's **title region and header-hosted breadcrumbs span the full width**, while the editor content is inset on the right by the detail-panel width via the concrete `EditorPart.setContentRightInset(px)` method (`EditorPart`/`EditorGroupView`; not on the `IEditorPart` interface; `0` = no-op for all other layouts). The detail panel is always docked on the right, so no left margin is needed.
