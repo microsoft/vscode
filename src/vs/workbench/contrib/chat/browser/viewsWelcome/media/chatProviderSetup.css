@@ -276,3 +276,51 @@
 		text-overflow: ellipsis;
 	}
 }
+
+/*
+ * Scenery, not a control: it shows where the conversation will happen once a
+ * provider exists. Inert to the pointer so a click lands on nothing rather
+ * than appearing to focus a field that cannot accept text.
+ */
+.chat-provider-setup-input-preview {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	box-sizing: border-box;
+	width: 100%;
+	margin-top: 4px;
+	padding: 10px 12px;
+	border: 1px solid var(--vscode-contrastBorder, color-mix(in srgb, var(--vscode-editor-foreground) 11%, transparent));
+	border-radius: 8px;
+	background: color-mix(in srgb, var(--vscode-editor-foreground) 3%, transparent);
+	pointer-events: none;
+	user-select: none;
+}
+
+.chat-provider-setup-input-placeholder {
+	flex: 1;
+	min-width: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+	line-height: 1.4;
+	opacity: 0.6;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chat-provider-setup-input-send {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+	width: 20px;
+	height: 20px;
+	border-radius: 999px;
+	color: var(--vscode-descriptionForeground);
+	opacity: 0.4;
+}
+
+.chat-provider-setup-input-send .codicon {
+	font-size: 13px;
+}

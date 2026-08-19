@@ -4854,3 +4854,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		transform: translate(-50%, -50%) rotate(270deg);
 	}
 }
+
+/*
+ * A hidden input still reserves its own padding, leaving a sliver under the
+ * signed-out provider list. Collapse it so the list's own input preview is
+ * the only thing at the bottom of the panel.
+ */
+.interactive-session .interactive-input-part.chat-input-hidden:not(:has(> .chat-input-persistent-content > :not(.hidden), > .chat-tool-confirmation-carousel-container:not(.hidden))) {
+	padding: 0;
+}

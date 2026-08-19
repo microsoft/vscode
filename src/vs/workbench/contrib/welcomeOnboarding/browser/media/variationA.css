@@ -830,8 +830,8 @@
 .onboarding-a-theme-grid {
 	display: grid;
 	grid-template-columns: repeat(4, minmax(0, 1fr));
-	gap: 10px;
-	padding: 4px;
+	gap: 8px;
+	padding: 2px;
 }
 
 .onboarding-a-theme-grid.theme-grid-expanded {
@@ -885,14 +885,23 @@
 	box-shadow: 0 0 0 1px var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
 }
 
+/*
+ * The previews are 5:3, which makes six cards taller than the step and forces
+ * a scroll. Capping them wider-than-tall fits all six at once. `cover` with a
+ * top anchor crops the bottom rather than squashing the image, keeping the
+ * title bar and first lines of code — the part that actually shows the theme.
+ */
 .onboarding-a-theme-preview {
 	overflow: hidden;
+	aspect-ratio: 7 / 3;
 }
 
 .onboarding-a-theme-preview-img {
 	display: block;
 	width: 100%;
-	height: auto;
+	height: 100%;
+	object-fit: cover;
+	object-position: top center;
 }
 
 .onboarding-a-theme-label {

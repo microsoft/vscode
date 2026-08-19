@@ -50,7 +50,7 @@ export function getOnboardingStepSubtitle(stepId: OnboardingStepId): string {
 		case OnboardingStepId.AiPreference:
 			return localize('onboarding.step.aiPreference.subtitle', "Choose how much AI collaboration fits your workflow");
 		case OnboardingStepId.AgentSessions:
-			return localize('onboarding.step.agentSessions.subtitle', "Open Chat anytime with {0} and start building", isMacintosh ? '\u2318\u2303I' : 'Ctrl+Alt+I');
+			return localize('onboarding.step.agentSessions.subtitle', "Here's what you can do now. Open Chat anytime with {0}", isMacintosh ? '\u2318\u2303I' : 'Ctrl+Alt+I');
 	}
 }
 

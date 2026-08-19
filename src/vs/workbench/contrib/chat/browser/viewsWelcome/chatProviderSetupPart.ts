@@ -93,7 +93,31 @@ export class ChatProviderSetupPart extends Disposable {
 		this.updateContinueLabel();
 		this._register(dom.addDisposableListener(button, dom.EventType.CLICK, () => this.runContinue()));
 
+		this.renderInputPreview();
+
 		status(localize('chat.providerSetup.aria.status', "Choose how to get models. GitHub Copilot is selected."));
+	}
+
+	/**
+	 * A non-interactive impression of the chat input. There is no model yet, so
+	 * a real input would invite a message it has to refuse — but with nothing
+	 * there at all the panel reads as a settings page rather than the top of a
+	 * chat. This is scenery: it shows where the conversation will happen.
+	 *
+	 * It is inert by construction — a div rather than a text control, no tab
+	 * stop, no pointer events — and hidden from assistive technology, because
+	 * announcing an input that cannot accept input would be a worse lie to a
+	 * screen reader user than showing nothing at all.
+	 */
+	private renderInputPreview(): void {
+		const preview = dom.append(this.element, $('.chat-provider-setup-input-preview'));
+		preview.setAttribute('aria-hidden', 'true');
+
+		const placeholder = dom.append(preview, $('span.chat-provider-setup-input-placeholder'));
+		placeholder.textContent = localize('chat.providerSetup.inputPreview', "Chat with your AI");
+
+		const send = dom.append(preview, $('span.chat-provider-setup-input-send'));
+		send.appendChild(renderIcon(Codicon.arrowUp));
 	}
 
 	private getRows(): readonly IChatProviderRow[] {
