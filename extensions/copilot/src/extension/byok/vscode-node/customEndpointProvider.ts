@@ -98,6 +98,9 @@ interface _CustomEndpointModelConfig {
 	toolCalling: boolean;
 	vision: boolean;
 	thinking?: boolean;
+	adaptiveThinking?: boolean;
+	minThinkingBudget?: number;
+	maxThinkingBudget?: number;
 	streaming?: boolean;
 	editTools?: EndpointEditToolName[];
 	requestHeaders?: Record<string, string>;
@@ -162,6 +165,9 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 			name: model.name,
 			url,
 			thinking: modelConfiguration?.thinking ?? false,
+			adaptiveThinking: modelConfiguration?.adaptiveThinking,
+			minThinkingBudget: modelConfiguration?.minThinkingBudget,
+			maxThinkingBudget: modelConfiguration?.maxThinkingBudget,
 			streaming: modelConfiguration?.streaming,
 			requestHeaders: modelConfiguration?.requestHeaders,
 			modelOptions: modelConfiguration?.modelOptions,

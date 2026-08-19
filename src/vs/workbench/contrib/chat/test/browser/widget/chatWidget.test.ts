@@ -5,17 +5,143 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
-import { acceptAndAwaitSentRequest, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight } from '../../../browser/widget/chatWidget.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { SaveReason } from '../../../../../common/editor.js';
+import { ISaveAllEditorsOptions, ISaveEditorsResult } from '../../../../../services/editor/common/editorService.js';
+import { TestEditorService } from '../../../../../test/browser/workbenchTestServices.js';
+import { acceptAndAwaitSentRequest, ChatWidget, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatTip, shouldShowChatWelcome } from '../../../browser/widget/chatWidget.js';
 import { ChatSendResult, ChatSendResultSent, IChatSendRequestData } from '../../../common/chatService/chatService.js';
-import { ChatAgentLocation } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration } from '../../../common/constants.js';
 import { ChatRequestSlashCommandPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
+import { observePromptTimelineHostWidth } from '../../../browser/promptTimeline/promptTimelineWidgetContrib.js';
 
 suite('ChatWidget', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	class RecordingEditorService extends TestEditorService {
+		readonly saveAllCalls: (ISaveAllEditorsOptions | undefined)[] = [];
+
+		override async saveAll(options?: ISaveAllEditorsOptions): Promise<ISaveEditorsResult> {
+			this.saveAllCalls.push(options);
+			return { success: true, editors: [] };
+		}
+	}
+
+	function createRequestEditWidget(currentInput: string, currentAttachmentIds: readonly string[], confirmResult = false) {
+		const editing = {};
+		let confirmationCount = 0;
+		let finishedCount = 0;
+		let focusCount = 0;
+		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
+		Object.defineProperties(widget, {
+			viewModel: { value: { editing } },
+			input: {
+				value: {
+					inputEditor: { getValue: () => currentInput },
+					attachmentModel: { getAttachmentIDs: () => new Set(currentAttachmentIds) },
+					focus: () => focusCount++,
+				}
+			},
+			_requestEditSnapshot: {
+				value: {
+					input: 'original request',
+					attachmentIds: new Set(['original-attachment']),
+				},
+				writable: true,
+			},
+			_requestEditCancellationPending: { value: false, writable: true },
+			dialogService: {
+				value: {
+					confirm: async () => {
+						confirmationCount++;
+						return { confirmed: confirmResult };
+					}
+				}
+			},
+			finishedEditing: { value: () => finishedCount++ },
+		});
+
+		return {
+			widget,
+			result: () => ({ confirmationCount, finishedCount, focusCount }),
+		};
+	}
+
+	test('saves non-untitled editors before sending by default', async () => {
+		const configurationService = new TestConfigurationService();
+		const editorService = store.add(new RecordingEditorService());
+
+		await saveAllBeforeChatSend(configurationService, editorService);
+		await configurationService.setUserConfiguration(ChatConfiguration.SaveBeforeSend, false);
+		await saveAllBeforeChatSend(configurationService, editorService);
+
+		assert.deepStrictEqual(editorService.saveAllCalls, [{
+			includeUntitled: false,
+			reason: SaveReason.EXPLICIT,
+		}]);
+	});
+
+	test('confirms before cancelling changed request edits', async () => {
+		const scenarios = [
+			{ name: 'unchanged', input: 'original request', attachmentIds: ['original-attachment'] },
+			{ name: 'text changed', input: 'edited request', attachmentIds: ['original-attachment'] },
+			{ name: 'attachment added', input: 'original request', attachmentIds: ['original-attachment', 'new-attachment'] },
+			{ name: 'attachment removed', input: 'original request', attachmentIds: [] },
+		];
+		const actual = [];
+
+		for (const scenario of scenarios) {
+			const requestEdit = createRequestEditWidget(scenario.input, scenario.attachmentIds);
+			await requestEdit.widget.cancelEditing();
+			actual.push({ name: scenario.name, ...requestEdit.result() });
+		}
+		assert.deepStrictEqual(actual, [
+			{ name: 'unchanged', confirmationCount: 0, finishedCount: 1, focusCount: 0 },
+			{ name: 'text changed', confirmationCount: 1, finishedCount: 0, focusCount: 1 },
+			{ name: 'attachment added', confirmationCount: 1, finishedCount: 0, focusCount: 1 },
+			{ name: 'attachment removed', confirmationCount: 1, finishedCount: 0, focusCount: 1 },
+		]);
+	});
+
+	test('confirmed cancellation discards changed request edits', async () => {
+		const requestEdit = createRequestEditWidget('edited request', ['original-attachment'], true);
+
+		await requestEdit.widget.cancelEditing();
+
+		assert.deepStrictEqual(requestEdit.result(), {
+			confirmationCount: 1,
+			finishedCount: 1,
+			focusCount: 0,
+		});
+	});
+
+	test('transcript overlays suppress the welcome state', () => {
+		assert.deepStrictEqual({
+			unavailable: shouldShowChatWelcome(undefined, false),
+			progressBeforeModel: shouldShowChatWelcome(undefined, true),
+			empty: shouldShowChatWelcome(0, false),
+			progress: shouldShowChatWelcome(0, true),
+			message: shouldShowChatWelcome(1, false),
+		}, {
+			unavailable: undefined,
+			progressBeforeModel: false,
+			empty: true,
+			progress: false,
+			message: false,
+		});
+	});
+
+	test('loading suppresses the getting-started tip', () => {
+		assert.deepStrictEqual([
+			shouldShowChatTip(0, false, false),
+			shouldShowChatTip(0, false, true),
+		], [true, false]);
+	});
 
 	test('identifies only leading silent execute-immediately slash commands', () => {
 		const command = new ChatRequestSlashCommandPart(
@@ -84,6 +210,54 @@ suite('ChatWidget', () => {
 			['setInputPartMaxHeightOverride', 600],
 			['layoutForInputHeight', 420, 720],
 		]);
+	});
+
+	test('captures and restores transcript scroll state', () => {
+		const listWidget = {
+			scrollTop: 200,
+			scrollHeight: 1000,
+			renderHeight: 300,
+			get isScrolledToBottom() {
+				return this.scrollTop + this.renderHeight >= this.scrollHeight - 2;
+			},
+			scrollToEnd() {
+				this.scrollTop = this.scrollHeight - this.renderHeight;
+			},
+		};
+		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), { listWidget });
+
+		const scrolledUp = widget.getViewState();
+		widget.restoreViewState({ scrollTop: 350 });
+		const legacyScrollTop = listWidget.scrollTop;
+		widget.restoreViewState({ scrollTop: 200, isAtBottom: true });
+
+		assert.deepStrictEqual({
+			scrolledUp,
+			legacyScrollTop,
+			bottomScrollTop: listWidget.scrollTop,
+		}, {
+			scrolledUp: { scrollTop: 200, isAtBottom: false },
+			legacyScrollTop: 350,
+			bottomScrollTop: 700,
+		});
+	});
+
+	test('prompt timeline width follows explicit widget layout', () => {
+		const onDidLayout = new Emitter<{ width: number; height: number }>();
+		const host = document.createElement('div');
+		Object.defineProperty(host, 'clientWidth', { value: 320 });
+		const widths: number[] = [];
+		const observation = observePromptTimelineHostWidth(
+			{ onDidLayout: onDidLayout.event },
+			host,
+			{ setHostWidth: width => widths.push(width) },
+		);
+
+		onDidLayout.fire({ width: 480, height: 600 });
+		observation.dispose();
+		onDidLayout.fire({ width: 640, height: 600 });
+		onDidLayout.dispose();
+		assert.deepStrictEqual(widths, [320, 480]);
 	});
 });
 

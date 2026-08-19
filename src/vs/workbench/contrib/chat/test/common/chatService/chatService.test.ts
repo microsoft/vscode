@@ -47,11 +47,13 @@ import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatProgress, IChatService, ResponseModelState } from '../../../common/chatService/chatService.js';
 import { backfillTransferredModel, backfillRestoredPickerState, ChatService } from '../../../common/chatService/chatServiceImpl.js';
+import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatModel, IChatModel, ISerializableChatData, ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
+import { ChatViewModel, isPendingDividerVM } from '../../../common/model/chatViewModel.js';
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { IConfiguredHooksInfo, IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
@@ -187,7 +189,8 @@ suite('ChatService', () => {
 		instantiationService.stub(IUserDataProfilesService, { defaultProfile: toUserDataProfile('default', 'Default', URI.file('/test/userdata'), URI.file('/test/cache')) });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IExtensionService, new TestExtensionService());
-		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		const contextKeyService = testDisposables.add(new MockContextKeyService());
+		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IViewsService, new TestExtensionService());
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
 		instantiationService.stub(IChatSlashCommandService, testDisposables.add(instantiationService.createInstance(ChatSlashCommandService)));
@@ -198,7 +201,7 @@ suite('ChatService', () => {
 		instantiationService.stub(IEnvironmentService, { workspaceStorageHome: URI.file('/test/path/to/workspaceStorage') });
 		instantiationService.stub(ILifecycleService, { onWillShutdown: Event.None });
 		instantiationService.stub(IWorkspaceEditingService, { onDidEnterWorkspace: Event.None });
-		instantiationService.stub(IChatDebugService, testDisposables.add(new ChatDebugServiceImpl(new TestConfigurationService())));
+		instantiationService.stub(IChatDebugService, testDisposables.add(new ChatDebugServiceImpl(new TestConfigurationService(), contextKeyService)));
 		editingSessionEntries = observableValue('editingSessionEntries', []);
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() {
 			override startOrContinueGlobalEditingSession(): IChatEditingSession {
@@ -626,6 +629,127 @@ suite('ChatService', () => {
 
 		assert.strictEqual(chatModel2.getRequests().length, 1);
 		assert.strictEqual(chatModel2.getRequests()[0].isSystemInitiated, true);
+	});
+
+	test('can serialize and deserialize a request hidden from the transcript', async () => {
+		let serializedChatData: ISerializableChatData;
+		{
+			const testService = createChatService();
+			const chatModelRef = testDisposables.add(startSessionModel(testService));
+			const response = await testService.sendRequest(chatModelRef.object.sessionResource, 'hidden request', { hideFromTranscript: true });
+			ChatSendResult.assertSent(response);
+			await response.data.responseCompletePromise;
+
+			const request = chatModelRef.object.getRequests()[0];
+			const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, chatModelRef.object, undefined));
+			assert.deepStrictEqual({
+				request: request.isHiddenFromTranscript,
+				response: request.response?.isHiddenFromTranscript,
+				visibleItems: viewModel.getItems().length,
+			}, {
+				request: true,
+				response: true,
+				visibleItems: 0,
+			});
+			serializedChatData = JSON.parse(JSON.stringify(chatModelRef.object));
+		}
+
+		const testService = createChatService();
+		const restored = testDisposables.add(testService.loadSessionFromData(serializedChatData)!);
+		const request = restored.object.getRequests()[0];
+		const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, restored.object, undefined));
+		assert.deepStrictEqual({
+			request: request.isHiddenFromTranscript,
+			response: request.response?.isHiddenFromTranscript,
+			visibleItems: viewModel.getItems().length,
+		}, {
+			request: true,
+			response: true,
+			visibleItems: 0,
+		});
+	});
+
+	test('can serialize and deserialize a request origin', () => {
+		const sourceSessionResource = URI.parse('agent-host-codex:/source-thread');
+		const testService = createChatService();
+		const chatModelRef = testDisposables.add(startSessionModel(testService));
+		const chatModel = chatModelRef.object as ChatModel;
+		chatModel.addRequest(
+			{ parts: [], text: 'delegated request' },
+			{ variables: [] },
+			0,
+			undefined, // modeInfo
+			undefined, // chatAgent
+			undefined, // slashCommand
+			undefined, // confirmation
+			undefined, // locationData
+			undefined, // attachments
+			undefined, // isCompleteAddedRequest
+			undefined, // modelId
+			undefined, // userSelectedTools
+			undefined, // id
+			undefined, // isSystemInitiated
+			undefined, // systemInitiatedLabel
+			undefined, // terminalExecutionId
+			undefined, // isTerminalCommand
+			undefined, // timestamp
+			undefined, // hideFromTranscript
+			{
+				kind: ChatRequestOriginKind.Delegation,
+				sourceSessionResource,
+			},
+		);
+		const serialized: ISerializableChatData = JSON.parse(JSON.stringify(chatModel));
+
+		const restored = testDisposables.add(createChatService().loadSessionFromData(serialized)!);
+
+		assert.deepStrictEqual(restored.object.getRequests()[0].origin, {
+			kind: ChatRequestOriginKind.Delegation,
+			sourceSessionResource,
+		});
+	});
+
+	test('hidden queued requests remain absent from the transcript', async () => {
+		const requestStarted = new DeferredPromise<void>();
+		const completeRequest = new DeferredPromise<void>();
+		const slowAgent: IChatAgentImplementation = {
+			async invoke() {
+				requestStarted.complete();
+				await completeRequest.p;
+				return {};
+			},
+		};
+		testDisposables.add(chatAgentService.registerAgent('slowHiddenQueueAgent', { ...getAgentData('slowHiddenQueueAgent'), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation('slowHiddenQueueAgent', slowAgent));
+		const testService = createChatService();
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+
+		const active = await testService.sendRequest(model.sessionResource, 'active request', { agentId: 'slowHiddenQueueAgent' });
+		ChatSendResult.assertSent(active);
+		await requestStarted.p;
+		const queued = await testService.sendRequest(model.sessionResource, 'hidden queued request', {
+			agentId: 'slowHiddenQueueAgent',
+			queue: ChatRequestQueueKind.Queued,
+			hideFromTranscript: true,
+		});
+		assert.ok(ChatSendResult.isQueued(queued));
+		const pendingRequest = model.getPendingRequests()[0].request;
+		const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+		const visibleItems = viewModel.getItems();
+
+		assert.deepStrictEqual({
+			hidden: pendingRequest.isHiddenFromTranscript,
+			hasPendingRequest: visibleItems.some(item => item.id === pendingRequest.id),
+			hasPendingDivider: visibleItems.some(isPendingDividerVM),
+		}, {
+			hidden: true,
+			hasPendingRequest: false,
+			hasPendingDivider: false,
+		});
+
+		completeRequest.complete();
+		await active.data.responseCompletePromise;
 	});
 
 	test('acquireExistingSession keeps model alive for steering request after refs released', async () => {

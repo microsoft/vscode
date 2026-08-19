@@ -23,6 +23,8 @@ import { IAgentConfigurationService } from '../../../node/agentConfigurationServ
 import { IAgentHostGitService } from '../../../common/agentHostGitService.js';
 import { buildSubagentChatUri } from '../../../common/state/sessionState.js';
 import { IDetailedDiffResult, IDiffComputeService } from '../../../common/diffComputeService.js';
+import { AgentHostClientType } from '../../../common/agentHostClientInfo.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../../common/agentHostTelemetry.js';
 
 class CountingFileService extends FileService {
 	watcherCount = 0;
@@ -66,7 +68,7 @@ suite('Agent Host Edit ARC Reporter', () => {
 		fileService = disposables.add(new CountingFileService(new NullLogService()));
 		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
 		telemetry = new RecordingTelemetryService();
-		config = createConfigurationService(true);
+		config = createConfigurationService(true, disposables);
 	});
 
 	teardown(() => disposables.clear());
@@ -78,6 +80,14 @@ suite('Agent Host Edit ARC Reporter', () => {
 		const service = disposables.add(new EditArcReporterService([0, 30, 60], fileService, new TestDiffComputeService(), createNoopGitService(), config, new NullLogService(), telemetry));
 
 		await service.reportEdit({
+			clientContext: {
+				clientType: AgentHostClientType.EditorWindow,
+				connectionKind: AgentHostClientConnectionKind.RemoteExtensionHost,
+				transportKind: AgentHostTransportKind.MessagePort,
+				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+				machineId: 'client-machine-id',
+				devDeviceId: 'client-dev-device-id',
+			},
 			sessionUri: 'copilotcli:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
@@ -96,9 +106,19 @@ suite('Agent Host Edit ARC Reporter', () => {
 			name: event.name,
 			data: { ...event.data, uniqueEditId: '<uuid>' },
 			githubName: telemetry.githubEvents[0]?.name,
+			githubIdentity: {
+				initiatorMachineId: telemetry.githubEvents[0]?.properties?.initiatorMachineId,
+				initiatorDevDeviceId: telemetry.githubEvents[0]?.properties?.initiatorDevDeviceId,
+			},
 		}, {
 			name: 'editTelemetry.reportEditArc',
 			data: {
+				initiatorClientType: 'editor_window',
+				initiatorConnectionKind: 'remote_extension_host',
+				initiatorTransportKind: 'message_port',
+				hostLaunchKind: 'vscode_main_process',
+				initiatorMachineId: 'client-machine-id',
+				initiatorDevDeviceId: 'client-dev-device-id',
 				sourceKeyCleaned: 'source:Chat.applyEdits',
 				extensionId: undefined,
 				extensionVersion: undefined,
@@ -122,6 +142,10 @@ suite('Agent Host Edit ARC Reporter', () => {
 				currentDeletedLineCount: 1,
 			},
 			githubName: 'vscode.editTelemetry.reportEditArc',
+			githubIdentity: {
+				initiatorMachineId: undefined,
+				initiatorDevDeviceId: undefined,
+			},
 		});
 	});
 
@@ -171,6 +195,12 @@ suite('Agent Host Edit ARC Reporter', () => {
 		});
 		await timeout(10);
 		const firstEditId = telemetry.events[0].data.uniqueEditId;
+		const finalSampleEmitted = new DeferredPromise<void>();
+		telemetry.onEvent = event => {
+			if (event.data.uniqueEditId === firstEditId && event.data.timeDelayMs === 60) {
+				finalSampleEmitted.complete();
+			}
+		};
 
 		await fileService.writeFile(resource, VSBuffer.fromString('Abase'));
 		await service.reportEdit({
@@ -183,15 +213,21 @@ suite('Agent Host Edit ARC Reporter', () => {
 			initialEdit: { replacements: [{ start: 1, endExclusive: 2, text: '' }] },
 			completionTime: Date.now(),
 		});
-		await timeout(70);
+		const samplingCompleted = await raceTimeout(Promise.all([finalSampleEmitted.p]), 5_000);
 
-		assert.deepStrictEqual(telemetry.events
-			.filter(event => event.data.uniqueEditId === firstEditId)
-			.map(event => ({ timeDelayMs: event.data.timeDelayMs, arc: event.data.arc })), [
-			{ timeDelayMs: 0, arc: 2 },
-			{ timeDelayMs: 30, arc: 1 },
-			{ timeDelayMs: 60, arc: 1 },
-		]);
+		assert.deepStrictEqual({
+			samplingCompleted: samplingCompleted !== undefined,
+			events: telemetry.events
+				.filter(event => event.data.uniqueEditId === firstEditId)
+				.map(event => ({ timeDelayMs: event.data.timeDelayMs, arc: event.data.arc })),
+		}, {
+			samplingCompleted: true,
+			events: [
+				{ timeDelayMs: 0, arc: 2 },
+				{ timeDelayMs: 30, arc: 1 },
+				{ timeDelayMs: 60, arc: 1 },
+			],
+		});
 		assert.deepStrictEqual(telemetry.githubEvents, []);
 	});
 
@@ -439,14 +475,15 @@ interface TestAgentConfigurationService extends IAgentConfigurationService {
 	setEnabled(enabled: boolean): void;
 }
 
-function createConfigurationService(enabled: boolean): TestAgentConfigurationService {
-	const rootConfigChange = new Emitter<void>();
+function createConfigurationService(enabled: boolean, disposables: DisposableStore): TestAgentConfigurationService {
+	const rootConfigChange = disposables.add(new Emitter<void>());
+	const workingDirectoryPendingChange = disposables.add(new Emitter<string>());
 	return {
 		_serviceBrand: undefined,
 		onDidRootConfigChange: rootConfigChange.event,
 		onDidSessionConfigChange: Event.None,
+		onDidChangeWorkingDirectoryPending: workingDirectoryPendingChange.event,
 		getEffectiveValue: () => undefined,
-		getEffectiveWorkingDirectory: () => undefined,
 		getEffectiveWorkingDirectories: () => undefined,
 		isWorkingDirectoryPending: () => false,
 		resolveWorkingDirectoryForResume: async (_session, workingDirectory) => workingDirectory,

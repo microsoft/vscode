@@ -4,23 +4,68 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Color } from '../../../../../../base/common/color.js';
+import { Color, HSLA } from '../../../../../../base/common/color.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
 import { IColorTheme } from '../../../../../../platform/theme/common/themeService.js';
 import { chatDictationActiveMicGlow, chatVoiceGlowBaseColor, chatVoiceSpeakingGlow } from '../../../common/widget/chatColors.js';
 import { resolveDictationMicAccent } from '../../../browser/speechToText/dictationMicGlow.js';
-import { isGlowingVoiceState, GlowThemeKind, resolveVoiceGlowColors, resolveVoiceRimAccent, VOICE_GLOW_SPEAKING_HUE_SHIFT } from '../../../browser/voiceClient/voiceGlow.js';
+import { isGlowingVoiceState, GlowThemeKind, resolveVoiceGlowColors, resolveVoiceRimAccent, shouldRenderVoiceInputGlow, VOICE_GLOW_SPEAKING_HUE_SHIFT } from '../../../browser/voiceClient/voiceGlow.js';
+import { createVoiceGlowController, createVoiceRimLight } from '../../../browser/voiceClient/voiceGlowController.js';
 
 suite('VoiceGlow', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('only the talking states glow', () => {
+	test('only talking states glow', () => {
 		const states = ['idle', 'listening', 'speaking', 'processing', 'error'] as const;
 		assert.deepStrictEqual(
 			states.filter(isGlowingVoiceState),
 			['listening', 'speaking']
 		);
+	});
+
+	test('only renders while Voice Mode is connected', () => {
+		assert.deepStrictEqual([
+			shouldRenderVoiceInputGlow(false, true, true, 'listening'),
+			shouldRenderVoiceInputGlow(true, true, true, 'listening'),
+			shouldRenderVoiceInputGlow(true, false, true, 'speaking'),
+			shouldRenderVoiceInputGlow(true, true, false, 'speaking'),
+			shouldRenderVoiceInputGlow(true, true, true, 'idle'),
+		], [false, true, false, false, false]);
+	});
+
+	test('renders in an auxiliary owner document', () => {
+		const iframe = document.createElement('iframe');
+		document.body.appendChild(iframe);
+		disposables.add(toDisposable(() => iframe.remove()));
+
+		const auxiliaryDocument = iframe.contentDocument!;
+		const target = auxiliaryDocument.createElement('div');
+		auxiliaryDocument.body.appendChild(target);
+		const createElement = auxiliaryDocument.createElement;
+		auxiliaryDocument.createElement = () => {
+			throw new Error('Not allowed to create elements in child window JavaScript context.');
+		};
+		disposables.add(toDisposable(() => auxiliaryDocument.createElement = createElement));
+
+		const controller = disposables.add(createVoiceGlowController(target));
+		controller.render('listening', 0.5, false);
+		disposables.add(createVoiceRimLight(target, Color.fromHex('#58A6FF'), 'dark'));
+
+		assert.deepStrictEqual({
+			active: target.classList.contains('voice-active'),
+			listening: target.classList.contains('voice-listening'),
+			slots: target.querySelectorAll('.voice-glow-slot').length,
+			inlineSlots: target.querySelectorAll('.voice-glow-slot-inline').length,
+			layers: target.querySelectorAll('.voice-glow-rim-corners, .voice-glow-rim-bloom').length,
+		}, {
+			active: true,
+			listening: true,
+			slots: 3,
+			inlineSlots: 1,
+			layers: 4,
+		});
 	});
 
 	test('derives the speaking accent from the theme base color', () => {
@@ -78,9 +123,21 @@ suite('VoiceGlow', () => {
 			},
 			{
 				dark: { mic: '202.0 96% 56%', voiceMode: '202.0 96% 56%' },
-				light: { mic: '202.0 96% 72%', voiceMode: '202.0 96% 72%' },
+				light: { mic: '202.0 41% 52%', voiceMode: '202.0 41% 52%' },
 				washedOut: { mic: '197.0 70% 56%', voiceMode: '197.0 70% 56%' },
 			}
 		);
+	});
+
+	test('the active rim keeps non-text contrast against custom input backgrounds', () => {
+		const accent = Color.fromHex('#7A8B99');
+		for (const [kind, background] of [
+			['light', Color.fromHex('#FAFAFA')],
+			['dark', Color.fromHex('#242424')],
+		] as const) {
+			const rim = resolveVoiceRimAccent(accent, 'cool', kind, background);
+			const rimColor = new Color(new HSLA(rim.hue, rim.saturation / 100, rim.lightness / 100, 1));
+			assert.ok(background.getContrastRatio(rimColor) >= 3, `${kind} rim contrast was ${background.getContrastRatio(rimColor)}`);
+		}
 	});
 });

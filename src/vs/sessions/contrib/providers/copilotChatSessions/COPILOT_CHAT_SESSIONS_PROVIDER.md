@@ -1,15 +1,15 @@
 # CopilotChatSessionsProvider — Default Copilot Provider
 
-**File:** `src/vs/sessions/contrib/copilotChatSessions/browser/copilotChatSessionsProvider.ts`
+**File:** `src/vs/sessions/contrib/providers/copilotChatSessions/browser/copilotChatSessionsProvider.ts`
 
-The default sessions provider, registered with ID `'default-copilot'`. Wraps the existing agent session infrastructure into the extensible provider model. Supports three session types: **Copilot CLI** (local), **Copilot Cloud** (remote), and **Claude** (local, gated by `sessions.chat.claudeAgent.enabled`).
+The default sessions provider, registered with ID `'default-copilot'`. Wraps the existing agent session infrastructure into the extensible provider model. Supports **Copilot CLI** (local) when Agent Host is unavailable and **Copilot Cloud** (remote).
 
 ## Registration
 
 Registered via `DefaultSessionsProviderContribution` workbench contribution at `WorkbenchPhase.AfterRestored`:
 
 ```
-src/vs/sessions/contrib/copilotChatSessions/browser/copilotChatSessions.contribution.ts
+src/vs/sessions/contrib/providers/copilotChatSessions/browser/copilotChatSessions.contribution.ts
 ```
 
 ```typescript
@@ -28,7 +28,7 @@ class DefaultSessionsProviderContribution extends Disposable {
 | `id` | `'default-copilot'` |
 | `label` | `'Copilot Chat'` |
 | `icon` | `Codicon.copilot` |
-| `sessionTypes` | `[CopilotCLISessionType, CopilotCloudSessionType]` (+ `ClaudeCodeSessionType` when enabled) |
+| `sessionTypes` | `[CopilotCloudSessionType]`, plus `CopilotCLISessionType` when Agent Host is unavailable |
 
 ## Browse Actions
 
@@ -53,12 +53,6 @@ When `createNewSession(workspace)` is called, the provider creates one of two co
 - No-ops for isolation/branch/client mode (cloud-managed)
 - Provides `getModelOptionsSnapshot()`, `getOtherOptionGroups()` for UI to render provider-specific pickers
 - Watches context key changes to dynamically show/hide option groups
-
-**`ClaudeCodeNewSession`** — For Claude agent sessions (local `file://` workspaces):
-- Implements `ISession` with simplified configuration (Claude manages its own worktrees and branches)
-- No-ops for `setIsolationMode()` and `setBranch()`
-- `setOption()` writes to `selectedOptions` map; options are propagated to `IChatSessionsService` during `_sendFirstChat()` via `updateSessionOptions()`
-- Gated by the `sessions.chat.claudeAgent.enabled` setting (default: `true`)
 
 ## `AgentSessionAdapter` — Wrapping Existing Sessions
 
@@ -119,7 +113,7 @@ Model picker widgets that back the new-chat `/models` slash command also inject 
 
 ### Model Picker
 
-The model picker is no longer contributed per provider. Each `NewChatInputWidget` owns a scoped `SessionModelSelectionModel`, while the sessions-core `ModelPicker` (`contrib/chat/browser/modelPicker.ts`) is a presentation and telemetry adapter over that model. The coordinator reads models, the desired identifier's resolution, and the concrete model target from `ISessionsProvider.getModelsSnapshot(sessionId, desiredModelId)`, remembers explicit choices through the shared profile/user chat-model storage, reads presentation from `getModelPickerOptions(sessionId)`, and applies transitions through `ISessionsProvider.setModel(sessionId, modelId)`. Omitted `showAutoModel` defaults to `true`.
+The model picker is no longer contributed per provider. Each `NewChatInputWidget` owns a scoped `SessionModelSelection`, while the sessions-core `ModelPicker` (`contrib/chat/browser/modelPicker.ts`) is a presentation and telemetry adapter over it. `SessionModelSelection` translates between this provider and the shared `ChatInputModelSelectionController` that also drives Workbench chat (see [SESSIONS.md](../../../SESSIONS.md#model-selection)): it reads models, the desired identifier's resolution, and the concrete model target from `ISessionsProvider.getModelsSnapshot(sessionId, desiredModelId)`, reads presentation from `getModelPickerOptions(sessionId)`, remembers explicit choices through the shared profile/user chat-model storage, and applies what the controller decides through `ISessionsProvider.setModel(sessionId, chatResource, modelId, source)`. The `source` states why the model is being set (`User`, `Restored`, `Inherited`, `Automatic`) and is surfaced back as `IChat.modelSource`, which is what lets model selection tell a choice from a model a chat merely inherited. Omitted `showAutoModel` defaults to `true`.
 
 This provider returns a model snapshot from `getModelsSnapshot` based on the active session:
 - **CLI / Claude** sessions return registered language models whose `targetChatSessionType` matches the session type.

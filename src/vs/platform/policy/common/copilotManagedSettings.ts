@@ -52,6 +52,27 @@ export const COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_KEY = 'allowManagedMcpServer
 /** Managed-settings key that allows hooks only from managed sources. */
 export const COPILOT_ALLOW_MANAGED_HOOKS_ONLY_KEY = 'allowManagedHooksOnly';
 
+/** Managed-settings transport control that requires a fresh server fetch on startup. */
+export const COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY = 'forceRemoteSettingsRefresh';
+
+/**
+ * Enterprise-mandated sandbox floor (`sandbox.enabled` in the runtime's managed-settings schema).
+ * The runtime owns composing and enforcing this floor — it is `force-on-wins`, so a managed `true`
+ * cannot be loosened by the user. VS Code only *reads* it to decide which chat harness to offer,
+ * and deliberately declares no configuration policy for it: the control is runtime-owned, and
+ * mirroring it as a VS Code policy would invert ownership.
+ */
+export const COPILOT_SANDBOX_ENABLED_KEY = 'sandbox.enabled';
+
+/**
+ * Managed-settings controls consumed by the delivery pipeline itself rather than by a
+ * configuration policy. Native MDM must watch these even though no setting declares them.
+ */
+export const MANAGED_SETTINGS_CONTROL_DEFINITIONS: IManagedSettingsPolicyDefinitions = {
+	[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: { type: 'boolean' },
+	[COPILOT_SANDBOX_ENABLED_KEY]: { type: 'boolean' },
+};
+
 /** Policy-only configuration delivery slot for {@link COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY}. */
 export const COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG = 'chat.customizations.strictPluginOnlyCustomization';
 
@@ -62,12 +83,17 @@ export const COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG = 'chat.mcp.allowMana
 export const COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG = 'chat.hooks.allowManagedOnly';
 
 /**
- * Managed-settings key for the default chat model (carried as a plain string: `auto`, a model
- * family name, or a full model id). Nested under `permissions` in the managed-settings schema
- * (alongside {@link COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY}), so it flattens to the dot-path
- * `permissions.model` in the normalized bag — the key policy `value()` callbacks must read.
+ * Legacy managed-settings key for the default chat model, nested under `permissions` so it flattens
+ * to `permissions.model`. Retained for original-schema deployments; superseded by the top-level
+ * {@link COPILOT_TOP_LEVEL_MODEL_KEY}, which wins when both are present (see {@link managedModelValue}).
  */
 export const COPILOT_MODEL_KEY = 'permissions.model';
+
+/**
+ * Canonical top-level managed-settings key for the default chat model (flattens to the bag key
+ * `model`). Supersedes the legacy nested {@link COPILOT_MODEL_KEY} when both are present.
+ */
+export const COPILOT_TOP_LEVEL_MODEL_KEY = 'model';
 
 /**
  * Enterprise OTel managed-settings keys. These are the scalar leaves of the canonical
@@ -124,26 +150,56 @@ export function managedSettingValue(key: string): (policyData: IPolicyData) => M
 	return callback;
 }
 
+/**
+ * Resolves the startup refresh control with native MDM taking precedence over the cached server
+ * response. A malformed native value is treated as absent, matching the managed-settings schema.
+ */
+export function shouldForceRemoteSettingsRefresh(nativeMdm: ManagedSettingsData | undefined, server: ManagedSettingsData | undefined): boolean {
+	const nativeValue = nativeMdm?.[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY];
+	if (typeof nativeValue === 'boolean') {
+		return nativeValue;
+	}
+	return server?.[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY] === true;
+}
+
+export const IManagedSettingsService = createDecorator<IManagedSettingsService>('managedSettingsService');
+
+/** Read-only access to effective managed settings after channel resolution. */
+export interface IManagedSettingsService {
+	readonly _serviceBrand: undefined;
+	readonly onDidChangeManagedSettings: Event<void>;
+	getManagedSettingValue(key: string): ManagedSettingValue | undefined;
+}
+
+export class NullManagedSettingsService implements IManagedSettingsService {
+	readonly _serviceBrand: undefined;
+	readonly onDidChangeManagedSettings = Event.None;
+
+	getManagedSettingValue(): ManagedSettingValue | undefined {
+		return undefined;
+	}
+}
+
 let managedModelValueCallback: ((policyData: IPolicyData) => ManagedSettingValue | undefined) | undefined;
 
+/** Trim a managed-settings model value, treating a blank/whitespace-only string as unset. */
+function normalizeModelValue(value: ManagedSettingValue | undefined): string | undefined {
+	const trimmed = typeof value === 'string' ? value.trim() : undefined;
+	return trimmed ? trimmed : undefined;
+}
+
 /**
- * `value` callback for the default-chat-model managed setting ({@link COPILOT_MODEL_KEY}). Like
- * {@link managedSettingValue} it locks the setting to the managed value and otherwise falls through
- * to the user's own value, but it additionally trims the string and treats a blank/whitespace-only
- * value as "unset" (returns `undefined`) — an admin clearing the field must not lock the setting to
- * an empty string. The model-specific normalization lives here, alongside the other managed-settings
- * handling, rather than inline at the policy declaration, so every managed-settings control is wired
- * the same way.
- *
- * Memoized (single key) so repeated calls return the SAME function reference, matching the
- * reference-identity contract {@link managedSettingValue} relies on for `isSamePolicyDefinition`.
+ * `value` callback for the default-chat-model managed setting: resolves the top-level
+ * {@link COPILOT_TOP_LEVEL_MODEL_KEY} first, falling back to the legacy nested {@link COPILOT_MODEL_KEY}
+ * (each trimmed, blank treated as unset), so the top-level value wins when both are present. Memoized
+ * so repeated calls return the same reference, matching the identity contract {@link managedSettingValue}
+ * relies on for `isSamePolicyDefinition`.
  */
 export function managedModelValue(): (policyData: IPolicyData) => ManagedSettingValue | undefined {
 	if (!managedModelValueCallback) {
 		managedModelValueCallback = policyData => {
-			const model = policyData.managedSettings?.[COPILOT_MODEL_KEY];
-			const trimmed = typeof model === 'string' ? model.trim() : undefined;
-			return trimmed ? trimmed : undefined;
+			const topLevel = normalizeModelValue(policyData.managedSettings?.[COPILOT_TOP_LEVEL_MODEL_KEY]);
+			return topLevel ?? normalizeModelValue(policyData.managedSettings?.[COPILOT_MODEL_KEY]);
 		};
 	}
 	return managedModelValueCallback;
@@ -155,6 +211,7 @@ export interface INativeManagedSettingsService {
 	readonly _serviceBrand: undefined;
 	readonly managedSettings: ManagedSettingsData;
 	readonly onDidChangeManagedSettings: Event<ManagedSettingsData>;
+	initialize(): Promise<ManagedSettingsData>;
 	updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<ManagedSettingsData>;
 }
 
@@ -163,6 +220,7 @@ export class NullNativeManagedSettingsService implements INativeManagedSettingsS
 	readonly managedSettings: ManagedSettingsData = {};
 	readonly onDidChangeManagedSettings = Event.None;
 
+	async initialize(): Promise<ManagedSettingsData> { return this.managedSettings; }
 	async updatePolicyDefinitions(): Promise<ManagedSettingsData> { return this.managedSettings; }
 }
 
@@ -195,9 +253,9 @@ function isManagedSettingsObject(value: unknown): value is Record<string, unknow
 
 /**
  * Aggregate the `managedSettings` declarations of every policy definition into a single
- * key -> definition map. This is the single source of truth for which Copilot managed-settings
- * keys (and their value types) are honored, and it drives both delivery channels: the native
- * MDM watcher and the server `managed_settings` endpoint projection.
+ * key -> definition map. This is the single source of truth for policy-backed Copilot
+ * managed-settings keys and drives both server projection and the declaration-driven portion of
+ * the native MDM watcher. Transport controls are declared separately.
  */
 export function collectManagedSettingsDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): IManagedSettingsPolicyDefinitions {
 	const definitions: Record<string, IManagedSettingPolicyDefinition> = {};
@@ -214,8 +272,9 @@ export function collectManagedSettingsDefinitions(policyDefinitions: IStringDict
 
 /**
  * Whether any policy in `policyDefinitions` declares at least one managed-settings key. Cheap
- * existence check (short-circuits) used to decide whether the native MDM watcher is needed at all,
- * without aggregating the full {@link collectManagedSettingsDefinitions} map.
+ * existence check (short-circuits) used to decide whether the declaration-driven portion of the
+ * native MDM watcher needs updating, without aggregating the full
+ * {@link collectManagedSettingsDefinitions} map.
  */
 export function hasManagedSettingsDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): boolean {
 	for (const policyName in policyDefinitions) {

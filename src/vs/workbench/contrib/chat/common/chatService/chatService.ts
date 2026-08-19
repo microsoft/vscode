@@ -808,7 +808,7 @@ export interface IChatToolInvocationOtherClientData {
 
 export interface IChatToolInvocation {
 	readonly presentation: IPreparedToolInvocation['presentation'];
-	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData | IChatAutomationConfigurationData | IChatAutomationConfiguredData;
+	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData | IChatGeneratedImageData | IChatAutomationConfigurationData | IChatAutomationConfiguredData;
 	/** Active-only metadata that is omitted when the invocation is serialized. */
 	readonly otherClientToolCall?: IChatToolInvocationOtherClientData;
 	/**
@@ -1096,7 +1096,7 @@ export interface IToolResultOutputDetailsSerialized {
  */
 export interface IChatToolInvocationSerialized {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData | IChatAutomationConfiguredData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData | IChatGeneratedImageData | IChatAutomationConfiguredData;
 	invocationMessage: string | IMarkdownString;
 	originMessage: string | IMarkdownString | undefined;
 	pastTenseMessage: string | IMarkdownString | undefined;
@@ -1215,6 +1215,15 @@ export interface IChatSessionCreatedData {
 }
 
 /**
+ * Marks a successful image-generation tool result as a durable response
+ * outcome. The image bytes remain in the invocation's result details so they
+ * can use the shared image preview, carousel, and save affordances.
+ */
+export interface IChatGeneratedImageData {
+	readonly kind: 'generatedImage';
+}
+
+/**
  * Tool-specific data for a completed automation create or update. The stable
  * automation ID lets the renderer open the Automations editor at the affected
  * entry without relying on model-authored prose.
@@ -1293,21 +1302,22 @@ export interface IChatAgentFeedbackReviewComment {
  * Command ids the agent feedback review confirmation renderer (workbench/chat)
  * uses to fetch unreviewed comments and apply the user's selection. They are
  * implemented by the agent feedback feature in `vs/sessions`, keeping the chat
- * layer decoupled from the feedback model. Most take the owning session resource
- * (`UriComponents`) as their first argument; {@link AgentFeedbackReviewCommandId.RevealAt}
- * instead resolves the session from the file resource so a rendered tool call
- * can link to a comment without knowing the session URI.
+ * layer decoupled from the feedback model. Most take the rendered session or chat
+ * resource (`UriComponents`) as their first argument and resolve it to the owning
+ * session; {@link AgentFeedbackReviewCommandId.RevealAt} instead resolves the
+ * session from the file resource so a rendered tool call can link to a comment
+ * without knowing the session URI.
  */
 export const enum AgentFeedbackReviewCommandId {
-	/** `(sessionResource)` -> `IChatAgentFeedbackReviewComment[]` (the `created` reviewable comments). */
+	/** `(sessionOrChatResource)` -> `IChatAgentFeedbackReviewComment[]` (the `created` reviewable comments). */
 	GetComments = '_agentFeedbackReview.getComments',
-	/** `(sessionResource, commentId)` -> opens the file and reveals the comment. */
+	/** `(sessionOrChatResource, commentId)` -> opens the file and reveals the comment. */
 	Reveal = '_agentFeedbackReview.reveal',
 	/** `(resourceUri, range)` -> resolves the owning session and reveals the comment at that file range. */
 	RevealAt = '_agentFeedbackReview.revealAt',
-	/** `(sessionResource, commentId)` -> deletes the comment entirely. */
+	/** `(sessionOrChatResource, commentId)` -> deletes the comment entirely. */
 	Delete = '_agentFeedbackReview.delete',
-	/** `(sessionResource, commentIds)` -> accepts (reveals) the given comments. */
+	/** `(sessionOrChatResource, commentIds)` -> accepts (reveals) the given comments. */
 	Accept = '_agentFeedbackReview.accept',
 }
 
@@ -1891,6 +1901,9 @@ export interface IChatSendRequestOptions {
 	 */
 	isSystemInitiated?: boolean;
 
+	/** Hide the request and its response from the transcript while retaining them in history. */
+	hideFromTranscript?: boolean;
+
 	/**
 	 * Display label for system-initiated requests. When set, the request row renders
 	 * this label as a compact progress-style message instead of the full request text.
@@ -1918,13 +1931,20 @@ export interface IChatSendRequestOptions {
 
 export type IChatModelReference = IReference<IChatModel>;
 
+/** Data from a chat request after submission begins. */
+export interface IChatRequestSubmittedEvent {
+	readonly chatSessionResource: URI;
+	readonly message?: IParsedChatRequest;
+	readonly attachedContext?: IChatRequestVariableEntry[];
+}
+
 export const IChatService = createDecorator<IChatService>('IChatService');
 
 export interface IChatService {
 	_serviceBrand: undefined;
 	transferredSessionResource: URI | undefined;
 
-	readonly onDidSubmitRequest: Event<{ readonly chatSessionResource: URI; readonly message?: IParsedChatRequest }>;
+	readonly onDidSubmitRequest: Event<IChatRequestSubmittedEvent>;
 
 	readonly onDidCreateModel: Event<IChatModel>;
 
