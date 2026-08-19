@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { installFakeRunWhenIdle, timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, installFakeRunWhenIdle, timeout } from '../../../../../../base/common/async.js';
 import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -779,6 +779,53 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 		await timeout(0);
 		await timeout(0);
 		assert.strictEqual(fetchCount, 1);
+	});
+
+	test('unmetering while a check is in flight does not start a concurrent check', async () => {
+		let runIdle: ((idle: IdleDeadline) => void) | undefined;
+		store.add(installFakeRunWhenIdle((_target, runner) => {
+			runIdle = runner;
+			return Disposable.None;
+		}));
+		const meteredConnectionService = store.add(new TestMeteredConnectionService(false));
+		const firstFetch = new DeferredPromise<boolean>();
+		let activeFetches = 0;
+		let maxActiveFetches = 0;
+		let fetchCount = 0;
+		const service = createService({
+			meteredConnectionService,
+			pluginRepositoryService: {
+				fetchRepository: async () => {
+					fetchCount++;
+					activeFetches++;
+					maxActiveFetches = Math.max(maxActiveFetches, activeFetches);
+					try {
+						return fetchCount === 1 ? await firstFetch.p : false;
+					} finally {
+						activeFetches--;
+					}
+				},
+			},
+		});
+		service.addInstalledPlugin(
+			URI.file('/agent-plugins/github.com/microsoft/plugins/my-plugin'),
+			makePlugin('my-plugin', 'my-plugin'),
+		);
+
+		assert.ok(runIdle);
+		runIdle({ didTimeout: false, timeRemaining: () => 50 });
+		await timeout(0);
+		meteredConnectionService.setIsConnectionMetered(true);
+		meteredConnectionService.setIsConnectionMetered(false);
+		await timeout(0);
+
+		assert.deepStrictEqual({ fetchCount, maxActiveFetches }, { fetchCount: 1, maxActiveFetches: 1 });
+
+		firstFetch.complete(false);
+		await timeout(0);
+		await timeout(0);
+
+		assert.deepStrictEqual({ fetchCount, maxActiveFetches }, { fetchCount: 2, maxActiveFetches: 1 });
 	});
 
 	test('removeInstalledPlugin removes plugin from installedPlugins and metadata', () => {

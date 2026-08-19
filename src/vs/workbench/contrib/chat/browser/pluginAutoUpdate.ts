@@ -64,7 +64,7 @@ export class PluginAutoUpdate extends Disposable implements IWorkbenchContributi
 	}
 
 	private async _triggerAutoUpdate(marketplaceIds: ReadonlySet<string>): Promise<void> {
-		if (this._updateInFlight || this._meteredConnectionService.isConnectionMetered) {
+		if (this._store.isDisposed || this._updateInFlight || this._meteredConnectionService.isConnectionMetered) {
 			return;
 		}
 
@@ -88,7 +88,7 @@ export class PluginAutoUpdate extends Disposable implements IWorkbenchContributi
 			}
 			this._updateInFlight = false;
 
-			if (!this._meteredConnectionService.isConnectionMetered) {
+			if (!this._store.isDisposed && !this._meteredConnectionService.isConnectionMetered) {
 				const queuedMarketplaceIds = this._pluginMarketplaceService.marketplacesWithUpdates.get();
 				if (queuedMarketplaceIds.size > 0) {
 					void this._triggerAutoUpdate(queuedMarketplaceIds);

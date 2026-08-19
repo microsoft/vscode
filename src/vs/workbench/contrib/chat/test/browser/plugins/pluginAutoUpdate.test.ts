@@ -164,6 +164,39 @@ suite('PluginAutoUpdate', () => {
 		assert.strictEqual(state.updateAllCalls.length, 2);
 	});
 
+	test('disposing during an in-flight update does not restart queued work', async () => {
+		let resolveUpdate!: () => void;
+		let observedToken: CancellationToken | undefined;
+		const pendingUpdate = new Promise<IUpdateAllPluginsResult>(resolve => {
+			resolveUpdate = () => resolve({ updatedNames: [], failedNames: [] });
+		});
+		const { contribution, state } = createContribution({
+			updateAllImpl: token => {
+				observedToken = token;
+				return pendingUpdate;
+			},
+		});
+
+		state.marketplacesWithUpdates.set(new Set(['a']), undefined);
+		await flushMicrotasks();
+		contribution.dispose();
+		resolveUpdate();
+		await pendingUpdate;
+		await flushMicrotasks();
+
+		assert.deepStrictEqual({
+			updateAllCalls: state.updateAllCalls.length,
+			clearUpdatesAvailableCalls: state.clearUpdatesAvailableCalls.length,
+			updateStillQueued: [...state.marketplacesWithUpdates.get()],
+			wasCancelled: observedToken?.isCancellationRequested,
+		}, {
+			updateAllCalls: 1,
+			clearUpdatesAvailableCalls: 0,
+			updateStillQueued: ['a'],
+			wasCancelled: true,
+		});
+	});
+
 	test('queues a marketplace reported while another update is in flight', async () => {
 		let resolveUpdate!: () => void;
 		const pendingUpdate = new Promise<IUpdateAllPluginsResult>(resolve => {

@@ -317,6 +317,8 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	private readonly _lastFetchedPluginsStore: ObservableMemento<IStoredLastFetchedPlugins>;
 	private readonly _marketplacesWithUpdates = observableValue<ReadonlySet<string>>('marketplacesWithUpdates', new Set());
 	private _updateCheckTimer: ReturnType<typeof setTimeout> | undefined;
+	private _updateCheckPromise: Promise<void> | undefined;
+	private _updateCheckRescheduleRequested = false;
 
 	readonly onDidChangeMarketplaces: Event<void>;
 
@@ -833,10 +835,14 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	 * (Re-)schedules the next periodic update check. Called on
 	 * construction and whenever the auto-update config changes.
 	 */
-	private _scheduleUpdateCheck(): void {
+	private _scheduleUpdateCheck(delayOverride?: number): void {
 		this._clearUpdateCheckTimer();
 
-		if (this._meteredConnectionService.isConnectionMetered || !this._hasAutoUpdateEnabledMarketplace()) {
+		if (this._store.isDisposed || this._meteredConnectionService.isConnectionMetered || !this._hasAutoUpdateEnabledMarketplace()) {
+			return;
+		}
+		if (this._updateCheckPromise) {
+			this._updateCheckRescheduleRequested = true;
 			return;
 		}
 
@@ -846,9 +852,9 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			0,
 		);
 		const elapsed = Date.now() - lastCheck;
-		const delay = Math.max(0, PLUGIN_UPDATE_CHECK_INTERVAL_MS - elapsed);
+		const delay = delayOverride ?? Math.max(0, PLUGIN_UPDATE_CHECK_INTERVAL_MS - elapsed);
 
-		this._updateCheckTimer = setTimeout(() => this._runUpdateCheck(), delay);
+		this._updateCheckTimer = setTimeout(() => { void this._runUpdateCheck(); }, delay);
 	}
 
 	private _clearUpdateCheckTimer(): void {
@@ -858,8 +864,25 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		}
 	}
 
-	private async _runUpdateCheck(): Promise<void> {
+	private _runUpdateCheck(): Promise<void> {
 		this._updateCheckTimer = undefined;
+		if (this._updateCheckPromise) {
+			return this._updateCheckPromise;
+		}
+
+		const promise = this._doRunUpdateCheck().finally(() => {
+			if (this._updateCheckPromise === promise) {
+				this._updateCheckPromise = undefined;
+				const rescheduleImmediately = this._updateCheckRescheduleRequested;
+				this._updateCheckRescheduleRequested = false;
+				this._scheduleUpdateCheck(rescheduleImmediately ? 0 : PLUGIN_UPDATE_CHECK_INTERVAL_MS);
+			}
+		});
+		this._updateCheckPromise = promise;
+		return promise;
+	}
+
+	private async _doRunUpdateCheck(): Promise<void> {
 		if (this._meteredConnectionService.isConnectionMetered) {
 			return;
 		}
@@ -907,11 +930,6 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			);
 		} catch (err) {
 			this._logService.debug('[PluginMarketplaceService] Periodic update check failed:', err);
-		} finally {
-			// Reschedule for the next check
-			if (!this._meteredConnectionService.isConnectionMetered && this._hasAutoUpdateEnabledMarketplace()) {
-				this._updateCheckTimer = setTimeout(() => this._runUpdateCheck(), PLUGIN_UPDATE_CHECK_INTERVAL_MS);
-			}
 		}
 	}
 
