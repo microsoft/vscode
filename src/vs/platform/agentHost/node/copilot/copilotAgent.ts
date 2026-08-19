@@ -33,14 +33,13 @@ import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { workspacelessScratchDir } from '../workspacelessScratchDir.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
-import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
 import { createPricingMetaFromBilling, hasLongContextSurcharge, normalizeCAPIBilling, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, DEFAULT_SESSION_CUSTOMIZATION_DISCOVERY_MODE, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
 import { prepareSideChatPrompt, sliceSideChatTurns } from '../agentPeerChats.js';
@@ -81,12 +80,14 @@ import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitP
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
 import { CopilotGitHubTelemetryForwarder } from './copilotGitHubTelemetryForwarder.js';
 import { CopilotSessionLauncher, ContextSizeConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, isCopilotReasoningEffort, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
+import { CopilotAgentStartupConfig } from './copilotAgentStartupConfig.js';
 import { ShellManager } from './copilotShellTools.js';
 import { isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
 import { AgentHostGitHubTelemetryRouter } from '../agentHostGitHubTelemetryRouter.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { CopilotSlashCommandCompletionProvider, ICopilotRuntimeSlashCommandQueryOptions } from './copilotSlashCommandCompletionProvider.js';
+import { GITHUB_MCP_SERVER_NAME } from '../shared/githubMcpServer.js';
 import { DiscoveredType, SessionCustomizationDiscovery, areDiscoveredDirectoriesEqual, workspaceDirectoryHasHooks, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
 import { computeFolderPickerDecisionForRoots } from '../shared/folderPickerDecision.js';
 import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement.js';
@@ -108,6 +109,18 @@ interface ICopilotRuntimeManagedSettingsSdk {
 
 const COPILOT_MANAGED_SETTINGS_QUERY_TIMEOUT_MS = 3500;
 const COPILOT_MANAGED_SETTINGS_DIAGNOSTICS_TIMEOUT_MS = 4500;
+const COPILOT_ENABLE_BUILTIN_GITHUB_MCP_ENV_VAR = 'COPILOT_ENABLE_BUILTIN_GITHUB_MCP';
+
+function setCopilotBuiltinGitHubMcpEnvironment(env: Record<string, string | undefined>, enabled: boolean): void {
+	for (const key of Object.keys(env)) {
+		if (key.toUpperCase() === COPILOT_ENABLE_BUILTIN_GITHUB_MCP_ENV_VAR) {
+			delete env[key];
+		}
+	}
+	if (enabled) {
+		env[COPILOT_ENABLE_BUILTIN_GITHUB_MCP_ENV_VAR] = 'true';
+	}
+}
 
 function isCopilotRuntimeManagedSettingsSdk(value: unknown): value is ICopilotRuntimeManagedSettingsSdk {
 	return typeof value === 'object' && value !== null && 'getManagedSettings' in value
@@ -669,6 +682,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _proxyRefresh: Promise<void> | undefined;
 	private _proxyResolutionGeneration = 0;
 	private _appliedProxy: string | undefined;
+	private _appliedProxyKerberosSpn: string | undefined;
 	/**
 	 * Reasons for a client restart that is parked until every chat is idle. See
 	 * {@link _requestClientRestart}; drained by {@link _applyPendingClientRestart}.
@@ -783,7 +797,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
-		this._lastManagedSettingsPermissions = this._managedSettingsService.permissions;
+		this._lastStartupConfig = this._readClientStartupConfig();
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController, () => this._ensureClient()));
 		this._sessionLauncher = this._instantiationService.createInstance(CopilotSessionLauncher);
 		this._configurationService.publishRootTransientValues?.({ [CopilotCliVSCodeAssignmentContextKey]: undefined });
@@ -795,6 +809,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			? new AgentHostGitHubTelemetryRouter(this._telemetryService)
 			: undefined;
 		this._register(this._proxyResolver.onDidRegisterConnection(() => this._refreshProxy()));
+		this._register(this._proxyResolver.onDidChangeConfiguration(() => this._refreshProxy()));
 		this.onDidCustomizationsChange = this._plugins.onDidChange;
 		// Mirror host-owned titles under the SDK conversation id used by the agent's turn spans.
 		this._register(sessionTitleSignal.onDidChangeSessionTitle(({ provider, session, title }) => {
@@ -888,12 +903,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private _lastSessionSyncEnabled: boolean = this._isSessionSyncEnabled();
-	private _lastRubberDuckEnabled: boolean = this._isRubberDuckEnabled();
-	private _lastCopilotSdkLogLevelSetting: CopilotSdkLogLevelSetting = this._getCopilotSdkLogLevelSetting();
-	private _lastEnterpriseHost: string | undefined = this._getEnterpriseHost();
-	private _lastSystemProxyEnabled: boolean = this._isSystemProxyEnabled();
-	private _lastManagedSettingsPermissions: IAgentHostManagedSettingsPermissions;
+	private _lastStartupConfig: CopilotAgentStartupConfig;
 	private _lastMigrateLegacyEnabled: boolean = this._isMigrateLegacyCopilotCliEnabled();
 
 	private _isSessionSyncEnabled(): boolean {
@@ -920,8 +930,24 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostSystemProxyEnabledConfigKey) !== false;
 	}
 
+	private _isGitHubMcpServerEnabled(): boolean {
+		return this._configurationService.getRootValue(platformRootSchema, AgentHostGitHubMcpServerEnabledConfigKey) !== false;
+	}
+
 	private _isMigrateLegacyCopilotCliEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostMigrateLegacyCopilotCliEnabledConfigKey) === true;
+	}
+
+	private _readClientStartupConfig(): CopilotAgentStartupConfig {
+		return new CopilotAgentStartupConfig(
+			this._isSessionSyncEnabled(),
+			this._isRubberDuckEnabled(),
+			this._getCopilotSdkLogLevelSetting(),
+			this._getEnterpriseHost(),
+			this._isSystemProxyEnabled(),
+			this._isGitHubMcpServerEnabled(),
+			this._managedSettingsService.permissions,
+		);
 	}
 
 	/**
@@ -943,31 +969,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * An in-flight start aborts if any startup value changes.
 	 */
 	private async _restartClientIfStartupConfigChanged(): Promise<void> {
-		const sessionSync = this._isSessionSyncEnabled();
-		const rubberDuck = this._isRubberDuckEnabled();
-		const copilotSdkLogLevelSetting = this._getCopilotSdkLogLevelSetting();
-		const enterpriseHost = this._getEnterpriseHost();
-		const systemProxyEnabled = this._isSystemProxyEnabled();
-		const managedSettingsPermissions = this._managedSettingsService.permissions;
-		const proxyTargetChanged = this._lastEnterpriseHost !== enterpriseHost || this._lastSystemProxyEnabled !== systemProxyEnabled;
-		if (this._lastSessionSyncEnabled === sessionSync && this._lastRubberDuckEnabled === rubberDuck && this._lastCopilotSdkLogLevelSetting === copilotSdkLogLevelSetting && this._lastEnterpriseHost === enterpriseHost && this._lastSystemProxyEnabled === systemProxyEnabled && equals(this._lastManagedSettingsPermissions, managedSettingsPermissions)) {
+		const previous = this._lastStartupConfig;
+		const current = this._readClientStartupConfig();
+		if (current.equals(previous)) {
 			return;
 		}
-		const changed = [
-			this._lastSessionSyncEnabled !== sessionSync ? `sessionSync=${sessionSync}` : undefined,
-			this._lastRubberDuckEnabled !== rubberDuck ? `rubberDuck=${rubberDuck}` : undefined,
-			this._lastCopilotSdkLogLevelSetting !== copilotSdkLogLevelSetting ? `copilotSdkLogLevel=${copilotSdkLogLevelSetting}` : undefined,
-			this._lastEnterpriseHost !== enterpriseHost ? `enterpriseHost=${enterpriseHost}` : undefined,
-			this._lastSystemProxyEnabled !== systemProxyEnabled ? `systemProxy=${systemProxyEnabled}` : undefined,
-			!equals(this._lastManagedSettingsPermissions, managedSettingsPermissions) ? 'managedSettingsPermissions' : undefined,
-		].filter((v): v is string => v !== undefined).join(', ');
-		this._lastSessionSyncEnabled = sessionSync;
-		this._lastRubberDuckEnabled = rubberDuck;
-		this._lastCopilotSdkLogLevelSetting = copilotSdkLogLevelSetting;
-		this._lastEnterpriseHost = enterpriseHost;
-		this._lastSystemProxyEnabled = systemProxyEnabled;
-		this._lastManagedSettingsPermissions = managedSettingsPermissions;
-		if (proxyTargetChanged) {
+		const changed = current.describeChangesFrom(previous);
+		this._lastStartupConfig = current;
+		if (current.proxyTargetChangedFrom(previous)) {
 			this._refreshProxy();
 		}
 		if (this._client) {
@@ -1811,11 +1820,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// Snapshot the startup config so we can detect a change that lands while the
 		// client is still starting and abort the stale start (the values are baked
 		// into the client options / subprocess env below).
-		const sessionSyncAtStartup = this._isSessionSyncEnabled();
-		const rubberDuckAtStartup = this._isRubberDuckEnabled();
-		const copilotSdkLogLevelSettingAtStartup = this._getCopilotSdkLogLevelSetting();
-		const enterpriseHostAtStartup = this._getEnterpriseHost();
-		const systemProxyEnabledAtStartup = this._isSystemProxyEnabled();
+		const startupConfig = this._readClientStartupConfig();
 		const attemptNumber = ++this._clientStartupAttemptCount;
 		const startupStopWatch = StopWatch.create();
 		const startClient = async () => {
@@ -1829,6 +1834,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// re-introduce a process-wide alias for every session behind its back.
 			delete env['COPILOT_MODEL_FAMILY'];
 			this._applyProxyEnv(env);
+			setCopilotBuiltinGitHubMcpEnvironment(env, startupConfig.githubMcpServer);
 
 			// On Linux the MXC bubblewrap sandbox backend does not forward a PTY into
 			// the container, so the CLI's default PTY-backed interactive shell can
@@ -1855,7 +1861,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// authentication and CAPI endpoint discovery. `COPILOT_GH_HOST` is
 			// Copilot-CLI-specific (it does not affect the `gh` CLI). Unset for
 			// github.com so the CLI uses its default host.
-			const enterpriseHost = this._getEnterpriseHost();
+			const enterpriseHost = startupConfig.enterpriseHost;
 			if (enterpriseHost) {
 				env['COPILOT_GH_HOST'] = enterpriseHost;
 				this._logService.info(`[Copilot] Set CLI env: COPILOT_GH_HOST=${enterpriseHost}`);
@@ -1864,7 +1870,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Enable the rubber duck critic subagent in the CLI when the agent host
 			// config opts in. `RUBBER_DUCK_AGENT` is the SDK's required interface for
 			// gating this experimental feature
-			if (this._isRubberDuckEnabled()) {
+			if (startupConfig.rubberDuck) {
 				env['RUBBER_DUCK_AGENT'] = 'true';
 			} else {
 				delete env['RUBBER_DUCK_AGENT'];
@@ -1914,7 +1920,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			} else if (nativeTelemetry) {
 				env['OTEL_METRICS_EXPORTER'] = 'none';
 			}
-			const copilotSdkLogLevelAtStartup = this._resolveCopilotSdkLogLevel(copilotSdkLogLevelSettingAtStartup);
+			const copilotSdkLogLevelAtStartup = this._resolveCopilotSdkLogLevel(startupConfig.copilotSdkLogLevel);
 
 			const clientOptions: CopilotClientOptions = {
 				useLoggedInUser: false,
@@ -1922,7 +1928,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				env,
 				telemetry,
 				logLevel: copilotSdkLogLevelAtStartup,
-				enableRemoteSessions: sessionSyncAtStartup,
+				enableRemoteSessions: startupConfig.sessionSync,
 				onGetTraceContext: () => this._otelService.getCurrentTraceContext() ?? {},
 				onGitHubTelemetry: notification => { void this._routeGitHubTelemetry(notification).catch(err => this._logService.trace(`[Copilot] GitHub telemetry routing failed: ${err instanceof Error ? err.message : String(err)}`)); },
 			};
@@ -1931,7 +1937,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (this._shutdownPromise) {
 				return this._stopClientAfterStartupTermination(client, new CancellationError());
 			}
-			if (this._isSessionSyncEnabled() !== sessionSyncAtStartup || this._isRubberDuckEnabled() !== rubberDuckAtStartup || this._getCopilotSdkLogLevelSetting() !== copilotSdkLogLevelSettingAtStartup || this._getEnterpriseHost() !== enterpriseHostAtStartup || this._isSystemProxyEnabled() !== systemProxyEnabledAtStartup) {
+			if (!this._readClientStartupConfig().equals(startupConfig)) {
 				return this._stopClientAfterStartupTermination(client, new CopilotClientStartupConfigChangedError());
 			}
 			this._logService.info('[Copilot] CopilotClient started successfully');
@@ -3125,7 +3131,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				additionalDirectories: this._additionalCustomizationDirectories(resolvedWorkingDirectories),
 				resolvedAgentName: resolvedAgent?.name,
 				snapshot,
-				disabledRootMcpServers: this._disabledRootMcpServers(sessionUri, sdkSessionId, snapshot),
+				disabledRootMcpServers: await this._disabledRootMcpServers(sessionUri, sdkSessionId, snapshot),
 				activeClientToolSet: activeClient.toolSet,
 				shellManager,
 				githubToken: this._githubToken,
@@ -3346,9 +3352,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const rootsChanged = !!entry && workingDirectories !== undefined && !areAdditionalWorkingDirectoriesEqual(entry.appliedAdditionalDirectories, this._additionalCustomizationDirectories(workingDirectories));
 			const currentSnapshot = entry && activeClient ? await activeClient.snapshot(current.chatKey) : undefined;
 			const structuralConfigChanged = !!entry && !!activeClient && !!currentSnapshot && await activeClient.requiresRestart(entry.appliedSnapshot, current.chatKey, currentSnapshot);
-			const disabledRootMcpServersChanged = !!entry && !!currentSnapshot && !equals(
+			const currentDisabledRootMcpServers = entry && currentSnapshot
+				? await this._disabledRootMcpServers(current.configurationResource, entry.sessionId, currentSnapshot)
+				: undefined;
+			const disabledRootMcpServersChanged = !!entry && !!currentDisabledRootMcpServers && !equals(
 				[...new Set(entry.appliedDisabledRootMcpServers)].sort(),
-				[...new Set(this._disabledRootMcpServers(current.configurationResource, entry.sessionId, currentSnapshot))].sort(),
+				[...new Set(currentDisabledRootMcpServers)].sort(),
 			);
 			if (entry && (rootsChanged || structuralConfigChanged || disabledRootMcpServersChanged || entry.requiresMcpLaunchConfigurationRefresh)) {
 				this._logService.info(`[Copilot:${current.configurationId}] Session configuration changed, refreshing session. clients=[${activeClient ? [...activeClient.toolSet.clientIds()].join(', ') || '(none)' : '(none)'}]`);
@@ -3629,7 +3638,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					workingDirectory,
 					resolvedAgentName: undefined,
 					snapshot,
-					disabledRootMcpServers: this._disabledRootMcpServers(session, sdkSessionId, snapshot),
+					disabledRootMcpServers: await this._disabledRootMcpServers(session, sdkSessionId, snapshot),
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
 					githubToken: this._githubToken,
@@ -3658,7 +3667,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					workingDirectory,
 					resolvedAgentName: undefined,
 					snapshot,
-					disabledRootMcpServers: this._disabledRootMcpServers(session, sdkSessionId, snapshot),
+					disabledRootMcpServers: await this._disabledRootMcpServers(session, sdkSessionId, snapshot),
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
 					githubToken: this._githubToken,
@@ -3673,7 +3682,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					workingDirectory,
 					resolvedAgentName: undefined,
 					snapshot,
-					disabledRootMcpServers: this._disabledRootMcpServers(session, chatSdkId, snapshot),
+					disabledRootMcpServers: await this._disabledRootMcpServers(session, chatSdkId, snapshot),
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
 					githubToken: this._githubToken,
@@ -4074,7 +4083,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					additionalDirectories: launchWorkingDirectories?.slice(1),
 					resolvedAgentName: info.agent ? this._resolveAgentName(snapshot, info.agent) : undefined,
 					snapshot,
-					disabledRootMcpServers: this._disabledRootMcpServers(configurationResource, info.sdkSessionId, snapshot),
+					disabledRootMcpServers: await this._disabledRootMcpServers(configurationResource, info.sdkSessionId, snapshot),
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
 					githubToken: this._githubToken,
@@ -4276,6 +4285,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			this._logService.info('[Copilot] Resolved CAPI proxy and forwarded HTTP_PROXY/HTTPS_PROXY to Copilot SDK');
 		}
+		const kerberosSpn = env['COPILOT_PROXY_KERBEROS_SPN'] || this._configurationService.getRootValue(agentHostProxyConfigSchema, AgentHostProxyConfigKey.ProxyKerberosServicePrincipal);
+		this._appliedProxyKerberosSpn = kerberosSpn;
+		if (kerberosSpn && !env['COPILOT_PROXY_KERBEROS_SPN']) {
+			env['COPILOT_PROXY_KERBEROS_SPN'] = kerberosSpn;
+		}
 	}
 
 	private async _resolveProxyForSdk(env: Record<string, string | undefined> = process.env): Promise<string | undefined> {
@@ -4315,7 +4329,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			this._resolvedProxy = proxy;
 			const effectiveProxy = this._isSystemProxyEnabled() ? proxy : undefined;
-			if (effectiveProxy === this._appliedProxy) {
+			const effectiveKerberosSpn = process.env['COPILOT_PROXY_KERBEROS_SPN'] || this._configurationService.getRootValue(agentHostProxyConfigSchema, AgentHostProxyConfigKey.ProxyKerberosServicePrincipal);
+			if (effectiveProxy === this._appliedProxy && effectiveKerberosSpn === this._appliedProxyKerberosSpn) {
 				return;
 			}
 			if (this._clientStarting) {
@@ -4327,11 +4342,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 				// A newer proxy resolution (or the client start we just awaited)
 				// may have already superseded this one; re-check both so we don't
 				// restart based on a stale comparison.
-				if (generation !== this._proxyResolutionGeneration || effectiveProxy === this._appliedProxy) {
+				if (generation !== this._proxyResolutionGeneration || (effectiveProxy === this._appliedProxy && effectiveKerberosSpn === this._appliedProxyKerberosSpn)) {
 					return;
 				}
 			}
-			await this._requestClientRestart(`CAPI proxy changed (${this._appliedProxy ?? '(none)'} -> ${effectiveProxy ?? '(none)'})`);
+			await this._requestClientRestart(`CAPI proxy configuration changed (${this._appliedProxy ?? '(none)'} -> ${effectiveProxy ?? '(none)'})`);
 		}).catch(error => this._logService.error('[Copilot] Failed to refresh CAPI proxy', error));
 		this._proxyRefresh = refresh;
 		void refresh.finally(() => {
@@ -4387,8 +4402,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/** Resolves root-configured MCP servers that must be disabled when the SDK session starts. */
-	private _disabledRootMcpServers(session: URI, sessionId: string, snapshot: IActiveClientSnapshot): readonly string[] {
-		const rootServers: McpServerCustomization[] = Object.keys(snapshot.mcpServers).map(name => {
+	private async _disabledRootMcpServers(session: URI, sessionId: string, snapshot: IActiveClientSnapshot): Promise<readonly string[]> {
+		await this._customizationEnablementService.initializeSession(session.toString());
+		const serverNames = new Set(Object.keys(snapshot.mcpServers));
+		if (this._isGitHubMcpServerEnabled()) {
+			serverNames.add(GITHUB_MCP_SERVER_NAME);
+		}
+		const rootServers: McpServerCustomization[] = [...serverNames].map(name => {
 			const id = buildMcpTopLevelCustomizationId(this.id, sessionId, name);
 			return {
 				type: CustomizationType.McpServer,
@@ -4532,7 +4552,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			additionalDirectories: this._additionalCustomizationDirectories(launchWorkingDirectories),
 			resolvedAgentName,
 			snapshot,
-			disabledRootMcpServers: this._disabledRootMcpServers(sessionUri, sessionId, snapshot),
+			disabledRootMcpServers: await this._disabledRootMcpServers(sessionUri, sessionId, snapshot),
 			activeClientToolSet: activeClient.toolSet,
 			shellManager,
 			githubToken: this._githubToken,

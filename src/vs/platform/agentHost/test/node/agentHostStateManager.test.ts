@@ -322,6 +322,44 @@ suite('AgentHostStateManager', () => {
 		});
 	});
 
+	test('listed provisional session still applies the materialization upsert', () => {
+		const provisional = { ...makeSessionSummary(), workingDirectories: ['file:///provisional'] };
+		manager.createSession(provisional, { emitNotification: false });
+		manager.dispatchServerAction(sessionChatUri, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		});
+		manager.prepareSessionSummariesForListing([manager.getSessionSummary(sessionUri)!]);
+		const notifications: INotification[] = [];
+		disposables.add(manager.onDidEmitNotification(notification => notifications.push(notification)));
+
+		const persisted = {
+			...makeSessionSummary(),
+			project: { uri: 'file:///resolved-worktree', displayName: 'Resolved Worktree' },
+			workingDirectories: ['file:///resolved-worktree'],
+		};
+		manager.markSessionPersisted(sessionUri, persisted);
+
+		const added = notifications.find(notification => notification.type === NotificationType.SessionAdded);
+		assert.deepStrictEqual({
+			status: manager.getSessionState(sessionUri)?.status,
+			project: manager.getSessionState(sessionUri)?.project,
+			workingDirectories: manager.getSessionState(sessionUri)?.workingDirectories,
+			addedStatus: added?.type === NotificationType.SessionAdded ? added.summary.status : undefined,
+			addedProject: added?.type === NotificationType.SessionAdded ? added.summary.project : undefined,
+			addedWorkingDirectories: added?.type === NotificationType.SessionAdded ? added.summary.workingDirectories : undefined,
+		}, {
+			status: SessionStatus.InProgress,
+			project: persisted.project,
+			workingDirectories: persisted.workingDirectories,
+			addedStatus: SessionStatus.InProgress,
+			addedProject: persisted.project,
+			addedWorkingDirectories: persisted.workingDirectories,
+		});
+	});
+
 	test('getActiveTurnId returns active turn id after turnStarted', () => {
 		manager.createSession(makeSessionSummary());
 		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });

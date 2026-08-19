@@ -6,12 +6,13 @@
 import * as nls from '../../../nls.js';
 import { IPolicyData } from '../../../base/common/defaultAccount.js';
 import { PolicyCategory } from '../../../base/common/policy.js';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
+import { AgentHostConfigurationSyncScope, ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
 import { COPILOT_OTEL_CAPTURE_CONTENT_KEY, COPILOT_OTEL_ENABLED_KEY, COPILOT_OTEL_ENDPOINT_KEY, COPILOT_OTEL_HEADERS_KEY, COPILOT_OTEL_LOCK_CAPTURE_CONTENT_KEY, COPILOT_OTEL_PROTOCOL_KEY, COPILOT_OTEL_RESOURCE_ATTRIBUTES_KEY, COPILOT_OTEL_SERVICE_NAME_KEY, managedSettingValue } from '../../policy/common/copilotManagedSettings.js';
 import product from '../../product/common/product.js';
 import { Registry } from '../../registry/common/platform.js';
 import {
 	AgentHostByokModelsEnabledSettingId,
+	AgentHostGitHubMcpServerEnabledSettingId,
 	AgentHostActiveAgentTitleGenerationSettingId,
 	AgentHostClaudeAgentEnabledSettingId,
 	AgentHostClaudeMultiRootEnabledSettingId,
@@ -37,6 +38,7 @@ import {
 	AgentHostClaudeMultiRootEnabledConfigKey,
 	AgentHostActiveAgentTitleGenerationConfigKey,
 	AgentHostByokModelsEnabledConfigKey,
+	AgentHostGitHubMcpServerEnabledConfigKey,
 	AgentHostCodexEnabledConfigKey,
 	AgentHostCodexMultiRootEnabledConfigKey,
 	AgentHostCopilotMultiRootEnabledConfigKey,
@@ -196,6 +198,14 @@ configurationRegistry.registerConfiguration({
 			experiment: { mode: 'startup' },
 			agentHost: { key: AgentHostSystemProxyEnabledConfigKey },
 		},
+		[AgentHostGitHubMcpServerEnabledSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.githubMcpServer.enabled', "When enabled, agent-host sessions include the GitHub MCP server."),
+			default: true,
+			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'startup' },
+			agentHost: { key: AgentHostGitHubMcpServerEnabledConfigKey },
+		},
 		[AgentHostCopilotMultiRootEnabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.copilotAgent.multiRootEnabled', "When enabled, Copilot agent-host sessions advertise support for multiple working directories, so a session created in a multi-root workspace can span every workspace folder. Experimental; newly created sessions pick up a change without restarting the agent host."),
@@ -248,7 +258,7 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'startup' },
-			agentHost: { key: AgentHostByokModelsEnabledConfigKey, localOnly: true },
+			agentHost: { key: AgentHostByokModelsEnabledConfigKey, scope: AgentHostConfigurationSyncScope.Local },
 		},
 		[AgentHostCodexAgentEnabledSettingId]: {
 			type: 'boolean',

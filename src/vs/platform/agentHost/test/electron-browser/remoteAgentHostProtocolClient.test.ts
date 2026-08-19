@@ -34,7 +34,7 @@ import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/tel
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
 import { AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../common/agentHostManagedSettings.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
+import { AgentHostConfigurationSyncScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
 
 // Settings used to exercise declarative agent-host mirroring. Registered by this
@@ -46,6 +46,10 @@ const SYNC_SETTING_A = 'test.remoteAgentHostProtocolClient.syncA';
 const SYNC_CONFIG_KEY_A = 'testSyncValueA';
 const SYNC_SETTING_B = 'test.remoteAgentHostProtocolClient.syncB';
 const SYNC_CONFIG_KEY_B = 'testSyncValueB';
+const SYNC_LOCAL_SETTING = 'test.remoteAgentHostProtocolClient.syncLocal';
+const SYNC_LOCAL_CONFIG_KEY = 'testSyncLocal';
+const SYNC_AMBIENT_SETTING = 'test.remoteAgentHostProtocolClient.syncAmbient';
+const SYNC_AMBIENT_CONFIG_KEY = 'testSyncAmbient';
 
 const syncTestConfigurationNode = {
 	id: 'testRemoteAgentHostProtocolClientSync',
@@ -60,6 +64,16 @@ const syncTestConfigurationNode = {
 			type: 'boolean' as const,
 			default: false,
 			agentHost: { key: SYNC_CONFIG_KEY_B },
+		},
+		[SYNC_LOCAL_SETTING]: {
+			type: 'boolean' as const,
+			default: true,
+			agentHost: { key: SYNC_LOCAL_CONFIG_KEY, scope: AgentHostConfigurationSyncScope.Local },
+		},
+		[SYNC_AMBIENT_SETTING]: {
+			type: 'boolean' as const,
+			default: true,
+			agentHost: { key: SYNC_AMBIENT_CONFIG_KEY, scope: AgentHostConfigurationSyncScope.Ambient },
 		},
 	},
 };
@@ -135,6 +149,19 @@ function findLastManagedSettingsNotification(messages: readonly ProtocolTranspor
 /** The value forwarded for `configKey` in the first root-config notification carrying it. */
 function findRootConfigValue(messages: readonly ProtocolTransportMessage[], configKey: string): RootConfigValue {
 	return getRootConfig(findRootConfigNotification(messages, configKey))[configKey];
+}
+
+function findOptionalRootConfigValue(messages: readonly ProtocolTransportMessage[], configKey: string): RootConfigValue {
+	for (const message of messages) {
+		if (!hasKey(message, { method: true }) || message.method !== 'dispatchAction') {
+			continue;
+		}
+		const params = (message as JsonRpcNotification).params as ITestRootConfigNotificationParams | undefined;
+		if (params?.action?.type === ActionType.RootConfigChanged && params.action.config && hasKey(params.action.config, { [configKey]: true })) {
+			return params.action.config[configKey];
+		}
+	}
+	return undefined;
 }
 
 class TestProtocolTransport extends Disposable implements IProtocolTransport {
@@ -1097,6 +1124,37 @@ suite('RemoteAgentHostProtocolClient', () => {
 		// Only the affected setting is re-forwarded.
 		assert.deepStrictEqual(getRootConfig(findLastRootConfigNotification(transport.sentMessages, SYNC_CONFIG_KEY_A)), {
 			[SYNC_CONFIG_KEY_A]: false,
+		});
+	});
+
+	test('applies local and ambient configuration scopes to the target Agent Host', async () => {
+		const local = createClientForIdentity(LOCAL_AGENT_HOST_RESOURCE_IDENTITY);
+		const remoteExtensionHost = createClientForIdentity('vscode-remote://ssh-remote+host');
+		const remote = createClient();
+
+		await Promise.all([
+			connectClient(local.client, local.transport),
+			connectClient(remoteExtensionHost.client, remoteExtensionHost.transport),
+			connectClient(remote.client, remote.transport),
+		]);
+
+		assert.deepStrictEqual({
+			local: {
+				local: findRootConfigValue(local.transport.sentMessages, SYNC_LOCAL_CONFIG_KEY),
+				ambient: findRootConfigValue(local.transport.sentMessages, SYNC_AMBIENT_CONFIG_KEY),
+			},
+			remoteExtensionHost: {
+				local: findOptionalRootConfigValue(remoteExtensionHost.transport.sentMessages, SYNC_LOCAL_CONFIG_KEY),
+				ambient: findRootConfigValue(remoteExtensionHost.transport.sentMessages, SYNC_AMBIENT_CONFIG_KEY),
+			},
+			remote: {
+				local: findOptionalRootConfigValue(remote.transport.sentMessages, SYNC_LOCAL_CONFIG_KEY),
+				ambient: findOptionalRootConfigValue(remote.transport.sentMessages, SYNC_AMBIENT_CONFIG_KEY),
+			},
+		}, {
+			local: { local: true, ambient: true },
+			remoteExtensionHost: { local: undefined, ambient: true },
+			remote: { local: undefined, ambient: undefined },
 		});
 	});
 
