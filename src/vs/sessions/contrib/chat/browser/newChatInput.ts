@@ -156,17 +156,28 @@ registerAction2(class extends Action2 {
 let activeNewChatComposer: NewChatInputWidget | undefined;
 
 function registerNewChatPickerCommandOverride(commandId: string, openPicker: (composer: NewChatInputWidget) => void): void {
-	const originalCommand = CommandsRegistry.getCommand(commandId);
-	if (!originalCommand) {
-		throw new Error(`Cannot override unregistered chat picker command '${commandId}'.`);
-	}
-	CommandsRegistry.registerCommand(commandId, (accessor, ...args) => {
-		if (activeNewChatComposer) {
-			openPicker(activeNewChatComposer);
-			return;
+	const register = () => {
+		const originalCommand = CommandsRegistry.getCommand(commandId);
+		if (!originalCommand) {
+			return false;
 		}
-		return originalCommand.handler(accessor, ...args);
-	});
+		CommandsRegistry.registerCommand(commandId, (accessor, ...args) => {
+			if (activeNewChatComposer) {
+				openPicker(activeNewChatComposer);
+				return;
+			}
+			return originalCommand.handler(accessor, ...args);
+		});
+		return true;
+	};
+	if (!register()) {
+		const listener = CommandsRegistry.onDidRegisterCommand(id => {
+			if (id === commandId) {
+				listener.dispose();
+				register();
+			}
+		});
+	}
 }
 
 registerNewChatPickerCommandOverride(OpenModePickerAction.ID, composer => composer.openModePicker());

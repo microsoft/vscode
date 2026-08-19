@@ -431,11 +431,6 @@ export class ActionBar extends Disposable implements IActionRunner {
 		return this.actionsList.children.item(index)?.clientWidth ?? 0;
 	}
 
-	getFocusElements(): readonly HTMLElement[] {
-		return Array.from(this.actionsList.querySelectorAll<HTMLElement>('button, a, [tabindex]'))
-			.filter(element => element !== this.actionsList);
-	}
-
 	getHeight(index: number): number {
 		return this.actionsList.children.item(index)?.clientHeight ?? 0;
 	}
