@@ -139,11 +139,14 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async getWorktreeRoots(workingDirectory: URI): Promise<URI[]> {
-		const output = await this._runGit(workingDirectory, ['worktree', 'list', '--porcelain']);
-		if (!output) {
+		return this._parseWorktreeRoots(await this._runGit(workingDirectory, ['worktree', 'list', '--porcelain']));
+	}
+
+	private _parseWorktreeRoots(porcelainOutput: string | undefined): URI[] {
+		if (!porcelainOutput) {
 			return [];
 		}
-		return output.split(/\r?\n/g)
+		return porcelainOutput.split(/\r?\n/g)
 			.filter(line => line.startsWith('worktree '))
 			.map(line => URI.file(line.substring('worktree '.length)));
 	}
@@ -240,7 +243,9 @@ export class AgentHostGitService implements IAgentHostGitService {
 	 * So we: retry with a capped exponential backoff to let the racing process
 	 * finish; switch to `prune` once the working tree is already gone; only retry
 	 * transient lock / "directory not empty" failures (a dirty-tree "use --force"
-	 * still fails fast); and verify the worktree is truly de-registered before
+	 * still fails fast); treat a non-retryable failure as success when git no
+	 * longer tracks the worktree (idempotent re-removal of an already-removed or
+	 * archived worktree); and verify the worktree is truly de-registered before
 	 * returning, so a silent `prune` no-op cannot mask a leaked entry.
 	 */
 	async removeWorktree(repositoryRoot: URI, worktree: URI, options?: { readonly force?: boolean }): Promise<void> {
@@ -270,6 +275,11 @@ export class AgentHostGitService implements IAgentHostGitService {
 			} catch (error) {
 				lastError = error;
 				if (!isRetryableWorktreeRemovalError(error)) {
+					// Idempotent: if git no longer tracks the worktree the removal goal is already met (e.g. an archived session removed it earlier).
+					if (!await this._isWorktreeRegistered(repositoryRoot, worktree)) {
+						this._logService.trace(`[agentHostGitService] worktree '${worktree.fsPath}' already de-registered; treating removal as complete`);
+						return;
+					}
 					throw error;
 				}
 			}
@@ -292,9 +302,18 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 	}
 
-	/** Whether `worktree` is still registered with git (its admin entry survives). */
+	/**
+	 * Whether `worktree` is still registered with git (its admin entry survives).
+	 * Fails closed (returns `true`) if the registry cannot be read, so an unrelated
+	 * `git worktree list` failure is never mistaken for a completed removal.
+	 */
 	private async _isWorktreeRegistered(repositoryRoot: URI, worktree: URI): Promise<boolean> {
-		const registered = await this.getWorktreeRoots(repositoryRoot);
+		let registered: URI[];
+		try {
+			registered = this._parseWorktreeRoots(await this._runGit(repositoryRoot, ['worktree', 'list', '--porcelain'], { throwOnError: true }));
+		} catch {
+			return true;
+		}
 		if (registered.length === 0) {
 			return false;
 		}
@@ -332,13 +351,35 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async hasUncommittedChanges(workingDirectory: URI): Promise<boolean> {
-		const output = await this._runGit(workingDirectory, ['status', '--porcelain']);
+		const output = await this._runGitStatus(workingDirectory, ['--porcelain']);
 		return !!output && output.trim().length > 0;
 	}
 
 	async commitAll(workingDirectory: URI, message: string): Promise<void> {
 		await this._runGit(workingDirectory, ['add', '-A', '--', ':/'], { throwOnError: true });
 		await this._runGit(workingDirectory, ['commit', '--no-verify', '-m', message], { timeout: 60_000, throwOnError: true });
+	}
+
+	async mergeBranch(workingDirectory: URI, branchName: string): Promise<string> {
+		const existingMergeHead = await this._runGit(workingDirectory, ['rev-parse', '--verify', '--quiet', 'MERGE_HEAD']);
+		if (existingMergeHead) {
+			throw new Error(`Cannot merge '${branchName}' because another merge is already in progress.`);
+		}
+		try {
+			return (await this._runGit(workingDirectory, ['merge', '--no-edit', '--', branchName], { timeout: 60_000, throwOnError: true }))?.trim() ?? '';
+		} catch (error) {
+			const mergeHead = await this._runGit(workingDirectory, ['rev-parse', '--verify', '--quiet', 'MERGE_HEAD']);
+			if (mergeHead) {
+				try {
+					await this._runGit(workingDirectory, ['merge', '--abort'], { timeout: 60_000, throwOnError: true });
+				} catch (abortError) {
+					const mergeMessage = error instanceof Error ? error.message : String(error);
+					const abortMessage = abortError instanceof Error ? abortError.message : String(abortError);
+					throw new Error(`Merge failed and could not be aborted: ${mergeMessage}; ${abortMessage}`, { cause: error });
+				}
+			}
+			throw error;
+		}
 	}
 
 	async restore(workingDirectory: URI, paths: readonly string[], options?: { readonly staged?: boolean; readonly ref?: string }): Promise<void> {
@@ -422,7 +463,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		// have to use the temp-index trick so the untracked content is
 		// included in `--cached --raw` output; otherwise a plain `git diff`
 		// is sufficient and avoids the temp-dir overhead.
-		const statusOut = await this._runGit(repositoryRoot, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
+		const statusOut = await this._runGitStatus(repositoryRoot, ['--porcelain=v1', '-z', '--untracked-files=all']);
 		if (statusOut === undefined) {
 			return undefined;
 		}
@@ -666,8 +707,8 @@ export class AgentHostGitService implements IAgentHostGitService {
 		});
 	}
 
-	async getSessionGitState(workingDirectory: URI): Promise<ISessionGitState | undefined> {
-		return this._computeSessionGitState(workingDirectory);
+	async getSessionGitState(workingDirectory: URI, baseBranchName?: string): Promise<ISessionGitState | undefined> {
+		return this._computeSessionGitState(workingDirectory, baseBranchName);
 	}
 
 	async getFetchRemoteUrls(workingDirectory: URI, preferredRemote?: string): Promise<readonly string[] | undefined> {
@@ -683,7 +724,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		if (!repositoryRoot) {
 			return undefined;
 		}
-		const status = await this._runGit(repositoryRoot, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
+		const status = await this._runGitStatus(repositoryRoot, ['--porcelain=v1', '-z', '--untracked-files=all']);
 		return status === undefined ? undefined : parseUntrackedPaths(status);
 	}
 
@@ -693,7 +734,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 			return undefined;
 		}
 
-		const statusOut = await this._runGit(repositoryRoot, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
+		const statusOut = await this._runGitStatus(repositoryRoot, ['--porcelain=v1', '-z', '--untracked-files=all']);
 		if (statusOut === undefined) {
 			return undefined;
 		}
@@ -888,7 +929,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 	}
 
-	private async _computeSessionGitState(workingDirectory: URI): Promise<ISessionGitState | undefined> {
+	private async _computeSessionGitState(workingDirectory: URI, configuredBaseBranch?: string): Promise<ISessionGitState | undefined> {
 		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
 		if (!repositoryRoot) {
 			return undefined;
@@ -901,22 +942,27 @@ export class AgentHostGitService implements IAgentHostGitService {
 			remotesOutput,
 			defaultBranchRef,
 		] = await Promise.all([
-			this._runGit(repositoryRoot, ['status', '-b', '--porcelain=v2']),
+			this._runGitStatus(repositoryRoot, ['-b', '--porcelain=v2']),
 			this._runGit(repositoryRoot, ['remote', '-v']),
-			this._runGit(repositoryRoot, ['symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD']),
+			configuredBaseBranch ? undefined : this._runGit(repositoryRoot, ['symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD']),
 		]);
 
 		const status = parseGitStatusV2(statusOutput);
 		const hasGitHubRemote = parseHasGitHubRemote(remotesOutput);
-		const baseBranchName = parseDefaultBranchRef(defaultBranchRef);
+		const baseBranchName = configuredBaseBranch ?? parseDefaultBranchRef(defaultBranchRef);
 		const githubRepo = parseGitHubRepoFromRemote(remotesOutput);
 		const upstreamRemote = status.upstreamBranchName?.split('/')[0];
 		// `gh pr checkout` can create a local branch whose head lives on a fork but
 		// has no upstream tracking ref; Git still reports the branch's push remote,
 		// which can be a remote name or the literal fork URL.
-		const pushRemote = !upstreamRemote && status.branchName
-			? (await this._runGit(repositoryRoot, ['for-each-ref', '--format=%(push:remotename)', `refs/heads/${status.branchName}`]))?.trim() || undefined
-			: undefined;
+		const [pushRemote, baseBranchDivergence] = await Promise.all([
+			!upstreamRemote && status.branchName
+				? this._getPushRemote(repositoryRoot, status.branchName)
+				: undefined,
+			baseBranchName && status.branchName && status.branchName !== baseBranchName
+				? this._computeBaseBranchDivergence(repositoryRoot, baseBranchName, status.outgoingChanges === undefined)
+				: undefined,
+		]);
 		const githubHeadRepo = upstreamRemote
 			? parseGitHubRepoFromRemote(remotesOutput, upstreamRemote)
 			: parseGitHubHeadRepoFromRemoteSelection(remotesOutput, pushRemote);
@@ -929,12 +975,8 @@ export class AgentHostGitService implements IAgentHostGitService {
 		// commits relative to the base branch — that matches what the user
 		// actually cares about for "is there work to PR?".
 		let outgoingChanges = status.outgoingChanges;
-		if (outgoingChanges === undefined && baseBranchName && status.branchName && status.branchName !== baseBranchName) {
-			const ahead = await this._runGit(repositoryRoot, ['rev-list', '--count', `${baseBranchName}..HEAD`]);
-			const parsed = ahead === undefined ? NaN : Number(ahead.trim());
-			if (Number.isFinite(parsed)) {
-				outgoingChanges = parsed;
-			}
+		if (outgoingChanges === undefined) {
+			outgoingChanges = baseBranchDivergence?.count;
 		}
 
 		const result: ISessionGitState = {
@@ -945,6 +987,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 			incomingChanges: status.incomingChanges,
 			outgoingChanges,
 			uncommittedChanges: status.uncommittedChanges,
+			hasBaseBranchChanges: baseBranchDivergence?.hasChanges,
 			githubOwner: githubRepo?.owner,
 			githubHeadOwner: githubHeadRepo?.owner,
 			githubRepo: githubRepo?.repo,
@@ -952,6 +995,36 @@ export class AgentHostGitService implements IAgentHostGitService {
 		// Strip undefined fields so the resulting object is the same regardless
 		// of which probes succeeded — easier to compare in tests.
 		return stripUndefined(result);
+	}
+
+	private async _getPushRemote(repositoryRoot: URI, branchName: string): Promise<string | undefined> {
+		return (await this._runGit(repositoryRoot, ['for-each-ref', '--format=%(push:remotename)', `refs/heads/${branchName}`]))?.trim() || undefined;
+	}
+
+	private async _computeBaseBranchDivergence(repositoryRoot: URI, baseBranchName: string, countCommits: boolean): Promise<{ readonly hasChanges: boolean; readonly count?: number } | undefined> {
+		const localRef = `refs/heads/${baseBranchName}`;
+		const remoteRef = `refs/remotes/origin/${baseBranchName}`;
+		const refs = await this._runGit(repositoryRoot, ['for-each-ref', '--format=%(refname)', localRef, remoteRef]);
+		if (refs === undefined) {
+			return undefined;
+		}
+		const refNames = new Set(refs.split(/\r?\n/g).filter(Boolean));
+		const baseBranchRef = refNames.has(localRef) ? localRef : refNames.has(remoteRef) ? remoteRef : baseBranchName;
+		// Upstream divergence can remain after a local merge, so operation availability tracks the local base separately.
+		const output = await this._runGit(repositoryRoot, ['rev-list', countCommits ? '--count' : '--max-count=1', `${baseBranchRef}..HEAD`]);
+		if (output === undefined) {
+			return undefined;
+		}
+		if (!countCommits) {
+			return { hasChanges: output.trim().length > 0 };
+		}
+		const count = Number(output.trim());
+		return Number.isFinite(count) ? { hasChanges: count > 0, count } : undefined;
+	}
+
+	private _runGitStatus(workingDirectory: URI, args: readonly string[]): Promise<string | undefined> {
+		// Background status probes must not contend with mutating git commands for index.lock.
+		return this._runGit(workingDirectory, ['status', ...args], { env: { GIT_OPTIONAL_LOCKS: '0' } });
 	}
 
 	private _runGit(workingDirectory: URI, args: readonly string[], options?: { readonly timeout?: number; readonly throwOnError?: boolean; readonly env?: Record<string, string>; readonly maxBuffer?: number; readonly onStderr?: (chunk: string) => void }): Promise<string | undefined> {

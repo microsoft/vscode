@@ -82,6 +82,7 @@ export interface IParsedHookGroup {
 export interface IMcpServerDefinition {
 	readonly name: string;
 	readonly configuration: IMcpServerConfiguration;
+	readonly defaultCwd?: URI;
 	readonly uri: URI;
 	/** Protocol-level projection of this MCP server as a child customization. */
 	readonly customization: McpServerCustomization;
@@ -98,8 +99,16 @@ export interface INamedPluginResource {
 	readonly description?: string;
 }
 
+/** A parsed agent resource with the frontmatter metadata shared by providers. */
+export interface IAgentPluginResource extends INamedPluginResource {
+	readonly model?: string;
+	readonly tools?: readonly string[];
+	readonly disableModelInvocation?: boolean;
+	readonly disableUserInvocation?: boolean;
+}
+
 /** A parsed agent paired with its protocol-level child customization. */
-export interface IParsedAgent extends INamedPluginResource {
+export interface IParsedAgent extends IAgentPluginResource {
 	readonly customization: AgentCustomization;
 }
 
@@ -299,7 +308,7 @@ function buildChildId(uri: URI, disambiguator?: string): string {
 	return `${base.replace(/#/g, '%23')}#${disambiguator}`;
 }
 
-function makeAgentCustomization(resource: INamedPluginResource): AgentCustomization {
+function makeAgentCustomization(resource: IAgentPluginResource): AgentCustomization {
 	const uri = resource.uri.toString();
 	return {
 		type: CustomizationType.Agent,
@@ -307,6 +316,10 @@ function makeAgentCustomization(resource: INamedPluginResource): AgentCustomizat
 		uri,
 		name: resource.name,
 		...(resource.description ? { description: resource.description } : {}),
+		...(resource.model ? { model: resource.model } : {}),
+		...(resource.tools?.length ? { tools: [...resource.tools] } : {}),
+		...(resource.disableModelInvocation ? { disableModelInvocation: true } : {}),
+		...(resource.disableUserInvocation ? { disableUserInvocation: true } : {}),
 	};
 }
 
@@ -360,7 +373,6 @@ export function makeMcpServerCustomization(definitionUri: URI, name: string): Mc
 		id: buildChildId(definitionUri, `mcp=${encodeURIComponent(name)}`),
 		uri: definitionUri.toString(),
 		name,
-		enabled: true,
 		state: { kind: McpServerStatus.Stopped },
 		mcpApp: DEFAULT_MCP_APP,
 	};
@@ -463,6 +475,7 @@ export function normalizeMcpServerConfiguration(rawConfig: unknown): IMcpServerC
 
 	const candidate = rawConfig as Record<string, unknown>;
 	const type = typeof candidate['type'] === 'string' ? candidate['type'] : undefined;
+	const transport = candidate['transport'] === 'sse' || candidate['transport'] === 'http' ? candidate['transport'] : undefined;
 
 	const command = typeof candidate['command'] === 'string' ? candidate['command'] : undefined;
 	const url = typeof candidate['url'] === 'string' ? candidate['url'] : undefined;
@@ -496,7 +509,7 @@ export function normalizeMcpServerConfiguration(rawConfig: unknown): IMcpServerC
 		if (!url) {
 			return undefined;
 		}
-		return { type: McpServerType.REMOTE, url, headers, dev };
+		return { type: McpServerType.REMOTE, ...(type === 'sse' || transport === 'sse' ? { transport: 'sse' as const } : {}), url, headers, dev };
 	}
 
 	return undefined;
@@ -584,7 +597,7 @@ export function interpolateMcpPluginRoot(
 		interpolated = remote;
 	}
 
-	return { name: def.name, configuration: interpolated, uri: def.uri, customization: def.customization };
+	return { ...def, configuration: interpolated };
 }
 
 /**
@@ -1100,26 +1113,30 @@ export async function readAgentComponents(
 	dirs: readonly URI[],
 	fileService: IFileService,
 	options?: { readonly containmentRoot?: URI },
-): Promise<readonly INamedPluginResource[]> {
+): Promise<readonly IAgentPluginResource[]> {
 	const files = await readMarkdownComponents(dirs, fileService, options);
 	if (files.length === 0) {
 		return files;
 	}
 	const enriched = await Promise.all(files.map(async file => {
 		try {
-			const { name, description } = await parseAgentFile(file.uri, fileService);
+			const parsed = await parseAgentFile(file.uri, fileService);
 			return {
 				uri: file.uri,
-				name: name || file.name,
-				...(description ? { description } : {}),
-			} satisfies INamedPluginResource;
+				name: parsed.name || file.name,
+				...(parsed.description ? { description: parsed.description } : {}),
+				...(parsed.model ? { model: parsed.model } : {}),
+				...(parsed.tools?.length ? { tools: parsed.tools } : {}),
+				...(parsed.disableModelInvocation ? { disableModelInvocation: true } : {}),
+				...(parsed.userInvocable === false ? { disableUserInvocation: true } : {}),
+			} satisfies IAgentPluginResource;
 		} catch {
 			return file;
 		}
 	}));
 	// De-dupe again in case frontmatter `name` collides; first-seen wins.
 	const seen = new Set<string>();
-	const result: INamedPluginResource[] = [];
+	const result: IAgentPluginResource[] = [];
 	for (const item of enriched) {
 		if (seen.has(item.name)) {
 			continue;
@@ -1131,7 +1148,7 @@ export async function readAgentComponents(
 	return result;
 }
 
-export async function parseAgentFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; userInvocable?: boolean }> {
+export async function parseAgentFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; userInvocable?: boolean; model?: string; tools?: readonly string[]; disableModelInvocation?: boolean }> {
 	// Use regex to strip the trailing `.agent.md` or .md before parsing, so we can fall back to a cleaner name if frontmatter is missing or broken.
 	const nameFromFile = basename(uri).replace(/(\.agent)?\.md$/i, '');
 	try {
@@ -1140,10 +1157,19 @@ export async function parseAgentFile(uri: URI, fileService: IFileService): Promi
 		const name = frontmatter?.getStringValue('name')?.trim() || nameFromFile;
 		const description = frontmatter?.getStringValue('description')?.trim();
 		const userInvocable = frontmatter?.getBooleanValue('user-invocable');
-		return { name, description, userInvocable };
+		const model = frontmatter?.getStringArrayValue('model')?.map(value => value.trim()).find(Boolean);
+		const tools = frontmatter?.getStringArrayValue('tools')?.map(value => value.trim()).filter(Boolean);
+		const infer = frontmatter?.getBooleanValue('infer');
+		const disableModelInvocation = resolveAgentDisableModelInvocation(infer, frontmatter?.getBooleanValue('disable-model-invocation'));
+		return { name, description, userInvocable, model, tools, disableModelInvocation };
 	} catch {
 		return { name: nameFromFile };
 	}
+}
+
+/** Resolves the deprecated `infer` field before its modern replacement, matching workspace-agent parsing. */
+export function resolveAgentDisableModelInvocation(infer: boolean | undefined, disableModelInvocation: boolean | undefined, fallback?: boolean): boolean | undefined {
+	return infer !== undefined ? !infer : (disableModelInvocation ?? fallback);
 }
 
 export async function parseSkillFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; userInvokable?: boolean }> {
@@ -1208,7 +1234,7 @@ async function readMcpServers(
 			continue;
 		}
 		const json = await readJsonFile(mcpPath, fileService);
-		for (const def of parseMcpServerDefinitionMap(mcpPath, json, pluginUri.fsPath, formatConfig)) {
+		for (const def of parseMcpServerDefinitionMap(mcpPath, json, pluginUri, formatConfig)) {
 			if (!merged.has(def.name)) {
 				merged.set(def.name, def);
 			}
@@ -1229,7 +1255,7 @@ export async function readPluginMcpServers(
 export function parseMcpServerDefinitionMap(
 	definitionURI: URI,
 	raw: unknown,
-	pluginFsPath: string,
+	pluginRoot: URI,
 	formatConfig: IPluginFormatConfig,
 ): IMcpServerDefinition[] {
 	const mcpServers = resolveMcpServersMap(raw);
@@ -1237,6 +1263,7 @@ export function parseMcpServerDefinitionMap(
 		return [];
 	}
 
+	const pluginFsPath = pluginRoot.fsPath;
 	const definitions: IMcpServerDefinition[] = [];
 	for (const [name, configValue] of Object.entries(mcpServers)) {
 		const configuration = normalizeMcpServerConfiguration(configValue);
@@ -1247,13 +1274,11 @@ export function parseMcpServerDefinitionMap(
 		let def: IMcpServerDefinition = {
 			name,
 			configuration,
+			...(formatConfig.format !== PluginFormat.AgentPlugin && { defaultCwd: pluginRoot }),
 			uri: definitionURI,
 			customization: makeMcpServerCustomization(definitionURI, name),
 		};
 		def = interpolateMcpPluginRoot(def, pluginFsPath, formatConfig.pluginRootTokens, formatConfig.pluginRootEnvVars);
-		if (formatConfig.format !== PluginFormat.AgentPlugin && def.configuration.type === McpServerType.LOCAL && def.configuration.cwd === undefined) {
-			def = { ...def, configuration: { ...def.configuration, cwd: pluginFsPath } };
-		}
 		if (formatConfig.format !== PluginFormat.AgentPlugin) {
 			def = convertBareEnvVarsToVsCodeSyntax(def);
 		}
@@ -1305,7 +1330,7 @@ export async function parsePlugin(
 		embeddedMcp = parseMcpServerDefinitionMap(
 			joinPath(pluginUri, formatConfig.manifestPath),
 			{ mcpServers: mcpSection },
-			pluginUri.fsPath,
+			pluginUri,
 			formatConfig,
 		);
 	}
@@ -1339,8 +1364,8 @@ export async function parsePlugin(
 	};
 }
 
-/** Pairs an agent {@link INamedPluginResource} with its protocol-level {@link AgentCustomization}. */
-export function toParsedAgent(resource: INamedPluginResource): IParsedAgent {
+/** Pairs an agent {@link IAgentPluginResource} with its protocol-level {@link AgentCustomization}. */
+export function toParsedAgent(resource: IAgentPluginResource): IParsedAgent {
 	return { ...resource, customization: makeAgentCustomization(resource) };
 }
 

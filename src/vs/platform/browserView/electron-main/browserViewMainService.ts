@@ -6,7 +6,7 @@
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { IBrowserElementCommentsUpdate, IBrowserElementSelectionOptions, IBrowserViewBounds, IBrowserViewState, IBrowserViewService, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, BrowserViewCommandId, IBrowserViewOwner, IBrowserViewInfo, IBrowserViewCreatedEvent, IBrowserViewOpenOptions, IBrowserViewCreateOptions, IBrowserViewWindowConfiguration, IBrowserDeviceProfile } from '../common/browserView.js';
+import { IBrowserElementCommentsUpdate, IBrowserElementSelectionOptions, IBrowserViewAudience, IBrowserViewBounds, IBrowserViewState, IBrowserViewService, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, BrowserViewCommandId, IBrowserViewOwner, IBrowserViewInfo, IBrowserViewCreatedEvent, IBrowserViewOpenOptions, IBrowserViewCreateOptions, IBrowserViewWindowConfiguration, IBrowserDeviceProfile } from '../common/browserView.js';
 import { clipboard, Menu, MenuItem } from 'electron';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
@@ -23,6 +23,7 @@ import { INativeHostMainService } from '../../native/electron-main/nativeHostMai
 import { htmlAttributeEncodeValue } from '../../../base/common/strings.js';
 import { BrowserViewInspectElementId } from './browserViewInspector.js';
 import { equals } from '../../../base/common/objects.js';
+import { URI } from '../../../base/common/uri.js';
 
 export const IBrowserViewMainService = createDecorator<IBrowserViewMainService>('browserViewMainService');
 
@@ -32,7 +33,7 @@ export interface IBrowserViewMainService extends IBrowserViewService {
 	tryGetBrowserView(id: string): BrowserView | undefined;
 
 	/** Create a new target and return it. */
-	createTarget(url: string, owner: IBrowserViewOwner, browserContextId?: string): Promise<BrowserView>;
+	createTarget(url: string, owner: IBrowserViewOwner, browserContextId?: string, audience?: IBrowserViewAudience): Promise<BrowserView>;
 }
 
 export class BrowserViewMainService extends Disposable implements IBrowserViewMainService {
@@ -69,11 +70,11 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		super();
 	}
 
-	async getOrCreateBrowserView(id: string, options: IBrowserViewCreateOptions): Promise<IBrowserViewState> {
+	async getOrCreateBrowserView(id: string, options: IBrowserViewCreateOptions): Promise<IBrowserViewInfo> {
+		const associatedResource = URI.revive(options.associatedResource);
 		if (this.browserViews.has(id)) {
-			// Note: options will be ignored if the view already exists.
 			const view = this.browserViews.get(id)!;
-			return view.getState();
+			return this._getViewInfo(view);
 		}
 
 		const ownerWindow = this.windowsMainService.getWindowById(options.owner.mainWindowId);
@@ -89,30 +90,39 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			ownerWindow.openedWorkspace?.id
 		);
 
-		const view = this.createBrowserView(id, options.owner, browserSession);
+		const view = this.createBrowserView(id, options.owner, browserSession, associatedResource);
+		if (options.initialState?.audiences) {
+			view.setAudiences(options.initialState.audiences);
+		}
 
 		if (options.initialState?.url) {
 			void view.loadURL(options.initialState.url);
 		}
 
-		return {
-			...view.getState(),
-			...options.initialState
+		const info = {
+			...this._getViewInfo(view),
+			state: {
+				...view.getState(),
+				...options.initialState
+			}
 		};
+		this._onDidCreateBrowserView.fire({ info });
+		return info;
 	}
 
 	tryGetBrowserView(id: string): BrowserView | undefined {
 		return this.browserViews.get(id);
 	}
 
-	async createTarget(url: string, owner: IBrowserViewOwner, browserContextId?: string): Promise<BrowserView> {
+	async createTarget(url: string, owner: IBrowserViewOwner, browserContextId?: string, audience?: IBrowserViewAudience): Promise<BrowserView> {
 		const browserSession = browserContextId ? BrowserSession.get(browserContextId) : undefined;
 
 		return this.openNew(url, {
 			owner,
 			session: browserSession,
 			openOptions: { preserveFocus: true },
-			source: 'cdpCreated'
+			source: 'cdpCreated',
+			audience
 		});
 	}
 
@@ -131,6 +141,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return {
 			id: view.id,
 			owner: view.owner,
+			associatedResource: view.associatedResource,
 			state: view.getState()
 		};
 	}
@@ -214,6 +225,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return this._getBrowserView(id).onDidChangeRemoteStatus;
 	}
 
+	onDynamicDidChangeAudiences(id: string) {
+		return this._getBrowserView(id).onDidChangeAudiences;
+	}
+
 	onDynamicDidRequestPermission(id: string) {
 		return this._getBrowserView(id).onDidRequestPermission;
 	}
@@ -224,6 +239,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 	async getState(id: string): Promise<IBrowserViewState> {
 		return this._getBrowserView(id).getState();
+	}
+
+	async setAudience(id: string, audience: IBrowserViewAudience, enabled: boolean): Promise<void> {
+		this._getBrowserView(id).setAudience(audience, enabled);
 	}
 
 	async destroyBrowserView(id: string): Promise<void> {
@@ -411,7 +430,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 	/**
 	 * Create a browser view backed by the given {@link BrowserSession}.
 	 */
-	private createBrowserView(id: string, owner: IBrowserViewOwner, browserSession: BrowserSession, options?: Electron.WebContentsViewConstructorOptions): BrowserView {
+	private createBrowserView(id: string, owner: IBrowserViewOwner, browserSession: BrowserSession, associatedResource?: URI, options?: Electron.WebContentsViewConstructorOptions): BrowserView {
 		if (this.browserViews.has(id)) {
 			throw new Error(`Browser view with id ${id} already exists`);
 		}
@@ -429,10 +448,12 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			BrowserView,
 			id,
 			owner,
+			associatedResource,
 			browserSession,
 			// Recursive factory for nested windows (child views share the same session and owner).
 			(url, electronOptions, openOptions) => {
-				const child = this.createBrowserView(generateUuid(), owner, browserSession, electronOptions);
+				const child = this.createBrowserView(generateUuid(), owner, browserSession, undefined, electronOptions);
+				// child.setAudiences(view.audiences);
 
 				if (url) {
 					void child.loadURL(url).catch(() => { });
@@ -468,16 +489,21 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			owner,
 			session,
 			openOptions,
-			source
+			source,
+			audience
 		}: {
 			owner: IBrowserViewOwner;
 			session: BrowserSession | undefined;
 			openOptions: IBrowserViewOpenOptions | undefined;
 			source: IntegratedBrowserOpenSource;
+			audience?: IBrowserViewAudience;
 		}
 	): Promise<BrowserView> {
 		const targetId = generateUuid();
 		const view = this.createBrowserView(targetId, owner, session || BrowserSession.getOrCreateEphemeral(this.instantiationService, targetId));
+		if (audience) {
+			view.setAudience(audience, true);
+		}
 
 		if (url) {
 			void view.loadURL(url).catch(() => { });

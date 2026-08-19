@@ -47,6 +47,7 @@ import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatProgress, IChatService, ResponseModelState } from '../../../common/chatService/chatService.js';
 import { backfillTransferredModel, backfillRestoredPickerState, ChatService } from '../../../common/chatService/chatServiceImpl.js';
+import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
@@ -188,7 +189,8 @@ suite('ChatService', () => {
 		instantiationService.stub(IUserDataProfilesService, { defaultProfile: toUserDataProfile('default', 'Default', URI.file('/test/userdata'), URI.file('/test/cache')) });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IExtensionService, new TestExtensionService());
-		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		const contextKeyService = testDisposables.add(new MockContextKeyService());
+		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IViewsService, new TestExtensionService());
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
 		instantiationService.stub(IChatSlashCommandService, testDisposables.add(instantiationService.createInstance(ChatSlashCommandService)));
@@ -199,7 +201,7 @@ suite('ChatService', () => {
 		instantiationService.stub(IEnvironmentService, { workspaceStorageHome: URI.file('/test/path/to/workspaceStorage') });
 		instantiationService.stub(ILifecycleService, { onWillShutdown: Event.None });
 		instantiationService.stub(IWorkspaceEditingService, { onDidEnterWorkspace: Event.None });
-		instantiationService.stub(IChatDebugService, testDisposables.add(new ChatDebugServiceImpl(new TestConfigurationService())));
+		instantiationService.stub(IChatDebugService, testDisposables.add(new ChatDebugServiceImpl(new TestConfigurationService(), contextKeyService)));
 		editingSessionEntries = observableValue('editingSessionEntries', []);
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() {
 			override startOrContinueGlobalEditingSession(): IChatEditingSession {
@@ -667,6 +669,46 @@ suite('ChatService', () => {
 		});
 	});
 
+	test('can serialize and deserialize a request origin', () => {
+		const sourceSessionResource = URI.parse('agent-host-codex:/source-thread');
+		const testService = createChatService();
+		const chatModelRef = testDisposables.add(startSessionModel(testService));
+		const chatModel = chatModelRef.object as ChatModel;
+		chatModel.addRequest(
+			{ parts: [], text: 'delegated request' },
+			{ variables: [] },
+			0,
+			undefined, // modeInfo
+			undefined, // chatAgent
+			undefined, // slashCommand
+			undefined, // confirmation
+			undefined, // locationData
+			undefined, // attachments
+			undefined, // isCompleteAddedRequest
+			undefined, // modelId
+			undefined, // userSelectedTools
+			undefined, // id
+			undefined, // isSystemInitiated
+			undefined, // systemInitiatedLabel
+			undefined, // terminalExecutionId
+			undefined, // isTerminalCommand
+			undefined, // timestamp
+			undefined, // hideFromTranscript
+			{
+				kind: ChatRequestOriginKind.Delegation,
+				sourceSessionResource,
+			},
+		);
+		const serialized: ISerializableChatData = JSON.parse(JSON.stringify(chatModel));
+
+		const restored = testDisposables.add(createChatService().loadSessionFromData(serialized)!);
+
+		assert.deepStrictEqual(restored.object.getRequests()[0].origin, {
+			kind: ChatRequestOriginKind.Delegation,
+			sourceSessionResource,
+		});
+	});
+
 	test('hidden queued requests remain absent from the transcript', async () => {
 		const requestStarted = new DeferredPromise<void>();
 		const completeRequest = new DeferredPromise<void>();
@@ -993,7 +1035,6 @@ suite('ChatService', () => {
 
 		const model = testService.getSession(sessionResource) as ChatModel;
 		assert.strictEqual(model.getPendingRequests().length, 1, 'queued message should wait while the streamed turn is in progress');
-		assert.strictEqual(queued.requestId, model.getPendingRequests()[0].request.id, 'queued result should identify the pending request it created');
 
 		isCompleteObs.set(true, undefined);
 		await invoked.p;

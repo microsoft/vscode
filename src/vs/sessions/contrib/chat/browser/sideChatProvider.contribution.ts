@@ -17,6 +17,7 @@ import { IChatService } from '../../../../workbench/contrib/chat/common/chatServ
 import { IChatSideChatOrigin, IChatSideChatProvider, IChatSideChatSelection, IChatSideChatService } from '../../../../workbench/contrib/chat/common/chatSideChatService.js';
 import { IWorkbenchEnvironmentService } from '../../../../workbench/services/environment/common/environmentService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ChatOriginKind, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { createAndSendSideChat } from './sideChatOrchestration.js';
@@ -41,6 +42,7 @@ export class SessionsSideChatProviderContribution extends Disposable implements 
 		@IChatSideChatService sideChatService: IChatSideChatService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
+		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
@@ -66,7 +68,7 @@ export class SessionsSideChatProviderContribution extends Disposable implements 
 			throw new Error(`Side chats are not supported for ${sessionResource.toString()}`);
 		}
 		const { session, chatResource, turnId } = source;
-		await createAndSendSideChat(this.sessionsManagementService, this.sessionsService, session, chatResource, turnId, query, selection);
+		await createAndSendSideChat(this.sessionsManagementService, this.sessionsService, this.sessionsPartService, session, chatResource, turnId, { query }, selection);
 	}
 
 	/** Observes the source metadata for a side chat. */

@@ -14,11 +14,11 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { AgentSession } from '../../../../../platform/agentHost/common/agentService.js';
+import { AgentSession } from '../../../../../platform/agentHost/common/agent.js';
 import { ICloudSandboxApiService } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IReplayedTaskHistory } from '../../../../../platform/agentHost/common/taskEventReplay.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { activeTurnToProgress, messageToVariableData, turnsToHistory } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { activeTurnToProgress, messageToRequestOrigin, messageToVariableData, turnsToHistory } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 
 const LOG_PREFIX = '[CloudSandboxReadOnly]';
@@ -138,6 +138,7 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 				prompt: active.message.text,
 				participant: this._config.agentId,
 				variableData: messageToVariableData(active.message, this._config.connectionAuthority),
+				origin: messageToRequestOrigin(URI.parse(session.session), active.message, this._config.agentId),
 			});
 			history.push({
 				type: 'response',

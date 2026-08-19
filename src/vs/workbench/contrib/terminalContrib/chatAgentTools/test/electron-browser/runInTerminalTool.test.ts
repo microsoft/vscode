@@ -37,7 +37,7 @@ import { TestIPCFileSystemProvider } from '../../../../../test/electron-browser/
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import { IChatService, type IChatSendRequestOptions, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
-import { ChatAgentLocation, ChatPermissionLevel } from '../../../../chat/common/constants.js';
+import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../chat/common/constants.js';
 import { ChatModel, type IChatRequestModeInfo } from '../../../../chat/common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { ChatRequestTextPart } from '../../../../chat/common/requestParser/chatParserTypes.js';
@@ -62,6 +62,7 @@ import { TerminalToolId } from '../../browser/tools/toolIds.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
+import { IChatSessionsService } from '../../../../chat/common/chatSessionsService.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
 	protected override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
@@ -100,6 +101,7 @@ suite('RunInTerminalTool', () => {
 	let createdTerminalInstance: ITerminalInstance;
 	let createTerminalCallCount: number;
 	let chatSessions: Map<string, ChatModel>;
+	let chatSessionContribution: ReturnType<IChatSessionsService['getChatSessionContribution']>;
 
 	let runInTerminalTool: TestRunInTerminalTool;
 
@@ -194,6 +196,7 @@ suite('RunInTerminalTool', () => {
 		chatSessionArchivedEmitter = new Emitter<IAgentSession>();
 		capturedSteeringRequests = [];
 		chatSessions = new Map<string, ChatModel>();
+		chatSessionContribution = undefined;
 
 		instantiationService = workbenchInstantiationService({
 			configurationService: () => configurationService,
@@ -222,6 +225,9 @@ suite('RunInTerminalTool', () => {
 			model: {
 				onDidChangeSessionArchivedState: chatSessionArchivedEmitter.event,
 			} as IAgentSessionsService['model']
+		});
+		instantiationService.stub(IChatSessionsService, {
+			getChatSessionContribution: () => chatSessionContribution,
 		});
 		instantiationService.stub(ITerminalService, {
 			createTerminal: async () => {
@@ -2762,9 +2768,9 @@ suite('RunInTerminalTool', () => {
 		});
 	});
 
-	test('should use the conversation model and preserve previous agent for background completion notifications', async () => {
-		const termId = 'test-completion-model-term';
-		const sessionResource = LocalChatSessionUri.forSession('test-completion-model-session');
+	async function sendBackgroundCompletionNotification(previousAgentId: string): Promise<IChatSendRequestOptions | undefined> {
+		const termId = `test-completion-model-term-${previousAgentId}`;
+		const sessionResource = LocalChatSessionUri.forSession(`test-completion-model-session-${previousAgentId}`);
 		const commandFinishedEmitter = new Emitter<{ exitCode: number | undefined }>();
 		const terminalDisposedEmitter = new Emitter<void>();
 		const inputDataEmitter = new Emitter<string>();
@@ -2779,8 +2785,15 @@ suite('RunInTerminalTool', () => {
 		} as unknown as ITerminalInstance;
 
 		const previousModelId = 'claude-opus-4-8';
-		const previousAgentId = 'local-agent';
-		const previousRequest = { modelId: previousModelId, response: { agent: { id: previousAgentId }, isCanceled: false, onDidChange: Event.None } };
+		const previousTools = { tool1: true };
+		const previousModeInfo: IChatRequestModeInfo = {
+			kind: ChatModeKind.Agent,
+			isBuiltin: true,
+			modeInstructions: undefined,
+			telemetryModeId: 'agent',
+			applyCodeBlockSuggestionId: undefined,
+		};
+		const previousRequest = { modelId: previousModelId, modeInfo: previousModeInfo, userSelectedTools: previousTools, response: { agent: { id: previousAgentId }, isCanceled: false, onDidChange: Event.None } };
 		const chatService = instantiationService.get(IChatService) as unknown as {
 			acquireExistingSession: () => NonNullable<ReturnType<IChatService['acquireExistingSession']>>;
 		};
@@ -2808,8 +2821,23 @@ suite('RunInTerminalTool', () => {
 		commandFinishedEmitter.fire({ exitCode: 0 });
 
 		strictEqual(capturedSteeringRequests.length, 1, 'Expected a completion steering notification');
-		strictEqual(capturedSteeringRequests[0].options?.userSelectedModelId, previousModelId, 'Completion notification should use the conversation model');
-		strictEqual(capturedSteeringRequests[0].options?.agentIdSilent, previousAgentId, 'Completion notification should continue with the previous request agent');
+		return capturedSteeringRequests[0].options;
+	}
+
+	test('should preserve conversation context for background completion notifications', async () => {
+		const options = await sendBackgroundCompletionNotification('local-agent');
+
+		strictEqual(options?.userSelectedModelId, 'claude-opus-4-8', 'Completion notification should use the conversation model');
+		strictEqual(options?.agentIdSilent, 'local-agent', 'Completion notification should continue with the previous request agent');
+		strictEqual(options?.instructionContext?.modeKind, ChatModeKind.Agent, 'Completion notification should collect instructions for the previous mode');
+		strictEqual(options?.instructionContext?.enabledTools?.tool1, true, 'Completion notification should collect instructions for the previous tools');
+	});
+
+	test('should preserve contributed session auto-attach opt-out for background completion notifications', async () => {
+		chatSessionContribution = { autoAttachReferences: false } as ReturnType<IChatSessionsService['getChatSessionContribution']>;
+		const options = await sendBackgroundCompletionNotification('contributed-agent');
+
+		strictEqual(options?.instructionContext, undefined, 'Completion notification should not collect instructions for an opted-out contributed session');
 	});
 
 	test('should dedupe rapid repeated background input-needed notifications', () => {

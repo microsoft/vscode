@@ -6,12 +6,16 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { readToolCallMeta, toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
+import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
+import { readChatSurfaceMeta, withChatSurfaceMeta, createTerminalChatInstruction } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentCustomizationMeta, toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { getCommandArgumentHint, getCompletionAction, readCompletionAttachmentMeta, toCommandCompletionAttachmentMeta, toSkillCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
-import { CustomizationType, MessageAttachmentKind, ToolCallStatus, hasReportedUsage, readUsageInfoMeta, type AgentCustomization, type ToolCallState, type UsageInfo } from '../../common/state/sessionState.js';
+import { CustomizationType, MessageAttachmentKind, ToolCallStatus, hasReportedUsage, readUsageInfoMeta, type AgentCustomization, type ClientPluginCustomization, type ToolCallState, type UsageInfo } from '../../common/state/sessionState.js';
 import type { SessionModelInfo, SimpleMessageAttachment } from '../../common/state/protocol/state.js';
 import { createAgentModelByokMeta, readAgentModelByokIdentifier } from '../../common/agentModelByokMeta.js';
 import { createAgentModelSourceMeta, readAgentModelSourceId } from '../../common/agentModelSource.js';
+import { URI } from '../../../../base/common/uri.js';
+import { hasClientPluginMcpDefaultCwds, readClientPluginMcpDefaultCwd, toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 
 /** Wraps a `_meta` bag in a minimal {@link ToolCallState} so the reader sees the right source type. */
 function toolCall(meta: Record<string, unknown> | undefined): ToolCallState {
@@ -79,6 +83,74 @@ suite('Agent host _meta readers', () => {
 			const wire = toToolCallMeta({ toolKind: 'search', language: undefined });
 			assert.deepStrictEqual(wire, { toolKind: 'search' });
 			assert.deepStrictEqual(readToolCallMeta(toolCall(wire)), { toolKind: 'search' });
+		});
+	});
+
+	suite('readEphemeralSessionMeta', () => {
+		test('reads the namespaced flag and drops wrong-typed values', () => {
+			assert.deepStrictEqual(readEphemeralSessionMeta({ _meta: withEphemeralSessionMeta(undefined, true) }), { isEphemeral: true });
+			assert.deepStrictEqual(readEphemeralSessionMeta({ _meta: { 'vscode.chat.ephemeralSession': 'true' } }), {});
+			assert.deepStrictEqual(readEphemeralSessionMeta({ _meta: { unrelated: true } }), {});
+		});
+
+		test('preserves existing metadata when adding the flag', () => {
+			assert.deepStrictEqual(
+				withEphemeralSessionMeta({ existing: 'value' }, false),
+				{ existing: 'value', 'vscode.chat.ephemeralSession': false },
+			);
+		});
+	});
+
+	suite('readChatSurfaceMeta', () => {
+		test('reads terminal metadata with an optional shell type and drops malformed values', () => {
+			assert.deepStrictEqual(
+				readChatSurfaceMeta({ _meta: withChatSurfaceMeta(undefined, { surface: 'terminal', shellType: 'pwsh', osName: 'Windows' }) }),
+				{ surface: 'terminal', shellType: 'pwsh', osName: 'Windows' },
+			);
+			assert.deepStrictEqual(
+				readChatSurfaceMeta({ _meta: withChatSurfaceMeta(undefined, { surface: 'terminal', osName: 'Linux' }) }),
+				{ surface: 'terminal', osName: 'Linux' },
+			);
+			assert.strictEqual(readChatSurfaceMeta({ _meta: { 'vscode.chat.surface': { surface: 'editor', shellType: 'pwsh', osName: 'Windows' } } }), undefined);
+			assert.strictEqual(readChatSurfaceMeta({ _meta: { 'vscode.chat.surface': { surface: 'terminal', shellType: 1, osName: 'Windows' } } }), undefined);
+			assert.strictEqual(readChatSurfaceMeta({ _meta: { 'vscode.chat.surface': { surface: 'terminal', shellType: 'pwsh' } } }), undefined);
+			assert.strictEqual(readChatSurfaceMeta({ _meta: { unrelated: true } }), undefined);
+		});
+
+		test('preserves existing metadata when adding terminal metadata', () => {
+			assert.deepStrictEqual(
+				withChatSurfaceMeta({ existing: 'value' }, { surface: 'terminal', shellType: 'bash', osName: 'Linux' }),
+				{ existing: 'value', 'vscode.chat.surface': { surface: 'terminal', shellType: 'bash', osName: 'Linux' } },
+			);
+		});
+	});
+
+	suite('createTerminalChatInstruction', () => {
+		test('targets the active shell and OS when known, and keeps general guidance otherwise', () => {
+			const pwsh = createTerminalChatInstruction({ surface: 'terminal', shellType: 'pwsh', osName: 'Windows' });
+			const bash = createTerminalChatInstruction({ surface: 'terminal', shellType: 'bash', osName: 'Linux' });
+			const shellUnknown = createTerminalChatInstruction({ surface: 'terminal', osName: 'Linux' });
+			assert.deepStrictEqual({
+				pwshTargetsShellAndOs: pwsh.includes('targeting Windows') && pwsh.includes('active shell is pwsh'),
+				pwshHasPowerShellIdioms: pwsh.includes('Stop-Process'),
+				pwshOmitsFallbackRule: !pwsh.includes('Python or Perl'),
+				bashTargetsShellAndOs: bash.includes('targeting Linux') && bash.includes('active shell is bash'),
+				bashHasFallbackRule: bash.includes('Python or Perl'),
+				bashOmitsPowerShellIdioms: !bash.includes('Stop-Process'),
+				shellUnknownTargetsOs: shellUnknown.includes('targeting Linux'),
+				shellUnknownOmitsShellGuidance: !shellUnknown.includes('active shell') && !shellUnknown.includes('Python or Perl') && !shellUnknown.includes('Stop-Process'),
+				allTagged: pwsh.startsWith('<terminal_chat>') && bash.endsWith('</terminal_chat>') && shellUnknown.endsWith('</terminal_chat>'),
+			}, {
+				pwshTargetsShellAndOs: true,
+				pwshHasPowerShellIdioms: true,
+				pwshOmitsFallbackRule: true,
+				bashTargetsShellAndOs: true,
+				bashHasFallbackRule: true,
+				bashOmitsPowerShellIdioms: true,
+				shellUnknownTargetsOs: true,
+				shellUnknownOmitsShellGuidance: true,
+				allTagged: true,
+			});
 		});
 	});
 
@@ -246,6 +318,28 @@ suite('Agent host _meta readers', () => {
 			// consumption on their own would make the restore path skip merging the
 			// richer persisted usage over a token-less stub.
 			assert.strictEqual(hasReportedUsage(usage({ turnTokenTotals: [{ model: 'gpt-5', inputTokens: 7, cachedTokens: 0, outputTokens: 3 }] })), false);
+		});
+	});
+
+	suite('client plugin MCP default cwd meta', () => {
+		function plugin(meta: Record<string, unknown> | undefined): ClientPluginCustomization {
+			return { type: CustomizationType.Plugin, id: 'p', uri: 'file:///p', name: 'p', _meta: meta };
+		}
+
+		test('round-trips URI and primary-directory defaults', () => {
+			const primaryCwd = URI.file('/workspace');
+			const additionalCwd = URI.parse('vscode-remote://ssh-remote+host/workspace');
+			const meta = toClientPluginMcpDefaultCwdsMeta({ primary: null, additional: additionalCwd });
+			assert.strictEqual(hasClientPluginMcpDefaultCwds(plugin(meta)), true);
+			assert.strictEqual(readClientPluginMcpDefaultCwd(plugin(meta), 'primary', primaryCwd), primaryCwd);
+			assert.strictEqual(readClientPluginMcpDefaultCwd(plugin(meta), 'additional', primaryCwd)?.toString(), additionalCwd.toString());
+		});
+
+		test('ignores absent and malformed metadata', () => {
+			assert.strictEqual(readClientPluginMcpDefaultCwd(plugin(undefined), 'server', URI.file('/workspace')), undefined);
+			assert.strictEqual(hasClientPluginMcpDefaultCwds(plugin(undefined)), false);
+			assert.strictEqual(readClientPluginMcpDefaultCwd(plugin({ mcpDefaultCwds: { server: 42 } }), 'server', URI.file('/workspace')), undefined);
+			assert.strictEqual(readClientPluginMcpDefaultCwd(plugin({ mcpDefaultCwds: { server: 'relative/path' } }), 'server', URI.file('/workspace')), undefined);
 		});
 	});
 });

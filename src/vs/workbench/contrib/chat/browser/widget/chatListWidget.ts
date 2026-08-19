@@ -17,6 +17,7 @@ import { Disposable, DisposableMap, IDisposable, MutableDisposable, toDisposable
 import { Mimes } from '../../../../../base/common/mime.js';
 import { ScrollEvent } from '../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -25,7 +26,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { asCssVariable, buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground } from '../../../../../platform/theme/common/colorRegistry.js';
+import { asCssVariable, asCssVariableWithDefault, buttonSecondaryBackground, buttonSecondaryForeground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { katexContainerClassName } from '../../../markdown/common/markedKatexExtension.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatFollowup, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
@@ -570,10 +571,14 @@ export class ChatListWidget extends Disposable {
 		));
 
 		// Create scroll-down button
+		const scrollToBottomLabel = localize('chat.scrollToBottom', "Scroll to Bottom");
+		const scrollToBottomBackground = asCssVariableWithDefault('chat.list.background', asCssVariable(buttonSecondaryBackground));
 		this._scrollDownButton = this._register(new Button(this._container, {
-			buttonBackground: asCssVariable(buttonSecondaryBackground),
+			title: scrollToBottomLabel,
+			ariaLabel: scrollToBottomLabel,
+			buttonBackground: scrollToBottomBackground,
 			buttonForeground: asCssVariable(buttonSecondaryForeground),
-			buttonHoverBackground: asCssVariable(buttonSecondaryHoverBackground),
+			buttonHoverBackground: scrollToBottomBackground,
 			buttonSecondaryBackground: undefined,
 			buttonSecondaryForeground: undefined,
 			buttonSecondaryHoverBackground: undefined,
@@ -658,7 +663,9 @@ export class ChatListWidget extends Disposable {
 			if (e.affectsConfiguration(ChatConfiguration.ExperimentalStickyScrollEnabled) || e.affectsConfiguration(PROMPT_TIMELINE_STICKY_SCROLL_SETTING)) {
 				this._tree.updateOptions({ enableStickyScroll: this.isTreeStickyScrollEnabled() });
 			}
-			if (e.affectsConfiguration(ChatConfiguration.EditRequests) || e.affectsConfiguration(ChatConfiguration.CheckpointsEnabled)) {
+			if (e.affectsConfiguration(ChatConfiguration.EditRequests)
+				|| e.affectsConfiguration(ChatConfiguration.CheckpointsEnabled)
+				|| e.affectsConfiguration(ChatConfiguration.RichLinks)) {
 				this._settingChangeCounter++;
 				this.refresh();
 			}
@@ -702,7 +709,7 @@ export class ChatListWidget extends Disposable {
 			return;
 		}
 
-		const holder = this._container.ownerDocument.createElement('div');
+		const holder = dom.$('div');
 		for (const fragment of fragments) {
 			holder.appendChild(fragment);
 		}

@@ -8,7 +8,7 @@ import * as sinon from 'sinon';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import type { AgentSignal } from '../../common/agentService.js';
+import type { AgentSignal } from '../../common/agent.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, ToolResultContentType } from '../../common/state/sessionState.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
@@ -82,6 +82,37 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 	test('message_start emits no signals', () => {
 		const signals = mapSDKMessageToAgentSignals(
 			makeStreamEvent(SESSION_ID, makeMessageStart()),
+			SESSION,
+			TURN_ID,
+			new ClaudeMapperState(),
+			new NullLogService(),
+			r(),
+		);
+
+		assert.deepStrictEqual(signals, []);
+	});
+
+	test('canonical assistant message reports one completed model call', () => {
+		const signals = mapSDKMessageToAgentSignals(
+			makeAssistantMessage(SESSION_ID, []),
+			SESSION,
+			TURN_ID,
+			new ClaudeMapperState(),
+			new NullLogService(),
+			r(),
+		);
+
+		assert.deepStrictEqual(signals, [{
+			kind: 'model_call_completed',
+			resource: SESSION,
+			turnId: TURN_ID,
+			modelCallId: 'msg_test',
+		}]);
+	});
+
+	test('aborted canonical assistant message does not report a completed model call', () => {
+		const signals = mapSDKMessageToAgentSignals(
+			{ ...makeAssistantMessage(SESSION_ID, []), aborted: true as const },
 			SESSION,
 			TURN_ID,
 			new ClaudeMapperState(),
@@ -444,7 +475,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 				type: ActionType.ChatToolCallReady,
 				turnId: TURN_ID,
 				toolCallId: 'tu_write',
-				invocationMessage: { markdown: 'Editing [new.ts](file:///src/new.ts)' },
+				invocationMessage: { markdown: 'Edit [new.ts](file:///src/new.ts)' },
 				toolInput: '{\n  "file_path": "/src/new.ts",\n  "content": "one\\ntwo"\n}',
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 			}],
@@ -778,7 +809,12 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			r(),
 		);
 
-		assert.deepStrictEqual(signals, []);
+		assert.deepStrictEqual(signals, [{
+			kind: 'model_call_completed',
+			resource: SESSION,
+			turnId: TURN_ID,
+			modelCallId: 'msg_test',
+		}]);
 		assert.deepStrictEqual(log.warns, []);
 	});
 
@@ -796,7 +832,12 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			r(),
 		);
 
-		assert.deepStrictEqual(signals, []);
+		assert.deepStrictEqual(signals, [{
+			kind: 'model_call_completed',
+			resource: SESSION,
+			turnId: TURN_ID,
+			modelCallId: 'msg_test',
+		}]);
 		assert.deepStrictEqual(log.warns, []);
 	});
 

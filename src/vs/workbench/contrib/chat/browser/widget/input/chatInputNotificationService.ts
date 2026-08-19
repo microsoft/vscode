@@ -67,6 +67,15 @@ export interface IChatInputNotification {
 	readonly actions: readonly IChatInputNotificationAction[];
 	readonly dismissible: boolean;
 	readonly autoDismissOnMessage: boolean;
+	/** Whether this notification should be hidden until the user has prior chat usage. */
+	readonly deferForNewUsers?: boolean;
+	/**
+	 * Whether to hide this notification in transient chat surfaces (inline,
+	 * terminal, quick chat, floating chat input window).
+	 */
+	readonly hideInTransientChats?: boolean;
+	/** Whether to hide this notification once its session has a request. */
+	readonly hideInStartedSessions?: boolean;
 	/**
 	 * Optional allow-list of chat session types that should display this
 	 * notification. When undefined, the notification renders in every chat

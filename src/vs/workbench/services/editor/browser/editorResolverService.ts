@@ -26,7 +26,7 @@ import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorIn
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { findGroup } from '../common/editorGroupFinder.js';
 import { IEditorGroup, IEditorGroupsService } from '../common/editorGroupsService.js';
-import { diffEditorsAssociationsSettingId, EditorAssociation, EditorAssociations, EditorInputFactoryObject, editorsAssociationsSettingId, globMatchesResource, IEditorResolverService, IEditorResolverServiceGetEditorsOptions, priorityToRank, RegisteredEditorInfo, RegisteredEditorOptions, RegisteredEditorPriority, RegisteredEditorRegistrationInfo, ResolvedEditor, ResolvedStatus, toRegisteredEditorPriorityInfo } from '../common/editorResolverService.js';
+import { diffEditorsAssociationsSettingId, EditorAssociation, EditorAssociations, EditorInputFactoryObject, editorsAssociationsSettingId, globMatchesResource, IEditorResolverService, IEditorResolverServiceGetAllEditorsOptions, IEditorResolverServiceGetEditorsOptions, priorityToRank, RegisteredEditorInfo, RegisteredEditorOptions, RegisteredEditorPriority, RegisteredEditorRegistrationInfo, ResolvedEditor, ResolvedStatus, toRegisteredEditorPriorityInfo } from '../common/editorResolverService.js';
 import { PreferredGroup } from '../common/editorService.js';
 
 interface RegisteredEditor {
@@ -456,6 +456,9 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 				if (associationType === EditorAssociationType.MergeEditor && !editor.editorFactoryObject.createMergeEditorInput) {
 					continue;
 				}
+				if (editor.options?.canSupportResource && !editor.options.canSupportResource(resource)) {
+					continue;
+				}
 
 				const foundInSettings = userSettings.find(setting => setting.viewType === editor.editorInfo.id);
 				if ((foundInSettings && this.getEffectivePriority(editor.editorInfo, associationType) !== RegisteredEditorPriority.exclusive) || globMatchesResource(key, resource)) {
@@ -475,11 +478,12 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		});
 	}
 
-	public getEditors(resource?: URI, options?: IEditorResolverServiceGetEditorsOptions): RegisteredEditorInfo[] {
+	public getEditors(resourceOrOptions?: URI | IEditorResolverServiceGetAllEditorsOptions, options?: IEditorResolverServiceGetEditorsOptions): RegisteredEditorInfo[] {
 		this._flattenedEditors = this._flattenEditorsMap();
 
 		// By resource
-		if (URI.isUri(resource)) {
+		if (URI.isUri(resourceOrOptions)) {
+			const resource = resourceOrOptions;
 			const associationType = options?.isDiffEditor ? EditorAssociationType.DiffEditor : EditorAssociationType.Editor;
 			let editors = this.findMatchingEditors(resource, associationType);
 			if (editors.find(editor => this.getEffectivePriority(editor.editorInfo, associationType) === RegisteredEditorPriority.exclusive)) {
@@ -500,7 +504,10 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		}
 
 		// All
-		return distinct(this._registeredEditors.map(editor => editor.editorInfo), editor => editor.id);
+		const editors = resourceOrOptions?.excludeExclusiveEditors
+			? this._registeredEditors.filter(editor => editor.editorInfo.priority.editor !== RegisteredEditorPriority.exclusive)
+			: this._registeredEditors;
+		return distinct(editors.map(editor => editor.editorInfo), editor => editor.id);
 	}
 
 	getBinaryDiffFallbackEditor(resource: URI): string | undefined {
@@ -561,9 +568,10 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			};
 		}
 		// If the editor is exclusive we use that, else use the user setting, else we check canSupportResource, else take the viewtype of first possible editor
+		const configuredEditor = associationsFromSetting[0] ? findMatchingEditor(editors, associationsFromSetting[0].viewType) : undefined;
 		const selectedViewType = this.getEffectivePriority(possibleEditors[0].editorInfo, associationType) === RegisteredEditorPriority.exclusive ?
 			possibleEditors[0].editorInfo.id :
-			associationsFromSetting[0]?.viewType ||
+			configuredEditor?.editorInfo.id ||
 			(possibleEditors.find(editor => (!editor.options?.canSupportResource || editor.options.canSupportResource(resource)))?.editorInfo.id) ||
 			possibleEditors[0].editorInfo.id;
 

@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ModelIdentifierResolution } from '../../../../workbench/contrib/chat/common/modelSelection.js';
-import { IChat, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection } from './session.js';
+import { IAutomationDescriptor, IAutomationRun } from '../../../../workbench/contrib/chat/common/automations/automation.js';
+import { IAutomationStore } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { ChatModelSource, IChat, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection } from './session.js';
 
 /**
  * Event fired when sessions change within a provider.
@@ -78,6 +81,30 @@ export interface ISessionModelsSnapshot {
 	readonly desiredModelResolution: ModelIdentifierResolution;
 	/** Concrete chat session type targeted by this model pool, or undefined for the shared pool. */
 	readonly modelTarget: string | undefined;
+}
+
+export interface IAutomation {
+	readonly automation: IAutomationDescriptor;
+	readonly runs: readonly IAutomationRun[];
+}
+
+export type IAutomationSnapshotImportResult =
+	| { readonly kind: 'inserted' }
+	| { readonly kind: 'alreadyPresent' }
+	| { readonly kind: 'conflict'; readonly current: IAutomation };
+
+export type IGuardedAutomationSnapshotRemovalResult =
+	| { readonly kind: 'removed' }
+	| { readonly kind: 'conflict'; readonly current: IAutomation }
+	| { readonly kind: 'missing' };
+
+export interface ISessionsProviderAutomations extends IAutomationStore {
+	/** Imports a snapshot without replacing an Automation already stored under the same ID. */
+	importAutomationSnapshot(snapshot: IAutomation): Promise<IAutomationSnapshotImportResult>;
+	/** Inserts or replaces an Automation snapshot without publishing create or update telemetry. */
+	upsertAutomationSnapshot(snapshot: IAutomation): Promise<void>;
+	/** Removes a snapshot only when the currently stored Automation and runs still match it. */
+	removeAutomationSnapshotIfUnchanged(expected: IAutomation): Promise<IGuardedAutomationSnapshotRemovalResult>;
 }
 
 /**
@@ -177,6 +204,9 @@ export interface ISessionsProvider {
 	 */
 	readonly onDidChangeCapabilities?: Event<void>;
 
+	/** Provider-owned Automation entities, persistence, and run history. */
+	readonly automations?: ISessionsProviderAutomations;
+
 	/**
 	 * Resolve a workspace for the given repository URI.
 	 * Returns `undefined` when the provider cannot handle the given URI
@@ -201,7 +231,7 @@ export interface ISessionsProvider {
 	 * Mark a new session as preparing its first request before asynchronous
 	 * configuration and request-context resolution begin.
 	 */
-	startNewSessionRequest?(sessionId: string): void;
+	startNewSessionRequest?(sessionId: string, activity?: string): IDisposable | undefined;
 
 	/**
 	 * Create a new **quick chat**: a workspace-less session not scoped to any
@@ -271,11 +301,19 @@ export interface ISessionsProvider {
 	readonly onDidChangeModels: Event<void>;
 
 	/**
-	 * Set the model for a session.
+	 * Set the model for one of a session's chats.
 	 * @param sessionId The ID of the session.
-	 * @param modelId The ID of the model to set for the session.
+	 * @param chatResource The chat to set the model on. Passed explicitly because a session id
+	 * cannot identify one of its chats, and a picker is always scoped to the chat it is shown in —
+	 * inferring the chat from whichever session is active would let a visible peer chat's picker
+	 * write to a different conversation.
+	 * @param modelId The ID of the model to set.
+	 * @param source Whether this is the chat's own model, surfaced back as
+	 * {@link IChat.modelSource}. A client picking a model for the chat must say
+	 * {@link ChatModelSource.CarriedOver}, or the chat becomes indistinguishable from one the user
+	 * chose a model for.
 	 */
-	setModel(sessionId: string, modelId: string): void;
+	setModel(sessionId: string, chatResource: URI, modelId: string, source: ChatModelSource): void;
 
 	/**
 	 * Set the chat mode for a session.
