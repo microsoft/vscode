@@ -6297,6 +6297,55 @@ suite('LocalAgentHostSessionsProvider', () => {
 			'both subagents should reach the catalog after the idle window while the session stays visible',
 		);
 	}));
+
+	test('clears input-needed from a visible session while a subagent keeps running', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession({
+			...createSession('subagent-status', { summary: 'Security review' }),
+			status: ProtocolSessionStatus.InputNeeded | ProtocolSessionStatus.IsRead,
+			activity: 'Waiting for confirmation',
+		});
+		const visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visible', []);
+		const provider = createProvider(disposables, agentHost, undefined, { visibleSessions });
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		visibleSessions.set([new class extends mock<IActiveSession>() {
+			override readonly resource = session.resource;
+		}()], undefined);
+
+		const sessionUri = AgentSession.uri('copilotcli', 'subagent-status').toString();
+		const defaultChat = buildDefaultChatUri(sessionUri);
+		const subagentChat = buildSubagentChatUri(sessionUri, 'security-review');
+		agentHost.setSessionState('subagent-status', 'copilotcli', {
+			provider: 'copilotcli',
+			title: 'Security review',
+			status: ProtocolSessionStatus.InProgress | ProtocolSessionStatus.IsRead,
+			activity: 'Reviewing security',
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			defaultChat,
+			chats: [
+				{ resource: defaultChat, title: '', status: ProtocolSessionStatus.InProgress, modifiedAt: new Date(0).toISOString() },
+				{
+					resource: subagentChat,
+					title: 'Security review',
+					status: ProtocolSessionStatus.InProgress,
+					modifiedAt: new Date(0).toISOString(),
+					origin: { kind: ProtocolChatOriginKind.Tool, chat: defaultChat, toolCallId: 'security-review' },
+				},
+			],
+		});
+
+		assert.deepStrictEqual({
+			status: session.status.get(),
+			description: session.description.get()?.value,
+			isRead: session.isRead.get(),
+		}, {
+			status: SessionStatus.InProgress,
+			description: 'Reviewing&nbsp;security',
+			isRead: true,
+		});
+	}));
 });
 
 suite.skip('LocalAgentHostSessionsProvider - active-session branch changeset subscription', () => {
