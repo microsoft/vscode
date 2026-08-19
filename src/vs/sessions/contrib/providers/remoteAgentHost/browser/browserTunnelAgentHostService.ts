@@ -145,8 +145,8 @@ export interface IBrowserTunnelAgentHostServiceOptions {
 export class BrowserTunnelAgentHostService extends Disposable implements ITunnelAgentHostService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _storage = this._register(new TunnelAgentHostStorage(this._storageService));
-	readonly onDidChangeTunnels: Event<void> = this._storage.onDidChangeTunnels;
+	private readonly _storage: TunnelAgentHostStorage;
+	readonly onDidChangeTunnels: Event<void>;
 
 	private readonly _connector: ITunnelAgentHostConnector;
 	private readonly _resolveGatewaySelection: typeof resolveGatewaySelection;
@@ -166,6 +166,8 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 		options: IBrowserTunnelAgentHostServiceOptions = {},
 	) {
 		super();
+		this._storage = this._register(new TunnelAgentHostStorage(this._storageService));
+		this.onDidChangeTunnels = this._storage.onDidChangeTunnels;
 		const load = options.loadDevTunnelsWeb ?? loadDevTunnelsWeb;
 		this._loadDevTunnelsWeb = load;
 		this._connector = options.connector ?? this._register(new TunnelAgentHostConnector(

@@ -49,8 +49,8 @@ const LOG_PREFIX = '[WebTunnelAgentHost]';
 export class WebTunnelAgentHostService extends Disposable implements ITunnelAgentHostService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _storage = this._register(new TunnelAgentHostStorage(this._storageService));
-	readonly onDidChangeTunnels: Event<void> = this._storage.onDidChangeTunnels;
+	private readonly _storage: TunnelAgentHostStorage;
+	readonly onDidChangeTunnels: Event<void>;
 
 	private readonly _discoveryProvider: ITunnelDiscoveryProvider | undefined;
 
@@ -64,6 +64,8 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
+		this._storage = this._register(new TunnelAgentHostStorage(this._storageService));
+		this.onDidChangeTunnels = this._storage.onDidChangeTunnels;
 		this._discoveryProvider = environmentService.options?.tunnelDiscoveryProvider;
 		if (!this._discoveryProvider) {
 			this._logService.debug(`${LOG_PREFIX} No tunnelDiscoveryProvider — tunnel discovery disabled`);
