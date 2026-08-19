@@ -106,7 +106,7 @@ const resolvedPendingToolOccurrences = new Map<string, IActivePendingToolOccurre
 const pendingToolOccurrenceByPart = new WeakMap<IChatToolInvocation, IActivePendingToolOccurrence>();
 const pendingToolOccurrenceById = new Map<string, IActivePendingToolOccurrence>();
 const pendingToolResolutionVersion = observableValue('pendingToolResolutionVersion', 0);
-const MAX_RESOLVED_PENDING_TOOL_OCCURRENCES = 256;
+const MAX_RESOLVED_PENDING_TOOL_OCCURRENCES = 200;
 
 function isPendingToolState(state: IChatToolInvocation.State): boolean {
 	return state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
@@ -159,6 +159,20 @@ function pendingToolOccurrenceId(occurrence: IActivePendingToolOccurrence): stri
 	return `${occurrence.requestId}#${occurrence.token}`;
 }
 
+function pruneResolvedPendingToolOccurrences(): void {
+	while (resolvedPendingToolOccurrences.size > MAX_RESOLVED_PENDING_TOOL_OCCURRENCES) {
+		const oldest = resolvedPendingToolOccurrences.entries().next().value;
+		if (!oldest) {
+			return;
+		}
+		const [semanticKey, occurrence] = oldest;
+		resolvedPendingToolOccurrences.delete(semanticKey);
+		if (occurrence.participants.size === 0 && pendingToolOccurrenceById.get(pendingToolOccurrenceId(occurrence)) === occurrence) {
+			pendingToolOccurrenceById.delete(pendingToolOccurrenceId(occurrence));
+		}
+	}
+}
+
 function resolvePendingToolOccurrence(occurrence: IActivePendingToolOccurrence): void {
 	if (occurrence.resolved) {
 		return;
@@ -169,21 +183,11 @@ function resolvePendingToolOccurrence(occurrence: IActivePendingToolOccurrence):
 	}
 	resolvedPendingToolOccurrences.delete(occurrence.semanticKey);
 	resolvedPendingToolOccurrences.set(occurrence.semanticKey, occurrence);
-	while (resolvedPendingToolOccurrences.size > MAX_RESOLVED_PENDING_TOOL_OCCURRENCES) {
-		const oldestKey = resolvedPendingToolOccurrences.keys().next().value;
-		if (oldestKey === undefined) {
-			break;
-		}
-		const oldest = resolvedPendingToolOccurrences.get(oldestKey);
-		resolvedPendingToolOccurrences.delete(oldestKey);
-		if (oldest && pendingToolOccurrenceById.get(pendingToolOccurrenceId(oldest)) === oldest) {
-			pendingToolOccurrenceById.delete(pendingToolOccurrenceId(oldest));
-		}
-	}
+	pruneResolvedPendingToolOccurrences();
 	pendingToolResolutionVersion.set(pendingToolResolutionVersion.get() + 1, undefined);
 }
 
-function pendingToolOccurrence(requestId: string, invocation: IChatToolInvocation, mint: boolean, store?: DisposableStore): IActivePendingToolOccurrence | undefined {
+function pendingToolOccurrence(requestId: string, invocation: IChatToolInvocation, mint: boolean, store?: DisposableStore, restoreResolved = false): IActivePendingToolOccurrence | undefined {
 	const semanticKey = pendingToolSemanticKey(requestId, invocation);
 	const current = pendingToolOccurrenceByPart.get(invocation);
 	if (!semanticKey) {
@@ -202,8 +206,10 @@ function pendingToolOccurrence(requestId: string, invocation: IChatToolInvocatio
 		releasePendingToolParticipant(invocation, current);
 	}
 
-	let occurrence = activePendingToolOccurrences.get(semanticKey)
-		?? resolvedPendingToolOccurrences.get(semanticKey);
+	let occurrence = activePendingToolOccurrences.get(semanticKey);
+	if (!occurrence && restoreResolved) {
+		occurrence = resolvedPendingToolOccurrences.get(semanticKey);
+	}
 	if (!occurrence) {
 		if (!mint) {
 			return undefined;
@@ -233,9 +239,11 @@ function pendingToolOccurrence(requestId: string, invocation: IChatToolInvocatio
 		if (trackedOccurrence.participants.size === 0 && activePendingToolOccurrences.get(trackedOccurrence.semanticKey) === trackedOccurrence) {
 			activePendingToolOccurrences.delete(trackedOccurrence.semanticKey);
 		}
-		if (!trackedOccurrence.resolved
-			&& trackedOccurrence.participants.size === 0
-			&& pendingToolOccurrenceById.get(pendingToolOccurrenceId(trackedOccurrence)) === trackedOccurrence) {
+		if (
+			trackedOccurrence.participants.size === 0
+			&& (!trackedOccurrence.resolved || resolvedPendingToolOccurrences.get(trackedOccurrence.semanticKey) !== trackedOccurrence)
+			&& pendingToolOccurrenceById.get(pendingToolOccurrenceId(trackedOccurrence)) === trackedOccurrence
+		) {
 			pendingToolOccurrenceById.delete(pendingToolOccurrenceId(trackedOccurrence));
 		}
 		observer.dispose();
@@ -320,6 +328,16 @@ export function isPendingIdResolved(pendingId: string, reader?: IReader): boolea
 	return pendingToolOccurrenceById.get(pendingId)?.resolved === true;
 }
 
+/** Restore the retired id for a late rehydrated copy of an already-handled tool approval. */
+export function restoreResolvedPendingId(requestId: string, part: object, store?: DisposableStore): string | undefined {
+	const invocation = part as Partial<IChatToolInvocation>;
+	if (invocation.kind !== 'toolInvocation' || !invocation.state) {
+		return undefined;
+	}
+	const occurrence = pendingToolOccurrence(requestId, invocation as IChatToolInvocation, false, store, true);
+	return occurrence?.resolved ? pendingToolOccurrenceId(occurrence) : undefined;
+}
+
 /**
  * Resolve the id of an already-published pending part, or `undefined`.
  *
@@ -349,8 +367,6 @@ export interface IVoiceSessionContext {
 		/** Which frontend session surface owns this conversation. */
 		session_type?: 'agent' | 'chat';
 		is_active: boolean;
-		/** Omni routing decision for backend narration of the selected target. */
-		omni_route?: 'existing_session' | 'new_session';
 		agent_state: string;
 		agent_state_detail?: string;
 		confirmation_type?: VoiceConfirmationType;
@@ -600,6 +616,11 @@ export interface IVoiceFeedbackTranscriptTurn {
 	readonly timestamp: string;
 }
 
+export interface IVoicePttStartOptions {
+	readonly hasActiveSession: boolean;
+	readonly passive?: boolean;
+}
+
 export interface IVoiceClientService {
 	readonly _serviceBrand: undefined;
 
@@ -608,7 +629,7 @@ export interface IVoiceClientService {
 	disconnect(): void;
 
 	// --- Outbound messages ---
-	sendPttStart(turnId: string, passive?: boolean): void;
+	sendPttStart(turnId: string, options: IVoicePttStartOptions): void;
 	sendPttAudioChunk(audio: string): void;
 	sendPttEnd(): void;
 	/**
@@ -635,7 +656,7 @@ export interface IVoiceClientService {
 	 * because the state field itself didn't change.
 	 */
 	invalidateSessionCache(sessionId: string): void;
-	sendToolResult(callId: string, result: string | IVoiceDispatchResult, codingSessionId?: string): void;
+	sendToolResult(callId: string, result: string | IVoiceDispatchResult): void;
 	/** Report that one correlated checkpoint playback attempt finished locally. */
 	sendNarrationPlaybackComplete(codingSessionId: string, narrationId: string, playbackId: string): void;
 	/**
@@ -652,7 +673,7 @@ export interface IVoiceClientService {
 	 * backend's mirror has caught up. The id is deliberately *not* folded into
 	 * `text`, which every dedup and retry-reuse guard keys on.
 	 */
-	requestNarration(codingSessionId: string, kind: VoiceNarrationKind, text: string, narrationId?: string, checkpoint?: IVoiceCheckpointNarrationMetadata, confirmationType?: VoiceConfirmationType, pending?: { pendingId: string }, prepareToReceiveAudio?: () => void): string | undefined;
+	requestNarration(codingSessionId: string, kind: VoiceNarrationKind, text: string, narrationId?: string, checkpoint?: IVoiceCheckpointNarrationMetadata, confirmationType?: VoiceConfirmationType, pending?: { pendingId: string }): string | undefined;
 	/**
 	 * Notify the backend of a session state transition.
 	 *

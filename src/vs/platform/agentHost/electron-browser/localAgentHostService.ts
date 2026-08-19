@@ -15,10 +15,12 @@ import { getDelayedChannel, IChannelClient, IChannelServer, ProxyChannel } from 
 import { Client as MessagePortClient } from '../../../base/parts/ipc/common/ipc.mp.js';
 import { acquirePort, MessagePortAcquisitionError } from '../../../base/parts/ipc/electron-browser/ipc.mp.js';
 import { ipcRenderer } from '../../../base/parts/sandbox/electron-browser/globals.js';
+import { localize } from '../../../nls.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
+import { INotificationService } from '../../notification/common/notification.js';
 import { AgentHostIpcChannelTransport } from '../browser/agentHostIpcChannelTransport.js';
 import { AgentHostClientState, RemoteAgentHostProtocolClient } from '../browser/remoteAgentHostProtocolClient.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
@@ -63,6 +65,13 @@ import type { ActionEnvelope, ChatAction, ClientAnnotationsAction, ClientChanges
 import type { ComponentToState, RootState, StateComponents } from '../common/state/sessionState.js';
 
 const LOG_PREFIX = '[AgentHost:renderer]';
+
+function notifyOnFatalAgentHostStartError(notificationService: INotificationService): void {
+	notificationService.error(localize(
+		'agentHost.startFailed',
+		"The Agent Host failed to start. Restart the application to try again. See the logs for details."
+	));
+}
 
 /**
  * Keeps management-channel calls on the same MessagePort generation as the
@@ -165,6 +174,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		super();
 		this._ahpLogger = this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId)
@@ -206,6 +216,11 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 				this._clientInfo,
 			));
 			this._register(this._protocolClient.onDidChangeConnectionState(state => this._handleConnectionState(state)));
+			this._register(this._protocolClient.onDidFatalClose(() => {
+				if (!this._didConnectInitially) {
+					notifyOnFatalAgentHostStartError(this._notificationService);
+				}
+			}));
 		}
 
 		void this._connect().catch(error => {

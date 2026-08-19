@@ -3743,7 +3743,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			} else if (status === ToolCallStatus.PendingConfirmation) {
 				// The protocol can refresh a pending tool's command without an
 				// intervening status transition. Refresh the whole presentation, not
-				// just its message, so Omni and voice expose the command that is
+				// just its message, so voice exposes the command that is
 				// actually awaiting approval while preserving the current gate.
 				const prepared = toolCallStateToPreparedInvocation(tc, opts.backendSession, this._config.connectionAuthority, opts.sessionResource.authority);
 				invocation.updatePreparedInvocation(prepared, invocation.parameters);

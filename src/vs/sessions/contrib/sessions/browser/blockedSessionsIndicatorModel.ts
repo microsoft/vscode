@@ -13,7 +13,7 @@ import { AgentSessionApprovalKind, AgentSessionApprovalModel, agentSessionApprov
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { BlockedSessionReason, BlockedSessions, IBlockedSession } from '../../blockedSessions/browser/blockedSessions.js';
-import { BlockedSessionsCIFixModel, IBlockedSessionsCIFixModel } from './blockedSessionsCIFixModel.js';
+import { BlockedSessionsCIFixModel } from './blockedSessionsCIFixModel.js';
 import { getFirstApprovalAcrossChats, IApprovedSession } from './views/sessionsList.js';
 
 /**
@@ -57,10 +57,10 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 	}
 
 	/** Drives the per-session "Fix CI" row; shared with the dropdown list. */
-	private readonly _ciFixModel: IBlockedSessionsCIFixModel;
+	private readonly _ciFixModel: BlockedSessionsCIFixModel;
 
 	/** The CI-fix model, shared with the dropdown list so the fix action and the hide-while-fixing agree. */
-	get ciFixModel(): IBlockedSessionsCIFixModel {
+	get ciFixModel(): BlockedSessionsCIFixModel {
 		return this._ciFixModel;
 	}
 
@@ -106,16 +106,15 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IProductService productService: IProductService,
-		@IBlockedSessionsCIFixModel sharedCIFixModel: IBlockedSessionsCIFixModel,
 	) {
 		super();
 
-		// The model owns the approval and blocked-session models it creates. The CI-fix
-		// model is a shared service so every surface uses one in-flight submission guard.
-		// Optional parameters remain test seams for fixtures to supply preset instances.
+		// The model owns the approval model, blocked-sessions model and CI-fix model;
+		// the optional parameters are test seams so fixtures/tests can supply preset
+		// instances (only register — and thus dispose — the ones we created ourselves).
 		this._approvalModel = approvalModel ?? this._register(instantiationService.createInstance(AgentSessionApprovalModel));
 		this._blockedSessionsModel = blockedSessions ?? this._register(instantiationService.createInstance(BlockedSessions));
-		this._ciFixModel = ciFixModel ?? sharedCIFixModel;
+		this._ciFixModel = ciFixModel ?? this._register(instantiationService.createInstance(BlockedSessionsCIFixModel));
 
 		// The blocked-sessions feature is only enabled outside of stable builds.
 		const enabled = productService.quality !== 'stable';
