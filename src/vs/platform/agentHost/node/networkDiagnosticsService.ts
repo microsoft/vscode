@@ -45,10 +45,10 @@ const MAX_BODY_CHARS = 64 * 1024;
  * Proxy-related environment variables surfaced in the diagnostics report so a
  * mismatch between the OS/config proxy and an explicit env override is visible.
  */
-const PROXY_ENV_KEYS = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy', 'NO_PROXY', 'no_proxy'] as const;
+const PROXY_ENV_KEYS = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy', 'NO_PROXY', 'no_proxy', 'COPILOT_PROXY_KERBEROS_SPN'] as const;
 
 /** Agent Host `http.*` proxy settings surfaced alongside the env vars. */
-const PROXY_CONFIG_KEYS = [AgentHostProxyConfigKey.Proxy, AgentHostProxyConfigKey.NoProxy] as const;
+const PROXY_CONFIG_KEYS = [AgentHostProxyConfigKey.Proxy, AgentHostProxyConfigKey.NoProxy, AgentHostProxyConfigKey.ProxyKerberosServicePrincipal] as const;
 
 export class NetworkDiagnosticsService implements INetworkDiagnosticsService {
 

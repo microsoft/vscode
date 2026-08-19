@@ -300,6 +300,47 @@ suite('AgentHostRequestService', () => {
 suite('NetworkDiagnosticsService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('reports the configured and environment Kerberos proxy SPN', async () => {
+		const configurationService = createAgentConfigurationService(disposables);
+		configurationService.updateRootConfig({
+			[AgentHostProxyConfigKey.ProxyKerberosServicePrincipal]: 'HTTP/configured.proxy',
+		});
+		const previous = process.env['COPILOT_PROXY_KERBEROS_SPN'];
+		process.env['COPILOT_PROXY_KERBEROS_SPN'] = 'HTTP/environment.proxy';
+		const service = new NetworkDiagnosticsService(
+			{
+				_serviceBrand: undefined,
+				onDidCompleteRequest: Event.None,
+				request: async () => { throw new Error('not implemented'); },
+				resolveProxy: async () => undefined,
+				lookupAuthorization: async () => undefined,
+				lookupKerberosAuthorization: async () => undefined,
+				loadCertificates: async () => [],
+			},
+			new TestProxyResolver(),
+			configurationService,
+			{ version: 'test' } as IProductService,
+			new NullLogService(),
+		);
+		try {
+			const result = await service.getInfo([]);
+
+			assert.deepStrictEqual({
+				setting: result.proxySettings[AgentHostProxyConfigKey.ProxyKerberosServicePrincipal],
+				environment: result.proxyEnv['COPILOT_PROXY_KERBEROS_SPN'],
+			}, {
+				setting: 'HTTP/configured.proxy',
+				environment: 'HTTP/environment.proxy',
+			});
+		} finally {
+			if (previous === undefined) {
+				delete process.env['COPILOT_PROXY_KERBEROS_SPN'];
+			} else {
+				process.env['COPILOT_PROXY_KERBEROS_SPN'] = previous;
+			}
+		}
+	});
+
 	test('includes nested proxy response errors', async () => {
 		const proxyError = new Error('Proxy response (407)');
 		const fetchError = new TypeError('fetch failed', { cause: new Error('dispatcher failed', { cause: proxyError }) });
