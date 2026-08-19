@@ -11,9 +11,11 @@ bar spanning the editor content and a docked detail panel).
   imperative code) and the `SinglePaneLayoutEnabledContext` context key (read only by declarative
   `when` clauses). Features must gate on those — never read the setting or the context key directly
   in imperative code.
-- When the setting is **OFF** (default), the Agents window renders exactly as before (auxiliary bar as
-  its own grid column with its composite tab strip; the standard multi-diff Changes editor). Nothing in
-  this document applies.
+- When the setting is **ON** (default), a non-phone Agents window uses the single-pane layout described
+  here. Phone-class viewports always use the classic layout, regardless of the setting. When the setting
+  is **OFF**, every Agents window also renders the classic layout (auxiliary bar as its own grid column
+  with its composite tab strip; the standard multi-diff Changes editor). Nothing else in this document
+  applies to that classic layout.
 - Companion specs: [LAYOUT.md](LAYOUT.md) §5, [LAYOUT_CONTROLLER.md](LAYOUT_CONTROLLER.md), and
   [contrib/layout/browser/desktopSessionLayoutController.md](contrib/layout/browser/desktopSessionLayoutController.md).
 

@@ -9,6 +9,7 @@ import { IDomainService } from '../../../platform/endpoint/common/domainService'
 import { EndpointEditToolName, IChatModelInformation, IChatModelRequestOptions, ModelSupportedEndpoint } from '../../../platform/endpoint/common/endpointProvider';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
+import { ICreateEndpointBodyOptions, IEndpointBody } from '../../../platform/networking/common/networking';
 import { IChatWebSocketManager } from '../../../platform/networking/node/chatWebSocketManager';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITokenizerProvider } from '../../../platform/tokenizer/node/tokenizer';
@@ -203,6 +204,8 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
  *    `${input:...}` secret storage. When the user supplies any well-known auth
  *    header, the default inferred auth header is suppressed to avoid sending
  *    conflicting credentials.
+ * 4. Omits the Responses API `store` property when Zero Data Retention was not
+ *    explicitly configured, allowing custom implementations to use their own default.
  */
 export class CustomEndpointOAIEndpoint extends OpenAIEndpoint {
 	/**
@@ -253,6 +256,14 @@ export class CustomEndpointOAIEndpoint extends OpenAIEndpoint {
 		return !!this.modelMetadata.supported_endpoints?.includes(ModelSupportedEndpoint.Messages);
 	}
 
+	override createRequestBody(options: ICreateEndpointBodyOptions): IEndpointBody {
+		const body = super.createRequestBody(options);
+		if (this.useResponsesApi && this.modelMetadata.zeroDataRetentionEnabled === undefined) {
+			delete body.store;
+		}
+		return body;
+	}
+
 	protected override _isReservedHeader(lowerKey: string): boolean {
 		if (CustomEndpointOAIEndpoint._overridableReservedAuthHeaders.has(lowerKey)) {
 			return false;
@@ -291,6 +302,14 @@ export class CustomEndpointOAIEndpoint extends OpenAIEndpoint {
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * Preserve Custom Endpoint request shaping when a context-size override clones the endpoint.
+	 */
+	override cloneWithTokenOverride(modelMaxPromptTokens: number): CustomEndpointOAIEndpoint {
+		const newModelInfo = { ...this.modelMetadata, maxInputTokens: modelMaxPromptTokens };
+		return this.instantiationService.createInstance(CustomEndpointOAIEndpoint, newModelInfo, this._apiKey, this._modelUrl);
 	}
 
 	private _interpolateApiKey(value: string): string {

@@ -13,7 +13,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IRemoteAuthorityResolverService } from '../../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, toWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustInfo } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { Memento } from '../../../../common/memento.js';
@@ -157,6 +157,96 @@ suite('Workspace Trust', () => {
 			// The same folder with a different _ah payload resolves to the same trust entry.
 			const sameFolderDifferentMeta = URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'my-server', path: '/Users/me/code', query: '_ah=other' });
 			assert.strictEqual(true, (await testObject.getUriTrustInfo(sameFolderDifferentMeta)).trusted);
+		});
+
+		test('setWorkspaceTrust waits for trust transition participants before resolving', async () => {
+			await configurationService.setUserConfiguration('security', getUserSettings(true, true));
+			workspaceService.setWorkspace(new Workspace('folder-workspace', [toWorkspaceFolder(URI.parse('file:///Folder'))]));
+			const testObject = await initializeTestObject();
+
+			let releaseParticipant!: () => void;
+			const participantCanComplete = new Promise<void>(resolve => releaseParticipant = resolve);
+
+			let participantStartedResolve!: () => void;
+			const participantStarted = new Promise<void>(resolve => participantStartedResolve = resolve);
+
+			let participantStartedFlag = false;
+			let participantCompleted = false;
+			let trustChangeEventFired = false;
+
+			const participantCompletedPromise = new Promise<void>(resolve => {
+				store.add(testObject.addWorkspaceTrustTransitionParticipant({
+					async participate(trusted: boolean): Promise<void> {
+						if (trusted) {
+							participantStartedFlag = true;
+							participantStartedResolve();
+							await participantCanComplete;
+							participantCompleted = true;
+							resolve();
+						}
+					}
+				}));
+			});
+
+			store.add(testObject.onDidChangeTrust(trusted => {
+				if (trusted) {
+					trustChangeEventFired = true;
+				}
+			}));
+
+			await testObject.setWorkspaceTrust(false);
+			assert.deepStrictEqual({
+				trusted: testObject.isWorkspaceTrusted(),
+				participantStarted: participantStartedFlag,
+				participantCompleted,
+				trustChangeEventFired
+			}, {
+				trusted: false,
+				participantStarted: false,
+				participantCompleted: false,
+				trustChangeEventFired: false
+			});
+
+			const setWorkspaceTrustPromise = testObject.setWorkspaceTrust(true);
+			let setWorkspaceTrustResolved = false;
+			setWorkspaceTrustPromise.then(() => setWorkspaceTrustResolved = true);
+
+			try {
+				await participantStarted;
+				await Promise.resolve();
+
+				assert.deepStrictEqual({
+					setWorkspaceTrustResolved,
+					trusted: testObject.isWorkspaceTrusted(),
+					participantStarted: participantStartedFlag,
+					participantCompleted,
+					trustChangeEventFired
+				}, {
+					setWorkspaceTrustResolved: false,
+					trusted: true,
+					participantStarted: true,
+					participantCompleted: false,
+					trustChangeEventFired: false
+				});
+			} finally {
+				releaseParticipant();
+				await participantCompletedPromise;
+			}
+
+			await setWorkspaceTrustPromise;
+			await Promise.resolve();
+
+			assert.deepStrictEqual({
+				setWorkspaceTrustResolved,
+				trusted: testObject.isWorkspaceTrusted(),
+				participantCompleted,
+				trustChangeEventFired
+			}, {
+				setWorkspaceTrustResolved: true,
+				trusted: true,
+				participantCompleted: true,
+				trustChangeEventFired: true
+			});
 		});
 
 		async function initializeTestObject(): Promise<WorkspaceTrustManagementService> {

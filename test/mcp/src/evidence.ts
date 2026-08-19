@@ -55,6 +55,7 @@ interface EvidenceRun {
 	scenarioPath?: string;
 	workspacePath?: string;
 	startedAt: string;
+	videoStartedAt?: string;
 	completedAt?: string;
 	outcome?: RunOutcome;
 	notes?: string;
@@ -145,6 +146,9 @@ export class EvidenceService {
 			throw error;
 		}
 		run.environment.quality = qualityNames[app.quality] ?? String(app.quality);
+		if (app.code.driver.videoStartedAt !== undefined) {
+			run.videoStartedAt = new Date(app.code.driver.videoStartedAt).toISOString();
+		}
 		try {
 			run.pageListener = page => {
 				const video = page.video();
@@ -391,6 +395,12 @@ export class EvidenceService {
 	}
 
 	private async showOverlay(id: string, title: string, status: string): Promise<void> {
+		if (process.env.VSCODE_EVIDENCE_CLEAN_CAPTURE === '1') {
+			// The overlay is appended to the DOM of the product under test, so it can
+			// shift layout and influence focus or selectors. Callers that annotate the
+			// recording afterwards opt out to keep the capture faithful.
+			return;
+		}
 		const app = this.appService.application;
 		if (!app) {
 			throw new Error('VS Code is not running.');
@@ -467,6 +477,7 @@ export class EvidenceService {
 			scenarioPath: run.scenarioPath,
 			workspacePath: run.workspacePath,
 			startedAt: run.startedAt,
+			videoStartedAt: run.videoStartedAt,
 			completedAt: run.completedAt,
 			outcome: run.outcome,
 			notes: run.notes,
