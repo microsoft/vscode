@@ -904,5 +904,30 @@ suite('HoverService', () => {
 
 			assertNotInDOM(hover, 'Non-sticky hover should be dismissed after clicking outside');
 		}));
+
+		test('should constrain the content height so that long content can scroll', () => {
+			const target = createTarget();
+			const content = document.createElement('div');
+			content.style.height = '2000px';
+
+			const hover = hoverService.showInstantHover({
+				content,
+				target
+			});
+			assert.ok(hover);
+			const widget = asHoverWidget(hover);
+
+			widget.layout();
+
+			const containerMaxHeight = widget.domNode.style.maxHeight;
+			const contents = widget.domNode.querySelector('.monaco-hover-content') as HTMLElement;
+			const scrollable = widget.domNode.querySelector('.monaco-scrollable-element') as HTMLElement;
+
+			assert.ok(containerMaxHeight.endsWith('px'), 'Hover container should be height constrained');
+			assert.strictEqual(contents.style.maxHeight, containerMaxHeight, 'Hover content should be height constrained');
+			assert.strictEqual(scrollable.style.maxHeight, containerMaxHeight, 'Hover scrollable element should be height constrained');
+
+			hover.dispose();
+		});
 	});
 });
