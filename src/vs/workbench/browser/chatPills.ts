@@ -131,17 +131,27 @@ export abstract class ChatPillActionViewItemBase extends BaseActionViewItem {
 
 	protected button: Button | undefined;
 
-	/** Extra classes for the item root and its button, for per-pill styling. */
-	protected get itemClassName(): string { return 'chat-pill-item'; }
-	protected get buttonClassName(): string { return 'chat-pill-button'; }
+	/**
+	 * Per-pill modifier classes added alongside the shared `chat-pill-item` and
+	 * `chat-pill-button`. A single class each, since these are applied with
+	 * `classList.add`, which rejects space-separated values.
+	 */
+	protected get itemModifierClass(): string | undefined { return undefined; }
+	protected get buttonModifierClass(): string | undefined { return undefined; }
 	protected get buttonOptions(): { readonly supportIcons?: boolean } { return {}; }
 
 	override render(container: HTMLElement): void {
 		this.element = container;
-		container.classList.add(this.itemClassName);
+		container.classList.add('chat-pill-item');
+		if (this.itemModifierClass) {
+			container.classList.add(this.itemModifierClass);
+		}
 
 		const button = this.button = this._register(new Button(container, { secondary: true, small: true, ...this.buttonOptions, ...defaultButtonStyles }));
-		button.element.classList.add('monaco-text-button', this.buttonClassName);
+		button.element.classList.add('monaco-text-button', 'chat-pill-button');
+		if (this.buttonModifierClass) {
+			button.element.classList.add(this.buttonModifierClass);
+		}
 		// A click that dismisses this pill's own dropdown must not also re-open it.
 		this._register(addDisposableListener(button.element.ownerDocument.body, EventType.MOUSE_DOWN, event => {
 			if (event.button === 0 && (!isMacintosh || !event.ctrlKey) && this.hasOpenDropdown() && button.element.contains(event.target as Node | null)) {

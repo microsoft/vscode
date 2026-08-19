@@ -19,8 +19,8 @@ import { ResourceLabels } from './labels.js';
  */
 export class ChatResourcePillActionViewItem extends ChatPillActionViewItemBase {
 
-	protected override get itemClassName(): string { return 'chat-pill-item chat-resource-pill'; }
-	protected override get buttonClassName(): string { return 'chat-pill-button chat-resource-pill-button'; }
+	protected override get itemModifierClass(): string { return 'chat-resource-pill'; }
+	protected override get buttonModifierClass(): string { return 'chat-resource-pill-button'; }
 
 	constructor(
 		action: IAction,

@@ -23,7 +23,6 @@ import { getEditorOverrideForChatResource } from './chatEditorAssociations.js';
 import { ChatPillsWidget, getChatPillEntries, IChatPill, type IChatPillSection } from '../../../../browser/chatPills.js';
 import { ChatChangesPillActionViewItem } from '../../../../browser/chatChangesPill.js';
 import { createChatSectionPill, type IChatDropdownPillOptions } from '../../../../browser/chatDropdownPill.js';
-import '../media/chatTurnPills.css';
 
 /** Presentation of the artifacts pill. */
 export const chatArtifactPillOptions: IChatDropdownPillOptions = {

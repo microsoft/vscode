@@ -34,10 +34,12 @@
 
 .chat-pill-item .monaco-button.chat-pill-button {
 	display: inline-flex;
+	align-items: center;
 	width: auto;
 	gap: var(--vscode-spacing-size40);
 	font-variant-numeric: tabular-nums;
 	white-space: nowrap;
+	touch-action: manipulation;
 }
 
 .chat-pill-item .monaco-button.chat-pill-workspace-button {
@@ -91,69 +93,51 @@
 	color: var(--vscode-chat-linesRemovedForeground);
 }
 
-/* Artifact pill: a single artifact shows its own label (a resource label for
-	files); several collapse into a summary button that opens the dropdown. */
-.chat-pills .monaco-action-bar .chat-section-pill {
-	display: inline-flex;
-	align-items: center;
-	flex-shrink: 0;
+/* Section-backed pills (artifacts, customizations, browsers, subagents) can
+	carry a long entry label, so they cap their width and ellipsize rather than
+	pushing their neighbours out of the row. */
+.chat-pills .monaco-action-bar .chat-dropdown-pill,
+.chat-pills .monaco-action-bar .chat-resource-pill {
 	max-width: 280px;
 }
 
-.chat-section-pill .monaco-button {
-	display: inline-flex;
-	align-items: center;
-	width: auto;
+.chat-pill-item .monaco-button.chat-dropdown-pill-button,
+.chat-pill-item .monaco-button.chat-resource-pill-button {
 	min-width: 0;
 	max-width: 280px;
-	gap: var(--vscode-spacing-size40);
-	overflow: hidden;
-	white-space: nowrap;
-	touch-action: manipulation;
-}
-
-.chat-section-pill .monaco-button.hidden,
-.chat-section-pill .chat-section-pill-resource.hidden,
-.chat-section-pill .chat-section-pill-inline.hidden {
-	display: none;
-}
-
-.chat-section-pill-resource,
-.chat-section-pill-inline {
-	display: inline-flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size40);
-	min-width: 0;
 	overflow: hidden;
 }
 
-.chat-section-pill-single .monaco-icon-label {
-	align-items: center;
-	min-width: 0;
-	overflow: hidden;
-	font-size: var(--vscode-fontSize-body2);
-}
-
-.chat-section-pill-single .monaco-icon-label::before {
-	width: var(--vscode-codiconFontSize-compact);
-	height: 18px;
-}
-
-.chat-section-pill-summary > span:not(.codicon) {
+.chat-dropdown-pill-button .chat-pill-label {
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
-.chat-pills .monaco-action-bar .chat-section-pill-summary .codicon {
+/* The chevron is a codicon like the leading glyph, so it needs the same
+	compact box to sit on the label's baseline. */
+.monaco-workbench .chat-pill-chevron.codicon[class*='codicon-'] {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
 	width: var(--vscode-codiconFontSize-compact);
 	height: var(--vscode-codiconFontSize-compact);
+	margin: 0;
 	font-size: var(--vscode-codiconFontSize-compact);
 	flex-shrink: 0;
+}
+
+.chat-resource-pill-button .monaco-icon-label {
+	align-items: center;
+	min-width: 0;
+	overflow: hidden;
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.chat-resource-pill-button .monaco-icon-label::before {
+	width: var(--vscode-codiconFontSize-compact);
+	height: 18px;
 }
 
 /* File rows render a themed file icon in the same slot codicon rows use, so

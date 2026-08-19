@@ -48,6 +48,9 @@ export interface IChatDropdownPillOptions {
  */
 export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 
+	protected override get itemModifierClass(): string { return 'chat-dropdown-pill'; }
+	protected override get buttonModifierClass(): string { return 'chat-dropdown-pill-button'; }
+
 	constructor(
 		action: IAction,
 		options: IActionViewItemOptions,

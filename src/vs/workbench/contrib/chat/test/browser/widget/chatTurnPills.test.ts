@@ -16,9 +16,14 @@ import { IActionWidgetService } from '../../../../../../platform/actionWidget/br
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IOpenerService, OpenExternalOptions, OpenInternalOptions } from '../../../../../../platform/opener/common/opener.js';
 import { BrowserViewEditorId } from '../../../../browserView/common/browserView.js';
-import { ChatTurnPillsWidget, EMPTY_DIFF_STATS, openChatTurnFile, previewKind } from '../../../browser/widget/chatTurnPills.js';
+import { chatArtifactPillOptions, ChatTurnPillsWidget, EMPTY_DIFF_STATS, openChatTurnFile, previewKind } from '../../../browser/widget/chatTurnPills.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { ChatPillActionViewItem, ChatPillsWidget, IChatPill, type IChatPillSection } from '../../../../../browser/chatPills.js';
+import { ChatPillActionViewItem, ChatPillsWidget, IChatPill, type IChatPillEntry, type IChatPillSection } from '../../../../../browser/chatPills.js';
+import { ChatChangesPillActionViewItem, EMPTY_CHAT_CHANGES_STATS } from '../../../../../browser/chatChangesPill.js';
+import { ChatDropdownPillActionViewItem } from '../../../../../browser/chatDropdownPill.js';
+import { ChatResourcePillActionViewItem } from '../../../../../browser/chatResourcePill.js';
+import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../../browser/labels.js';
+import type { IActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 
@@ -48,6 +53,37 @@ suite('ChatTurnPills', () => {
 			},
 			hiddenAfterClear: true,
 		});
+	});
+
+	test('every pill implementation renders with the shared and its own classes', () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const action = disposables.add(new Action('test.pill', 'Pill'));
+		const resourceLabels = disposables.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
+		const entry: IChatPillEntry = { id: 'plan', label: 'plan.md', resource: URI.file('/repo/plan.md'), open: () => { } };
+
+		const items: readonly [string, IActionViewItem][] = [
+			['icon+label', disposables.add(new ChatPillActionViewItem(undefined, action, {}))],
+			['changes', disposables.add(new ChatChangesPillActionViewItem(action, {}, constObservable(EMPTY_CHAT_CHANGES_STATS), instantiationService))],
+			['resource', disposables.add(new ChatResourcePillActionViewItem(action, {}, constObservable(entry), resourceLabels))],
+			['dropdown', disposables.add(instantiationService.createInstance(ChatDropdownPillActionViewItem, action, {}, constObservable<readonly IChatPillSection[]>([{ title: 'Files', entries: [entry] }]), chatArtifactPillOptions))],
+		];
+
+		// Rendering is what caught a `classList.add` crash from a space-separated
+		// class name, so exercise every implementation's render path.
+		const rendered = items.map(([name, item]) => {
+			const container = document.createElement('div');
+			mainWindow.document.body.appendChild(container);
+			disposables.add(toDisposable(() => container.remove()));
+			item.render(container);
+			return [name, [...container.classList].join(' '), [...container.querySelector('.monaco-button')!.classList].filter(c => c.startsWith('chat-')).join(' ')];
+		});
+
+		assert.deepStrictEqual(rendered, [
+			['icon+label', 'chat-pill-item', 'chat-pill-button'],
+			['changes', 'chat-pill-item chat-changes-pill', 'chat-pill-button chat-changes-pill-button'],
+			['resource', 'chat-pill-item chat-resource-pill', 'chat-pill-button chat-resource-pill-button'],
+			['dropdown', 'chat-pill-item chat-dropdown-pill', 'chat-pill-button chat-dropdown-pill-button'],
+		]);
 	});
 
 	test('focusing a pill restores its tab stop, so the row stays reachable by Tab', () => {

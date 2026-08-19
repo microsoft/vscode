@@ -37,8 +37,8 @@ export class ChatChangesPillActionViewItem extends ChatPillActionViewItemBase {
 
 	private _filesLabel: HTMLElement | undefined;
 
-	protected override get itemClassName(): string { return 'chat-pill-item chat-changes-pill'; }
-	protected override get buttonClassName(): string { return 'chat-pill-button chat-changes-pill-button'; }
+	protected override get itemModifierClass(): string { return 'chat-changes-pill'; }
+	protected override get buttonModifierClass(): string { return 'chat-changes-pill-button'; }
 
 	constructor(
 		action: IAction,
