@@ -11,6 +11,7 @@ import { ChatPermissionsSectionWidget } from '../../../../contrib/chat/browser/a
 import { IChatPermissionSnapshotService } from '../../../../contrib/chat/common/permissions/chatPermissionSnapshotService.js';
 import {
 	ChatPermissionDomainId,
+	ChatPermissionManagedChannel,
 	ChatPermissionEffect,
 	ChatPermissionScope,
 	ChatPermissionSnapshot,
@@ -116,6 +117,21 @@ const terminalPartialFailure = available(
 	{ failedProviders: [{ provider: 'claude', message: 'probe timed out' }] },
 );
 
+/** Read from VS Code's own channels while the agent is being asked — a stand-in, not the answer. */
+const terminalProvisional: ChatPermissionSnapshot = {
+	...(terminalManagedOnly as Extract<ChatPermissionSnapshot, { state: 'available' }>),
+	provisional: { channels: [ChatPermissionManagedChannel.Server, ChatPermissionManagedChannel.File] },
+};
+
+/** The agent never answered, so the local reading is all there is — and must say so. */
+const terminalProvisionalUnconfirmed: ChatPermissionSnapshot = {
+	...(terminalManagedOnly as Extract<ChatPermissionSnapshot, { state: 'available' }>),
+	provisional: {
+		channels: [ChatPermissionManagedChannel.Server],
+		confirmationFailed: 'Copilot runtime diagnostics exceeded 4.5 seconds',
+	},
+};
+
 /** Policy could not be confirmed, so the most restrictive behavior applies. */
 const terminalFailClosed = available(
 	[],
@@ -178,6 +194,16 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	PermissionsTerminalPartialFailure: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => render(ctx, ChatPermissionDomainId.Terminal, terminalPartialFailure),
+	}),
+	/** Local read shown while the agent is being asked. */
+	PermissionsTerminalProvisional: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => render(ctx, ChatPermissionDomainId.Terminal, terminalProvisional),
+	}),
+	/** Local read the agent never confirmed. */
+	PermissionsTerminalProvisionalUnconfirmed: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => render(ctx, ChatPermissionDomainId.Terminal, terminalProvisionalUnconfirmed),
 	}),
 	/** A resolved scope with no rules — distinct from a scope that could not be read. */
 	PermissionsTerminalEmptyScope: defineComponentFixture({

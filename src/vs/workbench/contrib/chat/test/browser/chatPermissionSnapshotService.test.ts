@@ -41,9 +41,9 @@ suite('chatPermissionSnapshotService', () => {
 		assert.deepStrictEqual(snapshot, {
 			state: 'available',
 			rules: [
-				{ id: 'managed:deny:Shell(rm -rf *)', domain: ChatPermissionDomainId.Terminal, kind: 'Shell', argument: 'rm -rf *', effect: 'deny', scope: ChatPermissionScope.Managed, editable: false },
-				{ id: 'managed:ask:Domain(*.internal.corp)', domain: ChatPermissionDomainId.Network, kind: 'Domain', argument: '*.internal.corp', effect: 'ask', scope: ChatPermissionScope.Managed, editable: false },
-				{ id: 'managed:allow:Read(src/**)', domain: ChatPermissionDomainId.Files, kind: 'Read', argument: 'src/**', effect: 'allow', scope: ChatPermissionScope.Managed, editable: false },
+				{ id: 'copilot:deny:Shell(rm -rf *)', domain: ChatPermissionDomainId.Terminal, kind: 'Shell', argument: 'rm -rf *', effect: 'deny', scope: ChatPermissionScope.Managed, editable: false },
+				{ id: 'copilot:ask:Domain(*.internal.corp)', domain: ChatPermissionDomainId.Network, kind: 'Domain', argument: '*.internal.corp', effect: 'ask', scope: ChatPermissionScope.Managed, editable: false },
+				{ id: 'copilot:allow:Read(src/**)', domain: ChatPermissionDomainId.Files, kind: 'Read', argument: 'src/**', effect: 'allow', scope: ChatPermissionScope.Managed, editable: false },
 			],
 			ceiling: { mode: 'manual', bypassRestriction: undefined, failClosed: false, allowIntersected: false },
 			resolvedScopes: [ChatPermissionScope.Managed],

@@ -6,14 +6,21 @@
 import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableValue } from '../../../../../base/common/observable.js';
-import { isObject } from '../../../../../base/common/types.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IFileManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { localize } from '../../../../../nls.js';
-import { parsePermissionRuleText } from '../../common/permissions/chatPermissionRuleSyntax.js';
 import {
-	ChatPermissionEffect,
+	collectManagedPermissionRules,
+	declaresAllowList,
+	dedupeRulesByContent,
+	readDeclaredBypassRestriction,
+	readManagedPermissionsSlice,
+} from '../../common/permissions/chatPermissionManagedRules.js';
+import {
+	ChatPermissionManagedChannel,
 	ChatPermissionScope,
 	ChatPermissionSnapshot,
 	ChatPermissionUnavailableReason,
@@ -24,17 +31,19 @@ import {
 import { IChatPermissionSnapshotService } from '../../common/permissions/chatPermissionSnapshotService.js';
 
 /**
- * Best-effort permission snapshot assembled from the surfaces the runtime exposes today.
+ * Resolves the effective permission state for display, in two stages.
  *
- * The runtime is the authority for the full effective permission state, but it currently offers no
- * read API for its resolved rule set — only the managed slice, via the managed-settings
- * diagnostics probe. This implementation therefore reports **only** the managed scope and states
- * plainly, through `resolvedScopes`, that the configured, location and session layers were not
- * consulted. It deliberately does not reconstruct those layers from VS Code settings: that would
- * make VS Code a second, divergent authority over decisions the runtime owns.
+ * **The agent is authoritative.** It runs its own managed-settings resolution, composes layers this
+ * client cannot see (configured rules, location grants, session grants, an SDK-injected layer), and
+ * applies its own fail-closed behaviour. Only its answer describes what is actually enforced.
  *
- * When the runtime gains an effective-permissions projection, this class is the only thing that
- * changes.
+ * Asking it is slow, though — the probe spawns the SDK and can take seconds — so the section would
+ * otherwise open blank. VS Code reads the same admin-authored documents through its own
+ * managed-settings channels, so it can render a **provisional** managed layer immediately and then
+ * replace it with the agent's answer. The provisional stage is a latency fix and nothing more: it
+ * is labelled as unconfirmed, it never merges or ranks channels (the agent composes `deny`/`ask` as
+ * a union and `allow` as an intersection, which is not VS Code's per-key precedence), and it is
+ * always superseded.
  */
 export class ChatPermissionSnapshotService extends Disposable implements IChatPermissionSnapshotService {
 	declare readonly _serviceBrand: undefined;
@@ -48,6 +57,8 @@ export class ChatPermissionSnapshotService extends Disposable implements IChatPe
 	constructor(
 		@IAgentHostService private readonly agentHostService: IAgentHostService,
 		@IAgentHostEnablementService private readonly agentHostEnablementService: IAgentHostEnablementService,
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
+		@IFileManagedSettingsService private readonly fileManagedSettingsService: IFileManagedSettingsService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -73,7 +84,11 @@ export class ChatPermissionSnapshotService extends Disposable implements IChatPe
 		}
 
 		const generation = ++this._refreshGeneration;
-		this._snapshot.set({ state: 'loading' }, undefined);
+
+		// Show what the local managed-settings channels say straight away, so the section is not
+		// blank while the agent is asked. This is a stand-in, never the answer.
+		const provisional = this.buildProvisionalSnapshot();
+		this._snapshot.set(provisional ?? { state: 'loading' }, undefined);
 
 		let next: ChatPermissionSnapshot;
 		try {
@@ -82,32 +97,89 @@ export class ChatPermissionSnapshotService extends Disposable implements IChatPe
 				? { state: 'unavailable', reason: ChatPermissionUnavailableReason.NotSupported }
 				: buildManagedSnapshot(diagnostics);
 		} catch (error) {
-			this.logService.warn(`[ChatPermissions] Failed to resolve managed permissions: ${getErrorMessage(error)}`);
-			next = { state: 'error', message: getErrorMessage(error) };
+			const message = getErrorMessage(error);
+			this.logService.warn(`[ChatPermissions] Failed to resolve managed permissions: ${message}`);
+			// Keep the stand-in rather than dropping to a bare error: the admin-authored policy is
+			// still the best available description of what governs the user, as long as the UI is
+			// explicit that the agent never confirmed it.
+			next = provisional
+				? { ...provisional, provisional: { ...provisional.provisional!, confirmationFailed: message } }
+				: { state: 'error', message };
 		}
 
 		if (generation === this._refreshGeneration) {
 			this._snapshot.set(next, undefined);
 		}
 	}
-}
 
-/** The managed `permissions` slice as the runtime reports it in a diagnostics snapshot. */
-interface IManagedPermissionsSlice {
-	readonly disableBypassPermissionsMode?: unknown;
-	readonly deny?: unknown;
-	readonly ask?: unknown;
-	readonly allow?: unknown;
+	/**
+	 * Reads the managed-settings documents VS Code itself receives. Channels are read
+	 * independently and their rules concatenated — never merged by VS Code's per-key precedence,
+	 * which would hide every channel but the winner and under-report the restrictions in force.
+	 *
+	 * Native MDM is deliberately absent: its watcher only reports keys a configuration policy
+	 * declares, and `permissions.*` is runtime-owned with no VS Code setting behind it. Declaring
+	 * one purely to read it is what the managed-settings guidance warns against, and the agent's
+	 * authoritative answer covers that channel anyway.
+	 */
+	private buildProvisionalSnapshot(): Extract<ChatPermissionSnapshot, { state: 'available' }> | undefined {
+		const channels: ChatPermissionManagedChannel[] = [];
+		const slices: { channel: ChatPermissionManagedChannel; slice: ReturnType<typeof readManagedPermissionsSlice> }[] = [];
+
+		for (const [channel, document] of [
+			[ChatPermissionManagedChannel.Server, this.defaultAccountService.managedSettingsRawResponse],
+			[ChatPermissionManagedChannel.File, this.fileManagedSettingsService.rawManagedSettings],
+		] as const) {
+			const slice = readManagedPermissionsSlice(document);
+			if (slice) {
+				channels.push(channel);
+				slices.push({ channel, slice });
+			}
+		}
+
+		if (slices.length === 0) {
+			return undefined;
+		}
+
+		const rules = dedupeRulesByContent(slices.flatMap(entry => collectManagedPermissionRules(entry.slice, entry.channel)));
+		let bypassRestriction: IChatPermissionCeiling['bypassRestriction'];
+		for (const { slice } of slices) {
+			const declared = readDeclaredBypassRestriction(slice);
+			// Most-restrictive wins, matching how the agent composes this key.
+			if (declared === 'disable' || bypassRestriction === 'disable') {
+				bypassRestriction = 'disable';
+			} else {
+				bypassRestriction ??= declared;
+			}
+		}
+
+		return {
+			state: 'available',
+			rules,
+			ceiling: {
+				mode: 'manual',
+				bypassRestriction,
+				failClosed: false,
+				// Two or more channels declaring an allow list means the agent intersects them, so
+				// the concatenation above is not the effective allow set.
+				allowIntersected: slices.filter(entry => declaresAllowList(entry.slice)).length > 1,
+			},
+			resolvedScopes: [ChatPermissionScope.Managed],
+			failedProviders: [],
+			provisional: { channels },
+		};
+	}
 }
 
 type ManagedDiagnostics = Awaited<ReturnType<IAgentHostService['getManagedSettingsDiagnostics']>>;
 
 /**
- * Projects the managed-settings diagnostics of every provider into display rules. Providers are
- * merged by rule identity so a rule enforced by more than one provider appears once.
+ * Projects the agent's managed-settings diagnostics into display rules. Each provider reports a
+ * slice the runtime already resolved, so providers are merged only by rule identity — no
+ * precedence is applied here.
  */
 export function buildManagedSnapshot(diagnostics: ManagedDiagnostics): ChatPermissionSnapshot {
-	const rules = new Map<string, IChatPermissionRule>();
+	const rules: IChatPermissionRule[] = [];
 	const failedProviders: IChatPermissionProviderFailure[] = [];
 	let bypassRestriction: IChatPermissionCeiling['bypassRestriction'];
 	let failClosed = false;
@@ -129,14 +201,12 @@ export function buildManagedSnapshot(diagnostics: ManagedDiagnostics): ChatPermi
 		failClosed ||= snapshot.failClosed;
 		allowIntersected ||= snapshot.permissionsAllowIntersected === true;
 
-		const permissions = readPermissionsSlice(snapshot.settings);
-		bypassRestriction = mostRestrictiveBypass(bypassRestriction, readBypassRestriction(permissions, snapshot.bypassPermissionsDisabled, snapshot.failClosed));
-		if (!permissions) {
-			continue;
-		}
-		collectRules(permissions.deny, ChatPermissionEffect.Deny, rules);
-		collectRules(permissions.ask, ChatPermissionEffect.Ask, rules);
-		collectRules(permissions.allow, ChatPermissionEffect.Allow, rules);
+		const slice = readManagedPermissionsSlice(snapshot.settings);
+		bypassRestriction = mostRestrictiveBypass(
+			bypassRestriction,
+			resolveBypassRestriction(slice, snapshot.bypassPermissionsDisabled, snapshot.failClosed),
+		);
+		rules.push(...collectManagedPermissionRules(slice, diagnostic.provider));
 	}
 
 	if (!sawSnapshot) {
@@ -149,7 +219,7 @@ export function buildManagedSnapshot(diagnostics: ManagedDiagnostics): ChatPermi
 
 	return {
 		state: 'available',
-		rules: [...rules.values()],
+		rules: dedupeRulesByContent(rules),
 		ceiling: {
 			// The blanket approval mode is session state; without a session context it cannot be
 			// reported, so the least-escalated mode is shown rather than an invented one.
@@ -169,30 +239,23 @@ function formatProviderFailures(failures: readonly IChatPermissionProviderFailur
 	return failures.map(failure => `${failure.provider}: ${failure.message}`).join('; ');
 }
 
-function readPermissionsSlice(settings: unknown): IManagedPermissionsSlice | undefined {
-	if (!isObject(settings)) {
-		return undefined;
-	}
-	const permissions = (settings as Record<string, unknown>).permissions;
-	return isObject(permissions) ? permissions as IManagedPermissionsSlice : undefined;
-}
-
-function readBypassRestriction(permissions: IManagedPermissionsSlice | undefined, bypassPermissionsDisabled: boolean, failClosed: boolean): IChatPermissionCeiling['bypassRestriction'] {
-	// `bypassPermissionsDisabled` is the runtime's composed verdict, and `failClosed` forces the
-	// strictest behavior regardless of what the settings say. Both are therefore treated as a
-	// floor: the raw key may only name a restriction the verdict already permits, never soften it.
+/**
+ * The agent's composed verdict is a floor: `bypassPermissionsDisabled` and `failClosed` may only be
+ * refined by the raw key, never softened by it.
+ */
+function resolveBypassRestriction(
+	slice: ReturnType<typeof readManagedPermissionsSlice>,
+	bypassPermissionsDisabled: boolean,
+	failClosed: boolean,
+): IChatPermissionCeiling['bypassRestriction'] {
 	if (failClosed) {
 		return 'disable';
 	}
-	const mode = permissions?.disableBypassPermissionsMode;
-	if (mode === 'disable') {
+	const declared = readDeclaredBypassRestriction(slice);
+	if (declared === 'disable') {
 		return 'disable';
 	}
-	// `allow-auto-only` is part of the runtime's managed-settings schema and is enforced by its
-	// permission engine, but the bundled SDK typings still declare only `disable`. It is read from
-	// the raw slice so a deployment using it is described accurately rather than over-reported as
-	// a full block.
-	if (mode === 'allow-auto-only' && bypassPermissionsDisabled) {
+	if (declared === 'allowAutoOnly' && bypassPermissionsDisabled) {
 		return 'allowAutoOnly';
 	}
 	return bypassPermissionsDisabled ? 'disable' : undefined;
@@ -200,41 +263,11 @@ function readBypassRestriction(permissions: IManagedPermissionsSlice | undefined
 
 /**
  * Combines the verdicts of independent providers, keeping the strictest. This ranks two separate
- * provider reports; it does not re-derive the layering that the runtime already resolved within
- * each report.
+ * provider reports; it does not re-derive the layering the agent already resolved within each.
  */
 function mostRestrictiveBypass(current: IChatPermissionCeiling['bypassRestriction'], next: IChatPermissionCeiling['bypassRestriction']): IChatPermissionCeiling['bypassRestriction'] {
 	if (current === 'disable' || next === 'disable') {
 		return 'disable';
 	}
 	return current ?? next;
-}
-
-function collectRules(value: unknown, effect: ChatPermissionEffect, into: Map<string, IChatPermissionRule>): void {
-	if (!Array.isArray(value)) {
-		return;
-	}
-	for (const entry of value) {
-		if (typeof entry !== 'string') {
-			continue;
-		}
-		const parsed = parsePermissionRuleText(entry);
-		if (!parsed?.domain) {
-			// A family this client cannot place. Skipping it is safe for display because managed
-			// enforcement is unaffected, and the diagnostics report carries the raw policy.
-			continue;
-		}
-		const id = `${ChatPermissionScope.Managed}:${effect}:${entry}`;
-		if (!into.has(id)) {
-			into.set(id, {
-				id,
-				domain: parsed.domain,
-				kind: parsed.kind,
-				argument: parsed.argument,
-				effect,
-				scope: ChatPermissionScope.Managed,
-				editable: false,
-			});
-		}
-	}
 }

@@ -140,7 +140,28 @@ export type ChatPermissionSnapshot =
 		 * partial list that looks complete is the failure mode this whole model exists to avoid.
 		 */
 		readonly failedProviders: readonly IChatPermissionProviderFailure[];
+		/**
+		 * Set when these rules were read from VS Code's own managed-settings channels rather than
+		 * reported by the agent. The agent remains authoritative — it runs its own resolution and
+		 * composes layers this client cannot see — so a provisional snapshot is a fast stand-in
+		 * that must be labelled as unconfirmed and replaced once the agent answers.
+		 */
+		readonly provisional?: IChatPermissionProvisionalInfo;
 	};
+
+/** Why a snapshot is provisional, and what it was able to read. */
+export interface IChatPermissionProvisionalInfo {
+	/** Managed-settings channels the local read covered. */
+	readonly channels: readonly ChatPermissionManagedChannel[];
+	/** Set once the agent has been asked and failed, so the stand-in is all there is. */
+	readonly confirmationFailed?: string;
+}
+
+/** A managed-settings delivery channel VS Code can read directly. */
+export const enum ChatPermissionManagedChannel {
+	Server = 'server',
+	File = 'file',
+}
 
 /** A provider that could not report its managed permissions. */
 export interface IChatPermissionProviderFailure {

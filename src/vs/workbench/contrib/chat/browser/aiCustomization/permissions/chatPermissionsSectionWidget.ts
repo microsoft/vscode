@@ -22,11 +22,13 @@ import { formatPermissionRuleText } from '../../../common/permissions/chatPermis
 import {
 	CHAT_PERMISSION_SCOPE_ORDER,
 	ChatPermissionEffect,
+	ChatPermissionManagedChannel,
 	ChatPermissionScope,
 	ChatPermissionSnapshot,
 	ChatPermissionUnavailableReason,
 	IChatPermissionCeiling,
 	IChatPermissionProviderFailure,
+	IChatPermissionProvisionalInfo,
 	IChatPermissionRule,
 	filterRulesForDomain,
 } from '../../../common/permissions/chatPermissions.js';
@@ -238,6 +240,7 @@ export class ChatPermissionsSectionWidget extends Disposable {
 		}
 
 		this.renderCeiling(snapshot.ceiling);
+		this.renderProvisional(snapshot.provisional);
 		this.renderFailedProviders(snapshot.failedProviders);
 
 		const rules = filterRulesForDomain(snapshot.rules, this.domain.id).filter(rule => this.matchesFilter(rule));
@@ -289,6 +292,38 @@ export class ChatPermissionsSectionWidget extends Disposable {
 		const banner = DOM.append(this.listContainer, $('.chat-permissions-banner'));
 		DOM.append(banner, $('span.chat-permissions-banner-icon')).classList.add(...ThemeIcon.asClassNameArray(Codicon.lock));
 		DOM.append(banner, $('span.chat-permissions-banner-text')).textContent = messages.join(' ');
+	}
+
+	/**
+	 * Marks rules that VS Code read from the managed-settings documents itself, before the agent
+	 * has confirmed them. The agent composes layers this client cannot see, so an unconfirmed
+	 * reading must never be presented as the effective policy.
+	 */
+	private renderProvisional(provisional: IChatPermissionProvisionalInfo | undefined): void {
+		if (!provisional) {
+			return;
+		}
+		const channels = provisional.channels.map(channel => channel === ChatPermissionManagedChannel.Server
+			? localize('chatPermissions.channel.server', "your organization")
+			: localize('chatPermissions.channel.file', "a policy file on this device"));
+
+		const banner = DOM.append(this.listContainer, $('.chat-permissions-banner'));
+		const isFailed = !!provisional.confirmationFailed;
+		banner.classList.toggle('is-warning', isFailed);
+		DOM.append(banner, $('span.chat-permissions-banner-icon')).classList.add(
+			...ThemeIcon.asClassNameArray(isFailed ? Codicon.warning : Codicon.info));
+		DOM.append(banner, $('span.chat-permissions-banner-text')).textContent = isFailed
+			? localize(
+				'chatPermissions.provisional.unconfirmed',
+				"Showing the policy delivered by {0}. The agent could not confirm what it enforces ({1}), so this may not be complete.",
+				channels.join(' and '),
+				provisional.confirmationFailed,
+			)
+			: localize(
+				'chatPermissions.provisional.checking',
+				"Showing the policy delivered by {0}. Confirming with the agent\u2026",
+				channels.join(' and '),
+			);
 	}
 
 	/**
