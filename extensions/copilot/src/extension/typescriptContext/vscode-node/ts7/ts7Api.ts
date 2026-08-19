@@ -50,6 +50,9 @@ export class TypeScript7Api implements vscode.Disposable {
  * so that we only ever open one pipe to the server.
  */
 class TypeScript7Connection implements vscode.Disposable {
+
+	private static readonly maxConnectAttempts: number = 3;
+
 	private readonly disposables = new DisposableStore();
 	private readonly onDidReconnectEmitter = this.disposables.add(new vscode.EventEmitter<void>());
 
@@ -71,7 +74,13 @@ class TypeScript7Connection implements vscode.Disposable {
 			return Promise.resolve(undefined);
 		}
 		if (this.apiPromise === undefined) {
-			this.apiPromise = this.createApi(this.generation);
+			const promise = this.createApi();
+			this.apiPromise = promise;
+			void promise.then(() => {
+				if (this.apiPromise === promise) {
+					this.apiPromise = undefined;
+				}
+			});
 		}
 		return this.apiPromise;
 	}
@@ -82,49 +91,67 @@ class TypeScript7Connection implements vscode.Disposable {
 		this.disposables.dispose();
 	}
 
-	private async createApi(generation: number): Promise<API<true> | undefined> {
+	private async createApi(): Promise<API<true> | undefined> {
 		try {
-			if (this.extensionApi === undefined) {
-				const extension = vscode.extensions.getExtension<TypeScript7ExtensionApi>('typescriptteam.native-preview');
-				if (extension === undefined) {
-					return undefined;
-				}
-				const extensionApi = await extension.activate();
-				if (this.generation !== generation) {
-					return undefined;
-				}
-				this.extensionApi = extensionApi;
-				this.disposables.add(extensionApi.onLanguageServerInitialized(() => this.reconnect()));
-			}
-			const pipe = await this.extensionApi.initializeAPIConnection();
-			const api = await API.fromLSPConnection({ pipe });
-			if (this.generation !== generation) {
-				// A reconnect or a dispose happened while we were connecting, so this connection is already stale.
-				this.close(api);
+			const extensionApi = await this.getExtensionApi();
+			if (extensionApi === undefined) {
 				return undefined;
 			}
-			this.api = api;
-			return api;
+			for (let attempt = 0; attempt < TypeScript7Connection.maxConnectAttempts; attempt++) {
+				const generation = this.generation;
+				const pipe = await extensionApi.initializeAPIConnection();
+				const api = await API.fromLSPConnection({ pipe });
+				if (this.disposed) {
+					this.close(api);
+					return undefined;
+				}
+				if (this.generation === generation) {
+					this.api = api;
+					return api;
+				}
+				// The language server (re)initialized while we were connecting, so this pipe is already stale.
+				this.close(api);
+			}
+			return undefined;
 		} catch (error) {
 			this.logService.error(error, 'Error connecting to the TypeScript 7 API');
 			return undefined;
-		} finally {
-			if (this.generation === generation) {
-				this.apiPromise = undefined;
-			}
 		}
 	}
 
+	private async getExtensionApi(): Promise<TypeScript7ExtensionApi | undefined> {
+		if (this.extensionApi !== undefined) {
+			return this.extensionApi;
+		}
+		const extension = vscode.extensions.getExtension<TypeScript7ExtensionApi>('typescriptteam.native-preview');
+		if (extension === undefined) {
+			return undefined;
+		}
+		const extensionApi = await extension.activate();
+		if (this.disposed) {
+			return undefined;
+		}
+		if (this.extensionApi === undefined) {
+			this.extensionApi = extensionApi;
+			this.disposables.add(extensionApi.onLanguageServerInitialized(() => this.reconnect()));
+		}
+		return this.extensionApi;
+	}
+
 	private reconnect(): void {
+		// The initial initialization arrives while we are still connecting. Bump the generation so that
+		// connect picks up the new pipe, but only tell consumers when an established connection went away.
+		const hadApi = this.api !== undefined;
 		this.resetApi();
-		this.onDidReconnectEmitter.fire();
+		if (hadApi) {
+			this.onDidReconnectEmitter.fire();
+		}
 	}
 
 	private resetApi(): void {
 		this.generation++;
 		const api = this.api;
 		this.api = undefined;
-		this.apiPromise = undefined;
 		if (api !== undefined) {
 			this.close(api);
 		}
