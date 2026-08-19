@@ -750,7 +750,6 @@ export class CopilotAgentSession extends Disposable {
 			destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
 			include: {
 				events: includeSessionLogs,
-				// VS Code collects and caps process logs separately; SDK collection scans entire files.
 				processLogs: false,
 				shellLogs: includeSessionLogs,
 			},
