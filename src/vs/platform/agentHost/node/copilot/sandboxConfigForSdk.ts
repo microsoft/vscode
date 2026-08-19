@@ -19,6 +19,9 @@ export interface IAgentSandboxFileSystemSetting {
 	denyWrite?: string[];
 }
 
+/**
+ * ToDo: This will be removed as the SDK's built-in sandbox configuration types are exported.
+ */
 export interface SandboxConfig {
 	/** Whether sandboxing is enabled for the session. */
 	enabled: boolean;
