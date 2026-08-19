@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ContentBlockParam, DocumentBlockParam, ImageBlockParam, MessageParam, RedactedThinkingBlockParam, TextBlockParam, ThinkingBlockParam, ToolReferenceBlockParam, ToolResultBlockParam } from '@anthropic-ai/sdk/resources';
+import { ContentBlockParam, DocumentBlockParam, ImageBlockParam, MessageParam, RedactedThinkingBlockParam, RefusalStopDetails, TextBlockParam, ThinkingBlockParam, ToolReferenceBlockParam, ToolResultBlockParam } from '@anthropic-ai/sdk/resources';
 import { Raw } from '@vscode/prompt-tsx';
 import { Response } from '../../../platform/networking/common/fetcherService';
 import { AsyncIterableObject } from '../../../util/vs/base/common/async';
@@ -137,11 +137,7 @@ interface AnthropicStreamEvent {
 		signature?: string;
 		stop_reason?: string;
 		stop_sequence?: string;
-		stop_details?: {
-			category?: string;
-			explanation?: string;
-			type?: string;
-		};
+		stop_details?: RefusalStopDetails | null;
 	};
 	copilot_annotations?: {
 		IPCodeCitations?: AnthropicIPCodeCitation[];
@@ -169,6 +165,7 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 	const configurationService = accessor.get(IConfigurationService);
 	const experimentationService = accessor.get(IExperimentationService);
 	const toolDeferralService = accessor.get(IToolDeferralService);
+	const logService = accessor.get(ILogService);
 
 	const toolSearchEnabled = !!endpoint.supportsToolSearch
 		&& !!options.requestOptions?.tools?.some(t => t.function.name === CUSTOM_TOOL_SEARCH_NAME);
@@ -229,13 +226,18 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 		const defaultEffort = declaredLevels
 			? (declaredLevels.includes('medium') ? 'medium' : declaredLevels[Math.floor((declaredLevels.length - 1) / 2)])
 			: !explicitlyUnsupported && endpoint.supportsAdaptiveThinking ? 'high' : undefined;
+		const requestedEffort = configurationService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride) ?? reasoningEffort;
 		if (defaultEffort !== undefined) {
-			const candidateEffort = configurationService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride)
-				?? reasoningEffort
-				?? defaultEffort;
-			if (typeof candidateEffort === 'string' && candidateEffort.length > 0 && (!declaredLevels || declaredLevels.includes(candidateEffort))) {
-				effort = candidateEffort;
+			const candidateEffort = requestedEffort ?? defaultEffort;
+			if (typeof candidateEffort === 'string' && candidateEffort.length > 0) {
+				if (!declaredLevels || declaredLevels.includes(candidateEffort)) {
+					effort = candidateEffort;
+				} else {
+					logService.warn(`[reasoningEffort] Dropping reasoning effort '${candidateEffort}' for model '${endpoint.model}' — not in server-declared levels [${declaredLevels.join(', ')}].`);
+				}
 			}
+		} else if (explicitlyUnsupported && typeof requestedEffort === 'string' && requestedEffort.length > 0) {
+			logService.warn(`[reasoningEffort] Dropping reasoning effort '${requestedEffort}' for model '${endpoint.model}' — server declares no supported effort levels.`);
 		}
 	}
 
@@ -244,7 +246,6 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 		? getContextManagementFromConfig(configurationService, experimentationService, thinkingEnabled)
 		: undefined;
 
-	const logService = accessor.get(ILogService);
 	const telemetryService = accessor.get(ITelemetryService);
 	// TODO: Ideally the custom tool_search tool should filter results itself, but it doesn't
 	// have access to the enabled tools for the request. For now, filter tool_reference blocks
@@ -413,7 +414,9 @@ export function rawMessagesToMessagesAPI(messages: readonly Raw.ChatMessage[], v
 		if (lastMessage && lastMessage.role === message.role) {
 			const prevContent = Array.isArray(lastMessage.content) ? lastMessage.content : [{ type: 'text' as const, text: lastMessage.content }];
 			const newContent = Array.isArray(message.content) ? message.content : [{ type: 'text' as const, text: message.content }];
-			lastMessage.content = [...prevContent, ...newContent];
+			lastMessage.content = lastMessage.role === 'assistant'
+				? mergeAssistantContent(prevContent, newContent)
+				: [...prevContent, ...newContent];
 		} else {
 			mergedMessages.push(message);
 		}
@@ -423,6 +426,22 @@ export function rawMessagesToMessagesAPI(messages: readonly Raw.ChatMessage[], v
 		messages: mergedMessages,
 		...(systemBlocks.length ? { system: systemBlocks } : {}),
 	};
+}
+
+function isThinkingBlock(block: ContentBlockParam): boolean {
+	return block.type === 'thinking' || block.type === 'redacted_thinking';
+}
+
+// Keep at most one response's thinking blocks when merging consecutive assistants (#327646).
+function mergeAssistantContent(prevContent: ContentBlockParam[], newContent: ContentBlockParam[]): ContentBlockParam[] {
+	const hasToolUse = (blocks: ContentBlockParam[]) => blocks.some(block => block.type === 'tool_use');
+	const thinkingSource = hasToolUse(newContent) ? newContent : hasToolUse(prevContent) ? prevContent : undefined;
+
+	return [
+		...(thinkingSource?.filter(isThinkingBlock) ?? []),
+		...prevContent.filter(block => !isThinkingBlock(block)),
+		...newContent.filter(block => !isThinkingBlock(block)),
+	];
 }
 
 /**
@@ -767,7 +786,7 @@ interface AnthropicCompletionState {
 function mapStopReason(stopReason: string | null | undefined): FinishedCompletionReason {
 	switch (stopReason) {
 		case 'refusal':
-			return FinishedCompletionReason.ClientDone;
+			return FinishedCompletionReason.Refusal;
 		case 'max_tokens':
 		case 'model_context_window_exceeded':
 			return FinishedCompletionReason.Length;
@@ -866,6 +885,7 @@ type AnthropicNonStreamingResponse =
 		)[];
 		model: string;
 		stop_reason: string | null;
+		stop_details?: RefusalStopDetails | null;
 		usage: {
 			input_tokens: number;
 			output_tokens: number;
@@ -964,23 +984,9 @@ export async function processNonStreamingResponseFromMessagesEndpoint(
 			}
 		}
 
-		// Report text and tool calls to finishedCb so callers that rely on
-		// the callback (e.g. for OTEL tracing, progress, langModelServer SSE
-		// forwarding) see the complete response — matching the streaming path.
-		const delta: IResponseDelta = {
-			text: textContent,
-			...(toolCalls.length > 0 ? {
-				copilotToolCalls: toolCalls.map(tc => ({
-					id: tc.id,
-					name: tc.name,
-					arguments: tc.arguments,
-				})),
-			} : {}),
-		};
-		await finishCallback(textContent, 0, delta);
-
 		if (parsed.stop_reason === 'refusal') {
-			logService.warn(`[messagesAPI] non-streaming: Refusal received for model ${parsed.model}`);
+			const category = parsed.stop_details?.category ?? 'unknown';
+			logService.warn(`[messagesAPI] non-streaming: Refusal received: category='${category}' for model ${parsed.model}`);
 
 			/* __GDPR__
 				"messagesApi.refusal" : {
@@ -995,10 +1001,23 @@ export async function processNonStreamingResponseFromMessagesEndpoint(
 				{
 					requestId,
 					model: parsed.model,
-					category: 'unknown',
+					category,
 				}
 			);
 		}
+
+		// There are no incremental deltas here, so callback-only consumers need the whole response.
+		const delta: IResponseDelta = {
+			text: textContent,
+			...(toolCalls.length > 0 ? {
+				copilotToolCalls: toolCalls.map(tc => ({
+					id: tc.id,
+					name: tc.name,
+					arguments: tc.arguments,
+				})),
+			} : {}),
+		};
+		await finishCallback(textContent, 0, delta);
 
 		const usage = parsed.usage;
 		const completion = buildAnthropicCompletion({
@@ -1068,7 +1087,7 @@ export class AnthropicMessagesProcessor {
 	private copilotUsage?: { total_nano_aiu: number };
 	private contextManagementResponse?: ContextManagementResponse;
 	private stopReason: string | undefined;
-	private stopDetails?: { category?: string; explanation?: string; type?: string };
+	private stopDetails?: RefusalStopDetails;
 
 	constructor(
 		private readonly telemetryData: TelemetryData,
@@ -1269,7 +1288,7 @@ export class AnthropicMessagesProcessor {
 				if (chunk.context_management) {
 					this.contextManagementResponse = chunk.context_management;
 					// Report context management via delta so it gets logged to request logger
-					return onProgress({
+					onProgress({
 						text: '',
 						contextManagement: chunk.context_management
 					});
@@ -1381,5 +1400,3 @@ export class AnthropicMessagesProcessor {
 		}
 	}
 }
-
-

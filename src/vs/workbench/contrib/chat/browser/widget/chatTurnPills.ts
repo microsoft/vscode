@@ -11,23 +11,25 @@ import { ToolBar } from '../../../../../base/browser/ui/toolbar/toolbar.js';
 import { Action, IAction, toAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, derived, IObservable, IReader } from '../../../../../base/common/observable.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { FileKind } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AnimatedCounterWidget } from '../../../../browser/animatedCounterWidget.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../browser/labels.js';
+import { BrowserViewEditorId } from '../../../browserView/common/browserView.js';
 import { ChatConfiguration } from '../../common/constants.js';
+import { getEditorOverrideForChatResource } from './chatEditorAssociations.js';
 import '../media/chatTurnPills.css';
 
 const CHANGES_PILL_ACTION_ID = 'chat.turnPills.changes';
@@ -58,19 +60,22 @@ export interface IDiffStats {
 
 export const EMPTY_DIFF_STATS: IDiffStats = { files: 0, insertions: 0, deletions: 0 };
 
-/** A markdown file the preview pill can open. */
+/** A file outside the workspace that the preview pill can open. */
 export interface IPreviewFile {
 	readonly uri: URI;
-	readonly kind: 'markdown';
+	readonly kind: 'markdown' | 'html';
 	/** Whether the file was created (vs. edited) during the turn. */
 	readonly created: boolean;
 }
 
-/** Classify a resource as a previewable markdown file, if applicable. */
-export function previewKind(uri: URI): 'markdown' | undefined {
+/** Classify a resource as a previewable file, if applicable. */
+export function previewKind(uri: URI, htmlPreviewAvailable = !isWeb): IPreviewFile['kind'] | undefined {
 	const path = uri.path.toLowerCase();
 	if (path.endsWith('.md') || path.endsWith('.markdown')) {
 		return 'markdown';
+	}
+	if (htmlPreviewAvailable && uri.scheme === Schemas.file && (path.endsWith('.html') || path.endsWith('.htm'))) {
+		return 'html';
 	}
 	return undefined;
 }
@@ -91,17 +96,15 @@ export function previewFilesEqual(a: readonly IPreviewFile[], b: readonly IPrevi
 	return true;
 }
 
-/**
- * Open a previewable file: markdown files open as a markdown preview, falling
- * back to the default opener when it is not available (e.g. web).
- */
-export async function openChatPreviewFile(file: IPreviewFile, commandService: ICommandService, openerService: IOpenerService, logService: ILogService): Promise<void> {
-	try {
-		await commandService.executeCommand('markdown.showPreview', file.uri);
-	} catch (err) {
-		logService.trace('[ChatTurnPills] Falling back to default opener for preview', err);
-		await openerService.open(file.uri);
-	}
+/** Opens a turn file with the editor configured for resources opened from chat. */
+export async function openChatTurnFile(file: IPreviewFile, openerService: IOpenerService, configurationService: IConfigurationService): Promise<void> {
+	const configuredOverride = getEditorOverrideForChatResource(file.uri, configurationService);
+	await openerService.open(file.uri, {
+		fromUserGesture: true,
+		editorOptions: {
+			override: configuredOverride ?? (file.kind === 'html' ? BrowserViewEditorId : undefined),
+		},
+	});
 }
 
 /** The data and interactions a {@link ChatTurnPillsWidget} reflects. */
@@ -113,7 +116,7 @@ export interface IChatTurnPillsModel {
 	/** When `false` the preview pill stays hidden regardless of the data. */
 	readonly previewEnabled: IObservable<boolean>;
 	openChanges(): void;
-	openPreviewFile(file: IPreviewFile): void;
+	openFile(file: IPreviewFile): void;
 }
 
 /** The former per-pill setting shape, retained for existing user settings. */
@@ -132,7 +135,7 @@ export function isChatTurnStatusPillsEnabled(value: ChatTurnStatusPillsSetting |
 
 /** Observe whether agent turn status pills are enabled. */
 export function observeTurnStatusPillsEnabled(configurationService: IConfigurationService): IObservable<boolean> {
-	const value = observableConfigValue<ChatTurnStatusPillsSetting>(ChatConfiguration.TurnStatusPills, false, configurationService);
+	const value = observableConfigValue<ChatTurnStatusPillsSetting>(ChatConfiguration.TurnStatusPills, true, configurationService);
 	return derived(reader => isChatTurnStatusPillsEnabled(value.read(reader)));
 }
 
@@ -203,8 +206,8 @@ class ChangesPillActionViewItem extends BaseActionViewItem {
 			? localize('chatTurnPills.changes.file', "{0} File", files)
 			: localize('chatTurnPills.changes.files', "{0} Files", files);
 		this._filesLabel.textContent = filesLabel;
-		this._button.setTitle(localize('chatTurnPills.changes.tooltip', "View Changes"));
-		this._button.element.setAttribute('aria-label', localize('chatTurnPills.changes.ariaLabel', "View Changes: {0}, +{1}, -{2}", filesLabel, insertions, deletions));
+		this._button.setTitle(localize('chatTurnPills.changes.tooltip', "View Current Turn Changes"));
+		this._button.element.setAttribute('aria-label', localize('chatTurnPills.changes.ariaLabel', "View Current Turn Changes: {0}, +{1}, -{2}", filesLabel, insertions, deletions));
 	}
 
 	override focus(): void {
@@ -216,7 +219,7 @@ class ChangesPillActionViewItem extends BaseActionViewItem {
  * The preview pill: renders the primary previewable file as a resource label
  * (file icon + name). When more than one previewable file exists, a separator
  * and a dropdown chevron are shown; the chevron lists every previewable file.
- * Activating the label opens the primary file's preview.
+ * Activating the label opens the primary file.
  */
 class PreviewPillActionViewItem extends BaseActionViewItem {
 
@@ -290,9 +293,10 @@ class PreviewPillActionViewItem extends BaseActionViewItem {
  *
  * - **Changes** — `<n> Files +ins -del` for the turn. Activating it opens the
  *   changes.
- * - **Preview** — shown when the turn created or edited a markdown file.
+ * - **Preview** — shown when the turn created or edited a previewable file outside
+ *   the current workspace.
  *   Rendered as a resource label for the primary file. Activating it opens that
- *   file as a markdown preview; when several exist, a dropdown lists them all.
+ *   file; when several exist, a dropdown lists them all.
  * The data and the open actions are supplied by the {@link IChatTurnPillsModel}
  * so the same widget serves surfaces with different data sources.
  */
@@ -324,8 +328,8 @@ export class ChatTurnPillsWidget extends Disposable {
 		this.element = $('.chat-turn-pills.show-file-icons.hidden');
 		this._resourceLabels = this._register(this._instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
 
-		this._changesAction = this._register(new Action(CHANGES_PILL_ACTION_ID, localize('chatTurnPills.changes.tooltip', "View Changes"), undefined, true, async () => this._model.openChanges()));
-		this._previewAction = this._register(new Action(PREVIEW_PILL_ACTION_ID, localize('chatTurnPills.preview.label', "Open Preview"), undefined, true, async () => this._openPrimaryPreview()));
+		this._changesAction = this._register(new Action(CHANGES_PILL_ACTION_ID, localize('chatTurnPills.changes.tooltip', "View Current Turn Changes"), undefined, true, async () => this._model.openChanges()));
+		this._previewAction = this._register(new Action(PREVIEW_PILL_ACTION_ID, localize('chatTurnPills.preview.label', "Open Preview"), undefined, true, async () => this._openPrimaryFile()));
 
 		this._toolbar = this._register(new ToolBar(this.element, this._contextMenuService, {
 			orientation: ActionsOrientation.HORIZONTAL,
@@ -335,7 +339,7 @@ export class ChatTurnPillsWidget extends Disposable {
 					return new ChangesPillActionViewItem(action, options, this._model.stats, this._instantiationService);
 				}
 				if (action.id === PREVIEW_PILL_ACTION_ID) {
-					return new PreviewPillActionViewItem(action, options, this._model.previewFiles, this._resourceLabels, file => this._model.openPreviewFile(file), anchor => this._showAllPreviews(anchor));
+					return new PreviewPillActionViewItem(action, options, this._model.previewFiles, this._resourceLabels, file => this._model.openFile(file), anchor => this._showAllFiles(anchor));
 				}
 				return undefined;
 			},
@@ -372,14 +376,14 @@ export class ChatTurnPillsWidget extends Disposable {
 		this.element.classList.toggle('hidden', actions.length === 0);
 	}
 
-	private _openPrimaryPreview(): void {
+	private _openPrimaryFile(): void {
 		const primaryFile = this._model.previewFiles.get().at(0);
 		if (primaryFile) {
-			this._model.openPreviewFile(primaryFile);
+			this._model.openFile(primaryFile);
 		}
 	}
 
-	private _showAllPreviews(anchor: HTMLElement): void {
+	private _showAllFiles(anchor: HTMLElement): void {
 		const files = this._model.previewFiles.get();
 		if (files.length === 0) {
 			return;
@@ -389,8 +393,8 @@ export class ChatTurnPillsWidget extends Disposable {
 			getActions: () => files.map(file => toAction({
 				id: `${PREVIEW_PILL_ACTION_ID}.${file.uri.toString()}`,
 				label: basename(file.uri),
-				class: ThemeIcon.asClassName(Codicon.openPreview),
-				run: () => this._model.openPreviewFile(file),
+				class: ThemeIcon.asClassName(Codicon.goToFile),
+				run: () => this._model.openFile(file),
 			})),
 		});
 	}

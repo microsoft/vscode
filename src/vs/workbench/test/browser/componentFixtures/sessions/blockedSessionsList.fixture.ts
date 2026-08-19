@@ -28,6 +28,8 @@ import { ISessionsProvidersService } from '../../../../../sessions/services/sess
 // eslint-disable-next-line local/code-import-patterns
 import { BlockedSessionsList, registerBlockedSessionsItemActions } from '../../../../../sessions/contrib/sessions/browser/blockedSessionsList.js';
 // eslint-disable-next-line local/code-import-patterns
+import { registerBlockedSessionsHeaderActions, registerBlockedSessionsHeaderCommands } from '../../../../../sessions/contrib/sessions/browser/sessionsTitleBarWidget.js';
+// eslint-disable-next-line local/code-import-patterns
 import { ISessionCIFixModel, ISessionCIFixState } from '../../../../../sessions/contrib/sessions/browser/views/sessionsList.js';
 import { IVoicePlaybackService } from '../../../../contrib/chat/common/voicePlaybackService.js';
 import { IChatService } from '../../../../contrib/chat/common/chatService/chatService.js';
@@ -104,6 +106,7 @@ function createBlockedSession(options: IBlockedSessionOptions, approvals?: Map<s
 	if (options.approvalCommand !== undefined && approvals) {
 		const chatResource = URI.parse(`vscode-chat://chat/${Math.random().toString(36).slice(2)}`);
 		approvals.set(chatResource.toString(), {
+			approvalId: chatResource.toString(),
 			kind: AgentSessionApprovalKind.Terminal,
 			label: options.approvalCommand,
 			languageId: undefined,
@@ -128,6 +131,7 @@ function createBlockedSession(options: IBlockedSessionOptions, approvals?: Map<s
 		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(options.workspace);
 		override readonly isArchived: IObservable<boolean> = constObservable<boolean>(false);
 		override readonly isRead: IObservable<boolean> = constObservable<boolean>(true);
+		override readonly capabilities = constObservable({ supportsMultipleChats: false, supportsDelete: true });
 		override readonly changes: IObservable<readonly ISessionFileChange[]> = constObservable<readonly ISessionFileChange[]>([]);
 		override readonly changesSummary: IObservable<ISessionChangesSummary | undefined> = constObservable<ISessionChangesSummary | undefined>(options.changesSummary);
 		override readonly description: IObservable<IMarkdownString | undefined> = constObservable<IMarkdownString | undefined>(description);
@@ -270,6 +274,8 @@ function renderBlockedList(ctx: ComponentFixtureContext, sessions: readonly ISes
 	(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration('editor', { fontFamily: 'monospace' });
 	instantiationService.get(IMarkdownRendererService).setDefaultCodeBlockRenderer(instantiationService.createInstance(EditorMarkdownCodeBlockRenderer));
 	disposableStore.add(registerBlockedSessionsItemActions());
+	disposableStore.add(registerBlockedSessionsHeaderCommands());
+	disposableStore.add(registerBlockedSessionsHeaderActions());
 
 	// The blocked-sessions list is shown as a floating dropdown anchored below
 	// the command center box in the agents window; approximate that surface (and
@@ -282,6 +288,9 @@ function renderBlockedList(ctx: ComponentFixtureContext, sessions: readonly ISes
 	const list = disposableStore.add(instantiationService.createInstance(BlockedSessionsList, container, {
 		onSessionOpen: () => { },
 		onIgnoreSession: () => { },
+		onShowAllSessions: () => { },
+		onIgnoreAllSessions: () => { },
+		onClose: () => { },
 		approvalModel,
 		ciFixModel,
 	}));

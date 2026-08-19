@@ -30,7 +30,7 @@ const bundledDeps = [
 	'libGLESv2.so',
 	'libvulkan.so.1',
 	'libvk_swiftshader.so',
-	'libffmpeg.so'
+	'libffmpeg.so',
 ];
 
 export async function getDependencies(packageType: 'deb' | 'rpm', buildDir: string, applicationName: string, arch: string): Promise<string[]> {

@@ -13,12 +13,15 @@ import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registr
 import { ROOT_STATE_URI, type SessionState } from '../../../common/state/sessionState.js';
 import {
 	getActionEnvelope,
+	getAgentHostE2ETestTimeout,
 	isActionNotification,
 	IServerHandle,
 	nextSessionUri,
 	startServer,
+	stopServer,
 	TestProtocolClient,
-} from './testHelpers.js';
+} from '../serverIntegrationTestHelpers.js';
+import { PRE_EXISTING_SESSION_URI } from '../mockAgent.js';
 
 suite('Protocol WebSocket - Session Config', function () {
 
@@ -26,12 +29,13 @@ suite('Protocol WebSocket - Session Config', function () {
 	let client: TestProtocolClient;
 
 	suiteSetup(async function () {
-		this.timeout(15_000);
+		this.timeout(getAgentHostE2ETestTimeout(15_000, 60_000));
 		server = await startServer();
 	});
 
-	suiteTeardown(function () {
-		server.process.kill();
+	suiteTeardown(async function () {
+		this.timeout(getAgentHostE2ETestTimeout(20_000, 50_000));
+		await stopServer(server);
 	});
 
 	setup(async function () {
@@ -97,12 +101,13 @@ suite('Protocol WebSocket - Session Config', function () {
 		await client.call('createSession', {
 			channel: nextSessionUri(),
 			provider: 'mock',
-			workingDirectory: URI.file('/mock/workspace').toString(),
+			workingDirectories: [URI.file('/mock/workspace').toString()],
 			config,
 		});
 
 		const notif = await client.waitForNotification(n =>
 			n.method === 'root/sessionAdded'
+			&& (n.params as SessionAddedParams).summary.resource !== PRE_EXISTING_SESSION_URI.toString()
 		);
 		const notification = notif.params as SessionAddedParams;
 		assert.strictEqual(Object.hasOwn(notification.summary, 'config'), false);
@@ -124,6 +129,7 @@ suite('Protocol WebSocket - Session Config', function () {
 
 		const notif = await client.waitForNotification(n =>
 			n.method === 'root/sessionAdded'
+			&& (n.params as SessionAddedParams).summary.resource !== PRE_EXISTING_SESSION_URI.toString()
 		);
 		const session = (notif.params as SessionAddedParams).summary.resource;
 		await client.call<SubscribeResult>('subscribe', { channel: session });
@@ -164,7 +170,7 @@ suite('Protocol WebSocket - Session Config persistence across restarts', functio
 	});
 
 	test('persisted config values are restored on subscribe after server restart', async function () {
-		this.timeout(30_000);
+		this.timeout(getAgentHostE2ETestTimeout(30_000, 180_000));
 
 		const initialConfig = { isolation: 'worktree', branch: 'main' };
 		const updatedBranch = 'release';
@@ -180,11 +186,12 @@ suite('Protocol WebSocket - Session Config persistence across restarts', functio
 			await client1.call('createSession', {
 				channel: nextSessionUri(),
 				provider: 'mock',
-				workingDirectory: URI.file('/mock/workspace').toString(),
+				workingDirectories: [URI.file('/mock/workspace').toString()],
 				config: initialConfig,
 			});
 			const addedNotif = await client1.waitForNotification(n =>
 				n.method === 'root/sessionAdded'
+				&& (n.params as SessionAddedParams).summary.resource !== PRE_EXISTING_SESSION_URI.toString()
 			);
 			// The mock agent assigns its own URI rather than honoring the
 			// requested one, so capture the real URI from the notification.
@@ -205,14 +212,7 @@ suite('Protocol WebSocket - Session Config persistence across restarts', functio
 
 			client1.close();
 		} finally {
-			// Trigger graceful shutdown by closing stdin rather than sending
-			// SIGTERM — on Windows, `child.kill()` (SIGTERM) unconditionally
-			// terminates the process without invoking the shutdown handler,
-			// so in-flight `setMetadata` writes never reach SQLite. Closing
-			// stdin fires `process.stdin.on('end', shutdown)` in the server
-			// on every platform.
-			server1.process.stdin!.end();
-			await new Promise<void>(resolve => server1.process.once('exit', () => resolve()));
+			await stopServer(server1);
 		}
 
 		// ---- Phase 2: restart server, subscribe, verify restored config ----
@@ -242,8 +242,7 @@ suite('Protocol WebSocket - Session Config persistence across restarts', functio
 
 			client2.close();
 		} finally {
-			server2.process.stdin!.end();
-			await new Promise<void>(resolve => server2.process.once('exit', () => resolve()));
+			await stopServer(server2);
 		}
 	});
 });

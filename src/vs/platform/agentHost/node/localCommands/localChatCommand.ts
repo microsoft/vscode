@@ -45,6 +45,8 @@ export interface ILocalChatCommandContext {
 	updateChatTitle(session: ProtocolURI, chat: ProtocolURI, title: string): void;
 	/** Persist a session-metadata key/value pair (e.g. a custom title). */
 	persistSessionFlag(session: ProtocolURI, key: string, value: string): void;
+	/** Suppress automatic naming after a local user rename. */
+	markTitleRenamed(session: ProtocolURI, chat?: ProtocolURI): void;
 }
 
 /**
@@ -138,6 +140,7 @@ export class AgentHostLocalCommands extends Disposable {
 		 * is the owner's concern — not the dispatcher's.
 		 */
 		private readonly _notifyTurnConsumable: (turnChannel: ProtocolURI) => void,
+		private readonly _markTitleRenamed: (session: ProtocolURI, chat?: ProtocolURI) => void,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostTerminalManager private readonly _terminalManager: IAgentHostTerminalManager,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
@@ -150,6 +153,7 @@ export class AgentHostLocalCommands extends Disposable {
 			getState: channel => this._stateManager.getSessionState(channel),
 			updateChatTitle: (session, chat, title) => this._stateManager.updateChatTitle(session, chat, title),
 			persistSessionFlag: (session, key, value) => persistSessionMetadata(this._sessionDataService, this._logService, session, key, value),
+			markTitleRenamed: (session, chat) => this._markTitleRenamed(session, chat),
 		};
 		this._commands = LocalChatCommandRegistry.createAll(context).map(command => this._register(command));
 	}

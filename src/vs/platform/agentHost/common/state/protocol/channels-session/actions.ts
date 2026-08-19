@@ -8,7 +8,7 @@
 
 import { ActionType } from '../common/actions.js';
 import type { ErrorInfo, URI } from '../common/state.js';
-import type { ToolDefinition, SessionActiveClient, SessionInputRequest, Customization, McpServerState } from './state.js';
+import type { ToolDefinition, SessionActiveClient, SessionInputRequest, Customization, CustomizationEnablement, McpServerState } from './state.js';
 import type { Changeset } from '../channels-changeset/state.js';
 import type { ChatSummary } from '../channels-chat/state.js';
 
@@ -250,6 +250,48 @@ export interface SessionActiveClientRemovedAction {
 	clientId: string;
 }
 
+// ─── Working Directory Actions ───────────────────────────────────────────────
+
+/**
+ * A working directory was added to the session's
+ * {@link SessionState.workingDirectories} set.
+ *
+ * Membership semantics keyed by the directory URI: the reducer appends
+ * `directory` when the set does not already contain it (creating the set if
+ * absent) and is a no-op when it is already present. Only valid when the agent
+ * advertises {@link AgentCapabilities.multipleWorkingDirectories}.
+ *
+ * @category Session Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface SessionWorkingDirectorySetAction {
+	type: ActionType.SessionWorkingDirectorySet;
+	/** The working directory to grant the session's agent tool access to. */
+	directory: URI;
+}
+
+/**
+ * A working directory was removed from the session's
+ * {@link SessionState.workingDirectories} set.
+ *
+ * Removes `directory` from the set; a no-op when it is not present. There is no
+ * atomic backend "remove one" primitive — a host reconfigures its agent to the
+ * reduced set — so this action is safe to model as idempotent. A host MAY
+ * decline to apply the removal (e.g. an immutable primary directory, see
+ * {@link MultipleWorkingDirectoriesCapability.immutablePrimary}); it then leaves
+ * the set unchanged.
+ *
+ * @category Session Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface SessionWorkingDirectoryRemovedAction {
+	type: ActionType.SessionWorkingDirectoryRemoved;
+	/** The working directory to revoke the session's agent tool access to. */
+	directory: URI;
+}
+
 // ─── Input Needed Actions ────────────────────────────────────────────────────
 
 /**
@@ -312,16 +354,20 @@ export interface SessionCustomizationsChangedAction {
 }
 
 /**
- * A client toggled a customization on or off.
+ * A client updated a customization's enablement decisions.
  *
  * Matches `id` against every top-level customization first — a plugin or
  * directory container, or a bare top-level MCP server — then against the
- * children inside each container (a skill, agent, or other entry), and
- * sets the matched entry's `enabled` flag. Disabling a container still
- * disables all of its children — the effective state of a child is
- * `container.enabled && (child.enabled ?? true)` — so toggling a child
- * only matters while its container is enabled. Is a no-op when no
+ * children inside each container (a skill, agent, or other entry). Plugins
+ * and MCP servers retain the matched entry's explicit decisions; other
+ * entries update their `enabled` flag. Disabling a plugin still disables all
+ * of its children — the effective state of a plugin child is the plugin's
+ * derived enabled value and `(child.enabled ?? true)` — so toggling a child
+ * only matters while its plugin is enabled. Is a no-op when no
  * customization has the given `id`.
+ *
+ * The `enablement` array completely replaces all explicit decisions. A caller
+ * changing one scope must include every decision it intends to preserve.
  *
  * @category Session Actions
  * @version 1
@@ -329,10 +375,10 @@ export interface SessionCustomizationsChangedAction {
  */
 export interface SessionCustomizationToggledAction {
 	type: ActionType.SessionCustomizationToggled;
-	/** The id of the container or child to toggle. */
+	/** The id of the container or child to update. */
 	id: string;
-	/** Whether to enable or disable the targeted customization. */
-	enabled: boolean;
+	/** Explicit enablement decisions, replacing the previous list entirely. */
+	enablement: CustomizationEnablement[];
 }
 
 /**

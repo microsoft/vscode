@@ -5,7 +5,9 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { DeferredPromise } from '../../../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { match } from '../../../../../../../base/common/glob.js';
 import { ResourceSet } from '../../../../../../../base/common/map.js';
@@ -18,7 +20,7 @@ import { Range } from '../../../../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../../../editor/common/services/model.js';
 import { ModelService } from '../../../../../../../editor/common/services/modelService.js';
-import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationService, IConfigurationValue } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
@@ -41,7 +43,7 @@ import { ComputeAutomaticInstructions, newInstructionsCollectionEvent, newInstru
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { AGENTS_SOURCE_FOLDER, CLAUDE_CONFIG_FOLDER, HOOKS_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptFileSource, PromptsType, Target } from '../../../../common/promptSyntax/promptTypes.js';
-import { IAgentDiscoveryResult, IAgentSource, ICustomAgent, IPromptFileContext, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { IAgentDiscoveryResult, IAgentSource, ICustomAgent, IPromptFileContext, IPromptPath, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { mockFiles } from '../testUtils/mockFilesystem.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
@@ -49,12 +51,14 @@ import { IPathService } from '../../../../../../services/path/common/pathService
 import { IFileMatch, IFileQuery, ISearchService } from '../../../../../../services/search/common/search.js';
 import { IExtensionService } from '../../../../../../services/extensions/common/extensions.js';
 import { IRemoteAgentService } from '../../../../../../services/remote/common/remoteAgentService.js';
-import { ChatModeKind } from '../../../../common/constants.js';
+import { ChatConfiguration, ChatModeKind } from '../../../../common/constants.js';
 import { HookType } from '../../../../common/promptSyntax/hookTypes.js';
 import { IContextKeyChangeEvent, IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IAgentPlugin, IAgentPluginAgent, IAgentPluginCommand, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from '../../../../common/plugins/agentPluginService.js';
+import { PluginFormat } from '../../../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
+import { COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
 
 class TestPromptContextKeyService extends MockContextKeyService {
 	private readonly _onDidChangeContextEmitter = new Emitter<IContextKeyChangeEvent>();
@@ -96,10 +100,12 @@ suite('PromptsService', () => {
 	let fileService: IFileService;
 	let testPluginsObservable: ISettableObservable<readonly IAgentPlugin[]>;
 	let workspaceTrustService: TestWorkspaceTrustManagementService;
+	let logService: NullLogService;
 
 	setup(async () => {
 		instaService = disposables.add(new TestInstantiationService());
-		instaService.stub(ILogService, new NullLogService());
+		logService = new NullLogService();
+		instaService.stub(ILogService, logService);
 
 		workspaceContextService = new TestContextService();
 		instaService.stub(IWorkspaceContextService, workspaceContextService);
@@ -207,11 +213,32 @@ suite('PromptsService', () => {
 
 		instaService.stub(IAgentPluginService, {
 			plugins: testPluginsObservable,
-			enablementModel: { readEnabled: () => 2 /* EnabledProfile */, setEnabled: () => { }, remove: () => { } },
+			enablementModel: { readEnabled: () => 2 /* EnabledProfile */, readProfileEnabled: () => true, setEnabled: () => { }, remove: () => { } },
 		});
 
 		service = disposables.add(instaService.createInstance(PromptsService));
 		instaService.stub(IPromptsService, service);
+	});
+
+	test('lists local prompt files relative to an explicit root and its parent repository', async () => {
+		const parentRoot = URI.file('/parent-repo');
+		const explicitRoot = URI.joinPath(parentRoot, 'packages/explicit-root');
+		const siblingRoot = URI.file('/sibling-root');
+		workspaceContextService.setWorkspace(testWorkspace(explicitRoot, siblingRoot));
+		testConfigService.setUserConfiguration(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, true);
+		await mockFiles(fileService, [
+			{ path: '/parent-repo/.git/HEAD', contents: ['ref: refs/heads/main'] },
+			{ path: '/parent-repo/.github/prompts/parent.prompt.md', contents: ['parent'] },
+			{ path: '/parent-repo/packages/explicit-root/.github/prompts/explicit.prompt.md', contents: ['explicit'] },
+			{ path: '/sibling-root/.github/prompts/sibling.prompt.md', contents: ['sibling'] },
+		]);
+
+		const files = await service.listPromptFilesForStorage(PromptsType.prompt, PromptsStorage.local, CancellationToken.None, explicitRoot);
+
+		assert.deepStrictEqual(files.map(file => file.uri.path), [
+			'/parent-repo/packages/explicit-root/.github/prompts/explicit.prompt.md',
+			'/parent-repo/.github/prompts/parent.prompt.md',
+		]);
 	});
 
 	suite('IAgentSource.isEquals', () => {
@@ -234,6 +261,90 @@ suite('PromptsService', () => {
 			const right: IAgentSource = { storage: PromptsStorage.plugin, pluginUri: URI.file('/workspace/plugin-b') };
 
 			assert.strictEqual(IAgentSource.isEquals(left, right), false);
+		});
+	});
+
+	suite('voice instructions', () => {
+		test('combines user and trusted workspace voice.md files', async () => {
+			const rootFolderUri = URI.file('/workspace');
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			await mockFiles(fileService, [
+				{ path: '/home/user/.copilot/voice.md', contents: ['Use short paragraphs.'] },
+				{ path: '/workspace/.github/voice.md', contents: ['Spell the product name as Contoso DB.'] },
+			]);
+
+			const instructions = await service.getVoiceInstructions(CancellationToken.None);
+
+			assert.strictEqual(instructions, 'Use short paragraphs.\n\nSpell the product name as Contoso DB.');
+		});
+
+		test('excludes workspace voice.md when the workspace is untrusted', async () => {
+			const rootFolderUri = URI.file('/workspace');
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			await workspaceTrustService.setWorkspaceTrust(false);
+			await mockFiles(fileService, [
+				{ path: '/home/user/.copilot/voice.md', contents: ['Use short paragraphs.'] },
+				{ path: '/workspace/.github/voice.md', contents: ['Untrusted workspace guidance.'] },
+			]);
+
+			const instructions = await service.getVoiceInstructions(CancellationToken.None);
+
+			assert.strictEqual(instructions, 'Use short paragraphs.');
+		});
+
+		test('cancels in-flight voice instruction reads', async () => {
+			const cts = new CancellationTokenSource();
+			const readStarted = new DeferredPromise<void>();
+			const readFileStub = sinon.stub(fileService, 'readFile').callsFake(async (_resource, _options, token) => {
+				readStarted.complete();
+				await new Promise<void>(resolve => {
+					const listener = token!.onCancellationRequested(() => {
+						listener.dispose();
+						resolve();
+					});
+				});
+				throw new CancellationError();
+			});
+
+			try {
+				const instructions = service.getVoiceInstructions(cts.token);
+				await readStarted.p;
+				cts.cancel();
+				assert.strictEqual(await instructions, undefined);
+			} finally {
+				readFileStub.restore();
+				cts.dispose();
+			}
+		});
+	});
+
+	suite('dictation instructions', () => {
+		test('combines user and trusted workspace dictation.md files separately from voice.md', async () => {
+			const rootFolderUri = URI.file('/workspace');
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			await mockFiles(fileService, [
+				{ path: '/home/user/.copilot/dictation.md', contents: ['Use short paragraphs.'] },
+				{ path: '/workspace/.github/dictation.md', contents: ['Spell the product name as Contoso DB.'] },
+				{ path: '/home/user/.copilot/voice.md', contents: ['Keep spoken responses concise.'] },
+			]);
+
+			const instructions = await service.getDictationInstructions(CancellationToken.None);
+
+			assert.strictEqual(instructions, 'Use short paragraphs.\n\nSpell the product name as Contoso DB.');
+		});
+
+		test('excludes workspace dictation.md when the workspace is untrusted', async () => {
+			const rootFolderUri = URI.file('/workspace');
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			await workspaceTrustService.setWorkspaceTrust(false);
+			await mockFiles(fileService, [
+				{ path: '/home/user/.copilot/dictation.md', contents: ['Use short paragraphs.'] },
+				{ path: '/workspace/.github/dictation.md', contents: ['Untrusted workspace guidance.'] },
+			]);
+
+			const instructions = await service.getDictationInstructions(CancellationToken.None);
+
+			assert.strictEqual(instructions, 'Use short paragraphs.');
 		});
 	});
 
@@ -1742,8 +1853,17 @@ suite('PromptsService', () => {
 
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
-			const userPromptsFolder = '/user-data/prompts';
+			const userPromptsFolder = '/home/user/user-data-prompts';
 			const userPromptsFolderUri = URI.file(userPromptsFolder);
+			testConfigService.setUserConfiguration(PromptsConfig.PROMPT_LOCATIONS_KEY, {
+				[PROMPT_DEFAULT_SOURCE_FOLDER]: true,
+				'~/.copilot/prompts': true,
+				'~/shared-prompts': true,
+				'/home/user/shared-prompts': true,
+				'~/user-data-prompts': true,
+				[userPromptsFolder]: true,
+				[`${userPromptsFolder}/team`]: true,
+			});
 
 			// Override the user data profile service
 			const customUserDataProfileService = {
@@ -1761,7 +1881,7 @@ suite('PromptsService', () => {
 			service.dispose();
 			const testService = disposables.add(instaService.createInstance(PromptsService));
 
-			// Create prompt files in both workspace and user data folder
+			// Create prompt files in workspace, User Data, and a configured personal folder.
 			await mockFiles(fileService, [
 				// Workspace prompt
 				{
@@ -1782,21 +1902,69 @@ suite('PromptsService', () => {
 						'---',
 						'I am a user data prompt.',
 					]
+				},
+				{
+					path: '/home/user/shared-prompts/shared.prompt.md',
+					contents: [
+						'---',
+						'description: \'Shared configured prompt.\'',
+						'---',
+						'I am configured for both storages.',
+					]
+				},
+				{
+					path: `${userPromptsFolder}/team/team.prompt.md`,
+					contents: [
+						'---',
+						'description: \'Nested user data prompt.\'',
+						'---',
+						'I am a nested user data prompt.',
+					]
+				},
+				{
+					path: '/home/user/.copilot/prompts/personal.prompt.md',
+					contents: [
+						'---',
+						'description: \'Personal prompt.\'',
+						'---',
+						'I am a personal prompt.',
+					]
 				}
 			]);
 
-			const result = await testService.listPromptFiles(PromptsType.prompt, CancellationToken.None);
+			const [allPrompts, userPrompts, workspacePrompts] = await Promise.all([
+				testService.listPromptFiles(PromptsType.prompt, CancellationToken.None),
+				testService.listPromptFilesForStorage(PromptsType.prompt, PromptsStorage.user, CancellationToken.None),
+				testService.listPromptFilesForStorage(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
+			]);
+			const summarize = (prompts: readonly IPromptPath[]) => prompts
+				.map(prompt => ({ file: basename(prompt.uri), storage: prompt.storage, source: prompt.source }))
+				.sort((a, b) => `${a.file}:${a.storage}`.localeCompare(`${b.file}:${b.storage}`));
 
-			// Should find prompts from both workspace and user data
-			assert.strictEqual(result.length, 2, 'Should find 2 prompts (1 workspace + 1 user data)');
-
-			const workspacePrompt = result.find(p => p.storage === PromptsStorage.local);
-			assert.ok(workspacePrompt, 'Should find workspace prompt');
-			assert.ok(workspacePrompt.uri.path.includes('workspace-prompt.prompt.md'));
-
-			const userPrompt = result.find(p => p.storage === PromptsStorage.user);
-			assert.ok(userPrompt, 'Should find user data prompt');
-			assert.ok(userPrompt.uri.path.includes('user-prompt.prompt.md'));
+			assert.deepStrictEqual({
+				allPrompts: summarize(allPrompts),
+				userPrompts: summarize(userPrompts),
+				workspacePrompts: summarize(workspacePrompts),
+			}, {
+				allPrompts: [
+					{ file: 'personal.prompt.md', storage: PromptsStorage.user, source: PromptFileSource.ConfigPersonal },
+					{ file: 'shared.prompt.md', storage: PromptsStorage.local, source: PromptFileSource.ConfigWorkspace },
+					{ file: 'shared.prompt.md', storage: PromptsStorage.user, source: PromptFileSource.ConfigPersonal },
+					{ file: 'team.prompt.md', storage: PromptsStorage.user, source: PromptFileSource.UserData },
+					{ file: 'user-prompt.prompt.md', storage: PromptsStorage.user, source: PromptFileSource.UserData },
+					{ file: 'workspace-prompt.prompt.md', storage: PromptsStorage.local, source: PromptFileSource.GitHubWorkspace },
+				],
+				userPrompts: [
+					{ file: 'personal.prompt.md', storage: PromptsStorage.user, source: PromptFileSource.ConfigPersonal },
+					{ file: 'shared.prompt.md', storage: PromptsStorage.user, source: PromptFileSource.ConfigPersonal },
+					{ file: 'team.prompt.md', storage: PromptsStorage.user, source: PromptFileSource.UserData },
+					{ file: 'user-prompt.prompt.md', storage: PromptsStorage.user, source: PromptFileSource.UserData },
+				],
+				workspacePrompts: [
+					{ file: 'shared.prompt.md', storage: PromptsStorage.local, source: PromptFileSource.ConfigWorkspace },
+					{ file: 'workspace-prompt.prompt.md', storage: PromptsStorage.local, source: PromptFileSource.GitHubWorkspace },
+				],
+			});
 		});
 	});
 
@@ -1808,8 +1976,13 @@ suite('PromptsService', () => {
 
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
-			const userPromptsFolder = '/user-data/prompts';
+			const userPromptsFolder = '/home/user/user-data-prompts';
 			const userPromptsFolderUri = URI.file(userPromptsFolder);
+			testConfigService.setUserConfiguration(PromptsConfig.INSTRUCTIONS_LOCATION_KEY, {
+				[INSTRUCTIONS_DEFAULT_SOURCE_FOLDER]: true,
+				'~/': true,
+				'/home/user': true,
+			});
 
 			// Override the user data profile service
 			const customUserDataProfileService = {
@@ -1853,18 +2026,31 @@ suite('PromptsService', () => {
 				}
 			]);
 
-			const result = await testService.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+			const [allInstructions, userInstructions, workspaceInstructions] = await Promise.all([
+				testService.listPromptFiles(PromptsType.instructions, CancellationToken.None),
+				testService.listPromptFilesForStorage(PromptsType.instructions, PromptsStorage.user, CancellationToken.None),
+				testService.listPromptFilesForStorage(PromptsType.instructions, PromptsStorage.local, CancellationToken.None),
+			]);
+			const summarize = (instructions: readonly IPromptPath[]) => instructions
+				.map(instruction => ({ file: basename(instruction.uri), storage: instruction.storage, source: instruction.source }))
+				.sort((a, b) => a.file.localeCompare(b.file));
 
-			// Should find instructions from both workspace and user data
-			assert.strictEqual(result.length, 2, 'Should find 2 instructions (1 workspace + 1 user data)');
-
-			const workspaceInstructions = result.find(p => p.storage === PromptsStorage.local);
-			assert.ok(workspaceInstructions, 'Should find workspace instructions');
-			assert.ok(workspaceInstructions.uri.path.includes('workspace-instructions.instructions.md'));
-
-			const userInstructions = result.find(p => p.storage === PromptsStorage.user);
-			assert.ok(userInstructions, 'Should find user data instructions');
-			assert.ok(userInstructions.uri.path.includes('user-instructions.instructions.md'));
+			assert.deepStrictEqual({
+				allInstructions: summarize(allInstructions),
+				userInstructions: summarize(userInstructions),
+				workspaceInstructions: summarize(workspaceInstructions),
+			}, {
+				allInstructions: [
+					{ file: 'user-instructions.instructions.md', storage: PromptsStorage.user, source: PromptFileSource.UserData },
+					{ file: 'workspace-instructions.instructions.md', storage: PromptsStorage.local, source: PromptFileSource.GitHubWorkspace },
+				],
+				userInstructions: [
+					{ file: 'user-instructions.instructions.md', storage: PromptsStorage.user, source: PromptFileSource.UserData },
+				],
+				workspaceInstructions: [
+					{ file: 'workspace-instructions.instructions.md', storage: PromptsStorage.local, source: PromptFileSource.GitHubWorkspace },
+				],
+			});
 		});
 	});
 
@@ -2126,6 +2312,46 @@ suite('PromptsService', () => {
 		});
 	});
 
+	suite('getSourceFolders - skills', () => {
+		test('includes user-level skill source folders', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+
+			const rootFolderUri = URI.file('/skills-source-folders');
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			const folders = await service.getSourceFolders(PromptsType.skill);
+
+			const userFolders = folders.filter(f => f.storage === PromptsStorage.user);
+			const localFolders = folders.filter(f => f.storage === PromptsStorage.local);
+
+			assert.ok(userFolders.length > 0, 'Should include user-level skill source folders');
+			assert.ok(localFolders.length > 0, 'Should include workspace-level skill source folders');
+			assert.ok(
+				userFolders.some(f => f.uri.path === '/home/user/.copilot/skills'),
+				'Should include ~/.copilot/skills as a user source folder'
+			);
+		});
+
+		test('excludes defaults explicitly disabled via configuration', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {
+				'.github/skills': false,
+				'~/.copilot/skills': false,
+			});
+
+			const rootFolderUri = URI.file('/skills-disabled-defaults');
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			const folders = await service.getSourceFolders(PromptsType.skill);
+			const paths = folders.map(f => f.uri.path);
+
+			assert.ok(!paths.some(p => p.endsWith('/.github/skills')), 'Disabled .github/skills must not appear');
+			assert.ok(!paths.includes('/home/user/.copilot/skills'), 'Disabled ~/.copilot/skills must not appear');
+			assert.ok(paths.includes('/home/user/.agents/skills'), 'Non-disabled ~/.agents/skills must still appear');
+		});
+	});
+
 	suite('listPromptFiles - extensions', () => {
 
 		test('Contributed prompt file', async () => {
@@ -2233,6 +2459,80 @@ suite('PromptsService', () => {
 			// After disposal, the agent should no longer be listed
 			const actualAfterDispose = await service.getCustomAgents(CancellationToken.None);
 			assert.strictEqual(actualAfterDispose.length, 0);
+		});
+
+		test('Canceled prompt file provider is skipped without logging', async () => {
+			const extension = {
+				identifier: { value: 'test.my-extension' },
+				enabledApiProposals: ['chatParticipantPrivate']
+			} as unknown as IExtensionDescription;
+			const logErrorSpy = sinon.spy(logService, 'error');
+			const registered = service.registerPromptFileProvider(extension, PromptsType.instructions, {
+				providePromptFiles: async () => { throw new CancellationError(); }
+			});
+
+			try {
+				const files = await service.listPromptFilesForStorage(PromptsType.instructions, PromptsStorage.extension, CancellationToken.None);
+				assert.deepStrictEqual({ files, errorCalls: logErrorSpy.callCount }, { files: [], errorCalls: 0 });
+			} finally {
+				registered.dispose();
+				logErrorSpy.restore();
+			}
+		});
+
+		test('Prompt file provider error is logged and skipped', async () => {
+			const extension = {
+				identifier: { value: 'test.my-extension' },
+				enabledApiProposals: ['chatParticipantPrivate']
+			} as unknown as IExtensionDescription;
+			const logErrorSpy = sinon.spy(logService, 'error');
+			const registered = service.registerPromptFileProvider(extension, PromptsType.instructions, {
+				providePromptFiles: async () => { throw new Error('provider failed'); }
+			});
+
+			try {
+				const files = await service.listPromptFilesForStorage(PromptsType.instructions, PromptsStorage.extension, CancellationToken.None);
+				assert.deepStrictEqual({ files, errorCalls: logErrorSpy.callCount }, { files: [], errorCalls: 1 });
+			} finally {
+				registered.dispose();
+				logErrorSpy.restore();
+			}
+		});
+
+		test('Canceled provider listing stops without logging an error', async () => {
+			const extension = {
+				identifier: { value: 'test.my-extension' },
+				enabledApiProposals: ['chatParticipantPrivate']
+			} as unknown as IExtensionDescription;
+			const cancellationTokenSource = disposables.add(new CancellationTokenSource());
+			let secondProviderCalled = false;
+			disposables.add(service.registerPromptFileProvider(extension, PromptsType.agent, {
+				providePromptFiles: async () => {
+					cancellationTokenSource.cancel();
+					throw new CancellationError();
+				}
+			}));
+			disposables.add(service.registerPromptFileProvider(extension, PromptsType.agent, {
+				providePromptFiles: async () => {
+					secondProviderCalled = true;
+					return [];
+				}
+			}));
+			const errorSpy = sinon.spy(logService, 'error');
+
+			try {
+				await service.listPromptFiles(PromptsType.agent, cancellationTokenSource.token);
+
+				assert.deepStrictEqual({
+					secondProviderCalled,
+					errorCount: errorSpy.callCount,
+				}, {
+					secondProviderCalled: false,
+					errorCount: 0,
+				});
+			} finally {
+				errorSpy.restore();
+			}
 		});
 
 		test('Contributed agent file that does not exist should not crash', async () => {
@@ -3590,6 +3890,34 @@ suite('PromptsService', () => {
 		});
 	});
 
+	suite('getPromptSlashCommands - prompt discovery', () => {
+		teardown(() => {
+			sinon.restore();
+		});
+
+		test('CancellationError from parseNew is skipped without logging', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, false);
+
+			const promptUri = URI.parse('file://extensions/my-extension/cancelled.prompt.md');
+			const logErrorSpy = sinon.spy(logService, 'error');
+			sinon.stub(service, 'listPromptFiles').callsFake(async (type: PromptsType) => {
+				return type === PromptsType.prompt
+					? [{ uri: promptUri, storage: PromptsStorage.local, type: PromptsType.prompt } as IPromptPath]
+					: [];
+			});
+			sinon.stub(service, 'parseNew').rejects(new CancellationError());
+
+			const slashCommands = await service.getPromptSlashCommands(CancellationToken.None);
+			const discoveryInfo = await service.getDiscoveryInfo(PromptsType.prompt, CancellationToken.None);
+
+			assert.deepStrictEqual(slashCommands, []);
+			assert.strictEqual(logErrorSpy.called, false);
+			assert.strictEqual(discoveryInfo.files.length, 1);
+			assert.strictEqual(discoveryInfo.files[0].status, 'skipped');
+			assert.strictEqual(discoveryInfo.files[0].skipReason, 'parse-error');
+		});
+	});
+
 	suite('getPromptSlashCommands - skills', () => {
 		teardown(() => {
 			sinon.restore();
@@ -4405,6 +4733,7 @@ suite('PromptsService', () => {
 			const enablement = observableValue('testPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */);
 			const plugin: IAgentPlugin = {
 				uri: URI.file('/plugins/my-plugin'),
+				format: PluginFormat.Copilot,
 				label: 'my-plugin',
 				enablement,
 				remove: () => { },
@@ -4450,6 +4779,7 @@ suite('PromptsService', () => {
 			const enablement = observableValue('testPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */);
 			const plugin: IAgentPlugin = {
 				uri: URI.file('/plugins/devtools'),
+				format: PluginFormat.Copilot,
 				label: 'devtools',
 				enablement,
 				remove: () => { },
@@ -4502,6 +4832,7 @@ suite('PromptsService', () => {
 			const enablement = observableValue('testPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */);
 			const plugin: IAgentPlugin = {
 				uri: pluginUri,
+				format: PluginFormat.Copilot,
 				label: 'datadog',
 				enablement,
 				remove: () => { },
@@ -4530,6 +4861,200 @@ suite('PromptsService', () => {
 		});
 	});
 
+	suite('customization lockdown', () => {
+		test('policy changes invalidate cached standalone agent locations', async () => {
+			const rootFolderUri = URI.file('/dynamic-agent-lockdown');
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			await mockFiles(fileService, [{
+				path: '/dynamic-agent-lockdown/.github/agents/reviewer.agent.md',
+				contents: ['---', 'description: "Review code"', '---'],
+			}]);
+
+			assert.strictEqual((await service.getCustomAgents(CancellationToken.None)).length, 1);
+
+			testConfigService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, true);
+			fireConfigChange(testConfigService, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG);
+
+			assert.deepStrictEqual(await service.getCustomAgents(CancellationToken.None), []);
+		});
+
+		test('plugin-only lockdown filters workspace agents without affecting prompts', async () => {
+			const rootFolderUri = URI.file('/lockdown-agents');
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			testConfigService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, true);
+
+			await mockFiles(fileService, [
+				{
+					path: '/lockdown-agents/.github/agents/reviewer.agent.md',
+					contents: ['---', 'description: "Review code"', '---'],
+				},
+				{
+					path: '/lockdown-agents/.github/prompts/review.prompt.md',
+					contents: ['---', 'description: "Review prompt"', '---'],
+				},
+			]);
+
+			assert.deepStrictEqual(await service.getCustomAgents(CancellationToken.None), []);
+			assert.strictEqual((await service.listPromptFiles(PromptsType.prompt, CancellationToken.None)).length, 1);
+		});
+
+		test('skill lockdown filters standalone skills before discovery and preserves plugin skills', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, true);
+			const rootFolderUri = URI.file('/lockdown-skills');
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			await mockFiles(fileService, [{
+				path: '/lockdown-skills/.github/skills/workspace-skill/SKILL.md',
+				contents: ['---', 'name: "workspace-skill"', 'description: "Workspace"', '---'],
+			}, {
+				path: '/plugins/managed/skills/plugin-skill/SKILL.md',
+				contents: ['---', 'name: "plugin-skill"', 'description: "Plugin"', '---'],
+			}]);
+
+			const plugin: IAgentPlugin = {
+				uri: URI.file('/plugins/managed'),
+				format: PluginFormat.Copilot,
+				label: 'managed',
+				enablement: observableValue('lockdownPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */),
+				hooks: observableValue('lockdownPluginHooks', []),
+				commands: observableValue('lockdownPluginCommands', []),
+				skills: observableValue<readonly IAgentPluginSkill[]>('lockdownPluginSkills', [{ uri: URI.file('/plugins/managed/skills/plugin-skill/SKILL.md'), name: 'plugin-skill' }]),
+				agents: observableValue('lockdownPluginAgents', []),
+				instructions: observableValue('lockdownPluginInstructions', []),
+				mcpServerDefinitions: observableValue('lockdownPluginMcpServers', []),
+			};
+			testPluginsObservable.set([plugin], undefined);
+
+			const skills = await service.findAgentSkills(CancellationToken.None);
+			assert.deepStrictEqual(skills?.map(skill => ({ name: skill.name, storage: skill.storage })), [
+				{ name: 'plugin-skill', storage: PromptsStorage.plugin },
+			]);
+		});
+
+		test('plugin-only lockdown filters standalone instructions and preserves plugin instructions', async () => {
+			testConfigService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, true);
+			const rootFolderUri = URI.file('/lockdown-instructions');
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			const workspaceInstructionUri = URI.joinPath(rootFolderUri, '.github', 'instructions', 'workspace.instructions.md');
+			const pluginUri = URI.file('/plugins/managed');
+			const pluginInstructionUri = URI.joinPath(pluginUri, 'rules', 'plugin.instructions.md');
+			await mockFiles(fileService, [{
+				path: workspaceInstructionUri.path,
+				contents: ['---', 'description: "Workspace"', '---'],
+			}, {
+				path: pluginInstructionUri.path,
+				contents: ['---', 'description: "Plugin"', '---'],
+			}]);
+
+			const plugin: IAgentPlugin = {
+				uri: pluginUri,
+				format: PluginFormat.Copilot,
+				label: 'managed',
+				enablement: observableValue('lockdownInstructionPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */),
+				hooks: observableValue('lockdownInstructionPluginHooks', []),
+				commands: observableValue('lockdownInstructionPluginCommands', []),
+				skills: observableValue('lockdownInstructionPluginSkills', []),
+				agents: observableValue('lockdownInstructionPluginAgents', []),
+				instructions: observableValue<readonly IAgentPluginInstruction[]>('lockdownPluginInstructions', [{ uri: pluginInstructionUri, name: 'plugin' }]),
+				mcpServerDefinitions: observableValue('lockdownInstructionPluginMcpServers', []),
+			};
+			testPluginsObservable.set([plugin], undefined);
+
+			const instructions = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+			assert.deepStrictEqual(instructions.map(instruction => ({
+				uri: instruction.uri.toString(),
+				storage: instruction.storage,
+			})), [{
+				uri: pluginInstructionUri.toString(),
+				storage: PromptsStorage.plugin,
+			}]);
+		});
+
+		test('plugin-only lockdown filters workspace agent instruction files', async () => {
+			testConfigService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, true);
+			const rootFolderUri = URI.file('/lockdown-agent-instructions');
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			await mockFiles(fileService, [{
+				path: URI.joinPath(rootFolderUri, 'AGENTS.md').path,
+				contents: ['Workspace agent instructions'],
+			}, {
+				path: URI.joinPath(rootFolderUri, 'CLAUDE.md').path,
+				contents: ['Workspace Claude instructions'],
+			}]);
+
+			assert.deepStrictEqual(await service.listAgentInstructions(CancellationToken.None, undefined), []);
+			assert.deepStrictEqual(await service.listNestedAgentMDs(CancellationToken.None), []);
+		});
+
+		test('plugin-only lockdown removes standalone agents with embedded hooks', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CHAT_HOOKS, true);
+			testConfigService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, true);
+			const rootFolderUri = URI.file('/lockdown-agent-hooks');
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			await mockFiles(fileService, [{
+				path: '/lockdown-agent-hooks/.github/agents/reviewer.agent.md',
+				contents: [
+					'---',
+					'description: "Review code"',
+					'hooks:',
+					'  PreToolUse:',
+					'    - type: command',
+					'      command: "echo blocked"',
+					'---',
+				],
+			}]);
+
+			const agents = await service.getCustomAgents(CancellationToken.None);
+			assert.deepStrictEqual(agents, []);
+		});
+
+		test('managed-only hooks preserve frontmatter hooks from force-enabled plugin agents', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CHAT_HOOKS, true);
+			testConfigService.setUserConfiguration(COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, true);
+			const pluginUri = URI.file('/home/user/.copilot/installed-plugins/managed-marketplace/managed-plugin');
+			const agentUri = URI.joinPath(pluginUri, 'agents', 'reviewer.agent.md');
+			await mockFiles(fileService, [{
+				path: agentUri.path,
+				contents: [
+					'---',
+					'description: "Review code"',
+					'hooks:',
+					'  PreToolUse:',
+					'    - type: command',
+					'      command: "echo managed"',
+					'---',
+				],
+			}]);
+
+			const originalInspect = testConfigService.inspect.bind(testConfigService);
+			testConfigService.inspect = <T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> => {
+				const inspected = originalInspect<T>(key, overrides);
+				return key === ChatConfiguration.EnabledPlugins
+					? { ...inspected, policyValue: { 'managed-plugin@managed-marketplace': true } as T }
+					: inspected;
+			};
+
+			const plugin: IAgentPlugin = {
+				uri: pluginUri,
+				format: PluginFormat.Copilot,
+				label: 'managed-plugin',
+				enablement: observableValue('managedPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */),
+				hooks: observableValue('managedPluginHooks', []),
+				commands: observableValue('managedPluginCommands', []),
+				skills: observableValue('managedPluginSkills', []),
+				agents: observableValue<readonly IAgentPluginAgent[]>('managedPluginAgents', [{ uri: agentUri, name: 'reviewer' }]),
+				instructions: observableValue('managedPluginInstructions', []),
+				mcpServerDefinitions: observableValue('managedPluginMcpServers', []),
+			};
+			testPluginsObservable.set([plugin], undefined);
+			fireConfigChange(testConfigService, COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, ChatConfiguration.EnabledPlugins);
+
+			const agents = await service.getCustomAgents(CancellationToken.None);
+			assert.strictEqual(agents.length, 1);
+			assert.strictEqual(agents[0].hooks?.[HookType.PreToolUse]?.[0].command, 'echo managed');
+		});
+	});
+
 	suite('hooks', () => {
 		const createTestPlugin = (path: string, initialHooks: readonly IAgentPluginHook[]): { plugin: IAgentPlugin; hooks: ISettableObservable<readonly IAgentPluginHook[]> } => {
 			const enablement = observableValue('testPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */);
@@ -4543,6 +5068,7 @@ suite('PromptsService', () => {
 			return {
 				plugin: {
 					uri: URI.file(path),
+					format: PluginFormat.Copilot,
 					label: basename(URI.file(path)),
 					enablement,
 					remove: () => { },
@@ -4628,6 +5154,30 @@ suite('PromptsService', () => {
 				command: 'echo from-plugin',
 				sourceUri: URI.file('/plugins/test-plugin/hooks.json'),
 			}], 'Expected plugin hooks to be included in computed hooks');
+		});
+
+		test('managed-only hooks block standalone and unmanaged plugin hooks', async function () {
+			const rootFolderUri = URI.file('/managed-hooks-only');
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CHAT_HOOKS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.HOOKS_LOCATION_KEY, { [HOOKS_SOURCE_FOLDER]: true });
+			testConfigService.setUserConfiguration(COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, true);
+			fireConfigChange(testConfigService, COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG);
+			await mockFiles(fileService, [{
+				path: '/managed-hooks-only/.github/hooks/hooks.json',
+				contents: [JSON.stringify({ hooks: { [HookType.PreToolUse]: [{ type: 'command', command: 'echo workspace' }] } })],
+			}]);
+
+			const { plugin } = createTestPlugin('/plugins/unmanaged', [{
+				type: HookType.PreToolUse,
+				originalId: 'plugin-hook',
+				hooks: [{ command: 'echo plugin' }],
+				uri: URI.file('/plugins/unmanaged/hooks.json'),
+			}]);
+			testPluginsObservable.set([plugin], undefined);
+
+			assert.strictEqual(await service.getHooks(CancellationToken.None), undefined);
+			assert.deepStrictEqual(await service.listPromptFiles(PromptsType.hook, CancellationToken.None), []);
 		});
 
 		test('recomputes hooks when agent plugin hooks change', async function () {
@@ -4791,6 +5341,7 @@ suite('PromptsService', () => {
 			return {
 				plugin: {
 					uri: URI.file(path),
+					format: PluginFormat.Copilot,
 					label: basename(URI.file(path)),
 					enablement,
 					remove: () => { },

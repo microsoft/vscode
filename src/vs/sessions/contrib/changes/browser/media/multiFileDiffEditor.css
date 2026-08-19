@@ -29,7 +29,10 @@
 	pointer-events: none;
 }
 
-.agent-sessions-workbench .part.editor .multiDiffEntry .header-content {
+/* Include the multi-diff owner to outrank the equally specific core
+ * `.monaco-component.multiDiffEditor .multiDiffEntry .header .header-content`
+ * rule for the Agents header margin, padding, border, and background. */
+.agent-sessions-workbench .part.editor .multiDiffEditor .multiDiffEntry .header-content {
 	border-radius: var(--vscode-cornerRadius-medium);
 	border: none;
 	background: var(--vscode-sideBarSectionHeader-background);
@@ -42,9 +45,40 @@
 	border-bottom: none;
 }
 
-.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .file-path .title {
+/* The same owner keeps the Agents body font size from tying the core
+ * `.header-content .file-path .title` 14px rule. */
+.agent-sessions-workbench .part.editor .multiDiffEditor .multiDiffEntry .header-content .file-path .title {
 	font-size: var(--vscode-agents-fontSize-body1);
 	line-height: 22px;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .file-path .title.modified {
+	display: flex;
+	align-items: center;
+	flex: 0 1 auto;
+	min-width: 0;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .file-path .title.modified > .monaco-icon-label {
+	flex: 0 1 auto;
+	min-width: 0;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .session-changes-file-stats {
+	display: inline-flex;
+	align-items: center;
+	flex: 0 0 auto;
+	gap: var(--vscode-spacing-size40);
+	margin-left: var(--vscode-spacing-size60);
+	font-size: var(--vscode-agents-fontSize-body2);
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .session-changes-file-stats .working-set-lines-added {
+	color: var(--vscode-chat-linesAddedForeground);
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .session-changes-file-stats .working-set-lines-removed {
+	color: var(--vscode-chat-linesRemovedForeground);
 }
 
 .agent-sessions-workbench .part.editor .multiDiffEntry .header-content .actions-container {

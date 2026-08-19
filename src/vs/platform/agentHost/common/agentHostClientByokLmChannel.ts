@@ -23,8 +23,6 @@ import {
  * name on its `MessagePortClient`; the agent host reaches it via
  * `server.getChannel(name, c => c.ctx === clientId)` on its
  * `UtilityProcessServer`.
- *
- * Mirrors {@link AGENT_HOST_CLIENT_RESOURCE_CHANNEL} for the reverse FS bridge.
  */
 export const AGENT_HOST_CLIENT_BYOK_LM_CHANNEL = 'agentHostClientByokLm';
 
@@ -112,5 +110,19 @@ export class AgentHostClientByokLmChannel implements IServerChannel {
 			}
 		}
 		throw new Error(`Unknown command '${command}' on AgentHostClientByokLmChannel`);
+	}
+}
+
+export class NullAgentHostClientByokLmChannel implements IServerChannel {
+
+	listen<T>(_ctx: unknown, event: string): Event<T> {
+		if (event === 'models') {
+			return Event.None;
+		}
+		throw new Error(`No event '${event}' on NullAgentHostClientByokLmChannel`);
+	}
+
+	async call<T>(_ctx: unknown, command: string): Promise<T> {
+		throw new Error(`No command '${command}' on NullAgentHostClientByokLmChannel`);
 	}
 }

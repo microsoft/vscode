@@ -36,6 +36,7 @@ export type EditorAssociations = readonly EditorAssociation[];
 
 export const editorsAssociationsSettingId = 'workbench.editorAssociations';
 export const diffEditorsAssociationsSettingId = 'workbench.diffEditorAssociations';
+export const hiddenEditorTypesSettingId = 'workbench.editor.hiddenEditorTypes';
 
 /**
  * Setting that controls whether the Markdown editor is the default editor for
@@ -57,6 +58,10 @@ export function editorsAssociationsAgentsWindowDefault(options?: { markdownDefau
 	return {
 		'*.md': options?.markdownDefaultEditor === true ? 'vscode.markdown.editor' : 'vscode.markdown.preview.editor'
 	};
+}
+
+export function diffEditorsAssociationsAgentsWindowDefault(options?: { markdownDefaultEditor?: boolean }): Record<string, string> {
+	return editorsAssociationsAgentsWindowDefault(options);
 }
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -86,6 +91,20 @@ const editorAssociationsConfigurationNode: IConfigurationNode = {
 			markdownDescription: localize('editor.diffEditorAssociations', "Configure [glob patterns](https://aka.ms/vscode-glob-patterns) to editors for diff views (for example `\"*.md\": \"vscode.markdown.preview.editor\"`). These override `workbench.editorAssociations` for diffs."),
 			additionalProperties: {
 				type: 'string'
+			},
+			agentsWindow: {
+				default: diffEditorsAssociationsAgentsWindowDefault()
+			}
+		},
+		[hiddenEditorTypesSettingId]: {
+			type: 'array',
+			default: [],
+			items: {
+				type: 'string'
+			},
+			markdownDescription: localize('editor.hiddenEditorTypes', "Configure editor types that are hidden from the editor type picker. The active editor type remains visible."),
+			agentsWindow: {
+				default: ['vscode.markdown.preview.editor']
 			}
 		}
 	}
@@ -107,13 +126,10 @@ export enum RegisteredEditorPriority {
 	exclusive = 'exclusive',
 	default = 'default',
 	/**
-	 * The editor is never automatically used for this kind of input, and it is
-	 * also skipped when the user points a `workbench.editorAssociations` entry at
-	 * it. Unlike `option`, a `never` editor is only used when it is the target of
-	 * the specialized `workbench.diffEditorAssociations` setting or when the user
-	 * explicitly opens it (for example via `Reopen Editor With`).
+	 * The editor is not automatically used for this kind of input or opted into by an association
+	 * from another input kind. It requires an association for this input kind or an explicit open.
 	 */
-	never = 'never'
+	explicit = 'explicit'
 }
 
 /**
@@ -141,10 +157,30 @@ export type RegisteredEditorOptions = {
 	canSupportResource?: (resource: URI) => boolean;
 };
 
+export interface IEditorResolverServiceGetEditorsOptions {
+	/**
+	 * Excludes optional editors registered for `*`, unless they are configured or currently active.
+	 */
+	readonly excludeUnconfiguredUniversalOptionalEditors?: boolean;
+	readonly currentEditorId?: string;
+	readonly isDiffEditor?: boolean;
+}
+
+export interface IEditorResolverServiceGetAllEditorsOptions {
+	/**
+	 * Excludes registrations whose editor priority is exclusive.
+	 */
+	readonly excludeExclusiveEditors?: boolean;
+}
+
 export type RegisteredEditorPriorityInfo = {
 	readonly editor: RegisteredEditorPriority;
 	readonly diff: RegisteredEditorPriority;
 	readonly merge: RegisteredEditorPriority;
+};
+
+export type RegisteredEditorPriorityConfiguration = Omit<RegisteredEditorPriorityInfo, 'merge'> & {
+	readonly merge?: RegisteredEditorPriority;
 };
 
 export type RegisteredEditorInfo = {
@@ -155,12 +191,16 @@ export type RegisteredEditorInfo = {
 };
 
 export type RegisteredEditorRegistrationInfo = Omit<RegisteredEditorInfo, 'priority'> & {
-	readonly priority: RegisteredEditorPriority | RegisteredEditorPriorityInfo;
+	readonly priority: RegisteredEditorPriority | RegisteredEditorPriorityConfiguration;
 };
 
-export function toRegisteredEditorPriorityInfo(priority: RegisteredEditorPriority | RegisteredEditorPriorityInfo): RegisteredEditorPriorityInfo {
+export function toRegisteredEditorPriorityInfo(priority: RegisteredEditorPriority | RegisteredEditorPriorityConfiguration): RegisteredEditorPriorityInfo {
 	if (typeof priority !== 'string') {
-		return priority;
+		return {
+			editor: priority.editor,
+			diff: priority.diff,
+			merge: priority.merge ?? priority.editor,
+		};
 	}
 	return {
 		editor: priority,
@@ -256,17 +296,17 @@ export interface IEditorResolverService {
 	 * @param resource The resource
 	 * @returns A list of editor ids
 	 */
-	getEditors(resource: URI): RegisteredEditorInfo[];
+	getEditors(resource: URI, options?: IEditorResolverServiceGetEditorsOptions): RegisteredEditorInfo[];
 
 	/**
 	 * A set of all the editors that are registered to the editor resolver.
 	 */
-	getEditors(): RegisteredEditorInfo[];
+	getEditors(options?: IEditorResolverServiceGetAllEditorsOptions): RegisteredEditorInfo[];
 
 	/**
 	 * Returns the id of the best editor that can render a *diff* for the resource, excluding the
 	 * built-in default text editor. This intentionally includes editors that opted out of diffs via a
-	 * `never` priority: such editors opt out for text files, but when the default text diff editor
+	 * `explicit` priority: such editors opt out for text files, but when the default text diff editor
 	 * cannot render the content (e.g. it is binary) a custom diff editor is preferable to the generic
 	 * "cannot display" fallback. Returns `undefined` when no such (diff-capable) editor exists.
 	 * @param resource The resource being diffed
@@ -293,7 +333,7 @@ export function priorityToRank(priority: RegisteredEditorPriority): number {
 		// Text editor is priority 2
 		case RegisteredEditorPriority.option:
 			return 1;
-		case RegisteredEditorPriority.never:
+		case RegisteredEditorPriority.explicit:
 			return 0;
 		default:
 			return 1;

@@ -4,11 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../workbench/contrib/chat/common/languageModels.js';
-import { IChat, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction } from './session.js';
+import { ModelIdentifierResolution } from '../../../../workbench/contrib/chat/common/modelSelection.js';
+import { IAutomationDescriptor, IAutomationRun } from '../../../../workbench/contrib/chat/common/automations/automation.js';
+import { IAutomationStore } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { ChatModelSource, IChat, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection } from './session.js';
 
 /**
  * Event fired when sessions change within a provider.
@@ -29,6 +33,21 @@ export interface ISendRequestOptions {
 	readonly attachedContext?: IChatRequestVariableEntry[];
 	/** Optional display title for the new session. */
 	readonly title?: string;
+	/** Hide this request and its response from the chat transcript. */
+	readonly hideFromTranscript?: boolean;
+}
+
+/** Provider options applied when creating a new session draft. */
+export interface ISessionsProviderCreateSessionOptions {
+	/** Initial provider metadata to associate with the session. */
+	readonly metadata?: Record<string, unknown>;
+}
+
+/** Programmatic worktree settings applied together before a new session starts. */
+export interface ISessionWorktreeConfiguration {
+	readonly isolationMode?: string;
+	readonly worktreeBranchTrack?: boolean;
+	readonly branch?: string;
 }
 
 /**
@@ -59,8 +78,33 @@ export interface ISessionModelPickerOptions {
 
 export interface ISessionModelsSnapshot {
 	readonly models: readonly ILanguageModelChatMetadataAndIdentifier[];
-	/** Whether absence of the requested restored model is conclusive. */
-	readonly isResolved: boolean;
+	readonly desiredModelResolution: ModelIdentifierResolution;
+	/** Concrete chat session type targeted by this model pool, or undefined for the shared pool. */
+	readonly modelTarget: string | undefined;
+}
+
+export interface IAutomation {
+	readonly automation: IAutomationDescriptor;
+	readonly runs: readonly IAutomationRun[];
+}
+
+export type IAutomationSnapshotImportResult =
+	| { readonly kind: 'inserted' }
+	| { readonly kind: 'alreadyPresent' }
+	| { readonly kind: 'conflict'; readonly current: IAutomation };
+
+export type IGuardedAutomationSnapshotRemovalResult =
+	| { readonly kind: 'removed' }
+	| { readonly kind: 'conflict'; readonly current: IAutomation }
+	| { readonly kind: 'missing' };
+
+export interface ISessionsProviderAutomations extends IAutomationStore {
+	/** Imports a snapshot without replacing an Automation already stored under the same ID. */
+	importAutomationSnapshot(snapshot: IAutomation): Promise<IAutomationSnapshotImportResult>;
+	/** Inserts or replaces an Automation snapshot without publishing create or update telemetry. */
+	upsertAutomationSnapshot(snapshot: IAutomation): Promise<void>;
+	/** Removes a snapshot only when the currently stored Automation and runs still match it. */
+	removeAutomationSnapshotIfUnchanged(expected: IAutomation): Promise<IGuardedAutomationSnapshotRemovalResult>;
 }
 
 /**
@@ -160,6 +204,9 @@ export interface ISessionsProvider {
 	 */
 	readonly onDidChangeCapabilities?: Event<void>;
 
+	/** Provider-owned Automation entities, persistence, and run history. */
+	readonly automations?: ISessionsProviderAutomations;
+
 	/**
 	 * Resolve a workspace for the given repository URI.
 	 * Returns `undefined` when the provider cannot handle the given URI
@@ -176,8 +223,15 @@ export interface ISessionsProvider {
 	 * into the session list) or disposed via {@link deleteNewSession}.
 	 * @param workspaceUri The URI of the repository to create the session for.
 	 * @param sessionTypeId The ID of the session type to create.
+	 * @param options Optional metadata and other provider creation inputs.
 	 */
-	createNewSession(workspaceUri: URI, sessionTypeId: string): ISession;
+	createNewSession(workspaceUri: URI, sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession;
+
+	/**
+	 * Mark a new session as preparing its first request before asynchronous
+	 * configuration and request-context resolution begin.
+	 */
+	startNewSessionRequest?(sessionId: string, activity?: string): IDisposable | undefined;
 
 	/**
 	 * Create a new **quick chat**: a workspace-less session not scoped to any
@@ -224,10 +278,10 @@ export interface ISessionsProvider {
 	renameSession(sessionId: string, title: string): Promise<void>;
 
 	/**
-	 * Get selectable models and whether absence of `restoredModelId` is conclusive.
-	 * Callers wait for {@link onDidChangeModels} before repairing an unresolved selection.
+	 * Get selectable models and the current resolution of `desiredModelId`.
+	 * Callers wait for {@link onDidChangeModels} while the requested model is pending.
 	 */
-	getModelsSnapshot(sessionId: string, restoredModelId?: string): ISessionModelsSnapshot;
+	getModelsSnapshot(sessionId: string, desiredModelId?: string): ISessionModelsSnapshot;
 
 	/**
 	 * Get the presentation options for the sessions-core model picker for the
@@ -247,11 +301,19 @@ export interface ISessionsProvider {
 	readonly onDidChangeModels: Event<void>;
 
 	/**
-	 * Set the model for a session.
+	 * Set the model for one of a session's chats.
 	 * @param sessionId The ID of the session.
-	 * @param modelId The ID of the model to set for the session.
+	 * @param chatResource The chat to set the model on. Passed explicitly because a session id
+	 * cannot identify one of its chats, and a picker is always scoped to the chat it is shown in —
+	 * inferring the chat from whichever session is active would let a visible peer chat's picker
+	 * write to a different conversation.
+	 * @param modelId The ID of the model to set.
+	 * @param source Whether this is the chat's own model, surfaced back as
+	 * {@link IChat.modelSource}. A client picking a model for the chat must say
+	 * {@link ChatModelSource.CarriedOver}, or the chat becomes indistinguishable from one the user
+	 * chose a model for.
 	 */
-	setModel(sessionId: string, modelId: string): void;
+	setModel(sessionId: string, chatResource: URI, modelId: string, source: ChatModelSource): void;
 
 	/**
 	 * Set the chat mode for a session.
@@ -273,6 +335,18 @@ export interface ISessionsProvider {
 	 * @param mode The isolation mode to set.
 	 */
 	setIsolationMode?(sessionId: string, mode: string): Promise<void>;
+
+	/**
+	 * Apply programmatic worktree settings to a new session as one operation.
+	 */
+	setWorktreeConfiguration?(sessionId: string, configuration: ISessionWorktreeConfiguration): Promise<void>;
+
+	/**
+	 * Set whether the worktree branch tracks its upstream for a session.
+	 * @param sessionId The ID of the session.
+	 * @param enabled Whether branch tracking is enabled.
+	 */
+	setWorktreeBranchTrack?(sessionId: string, enabled: boolean): Promise<void>;
 
 	/**
 	 * Set the git branch for a session.
@@ -343,6 +417,16 @@ export interface ISessionsProvider {
 	 * @param turnId The ID of the last turn (request) to include in the fork.
 	 */
 	forkChat(sessionId: string, sourceChat: URI, turnId: string): Promise<IChat>;
+
+	/**
+	 * Create a side chat from an existing chat's turn, inheriting the source
+	 * chat's model/agent selection. Unlike {@link forkChat}, a side chat is for
+	 * a tangential follow-up rather than continuing the same line of work.
+	 * @param sessionId The ID of the session containing the source chat.
+	 * @param sourceChat The resource URI of the chat to branch from.
+	 * @param turnId The ID of the turn to branch from.
+	 */
+	createSideChat(sessionId: string, sourceChat: URI, turnId: string, selection?: ISideChatSelection): Promise<IChat>;
 
 	/**
 	 * Send a request for a chat within a session.
