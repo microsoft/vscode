@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -16,6 +15,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { INotificationService, type INotification, type INotificationHandle } from '../../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { IsSessionsWindowContext } from '../../../../../../workbench/common/contextkeys.js';
+import { isResourceEditorInput } from '../../../../../../workbench/common/editor.js';
 import { IEditorService } from '../../../../../../workbench/services/editor/common/editorService.js';
 import { openAgentHostStateFile, OpenAgentHostStateFileAction as WorkbenchOpenAgentHostStateFileAction } from '../../../../../../workbench/contrib/chat/browser/actions/openAgentHostStateFileAction.js';
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -200,7 +200,7 @@ suite('Open Agent Host State File', () => {
 		const editorService = new class extends mock<IEditorService>() {
 			override async openEditor(...args: unknown[]): Promise<undefined> {
 				const editor = args[0];
-				if (hasKey(editor, { resource: true }) && URI.isUri(editor.resource)) {
+				if (isResourceEditorInput(editor)) {
 					calls.opened.push(editor.resource.toString());
 				}
 				return undefined;
