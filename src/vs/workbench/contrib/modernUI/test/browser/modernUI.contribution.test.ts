@@ -408,9 +408,7 @@ suite('ModernUIContribution', () => {
 		classicBorder.textContent = '.monaco-workbench .part.panel.bottom .composite.title { border-top: 1px solid; }';
 		root.prepend(classicBorder);
 		const targetWindow = getWindow(title);
-		// Only assert what this fix owns: the classic border must be gone so the
-		// action item's 4px transparent top border yields a uniform pill gutter.
-		// Height/padding values are owned by other rules and would make this test brittle.
+		// Assert only what this fix owns; other layout values would be brittle.
 		assert.deepStrictEqual({
 			titleBorderTopWidth: targetWindow.getComputedStyle(title).borderTopWidth,
 			titleBorderTopStyle: targetWindow.getComputedStyle(title).borderTopStyle,
