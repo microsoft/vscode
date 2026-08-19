@@ -6150,6 +6150,10 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._networkDiagnostics.fetch(url);
 	}
 
+	async getSessionStateFile(session: URI): Promise<URI | undefined> {
+		return this._findProviderForSession(session)?.getSessionStateFile?.(session);
+	}
+
 	async collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> {
 		if (!this._debugLogsCollector) {
 			throw new Error('Agent Host debug log collection is unavailable');
