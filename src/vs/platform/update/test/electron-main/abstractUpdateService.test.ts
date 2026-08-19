@@ -6,7 +6,8 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
@@ -21,6 +22,22 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { DisablementReason, State, StateType } from '../../common/update.js';
 import { AbstractUpdateService, IUpdateURLOptions } from '../../electron-main/abstractUpdateService.js';
 
+class TestMeteredConnectionService extends Disposable implements IMeteredConnectionService {
+	declare readonly _serviceBrand: undefined;
+
+	private readonly _onDidChangeIsConnectionMetered = this._register(new Emitter<boolean>());
+	readonly onDidChangeIsConnectionMetered = this._onDidChangeIsConnectionMetered.event;
+
+	constructor(public isConnectionMetered: boolean) {
+		super();
+	}
+
+	setIsConnectionMetered(isConnectionMetered: boolean): void {
+		this.isConnectionMetered = isConnectionMetered;
+		this._onDidChangeIsConnectionMetered.fire(isConnectionMetered);
+	}
+}
+
 class TestUpdateService extends AbstractUpdateService {
 
 	private readonly _initialized = new DeferredPromise<void>();
@@ -31,6 +48,9 @@ class TestUpdateService extends AbstractUpdateService {
 
 	private _cancelCount = 0;
 	get cancelCount(): number { return this._cancelCount; }
+
+	private _downloadCount = 0;
+	get downloadCount(): number { return this._downloadCount; }
 
 	/** When set, `cancelUpdate` blocks on this promise so tests can observe the transient Cancelling state. */
 	private _cancelGate: Promise<void> | undefined;
@@ -55,6 +75,14 @@ class TestUpdateService extends AbstractUpdateService {
 
 	protected doCheckForUpdates(): void {
 		this._checkCount++;
+	}
+
+	protected override async doDownloadUpdate(): Promise<void> {
+		this._downloadCount++;
+	}
+
+	checkLatestVersionExplicitly(): Promise<boolean | undefined> {
+		return this.doIsLatestVersion();
 	}
 
 	protected override async cancelUpdate(): Promise<void> {
@@ -91,10 +119,13 @@ suite('AbstractUpdateService', () => {
 	}
 
 	let configurationService: PolicyTestConfigurationService;
+	let requestCount: number;
+	let meteredConnectionService: TestMeteredConnectionService;
 
-	function createService(mode: string, options?: { isBuilt?: boolean; disableUpdates?: boolean; updateUrl?: string }): TestUpdateService {
+	function createService(mode: string, options?: { isBuilt?: boolean; disableUpdates?: boolean; updateUrl?: string; isConnectionMetered?: boolean }): TestUpdateService {
 		configurationService = new PolicyTestConfigurationService();
 		configurationService.setUserConfiguration('update.mode', mode);
+		requestCount = 0;
 
 		const lifecycleMainService = {
 			when: () => Promise.resolve(),
@@ -109,7 +140,10 @@ suite('AbstractUpdateService', () => {
 		} as unknown as IEnvironmentMainService;
 
 		const requestService = {
-			request: () => Promise.reject(new Error('not expected'))
+			request: () => {
+				requestCount++;
+				return Promise.reject(new Error('not expected'));
+			}
 		} as unknown as IRequestService;
 
 		const productService = {
@@ -126,7 +160,7 @@ suite('AbstractUpdateService', () => {
 			store: () => { }
 		} as unknown as IApplicationStorageMainService;
 
-		const meteredConnectionService = { isConnectionMetered: false } as unknown as IMeteredConnectionService;
+		meteredConnectionService = store.add(new TestMeteredConnectionService(options?.isConnectionMetered ?? false));
 
 		const service = new TestUpdateService(
 			lifecycleMainService,
@@ -218,6 +252,46 @@ suite('AbstractUpdateService', () => {
 			await changeMode(service, 'none');
 			await clock.tickAsync(60 * 60 * 1000);
 			assert.strictEqual(service.checkCount, 1, 'none should not schedule further checks');
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('metered connections skip automatic update requests but allow explicit actions', async () => {
+		const service = createService('default', { isConnectionMetered: true });
+		await service.whenInitialized;
+
+		await service.checkForUpdates(false);
+		await service.isLatestVersion();
+		await service.checkForUpdates(true);
+		await service.checkLatestVersionExplicitly();
+
+		service.forceState(State.AvailableForDownload({ version: '1.1.0', productVersion: '1.1.0', url: 'https://update.example/download' }));
+		await service.downloadUpdate(false);
+		await service.downloadUpdate(true);
+
+		assert.deepStrictEqual({
+			checkCount: service.checkCount,
+			downloadCount: service.downloadCount,
+			requestCount,
+		}, {
+			checkCount: 1,
+			downloadCount: 1,
+			requestCount: 1,
+		});
+	});
+
+	test('automatic checks resume when the connection is no longer metered', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const service = createService('start', { isConnectionMetered: true });
+			await service.whenInitialized;
+			await clock.tickAsync(30 * 1000);
+			assert.strictEqual(service.checkCount, 0);
+
+			meteredConnectionService.setIsConnectionMetered(false);
+			await clock.tickAsync(0);
+			assert.strictEqual(service.checkCount, 1);
 		} finally {
 			clock.restore();
 		}

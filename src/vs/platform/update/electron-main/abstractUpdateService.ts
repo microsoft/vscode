@@ -165,6 +165,12 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 
 		lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen)
 			.finally(() => this.initialize());
+
+		this._register(this.meteredConnectionService.onDidChangeIsConnectionMetered(isMetered => {
+			if (!isMetered) {
+				this.resumeAutomaticUpdates();
+			}
+		}));
 	}
 
 	/**
@@ -310,6 +316,24 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 		}
 	}
 
+	private resumeAutomaticUpdates(): void {
+		if (this._disabledPermanently || !this.quality) {
+			return;
+		}
+
+		const updateMode = this.configurationService.getValue<'none' | 'manual' | 'start' | 'default'>('update.mode');
+		if (updateMode === 'none' || updateMode === 'manual') {
+			return;
+		}
+
+		if (this.state.type === StateType.AvailableForDownload) {
+			void this.downloadUpdate(false);
+			return;
+		}
+
+		this.scheduleCheckForUpdates(0, updateMode === 'default');
+	}
+
 	private async trackVersionChange(): Promise<void> {
 		await this.applicationStorageMainService.whenReady;
 
@@ -408,6 +432,11 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 			return;
 		}
 
+		if (!explicit && this.meteredConnectionService.isConnectionMetered) {
+			this.logService.info('update#checkForUpdates - skipping automatic check because connection is metered');
+			return;
+		}
+
 		this.doCheckForUpdates(explicit);
 	}
 
@@ -487,6 +516,11 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 			return false;
 		}
 
+		if (!explicit && this.meteredConnectionService.isConnectionMetered) {
+			this.logService.info('update#checkForOverwriteUpdates - skipping automatic check because connection is metered');
+			return false;
+		}
+
 		const pendingUpdateCommit = this._state.update.version;
 
 		if (!pendingUpdateCommit || pendingUpdateCommit === 'unknown') {
@@ -498,7 +532,7 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 		try {
 			const cts = new CancellationTokenSource();
 			const timeoutPromise = timeout(2000).then(() => { cts.cancel(); return undefined; });
-			isLatest = await Promise.race([this.isLatestVersion(pendingUpdateCommit, cts.token), timeoutPromise]);
+			isLatest = await Promise.race([this.doIsLatestVersion(pendingUpdateCommit, cts.token), timeoutPromise]);
 			cts.dispose();
 		} catch (error) {
 			this.logService.warn('update#checkForOverwriteUpdates(): failed to check for updates, proceeding with restart');
@@ -527,6 +561,15 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 	}
 
 	async isLatestVersion(commit?: string, token: CancellationToken = CancellationToken.None): Promise<boolean | undefined> {
+		if (this.meteredConnectionService.isConnectionMetered) {
+			this.logService.info('update#isLatestVersion - skipping automatic check because connection is metered');
+			return undefined;
+		}
+
+		return this.doIsLatestVersion(commit, token);
+	}
+
+	protected async doIsLatestVersion(commit?: string, token: CancellationToken = CancellationToken.None): Promise<boolean | undefined> {
 		if (!this.quality) {
 			return undefined;
 		}

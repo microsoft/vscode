@@ -18,7 +18,6 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { IMeteredConnectionService } from '../../../../../platform/meteredConnection/common/meteredConnection.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IUpdateService, State } from '../../../../../platform/update/common/update.js';
@@ -145,23 +144,24 @@ suite('UpdateGlobalActivityBadgeVisibleContext', () => {
 suite('UpdateTooltip', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('removes hidden actions from the tab order', () => {
+	function createTooltip(): UpdateTooltip {
 		const configurationService = new TestConfigurationService({ 'update.mode': 'default' });
 		store.add(configurationService.onDidChangeConfigurationEmitter);
-		const tooltip = store.add(new UpdateTooltip(
+		return store.add(new UpdateTooltip(
 			new class extends mock<IClipboardService>() { },
 			store.add(new TestCommandService()),
 			configurationService,
 			new TestHoverService(),
-			new class extends mock<IMeteredConnectionService>() {
-				override readonly isConnectionMetered = false;
-			},
 			new class extends mock<IProductService>() {
 				override readonly nameLong = 'Code - OSS Dev';
 				override readonly version = '1.134.0';
 				override readonly commit = 'current';
 			},
 		));
+	}
+
+	test('removes hidden actions from the tab order', () => {
+		const tooltip = createTooltip();
 
 		tooltip.renderState(State.Ready({ version: 'next', productVersion: '1.135.0' }, false, false));
 
