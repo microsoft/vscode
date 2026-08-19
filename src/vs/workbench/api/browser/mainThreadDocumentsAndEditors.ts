@@ -331,6 +331,10 @@ export class MainThreadDocumentsAndEditors extends Disposable implements IMainTh
 
 		// removed editors
 		for (const { id } of delta.removedEditors) {
+			const hasId = this._textEditors.has(id);
+			if (hasId) {
+				removedEditors.push(id);
+			}
 			this._textEditors.deleteAndDispose(id);
 		}
 
