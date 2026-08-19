@@ -20,6 +20,7 @@ const RUNTIME_REF = 'a'.repeat(40);
 const SDK_REF = 'b'.repeat(40);
 const VSCODE_COMMIT = 'c'.repeat(40);
 const PIPELINE_PATH = path.join(import.meta.dirname, '../../azure-pipelines/copilot-source-build.yml');
+const TOOLCHAIN_PATH = path.join(import.meta.dirname, '../../azure-pipelines/common/install-runtime-build-toolchain.ts');
 let workspace: string;
 
 beforeEach(() => {
@@ -104,6 +105,17 @@ suite('Copilot source pipeline', () => {
 			version: '11.5.2',
 			prerelease: '12.0.0-rc.1',
 			unsupported: '[copilot-runtime-source] Unsupported packageManager "yarn@1.22.22". Expected pnpm@<semver>.',
+		});
+	});
+
+	test('pins Zig to the runtime release build version', () => {
+		const toolchain = fs.readFileSync(TOOLCHAIN_PATH, 'utf8');
+		assert.deepStrictEqual({
+			linuxZig: toolchain.includes("'ziglang==0.13.0'"),
+			macosBrewZig: toolchain.includes("tryRun('brew', ['install', 'zig'])"),
+		}, {
+			linuxZig: true,
+			macosBrewZig: false,
 		});
 	});
 

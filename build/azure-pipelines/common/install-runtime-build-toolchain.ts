@@ -87,13 +87,9 @@ function ensureCrossTooling(): void {
 		tryRun('cargo', ['install', '--locked', 'cargo-zigbuild']);
 	}
 	// zig itself (cargo-zigbuild dependency).
-	if (!has('zig')) {
-		if (process.platform === 'darwin') {
-			tryRun('brew', ['install', 'zig']);
-		} else if (process.platform === 'linux') {
-			// pip's ziglang wheel provides a `zig`-compatible entry point without root.
-			tryRun('python3', ['-m', 'pip', 'install', '--user', 'ziglang']);
-		}
+	if (process.platform === 'linux' && !has('zig')) {
+		// Match the runtime release build's Zig version.
+		tryRun('python3', ['-m', 'pip', 'install', '--user', 'ziglang==0.13.0']);
 	}
 	// Linux glibc arm64 cross needs the GNU cross toolchain.
 	if (process.platform === 'linux') {
