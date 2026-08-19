@@ -44,7 +44,7 @@ export class SessionView extends Disposable implements ISerializableView {
 	static readonly TYPE = 'sessions.sessionView';
 	private static readonly CENTERED_CONTENT_MAX_WIDTH = AGENTS_CENTERED_CONTENT_MAX_WIDTH;
 
-	readonly element: HTMLElement = $('.session-view');
+	readonly element: HTMLElement = $('.session-view.modern-ui-editor-tab-group');
 
 	readonly minimumWidth = 200;
 	readonly maximumWidth = Number.POSITIVE_INFINITY;
@@ -365,6 +365,7 @@ export class SessionView extends Disposable implements ISerializableView {
 	}
 
 	private _applyActiveSessionStyles(): void {
+		this.element.classList.toggle('modern-ui-editor-tab-group-active', this._isActive);
 		applySessionViewThemeColors(this.element, this.themeService.getColorTheme(), this._isActive);
 	}
 }

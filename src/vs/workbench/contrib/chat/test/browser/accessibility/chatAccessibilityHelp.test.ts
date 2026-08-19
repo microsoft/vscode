@@ -51,9 +51,9 @@ suite('Chat Accessibility Help', () => {
 			actions: helpText.includes('Go on the Run') && helpText.includes('Grow') && helpText.includes('Shrink') && helpText.includes('Stable Colors') && helpText.includes('Insiders Colors'),
 			petMovement: helpText.includes('Drag it around the chat with the mouse') && helpText.includes('left and right arrows to make it hop'),
 			petHopping: helpText.includes('make it hop along the input until it reaches an edge'),
-			petThrowing: helpText.includes('flick it horizontally to throw it toward a wall') && helpText.includes('Hold Shift with the left or right arrow to throw it toward a wall'),
+			petThrowing: helpText.includes('flick it in any direction') && helpText.includes('gravity pulls it down') && helpText.includes('Hold Shift with the left or right arrow to throw it toward a wall'),
 			petRevival: helpText.includes('a despawn effect appears at the bottom') && helpText.includes('a respawn effect appears at the top') && helpText.includes('automatically returns to the input'),
-			petScale: helpText.includes('selected size is shared across chats') && helpText.includes('resets when you hide the pet with /vscode-pet'),
+			petScale: helpText.includes('position and selected size are shared across chats and windows') && helpText.includes('remembered after you restart'),
 		}, {
 			keybinding: true,
 			navigation: true,
@@ -100,17 +100,6 @@ suite('Chat Accessibility Help', () => {
 		});
 	});
 
-	test('does not describe the Agents-only floating input window in panel chat', () => {
-		const keybindingService = {
-			lookupKeybindings: () => [],
-		} as unknown as IKeybindingService;
-
-		assert.strictEqual(
-			getAccessibilityHelpText('panelChat', keybindingService, true).includes('floating chat input window'),
-			false,
-		);
-	});
-
 	test('only describes spoken agent progress in agent mode', () => {
 		const keybindingService = {
 			lookupKeybindings: () => [],
@@ -136,14 +125,12 @@ suite('Chat Accessibility Help', () => {
 			editsView: getAccessibilityHelpText('editsView', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
 			quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
 			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
-			chatInputWindow: getAccessibilityHelpText('chatInputWindow', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
 		}, {
 			panelChat: true,
 			agentView: true,
 			editsView: true,
 			quickChat: false,
 			inlineChat: false,
-			chatInputWindow: false,
 		});
 	});
 });

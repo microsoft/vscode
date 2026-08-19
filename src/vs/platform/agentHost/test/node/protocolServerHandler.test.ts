@@ -7,12 +7,14 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileType } from '../../../files/common/files.js';
-import { NullTelemetryService, NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { type IAgentCreateChatOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
@@ -33,6 +35,7 @@ import { iterateOtlpLogRecords, OtlpLogEmitter } from '../../common/otlp/otlpLog
 import { MessagePortProtocolServer } from '../../node/messagePortProtocolServer.js';
 import { AgentHostClientConnectionTelemetryTracker } from '../../node/agentHostClientConnectionTelemetry.js';
 import { AgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
+import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 
 // ---- Mock helpers -----------------------------------------------------------
 
@@ -108,14 +111,27 @@ class FailingReconnectAgentHostFileSystemProvider extends AgentHostFileSystemPro
 	}
 }
 
-class TestTelemetryService extends NullTelemetryServiceShape {
+class TestTelemetryService implements ITelemetryService {
+	declare readonly _serviceBrand: undefined;
+	readonly telemetryLevel = TelemetryLevel.USAGE;
+	readonly sendErrorTelemetry = true;
+	readonly sessionId = 'session';
+	readonly machineId = 'machine';
+	readonly sqmId = 'sqm';
+	readonly devDeviceId = 'device';
+	readonly firstSessionDate = 'first-session';
 	readonly events: { eventName: string; data: unknown }[] = [];
 
-	override publicLog2(eventName?: string, data?: unknown): void {
+	publicLog(): void { }
+	publicLog2(eventName?: string, data?: unknown): void {
 		if (eventName) {
 			this.events.push({ eventName, data });
 		}
 	}
+	publicLogError(): void { }
+	publicLogError2(): void { }
+	setExperimentProperty(): void { }
+	setCommonProperty(): void { }
 }
 
 class MockAgentService implements IAgentService {
@@ -129,6 +145,7 @@ class MockAgentService implements IAgentService {
 	readonly listedSessions: IAgentSessionMetadata[] = [];
 	readonly createSessionConfigs: (IAgentCreateSessionConfig | undefined)[] = [];
 	managedSettingsDiagnostics: readonly IAgentHostManagedSettingsDiagnostics[] = [];
+	readonly collectDebugLogsCalls: { session: string | undefined; kind: 'archive' | 'directory' }[] = [];
 	shutdownCalls = 0;
 	createSessionBarrier: DeferredPromise<void> | undefined;
 	subscribeBarrier: DeferredPromise<void> | undefined;
@@ -201,6 +218,10 @@ class MockAgentService implements IAgentService {
 	async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> { return { version: 'test', os: 'test', arch: 'test', proxySettings: {}, proxyEnv: {}, endpoints: [] }; }
 	async getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]> { return this.managedSettingsDiagnostics; }
 	async diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> { return { url }; }
+	async collectDebugLogs(session: URI | undefined, kind: 'archive' | 'directory') {
+		this.collectDebugLogsCalls.push({ session: session?.toString(), kind });
+		return { kind, resource: URI.file('/tmp/agent-host-debug.zip'), providerLogsIncluded: true, size: 1024, uncompressedSize: 2048, entries: [{ path: 'agenthost.log', size: 2048 }] };
+	}
 	async authenticate(_params: AuthenticateParams): Promise<AuthenticateResult> { return { authenticated: true }; }
 	getAuthToken(): string | undefined { return undefined; }
 	async resourceWrite(_params: ResourceWriteParams): Promise<ResourceWriteResult> { return {}; }
@@ -291,6 +312,7 @@ suite('ProtocolServerHandler', () => {
 	let fileSystemProvider: AgentHostFileSystemProvider;
 	let logService: CountingLogService;
 	let telemetryService: TestTelemetryService;
+	let agentHostTelemetryService: AgentHostTelemetryService;
 
 	const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
 	const defaultChatUri = buildDefaultChatUri(sessionUri);
@@ -314,7 +336,10 @@ suite('ProtocolServerHandler', () => {
 			protocolVersions: [PROTOCOL_VERSION],
 			clientId,
 			clientInfo,
-			_meta: meta,
+			_meta: {
+				'vscode.telemetryLevel': 'all',
+				...meta,
+			},
 			initialSubscriptions,
 		}));
 		return transport;
@@ -329,6 +354,7 @@ suite('ProtocolServerHandler', () => {
 		managedSettingsService = disposables.add(new AgentHostManagedSettingsService());
 		logService = new CountingLogService();
 		telemetryService = new TestTelemetryService();
+		agentHostTelemetryService = disposables.add(new AgentHostTelemetryService(telemetryService));
 		disposables.add(agentService);
 		disposables.add(handler = new ProtocolServerHandler(
 			agentService,
@@ -337,7 +363,7 @@ suite('ProtocolServerHandler', () => {
 			{ hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess, defaultDirectory: URI.file('/home/testuser').toString() },
 			disposables.add(fileSystemProvider = new AgentHostFileSystemProvider()),
 			logService,
-			telemetryService,
+			agentHostTelemetryService,
 			managedSettingsService,
 		));
 	});
@@ -352,10 +378,77 @@ suite('ProtocolServerHandler', () => {
 		const transport = connectClient('client-1');
 
 		const resp = findResponse(transport.sent, 1);
-		assert.ok(resp, 'should have sent initialize response');
-		const result = (resp as { result: InitializeResult }).result;
+		if (!resp || !hasKey(resp, { result: true })) {
+			assert.fail('should have sent initialize response');
+		}
+		const result = resp.result as InitializeResult;
 		assert.strictEqual(result.protocolVersion, PROTOCOL_VERSION);
 		assert.strictEqual(result.serverSeq, stateManager.serverSeq);
+	});
+
+	test('applies telemetry disablement before reporting the client connection', () => {
+		const transport = new MockProtocolTransport(AgentHostTransportKind.WebSocket);
+		server.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', {
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: 'telemetry-disabled-client',
+			clientInfo: editorWindowAgentHostClientInfo,
+			_meta: {
+				'vscode.clientConnectionKind': AgentHostClientConnectionKind.RemoteExtensionHost,
+				'vscode.telemetryLevel': 'off',
+			},
+		}));
+
+		assert.deepStrictEqual({
+			telemetryLevel: agentHostTelemetryService.telemetryLevel,
+			events: telemetryService.events,
+		}, {
+			telemetryLevel: TelemetryLevel.NONE,
+			events: [],
+		});
+		transport.simulateClose();
+		transport.dispose();
+	});
+
+	test('uses the launch telemetry level when a legacy client omits telemetry metadata', () => {
+		const transport = new MockProtocolTransport(AgentHostTransportKind.WebSocket);
+		server.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', {
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: 'legacy-client',
+			clientInfo: editorWindowAgentHostClientInfo,
+		}));
+
+		assert.deepStrictEqual({
+			telemetryLevel: agentHostTelemetryService.telemetryLevel,
+			eventNames: telemetryService.events.map(event => event.eventName),
+		}, {
+			telemetryLevel: TelemetryLevel.USAGE,
+			eventNames: ['agentHost.clientConnection'],
+		});
+		transport.simulateClose();
+		transport.dispose();
+	});
+
+	test('fails closed before reporting the client connection for malformed telemetry metadata', () => {
+		const transport = new MockProtocolTransport(AgentHostTransportKind.WebSocket);
+		server.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', {
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: 'malformed-telemetry-client',
+			clientInfo: editorWindowAgentHostClientInfo,
+			_meta: { 'vscode.telemetryLevel': 'invalid' },
+		}));
+
+		assert.deepStrictEqual({
+			telemetryLevel: agentHostTelemetryService.telemetryLevel,
+			events: telemetryService.events,
+		}, {
+			telemetryLevel: TelemetryLevel.NONE,
+			events: [],
+		});
+		transport.simulateClose();
+		transport.dispose();
 	});
 
 	test('handshake rejects unsupported protocol versions', () => {
@@ -525,6 +618,105 @@ suite('ProtocolServerHandler', () => {
 		}, {
 			response: { jsonrpc: '2.0', id: 11, result: null },
 			shutdownCalls: 1,
+		});
+	});
+
+	test('collects Agent Host debug logs through the extension request', async () => {
+		const transport = connectClient('client-debug-logs');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 12);
+
+		transport.simulateMessage(request(12, 'vscode/collectAgentHostDebugLogs', {
+			session: 'copilotcli:/session-1',
+			kind: 'archive',
+		}));
+
+		assert.deepStrictEqual({
+			response: await responsePromise,
+			calls: agentService.collectDebugLogsCalls,
+		}, {
+			response: {
+				jsonrpc: '2.0',
+				id: 12,
+				result: { kind: 'archive', resource: 'file:///tmp/agent-host-debug.zip', providerLogsIncluded: true, size: 1024, uncompressedSize: 2048, entries: [{ path: 'agenthost.log', size: 2048 }] },
+			},
+			calls: [{ session: 'copilotcli:/session-1', kind: 'archive' }],
+		});
+	});
+
+	test('rejects an invalid Agent Host debug log artifact kind', async () => {
+		const transport = connectClient('client-debug-logs-invalid');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 13);
+
+		transport.simulateMessage(request(13, 'vscode/collectAgentHostDebugLogs', { session: 'copilotcli:/session-1', kind: 'tgz' }));
+
+		assert.deepStrictEqual(await responsePromise, {
+			jsonrpc: '2.0',
+			id: 13,
+			error: { code: JsonRpcErrorCodes.InvalidParams, message: 'kind must be archive or directory' },
+		});
+	});
+
+	test('collects Agent Host debug logs without a session', async () => {
+		const transport = connectClient('client-debug-logs-no-session');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 16);
+
+		transport.simulateMessage(request(16, 'vscode/collectAgentHostDebugLogs', { kind: 'archive' }));
+
+		assert.deepStrictEqual({
+			response: await responsePromise,
+			calls: agentService.collectDebugLogsCalls.at(-1),
+		}, {
+			response: {
+				jsonrpc: '2.0',
+				id: 16,
+				result: { kind: 'archive', resource: 'file:///tmp/agent-host-debug.zip', providerLogsIncluded: true, size: 1024, uncompressedSize: 2048, entries: [{ path: 'agenthost.log', size: 2048 }] },
+			},
+			calls: { session: undefined, kind: 'archive' },
+		});
+	});
+
+	test('rejects a non-string Agent Host debug log session', async () => {
+		const transport = connectClient('client-debug-logs-invalid-session');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 14);
+
+		transport.simulateMessage(request(14, 'vscode/collectAgentHostDebugLogs', { session: 123, kind: 'archive' }));
+
+		assert.deepStrictEqual(await responsePromise, {
+			jsonrpc: '2.0',
+			id: 14,
+			error: { code: JsonRpcErrorCodes.InvalidParams, message: 'session must be a URI string' },
+		});
+	});
+
+	test('rejects non-object Agent Host debug log params', async () => {
+		const transport = connectClient('client-debug-logs-invalid-params');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 15);
+
+		transport.simulateMessage(request(15, 'vscode/collectAgentHostDebugLogs', []));
+
+		assert.deepStrictEqual(await responsePromise, {
+			jsonrpc: '2.0',
+			id: 15,
+			error: { code: JsonRpcErrorCodes.InvalidParams, message: 'params must be an object' },
+		});
+	});
+
+	test('rejects a scheme-less Agent Host debug log session', async () => {
+		const transport = connectClient('client-debug-logs-invalid-session-uri');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 16);
+
+		transport.simulateMessage(request(16, 'vscode/collectAgentHostDebugLogs', { session: 'session-1', kind: 'archive' }));
+
+		assert.deepStrictEqual(await responsePromise, {
+			jsonrpc: '2.0',
+			id: 16,
+			error: { code: JsonRpcErrorCodes.InvalidParams, message: 'session must be a valid URI string' },
 		});
 	});
 
@@ -1250,6 +1442,8 @@ suite('ProtocolServerHandler', () => {
 	test('retains client info for action attribution across reconnect', async () => {
 		const transport1 = connectClient('client-attribution', undefined, agentsWindowAgentHostClientInfo, {
 			'vscode.clientConnectionKind': AgentHostClientConnectionKind.DevTunnel,
+			'vscode.clientMachineId': 'client-machine-id',
+			'vscode.clientDevDeviceId': 'client-dev-device-id',
 		});
 		transport1.simulateMessage(notification('dispatchAction', {
 			channel: 'ahp-root://',
@@ -1265,6 +1459,10 @@ suite('ProtocolServerHandler', () => {
 			clientId: 'client-attribution',
 			lastSeenServerSeq: stateManager.serverSeq,
 			subscriptions: [],
+			_meta: {
+				'vscode.clientMachineId': 'client-machine-id',
+				'vscode.clientDevDeviceId': 'client-dev-device-id',
+			},
 		}));
 		await reconnectRespPromise;
 		transport2.simulateMessage(notification('dispatchAction', {
@@ -1276,10 +1474,159 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual({
 			clientTypes: agentService.handledClientTypes,
 			connectionKinds: agentService.handledClientContexts.map(context => context?.connectionKind),
+			machineIds: agentService.handledClientContexts.map(context => context?.machineId),
+			devDeviceIds: agentService.handledClientContexts.map(context => context?.devDeviceId),
 		}, {
 			clientTypes: ['agents_window', 'agents_window'],
 			connectionKinds: ['dev_tunnel', 'dev_tunnel'],
+			machineIds: ['client-machine-id', 'client-machine-id'],
+			devDeviceIds: ['client-dev-device-id', 'client-dev-device-id'],
 		});
+	});
+
+	test('applies telemetry disablement before reporting a reconnected client', async () => {
+		const transport1 = connectClient('telemetry-reconnect-client');
+		transport1.simulateClose();
+		const eventsBeforeReconnect = [...telemetryService.events];
+
+		const transport2 = new MockProtocolTransport();
+		server.simulateConnection(transport2);
+		const reconnectResponse = waitForResponse(transport2, 2);
+		transport2.simulateMessage(request(2, 'reconnect', {
+			clientId: 'telemetry-reconnect-client',
+			lastSeenServerSeq: stateManager.serverSeq,
+			subscriptions: [],
+			_meta: { 'vscode.telemetryLevel': 'off' },
+		}));
+		await reconnectResponse;
+
+		assert.deepStrictEqual({
+			telemetryLevel: agentHostTelemetryService.telemetryLevel,
+			events: telemetryService.events,
+		}, {
+			telemetryLevel: TelemetryLevel.NONE,
+			events: eventsBeforeReconnect,
+		});
+		transport2.simulateClose();
+		transport2.dispose();
+	});
+
+	test('fails closed before reporting a reconnected client for malformed telemetry metadata', async () => {
+		const transport1 = connectClient('malformed-telemetry-reconnect-client');
+		transport1.simulateClose();
+		const eventsBeforeReconnect = [...telemetryService.events];
+
+		const transport2 = new MockProtocolTransport();
+		server.simulateConnection(transport2);
+		const reconnectResponse = waitForResponse(transport2, 2);
+		transport2.simulateMessage(request(2, 'reconnect', {
+			clientId: 'malformed-telemetry-reconnect-client',
+			lastSeenServerSeq: stateManager.serverSeq,
+			subscriptions: [],
+			_meta: { 'vscode.telemetryLevel': 'invalid' },
+		}));
+		await reconnectResponse;
+
+		assert.deepStrictEqual({
+			telemetryLevel: agentHostTelemetryService.telemetryLevel,
+			events: telemetryService.events,
+		}, {
+			telemetryLevel: TelemetryLevel.NONE,
+			events: eventsBeforeReconnect,
+		});
+		transport2.simulateClose();
+		transport2.dispose();
+	});
+
+	test('uses the launch telemetry level when a legacy reconnect omits telemetry metadata', async () => {
+		const transport1 = connectClient('legacy-reconnect-client');
+		transport1.simulateClose();
+		const eventCountBeforeReconnect = telemetryService.events.length;
+
+		const transport2 = new MockProtocolTransport();
+		server.simulateConnection(transport2);
+		const reconnectResponse = waitForResponse(transport2, 2);
+		transport2.simulateMessage(request(2, 'reconnect', {
+			clientId: 'legacy-reconnect-client',
+			lastSeenServerSeq: stateManager.serverSeq,
+			subscriptions: [],
+		}));
+		await reconnectResponse;
+
+		assert.deepStrictEqual({
+			telemetryLevel: agentHostTelemetryService.telemetryLevel,
+			newEventNames: telemetryService.events.slice(eventCountBeforeReconnect).map(event => event.eventName),
+		}, {
+			telemetryLevel: TelemetryLevel.USAGE,
+			newEventNames: ['agentHost.clientConnection'],
+		});
+		transport2.simulateClose();
+		transport2.dispose();
+	});
+
+	test('does not retain client telemetry identity when reconnect omits it', async () => {
+		const transport1 = connectClient('client-consent', undefined, agentsWindowAgentHostClientInfo, {
+			'vscode.clientMachineId': 'client-machine-id',
+			'vscode.clientDevDeviceId': 'client-dev-device-id',
+		});
+		transport1.simulateClose();
+
+		const transport2 = new MockProtocolTransport();
+		server.simulateConnection(transport2);
+		const reconnectRespPromise = waitForResponse(transport2, 2);
+		transport2.simulateMessage(request(2, 'reconnect', {
+			clientId: 'client-consent',
+			lastSeenServerSeq: stateManager.serverSeq,
+			subscriptions: [],
+		}));
+		await reconnectRespPromise;
+		transport2.simulateMessage(notification('dispatchAction', {
+			channel: 'ahp-root://',
+			clientSeq: 1,
+			action: { type: ActionType.RootConfigChanged, config: {} },
+		}));
+
+		assert.deepStrictEqual(agentService.handledClientContexts.at(-1), {
+			clientType: 'agents_window',
+			connectionKind: 'unknown',
+			transportKind: 'unknown',
+			hostLaunchKind: 'vscode_main_process',
+		});
+	});
+
+	test('attributes telemetry identity independently for concurrent clients', () => {
+		const clients = [
+			connectClient('client-a', undefined, agentsWindowAgentHostClientInfo, {
+				'vscode.clientMachineId': 'machine-a',
+				'vscode.clientDevDeviceId': 'device-a',
+			}),
+			connectClient('client-b', undefined, editorWindowAgentHostClientInfo, {
+				'vscode.clientMachineId': 'machine-b',
+				'vscode.clientDevDeviceId': 'device-b',
+			}),
+		];
+
+		for (const client of clients) {
+			client.simulateMessage(notification('dispatchAction', {
+				channel: 'ahp-root://',
+				clientSeq: 1,
+				action: { type: ActionType.RootConfigChanged, config: {} },
+			}));
+		}
+
+		assert.deepStrictEqual(agentService.handledClientContexts.map(context => ({
+			clientType: context?.clientType,
+			machineId: context?.machineId,
+			devDeviceId: context?.devDeviceId,
+		})), [{
+			clientType: 'agents_window',
+			machineId: 'machine-a',
+			devDeviceId: 'device-a',
+		}, {
+			clientType: 'editor_window',
+			machineId: 'machine-b',
+			devDeviceId: 'device-b',
+		}]);
 	});
 
 	test('reports client topology and attributes actions to the initiating connection', () => {
@@ -1289,7 +1636,12 @@ suite('ProtocolServerHandler', () => {
 			protocolVersions: [PROTOCOL_VERSION],
 			clientId: 'tunnel-client',
 			clientInfo: { name: 'vscode-agents-window', version: '1.2.3', title: 'VS Code Agents Window' },
-			_meta: { 'vscode.clientConnectionKind': AgentHostClientConnectionKind.DevTunnel },
+			_meta: {
+				'vscode.clientConnectionKind': AgentHostClientConnectionKind.DevTunnel,
+				'vscode.telemetryLevel': 'all',
+				'vscode.clientMachineId': 'client-machine-id',
+				'vscode.clientDevDeviceId': 'client-dev-device-id',
+			},
 		}));
 		transport.simulateMessage(notification('dispatchAction', {
 			channel: 'ahp-root://',
@@ -1317,6 +1669,8 @@ suite('ProtocolServerHandler', () => {
 				connectionKind: 'dev_tunnel',
 				transportKind: 'websocket',
 				hostLaunchKind: 'vscode_main_process',
+				machineId: 'client-machine-id',
+				devDeviceId: 'client-dev-device-id',
 			},
 			connectionEvents: [{
 				eventName: 'agentHost.clientConnection',
@@ -1329,6 +1683,8 @@ suite('ProtocolServerHandler', () => {
 					clientImplementationVersion: '1.2.3',
 					connectionKind: 'dev_tunnel',
 					transportKind: 'websocket',
+					clientMachineId: 'client-machine-id',
+					clientDevDeviceId: 'client-dev-device-id',
 					protocolVersion: PROTOCOL_VERSION,
 					isReconnect: false,
 					connectedClientCount: 1,
@@ -1348,6 +1704,8 @@ suite('ProtocolServerHandler', () => {
 					clientImplementationVersion: '1.2.3',
 					connectionKind: 'dev_tunnel',
 					transportKind: 'websocket',
+					clientMachineId: 'client-machine-id',
+					clientDevDeviceId: 'client-dev-device-id',
 					protocolVersion: PROTOCOL_VERSION,
 					isReconnect: false,
 					connectedClientCount: 0,

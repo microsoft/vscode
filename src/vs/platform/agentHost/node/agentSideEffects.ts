@@ -21,7 +21,7 @@ import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostMarkdownPlanRich
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { readAgentModelByokIdentifier } from '../common/agentModelByokMeta.js';
-import { AgentSession, AgentSignal, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal } from '../common/agent.js';
+import { AgentSession, AgentSignal, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, type IAgentModelCallCompletedSignal } from '../common/agent.js';
 import { readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
@@ -50,6 +50,7 @@ import {
 	parseRequiredSessionUriFromChatUri,
 	PendingMessageKind,
 	ResponsePartKind,
+	readUsageInfoMeta,
 	ROOT_STATE_URI,
 	SessionLifecycle,
 	SessionStatus,
@@ -289,8 +290,8 @@ export class AgentSideEffects extends Disposable {
 		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
 		this._turnTracker = this._register(new AgentHostTurnTracker(this._telemetryReporter));
 		this.onDidStartTurn = this._turnTracker.onDidStartTurn;
-		this._toolCallTracker = this._register(new AgentHostToolCallTracker(this._telemetryReporter));
-		this._inputRequestTracker = new AgentHostInputRequestTracker(this._telemetryReporter);
+		this._toolCallTracker = this._register(new AgentHostToolCallTracker(this._telemetryReporter, (session, turnId) => this._turnTracker.getClientTelemetryContext(session, turnId)));
+		this._inputRequestTracker = new AgentHostInputRequestTracker(this._telemetryReporter, undefined, (session, turnId) => this._turnTracker.getClientTelemetryContext(session, turnId));
 		this._permissionManager = this._register(instantiationService.createInstance(SessionPermissionManager, this._stateManager, {}));
 		this._titleController = this._register(instantiationService.createInstance(AgentHostSessionTitleController, this._stateManager, {
 			sessionDataService: this._options.sessionDataService,
@@ -324,7 +325,7 @@ export class AgentSideEffects extends Disposable {
 				return;
 			}
 
-			this._telemetryReporter.executionModeChanged(agent.id, e.session, previousMode, currentMode, sessionState.turns.length);
+			this._telemetryReporter.executionModeChanged(agent.id, e.session, previousMode, currentMode, sessionState.turns.length, e.clientContext);
 		}));
 		this._register(this._customizationEnablementService.onDidChange(event => {
 			for (const session of event.sessions) {
@@ -842,7 +843,7 @@ export class AgentSideEffects extends Disposable {
 			});
 			return;
 		}
-		const signalResource = signal.kind === 'action' ? signal.resource.toString() : signal.chat.toString();
+		const signalResource = signal.kind === 'action' || signal.kind === 'model_call_completed' ? signal.resource.toString() : signal.chat.toString();
 		if (signal.kind === 'action' && !isChatAction(signal.action) && isAhpChatChannel(signalResource)) {
 			throw new Error(`Session action ${signal.action.type} must not be dispatched on chat channel ${signalResource}`);
 		}
@@ -861,7 +862,11 @@ export class AgentSideEffects extends Disposable {
 			if (subagentSession) {
 				const subTurnId = this._stateManager.getActiveTurnId(subagentSession.chatUri);
 				if (subTurnId) {
-					this._dispatchActionForSession(signal, subagentSession.chatUri, subTurnId, 'remap', agent);
+					if (signal.kind === 'model_call_completed') {
+						this._recordModelCallCompleted(signal, subagentSession.chatUri, subTurnId, 'remap');
+					} else {
+						this._dispatchActionForSession(signal, subagentSession.chatUri, subTurnId, 'remap', agent);
+					}
 				} else {
 					this._logService.error(`[AgentSideEffects] Dropping ${this._describeSignal(signal)} for inactive subagent ${sessionKey}/${parentToolCallId}`);
 					if (signal.kind === 'pending_confirmation') {
@@ -907,7 +912,11 @@ export class AgentSideEffects extends Disposable {
 
 		const turnId = this._stateManager.getActiveTurnId(sessionKey);
 		if (turnId) {
-			this._dispatchActionForSession(signal, sessionKey, turnId, 'preserve', agent);
+			if (signal.kind === 'model_call_completed') {
+				this._recordModelCallCompleted(signal, sessionKey, turnId, 'preserve');
+			} else {
+				this._dispatchActionForSession(signal, sessionKey, turnId, 'preserve', agent);
+			}
 			return;
 		}
 
@@ -980,10 +989,16 @@ export class AgentSideEffects extends Disposable {
 				this._toolCallTracker.toolCallExecutionStarted(sessionKey, action.toolCallId);
 			}
 		}
-		if (action.type === ActionType.ChatUsage && action.usage.model && agent) {
-			const modelContext = this._getModelTelemetryContext(agent, action.usage.model);
-			this._turnTracker.updateModel(sessionKey, action.turnId, modelContext.model, modelContext.modelTelemetryKind);
-			this._toolCallTracker.updateTurnModel(sessionKey, action.turnId, modelContext.model, modelContext.modelTelemetryKind);
+		if (action.type === ActionType.ChatUsage) {
+			// Subagent charges are already folded into the parent turn's aggregate.
+			if (!isSubagentChatUri(sessionKey)) {
+				this._turnTracker.updateBilledNanoAiu(sessionKey, action.turnId, readUsageInfoMeta(action.usage).copilotUsage?.totalNanoAiu);
+			}
+			if (action.usage.model && agent) {
+				const modelContext = this._getModelTelemetryContext(agent, action.usage.model);
+				this._turnTracker.updateModel(sessionKey, action.turnId, modelContext.model, modelContext.modelTelemetryKind);
+				this._toolCallTracker.updateTurnModel(sessionKey, action.turnId, modelContext.model, modelContext.modelTelemetryKind);
+			}
 		}
 
 		const sessionUri = isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey;
@@ -1066,14 +1081,15 @@ export class AgentSideEffects extends Disposable {
 			// available across completed turns so it can be steered again.
 			this._pendingSubagentSignals.delete(sessionKey, action.toolCallId);
 			if (getToolFileEdits(action.result).length > 0) {
-				this._changesets.onToolCallEditsApplied(sessionUri, turnId);
+				this._changesets.onToolCallEditsApplied(sessionUri, turnId, this._turnTracker.getClientTelemetryContext(sessionKey, turnId));
 			}
 		}
 
 		if (action.type === ActionType.ChatTurnComplete) {
+			const clientContext = this._turnTracker.getClientTelemetryContext(sessionKey, turnId);
 			this._completeTurn(sessionKey, turnId, 'success');
 			this._toolCallTracker.clearSession(sessionKey);
-			this._runTurnCompleteSideEffects(sessionKey, turnId);
+			this._runTurnCompleteSideEffects(sessionKey, turnId, clientContext);
 		}
 
 		if (action.type === ActionType.ChatTurnCancelled) {
@@ -1083,11 +1099,20 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		if (action.type === ActionType.ChatError) {
+			const clientContext = this._turnTracker.getClientTelemetryContext(sessionKey, turnId);
 			this._completeTurn(sessionKey, turnId, 'error', { stage: 'provider', error: action.error });
 			this._toolCallTracker.clearSession(sessionKey);
-			this._captureTurnCheckpointAndRefresh(sessionKey, turnId);
+			this._captureTurnCheckpointAndRefresh(sessionKey, turnId, clientContext);
 			this._markSessionUnread(sessionUri);
 		}
+	}
+
+	private _recordModelCallCompleted(signal: IAgentModelCallCompletedSignal, sessionKey: ProtocolURI, turnId: string, turnIdRouting: AgentSignalTurnIdRouting): void {
+		if (signal.turnId !== turnId && turnIdRouting === 'preserve') {
+			this._logService.trace(`[AgentSideEffects] Dropping stale model_call_completed for ${sessionKey}: producerTurnId=${signal.turnId}, activeTurnId=${turnId}`);
+			return;
+		}
+		this._turnTracker.modelCallCompleted(sessionKey, turnId, signal.modelCallId);
 	}
 
 	/**
@@ -1096,10 +1121,10 @@ export class AgentSideEffects extends Disposable {
 	 * before reading the effective working directories, so peer-chat / channel
 	 * turns report the correct count and multi-root flag.
 	 */
-	private _captureTurnCheckpointAndRefresh(sessionKey: ProtocolURI, turnId: string): void {
+	private _captureTurnCheckpointAndRefresh(sessionKey: ProtocolURI, turnId: string, clientContext?: IAgentHostClientTelemetryContext): void {
 		const sessionUri = isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey;
 		const workingDirectories = this._agentConfigService.getEffectiveWorkingDirectories(sessionUri)?.map(w => URI.parse(w));
-		this._checkpointService.captureTurnCheckpoint(URI.parse(sessionUri), URI.parse(sessionKey), turnId, workingDirectories).then(() => this._changesets.onTurnComplete(sessionUri, turnId), () => this._changesets.onTurnComplete(sessionUri, turnId));
+		this._checkpointService.captureTurnCheckpoint(URI.parse(sessionUri), URI.parse(sessionKey), turnId, workingDirectories).then(() => this._changesets.onTurnComplete(sessionUri, turnId, clientContext), () => this._changesets.onTurnComplete(sessionUri, turnId, clientContext));
 	}
 
 	private _completeTurn(channel: string, turnId: string, result: AgentHostTurnResult, failure?: IAgentHostTurnFailure): void {
@@ -1113,7 +1138,7 @@ export class AgentSideEffects extends Disposable {
 	 * compute final diffs immediately, drain the next queued message, and
 	 * notify the host so it can refresh git state.
 	 */
-	private _runTurnCompleteSideEffects(sessionKey: ProtocolURI, turnId: string | undefined): void {
+	private _runTurnCompleteSideEffects(sessionKey: ProtocolURI, turnId: string | undefined, clientContext?: IAgentHostClientTelemetryContext): void {
 		// Checkpoints, changesets and the host git-refresh notification are
 		// scoped to the owning session's working tree, which peer chats
 		// share. Normalize an additional-chat channel to its session for
@@ -1141,13 +1166,13 @@ export class AgentSideEffects extends Disposable {
 			// which a caller-supplied set would apply.
 			const workingDirectories = this._agentConfigService.getEffectiveWorkingDirectories(sessionUri)?.map(w => URI.parse(w));
 			this._checkpointService.captureTurnCheckpoint(URI.parse(sessionUri), URI.parse(sessionKey), turnId, workingDirectories).then(() => {
-				this._changesets.onTurnComplete(sessionUri, turnId);
+				this._changesets.onTurnComplete(sessionUri, turnId, clientContext);
 			}, err => {
 				this._logService.warn(`[AgentSideEffects] Turn checkpoint capture failed for ${sessionUri}/${turnId}: ${err instanceof Error ? err.message : String(err)}`);
-				this._changesets.onTurnComplete(sessionUri, turnId);
+				this._changesets.onTurnComplete(sessionUri, turnId, clientContext);
 			});
 		} else {
-			this._changesets.onTurnComplete(sessionUri, turnId);
+			this._changesets.onTurnComplete(sessionUri, turnId, clientContext);
 		}
 		this._tryConsumeNextQueuedMessage(sessionKey);
 		this._options.onTurnComplete(sessionUri);
@@ -1244,17 +1269,23 @@ export class AgentSideEffects extends Disposable {
 		// Seed the subagent's opening request with the delegated task prompt,
 		// supplied by the provider on the `subagent_started` signal.
 		const turnId = generateUuid();
+		const parentTurnId = this._stateManager.getActiveTurnId(contentChatUri);
+		const parentClientContext = parentTurnId ? this._turnTracker.getClientTelemetryContext(contentChatUri, parentTurnId) : undefined;
 		this._stateManager.dispatchServerAction(subagentChatUri, {
 			type: ActionType.ChatTurnStarted,
 			turnId,
 			startedAt: new Date().toISOString(),
 			message: { text: taskPrompt ?? '', origin: { kind: MessageKind.User } },
 		});
+		const agent = this._options.getAgent(parentSessionUri);
+		if (agent) {
+			this._turnTracker.turnStarted(agent.id, subagentChatUri, turnId, undefined, undefined, 'default', undefined, undefined, parentClientContext);
+			this._turnTracker.setCurrentStage(subagentChatUri, turnId, 'provider');
+		}
 
 		this._subagentChats.set({ parentChatUri: chatURI, toolCallId, sessionUri: parentSessionUri, chatUri: subagentChatUri, turnStopWatch: StopWatch.create(false) }, chatURI, toolCallId);
 
 		// Dispatch the discovery content on the spawning tool call's own chat; the top-level chat is a no-op when nested.
-		const parentTurnId = this._stateManager.getActiveTurnId(contentChatUri);
 		if (parentTurnId) {
 			const parentState = this._stateManager.getSessionState(contentChatUri);
 			const existingContent = this._getRunningToolCallContent(parentState, parentTurnId, toolCallId);
@@ -1311,6 +1342,8 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		const turnId = generateUuid();
+		const parentTurnId = this._stateManager.getActiveTurnId(parentChatURI);
+		const parentClientContext = parentTurnId ? this._turnTracker.getClientTelemetryContext(parentChatURI, parentTurnId) : undefined;
 		this._logService.info(`[AgentSideEffects] Resuming subagent turn: ${subagent.chatUri} (parent=${parentChatURI}, toolCallId=${toolCallId})`);
 		this._stateManager.dispatchServerAction(subagent.chatUri, {
 			type: ActionType.ChatTurnStarted,
@@ -1318,6 +1351,11 @@ export class AgentSideEffects extends Disposable {
 			startedAt: new Date().toISOString(),
 			message: message ?? { text: '', origin: { kind: MessageKind.User } },
 		});
+		const agent = this._options.getAgent(subagent.sessionUri);
+		if (agent) {
+			this._turnTracker.turnStarted(agent.id, subagent.chatUri, turnId, undefined, undefined, 'default', undefined, undefined, parentClientContext);
+			this._turnTracker.setCurrentStage(subagent.chatUri, turnId, 'provider');
+		}
 		this._subagentChats.set({ ...subagent, turnStopWatch: StopWatch.create(false) }, parentChatURI, toolCallId);
 	}
 
@@ -1583,8 +1621,8 @@ export class AgentSideEffects extends Disposable {
 				}
 				const attachments = action.message.attachments;
 				this._telemetryReporter.userMessageSent(agent.id, clientId, clientContext, channel, action.turnId, state, 'direct', attachments);
-				const { model, modelTelemetryKind, permissionLevel, interactionMode } = this._getTurnTelemetryContext(agent, state, action.message.model?.id);
-				this._turnTracker.turnStarted(agent.id, channel, action.turnId, model, modelTelemetryKind, permissionLevel, interactionMode);
+				const { model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode } = this._getTurnTelemetryContext(agent, channel, this._chatContext(sessionChannel, channel), state, action.message.model?.id);
+				this._turnTracker.turnStarted(agent.id, channel, action.turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, clientContext);
 				void this._sendTurnMessage({
 					agent,
 					sessionChannel,
@@ -1593,7 +1631,7 @@ export class AgentSideEffects extends Disposable {
 					message: action.message,
 					turnId: action.turnId,
 					senderClientId: clientId,
-					clientType: clientContext.clientType,
+					clientContext,
 					turnStopWatch,
 				});
 				break;
@@ -1651,7 +1689,7 @@ export class AgentSideEffects extends Disposable {
 				if (agent) {
 					const chat = URI.parse(channel);
 					const session = parseRequiredSessionUriFromChatUri(channel);
-					agent.chats.abort(chat, this._chatContext(session, channel)).catch(err => {
+					agent.chats.abort(chat, { ...this._chatContext(session, channel), clientTelemetryContext: clientContext }).catch(err => {
 						this._logService.error('[AgentSideEffects] abort failed', err);
 					});
 				}
@@ -2037,8 +2075,8 @@ export class AgentSideEffects extends Disposable {
 		const attachments = msg.message.attachments;
 		const queuedState = this._stateManager.getSessionState(session);
 		this._telemetryReporter.userMessageSent(agent.id, sender.clientId, sender.clientContext, session, turnId, queuedState, 'queued', attachments);
-		const { model, modelTelemetryKind, permissionLevel, interactionMode } = this._getTurnTelemetryContext(agent, queuedState, msg.message.model?.id);
-		this._turnTracker.turnStarted(agent.id, session, turnId, model, modelTelemetryKind, permissionLevel, interactionMode);
+		const { model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode } = this._getTurnTelemetryContext(agent, session, this._chatContext(sessionChannel, session), queuedState, msg.message.model?.id);
+		this._turnTracker.turnStarted(agent.id, session, turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, sender.clientContext);
 		// Selection travels on the queued message; it is applied before sending.
 		void this._sendTurnMessage({
 			agent,
@@ -2048,20 +2086,22 @@ export class AgentSideEffects extends Disposable {
 			message: msg.message,
 			turnId,
 			senderClientId: sender.clientId,
-			clientType: sender.clientContext.clientType,
+			clientContext: sender.clientContext,
 			turnStopWatch,
 		});
 	}
 
 
-	private _getTurnTelemetryContext(agent: IAgent, state: SessionState | undefined, modelId: string | undefined): { model: string | undefined; modelTelemetryKind: AgentHostModelTelemetryKind | undefined; permissionLevel: string | undefined; interactionMode: SessionMode | undefined } {
+	private _getTurnTelemetryContext(agent: IAgent, chat: ProtocolURI, context: IAgentChatContext, state: SessionState | undefined, modelId: string | undefined): { model: string | undefined; modelTelemetryKind: AgentHostModelTelemetryKind | undefined; modelSelectionKind: 'default' | 'auto' | 'explicit'; permissionLevel: string | undefined; interactionMode: SessionMode | undefined } {
 		const permissionValue = state?.config?.values[SessionConfigKey.AutoApprove];
 		const permissionLevel = typeof permissionValue === 'string' ? permissionValue : undefined;
 		const interactionMode = getConfiguredSessionMode(state?.config);
-		const modelContext = modelId === undefined
+		const modelSelectionKind = modelId === undefined ? 'default' : modelId === 'auto' ? 'auto' : 'explicit';
+		const effectiveModelId = modelId ?? agent.chats.getModel?.(URI.parse(chat), context)?.id;
+		const modelContext = effectiveModelId === undefined || (modelId === undefined && effectiveModelId === 'auto')
 			? { model: undefined, modelTelemetryKind: undefined }
-			: this._getModelTelemetryContext(agent, modelId);
-		return { ...modelContext, permissionLevel, interactionMode };
+			: this._getModelTelemetryContext(agent, effectiveModelId);
+		return { ...modelContext, modelSelectionKind, permissionLevel, interactionMode };
 	}
 
 	private _getModelTelemetryContext(agent: IAgent, modelId: string): { model: string; modelTelemetryKind: AgentHostModelTelemetryKind } {
@@ -2095,10 +2135,10 @@ export class AgentSideEffects extends Disposable {
 		message: Message;
 		turnId: string;
 		senderClientId: string | undefined;
-		clientType: AgentHostClientType;
+		clientContext: IAgentHostClientTelemetryContext;
 		turnStopWatch: StopWatch;
 	}): Promise<void> {
-		const { agent, sessionChannel, turnChannel, chat, message, turnId, senderClientId, clientType, turnStopWatch } = options;
+		const { agent, sessionChannel, turnChannel, chat, message, turnId, senderClientId, clientContext, turnStopWatch } = options;
 
 		// Read-only chats reject user-dispatched turns. `interactivity` is the
 		// general signal (e.g. subagent worker chats are `ReadOnly`), and an
@@ -2130,6 +2170,7 @@ export class AgentSideEffects extends Disposable {
 
 		let failureStage: AgentHostTurnFailureStage = 'workingDirectory';
 		try {
+			this._turnTracker.setCurrentStage(turnChannel, turnId, failureStage);
 			// Host-owned working-directory resolution: resolve the session's working
 			// directory before the agent materializes, so the agent runs in it
 			// without ever knowing how it was derived. Returns the created worktree
@@ -2137,19 +2178,22 @@ export class AgentSideEffects extends Disposable {
 			// folder for folder sessions; undefined for workspace-less sessions.
 			const resolvedWorkingDirectories = await this._options.resolveWorkingDirectoryBeforeSend?.({ session: options.sessionChannel, chat, turnId, prompt: message.text });
 			const chatContext = this._chatContext(options.sessionChannel, chat);
+			const clientOperationContext = { ...chatContext, clientTelemetryContext: clientContext };
 
 			const selectionUpdates: Promise<void>[] = [];
+			this._turnTracker.setCurrentStage(turnChannel, turnId, 'modelSelection');
 			if (message.model) {
 				failureStage = 'modelSelection';
-				selectionUpdates.push(agent.chats.changeModel(chatUri, message.model, chatContext));
+				selectionUpdates.push(agent.chats.changeModel(chatUri, message.model, clientOperationContext));
 			}
-			selectionUpdates.push(agent.chats.changeAgent(chatUri, message.agent, chatContext).catch(err => {
+			selectionUpdates.push(agent.chats.changeAgent(chatUri, message.agent, clientOperationContext).catch(err => {
 				this._logService.error('[AgentSideEffects] changeAgent failed', err);
 			}));
 
 			await Promise.all(selectionUpdates);
 
 			failureStage = 'sendMessage';
+			this._turnTracker.setCurrentStage(turnChannel, turnId, failureStage);
 			const resolvedAttachments = await this._resolveChatAttachments(message.attachments);
 			const renameInstruction = await this._titleController.prepareInstructionForAgent(sessionChannel, chat);
 			const hostInstructions = [
@@ -2158,14 +2202,15 @@ export class AgentSideEffects extends Disposable {
 					: []),
 				...(renameInstruction ? [renameInstruction] : []),
 			];
-			const sendContext = hostInstructions.length ? { ...chatContext, hostInstructions } : chatContext;
+			const sendContext = { ...clientOperationContext, ...(hostInstructions.length ? { hostInstructions } : {}) };
 			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) { return; }
 			await this._checkpointService.captureTurnStartCheckpoint(URI.parse(sessionChannel), chatUri, turnId, resolvedWorkingDirectories);
 			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
 				await this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionChannel), chatUri, turnId);
 				return;
 			}
-			await agent.chats.sendMessage(chatUri, message.text, resolvedWorkingDirectories, resolvedAttachments, turnId, senderClientId, clientType, sendContext);
+			this._turnTracker.setCurrentStage(turnChannel, turnId, 'provider');
+			await agent.chats.sendMessage(chatUri, message.text, resolvedWorkingDirectories, resolvedAttachments, turnId, senderClientId, clientContext.clientType, sendContext);
 		} catch (err) {
 			const failure = buildTurnFailure(failureStage, err);
 			const error = failure.error;

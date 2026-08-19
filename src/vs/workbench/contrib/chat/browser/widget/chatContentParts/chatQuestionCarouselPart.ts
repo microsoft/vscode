@@ -49,7 +49,6 @@ const NEXT_QUESTION_ACTION_ID = 'workbench.action.chat.nextQuestion';
 export interface IChatQuestionCarouselOptions {
 	onSubmit: (answers: Map<string, IChatQuestionAnswerValue> | undefined) => void;
 	shouldAutoFocus?: boolean;
-	fitContent?: boolean;
 }
 
 class ChatQuestionAnswerCollapsiblePart extends ChatCollapsibleContentPart {
@@ -169,7 +168,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		this.domNode = dom.$('.chat-question-carousel-container');
 		this.domNode.classList.toggle('chat-question-carousel-conversation', carousel.answerPresentation === 'conversation');
-		this.domNode.classList.toggle('chat-question-carousel-fit-content', this._options.fitContent === true);
 		this.domNode.id = generateUuid();
 		this._inChatQuestionCarouselContextKey = ChatContextKeys.inChatQuestionCarousel.bindTo(this._contextKeyService);
 		this._chatQuestionCarouselHasTerminalContextKey = ChatContextKeys.chatQuestionCarouselHasTerminal.bindTo(this._contextKeyService);
@@ -244,7 +242,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			this._closeButtonContainer = dom.$('.chat-question-close-container');
 			const skipAllTitle = localize('chat.questionCarousel.skipAllTitle', 'Skip all questions');
 			const skipAllButton = interactiveStore.add(new Button(this._closeButtonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
-			skipAllButton.label = `$(${Codicon.close.id})`;
+			skipAllButton.label = `$(${Codicon.closeSmall.id})`;
 			skipAllButton.element.classList.add('chat-question-close');
 			skipAllButton.element.setAttribute('aria-label', skipAllTitle);
 			interactiveStore.add(this._hoverService.setupDelayedHover(skipAllButton.element, { content: skipAllTitle }));
@@ -549,9 +547,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		const availableScrollableHeight = Math.floor(maxContainerHeight - contentVerticalPadding - nonScrollableContentHeight);
 
 		const contentScrollableHeight = scrollableContent.scrollHeight;
-		const constrainedScrollableHeight = this._options.fitContent
-			? contentScrollableHeight
-			: Math.max(0, Math.min(availableScrollableHeight, contentScrollableHeight));
+		const constrainedScrollableHeight = Math.max(0, Math.min(availableScrollableHeight, contentScrollableHeight));
 		const constrainedScrollableHeightPx = `${constrainedScrollableHeight}px`;
 
 		// Constrain wrapper + content so no stale flex sizing survives between steps.
