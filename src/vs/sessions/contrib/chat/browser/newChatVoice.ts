@@ -100,7 +100,7 @@ export class NewChatVoiceTargetService extends Disposable implements INewChatVoi
 
 		this._focusedSessionResource = observableFromEvent(this,
 			this.chatWidgetService.onDidChangeFocusedSession,
-			() => this.chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource);
+			() => this.chatWidgetService.lastFocusedChatSurface?.viewModel?.sessionResource);
 
 		this.currentVoiceInputResource = derivedOpts({ owner: this, equalsFn: isEqual }, reader => {
 			const composer = this._activeComposer.read(reader);

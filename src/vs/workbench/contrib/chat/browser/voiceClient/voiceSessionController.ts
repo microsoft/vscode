@@ -4094,7 +4094,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * buffered forever or drop it into the wrong session.
 	 */
 	private _getFocusedSessionId(): string | undefined {
-		return this.chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource?.toString();
+		return this.chatWidgetService.lastFocusedChatSurface?.viewModel?.sessionResource?.toString();
 	}
 
 	private _onFocusedSessionChanged(): void {

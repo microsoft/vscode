@@ -2860,7 +2860,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}
 
-		const animateCollapse = templateData.wasResponseComplete === false && element.isComplete;
+		const animateCollapse = this.rendererOptions.animateCompletedResponseCollapse !== false && templateData.wasResponseComplete === false && element.isComplete;
 		this.updateCompletedResponseDisclosure(element, contentForThisTurn, templateData, animateCollapse);
 		templateData.wasResponseComplete = element.isComplete;
 	}

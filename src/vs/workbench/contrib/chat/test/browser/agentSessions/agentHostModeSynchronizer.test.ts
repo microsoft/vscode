@@ -81,6 +81,7 @@ suite('AgentHostModeSynchronizer', () => {
 			onDidChangeFocusedSession: Event.None,
 			getWidgetBySessionResource: (r: URI) => r.toString() === resource.toString() ? widget : undefined,
 			lastFocusedWidget: widget,
+			lastFocusedChatSurface: widget,
 		} as unknown as IChatWidgetService;
 
 		const provisionalSessionService = {

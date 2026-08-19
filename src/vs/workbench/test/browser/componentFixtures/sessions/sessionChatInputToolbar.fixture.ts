@@ -207,6 +207,7 @@ async function renderChatViewWithPills(ctx: ComponentFixtureContext, mock: IMock
 			updateChatPillsVisibility(pills.visible);
 			// Mount above the input, mirroring the sessions ChatView.
 			inputPart.persistentContentContainerElement.appendChild(pills.element);
+			inputPart.setPersistentContentVisible(true);
 		},
 	});
 }
@@ -532,6 +533,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 					const pills = ctx.disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar));
 					pills.setSession(mock.session, mock.chat);
 					inputPart.persistentContentContainerElement.appendChild(pills.element);
+					inputPart.setPersistentContentVisible(true);
 				},
 			});
 		},

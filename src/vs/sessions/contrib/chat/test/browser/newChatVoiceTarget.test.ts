@@ -51,6 +51,9 @@ suite('NewChatVoiceTargetService', () => {
 			override get lastFocusedWidget(): IChatWidget | undefined {
 				return focusedResource ? upcastPartial<IChatWidget>({ viewModel: upcastPartial<IChatViewModel>({ sessionResource: focusedResource }) }) : undefined;
 			}
+			override get lastFocusedChatSurface(): IChatWidget | undefined {
+				return this.lastFocusedWidget;
+			}
 		}();
 
 		const service = store.add(new NewChatVoiceTargetService(sessionsService, chatWidgetService));

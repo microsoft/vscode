@@ -1026,6 +1026,30 @@ suite('ChatListWidget', () => {
 		disposables.dispose();
 	});
 
+	test('can omit the scroll-to-bottom button for embedded transcripts', () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+		instantiationService.stub(IAccessibleViewService, { getOpenAriaHint: () => '' });
+		instantiationService.stub(IChatAccessibilityService, {
+			acceptRequest: () => { },
+			disposeRequest: () => { },
+			acceptResponse: () => { },
+			acceptElicitation: () => { },
+		});
+
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		disposables.add(instantiationService.createInstance(ChatListWidget, container, {
+			editorOptions: {} as ChatEditorOptions,
+			renderScrollToBottomButton: false,
+		}));
+		assert.strictEqual(container.querySelector('.chat-scroll-down'), null);
+	});
+
 	// Regression test for the completed-response disclosure ("Completed N steps in ..."): expanding
 	// a collapsible while the transcript is scrolled to the very bottom used to auto-scroll to the
 	// new end, so the revealed content grew *upwards* and pushed the summary off the top of the
