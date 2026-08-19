@@ -22,7 +22,7 @@ import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
 import { IPaneCompositePartService } from '../../services/panecomposite/browser/panecomposite.js';
 import { ToggleAuxiliaryBarAction } from '../parts/auxiliarybar/auxiliaryBarActions.js';
 import { TogglePanelAction } from '../parts/panel/panelActions.js';
-import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../platform/commands/common/commands.js';
 import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsMainEditorCenteredLayoutContext, MainEditorAreaVisibleContext, IsMainWindowFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext, IsSessionsWindowContext, TitleBarStyleContext, IsAuxiliaryWindowContext } from '../../common/contextkeys.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
@@ -1274,6 +1274,53 @@ registerAction2(IncreaseViewHeightAction);
 registerAction2(DecreaseViewSizeAction);
 registerAction2(DecreaseViewWidthAction);
 registerAction2(DecreaseViewHeightAction);
+
+// --- Get/Set Side Bar Width (for programmatic use, e.g. from extensions)
+
+CommandsRegistry.registerCommand({
+	id: 'workbench.action.getSideBarWidth',
+	handler: (accessor: ServicesAccessor): number | undefined => {
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		if (!layoutService.isVisible(Parts.SIDEBAR_PART)) {
+			return undefined;
+		}
+
+		return layoutService.getSize(Parts.SIDEBAR_PART).width;
+	},
+	metadata: {
+		description: localize2('getSideBarWidth.description', "Get the width of the primary side bar in pixels. Returns undefined when the primary side bar is hidden."),
+		args: [],
+		returns: 'The primary side bar width in pixels, or undefined when it is hidden.'
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: 'workbench.action.setSideBarWidth',
+	handler: (accessor: ServicesAccessor, width: number): void => {
+		if (typeof width !== 'number' || !Number.isFinite(width) || width <= 0) {
+			throw new Error(localize('setSideBarWidth.invalidWidth', "Invalid side bar width: {0}", width));
+		}
+
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		if (!layoutService.isVisible(Parts.SIDEBAR_PART)) {
+			throw new Error(localize('setSideBarWidth.sideBarHidden', "Cannot set the width of the primary side bar while it is hidden."));
+		}
+
+		const { height } = layoutService.getSize(Parts.SIDEBAR_PART);
+		layoutService.setSize(Parts.SIDEBAR_PART, { width, height });
+	},
+	metadata: {
+		description: localize2('setSideBarWidth.description', "Set the width of the primary side bar in pixels. The width is clamped to the layout constraints of the side bar. Fails when the primary side bar is hidden."),
+		args: [{
+			name: 'width',
+			description: 'The new width of the primary side bar in pixels',
+			schema: {
+				'type': 'number',
+				'exclusiveMinimum': 0
+			}
+		}]
+	}
+});
 
 //#region Quick Input Alignment Actions
 
