@@ -9,6 +9,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { afterEach, beforeEach, suite, test } from 'node:test';
 import { sourceNpmrc } from '../../azure-pipelines/common/configure-copilot-source-registry.ts';
+import { assertCommitSha } from '../../azure-pipelines/common/copilotSource.ts';
 import { assembleRuntimePackages } from '../../azure-pipelines/common/copilotSourcePublish.ts';
 import { createProductBuildRequest } from '../../azure-pipelines/common/queue-copilot-product-build.ts';
 import { copilotSourceVersion } from '../../azure-pipelines/common/set-copilot-source-version.ts';
@@ -54,6 +55,18 @@ function errorMessage(callback: () => void): string {
 }
 
 suite('Copilot source pipeline', () => {
+
+	test('requires immutable source commits', () => {
+		assert.deepStrictEqual({
+			valid: assertCommitSha('a'.repeat(40), 'COPILOT_SDK_SOURCE_REF'),
+			branch: errorMessage(() => assertCommitSha('main', 'COPILOT_SDK_SOURCE_REF')),
+			uppercase: errorMessage(() => assertCommitSha('A'.repeat(40), 'COPILOT_RUNTIME_SOURCE_REF')),
+		}, {
+			valid: undefined,
+			branch: '[copilot-source] COPILOT_SDK_SOURCE_REF must be a full 40-character lowercase commit SHA.',
+			uppercase: '[copilot-source] COPILOT_RUNTIME_SOURCE_REF must be a full 40-character lowercase commit SHA.',
+		});
+	});
 
 	test('writes queue-time registry values without shell interpretation', () => {
 		assert.deepStrictEqual({

@@ -71,6 +71,7 @@ function ensureRustup(): void {
 	if (!tryRun(rustup, ['target', 'list'])) {
 		throw new Error(`[runtime-toolchain] rustup installation failed: ${rustup} cannot list targets.`);
 	}
+	process.env['PATH'] = `${cargoBin}${path.delimiter}${process.env['PATH'] ?? ''}`;
 	console.log(`##vso[task.prependpath]${cargoBin}`);
 }
 

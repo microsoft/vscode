@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { buildSdkTarball } from './buildCopilotOverride.ts';
+import { assertCommitSha } from './copilotSource.ts';
 import { assertSourceVersion, publishPackage } from './copilotSourcePublish.ts';
 
 function requiredEnv(name: string): string {
@@ -18,6 +19,7 @@ const ref = requiredEnv('COPILOT_SDK_SOURCE_REF');
 const version = requiredEnv('COPILOT_SOURCE_VERSION');
 const runtimeVersion = requiredEnv('COPILOT_RUNTIME_SOURCE_VERSION');
 const registry = requiredEnv('COPILOT_SOURCE_REGISTRY');
+assertCommitSha(ref, 'COPILOT_SDK_SOURCE_REF');
 assertSourceVersion(version);
 assertSourceVersion(runtimeVersion);
 

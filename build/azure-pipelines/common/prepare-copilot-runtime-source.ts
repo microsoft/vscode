@@ -3,17 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RUNTIME_REPO } from './copilotSource.ts';
+import { assertCommitSha, RUNTIME_REPO } from './copilotSource.ts';
 import { mintCloneTokenFromEnv } from './mintGithubAppToken.ts';
 import { writeRuntimeSourceMarker, writeRuntimeToken } from '../../lib/copilotRuntimeSource.ts';
 
-const COMMIT_SHA = /^[0-9a-f]{40}$/;
-
 async function main(): Promise<void> {
 	const ref = (process.env['COPILOT_RUNTIME_SOURCE_REF'] ?? '').trim();
-	if (!COMMIT_SHA.test(ref)) {
-		throw new Error('[copilot-runtime-source] COPILOT_RUNTIME_SOURCE_REF must be a full 40-character lowercase commit SHA.');
-	}
+	assertCommitSha(ref, 'COPILOT_RUNTIME_SOURCE_REF');
 
 	const token = await mintCloneTokenFromEnv(RUNTIME_REPO);
 	if (!token) {
