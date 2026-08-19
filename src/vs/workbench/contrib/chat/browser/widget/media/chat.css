@@ -2347,7 +2347,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: none;
 }
 
-.interactive-session .interactive-input-part.chat-input-hidden:not(:has(> .chat-input-persistent-content > :not(.hidden), > .chat-tool-confirmation-carousel-container:not(.hidden))) {
+.interactive-session .interactive-input-part.chat-input-hidden:not(.chat-input-has-visible-content) {
 	display: none;
 }
 

@@ -245,6 +245,8 @@ export interface IChatListItemRendererOptions {
 	readonly referencesExpandedWhenEmptyResponse?: boolean | ((mode: ChatModeKind) => boolean);
 	readonly progressMessageAtBottomOfResponse?: boolean | ((mode: ChatModeKind) => boolean);
 	readonly contentHorizontalPadding?: number;
+	/** Whether a newly completed response animates into its collapsed work summary. Defaults to true. */
+	readonly animateCompletedResponseCollapse?: boolean;
 	/**
 	 * Render options applied to code blocks in response markdown (e.g. force word-wrap
 	 * so command/tool output pasted by the model wraps instead of overflowing).
@@ -328,6 +330,12 @@ export interface IChatWidgetViewOptions {
 
 	/** Enables the transcript Find widget (`Ctrl/Cmd+F`) for this chat widget. Off by default. */
 	enableFind?: boolean;
+	/** Whether this widget may render the chat pet. Defaults to true. */
+	enableChatPet?: boolean;
+	/** Whether this widget renders the transcript's scroll-to-bottom button. Defaults to true. */
+	renderScrollToBottomButton?: boolean;
+	/** Whether this widget is discoverable through {@link IChatWidgetService}. Defaults to true. */
+	registerInWidgetService?: boolean;
 }
 
 export interface IChatViewViewContext {
