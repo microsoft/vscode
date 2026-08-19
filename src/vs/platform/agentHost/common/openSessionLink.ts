@@ -25,7 +25,7 @@ export const AGENT_HOST_SESSION_LINK_PATTERN = /^agent-host-session:\/\/[^/?#]+\
 
 export type AgentSessionLinkStatus = 'untitled' | 'inProgress' | 'needsInput' | 'completed' | 'error';
 
-export function createAgentSessionLinkPresentation(title: string, description: string | undefined, status: AgentSessionLinkStatus): ILinkPresentation {
+export function buildAgentSessionLinkPresentation(title: string, description: string | undefined, status: AgentSessionLinkStatus): ILinkPresentation {
 	const presentationStatus = getAgentSessionLinkPresentationStatus(status);
 	return {
 		kind: 'session',

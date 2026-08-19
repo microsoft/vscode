@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { buildOpenSessionLinkForChatResource, buildOpenSessionLinkUri, createAgentSessionLinkPresentation, isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
+import { buildAgentSessionLinkPresentation, buildOpenSessionLinkForChatResource, buildOpenSessionLinkUri, isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
 
 suite('openSessionLink', () => {
@@ -79,7 +79,7 @@ suite('openSessionLink', () => {
 
 	test('creates generic link presentations for agent sessions', () => {
 		assert.deepStrictEqual(
-			createAgentSessionLinkPresentation('Implement rich links', 'Updating core', 'needsInput'),
+			buildAgentSessionLinkPresentation('Implement rich links', 'Updating core', 'needsInput'),
 			{
 				kind: 'session',
 				title: 'Implement rich links',

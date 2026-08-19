@@ -9,7 +9,7 @@ import { derivedOpts, IObservable, IReader, observableSignalFromEvent } from '..
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { AGENT_HOST_SESSION_LINK_PATTERN, AgentSessionLinkStatus, createAgentSessionLinkPresentation, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
+import { AGENT_HOST_SESSION_LINK_PATTERN, AgentSessionLinkStatus, buildAgentSessionLinkPresentation, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { ILinkPresentation, ILinkPresentationService, ILinkPresentationWatcher } from '../../../../platform/dataChannel/common/dataChannel.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
@@ -103,7 +103,7 @@ export function readSessionState(
 ): ILinkPresentation {
 	const chat = findChat(session, chatId, reader);
 	const description = session.description.read(reader)?.value;
-	return createAgentSessionLinkPresentation(
+	return buildAgentSessionLinkPresentation(
 		chat?.title.read(reader) ?? session.title.read(reader),
 		description,
 		sessionStatusName(chat?.status.read(reader) ?? session.status.read(reader)),

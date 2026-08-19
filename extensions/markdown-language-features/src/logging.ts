@@ -24,6 +24,12 @@ export class VsCodeOutputLogger extends Disposable implements ILogger {
 	}
 
 	public trace(title: string, message: string, data?: unknown): void {
-		this.#outputChannel.trace(`${title}: ${message}`, ...(data ? [JSON.stringify(data, null, 4)] : []));
+		if (!this.#outputChannelValue && vscode.env.logLevel !== vscode.LogLevel.Trace) {
+			return;
+		}
+		const outputChannel = this.#outputChannel;
+		if (outputChannel.logLevel === vscode.LogLevel.Trace) {
+			outputChannel.trace(`${title}: ${message}`, ...(data ? [JSON.stringify(data, null, 4)] : []));
+		}
 	}
 }
