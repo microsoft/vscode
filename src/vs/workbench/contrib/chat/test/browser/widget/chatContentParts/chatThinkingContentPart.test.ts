@@ -1688,7 +1688,12 @@ suite('ChatThinkingContentPart', () => {
 			} as IChatToolInvocation;
 		}
 
-		function createMockExecutingToolInvocation(toolId: string, invocationMessage: string | IMarkdownString, toolCallId: string): IChatToolInvocation {
+		function createMockExecutingToolInvocation(
+			toolId: string,
+			invocationMessage: string | IMarkdownString,
+			toolCallId: string,
+			progress = observableValue<{ message?: string | IMarkdownString; progress: number | undefined }>('progress', { progress: 0 }),
+		): IChatToolInvocation {
 			return {
 				kind: 'toolInvocation',
 				toolId,
@@ -1703,7 +1708,7 @@ suite('ChatThinkingContentPart', () => {
 				state: observableValue('state', {
 					type: IChatToolInvocation.StateKind.Executing,
 					confirmed: { type: 0 },
-					progress: observableValue('progress', { progress: 0 }),
+					progress,
 					parameters: {},
 					confirmationMessages: undefined,
 				}),
@@ -2063,19 +2068,16 @@ suite('ChatThinkingContentPart', () => {
 			disposables.add(toDisposable(() => part.domNode.remove()));
 
 			const title = 'Edit [](claudeAgent.ts)';
-			const editTool = createMockExecutingToolInvocation('edit', title, 'call-markdown');
+			const progress = observableValue<{ message?: string | IMarkdownString; progress: number | undefined }>('progress', { progress: 0 });
+			const editTool = createMockExecutingToolInvocation('edit', title, 'call-markdown', progress);
 			part.appendItem(() => ({ domNode: $('div.test-item') }), editTool.toolId, editTool);
 
 			const button = part.domNode.querySelector<HTMLElement>('.chat-used-context-label .monaco-button');
 			const header = part.domNode.querySelector<HTMLElement>('.chat-used-context-label');
 			const initialPill = header?.querySelector<HTMLElement>('.chat-inline-anchor-widget .icon-label');
-			const state = editTool.state.get();
-			if (state.type !== IChatToolInvocation.StateKind.Executing) {
-				assert.fail('Expected an executing tool invocation');
-			}
 			const invocationMessage = new MarkdownString(title);
 			invocationMessage.baseUri = URI.file('/workspace/');
-			state.progress.set({ message: invocationMessage, progress: undefined }, undefined);
+			progress.set({ message: invocationMessage, progress: undefined }, undefined);
 
 			const updatedPill = header?.querySelector<HTMLElement>('.chat-inline-anchor-widget .icon-label');
 			button?.click();
