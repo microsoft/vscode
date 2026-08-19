@@ -14,13 +14,17 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandEvent, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IMeteredConnectionService } from '../../../../../platform/meteredConnection/common/meteredConnection.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IUpdateService, State } from '../../../../../platform/update/common/update.js';
+import { InEditorZenModeContext } from '../../../../common/contextkeys.js';
 import { UpdateTitleBarEntry } from '../../browser/updateTitleBarEntry.js';
 import { UpdateTooltip } from '../../browser/updateTooltip.js';
+import { UpdateGlobalActivityBadgeVisibleContext, UpdateTitleBarChatInProgressContext, UpdateTitleBarContext } from '../../common/update.js';
 
 class TestCommandService extends mock<ICommandService>() {
 	private readonly _onDidExecuteCommand = new Emitter<ICommandEvent>();
@@ -49,6 +53,12 @@ class TestHoverService extends mock<IHoverService>() {
 	override showInstantHover(options: IHoverOptions, focus?: boolean): IHoverWidget {
 		this.showRequests.push({ focus: !!focus, trapFocus: !!options.trapFocus });
 		return new TestHoverWidget();
+	}
+}
+
+class TestContextKeyService extends MockContextKeyService {
+	override contextMatchesRules(rules: ContextKeyExpression): boolean {
+		return rules.evaluate({ getValue: key => this.getContextKeyValue(key) });
 	}
 }
 
@@ -93,6 +103,40 @@ suite('UpdateTitleBarEntry', () => {
 			tabDefaultPrevented: false,
 			hoverShowRequests: [{ focus: true, trapFocus: true }],
 		});
+	});
+});
+
+suite('UpdateGlobalActivityBadgeVisibleContext', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('hides the badge when the Update and Manage actions are adjacent', () => {
+		const scenarios = [
+			{ name: 'no update', updateVisible: false, menuBarVisibility: 'visible', activityBarLocation: 'top', expected: true },
+			{ name: 'adjacent', updateVisible: true, menuBarVisibility: 'visible', activityBarLocation: 'top', expected: false },
+			{ name: 'classic menu', updateVisible: true, menuBarVisibility: 'classic', activityBarLocation: 'top', expected: false },
+			{ name: 'hidden menu', updateVisible: true, menuBarVisibility: 'hidden', activityBarLocation: 'top', expected: true },
+			{ name: 'toggle menu', updateVisible: true, menuBarVisibility: 'toggle', activityBarLocation: 'top', expected: true },
+			{ name: 'compact menu', updateVisible: true, menuBarVisibility: 'compact', activityBarLocation: 'top', expected: true },
+			{ name: 'bottom activity bar', updateVisible: true, menuBarVisibility: 'visible', activityBarLocation: 'bottom', expected: true },
+			{ name: 'chat in progress', updateVisible: true, menuBarVisibility: 'visible', activityBarLocation: 'top', chatInProgress: true, expected: true },
+		];
+
+		const actual = scenarios.map(scenario => {
+			const contextKeyService = new TestContextKeyService();
+			UpdateTitleBarContext.bindTo(contextKeyService).set(scenario.updateVisible);
+			UpdateTitleBarChatInProgressContext.bindTo(contextKeyService).set(scenario.chatInProgress ?? false);
+			InEditorZenModeContext.bindTo(contextKeyService);
+			contextKeyService.createKey('config.window.menuBarVisibility', scenario.menuBarVisibility);
+			contextKeyService.createKey('config.workbench.activityBar.location', scenario.activityBarLocation);
+
+			return {
+				name: scenario.name,
+				visible: contextKeyService.contextMatchesRules(UpdateGlobalActivityBadgeVisibleContext),
+			};
+		});
+
+		assert.deepStrictEqual(actual, scenarios.map(({ name, expected }) => ({ name, visible: expected })));
 	});
 });
 
