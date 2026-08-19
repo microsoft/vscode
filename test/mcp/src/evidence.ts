@@ -391,6 +391,12 @@ export class EvidenceService {
 	}
 
 	private async showOverlay(id: string, title: string, status: string): Promise<void> {
+		if (process.env.VSCODE_EVIDENCE_CLEAN_CAPTURE === '1') {
+			// The overlay is appended to the DOM of the product under test, so it can
+			// shift layout and influence focus or selectors. Callers that annotate the
+			// recording afterwards opt out to keep the capture faithful.
+			return;
+		}
 		const app = this.appService.application;
 		if (!app) {
 			throw new Error('VS Code is not running.');

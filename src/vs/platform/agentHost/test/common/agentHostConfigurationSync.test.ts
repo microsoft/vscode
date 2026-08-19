@@ -8,12 +8,14 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { IConfigurationService, IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
-import { getAgentHostConfigurationSyncEntries, getGlobalConfigurationValue, inspectValue, resolveAgentHostConfigurationSyncPatch } from '../../common/agentHostConfigurationSync.js';
+import { formatAgentHostConfigurationSyncValueForLog, getAgentHostConfigurationSyncEntries, getGlobalConfigurationValue, inspectValue, resolveAgentHostConfigurationSyncPatch } from '../../common/agentHostConfigurationSync.js';
 
 const ALL_HOSTS_SETTING = 'test.agentHostSync.allHosts';
 const LOCAL_ONLY_SETTING = 'test.agentHostSync.localOnly';
 const HIDDEN_SETTING = 'test.agentHostSync.hidden';
 const UNSYNCED_SETTING = 'test.agentHostSync.unsynced';
+const ENUM_SETTING = 'test.agentHostSync.enum';
+const FREEFORM_SETTING = 'test.agentHostSync.freeform';
 
 /**
  * Stands in for `IConfigurationService` with per-layer control over `inspect`,
@@ -57,6 +59,17 @@ suite('AgentHostConfigurationSync', () => {
 			[UNSYNCED_SETTING]: {
 				type: 'boolean' as const,
 				default: true,
+			},
+			[ENUM_SETTING]: {
+				type: 'string' as const,
+				enum: ['none', 'all'],
+				default: 'none',
+				agentHost: { key: 'enumValue' },
+			},
+			[FREEFORM_SETTING]: {
+				type: 'string' as const,
+				default: '',
+				agentHost: { key: 'freeformValue' },
 			},
 		},
 	};
@@ -114,6 +127,17 @@ suite('AgentHostConfigurationSync', () => {
 			[false, 'applicationValue'],
 			undefined,
 		]);
+	});
+
+	test('formats closed-set values for logging and redacts everything else', () => {
+		assert.deepStrictEqual([
+			formatAgentHostConfigurationSyncValueForLog(ALL_HOSTS_SETTING, true),
+			formatAgentHostConfigurationSyncValueForLog(ENUM_SETTING, 'all'),
+			formatAgentHostConfigurationSyncValueForLog(ENUM_SETTING, 'c:\\Users\\someone\\secret'),
+			formatAgentHostConfigurationSyncValueForLog(FREEFORM_SETTING, 'c:\\Users\\someone\\secret'),
+			formatAgentHostConfigurationSyncValueForLog(UNSYNCED_SETTING, { '**/secret/**': true }),
+			formatAgentHostConfigurationSyncValueForLog(UNSYNCED_SETTING, ['c:\\Users\\someone']),
+		], ['true', 'all', '<string>', '<string>', '<object>', '<array>']);
 	});
 
 	test('builds a patch applying transforms, including for hidden settings', () => {
