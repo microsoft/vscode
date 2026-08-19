@@ -392,6 +392,48 @@ function sameDraftUserContent(a: Message | undefined, b: Message | undefined): b
 }
 
 /**
+ * Mirrors the chat channel's draft so an outbound sync can tell a real edit from a model
+ * this client could not resolve and merely fell back from.
+ */
+export class DraftSyncState {
+	private _synced: Message | undefined;
+	private _appliedRemote: Message | undefined;
+
+	constructor(
+		remoteDraft: Message | undefined,
+		private readonly _canResolveModel: (draft: Message) => boolean,
+	) {
+		this._synced = remoteDraft;
+		this._appliedRemote = remoteDraft;
+	}
+
+	get synced(): Message | undefined {
+		return this._synced;
+	}
+
+	applyRemote(remoteDraft: Message | undefined): void {
+		this._synced = remoteDraft;
+		this._appliedRemote = remoteDraft;
+	}
+
+	/** `adopt` records the draft without publishing it: a fallback showing through, not a user pick. */
+	next(outgoing: Message | undefined): 'skip' | 'adopt' | 'publish' {
+		if (equals(this._synced, outgoing)) {
+			return 'skip';
+		}
+		this._synced = outgoing;
+		if (this._appliedRemote
+			&& sameDraftUserContent(outgoing, this._appliedRemote)
+			&& !this._canResolveModel(this._appliedRemote)
+		) {
+			return 'adopt';
+		}
+		this._appliedRemote = undefined;
+		return 'publish';
+	}
+}
+
+/**
  * Map a local {@link ConfirmedReason} (how the {@link ChatToolInvocation}
  * resolved its confirmation gate) to the protocol's
  * {@link ToolCallConfirmationReason}. Only called for approved reasons
@@ -5200,28 +5242,30 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const value = chatSubscription.value;
 			return value && !(value instanceof Error) ? value.draft : undefined;
 		};
-		let syncedDraft = readRemoteDraft();
+		// Mirrors `_draftToInputState`; re-checked per call since providers register asynchronously.
+		const canResolveDraftModel = (draft: Message): boolean => {
+			const rawModelId = draft.model?.id;
+			if (!rawModelId) {
+				return true;
+			}
+			const modelId = this._toLanguageModelId(sessionResource, rawModelId);
+			return !!modelId && !!this._languageModelsService.lookupLanguageModel(modelId);
+		};
+		const draftState = new DraftSyncState(readRemoteDraft(), canResolveDraftModel);
 		// The last `draft` object seen on the chat channel. Protocol state is
 		// immutable, so an identical reference means the draft did not change —
 		// letting the listener bail on a reference check instead of a deep
 		// compare, which matters because it runs on every chat state change
 		// (each streaming delta), not just draft changes.
-		let lastRemoteDraft = syncedDraft;
-		let appliedRemoteDraft: Message | undefined;
+		let lastRemoteDraft = draftState.synced;
 		const syncDraft = (state: IChatModelInputState | undefined): void => {
 			if (state?.origin === ChatInputStateOrigin.Remote) {
 				return;
 			}
 			const draft = this._inputStateToDraft(sessionResource, state);
-			if (equals(syncedDraft, draft)) {
+			if (draftState.next(draft) !== 'publish') {
 				return;
 			}
-			if (appliedRemoteDraft && sameDraftUserContent(draft, appliedRemoteDraft)) {
-				syncedDraft = draft;
-				return;
-			}
-			appliedRemoteDraft = undefined;
-			syncedDraft = draft;
 
 			this._config.connection.dispatch(chatKey, {
 				type: ActionType.ChatDraftChanged,
@@ -5238,16 +5282,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return;
 			}
 			lastRemoteDraft = remoteDraft;
-			if (equals(syncedDraft, remoteDraft)) {
+			if (equals(draftState.synced, remoteDraft)) {
 				return;
 			}
 			const localDraft = this._inputStateToDraft(sessionResource, inputModel.state.get());
-			if (!equals(syncedDraft, localDraft)) {
+			if (!equals(draftState.synced, localDraft)) {
 				// The pending outbound debounce will publish the local edit (last writer wins).
 				return;
 			}
-			syncedDraft = remoteDraft;
-			appliedRemoteDraft = remoteDraft;
+			draftState.applyRemote(remoteDraft);
 			this._applyRemoteDraft(inputModel, sessionResource, remoteDraft);
 		}));
 		store.add(toDisposable(() => {
