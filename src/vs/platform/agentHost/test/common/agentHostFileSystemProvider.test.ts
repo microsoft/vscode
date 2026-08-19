@@ -94,7 +94,7 @@ suite('AgentHostAuthority - encoding', () => {
 	});
 
 	test('different addresses produce different authorities', () => {
-		const cases = ['localhost:8080', 'localhost:8081', '192.168.1.1:8080', 'host-name:80', 'host.name:80', 'host_name:80', 'user@host:8080', '_', 'hex-5f'];
+		const cases = ['localhost:8080', 'localhost:8081', '192.168.1.1:8080', 'host-name:80', 'host.name:80', 'host_name:80', 'user@host:8080', '_', 'hex-5f', 'HEX-5f'];
 		const results = cases.map(agentHostAuthority);
 		const unique = new Set(results);
 		assert.strictEqual(unique.size, cases.length, 'all authorities must be unique');

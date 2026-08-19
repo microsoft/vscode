@@ -134,6 +134,10 @@ const HEX_AGENT_HOST_AUTHORITY_PREFIX = 'hex-';
 /**
  * Encode a remote address into an identifier that is safe for use in
  * both URI schemes and case-insensitive URI authorities without collisions.
+ *
+ * The reserved `local` name becomes `remote_local`; lowercase alphanumeric
+ * addresses pass through; lowercase host-like addresses replace `:` with `__`;
+ * all other values use lowercase hex with a reserved `hex-` prefix.
  */
 export function agentHostAuthority(address: string): string {
 	const normalized = normalizeRemoteAgentHostAddress(address);
@@ -143,7 +147,7 @@ export function agentHostAuthority(address: string): string {
 	if (/^[a-z0-9]+$/.test(normalized)) {
 		return normalized;
 	}
-	if (/^[a-z0-9.:\-]+$/.test(normalized) && !normalized.startsWith(HEX_AGENT_HOST_AUTHORITY_PREFIX)) {
+	if (/^[a-z0-9.:\-]+$/.test(normalized) && !/^hex-/i.test(normalized)) {
 		return normalized.replaceAll(':', '__');
 	}
 	return `${HEX_AGENT_HOST_AUTHORITY_PREFIX}${encodeHex(VSBuffer.fromString(normalized))}`;
