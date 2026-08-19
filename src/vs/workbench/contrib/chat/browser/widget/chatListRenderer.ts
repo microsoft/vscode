@@ -6,6 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { renderFormattedText } from '../../../../../base/browser/formattedTextRenderer.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { maxMarkdownRenderLength, postProcessCodeBlockLanguageId } from '../../../../../base/browser/markdownRenderer.js';
 import { IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -24,6 +25,7 @@ import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, dispose, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
+import { marked, type Token, Tokens } from '../../../../../base/common/marked/marked.js';
 import { ScrollEvent } from '../../../../../base/common/scrollable.js';
 import { FileAccess, Schemas } from '../../../../../base/common/network.js';
 import { clamp, formatTokenCount } from '../../../../../base/common/numbers.js';
@@ -48,7 +50,7 @@ import { parseRemoteAgentHostSessionTypeAuthority } from '../../../../../platfor
 import { isCreateChatTool, isCreateSessionTool, isSendMessageTool } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CodiconActionViewItem } from '../../../notebook/browser/view/cellParts/cellActionView.js';
-import { annotateSpecialMarkdownContent, extractSubAgentInvocationIdFromText, hasCodeblockUriTag, hasEditCodeblockUriTag } from '../../common/widget/annotations.js';
+import { annotateSpecialMarkdownContent, contentRefUrl, extractSubAgentInvocationIdFromText, hasCodeblockUriTag, hasEditCodeblockUriTag } from '../../common/widget/annotations.js';
 import { checkModeOption } from '../../common/chat.js';
 import { IChatAgentMetadata } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
@@ -68,6 +70,7 @@ import { ClickAnimation } from '../../../../../base/browser/ui/animations/animat
 import { ForkConversationActionId } from '../actions/chatForkActions.js';
 import { MarkHelpfulActionId } from '../actions/chatTitleActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from '../chat.js';
+import { IChatOutputRendererService } from '../chatOutputItemRenderer.js';
 import { AgentHostSnapshotController } from '../agentSessions/agentHost/agentHostSnapshotController.js';
 import { RestoreCheckpointActionId, StartOverActionId } from '../chatEditing/chatEditingActions.js';
 import { ChatForkActionViewItem } from './chatForkActionViewItem.js';
@@ -93,7 +96,7 @@ import { ChatErrorContentPart } from './chatContentParts/chatErrorContentPart.js
 import { ChatPlanReviewPart } from './chatContentParts/chatPlanReviewPart.js';
 import { ChatQuestionCarouselPart } from './chatContentParts/chatQuestionCarouselPart.js';
 import { ChatExtensionsContentPart } from './chatContentParts/chatExtensionsContentPart.js';
-import { ChatMarkdownContentPart, codeblockHasClosingBackticks } from './chatContentParts/chatMarkdownContentPart.js';
+import { ChatMarkdownContentPart, codeblockHasClosingFence } from './chatContentParts/chatMarkdownContentPart.js';
 import { ChatMcpServersInteractionContentPart } from './chatContentParts/chatMcpServersInteractionContentPart.js';
 import { ChatMcpAuthenticationContentPart } from './chatContentParts/chatMcpAuthenticationContentPart.js';
 import { ChatMcpServersStartingContentPart } from './chatContentParts/chatMcpServersStartingContentPart.js';
@@ -288,6 +291,242 @@ export function getFinalResponseStartIndexAfterMovingResponseOutcomeTools(conten
 
 export function isFinalResponseRendered(content: ReadonlyArray<IChatRendererContent>, finalResponseStartIndex: number | undefined): boolean {
 	return finalResponseStartIndex !== undefined && content[finalResponseStartIndex]?.kind === 'markdownContent';
+}
+
+export function splitMarkdownContentAtRenderedCodeBlocks(markdown: IChatMarkdownContent, hasRenderer: (languageId: string) => boolean): IChatMarkdownContent[] {
+	const value = markdown.content.value;
+	if (value.length > maxMarkdownRenderLength || markdown.content.supportHtml) {
+		return [markdown];
+	}
+
+	const normalized = normalizeMarkdownSource(value);
+	const fencePattern = /(?:`{3,}|~{3,})(?<info>[^\n]*)/g;
+	let hasRenderedFence = false;
+	for (const match of normalized.value.matchAll(fencePattern)) {
+		if (hasRenderer(postProcessCodeBlockLanguageId(match.groups?.info.trim()))) {
+			hasRenderedFence = true;
+			break;
+		}
+	}
+	if (!hasRenderedFence) {
+		return [markdown];
+	}
+
+	const tokens = marked.lexer(normalized.value, { gfm: true, breaks: true });
+	const splitOffsets: number[] = [];
+	const codeRanges: Array<{ readonly start: number; readonly end: number }> = [];
+	if (!collectMarkdownCodeBlockRanges(tokens, normalized.value, undefined, hasRenderer, splitOffsets, codeRanges)) {
+		return [markdown];
+	}
+	const usableSplitOffsets = [...new Set(splitOffsets
+		.map(offset => trimTrailingLineEnding(value, normalized.originalOffsets[offset]))
+		.filter(offset => offset < value.length))]
+		.sort((a, b) => a - b);
+
+	if (usableSplitOffsets.length === 0 || Object.keys(tokens.links).length > 0 || hasPotentialReferenceLinks(normalized.value, codeRanges)) {
+		return [markdown];
+	}
+
+	const result: IChatMarkdownContent[] = [];
+	let start = 0;
+	for (const splitOffset of usableSplitOffsets) {
+		result.push(createMarkdownSegment(markdown, value.slice(start, splitOffset)));
+		start = splitOffset;
+	}
+	result.push(createMarkdownSegment(markdown, value.slice(start)));
+	return result;
+}
+
+interface IMarkdownSourceMap {
+	readonly startOffsets: readonly number[];
+	readonly endOffsets: readonly number[];
+}
+
+function collectMarkdownCodeBlockRanges(
+	tokens: readonly Token[],
+	source: string,
+	sourceMap: IMarkdownSourceMap | undefined,
+	hasRenderer: (languageId: string) => boolean,
+	splitOffsets: number[],
+	codeRanges: Array<{ readonly start: number; readonly end: number }>,
+): boolean {
+	let searchOffset = 0;
+	for (const token of tokens) {
+		const tokenOffset = source.indexOf(token.raw, searchOffset);
+		if (tokenOffset < 0) {
+			return false;
+		}
+		const tokenEnd = tokenOffset + token.raw.length;
+		searchOffset = tokenEnd;
+
+		if (token.type === 'code') {
+			const codeStart = getMarkdownSourceStart(sourceMap, tokenOffset);
+			const codeEnd = getMarkdownSourceEnd(sourceMap, tokenEnd);
+			codeRanges.push({ start: codeStart, end: codeEnd });
+
+			if (codeblockHasClosingFence(token.raw)
+				&& hasRenderer(postProcessCodeBlockLanguageId((token as Tokens.Code).lang))) {
+				splitOffsets.push(codeEnd);
+			}
+		} else if (token.type === 'blockquote') {
+			const blockquote = token as Tokens.Blockquote;
+			const nestedSourceMap = createNestedMarkdownSourceMap(blockquote.raw, blockquote.text, sourceMap, tokenOffset);
+			if (!nestedSourceMap || !collectMarkdownCodeBlockRanges(blockquote.tokens, blockquote.text, nestedSourceMap, hasRenderer, splitOffsets, codeRanges)) {
+				return false;
+			}
+		} else if (token.type === 'list') {
+			const list = token as Tokens.List;
+			let itemSearchOffset = 0;
+			for (const item of list.items) {
+				const itemOffset = list.raw.indexOf(item.raw, itemSearchOffset);
+				if (itemOffset < 0) {
+					return false;
+				}
+				itemSearchOffset = itemOffset + item.raw.length;
+
+				const nestedSourceMap = createNestedMarkdownSourceMap(item.raw, item.text, sourceMap, tokenOffset + itemOffset);
+				if (!nestedSourceMap || !collectMarkdownCodeBlockRanges(item.tokens, item.text, nestedSourceMap, hasRenderer, splitOffsets, codeRanges)) {
+					return false;
+				}
+			}
+		}
+	}
+	return true;
+}
+
+function createNestedMarkdownSourceMap(raw: string, text: string, parentSourceMap: IMarkdownSourceMap | undefined, parentOffset: number): IMarkdownSourceMap | undefined {
+	const rawLines = (raw.endsWith('\n') && !text.endsWith('\n') ? raw.slice(0, -1) : raw).split('\n');
+	const textLines = text.split('\n');
+	if (rawLines.length !== textLines.length) {
+		return undefined;
+	}
+
+	const startOffsets = new Array<number>(text.length + 1);
+	const endOffsets = new Array<number>(text.length + 1);
+	let rawLineStart = 0;
+	let textLineStart = 0;
+	for (let index = 0; index < rawLines.length; index++) {
+		const rawLine = rawLines[index];
+		const textLine = textLines[index];
+		if (!rawLine.endsWith(textLine)) {
+			return undefined;
+		}
+
+		const contentStart = rawLineStart + rawLine.length - textLine.length;
+		startOffsets[textLineStart] = getMarkdownSourceStart(parentSourceMap, parentOffset + contentStart);
+		if (index === 0) {
+			endOffsets[textLineStart] = getMarkdownSourceEnd(parentSourceMap, parentOffset + contentStart);
+		}
+
+		for (let character = 0; character < textLine.length; character++) {
+			const textOffset = textLineStart + character + 1;
+			const rawOffset = contentStart + character + 1;
+			startOffsets[textOffset] = getMarkdownSourceStart(parentSourceMap, parentOffset + rawOffset);
+			endOffsets[textOffset] = getMarkdownSourceEnd(parentSourceMap, parentOffset + rawOffset);
+		}
+
+		if (index < rawLines.length - 1) {
+			const nextTextLineStart = textLineStart + textLine.length + 1;
+			const nextRawLineStart = rawLineStart + rawLine.length + 1;
+			endOffsets[nextTextLineStart] = getMarkdownSourceEnd(parentSourceMap, parentOffset + nextRawLineStart);
+			rawLineStart = nextRawLineStart;
+			textLineStart = nextTextLineStart;
+		}
+	}
+
+	for (let offset = 0; offset <= text.length; offset++) {
+		if (startOffsets[offset] === undefined || endOffsets[offset] === undefined) {
+			return undefined;
+		}
+	}
+	return { startOffsets, endOffsets };
+}
+
+function getMarkdownSourceStart(sourceMap: IMarkdownSourceMap | undefined, offset: number): number {
+	return sourceMap ? sourceMap.startOffsets[offset] : offset;
+}
+
+function getMarkdownSourceEnd(sourceMap: IMarkdownSourceMap | undefined, offset: number): number {
+	return sourceMap ? sourceMap.endOffsets[offset] : offset;
+}
+
+export function prepareResponseContentForRendering(
+	sourceParts: Iterable<IChatProgressResponseContent>,
+	isComplete: boolean,
+	hasRenderer: (languageId: string) => boolean,
+): IChatRendererContent[] {
+	const annotatedContent = annotateSpecialMarkdownContent(sourceParts);
+	if (isComplete) {
+		return annotatedContent;
+	}
+
+	const result: IChatRendererContent[] = [];
+	for (const part of annotatedContent) {
+		if (part.kind === 'markdownContent') {
+			result.push(...splitMarkdownContentAtRenderedCodeBlocks(part, hasRenderer));
+		} else {
+			result.push(part);
+		}
+	}
+	return result;
+}
+
+function normalizeMarkdownSource(value: string): { readonly value: string; readonly originalOffsets: readonly number[] } {
+	let normalized = '';
+	const originalOffsets = [0];
+	for (let index = 0; index < value.length;) {
+		const character = value[index];
+		if (character === '\r') {
+			const nextOffset = index + (value[index + 1] === '\n' ? 2 : 1);
+			normalized += '\n';
+			originalOffsets.push(nextOffset);
+			index = nextOffset;
+		} else {
+			normalized += character;
+			originalOffsets.push(++index);
+		}
+	}
+	return { value: normalized, originalOffsets };
+}
+
+function trimTrailingLineEnding(value: string, offset: number): number {
+	if (value[offset - 1] === '\n') {
+		return value[offset - 2] === '\r' ? offset - 2 : offset - 1;
+	}
+	return value[offset - 1] === '\r' ? offset - 1 : offset;
+}
+
+function hasPotentialReferenceLinks(value: string, codeRanges: readonly { readonly start: number; readonly end: number }[]): boolean {
+	let nonCodeMarkdown = '';
+	let offset = 0;
+	for (const range of codeRanges) {
+		nonCodeMarkdown += value.slice(offset, range.start);
+		offset = range.end;
+	}
+	nonCodeMarkdown += value.slice(offset);
+	return /(?:^|[^\\])!?\[(?:\\[\s\S]|[^\]\\])+\](?!\s*\()/m.test(nonCodeMarkdown);
+}
+
+function createMarkdownSegment(markdown: IChatMarkdownContent, value: string): IChatMarkdownContent {
+	return {
+		...markdown,
+		content: MarkdownString.lift({ ...markdown.content, value }),
+		inlineReferences: filterInlineReferences(markdown.inlineReferences, value),
+	};
+}
+
+function filterInlineReferences(inlineReferences: IChatMarkdownContent['inlineReferences'], value: string): IChatMarkdownContent['inlineReferences'] {
+	if (!inlineReferences) {
+		return undefined;
+	}
+
+	const entries = Object.entries(inlineReferences).filter(([id]) => value.includes(`${contentRefUrl}/${id})`));
+	return entries.length ? Object.fromEntries(entries) : undefined;
+}
+
+function markdownEndsWithCompleteFence(value: string): boolean {
+	const lastToken = marked.lexer(value, { gfm: true, breaks: true }).findLast(token => token.raw.trim().length > 0);
+	return lastToken?.type === 'code' && codeblockHasClosingFence(lastToken.raw);
 }
 
 export function moveResponseOutcomeToolsAfterFinalResponse(content: ReadonlyArray<IChatRendererContent>): IChatRendererContent[] {
@@ -669,6 +908,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	 * by screen readers
 	 */
 	private readonly _announcedToolProgressKeys = new Set<string>();
+	private readonly _responseContentCache = new WeakMap<IChatResponseViewModel, {
+		readonly dataId: string;
+		readonly sourceParts: readonly IChatProgressResponseContent[];
+		readonly content: IChatRendererContent[];
+	}>();
 
 	constructor(
 		editorOptions: ChatEditorOptions,
@@ -686,6 +930,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IChatService private readonly chatService: IChatService,
+		@IChatOutputRendererService private readonly chatOutputRendererService: IChatOutputRendererService,
 		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
@@ -1622,7 +1867,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			// Always add the references to avoid shifting the content parts when a reference is added, and having to re-diff all the content.
 			// The part will hide itself if the list is empty.
 			content.push({ kind: 'references', references: element.contentReferences });
-			const responseContent = annotateSpecialMarkdownContent(element.response.value);
+			const responseContent = this.getResponseContent(element);
 			content.push(...(element.isComplete ? moveResponseOutcomeToolsAfterFinalResponse(responseContent) : responseContent));
 			if (element.codeCitations.length) {
 				content.push({ kind: 'codeCitations', citations: element.codeCitations });
@@ -2467,7 +2712,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 
-		const responseContent = annotateSpecialMarkdownContent(element.response.value);
+		const responseContent = this.getResponseContent(element);
 		const responseFinalStartIndex = getFinalResponseStartIndexAfterMovingResponseOutcomeTools(responseContent);
 		const finalResponseStartIndex = responseFinalStartIndex === undefined ? undefined : responseFinalStartIndex + 1;
 		if (finalResponseStartIndex === undefined || !isFinalResponseRendered(content, finalResponseStartIndex) || finalResponseStartIndex === 0 || !content.slice(0, finalResponseStartIndex).some(part => part.kind !== 'references' || part.references.length > 0)) {
@@ -2609,7 +2854,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// The morpher's own buffer + rAF loop is the sole rate limiter.
 		const incrementalRendering = this.configService.getValue<boolean>(ChatConfiguration.IncrementalRendering) === true;
 
-		const responseContent = annotateSpecialMarkdownContent(element.response.value);
+		const responseContent = this.getResponseContent(element);
 		const renderableResponse = element.isComplete ? moveResponseOutcomeToolsAfterFinalResponse(responseContent) : responseContent;
 
 		this.traceLayout('getNextProgressiveRenderContent', `Want to render ${data.numWordsToRender} at ${data.rate} words/s, counting...`);
@@ -2683,6 +2928,24 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		return { content: partsToRender, moreContentAvailable };
+	}
+
+	private getResponseContent(element: IChatResponseViewModel): IChatRendererContent[] {
+		const sourceParts = element.response.value;
+		if (element.isComplete) {
+			return prepareResponseContentForRendering(sourceParts, true, languageId => this.chatOutputRendererService.hasCodeBlockRenderer(languageId));
+		}
+
+		const cached = this._responseContentCache.get(element);
+		if (cached?.dataId === element.dataId
+			&& cached.sourceParts.length === sourceParts.length
+			&& cached.sourceParts.every((part, index) => part === sourceParts[index])) {
+			return cached.content;
+		}
+
+		const result = prepareResponseContentForRendering(sourceParts, false, languageId => this.chatOutputRendererService.hasCodeBlockRenderer(languageId));
+		this._responseContentCache.set(element, { dataId: element.dataId, sourceParts: [...sourceParts], content: result });
+		return result;
 	}
 
 	private shouldShowFileChangesSummary(element: IChatResponseViewModel): boolean {
@@ -2760,7 +3023,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (part.kind !== 'markdownContent') {
 			return true;
 		}
-		return !isResponseVM(element) || element.isComplete || codeblockHasClosingBackticks(part.content.value);
+		return !isResponseVM(element) || element.isComplete || markdownEndsWithCompleteFence(part.content.value);
 	}
 
 	// todo @justschen initially split up each of the checks to easily see what should be pinned/not pinned, we can probably consolidate this down by a lot once we're more confident in the logic.
@@ -4137,7 +4400,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// Only check codeblocks that contain a URI tag to avoid catching regular non-edit codeblocks.
 		const hasPendingEditCodeblock = isResponseVM(element) && !element.isComplete
 			&& hasCodeblockUriTag(markdown.content.value)
-			&& !codeblockHasClosingBackticks(markdown.content.value);
+			&& !markdownEndsWithCompleteFence(markdown.content.value);
 		if (!this.hasEditCodeblockUri(markdown) && !isBlankMarkdown && !hasPendingEditCodeblock) {
 			this.finalizeCurrentThinkingPart(context, templateData);
 		}

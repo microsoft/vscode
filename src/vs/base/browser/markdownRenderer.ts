@@ -211,6 +211,8 @@ export interface IRenderedMarkdown extends IDisposable {
 	readonly element: HTMLElement;
 }
 
+export const maxMarkdownRenderLength = 100_000;
+
 /**
  * Low-level way create a html element from a markdown string.
  *
@@ -454,8 +456,8 @@ function preprocessMarkdownString(markdown: IMarkdownString) {
 	let value = markdown.value;
 
 	// values that are too long will freeze the UI
-	if (value.length > 100_000) {
-		value = `${value.substr(0, 100_000)}…`;
+	if (value.length > maxMarkdownRenderLength) {
+		value = `${value.substr(0, maxMarkdownRenderLength)}…`;
 	}
 
 	// escape theme icons
@@ -536,7 +538,7 @@ function massageHref(markdown: IMarkdownString, href: string, isDomUri: boolean)
 	return uri.toString();
 }
 
-function postProcessCodeBlockLanguageId(lang: string | undefined): string {
+export function postProcessCodeBlockLanguageId(lang: string | undefined): string {
 	if (!lang) {
 		return '';
 	}

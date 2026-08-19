@@ -21,7 +21,7 @@ import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browse
 import { toAgentHostUri } from '../../../../../../../platform/agentHost/common/agentHostUri.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
-import { ChatMarkdownContentPart } from '../../../../browser/widget/chatContentParts/chatMarkdownContentPart.js';
+import { ChatMarkdownContentPart, codeblockHasClosingFence } from '../../../../browser/widget/chatContentParts/chatMarkdownContentPart.js';
 import { ChatContentMarkdownRenderer } from '../../../../browser/widget/chatContentMarkdownRenderer.js';
 import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { CodeBlockPart, ICodeBlockData } from '../../../../browser/widget/chatContentParts/codeBlockPart.js';
@@ -366,6 +366,36 @@ suite('ChatMarkdownContentPart', () => {
 		assert.ok(part.domNode.querySelector('.chat-output-code-block'));
 	});
 
+	test('recognizes only a matching closing fence', () => {
+		assert.deepStrictEqual({
+			backticks: codeblockHasClosingFence('```mermaid\ngraph TD\n```'),
+			longBackticks: codeblockHasClosingFence('````mermaid\ngraph TD\n````'),
+			tooShort: codeblockHasClosingFence('````mermaid\ngraph TD\n```'),
+			mismatched: codeblockHasClosingFence('```mermaid\ngraph TD\n~~~'),
+			tilde: codeblockHasClosingFence('~~~mermaid\ngraph TD\n~~~'),
+			incomplete: codeblockHasClosingFence('```mermaid\ngraph TD'),
+		}, {
+			backticks: true,
+			longBackticks: true,
+			tooShort: false,
+			mismatched: false,
+			tilde: true,
+			incomplete: false,
+		});
+	});
+
+	test('renders complete tilde-fenced code block with contributed chat output renderer', () => {
+		const part = createMarkdownPart('~~~mermaid\ngraph TD\n~~~', createRenderContext(false));
+
+		assert.deepStrictEqual({
+			renderedOutputs: renderedCodeBlockOutputs,
+			codeBlockCount: part.codeblocks.length,
+		}, {
+			renderedOutputs: [{ identifier: 'mermaid', text: 'graph TD' }],
+			codeBlockCount: 1,
+		});
+	});
+
 	test('reuses rendered code block webview across incremental rerenders when content is unchanged', async () => {
 		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 		configService.setUserConfiguration(ChatConfiguration.IncrementalRendering, true);
@@ -408,6 +438,32 @@ suite('ChatMarkdownContentPart', () => {
 		assert.strictEqual(part.codeblocks[0].languageId, 'mermaid');
 		assert.ok(part.domNode.querySelector('.chat-output-code-block'));
 		assert.ok(part.domNode.textContent?.includes('Rendering code block'));
+	});
+
+	test('keeps pending chat output renderer mounted while code block content streams', async () => {
+		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		configService.setUserConfiguration(ChatConfiguration.IncrementalRendering, true);
+
+		const ctx = createRenderContext(false);
+		const part = createMarkdownPart('```mermaid\ngraph', ctx, true);
+		const pendingOutput = part.domNode.querySelector('.chat-output-code-block');
+		assert.ok(pendingOutput);
+
+		assert.strictEqual(part.tryIncrementalUpdate({
+			kind: 'markdownContent',
+			content: new MarkdownString('```mermaid\ngraph TD\nA-->B'),
+		}), true);
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+
+		assert.deepStrictEqual({
+			sameOutput: part.domNode.querySelector('.chat-output-code-block') === pendingOutput,
+			renderedOutputs: renderedCodeBlockOutputs,
+			text: part.domNode.textContent,
+		}, {
+			sameOutput: true,
+			renderedOutputs: [],
+			text: 'Rendering code block...',
+		});
 	});
 
 	test('renders multiple code blocks with correct indices', () => {

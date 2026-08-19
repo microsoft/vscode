@@ -241,7 +241,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				}),
 				fillInIncompleteTokens,
 				codeBlockRendererSync: (languageId, text, raw) => {
-					const isCodeBlockComplete = !isResponseVM(context.element) || context.element.isComplete || !raw || codeblockHasClosingBackticks(raw);
+					const isCodeBlockComplete = !isResponseVM(context.element) || context.element.isComplete || !raw || codeblockHasClosingFence(raw);
 					const hasChatOutputRenderer = !!languageId
 						&& this.chatOutputRendererService.hasCodeBlockRenderer(languageId);
 					if ((!text || (text.startsWith('<vscode_codeblock_uri') && !text.includes('\n')))
@@ -701,9 +701,15 @@ function equalsSymbolTags(a: readonly SymbolTag[] | undefined, b: readonly Symbo
 	return a.every((tag, index) => tag === b[index]);
 }
 
-export function codeblockHasClosingBackticks(str: string): boolean {
-	str = str.trim();
-	return !!str.match(/\n```+$/);
+export function codeblockHasClosingFence(str: string): boolean {
+	const openingMatch = /^(?: {0,3})(?<fence>`{3,}|~{3,})[^\r\n]*(?:\r?\n|$)/.exec(str);
+	const openingFence = openingMatch?.groups?.fence;
+	if (!openingFence) {
+		return false;
+	}
+
+	const marker = openingFence[0];
+	return new RegExp(`(?:^|\\r?\\n) {0,3}${marker}{${openingFence.length},}[\\t ]*(?:\\r?\\n)?$`).test(str.slice(openingMatch[0].length));
 }
 
 class ChatOutputCodeBlockPart extends Disposable {
@@ -800,8 +806,8 @@ class ChatOutputCodeBlockPart extends Disposable {
 
 	hasSameContent(identifier: string, text: string, isComplete: boolean): boolean {
 		return identifier.toLowerCase() === this.identifier.toLowerCase()
-			&& text === this.text
-			&& isComplete === this.isComplete;
+			&& isComplete === this.isComplete
+			&& (!isComplete || text === this.text);
 	}
 
 	override dispose(): void {
