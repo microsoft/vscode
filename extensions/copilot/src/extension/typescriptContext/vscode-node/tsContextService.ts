@@ -760,22 +760,25 @@ export abstract class AbstractTSLanguageContextService implements TSLanguageCont
 
 export class NullTSLanguageContextService implements TSLanguageContextService {
 
+	private readonly disposables: DisposableStore;
+
 	public readonly onCachePopulated: vscode.Event<OnCachePopulatedEvent>;
 	public readonly onContextComputed: vscode.Event<OnContextComputedEvent>;
 	public readonly onContextComputedOnTimeout: vscode.Event<OnContextComputedOnTimeoutEvent>;
 
 	constructor() {
-		this.onCachePopulated = new vscode.EventEmitter<OnCachePopulatedEvent>().event;
-		this.onContextComputed = new vscode.EventEmitter<OnContextComputedEvent>().event;
-		this.onContextComputedOnTimeout = new vscode.EventEmitter<OnContextComputedOnTimeoutEvent>().event;
+		this.disposables = new DisposableStore();
+		this.onCachePopulated = this.disposables.add(new vscode.EventEmitter<OnCachePopulatedEvent>()).event;
+		this.onContextComputed = this.disposables.add(new vscode.EventEmitter<OnContextComputedEvent>()).event;
+		this.onContextComputedOnTimeout = this.disposables.add(new vscode.EventEmitter<OnContextComputedOnTimeoutEvent>()).event;
 	}
 
 	public dispose(): void {
-		// No resources to dispose
+		this.disposables.dispose();
 	}
 
 	public async isActivated(): Promise<boolean> {
-		return true;
+		return false;
 	}
 
 	public async populateCache(): Promise<void> {

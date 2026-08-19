@@ -196,6 +196,8 @@ export class TS7LanguageContextService extends AbstractTSLanguageContextService 
 
 	private async computeContext(api: API<true>, document: vscode.TextDocument, position: vscode.Position, context: RequestContext, startTime: number, timeBudget: number, neighborFiles: readonly string[], clientSideRunnableResults: readonly protocol.CachedContextRunnableResult[] | undefined, token: vscode.CancellationToken): Promise<protocol.ComputeContextResponse.OK | undefined> {
 		try {
+			// Workaround for https://github.com/microsoft/typescript-go/issues/4916
+			api.clearSourceFileCache();
 			const snapshot = await api.updateSnapshot({ openFiles: [ { uri: document.uri.toString() } ] });
 			try {
 				if (token.isCancellationRequested) {

@@ -29,10 +29,11 @@ export class LanguageContextServiceImpl implements ILanguageContextService, vsco
 	readonly _serviceBrand: undefined;
 
 	private readonly disposables: DisposableStore;
+	private readonly serviceListeners: DisposableStore;
 
-	private _onCachePopulated: vscode.EventEmitter<OnCachePopulatedEvent>;
-	private _onContextComputed: vscode.EventEmitter<OnContextComputedEvent>;
-	private _onContextComputedOnTimeout: vscode.EventEmitter<OnContextComputedOnTimeoutEvent>;
+	private readonly _onCachePopulated: vscode.EventEmitter<OnCachePopulatedEvent>;
+	private readonly _onContextComputed: vscode.EventEmitter<OnContextComputedEvent>;
+	private readonly _onContextComputedOnTimeout: vscode.EventEmitter<OnContextComputedOnTimeoutEvent>;
 
 	private tsLanguageContextService: TSLanguageContextService;
 
@@ -43,9 +44,10 @@ export class LanguageContextServiceImpl implements ILanguageContextService, vsco
 		@ILogService private readonly logService: ILogService
 	) {
 		this.disposables = new DisposableStore();
-		this._onCachePopulated = new vscode.EventEmitter<OnCachePopulatedEvent>();
-		this._onContextComputed = new vscode.EventEmitter<OnContextComputedEvent>();
-		this._onContextComputedOnTimeout = new vscode.EventEmitter<OnContextComputedOnTimeoutEvent>();
+		this.serviceListeners = this.disposables.add(new DisposableStore());
+		this._onCachePopulated = this.disposables.add(new vscode.EventEmitter<OnCachePopulatedEvent>());
+		this._onContextComputed = this.disposables.add(new vscode.EventEmitter<OnContextComputedEvent>());
+		this._onContextComputedOnTimeout = this.disposables.add(new vscode.EventEmitter<OnContextComputedOnTimeoutEvent>());
 		const runsTS7 = TypeScript.runsVersion7();
 		const enableTS7 = TypeScript.isVersion7SupportEnabled(this.configurationService);
 		this.tsLanguageContextService = runsTS7
@@ -62,9 +64,7 @@ export class LanguageContextServiceImpl implements ILanguageContextService, vsco
 	}
 
 	public dispose(): void {
-		if (this.tsLanguageContextService !== undefined) {
-			this.tsLanguageContextService.dispose();
-		}
+		this.tsLanguageContextService.dispose();
 		this.disposables.dispose();
 	}
 
@@ -123,9 +123,10 @@ export class LanguageContextServiceImpl implements ILanguageContextService, vsco
 	}
 
 	private bindEvents(): void {
-		this.tsLanguageContextService.onCachePopulated(this._onCachePopulated.fire.bind(this._onCachePopulated));
-		this.tsLanguageContextService.onContextComputed(this._onContextComputed.fire.bind(this._onContextComputed));
-		this.tsLanguageContextService.onContextComputedOnTimeout(this._onContextComputedOnTimeout.fire.bind(this._onContextComputedOnTimeout));
+		this.serviceListeners.clear();
+		this.serviceListeners.add(this.tsLanguageContextService.onCachePopulated(e => this._onCachePopulated.fire(e)));
+		this.serviceListeners.add(this.tsLanguageContextService.onContextComputed(e => this._onContextComputed.fire(e)));
+		this.serviceListeners.add(this.tsLanguageContextService.onContextComputedOnTimeout(e => this._onContextComputedOnTimeout.fire(e)));
 	}
 
 }
