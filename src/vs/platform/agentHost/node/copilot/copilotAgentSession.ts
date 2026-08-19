@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, McpServersLoadedServer, MessageOptions, PermissionAllowAllMode, PermissionAutoApproval, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
+import type { CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, ManagedSettingsResolvedData, JsonValue, McpServersLoadedServer, MessageOptions, PermissionAllowAllMode, PermissionAutoApproval, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
+import { cp, rm } from 'fs/promises';
 import { raceCancellation, RunOnceScheduler, Sequencer, SequencerByKey, Throttler } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -577,6 +578,7 @@ class CopilotTurn {
 	 * agent only), for the restricted `toolCallDetails` telemetry. `toolCounts` is keyed by tool name.
 	 */
 	readonly toolCounts = new Map<string, number>();
+	readonly mainModelCallIds = new Set<string>();
 	toolCallRounds = 0;
 	totalToolCalls = 0;
 	parallelToolCallRounds = 0;
@@ -740,6 +742,26 @@ export class CopilotAgentSession extends Disposable {
 	get currentTurnId(): string | undefined { return this._currentTurn?.id; }
 	get currentTurnClientType(): AgentHostClientType { return this._currentTurn?.clientType ?? AgentHostClientType.Unknown; }
 	get currentTurnClientContext(): IAgentHostClientTelemetryContext | undefined { return this._currentTurn?.clientContext; }
+
+	async collectDebugLogs(outputDirectory: URI, includeSessionLogs: boolean): Promise<void> {
+		const result = await this._wrapper.session.rpc.debug.collectLogs({
+			destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
+			include: {
+				events: includeSessionLogs,
+				processLogs: true,
+				shellLogs: includeSessionLogs,
+			},
+		});
+		if (result.kind !== 'directory' || result.path === outputDirectory.fsPath) {
+			return;
+		}
+		try {
+			await cp(result.path, outputDirectory.fsPath, { recursive: true });
+		} finally {
+			await rm(result.path, { recursive: true, force: true });
+		}
+	}
+
 	/**
 	 * Last model id seen on the SDK's per-LLM-call `Usage` event (or a
 	 * direct {@link setModel} call). We rely on the
@@ -1011,6 +1033,16 @@ export class CopilotAgentSession extends Disposable {
 			kind: 'action',
 			resource: isChatAction(action) ? this._chatChannelUri : this._ownerSessionUri,
 			action,
+			parentToolCallId,
+		});
+	}
+
+	private _emitModelCallCompleted(turnId: string, modelCallId: string, parentToolCallId?: string): void {
+		this._onDidSessionProgress.fire({
+			kind: 'model_call_completed',
+			resource: this._chatChannelUri,
+			turnId,
+			modelCallId,
 			parentToolCallId,
 		});
 	}
@@ -3915,6 +3947,16 @@ export class CopilotAgentSession extends Disposable {
 		this._register(wrapper.onMessage(e => {
 			this._logService.info(`[Copilot:${sessionId}] Full message received: ${e.data.content.length} chars`);
 			this._resumeSubagentForEvent(e);
+			const stableModelCallId = e.data.apiCallId ?? e.data.clientRequestId;
+			const isCompleteModelCall = stableModelCallId !== undefined
+				|| e.data.chunkCount === undefined
+				|| e.data.chunkCount <= 1
+				|| e.data.chunkIndex === e.data.chunkCount - 1;
+			const modelCallId = stableModelCallId ?? e.data.messageId;
+			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
+			if (isCompleteModelCall && (!e.agentId || parentToolCallId)) {
+				this._emitModelCallCompleted(this._turnId, modelCallId, parentToolCallId);
+			}
 			// Report the enhanced GH `request.options.tools` event for this model call — parity with
 			// the Copilot extension, which emits it per LLM request. `assistant.message` is the
 			// agent-host's per-model-call boundary; we correlate on its client-minted `x-request-id`.
@@ -3931,7 +3973,10 @@ export class CopilotAgentSession extends Disposable {
 				// too); the tool-count stats only apply to rounds that carried tool requests.
 				const turn = this._currentTurn;
 				if (turn) {
-					turn.toolCallRounds++;
+					if (isCompleteModelCall && !turn.mainModelCallIds.has(modelCallId)) {
+						turn.mainModelCallIds.add(modelCallId);
+						turn.toolCallRounds++;
+					}
 					if (e.data.model) {
 						turn.lastModel = e.data.model;
 					}
@@ -3960,7 +4005,6 @@ export class CopilotAgentSession extends Disposable {
 			if (this._shouldDropUnmappedSubagentEvent(e, 'assistant.message')) {
 				return;
 			}
-			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 			const markdownScope = parentToolCallId ?? '';
 			if (e.data.content && !this._currentTurn?.markdownPartIds.has(markdownScope)) {
 				const partId = generateUuid();
