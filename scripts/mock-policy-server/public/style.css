@@ -136,6 +136,7 @@ h2 {
 .global-status[data-state='ready'] .status-indicator {
 	border-color: var(--ok);
 	background: var(--ok);
+	animation: status-detected 500ms ease-out;
 }
 
 .global-status[data-state='error'] {
@@ -145,6 +146,12 @@ h2 {
 .global-status[data-state='error'] .status-indicator {
 	border-color: var(--error);
 	background: var(--error);
+}
+
+.global-status[data-state='checking'] .status-indicator {
+	border-color: var(--accent);
+	background: var(--accent);
+	animation: status-detecting 1s ease-in-out infinite;
 }
 
 .page-nav {
@@ -345,7 +352,12 @@ h2 {
 }
 
 .setup-method[data-selected='false'] {
-	opacity: 0.45;
+	background: color-mix(in srgb, var(--surface) 72%, var(--bg));
+}
+
+.setup-method[data-selected='false'] .method-choice,
+.setup-method[data-selected='false'] .setup-steps {
+	opacity: 0.42;
 }
 
 .method-heading {
@@ -419,19 +431,50 @@ h2 {
 .status-pill {
 	display: inline-flex;
 	align-items: center;
+	gap: 6px;
 	flex: none;
-	padding: 2px 0;
+	padding: 4px 8px;
+	border: 1px solid var(--border);
+	border-radius: 999px;
+	background: var(--surface-alt);
 	color: var(--text-secondary);
 	font-size: 11px;
 	font-weight: 600;
 }
 
+.status-pill::before {
+	content: '';
+	width: 6px;
+	height: 6px;
+	flex: none;
+	border-radius: 50%;
+	background: currentColor;
+}
+
 .status-pill[data-state='ready'] {
+	border-color: color-mix(in srgb, var(--ok) 55%, var(--border));
+	background: var(--ok-soft);
 	color: var(--ok);
 }
 
+.status-pill[data-state='ready']::before {
+	animation: status-detected 500ms ease-out;
+}
+
+.status-pill[data-state='pending'] {
+	border-color: color-mix(in srgb, var(--error) 55%, var(--border));
+	background: color-mix(in srgb, var(--error) 10%, transparent);
+	color: var(--error);
+}
+
 .status-pill[data-state='checking'] {
-	color: var(--text-secondary);
+	border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+	background: var(--accent-soft);
+	color: var(--focus);
+}
+
+.status-pill[data-state='checking']::before {
+	animation: status-detecting 1s ease-in-out infinite;
 }
 
 .setup-steps {
@@ -542,6 +585,43 @@ h2 {
 button:disabled {
 	cursor: not-allowed;
 	opacity: 0.5;
+}
+
+@keyframes status-detecting {
+	0%,
+	100% {
+		opacity: 0.35;
+		transform: scale(0.8);
+	}
+
+	50% {
+		opacity: 1;
+		transform: scale(1);
+	}
+}
+
+@keyframes status-detected {
+	0% {
+		box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 55%, transparent);
+		transform: scale(0.8);
+	}
+
+	55% {
+		box-shadow: 0 0 0 5px transparent;
+		transform: scale(1.25);
+	}
+
+	100% {
+		box-shadow: none;
+		transform: scale(1);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.global-status .status-indicator,
+	.status-pill::before {
+		animation: none;
+	}
 }
 
 @media (max-width: 1000px) {

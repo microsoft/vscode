@@ -498,30 +498,41 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		}
 
 		const wasVerified = proxyVerified;
+		const checkStartedAt = Date.now();
 		proxyCheckInFlight = true;
 		updateReadiness();
 		if (!wasVerified) {
 			renderProxyStatus('checking', 'Checking\u2026', 'Testing the managed settings URL without sending credentials.');
 		}
+		let nextState: 'ready' | 'pending';
+		let nextMessage: string;
+		let nextDetail: string;
 		try {
 			const probe = new URL(endpoint.path, proxyUpstream);
 			probe.searchParams.set('mockPolicySetupProbe', crypto.randomUUID());
 			const response = await fetch(probe, { cache: 'no-store', credentials: 'omit' });
 			proxyVerified = response.headers.get('X-Mock-Policy-Server') === 'true';
-			renderProxyStatus(
-				proxyVerified ? 'ready' : 'pending',
-				proxyVerified ? 'Connected' : 'Not detected',
-				proxyVerified
-					? 'Requests to the managed settings URL are reaching this server.'
-					: 'The test request did not reach this server. Check that your system proxy and redirect rule are enabled.'
-			);
+			nextState = proxyVerified ? 'ready' : 'pending';
+			nextMessage = proxyVerified ? 'Connected' : 'Not detected';
+			nextDetail = proxyVerified
+				? 'Requests to the managed settings URL are reaching this server.'
+				: 'The test request did not reach this server. Check that your system proxy and redirect rule are enabled.';
 		} catch {
 			proxyVerified = false;
-			renderProxyStatus('pending', 'Not detected', 'The test request did not reach this server. Check your system proxy, redirect rule, and HTTPS certificate trust.');
-		} finally {
-			proxyCheckInFlight = false;
-			updateReadiness();
+			nextState = 'pending';
+			nextMessage = 'Not detected';
+			nextDetail = 'The test request did not reach this server. Check your system proxy, redirect rule, and HTTPS certificate trust.';
 		}
+
+		if (!wasVerified) {
+			const remainingCheckingTime = 600 - (Date.now() - checkStartedAt);
+			if (remainingCheckingTime > 0) {
+				await new Promise<void>(resolve => setTimeout(resolve, remainingCheckingTime));
+			}
+		}
+		renderProxyStatus(nextState, nextMessage, nextDetail);
+		proxyCheckInFlight = false;
+		updateReadiness();
 	}
 
 	function showPage(): void {
