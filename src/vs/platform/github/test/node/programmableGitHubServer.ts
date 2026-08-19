@@ -427,6 +427,7 @@ export class ProgrammableGitHubServer extends Disposable {
 			if (request.service !== 'graphql') {
 				throw new Error(`Expected GraphQL request for ${describeStep(step)}, got ${request.pathname}`);
 			}
+			assertGraphQlRootSelections(request.graphQl?.query);
 			if (step.operationName !== undefined && request.graphQl?.operationName !== step.operationName) {
 				throw new Error(`Expected GraphQL operation ${step.operationName}, got ${request.graphQl?.operationName ?? '<none>'}`);
 			}
@@ -556,6 +557,55 @@ function normalizeHeaders(headers: http.IncomingHttpHeaders): Readonly<Record<st
 		}
 	}
 	return normalized;
+}
+
+/**
+ * Fields that GitHub exposes on the `Query` root only. Selecting one at the root of a mutation is a
+ * schema validation error that GitHub rejects before executing the mutation, so the fake server treats
+ * it as a test failure rather than replaying a canned response.
+ */
+const queryOnlyRootFields = ['rateLimit'];
+
+function assertGraphQlRootSelections(query: string | undefined): void {
+	if (!query || !/^\s*mutation\b/.test(query)) {
+		return;
+	}
+	const invalid = graphQlRootFieldNames(query).filter(name => queryOnlyRootFields.includes(name));
+	if (invalid.length > 0) {
+		throw new Error(`GraphQL mutation selected ${invalid.join(', ')} on the Mutation root, which GitHub only exposes on Query`);
+	}
+}
+
+/** Collects the field names selected at the root of a GraphQL operation, ignoring aliases and arguments. */
+function graphQlRootFieldNames(document: string): readonly string[] {
+	const source = document.replace(/#[^\n]*/g, '');
+	const names: string[] = [];
+	let depth = 0;
+	for (let index = source.indexOf('{'); index >= 0 && index < source.length; index++) {
+		const char = source[index];
+		if (char === '(') {
+			let parens = 1;
+			while (++index < source.length && parens > 0) {
+				if (source[index] === '(') { parens++; }
+				if (source[index] === ')') { parens--; }
+			}
+			index--;
+			continue;
+		}
+		if (char === '{') { depth++; continue; }
+		if (char === '}') { depth--; continue; }
+		if (depth !== 1 || !/[_A-Za-z]/.test(char)) { continue; }
+		let name = '';
+		while (index < source.length && /[_0-9A-Za-z]/.test(source[index])) {
+			name += source[index++];
+		}
+		index--;
+		// A name followed by `:` is an alias, so the field it renames is collected on the next pass.
+		if (!/^\s*:/.test(source.substring(index + 1))) {
+			names.push(name);
+		}
+	}
+	return names;
 }
 
 function readGraphQlRequest(bodyJson: unknown): IRecordedGraphQLRequest | undefined {
