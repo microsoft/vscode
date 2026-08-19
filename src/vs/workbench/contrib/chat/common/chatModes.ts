@@ -719,6 +719,25 @@ export function isBuiltinChatMode(mode: IChatMode): boolean {
 		mode.id === ChatMode.Agent.id;
 }
 
+export interface IResolvedChatMode {
+	readonly mode: IChatMode;
+	/** The requested id when it did not resolve, so callers can keep persisting it and retry later. */
+	readonly unresolvedId: string | undefined;
+}
+
+/**
+ * Resolve a mode id against the available modes, falling back to Agent when it is not (yet) known.
+ * Custom modes load asynchronously, so an unresolved id is reported rather than discarded.
+ */
+export function resolveChatModeOrFallback(modes: IChatModes, id: string): IResolvedChatMode {
+	const resolved = modes.findModeById(id) ?? modes.findModeByName(id);
+	if (resolved) {
+		return { mode: resolved, unresolvedId: undefined };
+	}
+
+	return { mode: modes.findModeById(ChatModeKind.Agent) ?? ChatMode.Ask, unresolvedId: id };
+}
+
 /**
  * Returns a telemetry-safe mode name. User/local mode names are hashed
  * to avoid leaking PII; builtin and extension mode names are returned as-is.
