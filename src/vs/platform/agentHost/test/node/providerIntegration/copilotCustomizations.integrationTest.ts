@@ -501,7 +501,8 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 				type: CustomizationType.Directory,
 				contents: CustomizationType.Rule,
 				uri: URI.file(join(userHomeDir, '.copilot', 'instructions')).toString(),
-				children: discoveryMode === 'scan' ? [URI.file(userInstructionFile).toString()] : [],
+				// CLI 1.0.81-1 discovers user instructions on Linux, but not macOS, in SDK discovery mode.
+				children: discoveryMode === 'scan' || process.platform === 'linux' ? [URI.file(userInstructionFile).toString()] : [],
 			},
 		].sort((a, b) => a.uri.localeCompare(b.uri));
 		assert.deepStrictEqual(mappedCustomizations, expectedCustomizations);
