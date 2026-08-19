@@ -176,13 +176,16 @@ suite('Sessions - ChatGroupsView', () => {
 		view.setSession(session, options);
 		view.focus();
 
+		const renderedView = view.element.querySelector<HTMLElement>('.chat-view');
 		assert.deepStrictEqual({
-			renderedKind: view.element.querySelector<HTMLElement>('.chat-view')?.dataset.kind,
-			focusedKind: mainWindow.document.activeElement?.closest<HTMLElement>('.chat-view')?.dataset.kind,
+			renderedKind: renderedView?.dataset.kind,
+			renderedWidth: renderedView?.style.width,
+			focusedKind: view.element.ownerDocument.activeElement?.closest<HTMLElement>('.chat-view')?.dataset.kind,
 			activeTab: view.element.querySelector<HTMLElement>('.chat-composite-bar-tab.active')?.dataset.chatResource,
 			tabs: Array.from(view.element.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')).map(tab => tab.dataset.chatResource),
 		}, {
 			renderedKind: 'chat',
+			renderedWidth: '800px',
 			focusedKind: 'chat',
 			activeTab: child.resource.toString(),
 			tabs: [main.resource.toString(), child.resource.toString()],
