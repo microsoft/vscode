@@ -1186,6 +1186,9 @@ export interface IAgent {
 	/** Optional managed-settings snapshot for providers with an enterprise policy surface. */
 	getManagedSettingsDiagnostics?(): Promise<IAgentHostManagedSettingsSnapshot>;
 
+	/** Add provider-owned diagnostics to an Agent Host debug-log staging directory. */
+	collectDebugLogs?(session: URI | undefined, outputDirectory: URI): Promise<boolean>;
+
 	// ---- MCP and server tools -----------------------------------------------
 
 	/** Optional host wiring for providers that advertise Agent Host server tools. */

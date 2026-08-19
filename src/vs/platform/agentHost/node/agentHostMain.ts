@@ -205,7 +205,10 @@ async function startAgentHost(): Promise<void> {
 		diServices.set(IByokLmProxyService, byokLmProxyService);
 		const agentHostOTelService = disposables.add(instantiationService.createInstance(AgentHostOTelService, fetchFn));
 		diServices.set(IAgentHostOTelService, agentHostOTelService);
-		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource, telemetryService, fileMonitorService, undefined, fetchFn, [createCodexProviderConfiguration(environmentService.userHome)], hostLaunchKind, storageResource);
+		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource, telemetryService, fileMonitorService, undefined, fetchFn, [createCodexProviderConfiguration(environmentService.userHome)], hostLaunchKind, storageResource, undefined, undefined, {
+			logsHome: environmentService.logsHome,
+			tmpDir: environmentService.tmpDir,
+		});
 		const networkDiagnosticsService = instantiationService.createInstance(NetworkDiagnosticsService);
 		diServices.set(INetworkDiagnosticsService, networkDiagnosticsService);
 		agentService.setNetworkDiagnosticsService(networkDiagnosticsService);
