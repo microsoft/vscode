@@ -30,12 +30,10 @@ export interface ICheckboxChipState {
 
 /**
  * A checkbox rendered as a chip in the new-session chip lane, matching the dropdown chips beside
- * it. Used for the binary session choices that would be a two-item dropdown otherwise — worktree
- * isolation, and running a cloud session in a sandbox.
+ * it. For binary session choices that would otherwise be a two-item dropdown.
  *
- * The whole row is clickable (not just the box) so the chip behaves like its dropdown neighbours.
- * A disabled chip stays focusable, so keyboard users can still reach {@link
- * ICheckboxChipState.disabledReason}.
+ * The whole row is clickable, and a disabled chip stays focusable so keyboard users can reach
+ * {@link ICheckboxChipState.disabledReason}.
  */
 export class CheckboxChip extends Disposable {
 

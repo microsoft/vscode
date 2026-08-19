@@ -2080,10 +2080,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return this._toChat(session);
 	}
 
-	/**
-	 * Resolves the contribution that owns sandbox environments. A seam, because the contribution
-	 * registry is global — tests substitute a stub rather than standing one up.
-	 */
+	/** Test seam: the contribution registry is global, so tests override this with a stub. */
 	protected _getCloudSandboxContribution(): Pick<CloudSandboxAgentHostContribution, 'provisionSession'> {
 		return getWorkbenchContribution<CloudSandboxAgentHostContribution>(CloudSandboxAgentHostContribution.ID);
 	}
@@ -2143,9 +2140,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			if (!this.uriIdentityService.extUri.isEqual(newSession.mainChat.get().resource, chatResource)) {
 				throw new Error('Chat resource does not match the main chat of the current new session');
 			}
-			// Re-check everything the sandbox path needs rather than trusting the remembered
-			// preference: the settings can be turned off, and the session may have no repository.
-			// Falling back to the server-run cloud agent is far better than refusing to send.
+			// `useSandbox` is persisted, so it can outlive the setting being turned off. Re-check
+			// rather than trust it: falling back to the cloud agent beats a send that must fail.
 			if (newSession instanceof RemoteNewSession && newSession.useSandbox.get() && newSession.repoNwo && isCloudSandboxEnabled(this.configurationService)) {
 				return this._sendFirstChatToSandbox(newSession, newSession.repoNwo, options);
 			}

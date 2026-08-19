@@ -20,8 +20,8 @@ import { CopilotChatSessionsProvider, ICopilotChatSession, RemoteNewSession } fr
  * "Sandbox" checkbox for a new cloud session: when checked, the session runs in a GitHub-managed
  * sandbox this client drives over the Agent Host Protocol, instead of the server-run cloud agent.
  *
- * Disabled rather than hidden when the session has no repository, since a sandbox is always
- * provisioned against one — the label is what explains the choice exists at all.
+ * Disabled rather than hidden without a repository, since a sandbox is always provisioned
+ * against one.
  */
 export class SandboxPicker extends Disposable {
 

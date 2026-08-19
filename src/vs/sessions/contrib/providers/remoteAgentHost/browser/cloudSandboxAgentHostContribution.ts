@@ -179,10 +179,8 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 			}
 		}));
 
-		// Lazy discovery: surface environment-bound sandbox sessions in the list
-		// without connecting. Runs when the Agents window (re)discovers hosts and
-		// once now so sessions appear on startup. Connecting happens on open via
-		// the sandbox async activator.
+		// Lazy discovery: surface environment-bound sandbox sessions in the list without connecting.
+		// Connecting happens on open via the sandbox async activator.
 		this._register(this._agentHostFilterService.registerDiscoveryHandler(() => this._discoverAndSeed()));
 		void this._discoverAndSeed();
 
@@ -200,11 +198,9 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 		retryUntilFirstSuccess.add(this._authenticationService.onDidChangeSessions(retry));
 		retryUntilFirstSuccess.add(this._authenticationService.onDidRegisterAuthenticationProvider(retry));
 
-		// Connect-on-open: when a seeded sandbox session is opened, the chat
-		// service resolves it through this async activator, which establishes the
-		// relay connection and waits for the host to advertise the session's agent
-		// (so its content provider registers) before the chat loads. Scoped to our
-		// sandbox authorities so it never intercepts other remote-agent-host types.
+		// Connect-on-open: resolves a seeded session by establishing the relay and waiting for the
+		// host to advertise its agent. Scoped to our authorities so it never intercepts other
+		// remote-agent-host types.
 		// The source is swapped out by `_teardownAll`, so cancel whichever one is current on dispose.
 		this._register(toDisposable(() => {
 			this._enabledCts.cancel();
@@ -276,10 +272,8 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 			const modifiedTime = Number.isNaN(parsed) ? Date.now() : parsed;
 			const project = discoveredSessionProject(session.repoName);
 			const meta: IAgentSessionMetadata = {
-				// Seed under the agent-provider (UI) scheme, preserving the session id. Mission Control
-				// issues each session as `ahp-session:/<id>` (the id it also returns here), and the
-				// Copilot host lists that same id back, so the seed reconciles deterministically with
-				// the live `listSessions()` result on connect. See copilot-host session-identity docs.
+				// Seed under the agent-provider (UI) scheme, preserving the session id: the host
+				// lists the same id back, so this reconciles with `listSessions()` on connect.
 				session: AgentSession.uri(CLOUD_SANDBOX_AGENT_PROVIDER, session.sessionId),
 				startTime: modifiedTime,
 				modifiedTime,
@@ -325,10 +319,8 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 	 * Provision a brand-new sandbox session and make it usable: create the Mission Control task,
 	 * seed it into a per-environment provider, and connect the relay.
 	 *
-	 * From the seed onward this is deliberately identical to {@link _doDiscoverAndSeed} — a created
-	 * task is just a discovered one we happen to know about first — so a later discovery pass
-	 * reconciles against it instead of duplicating it. Mission Control starts no run for an
-	 * environment-bound task, so the caller still owns sending the first turn.
+	 * From the seed onward this matches {@link _doDiscoverAndSeed}, so a later discovery pass
+	 * reconciles against the session instead of duplicating it. The caller sends the first turn.
 	 */
 	async provisionSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken): Promise<ICloudSandboxProvisionedSession> {
 		if (!this._isEnabled()) {
@@ -337,9 +329,8 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 		const created = await this._apiService.createSession(request, token);
 		const name = request.repoNwo ?? created.taskId;
 		const address = cloudSandboxAddress(created.environmentId);
-		// The feature can be disabled while the create is in flight, and `_teardownAll` has
-		// already snapshotted the environments it knows about — so registering a provider now
-		// would leave one behind that nothing reconciles.
+		// `_teardownAll` has already snapshotted the environments it knows about, so registering a
+		// provider now would leave one behind that nothing reconciles.
 		if (!this._isEnabled() || token.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -470,8 +461,7 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 		if (connectError !== undefined) {
 			this._logService.warn(`${LOG_PREFIX} connect-on-open failed for ${address}: ${connectError instanceof Error ? connectError.message : String(connectError)}`);
 			// Serve history whatever the reason: `/connect` fails in several ways for a deleted
-			// sandbox, so gating on any one of them would leave the rest with no history. A
-			// transient failure also lands here, which the host's connect action recovers from.
+			// sandbox, so gating on any one of them would leave the rest with no history.
 			if (this._isEnabled() && !this._enabledCts.token.isCancellationRequested) {
 				const opened = this._activateReadOnly(sessionType, address, env, prefetchedHistory);
 				if (opened) {
@@ -503,9 +493,7 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 	 * online, has no task, or the read failed.
 	 *
 	 * `status` cannot predict whether a dormant environment will wake — suspended and deleted both
-	 * read `offline` — but it does say, in a few hundred milliseconds, that this open is on the slow
-	 * path, which is enough to start the fetch now. Never rejects; the handler still reads history
-	 * itself when this yields nothing.
+	 * read `offline` — but it does say cheaply that this open is on the slow path. Never rejects.
 	 */
 	private _prefetchHistoryIfDormant(env: ICloudSandboxEnvironment): Promise<IReplayedTaskHistory | undefined> | undefined {
 		const taskId = env.taskId;
@@ -540,10 +528,8 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 		if (this._readOnlyHandlers.has(sessionType)) {
 			return true;
 		}
-		// The connect can register the live handler for this session type at any await between
-		// starting it and observing its outcome, and registering a second content provider throws.
-		// This check and the registration below are synchronous, so nothing can interleave between
-		// them. A live provider means the session is already served, which is the better outcome.
+		// Registering a second content provider for a session type throws. This check and the
+		// registration below are synchronous, so the connect cannot interleave between them.
 		if (this._chatSessionsService.getContentProviderSchemes().includes(sessionType)) {
 			this._logService.trace(`${LOG_PREFIX} ${sessionType} already has a content provider; leaving it to serve the session.`);
 			return true;
@@ -620,10 +606,8 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 		const attempt = (async () => {
 			try {
 				this._providerInstances.get(address)?.setConnectionStatus(RemoteAgentHostConnectionStatus.connecting);
-				// Drop any read-only stand-in *before* connecting. Registering a content provider for
-				// a session type that already has one throws, and a successful connect registers the
-				// live handler as soon as the connection is wired — which happens inside the call
-				// below. `_waitForActivation` re-registers the stand-in if this attempt fails.
+				// Drop any read-only stand-in *before* connecting: the connect registers the live
+				// handler, and two content providers for one session type throws.
 				this._clearReadOnly(address);
 				const result = await this._cloudSandboxService.connect(options, token);
 				// The feature may have been disabled while connecting; drop the connection rather
