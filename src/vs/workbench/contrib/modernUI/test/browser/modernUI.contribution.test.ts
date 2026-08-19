@@ -393,6 +393,33 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	test('panel title tabs drop the classic 1px title border so the 32px pills center in the 32px bar', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui modern-ui-tabs';
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const { actionItem } = createCompositeAction(root, 32, true);
+		actionItem.closest('.part')?.classList.add('panel', 'basepanel', 'bottom');
+		actionItem.closest('.title')?.classList.add('composite', 'has-composite-bar');
+
+		const title = actionItem.closest('.title')!;
+		const classicBorder = document.createElement('style');
+		classicBorder.textContent = '.monaco-workbench .part.panel.bottom .composite.title { border-top: 1px solid; }';
+		root.prepend(classicBorder);
+		const targetWindow = getWindow(title);
+		// Assert only what this fix owns; other layout values would be brittle.
+		assert.deepStrictEqual({
+			titleBorderTopWidth: targetWindow.getComputedStyle(title).borderTopWidth,
+			titleBorderTopStyle: targetWindow.getComputedStyle(title).borderTopStyle,
+			actionItemBorderTop: targetWindow.getComputedStyle(actionItem).borderTopWidth,
+		}, {
+			titleBorderTopWidth: '0px',
+			titleBorderTopStyle: 'none',
+			actionItemBorderTop: '4px',
+		});
+	});
+
 	test('pane composite actions use regular label weight', () => {
 		const regularRoot = document.createElement('div');
 		regularRoot.className = 'monaco-workbench modern-ui modern-ui-tabs';
