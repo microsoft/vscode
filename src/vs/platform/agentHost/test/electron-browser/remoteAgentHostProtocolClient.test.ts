@@ -21,7 +21,7 @@ import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ConfigurationTarget, type IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { ContentEncoding, ReconnectResultType } from '../../common/state/protocol/commands.js';
 import { ChatSourceKind } from '../../common/state/protocol/channels-chat/commands.js';
-import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
+import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/protocol/errors.js';
 import { PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from '../../common/state/protocol/version/registry.js';
 import { ActionType, type ChatTurnStartedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
 import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
@@ -1286,6 +1286,100 @@ suite('RemoteAgentHostProtocolClient', () => {
 		transport.fireMessage({ jsonrpc: '2.0', id: 1, error: { code: AhpErrorCodes.TurnInProgress, message: 'Turn in progress' } });
 
 		await assertRemoteProtocolError(resultPromise, { code: AhpErrorCodes.TurnInProgress, message: 'Turn in progress' });
+	});
+
+	test('collectDebugLogs maps the returned host resource', async () => {
+		const { client, transport } = createClient();
+		const session = URI.parse('copilotcli:/session-1');
+		const resultPromise = client.collectDebugLogs(session, 'archive');
+
+		assert.deepStrictEqual(transport.sentMessages[0], {
+			jsonrpc: '2.0',
+			id: 1,
+			method: 'vscode/collectAgentHostDebugLogs',
+			params: { session: session.toString(), kind: 'archive' },
+		});
+
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: 1,
+			result: { kind: 'archive', resource: 'file:///tmp/agent-host-debug.zip', providerLogsIncluded: true, size: 1024, uncompressedSize: 2048, entries: [{ path: 'agenthost.log', size: 2048 }] },
+		});
+		const result = await resultPromise;
+		assert.deepStrictEqual({
+			kind: result.kind,
+			providerLogsIncluded: result.providerLogsIncluded,
+			size: result.size,
+			uncompressedSize: result.uncompressedSize,
+			scheme: result.resource.scheme,
+			authority: result.resource.authority,
+			path: result.resource.path,
+			entries: result.entries,
+		}, {
+			kind: 'archive',
+			providerLogsIncluded: true,
+			size: 1024,
+			uncompressedSize: 2048,
+			scheme: 'vscode-agent-host',
+			authority: 'test.example__1234',
+			path: '/tmp/agent-host-debug.zip',
+			entries: [{ path: 'agenthost.log', size: 2048 }],
+		});
+	});
+
+	test('collectDebugLogs accepts an archive that expands beyond the transfer limit', async () => {
+		const { client, transport } = createClient();
+		const resultPromise = client.collectDebugLogs(URI.parse('copilotcli:/session-1'), 'archive');
+		const entrySize = 10 * 1024 * 1024;
+		transport.fireMessage({
+			jsonrpc: '2.0', id: 1,
+			result: {
+				kind: 'archive', resource: 'file:///tmp/agent-host-debug.zip', providerLogsIncluded: true,
+				size: 1024, uncompressedSize: entrySize * 2,
+				entries: [{ path: 'process.log', size: entrySize }, { path: 'events.jsonl', size: entrySize }],
+			},
+		});
+
+		assert.strictEqual((await resultPromise).uncompressedSize, entrySize * 2);
+	});
+
+	test('collectDebugLogs rejects an unsafe or inconsistent artifact manifest', async () => {
+		const unsafe = createClient();
+		const unsafeResult = unsafe.client.collectDebugLogs(URI.parse('copilotcli:/session-1'), 'archive');
+		unsafe.transport.fireMessage({
+			jsonrpc: '2.0', id: 1,
+			result: { kind: 'archive', resource: 'file:///tmp/agent-host-debug.zip', providerLogsIncluded: true, size: 10, uncompressedSize: 10, entries: [{ path: '../secret', size: 10 }] },
+		});
+
+		const inconsistent = createClient();
+		const inconsistentResult = inconsistent.client.collectDebugLogs(URI.parse('copilotcli:/session-1'), 'archive');
+		inconsistent.transport.fireMessage({
+			jsonrpc: '2.0', id: 1,
+			result: { kind: 'archive', resource: 'file:///tmp/agent-host-debug.zip', providerLogsIncluded: true, size: 10, uncompressedSize: 10, entries: [{ path: 'agenthost.log', size: 9 }] },
+		});
+
+		assert.deepStrictEqual({
+			unsafe: await unsafeResult.then(() => 'resolved', error => error.message),
+			inconsistent: await inconsistentResult.then(() => 'resolved', error => error.message),
+		}, {
+			unsafe: 'Agent Host returned an invalid debug log artifact manifest entry',
+			inconsistent: 'Agent Host debug log artifact manifest size does not match its declared size',
+		});
+	});
+
+	test('collectDebugLogs rejects a non-file host resource', async () => {
+		const { client, transport } = createClient();
+		const resultPromise = client.collectDebugLogs(URI.parse('copilotcli:/session-1'), 'archive');
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: 1,
+			result: { kind: 'archive', resource: 'vscode-userdata:/User/settings.json', providerLogsIncluded: true, size: 10, uncompressedSize: 10, entries: [{ path: 'agenthost.log', size: 10 }] },
+		});
+
+		await assertRemoteProtocolError(resultPromise, {
+			code: JsonRpcErrorCodes.InvalidParams,
+			message: 'Agent Host returned a non-file debug log resource: vscode-userdata:/User/settings.json',
+		});
 	});
 
 	test('ping sends a JSON-RPC request and resolves on response', async () => {

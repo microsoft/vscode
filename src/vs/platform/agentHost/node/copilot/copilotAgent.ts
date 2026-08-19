@@ -2205,6 +2205,25 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return result;
 	}
 
+	async collectDebugLogs(session: URI | undefined, outputDirectory: URI): Promise<boolean> {
+		const sessionTarget = session ? this._findSessionChat(session) : undefined;
+		if (sessionTarget) {
+			await sessionTarget.collectDebugLogs(outputDirectory, true);
+			return true;
+		}
+
+		// A new/closed UI session can have a URI without a live SDK session. In
+		// that case this is a host-wide export: use any live SDK session only as
+		// the gateway to collect process logs, without attributing events or shell
+		// logs from that unrelated session.
+		const processLogsTarget = this._allLiveSessions()[0];
+		if (!processLogsTarget) {
+			return false;
+		}
+		await processLogsTarget.collectDebugLogs(outputDirectory, false);
+		return true;
+	}
+
 	private _copilotChatDiscovery: Promise<void> | undefined;
 	private readonly _copilotChatDiscoverySequencer = new Sequencer();
 	private readonly _discoveredChats = new Map<string, { readonly signature: string; readonly external: boolean }>();

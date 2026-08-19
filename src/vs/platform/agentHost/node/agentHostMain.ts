@@ -141,6 +141,10 @@ async function startAgentHost(): Promise<void> {
 				providerConfigurations: [createCodexProviderConfiguration(environmentService.userHome)],
 				hostLaunchKind,
 				storageResource,
+				debugLogsEnvironment: {
+					logsHome: environmentService.logsHome,
+					tmpDir: environmentService.tmpDir,
+				},
 			},
 		});
 		agentService = hostServices.agentService;

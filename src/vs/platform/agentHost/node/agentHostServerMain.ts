@@ -209,6 +209,10 @@ async function main(): Promise<void> {
 			providerConfigurations: [createCodexProviderConfiguration(environmentService.userHome)],
 			hostLaunchKind: AgentHostLaunchKind.VSCodeCLI,
 			storageResource,
+			debugLogsEnvironment: {
+				logsHome: environmentService.logsHome,
+				tmpDir: environmentService.tmpDir,
+			},
 		},
 	});
 	const { agentService, instantiationService } = hostServices;
