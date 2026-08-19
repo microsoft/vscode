@@ -872,9 +872,7 @@ class VirtualizedViewItem extends Disposable implements ILoggedDiffItem {
 				expectedContentHeight: this.viewModel.lastTemplateData.get().contentHeight,
 				selections: selections?.length ?? 0,
 			});
-			if (selections) {
-				ref.object.editor.setSelections(selections);
-			}
+			ref.object.editor.setSelections(selections ?? [new Selection(1, 1, 1, 1)]);
 			this._templateRef.set(ref, undefined);
 		}
 		ref.object.render(verticalSpace, width, offset, viewPort);
