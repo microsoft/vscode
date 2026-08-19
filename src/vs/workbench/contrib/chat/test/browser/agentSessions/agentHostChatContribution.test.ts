@@ -10177,6 +10177,36 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(chatSession.title, 'Session title');
 		});
 
+		test('does not inherit the session title for an untitled peer selected as the routing default', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const backendSession = AgentSession.uri('copilot', 'peer-routing-title');
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/peer-routing-title' });
+			const canonicalDefaultChat = buildDefaultChatUri(backendSession.toString());
+			const peerChat = buildChatUri(backendSession.toString(), 'peer');
+			const summary: SessionSummary = {
+				resource: backendSession.toString(),
+				provider: 'copilot',
+				title: 'Session title',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			};
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState(summary),
+				lifecycle: SessionLifecycle.Ready,
+				defaultChat: peerChat,
+				chats: [
+					{ ...createDefaultChatSummary(summary, canonicalDefaultChat), title: 'Canonical default title' },
+					{ ...createDefaultChatSummary(summary, peerChat), title: '' },
+				],
+			});
+
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			assert.strictEqual(chatSession.title, undefined);
+		});
+
 		test('uses the session title for a sole default chat', async () => {
 			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
 			const backendSession = AgentSession.uri('copilot', 'sole-chat-title');

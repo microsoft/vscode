@@ -1074,7 +1074,7 @@ export class AgentHostStateManager extends Disposable {
 			...(options.origin ? { origin: options.origin } : {}),
 			interactivity: options.interactivity,
 		};
-		sessionState.chats = [...sessionState.chats, chatSummary];
+		entry.state.chats = [...entry.state.chats, chatSummary];
 		this._chatEntries.set(chatUri, {
 			session,
 			summary: chatSummary,
