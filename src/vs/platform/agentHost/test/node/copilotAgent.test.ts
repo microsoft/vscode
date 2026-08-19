@@ -37,7 +37,6 @@ import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
-import { AgentHostByokModelsEnabledEnvVar } from '../../common/agentService.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent } from '../../common/agent.js';
@@ -4202,9 +4201,7 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('BYOK models follow synchronized root configuration when there is no environment override', async () => {
-		const previousEnvValue = process.env[AgentHostByokModelsEnabledEnvVar];
-		delete process.env[AgentHostByokModelsEnabledEnvVar];
+	test('BYOK models follow synchronized root configuration', async () => {
 		const byokBridgeRegistry = new ByokLmBridgeRegistry();
 		const { agent, configurationService } = createTestAgentContext(disposables, {
 			byokBridgeRegistry,
@@ -4234,11 +4231,6 @@ suite('CopilotAgent', () => {
 				disabledAgain: [],
 			});
 		} finally {
-			if (previousEnvValue === undefined) {
-				delete process.env[AgentHostByokModelsEnabledEnvVar];
-			} else {
-				process.env[AgentHostByokModelsEnabledEnvVar] = previousEnvValue;
-			}
 			await disposeAgent(agent);
 		}
 	});
@@ -6862,6 +6854,36 @@ suite('CopilotAgent', () => {
 				// for its session-backed chat at create time, which is
 				// independent of the host-minted AH session id.
 				assert.strictEqual(capturedConfig?.sessionId, JSON.parse(result.providerData!).sdkSessionId);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('getModel reports the creation model while the backing is still deferred', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			client.createSession = async () => new MockCopilotSession() as unknown as CopilotSession;
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const result = await provisionSession(agent, {
+					session: AgentSession.uri('copilotcli', 'prov-default-model'),
+					model: { id: 'gpt-x' },
+					workingDirectories: [URI.file('/workspace')],
+				});
+				const chat = defaultChatUri(result.session);
+				const context = exactChatContext(result.session, chat, result.session);
+
+				// The first turn's telemetry reads the bound model before the
+				// send materializes the session, so the reserved backing must
+				// already carry it.
+				const beforeSend = agent.chats.getModel?.(chat, context);
+				await agent.chats.sendMessage(chat, 'hello', undefined, undefined, undefined, undefined, context);
+
+				assert.deepStrictEqual({ beforeSend, afterMaterialize: agent.chats.getModel?.(chat, context) }, {
+					beforeSend: { id: 'gpt-x' },
+					afterMaterialize: { id: 'gpt-x' },
+				});
 			} finally {
 				await disposeAgent(agent);
 			}
