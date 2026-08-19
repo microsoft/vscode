@@ -8,6 +8,7 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { isMacintosh, isWeb } from '../../../../../base/common/platform.js';
 import { IHoverOptions, IHoverWidget } from '../../../../../base/browser/ui/hover/hover.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -111,13 +112,14 @@ suite('UpdateGlobalActivityBadgeVisibleContext', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('hides the badge when the Update and Manage actions are adjacent', () => {
+		const customMenuBarCanBeHidden = !isMacintosh || isWeb;
 		const scenarios = [
 			{ name: 'no update', updateVisible: false, menuBarVisibility: 'visible', activityBarLocation: 'top', expected: true },
 			{ name: 'adjacent', updateVisible: true, menuBarVisibility: 'visible', activityBarLocation: 'top', expected: false },
 			{ name: 'classic menu', updateVisible: true, menuBarVisibility: 'classic', activityBarLocation: 'top', expected: false },
-			{ name: 'hidden menu', updateVisible: true, menuBarVisibility: 'hidden', activityBarLocation: 'top', expected: true },
-			{ name: 'toggle menu', updateVisible: true, menuBarVisibility: 'toggle', activityBarLocation: 'top', expected: true },
-			{ name: 'compact menu', updateVisible: true, menuBarVisibility: 'compact', activityBarLocation: 'top', expected: true },
+			{ name: 'hidden menu', updateVisible: true, menuBarVisibility: 'hidden', activityBarLocation: 'top', expected: customMenuBarCanBeHidden },
+			{ name: 'toggle menu', updateVisible: true, menuBarVisibility: 'toggle', activityBarLocation: 'top', expected: customMenuBarCanBeHidden },
+			{ name: 'compact menu', updateVisible: true, menuBarVisibility: 'compact', activityBarLocation: 'top', expected: customMenuBarCanBeHidden },
 			{ name: 'bottom activity bar', updateVisible: true, menuBarVisibility: 'visible', activityBarLocation: 'bottom', expected: true },
 			{ name: 'chat in progress', updateVisible: true, menuBarVisibility: 'visible', activityBarLocation: 'top', chatInProgress: true, expected: true },
 		];
