@@ -307,6 +307,11 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onCommandsChanged ??= this._sdkEvent('commands.changed');
 	}
 
+	private _onSamplingRequested: Event<SessionEventPayload<'sampling.requested'>> | undefined;
+	get onSamplingRequested(): Event<SessionEventPayload<'sampling.requested'>> {
+		return this._onSamplingRequested ??= this._sdkEvent('sampling.requested');
+	}
+
 	private _sdkEvent<K extends SessionEventType>(eventType: K): Event<SessionEventPayload<K>> {
 		const emitter = this._register(new Emitter<SessionEventPayload<K>>({
 			onDidAddFirstListener: () => this._handledEventTypes.add(eventType),
