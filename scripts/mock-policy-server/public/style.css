@@ -167,19 +167,24 @@ h2 {
 	background: color-mix(in srgb, var(--bg) 24%, transparent);
 }
 
-.page-nav a {
+.page-nav a,
+.setup-trigger {
 	padding: 6px 12px;
+	border: 0;
 	border-radius: 4px;
+	background: transparent;
 	color: var(--text-secondary);
 	font-weight: 600;
 	text-decoration: none;
 }
 
-.page-nav a:hover {
+.page-nav a:hover,
+.setup-trigger:hover {
 	color: var(--text);
 }
 
-.page-nav a[aria-current='page'] {
+.page-nav a[aria-current='page'],
+.setup-trigger[aria-expanded='true'] {
 	background: var(--surface-alt);
 	color: var(--text);
 }
@@ -201,10 +206,6 @@ h2 {
 	max-width: 1400px;
 	margin: 0 auto;
 	padding: 24px;
-}
-
-.page[hidden] {
-	display: none;
 }
 
 .policies-layout {
@@ -287,16 +288,43 @@ h2 {
 
 /* --- Setup ----------------------------------------------------------------- */
 
+.setup-dialog {
+	width: min(1280px, calc(100vw - 48px));
+	max-width: none;
+	max-height: calc(100vh - 48px);
+	padding: 20px;
+	overflow: auto;
+	border: 1px solid var(--border);
+	border-radius: 8px;
+	background: var(--bg);
+	color: var(--text);
+	box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+}
+
+.setup-dialog::backdrop {
+	background: rgba(0, 0, 0, 0.62);
+}
+
+.dialog-actions {
+	position: sticky;
+	top: -20px;
+	z-index: 2;
+	display: flex;
+	justify-content: flex-end;
+	padding: 0 0 12px;
+	background: var(--bg);
+}
+
 .setup-page {
 	display: flex;
 	flex-direction: column;
 	gap: 20px;
-	max-width: 1120px;
+	max-width: 1240px;
 	margin: 0 auto;
 }
 
 .setup-intro {
-	padding: 12px 0 4px;
+	padding: 0 0 4px;
 }
 
 .eyebrow {
@@ -327,7 +355,7 @@ h2 {
 
 .setup-methods {
 	display: grid;
-	grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+	grid-template-columns: minmax(0, 1.2fr) minmax(400px, 0.8fr);
 	gap: 20px;
 	align-items: start;
 }
@@ -618,8 +646,8 @@ button:disabled {
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.global-status .status-indicator,
-	.status-pill::before {
+	.global-status[data-state] .status-indicator,
+	.status-pill[data-state]::before {
 		animation: none;
 	}
 }
@@ -643,6 +671,16 @@ button:disabled {
 
 	.page-nav {
 		justify-content: flex-start;
+	}
+
+	.setup-dialog {
+		width: calc(100vw - 24px);
+		max-height: calc(100vh - 24px);
+		padding: 16px;
+	}
+
+	.dialog-actions {
+		top: -16px;
 	}
 
 	.method-heading {

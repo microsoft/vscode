@@ -95,6 +95,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 	const endpointMeta = $('endpoint-meta');
 	const editorStatus = $('editor-status');
 	const saveStateEl = $('save-state');
+	const setupDialog = $('setup-dialog') as HTMLDialogElement;
 	const vscodeProxySettings = '{\n\t"http.proxy": "http://localhost:9090"\n}';
 
 	let endpoints: Endpoint[] = [];
@@ -535,17 +536,18 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		updateReadiness();
 	}
 
-	function showPage(): void {
-		const page = location.hash === '#policies' ? 'policies' : 'setup';
-		$('setup-page').hidden = page !== 'setup';
-		$('policies-page').hidden = page !== 'policies';
-		for (const name of ['setup', 'policies']) {
-			const link = $(`${name}-nav`);
-			if (name === page) {
-				link.setAttribute('aria-current', 'page');
-			} else {
-				link.removeAttribute('aria-current');
-			}
+	function openSetupDialog(): void {
+		if (!setupDialog.open) {
+			setupDialog.showModal();
+		}
+		$('setup-nav').setAttribute('aria-expanded', 'true');
+	}
+
+	function syncSetupDialog(): void {
+		if (location.hash === '#setup') {
+			openSetupDialog();
+		} else if (setupDialog.open) {
+			setupDialog.close();
 		}
 	}
 
@@ -903,7 +905,20 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		for (const method of ['proxy', 'overrides'] as const) {
 			$(`setup-method-${method}`).addEventListener('change', () => selectSetupMethod(method));
 		}
-		window.addEventListener('hashchange', showPage);
+		$('setup-nav').addEventListener('click', openSetupDialog);
+		$('close-setup').addEventListener('click', () => setupDialog.close());
+		$('policies-nav').addEventListener('click', () => {
+			if (setupDialog.open) {
+				setupDialog.close();
+			}
+		});
+		setupDialog.addEventListener('close', () => {
+			$('setup-nav').setAttribute('aria-expanded', 'false');
+			if (location.hash === '#setup') {
+				history.replaceState(null, '', '#policies');
+			}
+		});
+		window.addEventListener('hashchange', syncSetupDialog);
 		$('schema-toggle').addEventListener('click', toggleSchemaSection);
 		$('hydrate-schema').addEventListener('click', () => {
 			if (!schema) {
@@ -944,7 +959,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			if (endpoints.length) {
 				selectEndpoint(endpoints[0].id);
 			}
-			showPage();
+			syncSetupDialog();
 		} catch (e) {
 			selectSetupMethod('proxy');
 			// Fall back to the shared endpoint definitions so the GUI still shows
@@ -956,7 +971,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			}
 			setStatus(`Failed to load state: ${e instanceof Error ? e.message : String(e)}`, 'error');
 			toast('Cannot reach the server. Is it still running?', true);
-			showPage();
+			syncSetupDialog();
 		}
 
 		await loadSchema();

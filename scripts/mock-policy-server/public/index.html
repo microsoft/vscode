@@ -22,13 +22,14 @@
 			<div class="header-actions">
 				<nav class="page-nav" aria-label="Mock policy server">
 					<div class="setup-status-group">
-						<a id="setup-nav" href="#setup">Setup</a>
+						<button id="setup-nav" type="button" class="setup-trigger" aria-haspopup="dialog"
+							aria-controls="setup-dialog" aria-expanded="false">Setup</button>
 						<div id="global-connection-status" class="global-status" data-state="checking" role="status" aria-live="polite">
 							<span class="status-indicator" aria-hidden="true"></span>
 							<span id="global-connection-label">Checking connection…</span>
 						</div>
 					</div>
-					<a id="policies-nav" href="#policies">Policies</a>
+					<a id="policies-nav" href="#policies" aria-current="page">Policies</a>
 				</nav>
 				<button id="clear-cache" type="button" class="btn-header">Clear Policy Cache</button>
 			</div>
@@ -36,7 +37,11 @@
 	</header>
 
 	<main class="app-main">
-		<section id="setup-page" class="page setup-page" aria-labelledby="setup-title">
+		<dialog id="setup-dialog" class="setup-dialog" aria-labelledby="setup-title">
+			<div class="dialog-actions">
+				<button id="close-setup" type="button" class="btn-secondary">Close Setup</button>
+			</div>
+			<section id="setup-page" class="setup-page" aria-labelledby="setup-title">
 			<div class="setup-intro">
 				<div>
 					<p class="eyebrow">Connect a client</p>
@@ -147,9 +152,10 @@
 				</div>
 			</fieldset>
 
-		</section>
+			</section>
+		</dialog>
 
-		<section id="policies-page" class="page policies-page" aria-labelledby="policies-title" hidden>
+		<section id="policies-page" class="policies-page" aria-labelledby="policies-title">
 			<h2 id="policies-title" class="sr-only" tabindex="-1">Policy Editor</h2>
 			<div class="policies-layout">
 				<section class="editor-panel">

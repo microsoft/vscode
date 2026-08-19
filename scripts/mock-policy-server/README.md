@@ -14,8 +14,8 @@ Open `http://127.0.0.1:3000`. Managed settings is mocked by default. Use the
 switch beside each endpoint tab to choose mock or passthrough. Presets apply
 immediately; status and JSON edits auto-save.
 
-The GUI opens on a dedicated **Setup** page and guides you through either
-connection method:
+The GUI opens on the **Policies** workspace. Select **Setup** in the header to
+open a modal that guides you through either connection method:
 
 - **System proxy (recommended):** works with Code OSS, Stable, Insiders, Copilot
   CLI, and SDK/runtime clients. The page recommends Proxyman on macOS and
@@ -30,11 +30,11 @@ After connecting, open the VS Code Command Palette and run **> Developer: Sync
 Account Policy**. To refresh the policy used by Local Agent Host, also run
 **> Developer: Restart Local Agent Host**.
 
-The Setup page checks Code OSS overrides directly. It tests the system proxy by
+The Setup dialog checks Code OSS overrides directly. It tests the system proxy by
 sending a request without credentials to the managed settings URL and confirming
 that the response came from this local server. It does not inspect Proxyman or
 macOS proxy configuration. The test runs automatically, and the global header
-shows a green or red connection indicator on both the Setup and Policies pages.
+always shows a green or red connection indicator.
 
 If no real request appears in **Live Requests**, use **Clear Policy Cache**. A
 fresh managed-settings cache entry can prevent the client from making a request
