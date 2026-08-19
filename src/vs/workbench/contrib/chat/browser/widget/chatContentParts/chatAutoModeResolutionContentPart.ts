@@ -34,6 +34,7 @@ export class ChatAutoModeResolutionContentPart extends ChatThinkingStyleContentP
 	) {
 		super(autoModeRoutingTitle(content), context, undefined, hoverService, configurationService, telemetryService);
 
+		this.domNode.classList.add('chat-auto-mode-resolution');
 		this.isRouting = !content.resolved;
 		this.setThinkingActive(this.isRouting);
 		// The title says everything, so this is a status line, not a disclosure.

@@ -642,6 +642,7 @@ class TestChatWidgetService extends mock<IChatWidgetService>() {
 	override readonly onDidAddWidget = Event.None;
 	override readonly onDidRemoveWidget: Event<IChatWidget>;
 	override lastFocusedWidget: IChatWidgetService['lastFocusedWidget'];
+	override get lastFocusedChatSurface(): IChatWidgetService['lastFocusedChatSurface'] { return this.lastFocusedWidget; }
 	constructor(private readonly widgets: IChatWidget[] = [], onDidRemoveWidget = Event.None) {
 		super();
 		this.onDidRemoveWidget = onDidRemoveWidget;

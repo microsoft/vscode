@@ -283,6 +283,8 @@ export interface IChatListWidgetOptions {
 
 	/** Scrollable space kept below the last item, for content floating over the list. */
 	readonly paddingBottom?: number;
+	/** Whether to render the scroll-to-bottom button. */
+	readonly renderScrollToBottomButton?: boolean;
 }
 
 /**
@@ -357,7 +359,7 @@ export class ChatListWidget extends Disposable {
 	private readonly _userToggleResizeTrackers = this._register(new DisposableMap<ChatTreeItem, UserToggleResizeTracker>());
 
 	private readonly _container: HTMLElement;
-	private readonly _scrollDownButton: Button;
+	private readonly _scrollDownButton: Button | undefined;
 	private readonly _lastItemIdContextKey: IContextKey<string[]>;
 
 	private readonly _location: ChatAgentLocation | undefined;
@@ -604,30 +606,33 @@ export class ChatListWidget extends Disposable {
 			}
 		));
 
-		// Create scroll-down button
-		const scrollToBottomLabel = localize('chat.scrollToBottom', "Scroll to Bottom");
-		const scrollToBottomBackground = asCssVariableWithDefault('chat.list.background', asCssVariable(buttonSecondaryBackground));
-		this._scrollDownButton = this._register(new Button(this._container, {
-			title: scrollToBottomLabel,
-			ariaLabel: scrollToBottomLabel,
-			buttonBackground: scrollToBottomBackground,
-			buttonForeground: asCssVariable(buttonSecondaryForeground),
-			buttonHoverBackground: scrollToBottomBackground,
-			buttonSecondaryBackground: undefined,
-			buttonSecondaryForeground: undefined,
-			buttonSecondaryHoverBackground: undefined,
-			buttonSeparator: undefined,
-			supportIcons: true,
-		}));
-		this._scrollDownButton.element.classList.add('chat-scroll-down');
-		this._scrollDownButton.label = `$(${Codicon.chevronDown.id})`;
-		this._scrollDownButton.element.style.display = 'none'; // Hidden by default
+		if (options.renderScrollToBottomButton !== false) {
+			const scrollToBottomLabel = localize('chat.scrollToBottom', "Scroll to Bottom");
+			const scrollToBottomBackground = asCssVariableWithDefault('chat.list.background', asCssVariable(buttonSecondaryBackground));
+			this._scrollDownButton = this._register(new Button(this._container, {
+				title: scrollToBottomLabel,
+				ariaLabel: scrollToBottomLabel,
+				buttonBackground: scrollToBottomBackground,
+				buttonForeground: asCssVariable(buttonSecondaryForeground),
+				buttonHoverBackground: scrollToBottomBackground,
+				buttonSecondaryBackground: undefined,
+				buttonSecondaryForeground: undefined,
+				buttonSecondaryHoverBackground: undefined,
+				buttonSeparator: undefined,
+				supportIcons: true,
+			}));
+			this._scrollDownButton.element.classList.add('chat-scroll-down');
+			this._scrollDownButton.label = `$(${Codicon.chevronDown.id})`;
+			this._scrollDownButton.element.style.display = 'none';
 
-		this._register(this._scrollDownButton.onDidClick(() => {
-			this.cancelUserToggleScrollRestoration();
-			this.setScrollLock(true);
-			this.scrollToEnd();
-		}));
+			this._register(this._scrollDownButton.onDidClick(() => {
+				this.cancelUserToggleScrollRestoration();
+				this.setScrollLock(true);
+				this.scrollToEnd();
+			}));
+		} else {
+			this._scrollDownButton = undefined;
+		}
 
 		// Wire up tree events
 
@@ -797,10 +802,10 @@ export class ChatListWidget extends Disposable {
 	 */
 	private updateScrollDownButtonVisibility(): void {
 		const { showButton, atBottom } = computeScrollDownState(this.isScrolledToBottom, this._scrollLock);
-		// Use an explicit `flex` (the `.monaco-button` default) rather than '' when showing: the
-		// stylesheet applies `display: none` to `.interactive-session .chat-scroll-down`, so clearing
-		// the inline style would let that rule win and keep the button hidden.
-		this._scrollDownButton.element.style.display = showButton ? 'flex' : 'none';
+		if (this._scrollDownButton) {
+			// Use an explicit `flex` because the stylesheet hides the button by default.
+			this._scrollDownButton.element.style.display = showButton ? 'flex' : 'none';
+		}
 		this._container.classList.toggle('chat-list-at-bottom', atBottom);
 	}
 

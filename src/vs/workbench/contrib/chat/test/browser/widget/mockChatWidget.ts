@@ -23,6 +23,7 @@ export class MockChatWidgetService implements IChatWidgetService {
 	 * Returns the most recently focused widget if any.
 	 */
 	readonly lastFocusedWidget: IChatWidget | undefined;
+	get lastFocusedChatSurface(): IChatWidget | undefined { return this.lastFocusedWidget; }
 
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined {
 		return undefined;

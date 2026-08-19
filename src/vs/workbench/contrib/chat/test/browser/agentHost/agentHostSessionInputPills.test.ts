@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { getWindow } from '../../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
@@ -220,6 +221,7 @@ suite('AgentHostSessionInputPills', () => {
 		const widget = upcastPartial<ChatWidget>({
 			inputPart: upcastPartial<ChatInputPart>({
 				persistentContentContainerElement: persistentContent,
+				setPersistentContentVisible: () => { },
 				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
 			}),
 			onDidChangeViewModel: Event.None,
@@ -272,7 +274,7 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
-	test('marks floating persistent content visible when Agent Host pills have data', () => {
+	test('keeps read-only inputs visible while Agent Host pills have data', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const sessionResource = URI.parse('agent-host-copilot:/session');
 		const backendSession = URI.parse('copilot:/session');
@@ -304,15 +306,26 @@ suite('AgentHostSessionInputPills', () => {
 				files: [],
 			} as unknown as ChangesetState],
 		]));
+		const chatHost = document.createElement('div');
+		chatHost.className = 'interactive-session';
+		const hiddenInput = document.createElement('div');
+		hiddenInput.className = 'interactive-input-part chat-input-hidden';
 		const persistentContent = document.createElement('div');
-		document.body.appendChild(persistentContent);
-		store.add(toDisposable(() => persistentContent.remove()));
+		persistentContent.className = 'chat-input-persistent-content';
+		hiddenInput.appendChild(persistentContent);
+		chatHost.appendChild(hiddenInput);
+		document.body.appendChild(chatHost);
+		store.add(toDisposable(() => chatHost.remove()));
+		const inputPart: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+			container: hiddenInput,
+			persistentContentContainer: persistentContent,
+			_hasVisiblePersistentContent: false,
+			_hasVisibleToolConfirmation: false,
+			registerChatPetHorizontalPlatformProvider: () => Disposable.None,
+		});
 		let persistentContentHeight: number | undefined;
 		const widget = upcastPartial<ChatWidget>({
-			inputPart: upcastPartial<ChatInputPart>({
-				persistentContentContainerElement: persistentContent,
-				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
-			}),
+			inputPart,
 			onDidChangeViewModel: Event.None,
 			viewModel: upcastPartial<ChatViewModel>({ sessionResource }),
 			setPersistentContentHeight: height => persistentContentHeight = height,
@@ -367,6 +380,8 @@ suite('AgentHostSessionInputPills', () => {
 			buttonPreserved: row?.querySelector('.chat-pill-button') === button,
 			persistentContentVisible: persistentContent.classList.contains(chatPersistentContentVisibleClass),
 			persistentContentHeight,
+			inputVisible: getWindow(hiddenInput).getComputedStyle(hiddenInput).display !== 'none',
+			hasVisibleContentWhenInputHidden: inputPart.hasVisibleContentWhenInputHidden,
 		};
 		connection.setState(StateComponents.Changeset, {
 			status: ChangesetStatus.Ready,
@@ -376,6 +391,7 @@ suite('AgentHostSessionInputPills', () => {
 			hidden: row?.classList.contains('hidden'),
 			persistentContentVisible: persistentContent.classList.contains(chatPersistentContentVisibleClass),
 			persistentContentHeight,
+			inputVisible: getWindow(hiddenInput).getComputedStyle(hiddenInput).display !== 'none',
 		};
 		connection.setState(StateComponents.Changeset, {
 			status: ChangesetStatus.Ready,
@@ -387,6 +403,7 @@ suite('AgentHostSessionInputPills', () => {
 				},
 			}],
 		} as ChangesetState);
+		const inputVisibleAfterRefill = getWindow(hiddenInput).getComputedStyle(hiddenInput).display !== 'none';
 		connection.setState(StateComponents.Changeset, {
 			status: ChangesetStatus.Computing,
 			files: [],
@@ -398,6 +415,7 @@ suite('AgentHostSessionInputPills', () => {
 		assert.deepStrictEqual({
 			recomputing,
 			readyEmpty,
+			inputVisibleAfterRefill,
 			otherConnection: {
 				hidden: row?.classList.contains('hidden'),
 				persistentContentVisible: persistentContent.classList.contains(chatPersistentContentVisibleClass),
@@ -413,12 +431,16 @@ suite('AgentHostSessionInputPills', () => {
 				buttonPreserved: true,
 				persistentContentVisible: true,
 				persistentContentHeight: 28,
+				inputVisible: true,
+				hasVisibleContentWhenInputHidden: true,
 			},
 			readyEmpty: {
 				hidden: true,
 				persistentContentVisible: false,
 				persistentContentHeight: undefined,
+				inputVisible: false,
 			},
+			inputVisibleAfterRefill: true,
 			otherConnection: {
 				hidden: true,
 				persistentContentVisible: false,
@@ -460,6 +482,7 @@ suite('AgentHostSessionInputPills', () => {
 		const widget = upcastPartial<ChatWidget>({
 			inputPart: upcastPartial<ChatInputPart>({
 				persistentContentContainerElement: persistentContent,
+				setPersistentContentVisible: () => { },
 				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
 			}),
 			onDidChangeViewModel: Event.None,
@@ -591,6 +614,7 @@ suite('AgentHostSessionInputPills', () => {
 		const widget = upcastPartial<ChatWidget>({
 			inputPart: upcastPartial<ChatInputPart>({
 				persistentContentContainerElement: persistentContent,
+				setPersistentContentVisible: () => { },
 				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
 			}),
 			onDidChangeViewModel: Event.None,
@@ -690,6 +714,7 @@ suite('AgentHostSessionInputPills', () => {
 		const widget = upcastPartial<ChatWidget>({
 			inputPart: upcastPartial<ChatInputPart>({
 				persistentContentContainerElement: persistentContent,
+				setPersistentContentVisible: () => { },
 				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
 			}),
 			onDidChangeViewModel: viewModelChanged.event,
