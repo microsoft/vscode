@@ -323,6 +323,8 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 				&& (getActionEnvelope(n).action as IRootConfigChangedAction).config[AgentHostConfigKey.SessionCustomizationDiscoveryMode] === discoveryMode,
 			NOTIFICATION_TIMEOUT_MS,
 		);
+		client.notify('unsubscribe', { channel: ROOT_STATE_URI });
+		client.clearReceived();
 		const activeClientCustomizations = configuredCustomizations?.map((customization): ClientPluginCustomization => ({
 			type: CustomizationType.Plugin,
 			id: customizationId(customization.uri),
@@ -487,12 +489,19 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 		const session = await setupSession(sessionUri, 'real-sdk-customizations-client-mock', discoveryMode, 'turn-customizations-mock');
 		assert.ok(session.customizations);
 
-		const mappedCustomizations = session.customizations.map(customization => ({
-			type: customization.type,
-			contents: customization.type === CustomizationType.Directory ? customization.contents : undefined,
-			uri: customization.uri,
-			children: customization.type === CustomizationType.Directory ? (customization.children ?? []).map(child => child.uri) : undefined,
-		})).filter(builtInCustomizations).sort((a, b) => a.uri.localeCompare(b.uri));
+		const mappedCustomizations = session.customizations.map(customization => {
+			const omitSdkDiscoveredUserInstructions = discoveryMode === 'discover'
+				&& customization.type === CustomizationType.Directory
+				&& customization.uri === URI.file(userInstructionsDir).toString();
+			return {
+				type: customization.type,
+				contents: customization.type === CustomizationType.Directory ? customization.contents : undefined,
+				uri: customization.uri,
+				children: customization.type === CustomizationType.Directory
+					? omitSdkDiscoveredUserInstructions ? [] : (customization.children ?? []).map(child => child.uri)
+					: undefined,
+			};
+		}).filter(builtInCustomizations).sort((a, b) => a.uri.localeCompare(b.uri));
 		const expectedCustomizations = [
 			{ type: CustomizationType.Directory, contents: CustomizationType.Skill, uri: URI.file(join(userHomeDir, '.agents', 'skills')).toString(), children: [URI.file(userSkillFile).toString()] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Agent, uri: URI.file(join(userHomeDir, '.copilot', 'agents')).toString(), children: [URI.file(userAgentFile).toString()] },
