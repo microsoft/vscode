@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { IChannelClient } from '../../../base/parts/ipc/common/ipc.js';
 import { truncate } from '../../../base/common/strings.js';
@@ -17,13 +18,28 @@ import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import { ProtectedResourceMetadata, type Changeset, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { AuthRequiredParams, SessionAction, ChatAction } from './state/sessionActions.js';
-import { ChatInputResponseKind, ChatOriginKind, SessionStatus, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
+import { ChatInputResponseKind, ChatOriginKind, SessionStatus, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
 /** Error returned when the Agent Host process cannot be started. */
 export class AgentHostStartError extends Error {
 	constructor(message: string, readonly fatal = false) {
 		super(message);
 	}
+}
+
+export function isInvalidUtilityProcessConfigurationMessage(message: string): boolean {
+	return /^Invalid value for (?:args|env|execArgv)$/.test(message);
+}
+
+export function isFatalAgentHostStartError(error: unknown): error is TypeError {
+	return error instanceof TypeError && isInvalidUtilityProcessConfigurationMessage(error.message);
+}
+
+export function toFatalAgentHostStartError(error: Error): AgentHostStartError {
+	const startError = new AgentHostStartError(error.message, true);
+	startError.name = error.name;
+	startError.stack = error.stack;
+	return startError;
 }
 
 export interface IAgentHostConnection {
@@ -713,6 +729,9 @@ export interface IAgentChats {
 	/** Abort the in-flight turn for `chat`. */
 	abort(chat: URI, context: AgentChatOperationContext): Promise<void>;
 
+	/** Return the model currently bound to `chat`, when the provider knows it. */
+	getModel?(chat: URI, context: AgentChatOperationContext): ModelSelection | undefined;
+
 	changeModel(chat: URI, model: ModelSelection, context: AgentChatOperationContext): Promise<void>;
 
 	/**
@@ -761,12 +780,12 @@ export interface IAgentModelInfo {
  * Most signals carry a protocol {@link SessionAction} directly via the
  * `kind: 'action'` shape, eliminating a parallel event ontology. A small
  * number of cases that have no clean protocol action (permission
- * auto-approval, subagent session creation, steering message
- * acknowledgment) remain as discriminated non-action signals so the host
- * can perform side effects before — or instead of — dispatching an action.
+ * auto-approval, subagent session creation, steering acknowledgment, and
+ * host-owned model-call telemetry) remain as discriminated non-action signals.
  */
 export type AgentSignal =
 	| IAgentActionSignal
+	| IAgentModelCallCompletedSignal
 	| IAgentToolPendingConfirmationSignal
 	| IAgentSubagentStartedSignal
 	| IAgentSubagentResumedSignal
@@ -788,6 +807,19 @@ export interface IAgentActionSignal {
 	/** Protocol action to dispatch. */
 	readonly action: SessionAction | ChatAction;
 	/** If set, route the action to the subagent session belonging to this tool call. */
+	readonly parentToolCallId?: string;
+}
+
+/** Reports one completed upstream model response for host-owned turn telemetry. */
+export interface IAgentModelCallCompletedSignal {
+	readonly kind: 'model_call_completed';
+	/** Target chat channel URI. For inner subagent calls this is the parent chat channel. */
+	readonly resource: URI;
+	/** Provider-reported turn identifier. The host remaps it when routing to a subagent chat. */
+	readonly turnId: string;
+	/** Stable provider message or response identifier used to suppress duplicate notifications. */
+	readonly modelCallId: string;
+	/** If set, route the model call to the subagent session belonging to this tool call. */
 	readonly parentToolCallId?: string;
 }
 
@@ -1089,6 +1121,17 @@ export interface IAgent {
 	/** Returns host-internal plugin owners for MCP servers temporarily published top-level. */
 	getMcpServerOwners?(session: URI): ReadonlyMap<string, string> | undefined;
 
+	/**
+	 * Optional provider-owned decision about the multi-root new-session Folder
+	 * picker, computed from the ordered working-directory set (index 0 = the
+	 * current primary) and seeded into the session's `_meta` at creation for the
+	 * client. Returns `undefined` when the provider has no opinion: nothing is
+	 * seeded and the client keeps the picker hidden by default, so a provider
+	 * that wants it shown must say so with `{ hidden: false }`. The optional
+	 * {@link token} aborts the (possibly filesystem-bound) computation.
+	 */
+	computeFolderPickerDecision?(workingDirectories: readonly URI[], token?: CancellationToken): Promise<ISessionFolderPickerDecision | undefined>;
+
 	// ---- External chat discovery -------------------------------------------
 
 	/** Provides chats that are ready to be registered as Agent Host sessions. */
@@ -1142,6 +1185,9 @@ export interface IAgent {
 
 	/** Optional managed-settings snapshot for providers with an enterprise policy surface. */
 	getManagedSettingsDiagnostics?(): Promise<IAgentHostManagedSettingsSnapshot>;
+
+	/** Add provider-owned diagnostics to an Agent Host debug-log staging directory. */
+	collectDebugLogs?(session: URI | undefined, outputDirectory: URI): Promise<boolean>;
 
 	// ---- MCP and server tools -----------------------------------------------
 

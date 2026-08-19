@@ -10,6 +10,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
+import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { autorun, constObservable, derived, ISettableObservable, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
@@ -26,6 +27,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
+import { VSCODE_EPHEMERAL_SESSION_META_KEY } from '../../../../../../platform/agentHost/common/meta/agentEphemeralSessionMeta.js';
 import { getElementAttachmentCorrelationId, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
@@ -774,7 +776,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		...languageModelToolsServiceOverride,
 	});
 	instantiationService.stub(IOutputService, { getChannel: () => undefined });
-	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(true) });
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false) });
 	instantiationService.stub(IProgressService, { withProgress: <R,>(_options: IProgressNotificationOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>) => task({ report: () => { } }) });
 	instantiationService.stub(IWorkspaceContextService, {
 		getWorkbenchState: () => workspaceFolders.length > 1 ? WorkbenchState.WORKSPACE : workspaceFolders.length === 1 ? WorkbenchState.FOLDER : WorkbenchState.EMPTY,
@@ -805,10 +807,14 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	});
 	const chatModels = new Map<string, IChatModel>();
 	const onDidCreateModel = disposables.add(new Emitter<IChatModel>());
+	const onDidDisposeSession = disposables.add(new Emitter<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' }>());
 	const chatService = {
 		getSession: (sessionResource: URI) => chatModels.get(sessionResource.toString()),
 		onDidCreateModel: onDidCreateModel.event,
-		onDidDisposeSession: Event.None,
+		onDidDisposeSession: onDidDisposeSession.event,
+		fireDidDisposeSession(...sessionResources: URI[]) {
+			onDidDisposeSession.fire({ sessionResources, reason: 'cleared' });
+		},
 		setSession(sessionResource: URI, model: IChatModel) {
 			chatModels.set(sessionResource.toString(), model);
 			onDidCreateModel.fire(model);
@@ -884,11 +890,14 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		announceRendered: () => { },
 	});
 	instantiationService.stub(IAgentHostCustomizationService, customizationServiceOverride ?? new NullAgentHostCustomizationService());
+	const sessionCreationMetadata = new Map<string, Record<string, unknown>>();
 	instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
 		onDidChange: Event.None,
 		get: () => undefined,
 		getInitialSessionConfig: () => undefined,
-		getInitialSessionMetadata: () => undefined,
+		getInitialSessionMetadata: sessionResource => sessionResource ? sessionCreationMetadata.get(sessionResource.toString()) : undefined,
+		setSessionCreationMetadata: (sessionResource, metadata) => sessionCreationMetadata.set(sessionResource.toString(), metadata),
+		clearSessionCreationMetadata: sessionResource => sessionCreationMetadata.delete(sessionResource.toString()),
 		waitForPending: async () => undefined,
 		getOrCreate: async () => undefined,
 		tryRebind: async () => undefined,
@@ -900,7 +909,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		take: () => undefined,
 		rename: () => { },
 	} as Partial<IAgentHostImportConversationStore> as IAgentHostImportConversationStore);
-	const newSessionFolderService = disposables.add(new AgentHostNewSessionFolderService(chatService as Partial<IChatService> as IChatService, instantiationService.get(IWorkspaceContextService)));
+	const newSessionFolderService = disposables.add(new AgentHostNewSessionFolderService(chatService as Partial<IChatService> as IChatService, instantiationService.get(IWorkspaceContextService), { extUri: extUriBiasedIgnorePathCase } as Partial<IUriIdentityService> as IUriIdentityService));
 	instantiationService.stub(IAgentHostNewSessionFolderService, newSessionFolderService);
 	const customizationsByScope = new Map<string, { readonly customizations: IObservable<readonly ClientPluginCustomization[]>; readonly customAgents: IObservable<readonly AgentCustomization[]>; readonly tools: IObservable<readonly ToolDefinition[]>; readonly isResolved: IObservable<boolean>; readonly whenResolved: Promise<void> }>();
 	const scopeKey = (sessionType: string, roots: readonly URI[]) => `${sessionType}\n${roots.map(root => root.toString()).sort().join('\n')}`;
@@ -963,6 +972,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 			};
 		},
 		acquireScope,
+		areScopeRootsEqual: (first, second) => JSON.stringify(first) === JSON.stringify(second),
 		isBundledMcpServer: () => false,
 	};
 	instantiationService.stub(IAgentHostActiveClientService, activeClientService);
@@ -994,6 +1004,7 @@ function createContribution(disposables: DisposableStore, opts?: { authServiceOv
 		connection: agentHostService,
 		connectionAuthority: 'local',
 		isNewSession: sessionResource => listController.isNewSession(sessionResource),
+		onSessionMaterialized: sessionResource => listController.notifySessionMaterialized(sessionResource),
 	}));
 	const contribution = disposables.add(instantiationService.createInstance(AgentHostContribution));
 
@@ -3479,8 +3490,37 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(listController.items.some(existing => existing.resource.toString() === item.resource.toString()), true);
 		}));
 
+		test('terminal ephemeral session creation carries the list-suppression metadata', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { listController, sessionHandler, agentHostService, chatAgentService, chatService } = createContribution(disposables);
+			const item = await listController.newChatSessionItem({ prompt: '', isEphemeral: true }, CancellationToken.None);
+			assert.ok(item);
+			assert.strictEqual(listController.isNewSession(item.resource), true);
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'Explain this command',
+				sessionResource: item.resource,
+			});
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.deepStrictEqual({
+				resourceQuery: item.resource.query,
+				metadata: agentHostService.createSessionCalls[0]._meta,
+			}, {
+				resourceQuery: '',
+				metadata: { [VSCODE_EPHEMERAL_SESSION_META_KEY]: true },
+			});
+			assert.strictEqual(listController.isNewSession(item.resource), false, 'materialization must clear the pending marker');
+
+			const abandoned = await listController.newChatSessionItem({ prompt: '', isEphemeral: true }, CancellationToken.None);
+			assert.ok(abandoned);
+			assert.strictEqual(listController.isNewSession(abandoned.resource), true);
+			chatService.fireDidDisposeSession(abandoned.resource);
+			assert.strictEqual(listController.isNewSession(abandoned.resource), false, 'disposing an abandoned model must clear the pending marker');
+		}));
+
 		test('newChatSessionItem rebinds untitled provisional to real resource so chip-selected config survives first send', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { instantiationService, agentHostService } = createTestServices(disposables);
+			const { instantiationService, agentHostService, newSessionFolderService } = createTestServices(disposables);
 
 			const workspaceFolder = URI.from({ scheme: 'file', path: '/workspace/root' });
 			instantiationService.stub(IWorkspaceContextService, {
@@ -3490,14 +3530,14 @@ suite('AgentHostChatContribution', () => {
 				onDidChangeWorkspaceFolders: Event.None,
 			});
 
-			const rebindCalls: { oldResource: URI; newResource: URI; provider: string; workingDirectory: URI | undefined }[] = [];
+			const rebindCalls: { oldResource: URI; newResource: URI; provider: string }[] = [];
 			instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
 				onDidChange: Event.None,
 				get: () => undefined,
 				waitForPending: async () => undefined,
 				getOrCreate: async () => undefined,
-				tryRebind: async (oldResource: URI, newResource: URI, provider: string, workingDirectory: URI | undefined) => {
-					rebindCalls.push({ oldResource, newResource, provider, workingDirectory });
+				tryRebind: async (oldResource: URI, newResource: URI, provider: string) => {
+					rebindCalls.push({ oldResource, newResource, provider });
 					return newResource;
 				},
 				disposeSession: async () => { },
@@ -3509,12 +3549,16 @@ suite('AgentHostChatContribution', () => {
 			const item = await listController.newChatSessionItem({ prompt: 'Hello', untitledResource }, CancellationToken.None);
 
 			assert.ok(item);
-			assert.deepStrictEqual(rebindCalls, [{
-				oldResource: untitledResource,
-				newResource: item.resource,
-				provider: 'copilot',
-				workingDirectory: workspaceFolder,
-			}]);
+			// The rebind graduates the untitled provisional to the real resource, and
+			// the chosen working directory is carried onto the real resource (which the
+			// handler resolves via getFolder) rather than through a tryRebind argument.
+			assert.deepStrictEqual({
+				rebindCalls,
+				carriedFolder: newSessionFolderService.getFolder(item.resource)?.toString(),
+			}, {
+				rebindCalls: [{ oldResource: untitledResource, newResource: item.resource, provider: 'copilot' }],
+				carriedFolder: workspaceFolder.toString(),
+			});
 		}));
 
 		test('newChatSessionItem skips rebind when no untitled provisional resource is provided', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -3554,14 +3598,14 @@ suite('AgentHostChatContribution', () => {
 				onDidChangeWorkspaceFolders: Event.None,
 			});
 
-			const rebindCalls: { workingDirectory: URI | undefined }[] = [];
+			const rebindCalls: { oldResource: URI; newResource: URI }[] = [];
 			instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
 				onDidChange: Event.None,
 				get: () => undefined,
 				waitForPending: async () => undefined,
 				getOrCreate: async () => undefined,
-				tryRebind: async (_old: URI, newResource: URI, _provider: string, workingDirectory: URI | undefined) => {
-					rebindCalls.push({ workingDirectory });
+				tryRebind: async (oldResource: URI, newResource: URI) => {
+					rebindCalls.push({ oldResource, newResource });
 					return newResource;
 				},
 				disposeSession: async () => { },
@@ -3575,7 +3619,16 @@ suite('AgentHostChatContribution', () => {
 
 			const item = await listController.newChatSessionItem({ prompt: 'Hello', untitledResource }, CancellationToken.None);
 			assert.ok(item);
-			assert.deepStrictEqual(rebindCalls, [{ workingDirectory: folderB }]);
+			// The store-selected folder is carried onto the real resource (the handler
+			// resolves the working directory from getFolder), and the rebind graduates
+			// the untitled provisional to that real resource.
+			assert.deepStrictEqual({
+				rebindCalls,
+				carriedFolder: newSessionFolderService.getFolder(item.resource)?.toString(),
+			}, {
+				rebindCalls: [{ oldResource: untitledResource, newResource: item.resource }],
+				carriedFolder: folderB.toString(),
+			});
 		}));
 
 		test('folder picker is visible only in multi-root agent-host editor windows when the provider pins an immutable primary directory', () => {
@@ -3590,6 +3643,8 @@ suite('AgentHostChatContribution', () => {
 				[ChatContextKeys.lockedCodingAgentId.key]: 'agent-host-copilot',
 				[ChatContextKeys.chatIsAgentHostSession.key]: true,
 				[ChatContextKeys.chatAgentHostHasImmutablePrimaryWorkingDirectory.key]: true,
+				// Hidden by default; the harness decision reveals the picker.
+				[ChatContextKeys.chatAgentHostFolderPickerVisible.key]: true,
 			};
 
 			assert.deepStrictEqual({
@@ -3598,12 +3653,14 @@ suite('AgentHostChatContribution', () => {
 				sessionsWindow: evalWhen({ ...agentHost, workspaceFolderCount: 2, isSessionsWindow: true }),
 				nonAgentHost: evalWhen({ [ChatContextKeys.lockedCodingAgentId.key]: 'copilot', [ChatContextKeys.chatIsAgentHostSession.key]: false, workspaceFolderCount: 2, isSessionsWindow: false }),
 				noImmutablePrimary: evalWhen({ ...agentHost, [ChatContextKeys.chatAgentHostHasImmutablePrimaryWorkingDirectory.key]: false, workspaceFolderCount: 2, isSessionsWindow: false }),
+				notRevealed: evalWhen({ ...agentHost, [ChatContextKeys.chatAgentHostFolderPickerVisible.key]: false, workspaceFolderCount: 2, isSessionsWindow: false }),
 			}, {
 				multiRootEditor: true,
 				singleFolder: false,
 				sessionsWindow: false,
 				nonAgentHost: false,
 				noImmutablePrimary: false,
+				notRevealed: false,
 			});
 		});
 	});
@@ -8759,7 +8816,7 @@ suite('AgentHostChatContribution', () => {
 
 		test('setting gate prevents registration', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { instantiationService } = createTestServices(disposables);
-			instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(false) });
+			instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false) });
 
 			const contribution = disposables.add(instantiationService.createInstance(AgentHostContribution));
 			// Contribution should exist but not have registered any agents
@@ -8787,7 +8844,7 @@ suite('AgentHostChatContribution', () => {
 			const { instantiationService, agentHostService, chatSessionContributions } = createTestServices(
 				disposables, undefined, undefined, undefined, undefined, false, undefined, { [ChatAIDisabledSettingId]: false });
 			const enabled = observableValue('agentHostEnabled', true);
-			instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled });
+			instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled, managedSandboxEnforced: constObservable(false) });
 			let progressStarts = 0;
 			instantiationService.stub(IProgressService, {
 				withProgress: <R,>(_options: IProgressNotificationOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>) => {

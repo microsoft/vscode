@@ -23,6 +23,8 @@ import { ChangesSummary, ChatInteractivity, type ChatOrigin } from '../common/st
 import { arrayEquals, structuralEquals } from '../../../base/common/equals.js';
 import { preserveProviderBackedRootConfigValues } from '../common/agentCustomizationSettings.js';
 import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
+import { readEphemeralSessionMeta } from '../common/meta/agentEphemeralSessionMeta.js';
+import { ITerminalChatSurfaceMeta, readChatSurfaceMeta } from '../common/meta/agentChatSurfaceMeta.js';
 
 export interface IAgentHostStateManagerOptions {
 	readonly changesetStateRetention?: IAgentHostChangesetStateRetentionOptions;
@@ -269,6 +271,8 @@ export class AgentHostStateManager extends Disposable {
 	readonly onDidEmitNotification: Event<INotification> = this._onDidEmitNotification.event;
 	private readonly _onDidChangeSessionActiveTurn = this._register(new Emitter<{ session: string; active: boolean }>());
 	readonly onDidChangeSessionActiveTurn: Event<{ session: string; active: boolean }> = this._onDidChangeSessionActiveTurn.event;
+	private readonly _onDidChangeSessionStatus = this._register(new Emitter<{ session: string; status: SessionStatus }>());
+	readonly onDidChangeSessionStatus: Event<{ session: string; status: SessionStatus }> = this._onDidChangeSessionStatus.event;
 	private readonly _onDidRemoveSession = this._register(new Emitter<string>());
 	readonly onDidRemoveSession: Event<string> = this._onDidRemoveSession.event;
 
@@ -570,7 +574,7 @@ export class AgentHostStateManager extends Disposable {
 	getOverlaySessionSummaries(): SessionSummary[] {
 		const summaries: SessionSummary[] = [];
 		for (const [key, entry] of this._sessionStates) {
-			if (this._isIdleProvisional(key, entry.state.lifecycle)) {
+			if (this._isIdleProvisional(key, entry.state.lifecycle) || this.isEphemeralSession(key)) {
 				continue;
 			}
 			summaries.push(this._toSummary(key, entry));
@@ -587,6 +591,18 @@ export class AgentHostStateManager extends Disposable {
 	isIdleProvisionalSession(session: string): boolean {
 		const entry = this._sessionStates.get(session);
 		return entry ? this._isIdleProvisional(session, entry.state.lifecycle) : false;
+	}
+
+	/** Whether the session is owned by a throwaway VS Code chat surface. */
+	isEphemeralSession(session: string): boolean {
+		const entry = this._sessionStates.get(session);
+		return entry ? readEphemeralSessionMeta(entry.state).isEphemeral === true : false;
+	}
+
+	/** Returns the typed VS Code surface metadata for a tracked session, when present. */
+	getSessionSurfaceMeta(session: string): ITerminalChatSurfaceMeta | undefined {
+		const entry = this._sessionStates.get(session);
+		return entry ? readChatSurfaceMeta(entry.state) : undefined;
 	}
 
 	private _isIdleProvisional(session: string, lifecycle: SessionLifecycle): boolean {
@@ -1706,6 +1722,9 @@ export class AgentHostStateManager extends Disposable {
 			...(statusChanged ? { status: newStatus } : undefined),
 			...(activityChanged ? { activity: aggregate.activity } : undefined),
 		};
+		if (statusChanged) {
+			this._onDidChangeSessionStatus.fire({ session: sessionKey, status: newStatus });
+		}
 
 		// Roll the aggregated `modifiedAt` into the catalog-only timestamp.
 		const newModifiedAt = aggregate.modifiedAt !== undefined ? new Date(aggregate.modifiedAt).toISOString() : undefined;

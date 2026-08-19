@@ -9,7 +9,7 @@ import { $, isHTMLElement, size } from '../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -278,10 +278,9 @@ export class ChatView extends AbstractChatView {
 				|| this.voiceSessionController.isConnecting.read(reader);
 			const target = this.voiceSessionController.targetSession.read(reader);
 			const hasDraftTarget = this.voiceSessionController.hasDraftTarget.read(reader);
-			const omniInputOpen = this.voiceSessionController.omniInputOpen.read(reader);
 			const current = this._currentChatResourceObs.read(reader);
 			const ownsVoice = !hasDraftTarget && (!target || (!!current && isEqual(target, current)));
-			this._voiceInitiatedHereKey.set(!omniInputOpen && active && voiceActive && ownsVoice);
+			this._voiceInitiatedHereKey.set(active && voiceActive && ownsVoice);
 		}));
 	}
 
@@ -525,9 +524,6 @@ export class ChatView extends AbstractChatView {
 		if (!inputContainerEl) {
 			return;
 		}
-		const isVoiceSurfaceActive = derived(this, reader =>
-			this._isActiveObs.read(reader) && !this.voiceSessionController.omniInputOpen.read(reader)
-		);
 		this._register(setupVoiceInputDecorations({
 			voiceSessionController: this.voiceSessionController,
 			ttsPlaybackService: this.ttsPlaybackService,
@@ -538,7 +534,7 @@ export class ChatView extends AbstractChatView {
 			accessibilityService: this.accessibilityService,
 		}, {
 			inputContainer: inputContainerEl,
-			isActive: isVoiceSurfaceActive,
+			isActive: this._isActiveObs,
 			getCurrentResource: () => this._currentChatResource,
 			currentVoiceInputResource: this.newChatVoiceTargetService.currentVoiceInputResource,
 		}));
