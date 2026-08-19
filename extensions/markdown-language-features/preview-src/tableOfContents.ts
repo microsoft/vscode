@@ -20,6 +20,11 @@ const TOC_CLASS = 'markdown-toc';
 const TOC_ENTRY_CLASS = 'markdown-toc-entry';
 const TOC_ACTIVE_CLASS = 'active';
 const TOC_BODY_CLASS = 'has-toc';
+const TOC_RESIZE_HANDLE_CLASS = 'markdown-toc-resize-handle';
+const TOC_RESIZING_BODY_CLASS = 'resizing-toc';
+const TOC_WIDTH_STORAGE_KEY = 'markdown.tocWidth';
+const TOC_MIN_WIDTH = 120;
+const TOC_MAX_WIDTH = 500;
 
 let tocEntries: TocEntry[] = [];
 let tocPanel: HTMLElement | undefined;
@@ -57,6 +62,24 @@ export function buildTableOfContents(): void {
 	tocPanel = document.createElement('nav');
 	tocPanel.className = TOC_CLASS;
 	tocPanel.setAttribute('aria-label', 'Table of contents');
+
+	// Restore the persisted width, if any.
+	const savedWidth = Number(localStorage.getItem(TOC_WIDTH_STORAGE_KEY));
+	if (savedWidth >= TOC_MIN_WIDTH && savedWidth <= TOC_MAX_WIDTH) {
+		setTocWidth(savedWidth);
+	}
+
+	// Drag handle to resize the TOC column.
+	const resizeHandle = document.createElement('div');
+	resizeHandle.className = TOC_RESIZE_HANDLE_CLASS;
+	resizeHandle.setAttribute('role', 'separator');
+	resizeHandle.setAttribute('aria-orientation', 'vertical');
+	resizeHandle.setAttribute('aria-label', 'Resize table of contents');
+	resizeHandle.addEventListener('mousedown', (e) => {
+		e.preventDefault();
+		startResizing(e.clientX);
+	});
+	tocPanel.appendChild(resizeHandle);
 
 	tocList = document.createElement('ul');
 	tocPanel.appendChild(tocList);
@@ -135,8 +158,35 @@ export function updateActiveTocEntry(): void {
 
 	// Keep the active entry visible in the TOC column. If the active heading
 	// is scrolled out of the visible part of the TOC, scroll the TOC so that
-	// it comes back into view. `block: 'nearest'` scrolls the minimal amount.
-	activeEntry?.scrollIntoView({ block: 'nearest' });
+	// it comes back into view, leaving a small gap at the top.
+	scrollActiveEntryIntoView();
+}
+
+/**
+ * Scroll the TOC column so that the active entry stays visible, with a small
+ * gap between the entry and the top/bottom edges of the TOC. Only scrolls
+ * the minimal amount needed — the spacing between entries is unchanged and
+ * the next entry is not revealed.
+ */
+function scrollActiveEntryIntoView(): void {
+	if (!tocPanel || !activeEntry) {
+		return;
+	}
+
+	const gap = 4; // px of breathing room at the top and bottom of the TOC
+
+	const panelRect = tocPanel.getBoundingClientRect();
+	const entryRect = activeEntry.getBoundingClientRect();
+
+	if (entryRect.top < panelRect.top + gap) {
+		// Entry is above the visible area (or too close to the top edge):
+		// scroll up so it sits `gap` px below the top edge.
+		tocPanel.scrollTop -= (panelRect.top + gap - entryRect.top);
+	} else if (entryRect.bottom > panelRect.bottom - gap) {
+		// Entry is below the visible area (or too close to the bottom edge):
+		// scroll down just enough so it sits `gap` px above the bottom edge.
+		tocPanel.scrollTop += (entryRect.bottom - (panelRect.bottom - gap));
+	}
 }
 
 /**
@@ -149,4 +199,45 @@ function isFirstElementOfDocument(element: HTMLElement): boolean {
 	// document starts with that heading.
 	const firstCodeLine = document.querySelector('.markdown-body .code-line');
 	return firstCodeLine === element;
+}
+
+/**
+ * Set the TOC column width. The variable is set on both the body (for the
+ * content padding) and the TOC panel (for the column width).
+ */
+function setTocWidth(width: number): void {
+	document.body.style.setProperty('--toc-width', `${width}px`);
+	tocPanel?.style.setProperty('--toc-width', `${width}px`);
+}
+
+/**
+ * Start resizing the TOC column by dragging the resize handle.
+ */
+function startResizing(startX: number): void {
+	if (!tocPanel) {
+		return;
+	}
+
+	const startWidth = tocPanel.getBoundingClientRect().width;
+	document.body.classList.add(TOC_RESIZING_BODY_CLASS);
+
+	const onMouseMove = (e: MouseEvent) => {
+		const newWidth = Math.min(TOC_MAX_WIDTH, Math.max(TOC_MIN_WIDTH, startWidth + (e.clientX - startX)));
+		setTocWidth(newWidth);
+	};
+
+	const onMouseUp = () => {
+		document.body.classList.remove(TOC_RESIZING_BODY_CLASS);
+		window.removeEventListener('mousemove', onMouseMove);
+		window.removeEventListener('mouseup', onMouseUp);
+
+		// Persist the final width.
+		if (tocPanel) {
+			const finalWidth = tocPanel.getBoundingClientRect().width;
+			localStorage.setItem(TOC_WIDTH_STORAGE_KEY, String(Math.round(finalWidth)));
+		}
+	};
+
+	window.addEventListener('mousemove', onMouseMove);
+	window.addEventListener('mouseup', onMouseUp);
 }

@@ -491,7 +491,7 @@ pre.has-language-label {
 
 /* Table of contents — full-height fixed side column */
 body.has-toc {
-	padding-left: 260px; /* 220px TOC + 40px gap */
+	padding-left: calc(var(--toc-width, 220px) + 40px); /* TOC + gap */
 }
 
 .markdown-toc {
@@ -499,12 +499,36 @@ body.has-toc {
 	left: 0;
 	top: 0;
 	bottom: 0;
-	width: 220px;
+	width: var(--toc-width, 220px);
 	overflow-y: auto;
 	padding: 1em 12px;
 	border-right: 1px solid var(--vscode-widget-border, rgba(127, 127, 127, 0.35));
 	background-color: var(--vscode-editorWidget-background, var(--vscode-editor-background));
 	box-sizing: border-box;
+}
+
+/* Drag handle to resize the TOC column.
+   Positioned at the right edge of the TOC (to the right of the scrollbar),
+   in the gap between the TOC and the content. */
+.markdown-toc-resize-handle {
+	position: fixed;
+	top: 0;
+	bottom: 0;
+	left: calc(var(--toc-width, 220px) - 3px);
+	width: 6px;
+	cursor: ew-resize;
+	z-index: 1;
+}
+
+.markdown-toc-resize-handle:hover,
+body.resizing-toc .markdown-toc-resize-handle {
+	background-color: var(--vscode-focusBorder, #007fd4);
+	opacity: 0.5;
+}
+
+body.resizing-toc {
+	cursor: ew-resize;
+	user-select: none;
 }
 
 .markdown-toc ul {
