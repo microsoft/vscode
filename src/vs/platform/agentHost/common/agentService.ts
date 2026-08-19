@@ -71,7 +71,7 @@ export const enum AgentHostIpcChannels {
 export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLoggingEnabled';
 
 export type AgentHostDebugLogsArtifactKind = 'archive' | 'directory';
-export const AGENT_HOST_DEBUG_LOGS_MAX_BYTES = 16 * 1024 * 1024;
+export const AGENT_HOST_DEBUG_LOGS_MAX_BYTES = 256 * 1024 * 1024;
 /** Maximum number of files in one Agent Host debug-log artifact. */
 export const AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES = 1000;
 /**
@@ -80,19 +80,6 @@ export const AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES = 1000;
  * never has to encode a whole archive into one JSON-RPC message.
  */
 export const AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES = 1024 * 1024;
-/**
- * Upper bound on the *uncompressed* logs staged for an archive artifact. Log
- * text compresses heavily, so this is deliberately far larger than
- * {@link AGENT_HOST_DEBUG_LOGS_MAX_BYTES} — which still bounds the archive that
- * is actually transferred. It only exists to keep zipping work finite.
- */
-export const AGENT_HOST_DEBUG_LOGS_MAX_STAGED_BYTES = 256 * 1024 * 1024;
-/**
- * Upper bound on any single file inside an artifact. Oversized files are
- * reduced to their trailing bytes rather than dropped, so a very large process
- * log still contributes the portion that explains a recent failure.
- */
-export const AGENT_HOST_DEBUG_LOGS_MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 export interface IAgentHostDebugLogsArtifactEntry {
 	readonly path: string;

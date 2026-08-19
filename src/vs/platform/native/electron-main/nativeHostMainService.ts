@@ -50,13 +50,11 @@ import { IProxyAuthService } from './auth.js';
 import { AuthInfo, Credentials, IRequestService } from '../../request/common/request.js';
 import { randomPath } from '../../../base/common/extpath.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, AGENT_HOST_DEBUG_LOGS_MAX_STAGED_BYTES } from '../../agentHost/common/agentService.js';
+import { AGENT_HOST_DEBUG_LOGS_MAX_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES } from '../../agentHost/common/agentService.js';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
 export const INativeHostMainService = createDecorator<INativeHostMainService>('nativeHostMainService');
-const MAX_MERGED_ZIP_SIZE = 16 * 1024 * 1024;
-
 export class NativeHostMainService extends Disposable implements INativeHostMainService {
 
 	declare readonly _serviceBrand: undefined;
@@ -1441,12 +1439,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 					const temporaryDirectory = join(this.environmentMainService.tmpDir.fsPath, `vscode-zip-merge-${randomPath()}`);
 					temporaryDirectories.push(temporaryDirectory);
 					const archiveSize = (await fs.promises.stat(sourceArchive.fsPath)).size;
-					if (archiveSize > MAX_MERGED_ZIP_SIZE) {
-						throw new Error(`ZIP is too large to merge (${archiveSize} bytes; limit ${MAX_MERGED_ZIP_SIZE} bytes)`);
+					if (archiveSize > AGENT_HOST_DEBUG_LOGS_MAX_BYTES) {
+						throw new Error(`ZIP is too large to merge (${archiveSize} bytes; limit ${AGENT_HOST_DEBUG_LOGS_MAX_BYTES} bytes)`);
 					}
 					await validateZip(sourceArchive.fsPath, {
 						maxEntries: AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES,
-						maxUncompressedSize: AGENT_HOST_DEBUG_LOGS_MAX_STAGED_BYTES,
+						maxUncompressedSize: AGENT_HOST_DEBUG_LOGS_MAX_BYTES,
 					});
 					await extract(sourceArchive.fsPath, temporaryDirectory, {}, CancellationToken.None);
 					zipFiles.push(...await collectZipFiles(temporaryDirectory));
