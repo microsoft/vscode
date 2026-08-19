@@ -9,6 +9,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import product from '../../../../platform/product/common/product.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsManagementService, inheritableSessionTarget } from '../../../services/sessions/common/sessionsManagement.js';
@@ -152,7 +153,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		[SHOW_SESSION_METADATA_IN_CHAT_INPUT_SETTING]: {
 			type: 'boolean',
-			default: false,
+			default: product.quality !== 'stable',
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('chat.agentSessions.showSessionMetadataInInput', "Controls whether session metadata such as changes, pull requests, and issues appears above the chat input instead of in the session header."),
 		},
