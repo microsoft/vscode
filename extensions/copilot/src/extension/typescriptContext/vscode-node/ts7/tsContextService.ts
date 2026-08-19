@@ -35,16 +35,39 @@ class PendingRequestInfo {
 	}
 }
 
+type ComputeContextResult =
+	| { readonly kind: 'ok'; readonly body: protocol.ComputeContextResponse.OK }
+	| { readonly kind: 'cancelled' }
+	| { readonly kind: 'failed'; readonly error: protocol.CustomResponse.Failed };
+
+namespace ComputeContextResult {
+	export const cancelled: ComputeContextResult = { kind: 'cancelled' };
+
+	export function ok(body: protocol.ComputeContextResponse.OK): ComputeContextResult {
+		return { kind: 'ok', body };
+	}
+
+	export function toErrorData(error: unknown): protocol.CustomResponse.Failed {
+		return error instanceof Error
+			? { error: protocol.ErrorCode.exception, message: error.message, stack: error.stack }
+			: { error: protocol.ErrorCode.exception, message: 'Unknown error' };
+	}
+
+	export function failed(error: unknown): ComputeContextResult {
+		return { kind: 'failed', error: toErrorData(error) };
+	}
+}
+
 class InflightRequestInfo {
 	public readonly document: string;
 	public readonly position: vscode.Position;
 	public readonly requestId: string;
 	public readonly source: KnownSources | string;
-	public readonly serverPromise: Promise<protocol.ComputeContextResponse.OK | undefined>;
+	public readonly serverPromise: Promise<ComputeContextResult>;
 
 	private readonly tokenSource: vscode.CancellationTokenSource;
 
-	constructor(document: vscode.TextDocument, position: vscode.Position, context: RequestContext, tokenSource: vscode.CancellationTokenSource, serverPromise: Promise<protocol.ComputeContextResponse.OK | undefined>) {
+	constructor(document: vscode.TextDocument, position: vscode.Position, context: RequestContext, tokenSource: vscode.CancellationTokenSource, serverPromise: Promise<ComputeContextResult>) {
 		this.document = document.uri.toString();
 		this.position = position;
 		this.requestId = context.requestId;
@@ -154,13 +177,13 @@ export class TS7LanguageContextService extends AbstractTSLanguageContextService 
 			const token = tokenSource.token;
 			const documentVersion = document.version;
 			const cacheState = this.runnableResultManager.getCacheState();
-			let body: protocol.ComputeContextResponse.OK | undefined;
+			let result: ComputeContextResult;
 			let inflightRequest: InflightRequestInfo | undefined;
 			try {
 				const promise = this.computeContext(api, document, position, context, startTime, timeBudget, neighborFiles, contextRequestState?.server, token);
 				inflightRequest = new InflightRequestInfo(document, position, context, tokenSource, promise);
 				this.inflightCachePopulationRequest = inflightRequest;
-				body = await promise;
+				result = await promise;
 			} finally {
 				if (this.inflightCachePopulationRequest === inflightRequest) {
 					this.inflightCachePopulationRequest = undefined;
@@ -168,9 +191,13 @@ export class TS7LanguageContextService extends AbstractTSLanguageContextService 
 				tokenSource.dispose();
 			}
 			const timeTaken = Date.now() - startTime;
-			if (body === undefined) {
+			if (result.kind === 'cancelled') {
 				this.telemetrySender.sendRequestCancelledTelemetry(context, timeTaken);
+			} else if (result.kind === 'failed') {
+				this.telemetrySender.sendRequestFailureTelemetry(context, result.error);
+				this.logService.error(`Error computing TypeScript 7 context for document: ${document.uri.toString()} at position: ${position.line + 1}:${position.character + 1}`, result.error.stack ?? result.error.message);
 			} else {
+				const body = result.body;
 				const contextItemResult = new ContextItemResultBuilder(timeTaken);
 				const { resolved, cached, referenced, serverComputed } = this.runnableResultManager.update(document, documentVersion, position, context, body, contextRequestState);
 				contextItemResult.cachedItems += cached;
@@ -188,28 +215,29 @@ export class TS7LanguageContextService extends AbstractTSLanguageContextService 
 				this._onCachePopulated.fire({ document, position, source: context.source, items: resolved, summary: contextItemResult });
 			}
 		} catch (error) {
+			this.telemetrySender.sendRequestFailureTelemetry(context, ComputeContextResult.toErrorData(error));
 			this.logService.error(error, `Error populating cache for document: ${document.uri.toString()} at position: ${position.line + 1}:${position.character + 1}`);
 		} finally {
 			this.runPendingRequest();
 		}
 	}
 
-	private async computeContext(api: API<true>, document: vscode.TextDocument, position: vscode.Position, context: RequestContext, startTime: number, timeBudget: number, neighborFiles: readonly string[], clientSideRunnableResults: readonly protocol.CachedContextRunnableResult[] | undefined, token: vscode.CancellationToken): Promise<protocol.ComputeContextResponse.OK | undefined> {
+	private async computeContext(api: API<true>, document: vscode.TextDocument, position: vscode.Position, context: RequestContext, startTime: number, timeBudget: number, neighborFiles: readonly string[], clientSideRunnableResults: readonly protocol.CachedContextRunnableResult[] | undefined, token: vscode.CancellationToken): Promise<ComputeContextResult> {
 		try {
 			// Workaround for https://github.com/microsoft/typescript-go/issues/4916
 			api.clearSourceFileCache();
 			const snapshot = await api.updateSnapshot({ openFiles: [ { uri: document.uri.toString() } ] });
 			try {
 				if (token.isCancellationRequested) {
-					return undefined;
+					return ComputeContextResult.cancelled;
 				}
 				const project = await snapshot.getDefaultProjectForFile({ uri: document.uri.toString() });
 				if (project === undefined) {
-					return undefined;
+					return ComputeContextResult.cancelled;
 				}
 				const sourceFile = await project.program.getSourceFile({ uri: document.uri.toString() });
 				if (sourceFile === undefined || sourceFile.text !== document.getText()) {
-					return undefined;
+					return ComputeContextResult.cancelled;
 				}
 				const cancellationToken = new CancellationTokenWithTimer(token, startTime, timeBudget, this.isDebugging);
 				const session = new ComputeContextSession(project, cancellationToken);
@@ -232,12 +260,13 @@ export class TS7LanguageContextService extends AbstractTSLanguageContextService 
 				const endTime = Date.now();
 				result.addTimings(endTime - startTime, endTime - computeStart);
 				result.setTimedOut(cancellationToken.isTimedOut());
-				return result.toJson();
+				return ComputeContextResult.ok(result.toJson());
 			} finally {
 				await snapshot.dispose();
 			}
 		} catch (error) {
-			console.error(error, `Error computing context for document: ${document.uri.toString()} at position: ${position.line + 1}:${position.character + 1}`);
+			// Never reject: the same promise is raced by `getContext`.
+			return error instanceof OperationCanceledException ? ComputeContextResult.cancelled : ComputeContextResult.failed(error);
 		}
 	}
 

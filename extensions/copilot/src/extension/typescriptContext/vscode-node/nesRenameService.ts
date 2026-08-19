@@ -117,7 +117,7 @@ export class NesRenameContribution implements vscode.Disposable {
 		this.disposables = new DisposableStore();
 		this.nesRenameService = this.createNesRenameService();
 		this.disposables.add(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TypeScript.versionKey) || e.affectsConfiguration(ConfigKey.TypeScript7LanguageContext.fullyQualifiedId)) {
+			if (TypeScript.affectsVersion(e) || e.affectsConfiguration(ConfigKey.TypeScript7LanguageContext.fullyQualifiedId)) {
 				this.updateNesRenameService();
 			}
 		}));

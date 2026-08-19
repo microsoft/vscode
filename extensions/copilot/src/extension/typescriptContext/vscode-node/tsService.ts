@@ -7,14 +7,40 @@ import * as vscode from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 
 export namespace TypeScript {
-	export const versionKey = 'js/ts.experimental.useTsgo';
+
+	const unifiedSection = 'js/ts';
+	const legacySection = 'typescript';
+	const useTsgoKey = 'experimental.useTsgo';
+
+	export const versionKey = `${unifiedSection}.${useTsgoKey}`;
+	export const legacyVersionKey = `${legacySection}.${useTsgoKey}`;
 
 	export function runsVersion7(): boolean {
-		const value = vscode.workspace.getConfiguration('js/ts.experimental').get<boolean>('useTsgo', false);
-		return value === true;
+		// Mirrors `readUnifiedConfig` in the TypeScript extension: the unified setting wins whenever the user set it,
+		// otherwise the deprecated `typescript.experimental.useTsgo` still applies.
+		const unified = vscode.workspace.getConfiguration(unifiedSection);
+		if (hasUserValue(unified.inspect<boolean>(useTsgoKey))) {
+			return unified.get<boolean>(useTsgoKey, false) === true;
+		}
+		return vscode.workspace.getConfiguration(legacySection).get<boolean>(useTsgoKey, false) === true;
+	}
+
+	export function affectsVersion(e: vscode.ConfigurationChangeEvent): boolean {
+		return e.affectsConfiguration(versionKey) || e.affectsConfiguration(legacyVersionKey);
 	}
 
 	export function isVersion7SupportEnabled(configurationService: IConfigurationService): boolean {
 		return configurationService.getConfig(ConfigKey.TypeScript7LanguageContext) ?? false;
+	}
+
+	function hasUserValue(inspect: ReturnType<vscode.WorkspaceConfiguration['inspect']>): boolean {
+		return inspect !== undefined && (
+			inspect.globalValue !== undefined ||
+			inspect.workspaceValue !== undefined ||
+			inspect.workspaceFolderValue !== undefined ||
+			inspect.globalLanguageValue !== undefined ||
+			inspect.workspaceLanguageValue !== undefined ||
+			inspect.workspaceFolderLanguageValue !== undefined
+		);
 	}
 }

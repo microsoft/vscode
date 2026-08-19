@@ -276,7 +276,7 @@ export class TS6LanguageContextService extends AbstractTSLanguageContextService 
 				this._onCachePopulated.fire({ document, position, source: context.source, items: resolved, summary: contextItemResult });
 			} else if (protocol.ComputeContextResponse.isError(response)) {
 				this.telemetrySender.sendRequestFailureTelemetry(context, response.body);
-				console.error('Error populating cache:', response.body.message, response.body.stack);
+				this.logService.error('Error populating cache:', response.body.message);
 			}
 		} catch (error) {
 			this.logService.error(error, `Error populating cache for document: ${document.uri.toString()} at position: ${position.line + 1}:${position.character + 1}`);

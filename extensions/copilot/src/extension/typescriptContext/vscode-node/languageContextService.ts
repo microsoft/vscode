@@ -57,7 +57,7 @@ export class LanguageContextServiceImpl implements ILanguageContextService, vsco
 			: new TS6LanguageContextService(this.telemetryService, this.configurationService, this.experimentationService, this.logService);
 		this.bindEvents();
 		this.disposables.add(this.configurationService.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration(TypeScript.versionKey) || e.affectsConfiguration(ConfigKey.TypeScript7LanguageContext.fullyQualifiedId)) {
+			if (TypeScript.affectsVersion(e) || e.affectsConfiguration(ConfigKey.TypeScript7LanguageContext.fullyQualifiedId)) {
 				this.updateTSLanguageContextService();
 			}
 		}));
@@ -370,7 +370,7 @@ export class InlineCompletionContribution implements vscode.Disposable, TokenBud
 	private typeScriptFileOpen(): void {
 		this.checkRegistration();
 		this.disposables.add(this.configurationService.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration(ConfigKey.TypeScriptLanguageContext.fullyQualifiedId) || e.affectsConfiguration(TypeScript.versionKey)) {
+			if (e.affectsConfiguration(ConfigKey.TypeScriptLanguageContext.fullyQualifiedId) || TypeScript.affectsVersion(e)) {
 				this.checkRegistration();
 			}
 		}));
