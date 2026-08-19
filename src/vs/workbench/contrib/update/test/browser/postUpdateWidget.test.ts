@@ -38,7 +38,7 @@ class TestRequestService extends mock<IRequestService>() {
 suite('PostUpdateWidgetContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('skips the automatic request while metered but preserves the explicit command', async () => {
+	function createContribution(isConnectionMetered: boolean): TestRequestService {
 		const requestService = new TestRequestService();
 		const configurationService = new TestConfigurationService();
 		store.add(configurationService.onDidChangeConfigurationEmitter);
@@ -54,7 +54,7 @@ suite('PostUpdateWidgetContribution', () => {
 			new class extends mock<ILayoutService>() { },
 			new class extends mock<IMarkdownRendererService>() { },
 			new class extends mock<IMeteredConnectionService>() {
-				override readonly isConnectionMetered = true;
+				override readonly isConnectionMetered = isConnectionMetered;
 			},
 			new class extends mock<IOpenerService>() { },
 			new class extends mock<IProductService>() {
@@ -62,9 +62,27 @@ suite('PostUpdateWidgetContribution', () => {
 				override readonly commit = 'current';
 			},
 			requestService,
-			new class extends mock<IStorageService>() { },
+			new class extends mock<IStorageService>() {
+				override getObject<T>(): T | undefined {
+					return { version: '1.134.0', commit: 'previous', timestamp: 0 } as T;
+				}
+				override store(): void { }
+			},
 			new class extends mock<ITelemetryService>() { },
 		));
+		return requestService;
+	}
+
+	test('requests update info automatically after a version change when unmetered', async () => {
+		const requestService = createContribution(false);
+
+		await timeout(0);
+
+		assert.strictEqual(requestService.requestCount, 1);
+	});
+
+	test('skips the automatic request while metered but preserves the explicit command', async () => {
+		const requestService = createContribution(true);
 
 		await timeout(0);
 		assert.strictEqual(requestService.requestCount, 0);

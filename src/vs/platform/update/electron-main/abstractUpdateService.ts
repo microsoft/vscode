@@ -112,6 +112,9 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 	private _disabledPermanently: boolean = false;
 	/** Whether one-time platform init (e.g. background update GC, pending update resume) has run. */
 	private _postInitialized: boolean = false;
+	private _automaticCheckDeferred = false;
+	private _automaticDownloadDeferred = false;
+	private _automaticOverwriteCheckDeferred = false;
 	/** Cancels the pending scheduled update check, if any. */
 	private readonly scheduler = this._register(new MutableDisposable<IDisposable>());
 	/** Serializes reconfiguration so overlapping `update.mode` changes settle on the latest value. */
@@ -131,6 +134,12 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 			this.logService.info('update#setState', state.type);
 		}
 		this._state = state;
+		if (state.type !== StateType.AvailableForDownload) {
+			this._automaticDownloadDeferred = false;
+		}
+		if (state.type !== StateType.Ready) {
+			this._automaticOverwriteCheckDeferred = false;
+		}
 		this._onStateChange.fire(state);
 
 		// Clear transient one-time properties from Idle state after delivering the event.
@@ -299,6 +308,7 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 
 	private scheduleAccordingToMode(updateMode: 'none' | 'manual' | 'start' | 'default'): void {
 		this.scheduler.clear();
+		this._automaticCheckDeferred = false;
 
 		if (updateMode === 'manual') {
 			this.logService.info('update#ctor - manual checks only; automatic updates are disabled by user preference');
@@ -327,10 +337,27 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 		}
 
 		if (this.state.type === StateType.AvailableForDownload) {
-			void this.downloadUpdate(false);
+			if (this._automaticDownloadDeferred) {
+				void this.downloadUpdate(false);
+			}
 			return;
 		}
 
+		if (this.state.type === StateType.Ready) {
+			if (this._automaticOverwriteCheckDeferred) {
+				void this.checkForOverwriteUpdates();
+			}
+			return;
+		}
+
+		if (this.state.type !== StateType.Idle) {
+			return;
+		}
+
+		if (updateMode === 'start' && !this._automaticCheckDeferred) {
+			return;
+		}
+		this._automaticCheckDeferred = false;
 		this.scheduleCheckForUpdates(0, updateMode === 'default');
 	}
 
@@ -433,10 +460,12 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 		}
 
 		if (!explicit && this.meteredConnectionService.isConnectionMetered) {
+			this._automaticCheckDeferred = true;
 			this.logService.info('update#checkForUpdates - skipping automatic check because connection is metered');
 			return;
 		}
 
+		this._automaticCheckDeferred = false;
 		this.doCheckForUpdates(explicit);
 	}
 
@@ -448,10 +477,12 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 		}
 
 		if (!explicit && this.meteredConnectionService.isConnectionMetered) {
+			this._automaticDownloadDeferred = true;
 			this.logService.info('update#downloadUpdate - skipping download because connection is metered');
 			return;
 		}
 
+		this._automaticDownloadDeferred = false;
 		await this.doDownloadUpdate(this.state);
 	}
 
@@ -517,10 +548,12 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 		}
 
 		if (!explicit && this.meteredConnectionService.isConnectionMetered) {
+			this._automaticOverwriteCheckDeferred = true;
 			this.logService.info('update#checkForOverwriteUpdates - skipping automatic check because connection is metered');
 			return false;
 		}
 
+		this._automaticOverwriteCheckDeferred = false;
 		const pendingUpdateCommit = this._state.update.version;
 
 		if (!pendingUpdateCommit || pendingUpdateCommit === 'unknown') {
@@ -529,15 +562,16 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 
 		let isLatest: boolean | undefined;
 
+		const cts = new CancellationTokenSource();
 		try {
-			const cts = new CancellationTokenSource();
-			const timeoutPromise = timeout(2000).then(() => { cts.cancel(); return undefined; });
+			const timeoutPromise = timeout(2000, cts.token).then(() => { cts.cancel(); return undefined; });
 			isLatest = await Promise.race([this.doIsLatestVersion(pendingUpdateCommit, cts.token), timeoutPromise]);
-			cts.dispose();
 		} catch (error) {
 			this.logService.warn('update#checkForOverwriteUpdates(): failed to check for updates, proceeding with restart');
 			this.logService.warn(error);
 			return false;
+		} finally {
+			cts.dispose(true);
 		}
 
 		if (isLatest === false && this._state.type === StateType.Ready) {

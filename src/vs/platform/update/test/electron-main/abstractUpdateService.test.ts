@@ -122,7 +122,7 @@ suite('AbstractUpdateService', () => {
 	let requestCount: number;
 	let meteredConnectionService: TestMeteredConnectionService;
 
-	function createService(mode: string, options?: { isBuilt?: boolean; disableUpdates?: boolean; updateUrl?: string; isConnectionMetered?: boolean }): TestUpdateService {
+	function createService(mode: string, options?: { isBuilt?: boolean; disableUpdates?: boolean; updateUrl?: string; isConnectionMetered?: boolean; supportsUpdateOverwrite?: boolean }): TestUpdateService {
 		configurationService = new PolicyTestConfigurationService();
 		configurationService.setUserConfiguration('update.mode', mode);
 		requestCount = 0;
@@ -172,7 +172,7 @@ suite('AbstractUpdateService', () => {
 			NullTelemetryService,
 			applicationStorageMainService,
 			meteredConnectionService,
-			false
+			options?.supportsUpdateOverwrite ?? false
 		);
 
 		return store.add(service);
@@ -269,6 +269,8 @@ suite('AbstractUpdateService', () => {
 		service.forceState(State.AvailableForDownload({ version: '1.1.0', productVersion: '1.1.0', url: 'https://update.example/download' }));
 		await service.downloadUpdate(false);
 		await service.downloadUpdate(true);
+		meteredConnectionService.setIsConnectionMetered(false);
+		await timeout(0);
 
 		assert.deepStrictEqual({
 			checkCount: service.checkCount,
@@ -292,6 +294,67 @@ suite('AbstractUpdateService', () => {
 			meteredConnectionService.setIsConnectionMetered(false);
 			await clock.tickAsync(0);
 			assert.strictEqual(service.checkCount, 1);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('completed startup checks do not run again after a metered transition', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const service = createService('start');
+			await service.whenInitialized;
+			await clock.tickAsync(30 * 1000);
+			assert.strictEqual(service.checkCount, 1);
+
+			meteredConnectionService.setIsConnectionMetered(true);
+			meteredConnectionService.setIsConnectionMetered(false);
+			await clock.tickAsync(0);
+
+			assert.strictEqual(service.checkCount, 1);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('only resumes automatic downloads that were deferred by metering', async () => {
+		const service = createService('default');
+		await service.whenInitialized;
+		service.forceState(State.AvailableForDownload({ version: '1.1.0', productVersion: '1.1.0', url: 'https://update.example/download' }));
+
+		meteredConnectionService.setIsConnectionMetered(true);
+		meteredConnectionService.setIsConnectionMetered(false);
+		await timeout(0);
+		const downloadsWithoutDeferredIntent = service.downloadCount;
+
+		meteredConnectionService.setIsConnectionMetered(true);
+		await service.downloadUpdate(false);
+		meteredConnectionService.setIsConnectionMetered(false);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			downloadsWithoutDeferredIntent,
+			downloadsAfterDeferredIntent: service.downloadCount,
+		}, {
+			downloadsWithoutDeferredIntent: 0,
+			downloadsAfterDeferredIntent: 1,
+		});
+	});
+
+	test('resumes overwrite checks that were deferred by metering', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const service = createService('default', { isConnectionMetered: true, supportsUpdateOverwrite: true });
+			await service.whenInitialized;
+			service.forceState(State.Ready({ version: 'pending' }, false, false));
+
+			await clock.tickAsync(5 * 60 * 1000);
+			assert.strictEqual(requestCount, 0);
+
+			meteredConnectionService.setIsConnectionMetered(false);
+			await clock.tickAsync(0);
+
+			assert.strictEqual(requestCount, 1);
 		} finally {
 			clock.restore();
 		}
