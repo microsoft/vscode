@@ -341,6 +341,7 @@ export class ChatListWidget extends Disposable {
 	private _autoScrollHolds = new AutoScrollHolds();
 	private _settingChangeCounter: number = 0;
 	private _visibleChangeCount: number = 0;
+	private readonly _pendingItemHeightUpdates = new Map<ChatTreeItem, number | undefined>();
 	private readonly _userToggleResizeTrackers = this._register(new DisposableMap<ChatTreeItem, UserToggleResizeTracker>());
 
 	private readonly _container: HTMLElement;
@@ -920,17 +921,22 @@ export class ChatListWidget extends Disposable {
 	 * Update the height of an element.
 	 */
 	private _updateElementHeight(element: ChatTreeItem, height?: number): void {
-		if (this._tree.hasElement(element) && this._visible) {
-			const userToggleResizeTracker = this._userToggleResizeTrackers.get(element);
-			if (userToggleResizeTracker) {
-				this._tree.updateElementHeight(element, height);
-				userToggleResizeTracker.restoreScrollAnchor();
-				return;
-			}
-			this._withPersistedAutoScroll(() => {
-				this._tree.updateElementHeight(element, height);
-			});
+		if (!this._tree.hasElement(element)) {
+			return;
 		}
+		if (!this._visible) {
+			this._pendingItemHeightUpdates.set(element, height);
+			return;
+		}
+		const userToggleResizeTracker = this._userToggleResizeTrackers.get(element);
+		if (userToggleResizeTracker) {
+			this._tree.updateElementHeight(element, height);
+			userToggleResizeTracker.restoreScrollAnchor();
+			return;
+		}
+		this._withPersistedAutoScroll(() => {
+			this._tree.updateElementHeight(element, height);
+		});
 	}
 
 	private trackUserToggleResize(element: ChatTreeItem, target: HTMLElement): void {
@@ -1168,6 +1174,13 @@ export class ChatListWidget extends Disposable {
 	 */
 	setVisible(visible: boolean): void {
 		this._visible = visible;
+		if (visible) {
+			const pendingItemHeightUpdates = Array.from(this._pendingItemHeightUpdates);
+			this._pendingItemHeightUpdates.clear();
+			for (const [element, height] of pendingItemHeightUpdates) {
+				this._updateElementHeight(element, height);
+			}
+		}
 		this._renderer.setVisible(visible);
 	}
 
