@@ -177,7 +177,7 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 
 	private _renderHostList(disposables: DisposableStore, body: HTMLElement, finish: () => void, focusRefs: { firstHost?: HTMLButtonElement; firstCheckedHost?: HTMLButtonElement }): void {
 		const hosts = this._filterService.hosts;
-		const selectedId = this._filterService.selectedProviderId;
+		const selectedId = this._filterService.selectedHostId;
 
 		if (hosts.length === 0) {
 			const empty = dom.append(body, $('div.host-picker-sheet-empty'));
@@ -191,9 +191,9 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 			localize('agentHostFilter.sheet.available', "Available");
 
 		for (const host of hosts) {
-			const row = this._renderHostItem(disposables, body, host, selectedId === host.providerId, finish);
+			const row = this._renderHostItem(disposables, body, host, selectedId === host.id, finish);
 			focusRefs.firstHost ??= row;
-			if (selectedId === host.providerId) {
+			if (selectedId === host.id) {
 				focusRefs.firstCheckedHost ??= row;
 			}
 		}
@@ -209,7 +209,7 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 
 		// Icon + small status dot in the bottom-right.
 		const iconWrap = dom.append(row, $('span.host-picker-sheet-item-icon'));
-		iconWrap.append(...renderLabelWithIcons(`$(${Codicon.remote.id})`));
+		iconWrap.append(...renderLabelWithIcons(`$(${host.icon.id})`));
 		const status = dom.append(iconWrap, $('span.host-picker-sheet-item-status'));
 		switch (host.status) {
 			case AgentHostFilterConnectionStatus.Connected:
@@ -220,10 +220,13 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 				break;
 		}
 
-		// Name + status sub-line.
+		// Name + status sub-line. A grouped entry has no connection the user
+		// drives, so it is named without a state the tap cannot change.
 		const text = dom.append(row, $('span.host-picker-sheet-item-text'));
 		dom.append(text, $('span.host-picker-sheet-item-name')).textContent = host.label;
-		dom.append(text, $('span.host-picker-sheet-item-sub')).textContent = this._statusLabel(host.status);
+		if (host.connectable) {
+			dom.append(text, $('span.host-picker-sheet-item-sub')).textContent = this._statusLabel(host.status);
+		}
 
 		if (checked) {
 			const check = dom.append(row, $('span.host-picker-sheet-item-check'));
@@ -234,7 +237,7 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 			if (e) {
 				dom.EventHelper.stop(e, true);
 			}
-			this._filterService.setSelectedProviderId(host.providerId);
+			this._filterService.setSelectedHostId(host.id);
 			finish();
 		};
 

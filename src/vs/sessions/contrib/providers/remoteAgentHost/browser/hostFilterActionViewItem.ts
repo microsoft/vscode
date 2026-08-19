@@ -6,7 +6,7 @@
 import './media/hostFilter.css';
 import * as dom from '../../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
-import { renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { renderIcon, renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -16,6 +16,7 @@ import { Action, IAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -47,6 +48,7 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 	private _connectElement: HTMLElement | undefined;
 	private _sidebarButton: Button | undefined;
 	private _sidebarLeadingIcon: HTMLElement | undefined;
+	private _titlebarLeadingIcon: HTMLElement | undefined;
 	private _sidebarTrailingIcon: HTMLElement | undefined;
 
 	private readonly _dropdownHover = this._register(new MutableDisposable());
@@ -95,8 +97,10 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		// --- Dropdown pill (left) -----------------------------------------------
 		this._dropdownElement = dom.append(this.element, dom.$('div.agent-host-filter-dropdown'));
 
-		const iconEl = dom.append(this._dropdownElement, dom.$('span.agent-host-filter-icon'));
-		iconEl.append(...renderLabelWithIcons(`$(${Codicon.remote.id})`));
+		const iconWrap = dom.append(this._dropdownElement, dom.$('span.agent-host-filter-icon'));
+		// Keep the codicon child stable: it carries a looping "discovering"
+		// animation, and rebuilding the node would restart it mid-pass.
+		this._titlebarLeadingIcon = dom.append(iconWrap, renderIcon(Codicon.remote));
 
 		this._labelElement = dom.append(this._dropdownElement, dom.$('span.agent-host-filter-label'));
 
@@ -255,10 +259,7 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		}
 
 		const hosts = this._filterService.hosts;
-		const selectedId = this._filterService.selectedProviderId;
-		const selected = selectedId === undefined
-			? undefined
-			: hosts.find(h => h.providerId === selectedId);
+		const selected = this._filterService.selectedHost;
 
 		const hasMenu = hosts.length > 1;
 		const canRetry = hosts.length === 0;
@@ -284,6 +285,10 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		} else {
 			this._labelElement.textContent = text;
 		}
+
+		// Leading icon follows the selection, so a grouped entry can carry its
+		// own identity (Cloud Sandboxes shows a package, not a remote plug).
+		this._renderLeadingIcon(selected?.icon ?? Codicon.remote);
 
 		this.element.classList.toggle('single-host', !interactive);
 		// While discovery is running, suppress the label so the pill collapses
@@ -351,6 +356,27 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		this._updateConnectButton(selected, canRetry, discovering);
 	}
 
+	/**
+	 * Point the leading icon at `icon`. Both appearances keep a stable element
+	 * for it and only swap its codicon class — the titlebar icon carries a
+	 * looping "discovering" animation that a rebuilt node would restart.
+	 */
+	private _renderLeadingIcon(icon: ThemeIcon): void {
+		for (const element of [this._sidebarLeadingIcon, this._titlebarLeadingIcon]) {
+			if (!element) {
+				continue;
+			}
+			const classes = ThemeIcon.asClassNameArray(icon);
+			if (classes.every(c => element.classList.contains(c))) {
+				continue;
+			}
+			// Codicon classes are the only ones these nodes carry beyond their
+			// own layout class, so dropping every `codicon-*` is safe.
+			element.classList.remove(...[...element.classList].filter(c => c.startsWith('codicon')));
+			element.classList.add(...classes);
+		}
+	}
+
 	private _updateConnectButton(selected: IAgentHostFilterEntry | undefined, canRetry: boolean, discovering: boolean): void {
 		if (!this._connectElement) {
 			return;
@@ -382,6 +408,16 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		}
 
 		if (!selected) {
+			this._connectElement.classList.add('hidden');
+			this._connectElement.removeAttribute('role');
+			this._connectElement.removeAttribute('tabindex');
+			return;
+		}
+
+		// A grouped entry (e.g. Cloud Sandboxes) has no single connection to
+		// toggle — its members connect when one of their sessions is opened —
+		// so the slot stays empty rather than offering a control over nothing.
+		if (!selected.connectable) {
 			this._connectElement.classList.add('hidden');
 			this._connectElement.removeAttribute('role');
 			this._connectElement.removeAttribute('tabindex');
@@ -436,20 +472,16 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 			return;
 		}
 
-		const selectedId = this._filterService.selectedProviderId;
-		if (selectedId === undefined) {
-			return;
-		}
-		const selected = this._filterService.hosts.find(h => h.providerId === selectedId);
-		if (!selected) {
+		const selected = this._filterService.selectedHost;
+		if (!selected || !selected.connectable) {
 			return;
 		}
 		if (selected.status === AgentHostFilterConnectionStatus.Disconnected) {
-			this._filterService.reconnect(selectedId);
+			this._filterService.reconnect(selected.id);
 		} else {
 			// Connected or Connecting — clicking tears down the current
 			// connection / cancels the in-flight attempt.
-			this._filterService.disconnect(selectedId);
+			this._filterService.disconnect(selected.id);
 		}
 	}
 
@@ -471,21 +503,24 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 			return;
 		}
 
-		const selectedId = this._filterService.selectedProviderId;
+		const selectedId = this._filterService.selectedHostId;
 
 		const actions: IAction[] = [];
 		for (const host of hosts) {
-			const label = host.status === AgentHostFilterConnectionStatus.Connected
+			// Connection state is only meaningful for a host the user connects
+			// to; a grouped entry aggregates many connections that come and go
+			// on their own, so it is shown by name alone.
+			const label = !host.connectable || host.status === AgentHostFilterConnectionStatus.Connected
 				? host.label
 				: host.status === AgentHostFilterConnectionStatus.Connecting
 					? localize('agentHostFilter.hostConnecting', "{0} (connecting…)", host.label)
 					: localize('agentHostFilter.hostDisconnected', "{0} (disconnected)", host.label);
 			actions.push(new Action(
-				`agentHostFilter.host.${host.providerId}`,
+				`agentHostFilter.host.${host.id}`,
 				label,
-				selectedId === host.providerId ? 'codicon codicon-check' : undefined,
+				selectedId === host.id ? 'codicon codicon-check' : undefined,
 				true,
-				async () => this._filterService.setSelectedProviderId(host.providerId),
+				async () => this._filterService.setSelectedHostId(host.id),
 			));
 		}
 

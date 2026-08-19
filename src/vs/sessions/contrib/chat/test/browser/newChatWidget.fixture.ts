@@ -151,7 +151,8 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			reg.defineInstance(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
 				override readonly onDidChange = Event.None;
 				override readonly onDidChangeDiscovering = Event.None;
-				override readonly selectedProviderId = undefined;
+				override readonly selectedHostId = undefined;
+				override readonly selectedHost = undefined;
 				override readonly hosts = [];
 				override readonly isDiscovering = false;
 				override async rediscover(): Promise<void> { }
