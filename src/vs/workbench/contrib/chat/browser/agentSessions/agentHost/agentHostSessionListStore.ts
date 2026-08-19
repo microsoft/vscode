@@ -222,16 +222,6 @@ export class AgentHostSessionListStore extends Disposable {
 		try {
 			sessions = await this._connection.listSessions();
 		} catch {
-			// If notifications mutated the list while we were fetching, the
-			// in-memory state is more up-to-date than our failed fetch.
-			if (startGeneration !== this._mutationGeneration) {
-				return;
-			}
-			if (this._entries.size === 0) {
-				return;
-			}
-			this._entries.clear();
-			this._onDidChangeSessions.fire({ removed: previousEntries.map(entry => this._toRemoval(entry)) });
 			return;
 		}
 
