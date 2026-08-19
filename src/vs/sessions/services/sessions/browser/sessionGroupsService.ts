@@ -198,7 +198,7 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		// the async start completes, so a later arm or a failed/concurrent send
 		// can no longer rebind it. A send into an existing session discards the
 		// draft (firing the discard handler below) before this fires.
-		this._register(this.sessionsManagementService.onWillSendRequest(session => {
+		this._register(this.sessionsManagementService.onWillSendRequest(({ session }) => {
 			if (this._pendingNewSessionGroupId === undefined) {
 				return;
 			}

@@ -34,6 +34,12 @@ export interface ISendRequestOptions extends ISessionsProviderSendRequestOptions
 	 * existing session).
 	 */
 	readonly background?: boolean;
+	/**
+	 * Send the request without changing which chat is active in the visible
+	 * session slot. Unlike {@link background}, the send remains awaited and
+	 * failures propagate to the caller.
+	 */
+	readonly preserveActiveChat?: boolean;
 }
 
 export interface IDeferredNewSessionRequestOptions {
@@ -142,6 +148,19 @@ export interface ISessionsChangeEvent {
 	readonly changed: readonly ISession[];
 }
 
+/** Payload for {@link ISessionsManagementService.onWillSendRequest}. */
+export interface ISendRequestWillEvent {
+	readonly requestId: number;
+	readonly session: ISession;
+	readonly options: ISendRequestOptions;
+}
+
+/** Payload for {@link ISessionsManagementService.onDidDeleteChat}. */
+export interface IChatDeletedEvent {
+	readonly session: ISession;
+	readonly chatResource: URI;
+}
+
 /**
  * Payload for {@link ISessionsManagementService.onDidSendRequest}.
  */
@@ -154,6 +173,13 @@ export interface ISendRequestSentEvent {
 	 * The exact options object the send was started with, so callers can
 	 * correlate a fire-and-forget (background) send with its completion.
 	 */
+	readonly options: ISendRequestOptions;
+}
+
+/** Payload for {@link ISessionsManagementService.onDidEndSendRequest}. */
+export interface ISendRequestEndEvent {
+	readonly requestId: number;
+	readonly session: ISession;
 	readonly options: ISendRequestOptions;
 }
 
@@ -321,16 +347,22 @@ export interface ISessionsManagementService {
 
 	/**
 	 * Fires immediately before a chat request is sent from this window via
-	 * {@link sendNewChatRequest} or {@link sendRequest}. Listeners can use this
-	 * to prewarm caches whose result is consumed by {@link onDidSendRequest}.
+	 * {@link sendNewChatRequest} or {@link sendRequest}. The request id is
+	 * repeated by {@link onDidEndSendRequest} for per-send correlation.
 	 */
-	readonly onWillSendRequest: Event<ISession>;
+	readonly onWillSendRequest: Event<ISendRequestWillEvent>;
 
 	/**
 	 * Fires after a chat request was successfully sent from this window via
 	 * {@link sendNewChatRequest} or {@link sendRequest}.
 	 */
 	readonly onDidSendRequest: Event<ISendRequestSentEvent>;
+
+	/**
+	 * Fires after a request announced through {@link onWillSendRequest} settles,
+	 * whether it succeeded, failed, or was cancelled.
+	 */
+	readonly onDidEndSendRequest: Event<ISendRequestEndEvent>;
 
 	/** Fires after a session was successfully archived via {@link archiveSession}. */
 	readonly onDidArchiveSession: Event<ISession>;
@@ -339,7 +371,7 @@ export interface ISessionsManagementService {
 	/** Fires after a session was successfully deleted via {@link deleteSession}. */
 	readonly onDidDeleteSession: Event<ISession>;
 	/** Fires after a chat was successfully deleted via {@link deleteChat}. */
-	readonly onDidDeleteChat: Event<ISession>;
+	readonly onDidDeleteChat: Event<IChatDeletedEvent>;
 	/** Fires after a chat was successfully renamed via {@link renameChat}. */
 	readonly onDidRenameChat: Event<ISession>;
 	/** Fires after a session was successfully renamed via {@link renameSession}. */
