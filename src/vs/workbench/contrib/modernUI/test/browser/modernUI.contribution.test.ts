@@ -282,11 +282,14 @@ suite('ModernUIContribution', () => {
 		const paneHeader = appendElement(appendElement(paneView, 'pane'), 'pane-header');
 		const paneTitle = appendElement(paneHeader, 'title');
 
-		const explorerPart = appendElement(layoutService.mainContainer, 'part');
-		explorerPart.dataset.activeComposite = 'workbench.view.explorer';
+		const explorerPart = appendElement(layoutService.mainContainer, 'part preserve-workspace-name-case');
+		explorerPart.dataset.activeComposite = 'workbench.views.service.sidebar.custom';
 		const explorerTitleLabel = appendElement(appendElement(explorerPart, 'title'), 'title-label');
 		const explorerTitle = document.createElement('h2');
 		explorerTitleLabel.appendChild(explorerTitle);
+		const explorerPaneHeader = appendElement(appendElement(appendElement(explorerPart, 'monaco-pane-view'), 'pane'), 'pane-header');
+		appendElement(explorerPaneHeader, 'icon codicon-explorer-view-icon');
+		const explorerPaneTitle = appendElement(explorerPaneHeader, 'title');
 		const extensionsPart = appendElement(layoutService.mainContainer, 'part');
 		const extensionsTitleLabel = appendElement(appendElement(extensionsPart, 'title'), 'title-label');
 		const extensionsTitle = document.createElement('h2');
@@ -300,6 +303,7 @@ suite('ModernUIContribution', () => {
 			classApplied: layoutService.mainContainer.classList.contains('modern-ui-uppercase-view-headers'),
 			paneTitleTransform: targetWindow.getComputedStyle(paneTitle).textTransform,
 			explorerTitleTransform: targetWindow.getComputedStyle(explorerTitle).textTransform,
+			explorerPaneTitleTransform: targetWindow.getComputedStyle(explorerPaneTitle).textTransform,
 			extensionsTitleTransform: targetWindow.getComputedStyle(extensionsTitle).textTransform,
 			panelTabTransform: targetWindow.getComputedStyle(panelTab).textTransform,
 			layoutCount: layoutService.layoutCount,
@@ -318,6 +322,7 @@ suite('ModernUIContribution', () => {
 			classApplied: layoutService.mainContainer.classList.contains('modern-ui-uppercase-view-headers'),
 			paneTitleTransform: targetWindow.getComputedStyle(paneTitle).textTransform,
 			explorerTitleTransform: targetWindow.getComputedStyle(explorerTitle).textTransform,
+			explorerPaneTitleTransform: targetWindow.getComputedStyle(explorerPaneTitle).textTransform,
 			extensionsTitleTransform: targetWindow.getComputedStyle(extensionsTitle).textTransform,
 			panelTabTransform: targetWindow.getComputedStyle(panelTab).textTransform,
 			layoutCount: layoutService.layoutCount,
@@ -326,6 +331,7 @@ suite('ModernUIContribution', () => {
 				classApplied: false,
 				paneTitleTransform: 'capitalize',
 				explorerTitleTransform: 'none',
+				explorerPaneTitleTransform: 'none',
 				extensionsTitleTransform: 'capitalize',
 				panelTabTransform: 'capitalize',
 				layoutCount: 0,
@@ -333,9 +339,34 @@ suite('ModernUIContribution', () => {
 			classApplied: true,
 			paneTitleTransform: 'uppercase',
 			explorerTitleTransform: 'uppercase',
+			explorerPaneTitleTransform: 'uppercase',
 			extensionsTitleTransform: 'uppercase',
 			panelTabTransform: 'uppercase',
 			layoutCount: 0,
+		});
+	});
+
+	test('capitalizes Untitled Explorer titles by default', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui';
+		const explorerPart = appendElement(root, 'part');
+		explorerPart.dataset.activeComposite = 'workbench.view.explorer';
+		const explorerTitleLabel = appendElement(appendElement(explorerPart, 'title'), 'title-label');
+		const explorerTitle = document.createElement('h2');
+		explorerTitleLabel.appendChild(explorerTitle);
+
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+		const targetWindow = getWindow(root);
+		const defaultTransform = targetWindow.getComputedStyle(explorerTitle).textTransform;
+		root.classList.add('modern-ui-uppercase-view-headers');
+
+		assert.deepStrictEqual({
+			defaultTransform,
+			uppercaseTransform: targetWindow.getComputedStyle(explorerTitle).textTransform,
+		}, {
+			defaultTransform: 'capitalize',
+			uppercaseTransform: 'uppercase',
 		});
 	});
 
