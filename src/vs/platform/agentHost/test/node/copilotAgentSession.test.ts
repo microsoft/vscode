@@ -413,7 +413,35 @@ class MockCopilotSession {
 				return snapshot;
 			},
 		},
+		eventLog: {
+			registerInterest: async (params: { eventType: string }) => {
+				this.eventInterestRegistrations.push(params.eventType);
+				if (this.registerInterestError !== undefined) {
+					throw this.registerInterestError;
+				}
+				return { handle: `handle-${this.eventInterestRegistrations.length}` };
+			},
+			releaseInterest: async (params: { handle: string }) => {
+				this.eventInterestReleases.push(params.handle);
+				return { success: true };
+			},
+		},
+		ui: {
+			handlePendingSampling: async (params: { requestId: string }) => {
+				this.pendingSamplingHandled.push(params.requestId);
+				if (this.handlePendingSamplingError !== undefined) {
+					throw this.handlePendingSamplingError;
+				}
+				return { success: true };
+			},
+		},
 	};
+
+	readonly eventInterestRegistrations: string[] = [];
+	readonly eventInterestReleases: string[] = [];
+	registerInterestError: unknown = undefined;
+	readonly pendingSamplingHandled: string[] = [];
+	handlePendingSamplingError: unknown = undefined;
 
 	readonly sandboxConfigUpdates: unknown[] = [];
 
