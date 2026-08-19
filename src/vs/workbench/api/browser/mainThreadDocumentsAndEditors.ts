@@ -331,11 +331,11 @@ export class MainThreadDocumentsAndEditors extends Disposable implements IMainTh
 
 		// removed editors
 		for (const { id } of delta.removedEditors) {
-			const hasId = this._textEditors.has(id);
-			if (hasId) {
+			const mainThreadEditor = this._textEditors.get(id);
+			if (mainThreadEditor) {
+				this._textEditors.deleteAndDispose(id);
 				removedEditors.push(id);
 			}
-			this._textEditors.deleteAndDispose(id);
 		}
 
 		const extHostDelta: IDocumentsAndEditorsDelta = Object.create(null);
