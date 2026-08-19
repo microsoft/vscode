@@ -132,6 +132,11 @@ export function updateActiveTocEntry(): void {
 	activeEntry?.classList.remove(TOC_ACTIVE_CLASS);
 	activeEntry = nextActive as HTMLElement | undefined;
 	activeEntry?.classList.add(TOC_ACTIVE_CLASS);
+
+	// Keep the active entry visible in the TOC column. If the active heading
+	// is scrolled out of the visible part of the TOC, scroll the TOC so that
+	// it comes back into view. `block: 'nearest'` scrolls the minimal amount.
+	activeEntry?.scrollIntoView({ block: 'nearest' });
 }
 
 /**
