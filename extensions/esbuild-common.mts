@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { stat } from 'node:fs/promises';
 import path from 'node:path';
 import esbuild from 'esbuild';
 
@@ -10,6 +11,8 @@ export interface RunConfig {
 	readonly outdir: string;
 	readonly entryPoints: esbuild.BuildOptions['entryPoints'];
 	readonly additionalOptions?: Partial<esbuild.BuildOptions>;
+	readonly additionalWatchPaths?: readonly string[];
+	readonly beforeBuild?: () => Promise<unknown> | unknown;
 }
 
 // `esbuild.stop()` shuts down the single esbuild service shared by all concurrent builds, so we
@@ -17,9 +20,13 @@ export interface RunConfig {
 // service while a sibling build (e.g. running in the same `Promise.all`) is still using it.
 let pendingBuilds = 0;
 
-async function buildOnce(options: esbuild.BuildOptions): Promise<esbuild.BuildResult> {
+async function buildOnce(
+	options: esbuild.BuildOptions,
+	beforeBuild?: () => Promise<unknown> | unknown,
+): Promise<esbuild.BuildResult> {
 	pendingBuilds++;
 	try {
+		await beforeBuild?.();
 		return await esbuild.build(options);
 	} finally {
 		if (--pendingBuilds === 0) {
@@ -54,10 +61,16 @@ export async function runBuild(
 
 	const isWatch = args.indexOf('--watch') >= 0;
 	if (isWatch) {
-		await watchWithParcel(resolvedOptions, config.srcDir, () => didBuild?.(outdir));
+		await watchWithParcel(
+			resolvedOptions,
+			config.srcDir,
+			config.additionalWatchPaths ?? [],
+			config.beforeBuild,
+			() => didBuild?.(outdir),
+		);
 	} else {
 		try {
-			await buildOnce(resolvedOptions);
+			await buildOnce(resolvedOptions, config.beforeBuild);
 			await didBuild?.(outdir);
 		} catch {
 			process.exit(1);
@@ -66,7 +79,13 @@ export async function runBuild(
 }
 
 // We use @parcel/watcher as it has much lower cpu usage when idle compared to esbuild's watch mode
-async function watchWithParcel(options: esbuild.BuildOptions, srcDir: string, didBuild?: () => Promise<unknown> | unknown): Promise<void> {
+async function watchWithParcel(
+	options: esbuild.BuildOptions,
+	srcDir: string,
+	additionalWatchPaths: readonly string[],
+	beforeBuild?: () => Promise<unknown> | unknown,
+	didBuild?: () => Promise<unknown> | unknown,
+): Promise<void> {
 	let debounce: ReturnType<typeof setTimeout> | undefined;
 	const rebuild = () => {
 		if (debounce) {
@@ -76,7 +95,7 @@ async function watchWithParcel(options: esbuild.BuildOptions, srcDir: string, di
 			try {
 				// Also instead of retaining the esbuild context, we are re-running the entire build on each change.
 				// This reduces memory usage since most projects don't need to be re-built often.
-				const result = await buildOnce(options);
+				const result = await buildOnce(options, beforeBuild);
 				if (result.errors.length === 0) {
 					await didBuild?.();
 				}
@@ -87,19 +106,31 @@ async function watchWithParcel(options: esbuild.BuildOptions, srcDir: string, di
 	};
 
 	const watcher = await import('@parcel/watcher');
-	// Ignore the build's own output directory so emitted files never re-trigger the watcher
-	// (which would cause an infinite rebuild loop when `outdir` lives inside `srcDir`).
-	const ignore = ['**/node_modules/**', '**/dist/**', '**/out/**'];
+	const ignoredOutputPaths: string[] = [];
 	if (options.outdir) {
-		// `@parcel/watcher` matches `ignore` entries as globs with forward slashes, so normalize the
-		// path separators and append `/**` so that every file emitted inside `outdir` is ignored too.
 		const outdirGlob = options.outdir.replace(/\\/g, '/').replace(/\/$/, '');
-		ignore.push(outdirGlob, `${outdirGlob}/**`);
+		ignoredOutputPaths.push(outdirGlob, `${outdirGlob}/**`);
 	}
-	await watcher.subscribe(srcDir, (_err, _events) => {
-		rebuild();
-	}, {
-		ignore
-	});
+
+	const subscribe = async (watchPath: string, ignore: readonly string[]) => {
+		const watchPathStat = await stat(watchPath);
+		const watchedFile = watchPathStat.isDirectory() ? undefined : path.resolve(watchPath);
+		const watchRoot = watchedFile ? path.dirname(watchedFile) : watchPath;
+		return watcher.subscribe(watchRoot, (error, events) => {
+			if (error) {
+				console.error('[watch] watcher error:', error);
+				return;
+			}
+			if (!watchedFile || events.some(event => path.resolve(event.path) === watchedFile)) {
+				rebuild();
+			}
+		}, {
+			ignore: [...ignore],
+		});
+	};
+	await Promise.all([
+		subscribe(srcDir, ['**/node_modules/**', '**/dist/**', '**/out/**', ...ignoredOutputPaths]),
+		...additionalWatchPaths.map(watchPath => subscribe(watchPath, ignoredOutputPaths)),
+	]);
 	rebuild();
 }

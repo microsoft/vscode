@@ -27,6 +27,14 @@ export const GitHubPaths = {
  */
 export type ManagedSettingsFetchStatus = number | 'ok' | 'no-url' | 'no-response' | 'parse-error' | null;
 
+export const MANAGED_SETTINGS_UPDATE_REQUIRED_ERROR_CODE = 'client_update_required';
+
+export interface IManagedSettingsCompatibilityError {
+	readonly errorCode: typeof MANAGED_SETTINGS_UPDATE_REQUIRED_ERROR_CODE;
+	readonly clientVersion?: string;
+	readonly minimumClientVersion?: string;
+}
+
 export interface IDefaultAccountProvider {
 	readonly defaultAccount: IDefaultAccount | null;
 	readonly onDidChangeDefaultAccount: Event<IDefaultAccount | null>;
@@ -39,6 +47,8 @@ export interface IDefaultAccountProvider {
 	readonly managedSettingsFetchedAt: number | null;
 	/** The raw JSON response from the managed-settings endpoint, for diagnostics. */
 	readonly managedSettingsRawResponse: unknown;
+	readonly managedSettingsCompatibilityError: IManagedSettingsCompatibilityError | null;
+	readonly onDidChangeManagedSettingsCompatibilityError: Event<IManagedSettingsCompatibilityError | null>;
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider;
 
 	/**
@@ -70,6 +80,8 @@ export interface IDefaultAccountService {
 	readonly managedSettingsFetchedAt: number | null;
 	/** The raw JSON response from the managed-settings endpoint, for diagnostics. */
 	readonly managedSettingsRawResponse: unknown;
+	readonly managedSettingsCompatibilityError: IManagedSettingsCompatibilityError | null;
+	readonly onDidChangeManagedSettingsCompatibilityError: Event<IManagedSettingsCompatibilityError | null>;
 	getDefaultAccount(): Promise<IDefaultAccount | null>;
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider;
 	setDefaultAccountProvider(provider: IDefaultAccountProvider): void;

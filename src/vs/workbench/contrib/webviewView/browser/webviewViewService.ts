@@ -98,7 +98,7 @@ export class WebviewViewService extends Disposable implements IWebviewViewServic
 
 	private readonly _resolvers = new Map<string, IWebviewViewResolver>();
 
-	private readonly _awaitingRevival = new Map<string, { readonly webview: WebviewView; readonly resolve: () => void }>();
+	private readonly _awaitingRevival = new Map<string, { readonly webview: WebviewView; readonly resolve: () => void; readonly subscription: IDisposable }>();
 
 	private readonly _onNewResolverRegistered = this._register(new Emitter<{ readonly viewType: string }>());
 	public readonly onNewResolverRegistered = this._onNewResolverRegistered.event;
@@ -115,6 +115,7 @@ export class WebviewViewService extends Disposable implements IWebviewViewServic
 		if (pending) {
 			resolver.resolve(pending.webview, CancellationToken.None).then(() => {
 				this._awaitingRevival.delete(viewType);
+				pending.subscription.dispose();
 				pending.resolve();
 			});
 		}
@@ -131,8 +132,31 @@ export class WebviewViewService extends Disposable implements IWebviewViewServic
 				throw new Error('View already awaiting revival');
 			}
 
+			// Already cancelled: don't record a pending entry at all, otherwise it would
+			// never be cleaned up (the cancellation listener fires synchronously before
+			// the entry is registered).
+			if (cancellation.isCancellationRequested) {
+				return Promise.resolve();
+			}
+
 			const { promise, resolve } = promiseWithResolvers<void>();
-			this._awaitingRevival.set(viewType, { webview, resolve });
+
+			// If the caller is cancelled (e.g. the view pane is torn down or re-activated)
+			// at any point before the pending entry is revived by a resolver, drop the
+			// pending entry so a later resolve for the same view type does not throw
+			// "View already awaiting revival". The subscription is disposed on both settle
+			// paths (cancellation here, or revival in `register`) so the listener does not
+			// retain the closure or accumulate on the token.
+			const subscription = cancellation.onCancellationRequested(() => {
+				if (this._awaitingRevival.get(viewType)?.resolve === resolve) {
+					this._awaitingRevival.delete(viewType);
+					subscription.dispose();
+					resolve();
+				}
+			});
+
+			this._awaitingRevival.set(viewType, { webview, resolve, subscription });
+
 			return promise;
 		}
 

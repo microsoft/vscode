@@ -57,13 +57,20 @@ interface StreamChunk {
 	delayMs: number;
 }
 
+type ScenarioToolCallArguments = Record<string, any> | ((request: readonly any[]) => Record<string, any>);
+
+interface ScenarioToolCall {
+	toolNamePattern: RegExp;
+	arguments: ScenarioToolCallArguments;
+}
+
 /**
  * A single turn in a multi-turn scenario.
  */
 type ScenarioTurn =
 	| {
 		kind: 'tool-calls';
-		toolCalls: Array<{ toolNamePattern: RegExp; arguments: Record<string, any> }>;
+		toolCalls: ScenarioToolCall[];
 	}
 	| {
 		kind: 'content';
@@ -76,6 +83,9 @@ type ScenarioTurn =
 	}
 	| {
 		kind: 'echo-last-message';
+	}
+	| {
+		kind: 'echo-last-tool-result';
 	}
 	| {
 		kind: 'user';
@@ -88,7 +98,7 @@ type ScenarioTurn =
 type ModelScenarioTurn =
 	| {
 		kind: 'tool-calls';
-		toolCalls: Array<{ toolNamePattern: RegExp; arguments: Record<string, any> }>;
+		toolCalls: ScenarioToolCall[];
 	}
 	| {
 		kind: 'content';
@@ -101,6 +111,9 @@ type ModelScenarioTurn =
 	}
 	| {
 		kind: 'echo-last-message';
+	}
+	| {
+		kind: 'echo-last-tool-result';
 	};
 
 /**
@@ -186,9 +199,9 @@ const DEFAULT_SCENARIO = 'text-only';
 function getDefaultScenarioChunks(): StreamChunk[] {
 	const scenario = SCENARIOS[DEFAULT_SCENARIO];
 	if (isMultiTurnScenario(scenario)) {
-		throw new Error(`Default scenario '${DEFAULT_SCENARIO}' must be content-only`);
+		return [{ content: 'Mock response', delayMs: 0 }];
 	}
-	return scenario;
+	return scenario ?? [{ content: 'Mock response', delayMs: 0 }];
 }
 
 // -- SSE chunk builder -------------------------------------------------------
@@ -899,6 +912,22 @@ function resolveCurrentTurn(turns: ScenarioTurn[], messages: any[]): { turn: Mod
 	return { turn: modelTurns[idx], turnIndex: idx };
 }
 
+function findLastToolResult(items: any[]): any {
+	for (let i = items.length - 1; i >= 0; i--) {
+		const item = items[i];
+		if (item?.role === 'tool' || item?.type === 'function_call_output') {
+			return item;
+		}
+		if (Array.isArray(item?.content)) {
+			const toolResult = item.content.findLast((part: any) => part?.type === 'tool_result');
+			if (toolResult) {
+				return toolResult;
+			}
+		}
+	}
+	return undefined;
+}
+
 async function handleChatCompletions(body: string, res: import('http').ServerResponse): Promise<void> {
 	if (_verbose) {
 		_log(`[mock-llm]   chat/completions request body:`);
@@ -975,7 +1004,7 @@ async function handleChatCompletions(body: string, res: import('http').ServerRes
 		_log(`[mock-llm]   ${ts} → multi-turn scenario ${scenarioId}, model turn ${turnIndex + 1}/${modelTurnCount} (${turn.kind}), ${countCompletedModelTurns(messages)} completed turns in history`);
 
 		if (turn.kind === 'tool-calls') {
-			await streamToolCalls(res, turn.toolCalls, requestToolNames, scenarioId);
+			await streamToolCalls(res, turn.toolCalls, requestToolNames, scenarioId, messages);
 			return;
 		}
 
@@ -987,6 +1016,12 @@ async function handleChatCompletions(body: string, res: import('http').ServerRes
 		if (turn.kind === 'echo-last-message') {
 			const lastMsg = messages[messages.length - 1];
 			const payload = '```json\n' + JSON.stringify(lastMsg ?? null, null, 2) + '\n```';
+			await streamContent(res, [{ content: payload, delayMs: 0 }], isScenarioRequest);
+			return;
+		}
+
+		if (turn.kind === 'echo-last-tool-result') {
+			const payload = '```json\n' + JSON.stringify(findLastToolResult(messages) ?? null, null, 2) + '\n```';
 			await streamContent(res, [{ content: payload, delayMs: 0 }], isScenarioRequest);
 			return;
 		}
@@ -1115,13 +1150,19 @@ async function handleResponsesApi(body: string, res: import('http').ServerRespon
 		_log(`[mock-llm]   ${ts} → responses-api multi-turn ${scenarioId}, model turn ${turnIndex + 1}/${modelTurnCount} (${turn.kind})`);
 
 		if (turn.kind === 'tool-calls') {
-			await streamResponsesApiToolCalls(res, turn.toolCalls, requestToolNames, scenarioId, isScenarioRequest);
+			await streamResponsesApiToolCalls(res, turn.toolCalls, requestToolNames, scenarioId, isScenarioRequest, input);
 			return;
 		}
 
 		if (turn.kind === 'echo-last-message') {
 			const lastItem = input[input.length - 1];
 			const payload = '```json\n' + JSON.stringify(lastItem ?? null, null, 2) + '\n```';
+			await streamResponsesContent(res, [{ content: payload, delayMs: 0 }], isScenarioRequest);
+			return;
+		}
+
+		if (turn.kind === 'echo-last-tool-result') {
+			const payload = '```json\n' + JSON.stringify(findLastToolResult(input) ?? null, null, 2) + '\n```';
 			await streamResponsesContent(res, [{ content: payload, delayMs: 0 }], isScenarioRequest);
 			return;
 		}
@@ -1195,10 +1236,11 @@ function resolveCurrentResponsesApiTurn(turns: ScenarioTurn[], input: any[]): { 
  */
 async function streamResponsesApiToolCalls(
 	res: import('http').ServerResponse,
-	toolCalls: Array<{ toolNamePattern: RegExp; arguments: Record<string, any> }>,
+	toolCalls: ScenarioToolCall[],
 	requestToolNames: string[],
 	scenarioId: string,
-	isScenarioRequest: boolean
+	isScenarioRequest: boolean,
+	request: readonly any[]
 ): Promise<void> {
 	const responseId = `resp_mock_${Date.now()}`;
 	const model = 'gpt-5.3-codex';
@@ -1239,7 +1281,7 @@ async function streamResponsesApiToolCalls(
 
 		const callId = `call_${scenarioId}_${i}_${Date.now()}`;
 		const itemId = `fc_${callId}`;
-		const argsJson = JSON.stringify(call.arguments);
+		const argsJson = JSON.stringify(resolveScenarioToolCallArguments(call.arguments, request));
 
 		const item = {
 			id: itemId,
@@ -1602,13 +1644,19 @@ async function handleMessagesApi(body: string, res: import('http').ServerRespons
 		_log(`[mock-llm]   ${ts} → messages-api multi-turn ${scenarioId}, model turn ${turnIndex + 1}/${modelTurnCount} (${turn.kind})`);
 
 		if (turn.kind === 'tool-calls') {
-			await streamAnthropicToolCalls(res, turn.toolCalls, requestToolNames, scenarioId, isScenarioRequest);
+			await streamAnthropicToolCalls(res, turn.toolCalls, requestToolNames, scenarioId, isScenarioRequest, messages);
 			return;
 		}
 
 		if (turn.kind === 'echo-last-message') {
 			const lastMsg = messages[messages.length - 1];
 			const payload = '```json\n' + JSON.stringify(lastMsg ?? null, null, 2) + '\n```';
+			await streamAnthropicContent(res, [{ content: payload, delayMs: 0 }], isScenarioRequest);
+			return;
+		}
+
+		if (turn.kind === 'echo-last-tool-result') {
+			const payload = '```json\n' + JSON.stringify(findLastToolResult(messages) ?? null, null, 2) + '\n```';
 			await streamAnthropicContent(res, [{ content: payload, delayMs: 0 }], isScenarioRequest);
 			return;
 		}
@@ -1633,10 +1681,11 @@ async function handleMessagesApi(body: string, res: import('http').ServerRespons
  */
 async function streamAnthropicToolCalls(
 	res: import('http').ServerResponse,
-	toolCalls: Array<{ toolNamePattern: RegExp; arguments: Record<string, any> }>,
+	toolCalls: ScenarioToolCall[],
 	requestToolNames: string[],
 	scenarioId: string,
-	isScenarioRequest: boolean
+	isScenarioRequest: boolean,
+	request: readonly any[]
 ): Promise<void> {
 	const messageId = `msg_mock_${Date.now()}`;
 	const model = 'claude-sonnet-4.5';
@@ -1668,7 +1717,7 @@ async function streamAnthropicToolCalls(
 			content_block: { type: 'tool_use', id: callId, name: toolName, input: {} },
 		});
 
-		const argsJson = JSON.stringify(call.arguments);
+		const argsJson = JSON.stringify(resolveScenarioToolCallArguments(call.arguments, request));
 		const fragmentSize = Math.max(20, Math.ceil(argsJson.length / 4));
 		for (let pos = 0; pos < argsJson.length; pos += fragmentSize) {
 			const fragment = argsJson.slice(pos, pos + fragmentSize);
@@ -1738,9 +1787,10 @@ async function streamThinkingThenContent(
  */
 async function streamToolCalls(
 	res: import('http').ServerResponse,
-	toolCalls: Array<{ toolNamePattern: RegExp; arguments: Record<string, any> }>,
+	toolCalls: ScenarioToolCall[],
 	requestToolNames: string[],
-	scenarioId: string
+	scenarioId: string,
+	request: readonly any[]
 ): Promise<void> {
 	res.write(`data: ${JSON.stringify(makeToolCallInitialChunk())}\n\n`);
 
@@ -1759,7 +1809,7 @@ async function streamToolCalls(
 		res.write(`data: ${JSON.stringify(makeToolCallStartChunk(i, callId, toolName))}\n\n`);
 		await sleep(10);
 
-		const argsJson = JSON.stringify(call.arguments);
+		const argsJson = JSON.stringify(resolveScenarioToolCallArguments(call.arguments, request));
 		const fragmentSize = Math.max(20, Math.ceil(argsJson.length / 4));
 		for (let pos = 0; pos < argsJson.length; pos += fragmentSize) {
 			const fragment = argsJson.slice(pos, pos + fragmentSize);
@@ -1771,6 +1821,10 @@ async function streamToolCalls(
 	res.write(`data: ${JSON.stringify(makeToolCallFinishChunk())}\n\n`);
 	res.write('data: [DONE]\n\n');
 	res.end();
+}
+
+function resolveScenarioToolCallArguments(argumentsOrResolver: ScenarioToolCallArguments, request: readonly any[]): Record<string, any> {
+	return typeof argumentsOrResolver === 'function' ? argumentsOrResolver(request) : argumentsOrResolver;
 }
 
 interface MockLlmServerHandle {
@@ -1811,6 +1865,12 @@ interface CapturedRequest {
 interface StartServerOptions {
 	logger?: (msg: string) => void;
 	verbose?: boolean;
+	/** Reject requests that do not carry this exact header. */
+	requiredRequestHeader?: {
+		name: string;
+		value: string;
+	};
+	trustedRequestHost?: string;
 	/**
 	 * When `true`, the server retains the parsed body of every `/chat/completions`
 	 * and `/responses` POST so tests can assert what the client forwarded (see
@@ -1864,6 +1924,14 @@ function _startServer(port = 0, options?: StartServerOptions): Promise<MockLlmSe
 		}
 
 		const server = http.createServer((req, res) => {
+			const requiredRequestHeader = options?.requiredRequestHeader;
+			const requestHost = req.headers.host?.replace(/:\d+$/, '').toLowerCase();
+			const isTrustedProxy = options?.trustedRequestHost && requestHost === options.trustedRequestHost;
+			if (requiredRequestHeader && req.headers[requiredRequestHeader.name.toLowerCase()] !== requiredRequestHeader.value && !isTrustedProxy) {
+				res.writeHead(403);
+				res.end('Request must use the configured test proxy');
+				return;
+			}
 			reqCount++;
 			requestWaiters = requestWaiters.filter(fn => !fn());
 			handleRequest(req, res);

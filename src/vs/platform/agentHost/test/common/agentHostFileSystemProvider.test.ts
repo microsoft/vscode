@@ -73,6 +73,25 @@ suite('AgentHostAuthority - encoding', () => {
 		assert.strictEqual(agentHostAuthority('ws://localhost:9090'), agentHostAuthority('localhost:9090'));
 	});
 
+	test('remote local address does not collide with the ambient authority', () => {
+		const authority = agentHostAuthority('local');
+		const wrapped = toAgentHostUri(URI.file('/remote/file.txt'), authority);
+
+		assert.deepStrictEqual({
+			authority,
+			normalizedAuthority: agentHostAuthority('ws://local'),
+			similarAddressAuthority: agentHostAuthority('remote_local'),
+			wrappedScheme: wrapped.scheme,
+			wrappedAuthority: wrapped.authority,
+		}, {
+			authority: 'remote_local',
+			normalizedAuthority: 'remote_local',
+			similarAddressAuthority: 'b64-cmVtb3RlX2xvY2Fs',
+			wrappedScheme: AGENT_HOST_SCHEME,
+			wrappedAuthority: 'remote_local',
+		});
+	});
+
 	test('different addresses produce different authorities', () => {
 		const cases = ['localhost:8080', 'localhost:8081', '192.168.1.1:8080', 'host-name:80', 'host.name:80', 'host_name:80', 'user@host:8080'];
 		const results = cases.map(agentHostAuthority);
@@ -329,12 +348,14 @@ suite('AgentHostFileSystemProvider - synthetic content schemes', () => {
 	 */
 	class StubConnection implements IRemoteFilesystemConnection {
 		readonly readCalls: URI[] = [];
+		readonly readEncodings: (ContentEncoding | undefined)[] = [];
 		readonly listCalls: URI[] = [];
 		readonly resolveCalls: ResourceResolveParams[] = [];
 		readResult: ResourceReadResult = { data: 'stub-content', encoding: ContentEncoding.Utf8, contentType: 'text/plain' };
 
-		async resourceRead(uri: URI): Promise<ResourceReadResult> {
+		async resourceRead(uri: URI, encoding?: ContentEncoding): Promise<ResourceReadResult> {
 			this.readCalls.push(uri);
+			this.readEncodings.push(encoding);
 			return this.readResult;
 		}
 		async resourceList(uri: URI): Promise<ResourceListResult> {
@@ -411,7 +432,23 @@ suite('AgentHostFileSystemProvider - synthetic content schemes', () => {
 		const bytes = await provider.readFile(wrapped);
 
 		assert.strictEqual(VSBuffer.wrap(bytes).toString(), 'stub-content');
-		assert.deepStrictEqual(connection.readCalls.map(u => u.toString()), [inner.toString()]);
+		assert.deepStrictEqual({
+			resources: connection.readCalls.map(u => u.toString()),
+			encodings: connection.readEncodings,
+		}, {
+			resources: [inner.toString()],
+			encodings: [ContentEncoding.Base64],
+		});
+	});
+
+	test('readFile decodes binary Base64 content', async () => {
+		const { provider, connection } = setup();
+		disposables.add(provider.registerAuthority('remote', connection));
+		connection.readResult = { data: 'UEsAAf8=', encoding: ContentEncoding.Base64, contentType: 'application/zip' };
+
+		const bytes = await provider.readFile(agentHostUri('remote', '/tmp/logs.zip'));
+
+		assert.deepStrictEqual([...bytes], [80, 75, 0, 1, 255]);
 	});
 
 	test('full stat-then-read round-trip mirrors the diff editor flow', async () => {

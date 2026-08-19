@@ -14,7 +14,6 @@ import { ITunnelProxyInfo } from '../../../../platform/tunnel/common/tunnelProxy
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { localize } from '../../../../nls.js';
-import { IPlaywrightService } from '../../../../platform/browserView/common/playwrightService.js';
 import {
 	BrowserHistoryStore,
 	ISerializedBrowserFaviconsSnapshot,
@@ -44,6 +43,8 @@ import {
 	IBrowserViewVisibilityEvent,
 	IBrowserViewCertificateError,
 	IElementData,
+	IBrowserElementCommentsUpdate,
+	IBrowserElementSelectionOptions,
 	IBrowserViewOwner,
 	IBrowserViewOpenOptions,
 	IBrowserViewRect,
@@ -52,6 +53,7 @@ import {
 	IBrowserViewState,
 	IBrowserDeviceProfile,
 	IBrowserViewPermissionRequestEvent,
+	IBrowserElementSelectionState,
 } from '../../../../platform/browserView/common/browserView.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDomains.js';
@@ -66,6 +68,25 @@ export const enum BrowserViewSharingState {
 	NotShared = 'notShared',
 	/** Browser tools are disabled — sharing is not possible. */
 	Unavailable = 'unavailable',
+}
+
+/** Whether a browser URL belongs to the same destination host as the target URL. */
+export function browserViewUrlMatches(candidateUrl: string | undefined, targetUrl: string, includeBlank = false): boolean {
+	const target = URL.parse(targetUrl);
+	if (!target || (target.protocol !== 'file:' && !target.host)) {
+		return false;
+	}
+	if (includeBlank && (!candidateUrl || candidateUrl === 'about:blank')) {
+		return true;
+	}
+
+	const candidate = URL.parse(candidateUrl ?? '');
+	return candidate?.host === target.host ||
+		(target.protocol === 'file:' && candidate?.protocol === 'file:') ||
+		!!(candidate?.host && target.host && (
+			candidate.host.endsWith('.' + target.host) ||
+			target.host.endsWith('.' + candidate.host)
+		));
 }
 
 /** Extracts the host from a URL string for zoom tracking purposes. */
@@ -159,6 +180,9 @@ export interface IBrowserEditorViewState {
 }
 
 export const IBrowserViewWorkbenchService = createDecorator<IBrowserViewWorkbenchService>('browserViewWorkbenchService');
+
+/** The editor that renders a page in the Integrated Browser. */
+export const BrowserViewEditorId = 'workbench.editor.browser';
 
 /**
  * A filter that contextually restricts the browser views returned by
@@ -280,7 +304,7 @@ export interface IBrowserViewWorkbenchService {
 	 * Get an existing browser view for the given ID, or create a new one if it doesn't exist.
 	 * The underlying browser view is not created until the editor is opened or the model is resolved.
 	 */
-	getOrCreateLazy(id: string, initialState?: IBrowserEditorViewState): BrowserEditorInput;
+	getOrCreateLazy(id: string, initialState?: IBrowserEditorViewState, associatedResource?: URI): BrowserEditorInput;
 
 	/**
 	 * Clear all storage data for the global browser session
@@ -331,6 +355,7 @@ export interface IBrowserViewCDPService {
 export interface IBrowserViewModel extends IDisposable {
 	readonly id: string;
 	readonly owner: IBrowserViewOwner;
+	readonly associatedResource: URI | undefined;
 	readonly url: string;
 	readonly title: string;
 	readonly favicon: string | undefined;
@@ -351,7 +376,7 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly zoomFactor: number;
 	readonly canZoomIn: boolean;
 	readonly canZoomOut: boolean;
-	readonly isElementSelectionActive: boolean;
+	readonly elementSelectionState: IBrowserElementSelectionState;
 	readonly isAreaSelectionActive: boolean;
 	readonly device: IBrowserDeviceProfile | undefined;
 
@@ -370,7 +395,8 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly onDidClose: Event<void>;
 	readonly onWillDispose: Event<void>;
 	readonly onDidSelectElement: Event<IElementData>;
-	readonly onDidChangeElementSelectionActive: Event<boolean>;
+	readonly onDidRemoveElementComment: Event<string>;
+	readonly onDidChangeElementSelectionState: Event<IBrowserElementSelectionState>;
 	readonly onDidPickArea: Event<IBrowserViewRect | undefined>;
 	readonly onDidChangeAreaSelectionActive: Event<boolean>;
 	readonly onDidChangeDevice: Event<IBrowserDeviceProfile | undefined>;
@@ -400,7 +426,8 @@ export interface IBrowserViewModel extends IDisposable {
 	zoomOut(): Promise<void>;
 	resetZoom(): Promise<void>;
 	getConsoleLogs(): Promise<string>;
-	toggleElementSelection(enabled?: boolean): Promise<void>;
+	toggleElementSelection(enabled?: boolean, options?: IBrowserElementSelectionOptions): Promise<void>;
+	setElementComments(update: IBrowserElementCommentsUpdate): Promise<void>;
 	toggleAreaSelection(enabled?: boolean): Promise<void>;
 	setDevice(device: IBrowserDeviceProfile | undefined): Promise<void>;
 }
@@ -424,7 +451,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _zoomHost: string | undefined = undefined;
 	private _sharedWithAgent: boolean = false;
 	private _browserZoomIndex: number = browserZoomDefaultIndex;
-	private _isElementSelectionActive: boolean = false;
+	private _elementSelectionState: IBrowserElementSelectionState = { active: false, options: {} };
 	private _isAreaSelectionActive: boolean = false;
 	private _device: IBrowserDeviceProfile | undefined;
 
@@ -449,11 +476,11 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	constructor(
 		readonly id: string,
 		readonly owner: IBrowserViewOwner,
+		readonly associatedResource: URI | undefined,
 		initialState: IBrowserViewState,
 		private readonly browserViewService: IBrowserViewService,
 		@IBrowserViewWorkbenchService private readonly browserViewWorkbenchService: IBrowserViewWorkbenchService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IPlaywrightService private readonly playwrightService: IPlaywrightService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IBrowserZoomService private readonly zoomService: IBrowserZoomService,
@@ -478,9 +505,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._storageScope = initialState.storageScope;
 		this._isRemoteSession = initialState.isRemoteSession;
 		this._browserZoomIndex = initialState.browserZoomIndex;
-		this._isElementSelectionActive = initialState.isElementSelectionActive;
+		this._elementSelectionState = initialState.elementSelectionState;
 		this._isAreaSelectionActive = initialState.isAreaSelectionActive;
 		this._device = initialState.device;
+		this._sharedWithAgent = initialState.audiences.some(audience => audience.type === 'agent');
 		this._isEphemeral = this._storageScope === BrowserViewStorageScope.Ephemeral;
 		this._zoomHost = parseZoomHost(this._url);
 
@@ -504,17 +532,13 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._register(this.browserViewService.onDynamicDidChangePermissions(this.id)(
 			snapshot => this.permissions.hydrate(snapshot)));
 
-		// Sync initial zoom and sharing state (async, but emits events)
+		// Sync initial zoom
 		const effectiveZoomIndex = this.zoomService.getEffectiveZoomIndex(this._zoomHost, this._isEphemeral);
 		if (effectiveZoomIndex !== this._browserZoomIndex) {
 			void this.setBrowserZoomIndex(effectiveZoomIndex).catch(e => {
 				this.logService.warn(`[BrowserViewModel] Failed to set initial zoom:`, e);
 			});
 		}
-		void this.playwrightService.isPageTracked(this.id).then(shared => this._setSharedWithAgent(shared)).catch(e => {
-			this.logService.warn(`[BrowserViewModel] Failed to check initial page tracking:`, e);
-		});
-
 		// Set up state synchronization
 
 		this._register(this.zoomService.onDidChangeZoom(({ host, isEphemeralChange }) => {
@@ -581,19 +605,19 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 			}
 		}));
 
-		this._register(this.onDidChangeElementSelectionActive(active => {
-			if (active) {
+		this._register(this.onDidChangeElementSelectionState(state => {
+			if (state.active && !this._elementSelectionState.active) {
 				this.telemetryService.publicLog2<IntegratedBrowserAddElementToChatStartEvent, IntegratedBrowserAddElementToChatStartClassification>('integratedBrowser.addElementToChat.start', {});
 			}
-			this._isElementSelectionActive = active;
+			this._elementSelectionState = state;
 		}));
 
 		this._register(this.onDidChangeAreaSelectionActive(active => {
 			this._isAreaSelectionActive = active;
 		}));
 
-		this._register(this.playwrightService.onDidChangeTrackedPages(ids => {
-			this._setSharedWithAgent(ids.includes(this.id));
+		this._register(this.browserViewService.onDynamicDidChangeAudiences(this.id)(audiences => {
+			this._setSharedWithAgent(audiences.some(audience => audience.type === 'agent'));
 		}));
 
 		this._register(this.browserViewWorkbenchService.onDidChangeSharingAvailable(() => {
@@ -628,7 +652,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get zoomFactor(): number { return browserZoomFactors[this._browserZoomIndex]; }
 	get canZoomIn(): boolean { return this._browserZoomIndex < browserZoomFactors.length - 1; }
 	get canZoomOut(): boolean { return this._browserZoomIndex > 0; }
-	get isElementSelectionActive(): boolean { return this._isElementSelectionActive; }
+	get elementSelectionState(): IBrowserElementSelectionState { return this._elementSelectionState; }
 	get isAreaSelectionActive(): boolean { return this._isAreaSelectionActive; }
 	get device(): IBrowserDeviceProfile | undefined { return this._device; }
 
@@ -831,8 +855,12 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		return this.browserViewService.getConsoleLogs(this.id);
 	}
 
-	async toggleElementSelection(enabled?: boolean): Promise<void> {
-		return this.browserViewService.toggleElementSelection(this.id, enabled);
+	async toggleElementSelection(enabled?: boolean, options?: IBrowserElementSelectionOptions): Promise<void> {
+		return this.browserViewService.toggleElementSelection(this.id, enabled, options);
+	}
+
+	async setElementComments(update: IBrowserElementCommentsUpdate): Promise<void> {
+		return this.browserViewService.setElementComments(this.id, update);
 	}
 
 	async toggleAreaSelection(enabled?: boolean): Promise<void> {
@@ -843,8 +871,12 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		return this.browserViewService.onDynamicDidSelectElement(this.id);
 	}
 
-	get onDidChangeElementSelectionActive(): Event<boolean> {
-		return this.browserViewService.onDynamicDidChangeElementSelectionActive(this.id);
+	get onDidRemoveElementComment(): Event<string> {
+		return this.browserViewService.onDynamicDidRemoveElementComment(this.id);
+	}
+
+	get onDidChangeElementSelectionState(): Event<IBrowserElementSelectionState> {
+		return this.browserViewService.onDynamicDidChangeElementSelectionState(this.id);
 	}
 
 	get onDidPickArea(): Event<IBrowserViewRect | undefined> {
@@ -926,11 +958,9 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 				);
 			}
 
-			await this.playwrightService.startTrackingPage(this.id);
-			this._setSharedWithAgent(true);
+			await this.browserViewService.setAudience(this.id, { type: 'agent' }, true);
 		} else {
-			await this.playwrightService.stopTrackingPage(this.id);
-			this._setSharedWithAgent(false);
+			await this.browserViewService.setAudience(this.id, { type: 'agent' }, false);
 		}
 
 		return true;
@@ -975,12 +1005,6 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	override dispose(): void {
 		this._onWillDispose.fire();
-
-		// Stop sharing with the agent before destroying the view so the
-		// tracked-pages set stays in sync with live views.
-		if (this._sharedWithAgent) {
-			void this.playwrightService.stopTrackingPage(this.id);
-		}
 
 		// Clean up the browser view when the model is disposed
 		void this.browserViewService.destroyBrowserView(this.id);

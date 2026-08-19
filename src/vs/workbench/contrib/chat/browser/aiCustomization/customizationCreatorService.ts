@@ -11,12 +11,10 @@ import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { getPromptFileDefaultLocations } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { isEqualOrParent } from '../../../../../base/common/resources.js';
-import { ResourceSet } from '../../../../../base/common/map.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { localize } from '../../../../../nls.js';
-import { ICustomizationHarnessService, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { PromptsServiceCustomizationItemProvider } from './promptsServiceCustomizationItemProvider.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -132,7 +130,6 @@ export class CustomizationLocationPicker {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@ILabelService private readonly labelService: ILabelService
 	) { }
 
@@ -161,18 +158,7 @@ export class CustomizationLocationPicker {
 			return undefined;
 		}
 
-		const projectRoot = this.workspaceService.getActiveProjectRoot();
-		const matchingFolders: ICustomizationSourceFolder[] = [];
-		const seenFolders = new ResourceSet();
-		for (const folder of allFolders) {
-			const isProjectFolder = !!projectRoot && isEqualOrParent(folder.uri, projectRoot);
-			if ((target === 'local' && isProjectFolder) || (target === 'user' && !isProjectFolder)) {
-				if (!seenFolders.has(folder.uri)) {
-					seenFolders.add(folder.uri);
-					matchingFolders.push(folder);
-				}
-			}
-		}
+		const matchingFolders = allFolders.filter(f => f.source === target);
 		if (matchingFolders.length === 0) {
 			// No matching folders — return undefined so the command can fall
 			// back to askForPromptSourceFolder (not null which means cancellation)

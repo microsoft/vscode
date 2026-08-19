@@ -4,25 +4,48 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/emptyFileEditor.css';
-import { $, addDisposableListener, Dimension, EventType } from '../../../../base/browser/dom.js';
-import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
+import { $, append, Dimension } from '../../../../base/browser/dom.js';
+import { Action } from '../../../../base/common/actions.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { EditorPane } from '../../../../workbench/browser/parts/editor/editorPane.js';
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { CompactButtonActionViewItem } from '../../sessions/browser/sessionsActions.js';
 import { EmptyFileEditorInput } from './emptyFileEditorInput.js';
 
 const QUICK_OPEN_COMMAND_ID = 'workbench.action.quickOpen';
 
+class SearchFilesActionViewItem extends CompactButtonActionViewItem {
+
+	protected override get commandId(): string {
+		return QUICK_OPEN_COMMAND_ID;
+	}
+
+	protected override get label(): string {
+		return localize('emptyFileEditor.search', "Search Files");
+	}
+
+	protected override getHoverContent(keybindingLabel: string | undefined): string {
+		return keybindingLabel
+			? localize('emptyFileEditor.searchTooltip', "Search Files ({0})", keybindingLabel)
+			: localize('emptyFileEditor.searchTooltipNoKeybinding', "Search Files");
+	}
+
+	protected override getAriaLabel(keybindingAriaLabel: string | undefined): string {
+		return keybindingAriaLabel
+			? localize('emptyFileEditor.searchAria', "Search Files ({0})", keybindingAriaLabel)
+			: localize('emptyFileEditor.searchAriaNoKeybinding', "Search Files");
+	}
+}
+
 export class EmptyFileEditor extends EditorPane {
 
 	static readonly ID = EmptyFileEditorInput.EDITOR_ID;
-
-	private container: HTMLElement | undefined;
 
 	constructor(
 		group: IEditorGroup,
@@ -30,48 +53,33 @@ export class EmptyFileEditor extends EditorPane {
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super(EmptyFileEditor.ID, group, telemetryService, themeService, storageService);
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
-		const keybindingLabel = this.keybindingService.lookupKeybinding(QUICK_OPEN_COMMAND_ID)?.getLabel()
-			?? localize('emptyFileEditor.quickOpenFallback', "Quick Open");
-		const placeholder = localize('emptyFileEditor.placeholder', "Select a file or search with {0}", keybindingLabel);
+		const container = append(parent, $('.empty-file-editor'));
+		const content = append(container, $('.empty-file-editor-content'));
 
-		this.container = $('div.empty-file-editor', {
-			role: 'button',
-			tabindex: 0,
-			'aria-label': placeholder
-		});
+		append(content, $(`.empty-file-editor-icon${ThemeIcon.asCSSSelector(EmptyFileEditorInput.ICON)}`));
 
-		const message = $('span.empty-file-editor-placeholder');
-		message.textContent = placeholder;
-		this.container.appendChild(message);
-		parent.appendChild(this.container);
+		const description = append(content, $('.empty-file-editor-description'));
+		description.textContent = localize('emptyFileEditor.description', "Select a file from the Files view");
 
-		// Support touch (iOS): register a gesture target so `Tap` fires, and handle
-		// both click and tap to open the picker (see sessionTypePicker/sessionFilesWidget).
-		this._register(Gesture.addTarget(this.container));
-		for (const eventType of [EventType.CLICK, TouchEventType.Tap]) {
-			this._register(addDisposableListener(this.container, eventType, () => this.openQuickOpen()));
-		}
-		this._register(addDisposableListener(this.container, EventType.KEY_DOWN, e => {
-			if (e.key === 'Enter' || e.key === ' ') {
-				e.preventDefault();
-				this.openQuickOpen();
-			}
-		}));
+		const actions = append(content, $('.empty-file-editor-actions'));
+		const action = this._register(this.createSearchAction());
+		const actionViewItem = this._register(this.instantiationService.createInstance(SearchFilesActionViewItem, action));
+		actionViewItem.render(actions);
+	}
+
+	private createSearchAction(): Action {
+		return new Action(QUICK_OPEN_COMMAND_ID, localize('emptyFileEditor.search', "Search Files"), undefined, true, () => this.commandService.executeCommand(QUICK_OPEN_COMMAND_ID, ''));
 	}
 
 	override focus(): void {
-		this.container?.focus();
+		// Do not steal focus to the search button when the editor opens.
 	}
 
 	override layout(_dimension: Dimension): void { }
-
-	private openQuickOpen(): void {
-		void this.commandService.executeCommand(QUICK_OPEN_COMMAND_ID, '');
-	}
 }

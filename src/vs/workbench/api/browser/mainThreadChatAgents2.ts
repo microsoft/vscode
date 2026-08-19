@@ -211,6 +211,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				return 'extension';
 			case PromptsStorage.plugin:
 				return 'plugin';
+			case PromptsStorage.builtIn:
+				return 'builtin';
 		}
 	}
 
@@ -809,6 +811,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				return folders.map(folder => ({
 					uri: URI.revive(folder.uri),
 					label: folder.label,
+					source: folder.source,
 				}));
 			},
 		};

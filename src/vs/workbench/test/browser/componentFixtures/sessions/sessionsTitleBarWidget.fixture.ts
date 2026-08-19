@@ -11,6 +11,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IChat, ISession, ISessionWorkspace } from '../../../../../sessions/services/sessions/common/session.js';
@@ -26,6 +27,8 @@ import { BlockedSessionReason, BlockedSessions, IBlockedSession } from '../../..
 import { SessionActionFeedback } from '../../../../../sessions/contrib/sessions/browser/sessionActionFeedback.js';
 // eslint-disable-next-line local/code-import-patterns
 import { SessionsTitleBarWidget } from '../../../../../sessions/contrib/sessions/browser/sessionsTitleBarWidget.js';
+// eslint-disable-next-line local/code-import-patterns
+import { BlockedSessionsCIFixModel } from '../../../../../sessions/contrib/sessions/browser/blockedSessionsCIFixModel.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
@@ -63,6 +66,7 @@ function buildBlocked(specs: readonly IBlockedSpec[]): { blocked: IBlockedSessio
 		const chatResource = URI.parse(`session-chat:/blocked/${i}`);
 		if (spec.approvalKind) {
 			approvals.set(chatResource.toString(), {
+				approvalId: chatResource.toString(),
 				kind: spec.approvalKind,
 				label: 'npm run build',
 				languageId: undefined,
@@ -77,7 +81,7 @@ function buildBlocked(specs: readonly IBlockedSpec[]): { blocked: IBlockedSessio
 			override readonly sessionId = `blocked-${i}`;
 			override readonly chats: IObservable<readonly IChat[]> = constObservable([chat]);
 		}();
-		return { session, reason: spec.reason };
+		return { session, reason: spec.reason, occurrenceId: `${spec.reason}:${i}` };
 	});
 	const approvalModel = new class extends mock<AgentSessionApprovalModel>() {
 		override getApproval(resource: URI): IObservable<IAgentSessionApprovalInfo | undefined> {
@@ -128,6 +132,9 @@ function renderTitleBar(ctx: ComponentFixtureContext, state: ITitleBarState): vo
 			reg.defineInstance(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
 				override readonly onDidChangePartVisibility = Event.None;
 			}());
+			reg.defineInstance(IQuickInputService, new class extends mock<IQuickInputService>() {
+				override readonly onShow = Event.None;
+			}());
 			// The blocked-sessions feature is only enabled outside of stable builds.
 			reg.defineInstance(IProductService, new class extends mock<IProductService>() {
 				override readonly quality = 'insider';
@@ -161,7 +168,14 @@ function renderTitleBar(ctx: ComponentFixtureContext, state: ITitleBarState): vo
 		override readonly blockedSessionsWithReasons: IObservable<readonly IBlockedSession[]> = constObservable(blocked);
 	}();
 
-	const widget = disposableStore.add(instantiationService.createInstance(SessionsTitleBarWidget, action, undefined, sessionActionFeedback, approvalModel, blockedSessionsModel));
+	// A no-op CI-fix model seam: the fixture never clicks "Fix CI", so it only
+	// needs to report no sessions hidden. Supplying it avoids the real model,
+	// which would depend on services not registered in this fixture.
+	const ciFixModel = new class extends mock<BlockedSessionsCIFixModel>() {
+		override readonly hiddenSessions: IObservable<ReadonlySet<string>> = constObservable<ReadonlySet<string>>(new Set());
+	}();
+
+	const widget = disposableStore.add(instantiationService.createInstance(SessionsTitleBarWidget, action, undefined, sessionActionFeedback, approvalModel, blockedSessionsModel, ciFixModel));
 	widget.render(widgetHost);
 }
 

@@ -12,8 +12,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
-import { SyncedCustomizationBundler } from '../../../browser/agentSessions/agentHost/syncedCustomizationBundler.js';
+import { McpServerType, type IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { CustomizationEnablementKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { type ISyncableMcpServer, SyncedCustomizationBundler } from '../../../browser/agentSessions/agentHost/syncedCustomizationBundler.js';
 import { IAgentHostFileSystemService, SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -24,6 +25,12 @@ suite('SyncedCustomizationBundler', () => {
 	const disposables = new DisposableStore();
 	let fileService: FileService;
 	let instantiationService: TestInstantiationService;
+
+	const enabledMcpServer = (name: string, configuration: IMcpServerConfiguration): ISyncableMcpServer => ({
+		name,
+		configuration,
+		enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+	});
 
 	setup(() => {
 		fileService = disposables.add(new FileService(new NullLogService()));
@@ -348,7 +355,7 @@ suite('SyncedCustomizationBundler', () => {
 
 	test('unchanged MCP-only rebundle reuses the previous result', async () => {
 		const bundler = createBundler();
-		const server = { name: 'srv', configuration: { type: McpServerType.LOCAL, command: 'srv' } } as const;
+		const server = enabledMcpServer('srv', { type: McpServerType.LOCAL, command: 'srv' });
 
 		const result1 = await bundler.bundle([], [server]);
 		assert.ok(result1);
@@ -422,8 +429,8 @@ suite('SyncedCustomizationBundler', () => {
 		const bundler = createBundler();
 		const mcpUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/.mcp.json' });
 
-		await bundler.bundle([], [{ name: 'srv', configuration: { type: McpServerType.LOCAL, command: 'v1' } }]);
-		await bundler.bundle([], [{ name: 'srv', configuration: { type: McpServerType.LOCAL, command: 'v2' } }]);
+		await bundler.bundle([], [enabledMcpServer('srv', { type: McpServerType.LOCAL, command: 'v1' })]);
+		await bundler.bundle([], [enabledMcpServer('srv', { type: McpServerType.LOCAL, command: 'v2' })]);
 
 		const parsed = JSON.parse((await fileService.readFile(mcpUri)).value.toString());
 		assert.deepStrictEqual(parsed, {
@@ -448,23 +455,43 @@ suite('SyncedCustomizationBundler', () => {
 
 	test('writes MCP servers into .mcp.json', async () => {
 		const bundler = createBundler();
+		const defaultCwd = URI.parse('vscode-remote://ssh-remote+linux/home/test/workspace');
 
 		const result = await bundler.bundle([], [
-			{ name: 'my-server', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'] } },
+			{ ...enabledMcpServer('my-server', { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'] }), defaultCwd },
+			enabledMcpServer('session-server', { type: McpServerType.LOCAL, command: 'session-server' }),
 		]);
 		assert.ok(result, 'a bundle with only MCP servers should still produce a result');
 
 		const mcpUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/.mcp.json' });
 		const parsed = JSON.parse((await fileService.readFile(mcpUri)).value.toString());
 		assert.deepStrictEqual(parsed, {
-			mcpServers: { 'my-server': { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'] } },
+			mcpServers: {
+				'my-server': { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'] },
+				'session-server': { type: McpServerType.LOCAL, command: 'session-server' },
+			},
 		});
+		assert.deepStrictEqual(result.ref._meta, {
+			mcpDefaultCwds: {
+				'my-server': defaultCwd.toString(),
+				'session-server': null,
+			},
+		});
+		assert.deepStrictEqual(result.ref.childEnablement, {
+			'my-server': [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+			'session-server': [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+		});
+		assert.deepStrictEqual([
+			bundler.isBundledMcpServer(result.ref.uri, 'my-server'),
+			bundler.isBundledMcpServer(result.ref.uri, 'other-server'),
+			bundler.isBundledMcpServer('vscode-synced-customization:///other-plugin', 'my-server'),
+		], [true, false, false]);
 	});
 
 	test('MCP server bundle nonce is stable and order-independent', async () => {
 		const bundler = createBundler();
-		const a = { name: 'a', configuration: { type: McpServerType.LOCAL, command: 'a' } } as const;
-		const b = { name: 'b', configuration: { type: McpServerType.LOCAL, command: 'b' } } as const;
+		const a = enabledMcpServer('a', { type: McpServerType.LOCAL, command: 'a' });
+		const b = enabledMcpServer('b', { type: McpServerType.LOCAL, command: 'b' });
 
 		const result1 = await bundler.bundle([], [a, b]);
 		const result2 = await bundler.bundle([], [b, a]);
@@ -473,8 +500,68 @@ suite('SyncedCustomizationBundler', () => {
 
 	test('MCP server bundle nonce changes when a server changes', async () => {
 		const bundler = createBundler();
-		const result1 = await bundler.bundle([], [{ name: 'srv', configuration: { type: McpServerType.LOCAL, command: 'v1' } }]);
-		const result2 = await bundler.bundle([], [{ name: 'srv', configuration: { type: McpServerType.LOCAL, command: 'v2' } }]);
+		const result1 = await bundler.bundle([], [enabledMcpServer('srv', { type: McpServerType.LOCAL, command: 'v1' })]);
+		const result2 = await bundler.bundle([], [enabledMcpServer('srv', { type: McpServerType.LOCAL, command: 'v2' })]);
 		assert.notStrictEqual(result1!.ref.nonce, result2!.ref.nonce);
+	});
+
+	test('MCP server bundle nonce changes when its default cwd changes', async () => {
+		const bundler = createBundler();
+		const server = enabledMcpServer('srv', { type: McpServerType.LOCAL, command: 'srv' });
+		const result1 = await bundler.bundle([], [{ ...server, defaultCwd: URI.file('/workspace/one') }]);
+		const result2 = await bundler.bundle([], [{ ...server, defaultCwd: URI.file('/workspace/two') }]);
+		assert.notStrictEqual(result1!.ref.nonce, result2!.ref.nonce);
+	});
+
+	test('getOrigin recovers provenance of flattened files by synced URI', async () => {
+		const bundler = createBundler();
+		const extUri = await seedFile('/ext/rule.md', 'ext rule');
+		const skillMd = await seedFile('/plugins/my-skill/SKILL.md', '# skill');
+
+		await bundler.bundle([
+			{ uri: extUri, type: PromptsType.instructions, source: 'extension', extensionId: 'pub.ext' },
+			{ uri: skillMd, type: PromptsType.skill, source: 'plugin', pluginUri: URI.from({ scheme: Schemas.inMemory, path: '/plugins/my-skill' }) },
+		]);
+
+		const ruleDest = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/rule.md' });
+		assert.deepStrictEqual(bundler.getOrigin(ruleDest), {
+			uri: extUri,
+			source: 'extension',
+			extensionId: 'pub.ext',
+			pluginUri: undefined,
+		});
+
+		// Skills preserve their directory: skills/{skillName}/SKILL.md.
+		const skillDest = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/my-skill/SKILL.md' });
+		assert.deepStrictEqual(bundler.getOrigin(skillDest), {
+			uri: skillMd,
+			source: 'plugin',
+			extensionId: undefined,
+			pluginUri: URI.from({ scheme: Schemas.inMemory, path: '/plugins/my-skill' }),
+		});
+
+		assert.strictEqual(bundler.getOrigin(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/unknown.md' })), undefined);
+	});
+
+	test('getOrigin has no entry for files without a source', async () => {
+		const bundler = createBundler();
+		const uri = await seedFile('/test/rule.md', 'rule');
+		await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		const dest = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/rule.md' });
+		assert.strictEqual(bundler.getOrigin(dest), undefined);
+	});
+
+	test('getOrigin map refreshes on each bundle', async () => {
+		const bundler = createBundler();
+		const first = await seedFile('/test/first.md', 'first');
+		await bundler.bundle([{ uri: first, type: PromptsType.instructions, source: 'extension', extensionId: 'pub.first' }]);
+		const firstDest = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/first.md' });
+		assert.ok(bundler.getOrigin(firstDest));
+
+		const second = await seedFile('/test/second.md', 'second');
+		await bundler.bundle([{ uri: second, type: PromptsType.instructions, source: 'plugin' }]);
+		// The previous file is no longer part of the bundle, so its origin is gone.
+		assert.strictEqual(bundler.getOrigin(firstDest), undefined);
+		assert.ok(bundler.getOrigin(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/second.md' })));
 	});
 });

@@ -66,12 +66,20 @@ export type LanguageContextOptions = {
 export type NeighborFilesOptions = {
 	readonly enabled: boolean;
 	readonly maxTokens: number;
+	/**
+	 * Whether to include language-service "related" (non-open-tab) files in the
+	 * neighbor-files context. NES has its own language-context implementation, so
+	 * this can be turned off to avoid redundant context. When `false`, only
+	 * open-tab neighbors are considered.
+	 */
+	readonly includeRelatedFiles: boolean;
 };
 
 export namespace NeighborFilesOptions {
 	export const VALIDATOR: IValidator<Partial<NeighborFilesOptions>> = vObj({
 		'enabled': vBoolean(),
 		'maxTokens': vNumber(),
+		'includeRelatedFiles': vBoolean(),
 	});
 }
 
@@ -81,6 +89,20 @@ export type DiffHistoryOptions = {
 	readonly onlyForDocsInPrompt: boolean;
 	readonly useRelativePaths: boolean;
 };
+
+export enum RejectedEditsMemoryMode {
+	DiffWithTags = 'diffWithTags', // This is currently the only mode, so it is used by default but defined as a string for future extensibility.
+}
+
+export type PromptMemoryOptions = {
+	readonly rejectedEdits?: RejectedEditsMemoryMode;
+};
+
+export namespace PromptMemoryOptions {
+	export const VALIDATOR: IValidator<PromptMemoryOptions> = vObj({
+		'rejectedEdits': vUnion(vEnum(RejectedEditsMemoryMode.DiffWithTags), vUndefined()),
+	});
+}
 
 /**
  * Parts that are rendered by the global-budget cascade and listed in `order`.
@@ -478,6 +500,7 @@ export type PromptOptions = {
 	readonly languageContext: LanguageContextOptions;
 	readonly neighborFiles: NeighborFilesOptions;
 	readonly diffHistory: DiffHistoryOptions;
+	readonly memory: PromptMemoryOptions | undefined;
 	readonly includePostScript: boolean;
 	readonly lintOptions: LintOptions | undefined;
 	/**
@@ -542,6 +565,10 @@ export function isAggressivenessStrategy(strategy: PromptingStrategy | undefined
 		|| strategy === PromptingStrategy.Xtab275AggressivenessHighLow
 		|| strategy === PromptingStrategy.Xtab275EditIntent
 		|| strategy === PromptingStrategy.Xtab275EditIntentShort;
+}
+
+export function isRejectedEditMemoryEnabled(options: { readonly memory?: PromptMemoryOptions }): boolean {
+	return options.memory?.rejectedEdits === RejectedEditsMemoryMode.DiffWithTags;
 }
 
 export enum ResponseFormat {
@@ -614,6 +641,7 @@ export const DEFAULT_OPTIONS: PromptOptions = {
 	neighborFiles: {
 		enabled: false,
 		maxTokens: 1000,
+		includeRelatedFiles: true,
 	},
 	diffHistory: {
 		nEntries: 25,
@@ -621,6 +649,7 @@ export const DEFAULT_OPTIONS: PromptOptions = {
 		onlyForDocsInPrompt: false,
 		useRelativePaths: false,
 	},
+	memory: undefined,
 	lintOptions: undefined,
 	includePostScript: true,
 };
@@ -648,6 +677,7 @@ export interface ModelConfiguration {
 	includePostScript?: boolean;
 	currentFile?: Partial<CurrentFileOptions>;
 	recentlyViewedDocuments?: Partial<RecentlyViewedDocumentsOptions>;
+	memory?: PromptMemoryOptions;
 	lintOptions: Partial<LintOptions> | undefined;
 	supportsNextCursorLinePrediction?: boolean;
 	/** Whether import-only edits are allowed. `undefined` is treated as {@link ImportChanges.None}. */
@@ -716,6 +746,7 @@ export const MODEL_CONFIGURATION_VALIDATOR: IValidator<ModelConfiguration> = vOb
 	'includePostScript': vUnion(vBoolean(), vUndefined()),
 	'currentFile': vUnion(CurrentFileOptions.VALIDATOR, vUndefined()),
 	'recentlyViewedDocuments': vUnion(RecentlyViewedDocumentsOptions.VALIDATOR, vUndefined()),
+	'memory': vUnion(PromptMemoryOptions.VALIDATOR, vUndefined()),
 	'lintOptions': vUnion(LINT_OPTIONS_VALIDATOR, vUndefined()),
 	'supportsNextCursorLinePrediction': vUnion(vBoolean(), vUndefined()),
 	'allowImportChanges': vUnion(ImportChanges.VALIDATOR, vUndefined()),

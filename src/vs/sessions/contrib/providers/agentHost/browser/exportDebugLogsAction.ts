@@ -6,14 +6,13 @@
 import { localize2 } from '../../../../../nls.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { AgentHostEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
+import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { exportAgentHostDebugLogs, IActiveAgentHostSessionForExport } from '../../../../../workbench/contrib/chat/browser/actions/exportAgentHostDebugLogsAction.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { type ISession } from '../../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
@@ -30,25 +29,22 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
 			category: Categories.Developer,
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
-				ContextKeyExpr.or(IsSessionsWindowContext, ContextKeyExpr.equals(`config.${AgentHostEnabledSettingId}`, true)),
+				ContextKeyExpr.or(IsSessionsWindowContext, AGENT_HOST_ENABLED_CONTEXT_KEY),
 			),
 		});
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 
 		const activeSession = sessionsService.activeSession.get();
 		const activeAgentHostSession = isAgentHostSession(activeSession, sessionsProvidersService) ? activeSession : undefined;
-		const sessionForEvents = activeAgentHostSession ?? getMostRecentAgentHostSession(sessionsManagementService.getSessions(), sessionsProvidersService);
-
-		const activeSessionContext: IActiveAgentHostSessionForExport | undefined = sessionForEvents
+		const activeSessionContext: IActiveAgentHostSessionForExport | undefined = activeAgentHostSession
 			? {
-				resource: sessionForEvents.resource,
-				title: activeAgentHostSession?.title.get(),
-				isLocal: sessionForEvents.resource.scheme.startsWith('agent-host-'),
+				resource: activeAgentHostSession.resource,
+				title: activeAgentHostSession.title.get(),
+				isLocal: activeAgentHostSession.resource.scheme.startsWith('agent-host-'),
 			}
 			: undefined;
 
@@ -58,19 +54,6 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
 
 function isAgentHostSession(session: ISession | undefined, sessionsProvidersService: ISessionsProvidersService): session is ISession {
 	return !!session && sessionsProvidersService.getProvider(session.providerId) instanceof BaseAgentHostSessionsProvider;
-}
-
-function getMostRecentAgentHostSession(sessions: readonly ISession[], sessionsProvidersService: ISessionsProvidersService): ISession | undefined {
-	let mostRecent: ISession | undefined;
-	for (const session of sessions) {
-		if (!isAgentHostSession(session, sessionsProvidersService)) {
-			continue;
-		}
-		if (!mostRecent || session.updatedAt.get().getTime() > mostRecent.updatedAt.get().getTime()) {
-			mostRecent = session;
-		}
-	}
-	return mostRecent;
 }
 
 registerAction2(ExportAgentHostDebugLogsAction);
