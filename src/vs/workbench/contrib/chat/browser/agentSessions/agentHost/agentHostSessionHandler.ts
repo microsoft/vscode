@@ -2283,11 +2283,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		);
 
 		const startedClientToolCalls = new Set<string>();
-		/**
-		 * Execution signature of the running client tool call per call key, armed
-		 * synchronously at execution start because `startedClientToolCalls` only arms
-		 * after an await. Ignores approval metadata so a repeated ready is a duplicate.
-		 */
+		// Armed synchronously; `startedClientToolCalls` only arms after an await.
 		const inFlightClientToolCalls = new Map<string, string>();
 		const executionSignature = (request: SessionToolClientExecutionRequest): string => {
 			const toolCall = request.toolCall;
