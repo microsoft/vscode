@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../../base/common/async.js';
+import { installFakeRunWhenIdle, timeout } from '../../../../../../base/common/async.js';
 import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -18,6 +19,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { IFileService, IFileSystemWatcher } from '../../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IMeteredConnectionService } from '../../../../../../platform/meteredConnection/common/meteredConnection.js';
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
@@ -27,6 +29,32 @@ import { ChatConfiguration } from '../../../common/constants.js';
 import { IAgentPluginRepositoryService } from '../../../common/plugins/agentPluginRepositoryService.js';
 import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceReferenceKind, MarketplaceType, PluginMarketplaceService, PluginSourceKind, extraKnownMarketplacesToConfigDict, getPluginSourceLabel, parseMarketplaceReference, parseMarketplaceReferences, parsePluginSource, readConfiguredMarketplaces } from '../../../common/plugins/pluginMarketplaceService.js';
 import { IWorkspacePluginSettingsService } from '../../../common/plugins/workspacePluginSettingsService.js';
+
+class TestMeteredConnectionService extends Disposable implements IMeteredConnectionService {
+	declare readonly _serviceBrand: undefined;
+
+	private readonly _onDidChangeIsConnectionMetered = this._register(new Emitter<boolean>());
+	readonly onDidChangeIsConnectionMetered = this._onDidChangeIsConnectionMetered.event;
+
+	constructor(public isConnectionMetered: boolean) {
+		super();
+	}
+
+	setIsConnectionMetered(isConnectionMetered: boolean): void {
+		this.isConnectionMetered = isConnectionMetered;
+		this._onDidChangeIsConnectionMetered.fire(isConnectionMetered);
+	}
+}
+
+const unmeteredConnectionService: IMeteredConnectionService = {
+	_serviceBrand: undefined,
+	isConnectionMetered: false,
+	onDidChangeIsConnectionMetered: Event.None,
+};
+
+function stubMeteredConnectionService(instantiationService: TestInstantiationService, service: IMeteredConnectionService = unmeteredConnectionService): void {
+	instantiationService.stub(IMeteredConnectionService, service);
+}
 
 suite('PluginMarketplaceService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -431,6 +459,7 @@ suite('PluginMarketplaceService - GitHub marketplace refs', () => {
 		instantiationService.stub(IExtensionsWorkbenchService, {
 			getAutoUpdateValue: () => 'on',
 		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
+		stubMeteredConnectionService(instantiationService);
 
 		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
 		await service.fetchMarketplacePlugins(CancellationToken.None);
@@ -468,6 +497,7 @@ suite('PluginMarketplaceService - GitHub marketplace refs', () => {
 		instantiationService.stub(IExtensionsWorkbenchService, {
 			getAutoUpdateValue: () => 'on',
 		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
+		stubMeteredConnectionService(instantiationService);
 
 		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
 		const seeded = service.lastFetchedPlugins.get();
@@ -526,6 +556,7 @@ suite('PluginMarketplaceService - Agent Plugin direct install probes', () => {
 		instantiationService.stub(IExtensionsWorkbenchService, {
 			getAutoUpdateValue: () => 'off',
 		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
+		stubMeteredConnectionService(instantiationService);
 		return store.add(instantiationService.createInstance(PluginMarketplaceService));
 	}
 
@@ -589,6 +620,7 @@ suite('PluginMarketplaceService - getMarketplacePluginMetadata', () => {
 		instantiationService.stub(IExtensionsWorkbenchService, {
 			getAutoUpdateValue: () => autoUpdate,
 		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
+		stubMeteredConnectionService(instantiationService);
 
 		return store.add(instantiationService.createInstance(PluginMarketplaceService));
 	}
@@ -664,7 +696,10 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 		};
 	}
 
-	function createService(): PluginMarketplaceService {
+	function createService(options?: {
+		meteredConnectionService?: IMeteredConnectionService;
+		pluginRepositoryService?: Partial<IAgentPluginRepositoryService>;
+	}): PluginMarketplaceService {
 		const instantiationService = store.add(new TestInstantiationService());
 
 		instantiationService.stub(IConfigurationService, new TestConfigurationService({
@@ -673,7 +708,10 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 		}));
 		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as Partial<IEnvironmentService> as IEnvironmentService);
 		instantiationService.stub(IFileService, {} as unknown as IFileService);
-		instantiationService.stub(IAgentPluginRepositoryService, { agentPluginsHome: URI.file('/agent-plugins') } as unknown as IAgentPluginRepositoryService);
+		instantiationService.stub(IAgentPluginRepositoryService, {
+			agentPluginsHome: URI.file('/agent-plugins'),
+			...options?.pluginRepositoryService,
+		} as IAgentPluginRepositoryService);
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IRequestService, {} as unknown as IRequestService);
 		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
@@ -688,6 +726,7 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 		instantiationService.stub(IExtensionsWorkbenchService, {
 			getAutoUpdateValue: () => 'on',
 		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
+		stubMeteredConnectionService(instantiationService, options?.meteredConnectionService);
 
 		return store.add(instantiationService.createInstance(PluginMarketplaceService));
 	}
@@ -707,6 +746,39 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 		const installed = service.installedPlugins.get();
 		assert.strictEqual(installed.length, 1);
 		assert.strictEqual(installed[0].plugin.name, 'my-plugin');
+	});
+
+	test('periodic update checking pauses while metered and resumes when unmetered', async () => {
+		let runIdle: ((idle: IdleDeadline) => void) | undefined;
+		store.add(installFakeRunWhenIdle((_target, runner) => {
+			runIdle = runner;
+			return Disposable.None;
+		}));
+		const meteredConnectionService = store.add(new TestMeteredConnectionService(true));
+		let fetchCount = 0;
+		const service = createService({
+			meteredConnectionService,
+			pluginRepositoryService: {
+				fetchRepository: async () => {
+					fetchCount++;
+					return false;
+				},
+			},
+		});
+		service.addInstalledPlugin(
+			URI.file('/agent-plugins/github.com/microsoft/plugins/my-plugin'),
+			makePlugin('my-plugin', 'my-plugin'),
+		);
+
+		assert.ok(runIdle);
+		runIdle({ didTimeout: false, timeRemaining: () => 50 });
+		await timeout(0);
+		assert.strictEqual(fetchCount, 0);
+
+		meteredConnectionService.setIsConnectionMetered(false);
+		await timeout(0);
+		await timeout(0);
+		assert.strictEqual(fetchCount, 1);
 	});
 
 	test('removeInstalledPlugin removes plugin from installedPlugins and metadata', () => {
@@ -908,6 +980,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 		instantiationService.stub(IExtensionsWorkbenchService, {
 			getAutoUpdateValue: () => 'on',
 		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
+		stubMeteredConnectionService(instantiationService);
 
 		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
 
@@ -961,6 +1034,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 			instantiationService.stub(IExtensionsWorkbenchService, {
 				getAutoUpdateValue: () => 'on',
 			} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
+			stubMeteredConnectionService(instantiationService);
 			return store.add(instantiationService.createInstance(PluginMarketplaceService));
 		}
 

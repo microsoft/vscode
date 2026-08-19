@@ -18,6 +18,7 @@ import { IEnvironmentService } from '../../../../../platform/environment/common/
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IMeteredConnectionService } from '../../../../../platform/meteredConnection/common/meteredConnection.js';
 import { ObservableMemento, observableMemento } from '../../../../../platform/observable/common/observableMemento.js';
 import { asJson, IRequestService } from '../../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -335,6 +336,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		@IWorkspacePluginSettingsService private readonly _workspacePluginSettingsService: IWorkspacePluginSettingsService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustService: IWorkspaceTrustManagementService,
 		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IMeteredConnectionService private readonly _meteredConnectionService: IMeteredConnectionService,
 	) {
 		super();
 
@@ -416,6 +418,14 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			}));
 		}));
 
+		this._register(this._meteredConnectionService.onDidChangeIsConnectionMetered(isMetered => {
+			if (isMetered) {
+				this._clearUpdateCheckTimer();
+			} else {
+				this._scheduleUpdateCheck();
+			}
+		}));
+
 		// Hydrate plugin metadata for installed entries that are not yet in
 		// the in-memory cache (e.g. after restart when installed.json is read
 		// but the metadata map is empty). Modern entries match by plugin name;
@@ -430,10 +440,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	}
 
 	override dispose(): void {
-		if (this._updateCheckTimer !== undefined) {
-			clearTimeout(this._updateCheckTimer);
-			this._updateCheckTimer = undefined;
-		}
+		this._clearUpdateCheckTimer();
 		super.dispose();
 	}
 
@@ -827,12 +834,9 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	 * construction and whenever the auto-update config changes.
 	 */
 	private _scheduleUpdateCheck(): void {
-		if (this._updateCheckTimer !== undefined) {
-			clearTimeout(this._updateCheckTimer);
-			this._updateCheckTimer = undefined;
-		}
+		this._clearUpdateCheckTimer();
 
-		if (!this._hasAutoUpdateEnabledMarketplace()) {
+		if (this._meteredConnectionService.isConnectionMetered || !this._hasAutoUpdateEnabledMarketplace()) {
 			return;
 		}
 
@@ -847,8 +851,18 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		this._updateCheckTimer = setTimeout(() => this._runUpdateCheck(), delay);
 	}
 
+	private _clearUpdateCheckTimer(): void {
+		if (this._updateCheckTimer !== undefined) {
+			clearTimeout(this._updateCheckTimer);
+			this._updateCheckTimer = undefined;
+		}
+	}
+
 	private async _runUpdateCheck(): Promise<void> {
 		this._updateCheckTimer = undefined;
+		if (this._meteredConnectionService.isConnectionMetered) {
+			return;
+		}
 
 		try {
 			const installed = this.installedPlugins.get();
@@ -860,6 +874,9 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			const marketplacesWithUpdates = new Set<string>();
 
 			for (const entry of installed) {
+				if (this._meteredConnectionService.isConnectionMetered) {
+					return;
+				}
 				const ref = entry.plugin.marketplaceReference;
 				if (seenMarketplaces.has(ref.canonicalId)
 					|| !this.isMarketplaceAutoUpdateEnabled(ref)
@@ -870,6 +887,9 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 
 				try {
 					const behind = await this._pluginRepositoryService.fetchRepository(ref);
+					if (this._meteredConnectionService.isConnectionMetered) {
+						return;
+					}
 					if (behind) {
 						marketplacesWithUpdates.add(ref.canonicalId);
 					}
@@ -889,7 +909,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			this._logService.debug('[PluginMarketplaceService] Periodic update check failed:', err);
 		} finally {
 			// Reschedule for the next check
-			if (this._hasAutoUpdateEnabledMarketplace()) {
+			if (!this._meteredConnectionService.isConnectionMetered && this._hasAutoUpdateEnabledMarketplace()) {
 				this._updateCheckTimer = setTimeout(() => this._runUpdateCheck(), PLUGIN_UPDATE_CHECK_INTERVAL_MS);
 			}
 		}

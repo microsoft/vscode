@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IMeteredConnectionService } from '../../../../platform/meteredConnection/common/meteredConnection.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
 import { IPluginMarketplaceService } from '../common/plugins/pluginMarketplaceService.js';
@@ -31,11 +32,13 @@ export class PluginAutoUpdate extends Disposable implements IWorkbenchContributi
 	static readonly ID = 'workbench.contrib.pluginAutoUpdate';
 
 	private _updateInFlight = false;
+	private readonly _updateCancellation = this._register(new MutableDisposable());
 
 	constructor(
 		@IPluginMarketplaceService private readonly _pluginMarketplaceService: IPluginMarketplaceService,
 		@IPluginInstallService private readonly _pluginInstallService: IPluginInstallService,
 		@ILogService private readonly _logService: ILogService,
+		@IMeteredConnectionService private readonly _meteredConnectionService: IMeteredConnectionService,
 	) {
 		super();
 
@@ -46,21 +49,51 @@ export class PluginAutoUpdate extends Disposable implements IWorkbenchContributi
 			}
 			void this._triggerAutoUpdate(marketplaceIds);
 		}));
+
+		this._register(this._meteredConnectionService.onDidChangeIsConnectionMetered(isMetered => {
+			if (isMetered) {
+				this._updateCancellation.clear();
+				return;
+			}
+
+			const marketplaceIds = this._pluginMarketplaceService.marketplacesWithUpdates.get();
+			if (marketplaceIds.size > 0) {
+				void this._triggerAutoUpdate(marketplaceIds);
+			}
+		}));
 	}
 
 	private async _triggerAutoUpdate(marketplaceIds: ReadonlySet<string>): Promise<void> {
-		if (this._updateInFlight) {
+		if (this._updateInFlight || this._meteredConnectionService.isConnectionMetered) {
 			return;
 		}
 
 		this._updateInFlight = true;
+		const cancellationTokenSource = new CancellationTokenSource();
+		const cancellation = toDisposable(() => cancellationTokenSource.dispose(true));
+		this._updateCancellation.value = cancellation;
 		try {
-			await this._pluginInstallService.updateAllPlugins({ silent: true, automatic: true, marketplaceIds }, CancellationToken.None);
+			await this._pluginInstallService.updateAllPlugins({ silent: true, automatic: true, marketplaceIds }, cancellationTokenSource.token);
 		} catch (err) {
-			this._logService.error('[PluginAutoUpdate] Failed to auto-update plugins:', err);
+			if (!cancellationTokenSource.token.isCancellationRequested) {
+				this._logService.error('[PluginAutoUpdate] Failed to auto-update plugins:', err);
+			}
 		} finally {
+			const wasCancelled = cancellationTokenSource.token.isCancellationRequested;
+			if (this._updateCancellation.value === cancellation) {
+				this._updateCancellation.clear();
+			}
+			if (!wasCancelled) {
+				this._pluginMarketplaceService.clearUpdatesAvailable(marketplaceIds);
+			}
 			this._updateInFlight = false;
-			this._pluginMarketplaceService.clearUpdatesAvailable(marketplaceIds);
+
+			if (!this._meteredConnectionService.isConnectionMetered) {
+				const queuedMarketplaceIds = this._pluginMarketplaceService.marketplacesWithUpdates.get();
+				if (queuedMarketplaceIds.size > 0) {
+					void this._triggerAutoUpdate(queuedMarketplaceIds);
+				}
+			}
 		}
 	}
 }
