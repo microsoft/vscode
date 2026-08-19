@@ -51,6 +51,7 @@ import './api/browser/viewsExtensionPoint.js';
 //#region --- workbench parts
 
 import './browser/parts/editor/editor.contribution.js';
+import './browser/parts/editor/diffEditor.workbench.contribution.js';
 import './browser/parts/editor/editorParts.js';
 import './browser/parts/paneCompositePartService.js';
 import './browser/parts/banner/bannerPart.js';
@@ -204,6 +205,9 @@ import './services/accounts/browser/defaultAccount.js';
 // Account Policy Gate
 import './services/policies/browser/accountPolicyGate.contribution.js';
 
+// Policy Telemetry
+import './services/policies/browser/policyTelemetry.contribution.js';
+
 // Telemetry
 import './contrib/telemetry/browser/telemetry.contribution.js';
 
@@ -330,6 +334,9 @@ import './contrib/output/browser/outputView.js';
 import './contrib/terminal/terminal.all.js';
 
 // External terminal
+// Import from other editors (e.g. Cursor)
+import './contrib/externalEditorImport/browser/externalEditorImport.contribution.js';
+
 import './contrib/externalTerminal/browser/externalTerminal.contribution.js';
 
 // Relauncher
@@ -391,9 +398,6 @@ import './contrib/welcomeViews/common/newFile.contribution.js';
 
 // Welcome Onboarding
 import './contrib/welcomeOnboarding/browser/welcomeOnboarding.contribution.js';
-
-// Import from other editors (e.g. Cursor)
-import './contrib/externalEditorImport/browser/externalEditorImport.contribution.js';
 
 // Onboarding (scenario engine)
 import './contrib/onboarding/browser/onboarding.contribution.js';
