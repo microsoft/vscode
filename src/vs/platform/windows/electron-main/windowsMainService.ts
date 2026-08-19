@@ -563,7 +563,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		(async () => {
 
 			// Wait for the windows to be ready (and as such visible) before merging, because tabbing hidden windows can cause layout issues (https://github.com/microsoft/vscode/issues/75830)
-			await Promise.all(mergeCandidates.map(window => raceTimeout(window.ready(), 10000)));
+			await Promise.allSettled(mergeCandidates.map(window => raceTimeout(window.ready(), 10000)));
 
 			const windowsToMerge = mergeCandidates.filter(window => window.isReady && !window.isFullScreen && window.win && !window.win.isDestroyed());
 			if (windowsToMerge.length < 2) {
@@ -580,9 +580,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				firstWindow.addTabbedWindow(window);
 			}
 
-			// Restore focus to the window that was focused before merging
+			// Merging moves focus to the window that was tabbed last, so restore it
 			focusedWindow?.focus();
-		})();
+		})().catch(error => this.logService.error('windowsManager#handleMergeWindowTabsOnStartup', error));
 	}
 
 	private async doOpen(
