@@ -127,17 +127,13 @@ suite('PluginAutoUpdate', () => {
 		});
 	});
 
-	test('cancels an in-flight update when the connection becomes metered and resumes it later', async () => {
+	test('allows an in-flight update to finish after the connection becomes metered', async () => {
 		let resolveUpdate!: () => void;
-		let observedToken: CancellationToken | undefined;
 		const pendingUpdate = new Promise<IUpdateAllPluginsResult>(resolve => {
 			resolveUpdate = () => resolve({ updatedNames: [], failedNames: [] });
 		});
 		const { state, meteredConnectionService } = createContribution({
-			updateAllImpl: token => {
-				observedToken = token;
-				return pendingUpdate;
-			},
+			updateAllImpl: () => pendingUpdate,
 		});
 
 		state.marketplacesWithUpdates.set(new Set(['a']), undefined);
@@ -151,30 +147,24 @@ suite('PluginAutoUpdate', () => {
 			updateAllCalls: state.updateAllCalls.length,
 			clearUpdatesAvailableCalls: state.clearUpdatesAvailableCalls.length,
 			updateStillQueued: [...state.marketplacesWithUpdates.get()],
-			wasCancelled: observedToken?.isCancellationRequested,
 		}, {
 			updateAllCalls: 1,
-			clearUpdatesAvailableCalls: 0,
-			updateStillQueued: ['a'],
-			wasCancelled: true,
+			clearUpdatesAvailableCalls: 1,
+			updateStillQueued: [],
 		});
 
 		meteredConnectionService.setIsConnectionMetered(false);
 		await flushMicrotasks();
-		assert.strictEqual(state.updateAllCalls.length, 2);
+		assert.strictEqual(state.updateAllCalls.length, 1);
 	});
 
 	test('disposing during an in-flight update does not restart queued work', async () => {
 		let resolveUpdate!: () => void;
-		let observedToken: CancellationToken | undefined;
 		const pendingUpdate = new Promise<IUpdateAllPluginsResult>(resolve => {
 			resolveUpdate = () => resolve({ updatedNames: [], failedNames: [] });
 		});
 		const { contribution, state } = createContribution({
-			updateAllImpl: token => {
-				observedToken = token;
-				return pendingUpdate;
-			},
+			updateAllImpl: () => pendingUpdate,
 		});
 
 		state.marketplacesWithUpdates.set(new Set(['a']), undefined);
@@ -188,12 +178,10 @@ suite('PluginAutoUpdate', () => {
 			updateAllCalls: state.updateAllCalls.length,
 			clearUpdatesAvailableCalls: state.clearUpdatesAvailableCalls.length,
 			updateStillQueued: [...state.marketplacesWithUpdates.get()],
-			wasCancelled: observedToken?.isCancellationRequested,
 		}, {
 			updateAllCalls: 1,
-			clearUpdatesAvailableCalls: 0,
-			updateStillQueued: ['a'],
-			wasCancelled: true,
+			clearUpdatesAvailableCalls: 1,
+			updateStillQueued: [],
 		});
 	});
 

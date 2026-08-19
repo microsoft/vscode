@@ -318,7 +318,6 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	private readonly _marketplacesWithUpdates = observableValue<ReadonlySet<string>>('marketplacesWithUpdates', new Set());
 	private _updateCheckTimer: ReturnType<typeof setTimeout> | undefined;
 	private _updateCheckPromise: Promise<void> | undefined;
-	private _updateCheckRescheduleRequested = false;
 
 	readonly onDidChangeMarketplaces: Event<void>;
 
@@ -838,11 +837,10 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	private _scheduleUpdateCheck(delayOverride?: number): void {
 		this._clearUpdateCheckTimer();
 
-		if (this._store.isDisposed || this._meteredConnectionService.isConnectionMetered || !this._hasAutoUpdateEnabledMarketplace()) {
-			return;
-		}
-		if (this._updateCheckPromise) {
-			this._updateCheckRescheduleRequested = true;
+		if (this._store.isDisposed
+			|| this._updateCheckPromise
+			|| this._meteredConnectionService.isConnectionMetered
+			|| !this._hasAutoUpdateEnabledMarketplace()) {
 			return;
 		}
 
@@ -873,9 +871,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		const promise = this._doRunUpdateCheck().finally(() => {
 			if (this._updateCheckPromise === promise) {
 				this._updateCheckPromise = undefined;
-				const rescheduleImmediately = this._updateCheckRescheduleRequested;
-				this._updateCheckRescheduleRequested = false;
-				this._scheduleUpdateCheck(rescheduleImmediately ? 0 : PLUGIN_UPDATE_CHECK_INTERVAL_MS);
+				this._scheduleUpdateCheck(PLUGIN_UPDATE_CHECK_INTERVAL_MS);
 			}
 		});
 		this._updateCheckPromise = promise;
@@ -897,9 +893,6 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			const marketplacesWithUpdates = new Set<string>();
 
 			for (const entry of installed) {
-				if (this._meteredConnectionService.isConnectionMetered) {
-					return;
-				}
 				const ref = entry.plugin.marketplaceReference;
 				if (seenMarketplaces.has(ref.canonicalId)
 					|| !this.isMarketplaceAutoUpdateEnabled(ref)
@@ -910,9 +903,6 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 
 				try {
 					const behind = await this._pluginRepositoryService.fetchRepository(ref);
-					if (this._meteredConnectionService.isConnectionMetered) {
-						return;
-					}
 					if (behind) {
 						marketplacesWithUpdates.add(ref.canonicalId);
 					}

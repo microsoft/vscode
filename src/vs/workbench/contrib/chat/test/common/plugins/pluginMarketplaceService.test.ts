@@ -825,7 +825,7 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 		await timeout(0);
 		await timeout(0);
 
-		assert.deepStrictEqual({ fetchCount, maxActiveFetches }, { fetchCount: 2, maxActiveFetches: 1 });
+		assert.deepStrictEqual({ fetchCount, maxActiveFetches }, { fetchCount: 1, maxActiveFetches: 1 });
 	});
 
 	test('removeInstalledPlugin removes plugin from installedPlugins and metadata', () => {

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IMeteredConnectionService } from '../../../../platform/meteredConnection/common/meteredConnection.js';
@@ -32,7 +32,6 @@ export class PluginAutoUpdate extends Disposable implements IWorkbenchContributi
 	static readonly ID = 'workbench.contrib.pluginAutoUpdate';
 
 	private _updateInFlight = false;
-	private readonly _updateCancellation = this._register(new MutableDisposable());
 
 	constructor(
 		@IPluginMarketplaceService private readonly _pluginMarketplaceService: IPluginMarketplaceService,
@@ -51,14 +50,11 @@ export class PluginAutoUpdate extends Disposable implements IWorkbenchContributi
 		}));
 
 		this._register(this._meteredConnectionService.onDidChangeIsConnectionMetered(isMetered => {
-			if (isMetered) {
-				this._updateCancellation.clear();
-				return;
-			}
-
-			const marketplaceIds = this._pluginMarketplaceService.marketplacesWithUpdates.get();
-			if (marketplaceIds.size > 0) {
-				void this._triggerAutoUpdate(marketplaceIds);
+			if (!isMetered) {
+				const marketplaceIds = this._pluginMarketplaceService.marketplacesWithUpdates.get();
+				if (marketplaceIds.size > 0) {
+					void this._triggerAutoUpdate(marketplaceIds);
+				}
 			}
 		}));
 	}
@@ -69,23 +65,12 @@ export class PluginAutoUpdate extends Disposable implements IWorkbenchContributi
 		}
 
 		this._updateInFlight = true;
-		const cancellationTokenSource = new CancellationTokenSource();
-		const cancellation = toDisposable(() => cancellationTokenSource.dispose(true));
-		this._updateCancellation.value = cancellation;
 		try {
-			await this._pluginInstallService.updateAllPlugins({ silent: true, automatic: true, marketplaceIds }, cancellationTokenSource.token);
+			await this._pluginInstallService.updateAllPlugins({ silent: true, automatic: true, marketplaceIds }, CancellationToken.None);
 		} catch (err) {
-			if (!cancellationTokenSource.token.isCancellationRequested) {
-				this._logService.error('[PluginAutoUpdate] Failed to auto-update plugins:', err);
-			}
+			this._logService.error('[PluginAutoUpdate] Failed to auto-update plugins:', err);
 		} finally {
-			const wasCancelled = cancellationTokenSource.token.isCancellationRequested;
-			if (this._updateCancellation.value === cancellation) {
-				this._updateCancellation.clear();
-			}
-			if (!wasCancelled) {
-				this._pluginMarketplaceService.clearUpdatesAvailable(marketplaceIds);
-			}
+			this._pluginMarketplaceService.clearUpdatesAvailable(marketplaceIds);
 			this._updateInFlight = false;
 
 			if (!this._store.isDisposed && !this._meteredConnectionService.isConnectionMetered) {
