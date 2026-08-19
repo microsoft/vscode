@@ -210,6 +210,16 @@ A provider exposes:
 Session catalog events distinguish added, removed, and changed facades. Durable
 mutable fields remain observable on each facade.
 
+A provider whose catalog is not populated synchronously may also expose
+`whenSessionsDiscovered`, which settles once its initial discovery pass has run.
+This lets consumers distinguish "this provider has no sessions" from "this
+provider has not looked yet" — a distinction that matters when one provider's
+rows are superseded by another's. The hook must be idempotent and memoized, and
+must never reject: a provider that fails discovery still settles, so consumers
+degrade to the un-gated behaviour instead of waiting forever. Providers that
+populate their catalog synchronously omit it and are treated as discovered
+immediately.
+
 ### Draft creation
 
 `createNewSession` and `createQuickChat` return untitled drafts. A draft is not

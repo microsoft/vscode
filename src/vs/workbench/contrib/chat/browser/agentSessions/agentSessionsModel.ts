@@ -519,8 +519,10 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	get sessions(): IAgentSession[] { return this._dedupeMigratedCopilotCliSessions(Array.from(this._sessions.values())); }
 
 	private readonly resolvers = this._register(new DisposableMap<string, ThrottledDelayer<void>>());
-	/** Providers that have completed at least one resolve pass, successful or not. */
+	/** Providers that have completed at least one full refresh, successful or not. */
 	private readonly _resolvedProviders = new Set<string>();
+	/** Providers with a full refresh requested but not yet executed. */
+	private readonly _pendingProviderRefreshes = new Set<string>();
 
 	private readonly cache: AgentSessionsCache;
 	private readonly logger: AgentSessionsLogger;
@@ -689,19 +691,29 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			resolver = new ThrottledDelayer<void>(500);
 			this.resolvers.set(provider, resolver);
 		}
+		// Throttling drops superseded triggers, so a pending full refresh must not be
+		// downgraded to an event-only resolve that happens to win the window.
+		if (options.refreshProvider) {
+			this._pendingProviderRefreshes.add(provider);
+		}
 
 		return resolver.trigger(async token => {
 			if (token.isCancellationRequested || this.lifecycleService.willShutdown) {
 				return;
 			}
+			const refreshProvider = this._pendingProviderRefreshes.delete(provider) || options.refreshProvider;
 
 			try {
 				this._onWillResolve.fire(provider);
-				return await this.doResolveProvider(provider, options, token);
+				return await this.doResolveProvider(provider, { refreshProvider }, token);
 			} catch (error) {
 				this.logger.logIfTrace(`Error resolving sessions for provider ${provider}: ${error instanceof Error ? error.stack : String(error)}`);
 			} finally {
-				this._resolvedProviders.add(provider);
+				// Only a full refresh is authoritative: an event-only resolve can be one
+				// of several discovery batches, with more twins still to come.
+				if (refreshProvider) {
+					this._resolvedProviders.add(provider);
+				}
 				this._onDidResolve.fire(provider);
 			}
 		});

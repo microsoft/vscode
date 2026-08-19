@@ -2041,11 +2041,9 @@ export class AgentService extends Disposable implements IAgentService {
 		if (enabled) {
 			// Discovery skips chats already in the registry, so it cannot re-announce
 			// what disabling retracted — restore exactly those from the registry.
-			const retracted = [...this._retractedAdoptableKeys];
-			this._retractedAdoptableKeys.clear();
-			if (retracted.length > 0) {
+			if (this._retractedAdoptableKeys.size > 0) {
 				this._sessionListReconciliation = this._sessionListReconciliation
-					.then(() => this._resurfaceAdoptableSessions(new Set(retracted)))
+					.then(() => this._resurfaceAdoptableSessions())
 					.catch(error => this._logService.warn('[AgentService] Re-surfacing adoptable legacy sessions failed', error));
 			}
 			return;
@@ -2064,14 +2062,25 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	private async _resurfaceAdoptableSessions(keys: ReadonlySet<string>): Promise<void> {
+	/**
+	 * A key is forgotten only once it is confirmed surfaced, so a failed listing —
+	 * or migration being disabled again before this runs — leaves it restorable.
+	 */
+	private async _resurfaceAdoptableSessions(): Promise<void> {
+		if (!this._isMigrateLegacyEnabled()) {
+			return;
+		}
 		for (const metadata of await this.listSessions()) {
-			if (!keys.has(metadata.session.toString())) {
+			const key = metadata.session.toString();
+			if (!this._retractedAdoptableKeys.has(key)) {
 				continue;
 			}
 			const provider = AgentSession.provider(metadata.session);
 			if (provider) {
 				await this._announceSurfacedSession(metadata, provider);
+			}
+			if (this._announcedSurfacedKeys.has(key) || this._stateManager.getSessionState(key)) {
+				this._retractedAdoptableKeys.delete(key);
 			}
 		}
 	}

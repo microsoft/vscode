@@ -181,8 +181,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// Bounded: a provider that never finishes discovering degrades into the
 		// ungated behaviour instead of hiding legacy rows forever.
 		raceTimeout(provider.whenSessionsDiscovered().catch(err => this.logService.warn(`[SessionsManagement] initial discovery failed for provider '${provider.id}'`, err)), INITIAL_DISCOVERY_TIMEOUT_MS).finally(() => {
-			// Provider unregistered (or the service disposed) while discovering.
-			if (!this._providerListeners.has(provider.id)) {
+			// Identity, not id: a provider can be unregistered and replaced, and the
+			// stale settle must not vouch for its replacement.
+			if (this.sessionsProvidersService.getProvider(provider.id) !== provider) {
 				return;
 			}
 			this._discoveredProviders.add(provider.id);
