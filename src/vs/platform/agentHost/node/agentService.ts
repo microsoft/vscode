@@ -19,7 +19,7 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { hasKey } from '../../../base/common/types.js';
 import { localize } from '../../../nls.js';
 import { FileChangeType, FileOperationResult, IFileChange, IFileService, toFileOperationResult, type FileChangesEvent } from '../../files/common/files.js';
-import { InstantiationService } from '../../instantiation/common/instantiationService.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentProvider, AgentSession, AgentSignal, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDiscoveredChat, IAgentHostAuthTokenRequest, IAgentHostNetworkEndpoint, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, IMcpNotification, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
@@ -42,7 +42,7 @@ import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { IProductService } from '../../product/common/productService.js';
 import { buildBoundedSideChatSourceContext, getSideChatPartialResponse } from './agentPeerChats.js';
 import { AgentConfigurationService, getEffectiveWorkingDirectories, IAgentConfigurationService } from './agentConfigurationService.js';
-import { AgentHostManagedSettingsService, type IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
+import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { AgentHostTerminalManager, IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { ISessionDbUriFields, parseSessionDbUri } from '../common/sessionDbUri.js';
 import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
@@ -64,7 +64,6 @@ import { AGENT_HOST_TITLE_SOURCE_AGENT, customChatTitleMetadataKey, customChatTi
 
 import { buildWorktreeFailureNotification, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
 import { AgentHostChangesetService } from './agentHostChangesetService.js';
-import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { AgentHostChangesetCoordinator } from './agentHostChangesetCoordinator.js';
@@ -89,7 +88,6 @@ import { AgentMergeController } from './agentMergeController.js';
 import { AgentMergeConfigKey, agentMergeRootConfigSchema } from '../common/agentMerge.js';
 import { AgentMergeTools } from './agentMergeTools.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
@@ -103,6 +101,7 @@ import { AgentHostChangesetSubscriptionService } from './agentHostChangesetSubsc
 import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { AgentHostCommitOperationContribution } from './agentHostCommitOperationProvider.js';
+import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { AgentHostDiscardChangesOperationContribution } from './agentHostDiscardChangesOperationProvider.js';
 import { AgentHostMergeOperationContribution } from './agentHostMergeOperationProvider.js';
 import { AgentHostPullRequestOperationContribution } from './agentHostPullRequestOperationProvider.js';
@@ -308,6 +307,16 @@ function reconcileWorkingDirectories(requested: readonly URI[] | undefined, reso
 	return [...resolved, ...tail].map(d => d.toString());
 }
 
+export interface IAgentServiceOptions {
+	readonly rootConfigResource?: URI;
+	readonly copilotApiService?: ICopilotApiService;
+	readonly providerConfigurations?: readonly IAgentCustomizationSettingsRegistration[];
+	readonly hostLaunchKind?: AgentHostLaunchKind;
+	readonly storageResource?: URI;
+	readonly orchestratorDatabase?: IAgentHostDatabase;
+	readonly now?: () => number;
+}
+
 /**
  * The agent service implementation that runs inside the agent-host utility
  * process. Dispatches to registered {@link IAgent} instances based
@@ -455,12 +464,16 @@ export class AgentService extends Disposable implements IAgentService {
 	private _worktree: WorktreeIsolation | undefined;
 	/** Single source of truth for GitHub (Enterprise) endpoints and protected resources. */
 	private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService;
+	private readonly _copilotApiService: ICopilotApiService;
 	/** Pluggable completion item providers (e.g. workspace file completions, agent-specific @-mentions). */
 	private readonly _completions: IAgentHostCompletions;
 	private _skillCompletionProviderRegistered = false;
 	/** Backs {@link getNetworkDiagnosticsInfo} / {@link diagnosticsFetch}; wired via {@link setNetworkDiagnosticsService}. */
 	private _networkDiagnostics: INetworkDiagnosticsService | undefined;
 	private _editAttributionService: IAgentEditAttributionService | undefined;
+	private readonly _rootConfigResource: URI | undefined;
+	private readonly _hostLaunchKind: AgentHostLaunchKind;
+	private readonly _now: () => number;
 
 	/**
 	 * Authoritative server-side per-resource subscription refcount, keyed by
@@ -543,29 +556,28 @@ export class AgentService extends Disposable implements IAgentService {
 	get completionTriggerCharacters(): readonly string[] { return this._completions.triggerCharacters; }
 
 	constructor(
-		private readonly _logService: ILogService,
-		private readonly _fileService: IFileService,
-		private readonly _sessionDataService: ISessionDataService,
-		private readonly _productService: IProductService,
-		private readonly _gitService: IAgentHostGitService,
-		private readonly _rootConfigResource?: URI,
-		private readonly _telemetryService: ITelemetryService = NullTelemetryService,
-		_fileMonitorService?: IAgentHostFileMonitorService,
-		copilotApiService?: ICopilotApiService,
-		fetchFn?: typeof globalThis.fetch,
-		providerConfigurations: readonly IAgentCustomizationSettingsRegistration[] = [],
-		private readonly _hostLaunchKind = AgentHostLaunchKind.Unknown,
-		storageResource?: URI,
-		orchestratorDatabase?: IAgentHostDatabase,
-		private readonly _now: () => number = Date.now,
+		options: IAgentServiceOptions,
+		services: ServiceCollection,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ILogService private readonly _logService: ILogService,
+		@IFileService private readonly _fileService: IFileService,
+		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
+		@IProductService private readonly _productService: IProductService,
+		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IAgentHostProxyResolver proxyResolver: IAgentHostProxyResolver,
 	) {
 		super();
+		this._rootConfigResource = options.rootConfigResource;
+		this._hostLaunchKind = options.hostLaunchKind ?? AgentHostLaunchKind.Unknown;
+		this._now = options.now ?? Date.now;
+		const fetchFn = proxyResolver.fetch.bind(proxyResolver);
 		this._logService.info('AgentService initialized');
 		this._authService = new AgentHostAuthenticationService(_logService);
 		const databasePath = this._rootConfigResource
 			? joinPath(resourcesDirname(this._rootConfigResource), 'agent-host.db').fsPath
 			: ':memory:';
-		this._orchestratorDatabase = this._register(orchestratorDatabase ?? new AgentHostDatabase(databasePath));
+		this._orchestratorDatabase = this._register(options.orchestratorDatabase ?? new AgentHostDatabase(databasePath));
 		this._sessionRegistry = this._register(new AgentSessionRegistry(this._orchestratorDatabase));
 		this._stateManager = this._register(new AgentHostStateManager(_logService, {
 			hostBuildInfo: hostBuildInfoFromProduct(this._productService),
@@ -593,7 +605,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// Build a local instantiation scope so downstream components can
 		// consume {@link IAgentConfigurationService} (and later {@link ILogService})
 		// via DI rather than being plumbed plain-class references.
-		const configurationService = this._register(new AgentConfigurationService(this._stateManager, this._logService, this._rootConfigResource, providerConfigurations));
+		const configurationService = this._register(new AgentConfigurationService(this._stateManager, this._logService, this._rootConfigResource, options.providerConfigurations ?? []));
 		this._configurationService = configurationService;
 		let externalSessionsMode = this._getExternalSessionsMode();
 		this._lastMigrateLegacyEnabled = this._isMigrateLegacyEnabled();
@@ -617,26 +629,13 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			this._onMigrateLegacySettingChanged();
 		}));
-		const fileMonitorService = _fileMonitorService ?? this._register(new AgentHostFileMonitorService(this._fileService, this._logService));
-		this._storageService = this._register(new AgentHostStorageService(storageResource, this._logService));
+		this._storageService = this._register(new AgentHostStorageService(options.storageResource, this._logService));
 		updateAgentHostTelemetryLevelFromConfig(this._telemetryService, this._stateManager.rootState.config?.values);
-		const services = new ServiceCollection(
-			[ILogService, this._logService],
-			[IAgentService, this],
-			[IProductService, this._productService],
-			[IAgentConfigurationService, configurationService],
-			[IAgentHostStateManager, this._stateManager],
-			[IAgentHostFileMonitorService, fileMonitorService],
-			[IAgentHostGitService, this._gitService],
-			[IAgentHostStorageService, this._storageService],
-			[ITelemetryService, this._telemetryService],
-			// The outer agent-host process DI registers `ISessionDataService`,
-			// but this nested strict `InstantiationService` does not inherit it.
-			// Add it explicitly so `@ISessionDataService` injection into the
-			// changeset service (and any future sibling) resolves correctly.
-			[ISessionDataService, this._sessionDataService],
-		);
-		const instantiationService = this._register(new InstantiationService(services, /*strict*/ true));
+		services.set(IAgentService, this);
+		services.set(IAgentConfigurationService, configurationService);
+		services.set(IAgentHostStateManager, this._stateManager);
+		services.set(IAgentHostStorageService, this._storageService);
+		services.set(IAgentHostManagedSettingsService, this._managedSettingsService);
 		this._gitHubEndpointService = this._register(instantiationService.createInstance(AgentHostGitHubEndpointService));
 		services.set(IAgentHostGitHubEndpointService, this._gitHubEndpointService);
 		// A GitHub Enterprise URI change repoints every agent's GitHub resource
@@ -665,8 +664,8 @@ export class AgentService extends Disposable implements IAgentService {
 			fetch: fetchFn,
 		}));
 		services.set(IGitHubService, gitHubService);
-		const effectiveCopilotApiService = copilotApiService ?? instantiationService.createInstance(CopilotApiService, fetchFn);
-		services.set(ICopilotApiService, effectiveCopilotApiService);
+		this._copilotApiService = options.copilotApiService ?? instantiationService.createInstance(CopilotApiService, fetchFn);
+		services.set(ICopilotApiService, this._copilotApiService);
 		this._customizationEnablementService = this._register(instantiationService.createInstance(AgentHostCustomizationEnablementService));
 		services.set(IAgentHostCustomizationEnablementService, this._customizationEnablementService);
 
@@ -716,6 +715,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._register(this._changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostDiscardChangesOperationContribution)));
 
 		this._completions = this._register(instantiationService.createInstance(AgentHostCompletions));
+		services.set(IAgentHostCompletions, this._completions);
 		// Built-in generic provider: completes files in the session's workspace folder.
 		const workspaceFiles = this._register(instantiationService.createInstance(AgentHostWorkspaceFiles));
 		this._register(this._completions.registerProvider(
@@ -756,7 +756,7 @@ export class AgentService extends Disposable implements IAgentService {
 			localTurns: this._localTurns,
 			agents: this._agents,
 			hostLaunchKind: this._hostLaunchKind,
-			copilotApiService: effectiveCopilotApiService,
+			copilotApiService: this._copilotApiService,
 			getGitHubCopilotToken: () => {
 				return this.getAuthToken({
 					resource: this._gitHubEndpointService.getCopilotResource().resource,
