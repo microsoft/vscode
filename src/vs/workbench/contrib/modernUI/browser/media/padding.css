@@ -267,7 +267,7 @@
  * See https://github.com/microsoft/vscode/issues/331013
  */
 .modern-ui.monaco-workbench .part.panel.bottom .composite.title {
-	border-top-width: 0;
+	border-top: none;
 }
 
 .modern-ui.monaco-workbench .part.basepanel > .composite.title > .title-actions {

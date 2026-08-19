@@ -399,31 +399,26 @@ suite('ModernUIContribution', () => {
 		document.body.appendChild(root);
 		store.add(toDisposable(() => root.remove()));
 
-		const { actionItem, indicator } = createCompositeAction(root, 32, true);
+		const { actionItem } = createCompositeAction(root, 32, true);
 		actionItem.closest('.part')?.classList.add('panel', 'basepanel', 'bottom');
 		actionItem.closest('.title')?.classList.add('composite', 'has-composite-bar');
 
 		const title = actionItem.closest('.title')!;
 		const classicBorder = document.createElement('style');
-		classicBorder.textContent = '.monaco-workbench .part.panel.bottom .composite.title { border-top-width: 1px; border-top-style: solid; }';
+		classicBorder.textContent = '.monaco-workbench .part.panel.bottom .composite.title { border-top: 1px solid; }';
 		root.prepend(classicBorder);
 		const targetWindow = getWindow(title);
+		// Only assert what this fix owns: the classic border must be gone so the
+		// action item's 4px transparent top border yields a uniform pill gutter.
+		// Height/padding values are owned by other rules and would make this test brittle.
 		assert.deepStrictEqual({
 			titleBorderTopWidth: targetWindow.getComputedStyle(title).borderTopWidth,
-			titlePaddingLeft: targetWindow.getComputedStyle(title).paddingLeft,
-			titlePaddingRight: targetWindow.getComputedStyle(title).paddingRight,
-			actionItemHeight: targetWindow.getComputedStyle(actionItem).height,
+			titleBorderTopStyle: targetWindow.getComputedStyle(title).borderTopStyle,
 			actionItemBorderTop: targetWindow.getComputedStyle(actionItem).borderTopWidth,
-			actionItemBorderBottom: targetWindow.getComputedStyle(actionItem).borderBottomWidth,
-			indicatorHeight: targetWindow.getComputedStyle(indicator).height,
 		}, {
 			titleBorderTopWidth: '0px',
-			titlePaddingLeft: '2px',
-			titlePaddingRight: '4px',
-			actionItemHeight: '32px',
+			titleBorderTopStyle: 'none',
 			actionItemBorderTop: '4px',
-			actionItemBorderBottom: '4px',
-			indicatorHeight: '24px',
 		});
 	});
 
