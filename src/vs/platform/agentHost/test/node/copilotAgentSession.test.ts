@@ -256,10 +256,10 @@ class MockCopilotSession {
 		debug: {
 			collectLogs: async (params: Parameters<CopilotSession['rpc']['debug']['collectLogs']>[0]) => {
 				this.collectLogsCalls.push(params);
-				return {
-					kind: 'directory' as const,
-					path: params.destination.kind === 'directory' ? params.destination.outputDirectory : '/tmp',
-				};
+				const { destination } = params;
+				return destination.kind === 'directory'
+					? { kind: 'directory' as const, path: destination.outputDirectory, entries: [] }
+					: { kind: 'archive' as const, path: destination.outputPath, entries: [] };
 			},
 		},
 		mode: {
