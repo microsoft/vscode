@@ -779,6 +779,40 @@ suite('Glob', () => {
 		assert.strictEqual(glob.match(expr, 'foo/foo'), null);
 	});
 
+	test('expression with two basename globs ignores case', function () {
+		const expr = {
+			'**/BAR': true,
+			'**/BAZ': true
+		};
+
+		assert.strictEqual(glob.match(expr, 'bar', { ignoreCase: true }), '**/BAR');
+		assert.strictEqual(glob.match(expr, 'baz', { ignoreCase: true }), '**/BAZ');
+		assert.strictEqual(glob.match(expr, 'src/bar', { ignoreCase: true }), '**/BAR');
+		assert.strictEqual(glob.match(expr, 'bar'), null);
+	});
+
+	test('expression with cached basename globs ignores case', function () {
+		glob.parse('**/bar', { ignoreCase: true });
+
+		const expr = {
+			'**/BAR': true,
+			'**/BAZ': true
+		};
+
+		assert.strictEqual(glob.match(expr, 'BaR', { ignoreCase: true }), '**/BAR');
+	});
+
+	test('expression cache does not collide with string pattern cache', function () {
+		glob.parse('**/BAR', { ignoreCase: true });
+
+		const expr = {
+			'**/bar': true,
+			'**/baz': true
+		};
+
+		assert.strictEqual(glob.match(expr, 'bar', { ignoreCase: true }), '**/bar');
+	});
+
 	test('expression with two basename globs and a siblings expression', function () {
 		const expr = {
 			'**/bar': true,
@@ -1185,6 +1219,8 @@ suite('Glob', () => {
 		assertNoGlobMatch('{**/*.JS,**/*.TS}', 'bar/foo.js');
 		assertGlobMatch('{**/*.JS,**/*.TS}', 'bar/foo.ts', true);
 		assertGlobMatch('{**/*.JS,**/*.TS}', 'bar/foo.js', true);
+		assertNoGlobMatch('{**/BAR,**/BAZ}', 'bar');
+		assertGlobMatch('{**/BAR,**/BAZ}', 'bar', true);
 		// T4
 		assertNoGlobMatch('**/FOO/Bar', 'bar/foo/bar');
 		assertGlobMatch('**/FOO/Bar', 'bar/foo/bar', true);

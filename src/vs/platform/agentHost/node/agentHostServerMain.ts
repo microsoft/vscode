@@ -249,7 +249,7 @@ async function main(): Promise<void> {
 	diServices.set(ILogService, logService);
 	diServices.set(IFileService, fileService);
 	diServices.set(ISessionDataService, sessionDataService);
-	const networkServices = await registerAgentHostNetworkServices(diServices, fileService, environmentService, logService, disposables);
+	const networkServices = registerAgentHostNetworkServices(diServices, logService, disposables);
 	const proxyResolver = networkServices.proxyResolver;
 	const fetchFn = proxyResolver.fetch.bind(proxyResolver);
 	const telemetryService = await createAgentHostTelemetryService({ environmentService, productService, fileService, loggerService, logService, disposables, disableTelemetry: options.quiet, fetchFn, requestService: networkServices.requestService });
@@ -275,6 +275,8 @@ async function main(): Promise<void> {
 	diServices.set(IAgentHostPromptCache, agentService.promptCache);
 	diServices.set(IAgentHostSessionTitleSignal, agentService.sessionTitleSignal);
 	diServices.set(IAgentHostManagedSettingsService, agentService.managedSettingsService);
+	diServices.set(IAgentConfigurationService, agentService.configurationService);
+	proxyResolver.bindConfigurationService(agentService.configurationService, false);
 	const networkDiagnosticsService = instantiationService.createInstance(NetworkDiagnosticsService);
 	diServices.set(INetworkDiagnosticsService, networkDiagnosticsService);
 	agentService.setNetworkDiagnosticsService(networkDiagnosticsService);
@@ -294,7 +296,6 @@ async function main(): Promise<void> {
 		agentService.setEditAttributionService(editAttributionService);
 		diServices.set(IEditSurvivalReporterFactory, instantiationService.createInstance(EditSurvivalReporterFactory));
 		diServices.set(IAgentHostTerminalManager, agentService.terminalManager);
-		diServices.set(IAgentConfigurationService, agentService.configurationService);
 		const editArcReporterService = disposables.add(instantiationService.createInstance(EditArcReporterService, undefined));
 		diServices.set(IEditArcReporterService, editArcReporterService);
 		diServices.set(IAgentHostCompletions, agentService.completionsService);
