@@ -4931,7 +4931,7 @@ suite('ClaudeAgent', () => {
 			modifiedB: b?.modifiedTime,
 			sdkCalls: sdk.listSessionsCallCount,
 			availabilityRequests: sdk.ensureAvailableForDiscoveryCalls,
-			migrationChats: chatsToMigrate.map(r => sessionIdOfChat(r.chat)),
+			migrationChats: chatsToMigrate?.map(r => sessionIdOfChat(r.chat)),
 		}, {
 			count: 3,
 			ids: ['a', 'b', 'c'],
@@ -4943,6 +4943,11 @@ suite('ClaudeAgent', () => {
 			availabilityRequests: 1,
 			migrationChats: ['a'],
 		});
+
+		sdk.sessionList = [];
+		assert.deepStrictEqual(await agent.listChatsToMigrate(), []);
+		sdk.listSessionsRejection = new Error('catalog unavailable');
+		assert.strictEqual(await agent.listChatsToMigrate(), undefined);
 	});
 
 	test('native discovery emits only unknown Claude Code chats as external', async () => {

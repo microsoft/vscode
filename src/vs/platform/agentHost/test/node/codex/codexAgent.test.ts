@@ -432,7 +432,8 @@ suite('CodexAgent', () => {
 				_resolveSdkRoot(): Promise<string>;
 				_listCodexChats(): Promise<typeof chats>;
 				_isKnownCodexChat(chat: (typeof chats)[number]): Promise<boolean>;
-			}): Promise<typeof chats>;
+				_logService: NullLogService;
+			}): Promise<typeof chats | undefined>;
 		}).listChatsToMigrate;
 
 		const result = await listChatsToMigrate.call({
@@ -442,9 +443,22 @@ suite('CodexAgent', () => {
 				const id = AgentSession.id(URI.parse(parseRequiredSessionUriFromChatUri(chat.chat)));
 				return id !== 'unknown-external';
 			},
+			_logService: new NullLogService(),
 		});
 
 		assert.deepStrictEqual(result, chats.slice(0, 2));
+		assert.deepStrictEqual(await listChatsToMigrate.call({
+			_resolveSdkRoot: async () => '/sdk-root',
+			_listCodexChats: async () => [],
+			_isKnownCodexChat: async () => false,
+			_logService: new NullLogService(),
+		}), []);
+		assert.deepStrictEqual(await listChatsToMigrate.call({
+			_resolveSdkRoot: async () => { throw new Error('SDK unavailable'); },
+			_listCodexChats: async () => [],
+			_isKnownCodexChat: async () => false,
+			_logService: new NullLogService(),
+		}), undefined);
 	});
 
 	test('native discovery emits only unknown Codex chats as external', async () => {

@@ -1834,11 +1834,10 @@ suite('CopilotAgent', () => {
 		const client = new TestCopilotClient([sdkSession('owned-before-auth')]);
 		const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
 		try {
-			const sessions = await agent.listChatsToMigrate();
-			assert.ok(sessions);
+			const catalog = await agent.listChatsToMigrate();
 			assert.deepStrictEqual({
 				models: agent.models.get(),
-				sessions: sessions.map(session => sessionIdOfChat(session.chat)),
+				sessions: catalog?.map(session => sessionIdOfChat(session.chat)),
 				starts: client.startCallCount,
 				listCalls: client.listSessionCallCount,
 			}, {
@@ -2432,11 +2431,11 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('surfaces undefined (not a rejection) for a classified Copilot client startup failure', async () => {
+	test('surfaces unavailable (not a rejection) for a classified Copilot client startup failure', async () => {
 		// A recognized startup error means the CLI client is transiently
 		// unavailable, not that this provider authoritatively has no legacy
-		// chats: `listChatsToMigrate` must resolve to `undefined` (still reporting
-		// the failure via telemetry) rather than reject or return `[]`.
+		// chats: `listChatsToMigrate` must report unavailable (still reporting
+		// the failure via telemetry) rather than reject or return complete-empty.
 		const client = new TestCopilotClient([]);
 		client.startError = new Error('Failed to start CLI server: spawn failed');
 		const telemetryService = new RecordingTelemetryService();
@@ -2513,8 +2512,8 @@ suite('CopilotAgent', () => {
 			for (const testCase of cases) {
 				client.startError = new Error(testCase.message);
 				// All of these are recognized startup failures: the client is
-				// transiently unavailable, so `listChatsToMigrate` resolves to
-				// `undefined` (still reporting telemetry below) rather than
+				// transiently unavailable, so `listChatsToMigrate` reports
+				// unavailable (still reporting telemetry below) rather than
 				// rejecting.
 				assert.strictEqual(await agent.listChatsToMigrate(), undefined);
 			}
@@ -2929,7 +2928,7 @@ suite('CopilotAgent', () => {
 
 			// Shutting down mid-start is "client transiently unavailable", not
 			// an authoritative "no chats to migrate" answer, so `listChatsToMigrate`
-			// resolves to `undefined` rather than rejecting with the
+			// reports unavailable rather than rejecting with the
 			// `CancellationError` that `_ensureClient` itself throws.
 			assert.strictEqual(await listPromise, undefined);
 			await shutdownPromise;
@@ -3049,9 +3048,8 @@ suite('CopilotAgent', () => {
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
 			try {
 				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
-				const sessions = await agent.listChatsToMigrate();
-				assert.ok(sessions);
-				const listed = sessions.find(s => sessionIdOfChat(s.chat) === sessionId);
+				const catalog = await agent.listChatsToMigrate();
+				const listed = catalog?.find(s => sessionIdOfChat(s.chat) === sessionId);
 				const chat = defaultChatUri(session);
 				const meta = await agent.getChatMetadata(chat, exactChatContext(session, chat, session));
 				return {
@@ -4985,9 +4983,8 @@ suite('CopilotAgent', () => {
 		try {
 			await agent.authenticate('https://api.github.com', 'token');
 
-			const sessions = await agent.listChatsToMigrate();
-			assert.ok(sessions);
-			assert.deepStrictEqual(sessions.map(s => sessionIdOfChat(s.chat)), ['owned']);
+			const catalog = await agent.listChatsToMigrate();
+			assert.deepStrictEqual(catalog?.map(s => sessionIdOfChat(s.chat)), ['owned']);
 		} finally {
 			await disposeAgent(agent);
 		}
@@ -5004,9 +5001,8 @@ suite('CopilotAgent', () => {
 		try {
 			await agent.authenticate('https://api.github.com', 'token');
 
-			const sessions = await agent.listChatsToMigrate();
-			assert.ok(sessions);
-			assert.deepStrictEqual(sessions.map(withoutUndefinedProperties), [{
+			const catalog = await agent.listChatsToMigrate();
+			assert.deepStrictEqual(catalog?.map(withoutUndefinedProperties), [{
 				chat: defaultChatUri(legacySession),
 				startTime: 1000,
 				modifiedTime: 2000,
@@ -5034,9 +5030,8 @@ suite('CopilotAgent', () => {
 		try {
 			await agent.authenticate('https://api.github.com', 'token');
 
-			const sessions = await agent.listChatsToMigrate();
-			assert.ok(sessions);
-			assert.deepStrictEqual(sessions.map(withoutUndefinedProperties), [{
+			const catalog = await agent.listChatsToMigrate();
+			assert.deepStrictEqual(catalog?.map(withoutUndefinedProperties), [{
 				chat: defaultChatUri(session),
 				startTime: 1000,
 				modifiedTime: 2000,
@@ -5109,7 +5104,7 @@ suite('CopilotAgent', () => {
 		try {
 			await agent.authenticate('https://api.github.com', 'token');
 
-			assert.deepStrictEqual((await agent.listChatsToMigrate())?.map(s => sessionIdOfChat(s.chat)), []);
+			assert.deepStrictEqual(await agent.listChatsToMigrate(), []);
 			assert.deepStrictEqual(sessionDataService.openedSessions, []);
 		} finally {
 			await disposeAgent(agent);
@@ -5251,9 +5246,8 @@ suite('CopilotAgent', () => {
 				await writeExtensionHostMarker(userHome, sessionId);
 				configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
 
-				const sessions = await agent.listChatsToMigrate();
-				assert.ok(sessions);
-				assert.deepStrictEqual(sessions, []);
+				const catalog = await agent.listChatsToMigrate();
+				assert.deepStrictEqual(catalog, []);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await fs.rm(workingDirectory, { recursive: true, force: true });
@@ -5293,10 +5287,7 @@ suite('CopilotAgent', () => {
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
 				await writeExtensionHostMarker(userHome, sessionId);
-				assert.deepStrictEqual(
-					(await agent.listChatsToMigrate())?.map(s => sessionIdOfChat(s.chat)),
-					[],
-				);
+				assert.deepStrictEqual(await agent.listChatsToMigrate(), []);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await fs.rm(workingDirectory, { recursive: true, force: true });
@@ -5315,10 +5306,7 @@ suite('CopilotAgent', () => {
 				await agent.authenticate('https://api.github.com', 'token');
 				configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
 				// No marker written: standalone SDK chats are not legacy extension-host sessions.
-				assert.deepStrictEqual(
-					(await agent.listChatsToMigrate())?.map(s => sessionIdOfChat(s.chat)),
-					[],
-				);
+				assert.deepStrictEqual(await agent.listChatsToMigrate(), []);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await fs.rm(workingDirectory, { recursive: true, force: true });
@@ -5363,10 +5351,9 @@ suite('CopilotAgent', () => {
 				await writeExtensionHostMarker(userHome, sessionId); // marker present but already adopted
 				configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
 
-				const sessions = await agent.listChatsToMigrate();
-				assert.ok(sessions);
+				const catalog = await agent.listChatsToMigrate();
 				assert.deepStrictEqual(
-					sessions.map(s => ({ id: sessionIdOfChat(s.chat), adoptable: readSessionEhcliAdoptable(s._meta) })),
+					catalog?.map(s => ({ id: sessionIdOfChat(s.chat), adoptable: readSessionEhcliAdoptable(s._meta) })),
 					[{ id: sessionId, adoptable: false }],
 				);
 			} finally {

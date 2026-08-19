@@ -289,6 +289,13 @@ interface IProviderDiscoveryState {
 	forceQueued: boolean;
 }
 
+class ProviderCatalogUnavailableError extends Error {
+	constructor(readonly provider: AgentProvider) {
+		super(`Provider ${provider} cannot enumerate its native session catalog yet`);
+		this.name = 'ProviderCatalogUnavailableError';
+	}
+}
+
 /**
  * Reconcile a session's working-directory set from a create-result /
  * materialization receipt. The resolved receipt is authoritative for the roots
@@ -1324,19 +1331,28 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private async _awaitInitialProviderMigration(): Promise<void> {
 		const providers = [...this._providers.values()];
-		const results = await Promise.allSettled(providers.map(provider => this._initialProviderMigrations.get(provider.id) ?? Promise.resolve()));
+		const migrations = providers.map(provider => this._initialProviderMigrations.get(provider.id) ?? Promise.resolve());
+		const results = await Promise.allSettled(migrations);
 		const retries: Promise<void>[] = [];
 		for (let index = 0; index < results.length; index++) {
 			const result = results[index];
 			if (result.status === 'rejected') {
 				const provider = providers[index];
 				this._logService.warn(`[AgentService] initial provider catalog for ${provider.id} was unavailable; retrying before listing sessions`, result.reason);
-				const retry = this._ensureLegacyChatsMigrated(provider, true);
-				this._initialProviderMigrations.set(provider.id, retry);
-				retries.push(retry);
+				retries.push(this._replaceFailedInitialProviderMigration(provider, migrations[index]));
 			}
 		}
 		await Promise.all(retries);
+	}
+
+	private _replaceFailedInitialProviderMigration(provider: IAgent, failed: Promise<void>): Promise<void> {
+		const current = this._initialProviderMigrations.get(provider.id);
+		if (current !== failed) {
+			return current ?? Promise.resolve();
+		}
+		const retry = this._ensureLegacyChatsMigrated(provider, true);
+		this._initialProviderMigrations.set(provider.id, retry);
+		return retry;
 	}
 
 	/**
@@ -1499,7 +1515,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const sessions = await this._enumerateLegacyProviderSessions(provider);
 		if (sessions === undefined) {
-			throw new Error(`Provider ${provider.id} cannot enumerate its native session catalog yet`);
+			throw new ProviderCatalogUnavailableError(provider.id);
 		}
 		const existing = new Map((await this._listRegisteredSessions()).map(session => [session.session.toString(), session.external]));
 		const migrationLimiter = new Limiter<IRegisteredSession | undefined>(4);
@@ -1639,7 +1655,7 @@ export class AgentService extends Disposable implements IAgentService {
 			// Callers own their array; the shared result must not be mutable by one of them.
 			return [...await inFlight.promise];
 		}
-		const promise = this._computeSessions(mode);
+		const promise = this._computeSessions(mode, epoch);
 		const entry = { epoch, promise };
 		this._inFlightListSessions.set(mode, entry);
 		const clear = () => {
@@ -1651,11 +1667,14 @@ export class AgentService extends Disposable implements IAgentService {
 		return [...await promise];
 	}
 
-	private async _computeSessions(mode: AgentHostExternalSessionsMode): Promise<readonly IAgentSessionMetadata[]> {
+	private async _computeSessions(mode: AgentHostExternalSessionsMode, epoch = this._registryEpoch): Promise<readonly IAgentSessionMetadata[]> {
 		this._logService.trace('[AgentService] listSessions computation started');
 		const startedAt = Date.now();
 		// The first list waits for registration-time legacy migration if it is still in flight.
 		await this._awaitInitialProviderMigration();
+		if (epoch !== this._registryEpoch) {
+			return this.listSessions(mode);
+		}
 		// The registry is the source of truth for top-level sessions. Internal
 		// chat backings and subagent sessions never enter it; ephemeral sessions
 		// are tombstoned at creation. A transiently missing provider snapshot no
@@ -1876,6 +1895,9 @@ export class AgentService extends Disposable implements IAgentService {
 			this._logService.info(message);
 		} else {
 			this._logService.trace(message);
+		}
+		if (epoch !== this._registryEpoch) {
+			return this.listSessions(mode);
 		}
 		return visible;
 	}

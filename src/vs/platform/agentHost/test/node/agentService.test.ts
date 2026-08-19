@@ -3978,16 +3978,22 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(agent.listExternalChatsCalls, 1);
 		});
 
-		test('listSessions rejects an unavailable migration catalog and retries it on the next call', async () => {
+		test('listSessions rejects an unavailable catalog and retries it on the next call', async () => {
 			class NotYetMigratableAgent extends MockAgent {
+				override readonly onDidDiscoverChats = Event.None;
 				migrationCalls = 0;
 				enumerable = false;
 			}
-			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const db = new TransientRegistryWriteDatabase();
+			const existing = AgentSession.uri('copilot', 'existing-before-unavailable');
+			await db.registerSession(existing.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			const writesBeforeUnavailable = db.registryWriteAttempts;
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
 			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.All });
 			const agent = disposables.add(new NotYetMigratableAgent('copilot'));
 			const legacy = AgentSession.uri('copilot', 'legacy-migration-not-ready');
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(existing), existing);
 			(agent as unknown as { listChatsToMigrate: () => Promise<readonly IAgentChatMetadata[] | undefined> }).listChatsToMigrate = async () => {
 				agent.migrationCalls++;
 				return agent.enumerable
@@ -3995,20 +4001,115 @@ suite('AgentService (node dispatcher)', () => {
 					: undefined;
 			};
 			svc.registerProvider(agent);
-			await assert.rejects(svc.listSessions(), /cannot enumerate its native session catalog yet/);
+			await assert.rejects(svc.listSessions(), error => {
+				assert.ok(error instanceof Error);
+				const provider = Object.entries(error).find(([key]) => key === 'provider')?.[1];
+				assert.deepStrictEqual({
+					name: error.name,
+					provider,
+				}, {
+					name: 'ProviderCatalogUnavailableError',
+					provider: 'copilot',
+				});
+				return true;
+			});
 			const callsAfterFailure = agent.migrationCalls;
+			assert.deepStrictEqual({
+				registryWrites: db.registryWriteAttempts,
+				registered: (await svc.getRegisteredSessions()).map(session => session.toString()),
+			}, {
+				registryWrites: writesBeforeUnavailable,
+				registered: [existing.toString()],
+			});
 
 			agent.enumerable = true;
-			await timeout(0);
 			const listed = await svc.listSessions();
 			assert.deepStrictEqual({
 				retriedBeforeFailure: callsAfterFailure > 1,
 				retriedAfterFailure: agent.migrationCalls > callsAfterFailure,
-				listed: listed.map(session => session.session.toString()),
+				listed: listed.map(session => session.session.toString()).sort(),
 			}, {
 				retriedBeforeFailure: true,
 				retriedAfterFailure: true,
-				listed: [legacy.toString()],
+				listed: [existing.toString(), legacy.toString()].sort(),
+			});
+		});
+
+		test('overlapping mode computations share ownership of a replacement migration retry', async () => {
+			const retryGate = new DeferredPromise<void>();
+			class SingleFlightRetryAgent extends MockAgent {
+				catalogCalls = 0;
+				override async listChatsToMigrate(): Promise<IAgentChatMetadata[] | undefined> {
+					this.catalogCalls++;
+					if (this.catalogCalls === 1) {
+						return undefined;
+					}
+					await retryGate.p;
+					return [];
+				}
+			}
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new SingleFlightRetryAgent('copilot'));
+			svc.registerProvider(agent);
+			for (let i = 0; i < 20 && agent.catalogCalls === 0; i++) {
+				await timeout(0);
+			}
+
+			const all = svc.listSessions(AgentHostExternalSessionsMode.All);
+			const recent = svc.listSessions(AgentHostExternalSessionsMode.Recent);
+			for (let i = 0; i < 20 && agent.catalogCalls < 2; i++) {
+				await timeout(0);
+			}
+			assert.strictEqual(agent.catalogCalls, 2, 'overlapping computations must share the replacement retry');
+			retryGate.complete();
+			await Promise.all([all, recent]);
+			assert.strictEqual(agent.catalogCalls, 2, 'a losing caller must await the installed retry instead of queueing another');
+		});
+
+		test('concurrent aggregate listings retry only the unavailable provider', async () => {
+			class CatalogAgent extends MockAgent {
+				catalogCalls = 0;
+				available = true;
+				override async listChatsToMigrate(): Promise<IAgentChatMetadata[] | undefined> {
+					this.catalogCalls++;
+					return this.available
+						? this.listExternalChats()
+						: undefined;
+				}
+			}
+			const db = new TransientRegistryWriteDatabase();
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
+			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.All });
+			const copilot = disposables.add(new CatalogAgent('copilot'));
+			const claude = disposables.add(new CatalogAgent('claude'));
+			const copilotSession = AgentSession.uri('copilot', 'complete-provider');
+			const claudeSession = AgentSession.uri('claude', 'unavailable-provider');
+			(copilot as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(copilotSession), copilotSession);
+			(claude as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(claudeSession), claudeSession);
+			claude.available = false;
+			svc.registerProvider(copilot);
+			svc.registerProvider(claude);
+
+			await assert.rejects(Promise.all([svc.listSessions(), svc.listSessions()]), /cannot enumerate its native session catalog yet/);
+			const callsAfterFailure = { copilot: copilot.catalogCalls, claude: claude.catalogCalls };
+			claude.available = true;
+			const [first, second] = await Promise.all([svc.listSessions(), svc.listSessions()]);
+
+			assert.deepStrictEqual({
+				callsAfterFailure,
+				finalCalls: { copilot: copilot.catalogCalls, claude: claude.catalogCalls },
+				backfilled: {
+					copilot: await db.isProviderBackfilled('copilot'),
+					claude: await db.isProviderBackfilled('claude'),
+				},
+				first: first.map(session => session.session.toString()).sort(),
+				second: second.map(session => session.session.toString()).sort(),
+			}, {
+				callsAfterFailure: { copilot: 1, claude: 2 },
+				finalCalls: { copilot: 1, claude: 3 },
+				backfilled: { copilot: true, claude: true },
+				first: [claudeSession.toString(), copilotSession.toString()].sort(),
+				second: [claudeSession.toString(), copilotSession.toString()].sort(),
 			});
 		});
 
