@@ -225,7 +225,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 				case 'ready': {
 					webviewReady = true;
 					if (message.documentVersion !== document.version) {
-						await editorWebview.postMessage({ type: 'update', content: document.getText() });
+						await editorWebview.postMessage({ type: 'update', content: document.getText(), documentVersion: document.version });
 					}
 					await postCodeBlockEditorProviders();
 					break;
@@ -287,12 +287,37 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 					// history, shared with the Edit menu and Command Palette. Drain any
 					// in-flight edit first and only act while this panel is active, so the
 					// chord cannot race a pending edit or land on a different document.
-					if (message.command === 'undo' || message.command === 'redo') {
-						await editQueue;
-						if (webviewPanel.active) {
-							await vscode.commands.executeCommand(message.command);
-						}
+					// The reply is correlated with `requestId` so the webview can attribute
+					// the restored state to the chord that caused it.
+					if (message.command !== 'undo' && message.command !== 'redo') {
+						break;
 					}
+					const requestId = message.requestId;
+					const postHistoryResult = async (result: Record<string, unknown>): Promise<void> => {
+						if (typeof requestId !== 'number') {
+							return;
+						}
+						await editorWebview.postMessage({ type: 'historyResult', requestId, ...result });
+					};
+					await editQueue;
+					if (!webviewPanel.active) {
+						await postHistoryResult({ status: 'unchanged' });
+						break;
+					}
+					const versionBefore = document.version;
+					try {
+						await vscode.commands.executeCommand(message.command);
+					} catch (error) {
+						this.#logger.trace('Markdown editor history', 'Failed to execute history command', error);
+						await postHistoryResult({
+							status: 'failed',
+							message: `Failed to ${message.command}`,
+						});
+						break;
+					}
+					const versionAfter = document.version;
+					const contentAfter = document.getText();
+					await postHistoryResult(historyResultPayload(versionBefore, versionAfter, contentAfter));
 					break;
 				}
 				case 'openLink': {
@@ -329,7 +354,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			if (e.document.uri.toString() !== document.uri.toString() || isUpdatingFromWebview) {
 				return;
 			}
-			editorWebview.postMessage({ type: 'update', content: document.getText() });
+			editorWebview.postMessage({ type: 'update', content: document.getText(), documentVersion: document.version });
 		});
 
 		const highlight = this.#wireHighlight(editorWebview);
@@ -951,6 +976,18 @@ function toGutterMarkers(document: vscode.TextDocument, changes: readonly vscode
 		});
 	}
 	return markers;
+}
+
+/**
+ * The causally scoped reply for a forwarded history command: `restored` only
+ * when the command actually advanced the document's own version, so a chord
+ * that hit an empty undo stack cannot be attributed a restore.
+ */
+export function historyResultPayload(versionBefore: number, versionAfter: number, contentAfter: string): { status: 'restored'; content: string; documentVersion: number } | { status: 'unchanged' } {
+	if (versionAfter === versionBefore) {
+		return { status: 'unchanged' };
+	}
+	return { status: 'restored', content: contentAfter, documentVersion: versionAfter };
 }
 
 export function lineRangesToGutterMarkers(document: vscode.TextDocument, changes: readonly ChangedLineRange[]): GutterMarkerMessage[] {
