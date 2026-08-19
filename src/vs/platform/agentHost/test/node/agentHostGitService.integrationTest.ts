@@ -310,6 +310,23 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 		});
 	});
 
+	(hasGit ? test : test.skip)('ignores an index addition deleted from the worktree during temp-index staging', async () => {
+		const fs = await import('fs/promises');
+		const { dir, run } = initRepo();
+		await fs.writeFile(join(dir, 'tracked.txt'), 'tracked\n');
+		run('add', '.');
+		run('commit', '-q', '-m', 'init');
+
+		await fs.writeFile(join(dir, 'deleted-addition.txt'), 'temporary\n');
+		run('add', 'deleted-addition.txt');
+		await fs.unlink(join(dir, 'deleted-addition.txt'));
+		await fs.writeFile(join(dir, 'fresh.txt'), 'fresh\n');
+
+		const result = await svc!.computeSessionFileDiffs(URI.file(dir), { sessionUri: 'copilot:/s' });
+
+		assert.deepStrictEqual(result?.map(diff => URI.parse(diff.after?.uri ?? diff.before!.uri).path.split('/').pop()), ['fresh.txt']);
+	});
+
 	(hasGit && !isWindows ? test : test.skip)('returns undefined when temp-index staging fails', async () => {
 		const fs = await import('fs/promises');
 		const { dir } = initRepo();
