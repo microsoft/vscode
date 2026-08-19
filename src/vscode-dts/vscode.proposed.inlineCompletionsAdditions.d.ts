@@ -91,6 +91,12 @@ declare module 'vscode' {
 
 	export interface InlineCompletionItemProviderMetadata {
 		/**
+		 * Whether this provider may make network requests when computing inline completions.
+		 * Defaults to `true`.
+		 */
+		usesNetworkRequests?: boolean;
+
+		/**
 		 * Specifies a list of extension ids that this provider yields to if they return a result.
 		 * If some inline completion provider registered by such an extension returns a result, this provider is not asked.
 		 */
