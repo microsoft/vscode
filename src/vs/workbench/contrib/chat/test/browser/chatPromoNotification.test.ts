@@ -8,8 +8,10 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { InMemoryStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { CHAT_PROMO_DISMISS_COMMAND_ID, CHAT_PROMO_TRY_MODEL_COMMAND_ID, ChatPromoNotificationContribution } from '../../browser/chatPromoNotification.js';
+import { ChatConfiguration, ChatSaleNotification } from '../../common/constants.js';
 import { IChatWidgetService } from '../../browser/chat.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../common/languageModels.js';
 import { ChatInputNotificationActionKind, IChatInputNotification, IChatInputNotificationService, isChatInputNotificationApplicableToSessionType } from '../../browser/widget/input/chatInputNotificationService.js';
@@ -123,13 +125,18 @@ function createContribution(
 	notifService: IChatInputNotificationService,
 	storageService: InMemoryStorageService,
 	commandService: ICommandService = createMockCommandService().service,
+	saleNotification: ChatSaleNotification = ChatSaleNotification.Banner,
 ) {
+	const configurationService = new TestConfigurationService({
+		[ChatConfiguration.SaleNotification]: saleNotification,
+	});
 	return new ChatPromoNotificationContribution(
 		lmService,
 		notifService,
 		storageService,
 		commandService,
 		createMockWidgetService(),
+		configurationService,
 	);
 }
 
@@ -137,7 +144,33 @@ suite('ChatPromoNotificationContribution', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('shows the post-update card for a discounted promo instead of the input banner', () => {
+	test('shows the input banner for a discounted promo by default', () => {
+		const notifService = createMockNotificationService(disposables);
+		const { service: lmService } = createMockLanguageModelsService([{
+			identifier: 'copilot:gpt-5.5',
+			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-1', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Get 20% off' } },
+		}], disposables);
+		const storageService = disposables.add(new InMemoryStorageService());
+		const commands = createMockCommandService();
+
+		disposables.add(createContribution(
+			lmService,
+			notifService.service,
+			storageService,
+			commands.service,
+		));
+
+		const notification = notifService.getNotification();
+		assert.deepStrictEqual({
+			message: notification?.message,
+			commandCount: commands.executed.length,
+		}, {
+			message: 'Get 20% off',
+			commandCount: 0,
+		});
+	});
+
+	test('shows the post-update card for a discounted promo when the setting is popup', () => {
 		const notifService = createMockNotificationService(disposables);
 		const { service: lmService } = createMockLanguageModelsService([{
 			identifier: 'copilot:gpt-5.5',
@@ -151,6 +184,7 @@ suite('ChatPromoNotificationContribution', () => {
 			notifService.service,
 			storageService,
 			commands.service,
+			ChatSaleNotification.Popup,
 		));
 		assert.ok(contribution);
 
@@ -218,6 +252,7 @@ suite('ChatPromoNotificationContribution', () => {
 			notifService.service,
 			storageService,
 			commands.service,
+			ChatSaleNotification.Popup,
 		));
 
 		assert.strictEqual(notifService.getNotification(), undefined, 'The preferred sale uses the card, not the banner');

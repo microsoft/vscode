@@ -88,6 +88,7 @@ export enum ChatConfiguration {
 	RevealNextChangeOnResolve = 'chat.editing.revealNextChangeOnResolve',
 	OpenChangedFileInDiffEditor = 'chat.editing.openChangedFileInDiffEditor',
 	GrowthNotificationEnabled = 'chat.growthNotification.enabled',
+	SaleNotification = 'chat.promo.saleNotification',
 	TitleBarSignInEnabled = 'chat.titleBar.signIn.enabled',
 	TitleBarOpenInAgentsWindowEnabled = 'chat.titleBar.openInAgentsWindow.enabled',
 
@@ -124,9 +125,11 @@ export enum ChatConfiguration {
 	ImplicitContextActiveEditor = 'chat.implicitContext.includeActiveEditor',
 }
 
-/**
- * The "kind" of agents for custom agents.
- */
+export const enum ChatSaleNotification {
+	Banner = 'banner',
+	Popup = 'popup',
+}
+
 export enum ChatModeKind {
 	Ask = 'ask',
 	Edit = 'edit',

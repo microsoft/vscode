@@ -7,7 +7,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -46,6 +46,8 @@ interface ILastKnownVersion {
 export class PostUpdateWidgetContribution extends Disposable implements IWorkbenchContribution {
 
 	private static idCounter = 0;
+
+	private readonly placementListener = this._register(new MutableDisposable());
 
 	constructor(
 		@ICommandService private readonly commandService: ICommandService,
@@ -95,24 +97,53 @@ export class PostUpdateWidgetContribution extends Disposable implements IWorkben
 
 		const contentDisposables = new DisposableStore();
 		const target = this.layoutService.mainContainer;
-		const { clientWidth } = target;
-		const maxWidth = 420;
-		const x = Math.max(clientWidth - maxWidth - 80, 16);
+		const hoverTarget = {
+			targetElements: [target],
+			x: 0,
+			y: 40,
+			dispose: () => {
+				this.placementListener.clear();
+				contentDisposables.dispose();
+			}
+		};
 
 		const runDismiss = this.createDismissHandler(info, contentDisposables);
-		this.hoverService.showInstantHover({
-			content: this.buildContent(info, contentDisposables, runDismiss),
-			target: {
-				targetElements: [target],
-				x,
-				y: 40,
-				dispose: () => contentDisposables.dispose()
-			},
+		const content = this.buildContent(info, contentDisposables, runDismiss);
+		this.applyCardPlacement(content, hoverTarget);
+
+		const hover = this.hoverService.showInstantHover({
+			content,
+			target: hoverTarget,
 			additionalClasses: ['post-update-widget-hover'],
 			persistence: { sticky: true },
 			appearance: { showPointer: false, compact: true, maxHeightRatio: 1 },
 			trapFocus: true,
 		}, true);
+
+		this.placementListener.value = this.layoutService.onDidLayoutMainContainer(() => {
+			if (!hover || hover.isDisposed) {
+				this.placementListener.clear();
+				return;
+			}
+			this.applyCardPlacement(content, hoverTarget);
+			const positionable = hover as { layout(): void; readonly domNode: HTMLElement };
+			positionable.layout();
+			const hoverWidth = positionable.domNode.offsetWidth;
+			if (hoverWidth) {
+				hoverTarget.x = Math.max(this.layoutService.mainContainer.clientWidth - hoverWidth - 16, 16);
+				positionable.layout();
+			}
+		});
+	}
+
+	private applyCardPlacement(content: HTMLElement, hoverTarget: { x: number }): void {
+		const horizontalMargin = 16;
+		const preferredWidth = 420;
+		const clientWidth = this.layoutService.mainContainer.clientWidth;
+		const availableWidth = Math.max(clientWidth - horizontalMargin * 2, 0);
+		const width = Math.min(preferredWidth, availableWidth);
+		content.style.width = `${width}px`;
+		hoverTarget.x = Math.max(clientWidth - width - horizontalMargin, horizontalMargin);
 	}
 
 	private createDismissHandler(info: IParsedUpdateInfoInput, disposables: DisposableStore): () => void {

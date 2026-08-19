@@ -6,9 +6,11 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { localChatSessionType } from '../common/chatSessionsService.js';
+import { ChatConfiguration, ChatSaleNotification } from '../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { CHAT_OPEN_ACTION_ID } from './actions/chatActions.js';
 import { IChatWidgetService } from './chat.js';
@@ -37,6 +39,7 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 		@IStorageService private readonly _storageService: IStorageService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -53,6 +56,11 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 		}));
 
 		this._register(this._languageModelsService.onDidChangeLanguageModels(() => this._update()));
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.SaleNotification)) {
+				this._update();
+			}
+		}));
 		this._register(this._chatInputNotificationService.onDidDismiss(id => {
 			const promoId = this._shownNotifications.get(id)?.promoId;
 			if (promoId) {
@@ -69,7 +77,7 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 		this._update();
 	}
 
-	private readonly _shownNotifications = new Map<string, { promoId: string; modelIdentifier: string }>();
+	private readonly _shownNotifications = new Map<string, { promoId: string; modelIdentifier: string; kind: ChatSaleNotification }>();
 	private readonly _shownSaleCards = new Set<string>();
 
 	private _update(): void {
@@ -101,14 +109,17 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 
 			// Don't re-push an unchanged notification: re-setting it would clear a
 			// pending user dismissal in the notification service.
+			const usePopup = ILanguageModelChatMetadata.hasPromoDiscount(model.metadata)
+				&& this._configurationService.getValue(ChatConfiguration.SaleNotification) === ChatSaleNotification.Popup;
+			const kind = usePopup ? ChatSaleNotification.Popup : ChatSaleNotification.Banner;
 			const shownNotification = this._shownNotifications.get(notificationId);
-			if (shownNotification?.modelIdentifier === model.identifier && shownNotification.promoId === promo.id) {
+			if (shownNotification?.modelIdentifier === model.identifier && shownNotification.promoId === promo.id && shownNotification.kind === kind) {
 				continue;
 			}
-			this._shownNotifications.set(notificationId, { promoId: promo.id, modelIdentifier: model.identifier });
+			this._shownNotifications.set(notificationId, { promoId: promo.id, modelIdentifier: model.identifier, kind });
 
-			// A live sale uses the post-update card instead of the chat-input banner.
-			if (ILanguageModelChatMetadata.hasPromoDiscount(model.metadata)) {
+			if (usePopup) {
+				this._chatInputNotificationService.deleteNotification(notificationId);
 				this._showSaleCard(model);
 				continue;
 			}
