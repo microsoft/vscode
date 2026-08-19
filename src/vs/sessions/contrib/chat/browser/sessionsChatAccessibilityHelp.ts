@@ -62,8 +62,8 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		content.push(localize('sessionsChat.deleteChat', "To permanently delete a chat, open the chat tab's context menu and choose Delete Chat. This is destructive and cannot be undone."));
 		content.push(localize('sessionsChat.promptTimeline', "When the prompt timeline is enabled, a handle on the left edge of the transcript lists your prompts. Activate it to expand the list, use the up and down arrows (or Home and End) to move between prompts, Enter or Space to jump to a prompt, and Escape to dismiss the list and return focus to the handle. When a prompt title is pinned above the transcript, activate its title to jump to that prompt."));
 		content.push(localize('sessionsChat.find', "To search the chat transcript, invoke Find in Chat{0}. Find Next{1} and Find Previous{2} move between results, scrolling each one into view.", '<keybinding:workbench.action.chat.find>', '<keybinding:workbench.action.chat.findNext>', '<keybinding:workbench.action.chat.findPrevious>'));
-		content.push(localize('sessionsChat.goBack', "Go back through visited sessions{0}.", '<keybinding:sessions.goBack>'));
-		content.push(localize('sessionsChat.goForward', "Go forward through visited sessions{0}.", '<keybinding:sessions.goForward>'));
+		content.push(localize('sessionsChat.goBack', "Go back through visited sessions and views{0}.", '<keybinding:sessions.goBack>'));
+		content.push(localize('sessionsChat.goForward', "Go forward through visited sessions and views{0}.", '<keybinding:sessions.goForward>'));
 		content.push(localize('sessionsChat.navigatePreviousSession', "Navigate to the previous session in the list{0}.", '<keybinding:sessionsViewPane.navigatePreviousSession>'));
 		content.push(localize('sessionsChat.navigateNextSession', "Navigate to the next session in the list{0}.", '<keybinding:sessionsViewPane.navigateNextSession>'));
 		content.push(localize('sessionsChat.renameSession', "To rename a session, double-click its title in the sessions list. With the keyboard, focus the session, open its context menu (for example, with Shift+F10), and choose Rename."));

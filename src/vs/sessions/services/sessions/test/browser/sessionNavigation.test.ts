@@ -7,6 +7,7 @@ import assert from 'assert';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
@@ -18,6 +19,8 @@ import { SessionsNavigation } from '../../browser/sessionNavigation.js';
 import { SessionsRecencyHistory } from '../../browser/sessionsRecencyHistory.js';
 import { Event } from '../../../../../base/common/event.js';
 import { ISendRequestOptions } from '../../common/sessionsProvider.js';
+import { ICustomViewDescriptor } from '../../../customView/browser/customView.js';
+import { ICustomViewService } from '../../../customView/browser/customViewService.js';
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),
@@ -244,12 +247,30 @@ class MockSessionStore implements ISessionsManagementService {
 	renameSession(_session: ISession, _title: string): Promise<void> { throw new Error('not implemented'); }
 }
 
+class MockCustomViewService extends mock<ICustomViewService>() {
+
+	private readonly descriptor = upcastPartial<ICustomViewDescriptor>({ id: 'automations' });
+	private readonly activeCustomViewValue = observableValue<ICustomViewDescriptor | undefined>(this, undefined);
+	override readonly activeCustomView = this.activeCustomViewValue;
+
+	override showCustomView(id: string): void {
+		if (id === this.descriptor.id) {
+			this.activeCustomViewValue.set(this.descriptor, undefined);
+		}
+	}
+
+	override hideCustomView(): void {
+		this.activeCustomViewValue.set(undefined, undefined);
+	}
+}
+
 suite('SessionsNavigation', () => {
 
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
 	let store: MockSessionStore;
 	let nav: SessionsNavigation;
 	let contextKeyService: MockContextKeyService;
+	let customViewService: MockCustomViewService;
 
 	setup(() => {
 		const disposables = ds.add(new DisposableStore());
@@ -259,12 +280,14 @@ suite('SessionsNavigation', () => {
 
 		const storageService = disposables.add(new InMemoryStorageService());
 		const recency = disposables.add(new SessionsRecencyHistory(storageService, new NullLogService()));
+		customViewService = new MockCustomViewService();
 
 		nav = disposables.add(new SessionsNavigation(
 			store,
 			store.activeSession,
 			store,
 			recency,
+			customViewService,
 			contextKeyService,
 			new NullLogService(),
 		));
@@ -281,6 +304,199 @@ suite('SessionsNavigation', () => {
 	test('initially cannot go back or forward', () => {
 		assert.strictEqual(canGoBack(), false);
 		assert.strictEqual(canGoForward(), false);
+	});
+
+	test('navigates back to the custom view that opened the session', async () => {
+		const automationRunSession = stubSession('automation-run');
+		store.addSession(automationRunSession);
+
+		customViewService.showCustomView('automations');
+		nav.onWillOpenSession();
+		customViewService.hideCustomView();
+		await store.openSession(automationRunSession.resource);
+		nav.onDidOpenSession();
+
+		const afterOpen = {
+			customView: customViewService.activeCustomView.get()?.id,
+			canGoBack: canGoBack(),
+			canGoForward: canGoForward(),
+		};
+		await nav.goBack();
+		const afterBack = {
+			customView: customViewService.activeCustomView.get()?.id,
+			canGoBack: canGoBack(),
+			canGoForward: canGoForward(),
+		};
+		await nav.goForward();
+
+		assert.deepStrictEqual({
+			afterOpen,
+			afterBack,
+			afterForward: {
+				customView: customViewService.activeCustomView.get()?.id,
+				openedSession: store.lastOpenedResource?.toString(),
+				canGoBack: canGoBack(),
+				canGoForward: canGoForward(),
+			},
+		}, {
+			afterOpen: {
+				customView: undefined,
+				canGoBack: true,
+				canGoForward: false,
+			},
+			afterBack: {
+				customView: 'automations',
+				canGoBack: false,
+				canGoForward: true,
+			},
+			afterForward: {
+				customView: undefined,
+				openedSession: automationRunSession.resource.toString(),
+				canGoBack: true,
+				canGoForward: false,
+			},
+		});
+	});
+
+	test('keeps custom view forward navigation when the previous session changes status', async () => {
+		const previousStatus = observableValue('previous.status', SessionStatus.InProgress);
+		const previousSession: ISession = {
+			...stubSession('previous'),
+			status: previousStatus,
+		};
+		const automationRunSession = stubSession('automation-run');
+		store.addSession(previousSession);
+		store.addSession(automationRunSession);
+
+		store.setActiveSession(previousSession);
+		customViewService.showCustomView('automations');
+		nav.onWillOpenSession();
+		customViewService.hideCustomView();
+		await store.openSession(automationRunSession.resource);
+		nav.onDidOpenSession();
+
+		await nav.goBack();
+		await nav.goBack();
+		previousStatus.set(SessionStatus.Completed, undefined);
+		await nav.goForward();
+		previousStatus.set(SessionStatus.InProgress, undefined);
+		const afterStatusChange = {
+			customView: customViewService.activeCustomView.get()?.id,
+			canGoForward: canGoForward(),
+		};
+		await nav.goForward();
+
+		assert.deepStrictEqual({
+			afterStatusChange,
+			afterForward: {
+				customView: customViewService.activeCustomView.get()?.id,
+				openedSession: store.lastOpenedResource?.toString(),
+				canGoForward: canGoForward(),
+			},
+		}, {
+			afterStatusChange: {
+				customView: 'automations',
+				canGoForward: true,
+			},
+			afterForward: {
+				customView: undefined,
+				openedSession: automationRunSession.resource.toString(),
+				canGoForward: false,
+			},
+		});
+	});
+
+	test('promotes an already-active session opened from a custom view', async () => {
+		const automationRunSession = stubSession('automation-run');
+		const otherSession = stubSession('other');
+		store.addSession(automationRunSession);
+		store.addSession(otherSession);
+		store.setActiveSession(automationRunSession);
+		store.setActiveSession(otherSession);
+		await nav.goBack();
+
+		customViewService.showCustomView('automations');
+		nav.onWillOpenSession();
+		customViewService.hideCustomView();
+		nav.onDidOpenSession();
+
+		await nav.goBack();
+		await nav.goForward();
+
+		assert.deepStrictEqual({
+			customView: customViewService.activeCustomView.get()?.id,
+			openedSession: store.lastOpenedResource?.toString(),
+			canGoForward: canGoForward(),
+		}, {
+			customView: undefined,
+			openedSession: automationRunSession.resource.toString(),
+			canGoForward: false,
+		});
+	});
+
+	test('synchronizes the navigation bridge when its custom view is reopened', async () => {
+		const previousSession = stubSession('previous');
+		const automationRunSession = stubSession('automation-run');
+		store.addSession(previousSession);
+		store.addSession(automationRunSession);
+		store.setActiveSession(previousSession);
+
+		customViewService.showCustomView('automations');
+		nav.onWillOpenSession();
+		customViewService.hideCustomView();
+		await store.openSession(automationRunSession.resource);
+		nav.onDidOpenSession();
+
+		customViewService.showCustomView('automations');
+		await nav.goBack();
+		const afterBack = {
+			customView: customViewService.activeCustomView.get()?.id,
+			openedSession: store.lastOpenedResource?.toString(),
+		};
+		customViewService.showCustomView('automations');
+		await nav.goForward();
+
+		assert.deepStrictEqual({
+			afterBack,
+			afterForward: {
+				customView: customViewService.activeCustomView.get()?.id,
+				openedSession: store.lastOpenedResource?.toString(),
+			},
+		}, {
+			afterBack: {
+				customView: undefined,
+				openedSession: previousSession.resource.toString(),
+			},
+			afterForward: {
+				customView: undefined,
+				openedSession: automationRunSession.resource.toString(),
+			},
+		});
+	});
+
+	test('reconciles a session activated while a custom view is visible when it is hidden', async () => {
+		const previousSession = stubSession('previous');
+		const restoredSession = stubSession('restored');
+		store.addSession(previousSession);
+		store.addSession(restoredSession);
+		store.setActiveSession(previousSession);
+
+		customViewService.showCustomView('automations');
+		store.setActiveSession(restoredSession);
+		const beforeHide = canGoBack();
+		customViewService.hideCustomView();
+		const afterHide = canGoBack();
+		await nav.goBack();
+
+		assert.deepStrictEqual({
+			beforeHide,
+			afterHide,
+			openedSession: store.lastOpenedResource?.toString(),
+		}, {
+			beforeHide: false,
+			afterHide: true,
+			openedSession: previousSession.resource.toString(),
+		});
 	});
 
 	test('can go back after navigating to two sessions', () => {

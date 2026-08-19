@@ -394,6 +394,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			this.activeSession,
 			this.sessionsManagementService,
 			this._recencyHistory,
+			this.customViewService,
 			this.contextKeyService,
 			this.logService,
 		));
@@ -746,15 +747,30 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	async openSession(sessionResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
 		this._cancelRestore();
+		this._navigation.onWillOpenSession();
 		const token = this._startOpenSession();
-		const sessionData = this._showSession(sessionResource, options);
+		let sessionData: ISession;
+		try {
+			sessionData = this._showSession(sessionResource, options);
+		} catch (error) {
+			this._navigation.onDidOpenSession(false);
+			throw error;
+		}
+		this._navigation.onDidOpenSession();
 		await this._waitForOpenSessionToLoad(sessionData, token);
 	}
 
 	showSession(sessionResource: URI, options?: { preserveFocus?: boolean }): void {
 		this._cancelRestore();
+		this._navigation.onWillOpenSession();
 		this._startOpenSession();
-		this._showSession(sessionResource, options);
+		let succeeded = false;
+		try {
+			this._showSession(sessionResource, options);
+			succeeded = true;
+		} finally {
+			this._navigation.onDidOpenSession(succeeded);
+		}
 	}
 
 	private _showSession(sessionResource: URI, options?: { preserveFocus?: boolean }): ISession {
