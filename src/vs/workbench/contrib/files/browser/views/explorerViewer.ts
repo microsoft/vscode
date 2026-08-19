@@ -139,6 +139,8 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 				if (element instanceof ExplorerItem && element.isRoot && !element.error && hasError && this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
 					explorerRootErrorEmitter.fire(element.resource);
 				}
+				// Update symbolic link decorations.
+				this.explorerService.checkSymbolicLinkDecorations(children);
 				return children;
 			}
 			, e => {
