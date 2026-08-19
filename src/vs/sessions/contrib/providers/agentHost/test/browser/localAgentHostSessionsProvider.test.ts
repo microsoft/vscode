@@ -5993,6 +5993,58 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('keeps a promoted artifact in the pill when GitHub info cannot surface it', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const gitHubService = new class extends mock<IGitHubService>() {
+			private readonly _model = { pullRequest: constObservable(undefined) } as unknown as GitHubPullRequestModel;
+			override createPullRequestModelReference = () => new ImmortalReference(this._model);
+		}();
+
+		agentHost.addSession(createSession('pr-unsurfaced', { summary: 'Unsurfaced Session', project: { uri: URI.parse('file:///repo'), displayName: 'repo' } }));
+		const provider = createProvider(disposables, agentHost, undefined, { gitHubService });
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'Unsurfaced Session');
+		assert.ok(session);
+
+		provider.getSessionConfig(session.sessionId);
+		// No repository at all, plus a reference belonging to another repository:
+		// neither can be polled, so both have to stay visible as artifacts.
+		agentHost.setSessionState('pr-unsurfaced', 'copilotcli', {
+			provider: 'copilotcli', title: 'Unsurfaced Session', status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			_meta: withSessionArtifacts(undefined, [
+				{ id: 'a1', type: SessionArtifactType.Issue, label: 'Orphan issue', link: 'https://github.com/owner/repo/issues/7', isGitHub: true },
+			]),
+		});
+		const withoutRepository = session.artifacts?.get().map(artifact => artifact.id);
+
+		agentHost.setSessionState('pr-unsurfaced', 'copilotcli', {
+			provider: 'copilotcli', title: 'Unsurfaced Session', status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			_meta: withSessionArtifacts(withSessionGitHubState(undefined, { owner: 'owner', repo: 'repo' }), [
+				{ id: 'a1', type: SessionArtifactType.Issue, label: 'Same repo', link: 'https://github.com/owner/repo/issues/7', isGitHub: true },
+				{ id: 'a2', type: SessionArtifactType.PullRequest, label: 'Other repo', link: 'https://github.com/other/project/pull/9', isGitHub: true, createdByThisSession: true },
+			]),
+		});
+		const gitHubInfo = session.workspace.get()!.folders[0]!.gitRepository!.gitHubInfo.get();
+
+		assert.deepStrictEqual({
+			withoutRepository,
+			foreignRepository: session.artifacts?.get().map(artifact => artifact.id),
+			issues: gitHubInfo?.issues?.map(issue => issue.number),
+			pullRequests: gitHubInfo?.pullRequests?.map(pullRequest => pullRequest.number),
+		}, {
+			withoutRepository: ['a1'],
+			foreignRepository: ['a2'],
+			issues: [7],
+			pullRequests: undefined,
+		});
+	}));
+
 	// ---- replaceSessionConfig -------
 
 	test('replaceSessionConfig only replaces sessionMutable, non-readOnly values and preserves everything else', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

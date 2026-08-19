@@ -58,10 +58,11 @@ const skillNameFields: readonly string[] = ['skill', 'name', 'skillName', 'comma
 /**
  * Matches path-like tokens: anything containing a slash or backslash that is
  * plausibly a file path. Separators repeat because a Windows path arrives
- * backslash-escaped inside JSON tool input. Over-matching is harmless — a token
- * only survives if it resolves to a known customization.
+ * backslash-escaped inside JSON tool input, and `:` is allowed so a Windows
+ * drive prefix stays attached. Over-matching is harmless — a token only
+ * survives if it resolves to a known customization.
  */
-const pathTokenPattern = /[\w.~@$()[\]+-]*(?:[/\\]+[\w.~@$()[\]+-]+)+/g;
+const pathTokenPattern = /[\w.~@$():[\]+-]*(?:[/\\]+[\w.~@$():[\]+-]+)+/g;
 
 function readSkillName(input: string): string | undefined {
 	let parsed: unknown;
@@ -255,12 +256,14 @@ export class CustomizationIndex {
 		}
 		this._byPath.set(path, entry);
 		// A skill or plugin owns everything beside it, so reading any file in its
-		// folder counts as using it. Only the last segment decides whether the URI
-		// is a file: a dotted ancestor (`.agents/plugins/foo`) is still a folder.
-		if (kind === SessionCustomizationKind.Skill || kind === SessionCustomizationKind.Plugin) {
-			const lastSlash = path.lastIndexOf('/');
-			const isFile = path.slice(lastSlash + 1).includes('.');
-			const container = isFile ? path.slice(0, lastSlash) : path;
+		// folder counts as using it. The type decides where that folder is: a
+		// plugin's URI is already its root, while a skill points at its own file.
+		// Guessing from punctuation would misread a versioned plugin root such as
+		// `.../plugins/foo/1.2.0` as a file and claim its siblings.
+		if (kind === SessionCustomizationKind.Plugin) {
+			this._byContainerPath.set(path, entry);
+		} else if (kind === SessionCustomizationKind.Skill) {
+			const container = path.slice(0, path.lastIndexOf('/'));
 			if (container) {
 				this._byContainerPath.set(container, entry);
 			}

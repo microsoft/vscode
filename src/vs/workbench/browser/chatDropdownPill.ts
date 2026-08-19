@@ -63,13 +63,34 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 		super(undefined, action, options);
 	}
 
+	private _dropdownVisible = false;
+
 	protected override renderContent(): void {
 		this._register(autorun(reader => {
 			this._sections.read(reader);
 			this.updateLabel();
 			this.updateTooltip();
 			this.updateAriaLabel();
+			this._updatePopupState();
 		}));
+	}
+
+	/**
+	 * A summarized pill opens a listbox, so it has to advertise the popup and
+	 * whether it is open. A single-entry pill activates directly and must not.
+	 */
+	private _updatePopupState(): void {
+		const element = this.button?.element;
+		if (!element) {
+			return;
+		}
+		if (this.isSummarized) {
+			element.setAttribute('aria-haspopup', 'listbox');
+			element.setAttribute('aria-expanded', String(this._dropdownVisible));
+		} else {
+			element.removeAttribute('aria-haspopup');
+			element.removeAttribute('aria-expanded');
+		}
 	}
 
 	/** Whether the pill stands for its entries rather than showing a single one. */
@@ -121,7 +142,14 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 			this.openEntry(this.entries.at(0));
 			return;
 		}
+		// The action widget's own body handler already dismissed the dropdown by
+		// the time this runs, so reopening here would make the trigger unable to
+		// close it. `hasOpenDropdown` suppresses that second open.
 		this.showDropdown();
+	}
+
+	protected override hasOpenDropdown(): boolean {
+		return this._dropdownVisible;
 	}
 
 	protected openEntry(entry: IChatPillEntry | undefined): void {
@@ -162,8 +190,14 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 				this._actionWidgetService.hide();
 				this.openEntry(entry);
 			},
-			onHide: () => trigger.focus(),
+			onHide: () => {
+				this._dropdownVisible = false;
+				this._updatePopupState();
+				trigger.focus();
+			},
 		};
+		this._dropdownVisible = true;
+		this._updatePopupState();
 		this._actionWidgetService.show(
 			this._pillOptions.widgetId,
 			false,

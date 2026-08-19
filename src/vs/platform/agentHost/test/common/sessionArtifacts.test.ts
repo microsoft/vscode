@@ -65,6 +65,16 @@ suite('Session Artifacts', () => {
 		assert.throws(() => parseSessionArtifactInput({ type: 'unknown', label: 'Bad' }, 'add_artifact'), /type/);
 	});
 
+	test('rejects links that are not http(s), since a link is opened externally', () => {
+		const parse = (link: string) => () => parseSessionArtifactInput({ type: 'website', label: 'Link', link }, 'add_artifact');
+
+		assert.throws(parse('file:///etc/passwd'), /http\(s\)/);
+		assert.throws(parse('vscode://extension/evil'), /http\(s\)/);
+		assert.throws(parse('javascript:alert(1)'), /http\(s\)/);
+		assert.throws(parse('/not/absolute'), /absolute http\(s\) URL/);
+		assert.strictEqual(parseSessionArtifactInput({ type: 'website', label: 'Docs', link: 'https://example.com/x' }, 'add_artifact').link, 'https://example.com/x');
+	});
+
 	test('round-trips artifacts through the meta bag and the session database', () => {
 		const added = new SessionArtifactCollection().add(parseSessionArtifactInput({ type: 'resource', label: 'Dashboard', uri: 'https://example.com/dash' }, 'add_artifact'), createId);
 		const meta = withSessionArtifacts({ other: 'kept' }, added.artifacts);

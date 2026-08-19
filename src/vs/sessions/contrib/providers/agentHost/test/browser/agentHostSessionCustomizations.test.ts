@@ -78,7 +78,7 @@ suite('Agent Host Session Customizations', () => {
 		]), [{ id: 'skill-1', kind: SessionCustomizationKind.Skill }]);
 	});
 
-	test('matches Windows-style and file URI paths', () => {
+	test('matches Windows drive paths, escaped separators and file URIs', () => {
 		assert.deepStrictEqual(resolve([
 			toolCall('read', '{"file_path":"\\\\repo\\\\.github\\\\instructions\\\\tests.instructions.md"}'),
 			toolCall('read', `{"uri":"${URI.file('/repo/.github/hooks/pre.md').toString()}"}`),
@@ -86,6 +86,21 @@ suite('Agent Host Session Customizations', () => {
 			{ id: 'rule-1', kind: SessionCustomizationKind.Instruction },
 			{ id: 'hook-1', kind: SessionCustomizationKind.Hook },
 		]);
+	});
+
+	test('matches a Windows absolute path, whose drive prefix must stay attached', () => {
+		const windowsIndex = new CustomizationIndex([
+			{
+				id: 'dir-1', type: CustomizationType.Directory, uri: URI.file('C:\\repo\\.github\\skills').toString(), name: 'Skills',
+				enabled: true, contents: CustomizationType.Skill, writable: true,
+				children: [{ id: 'skill-1', type: CustomizationType.Skill, uri: URI.file('C:\\repo\\.github\\skills\\sessions\\SKILL.md').toString(), name: 'sessions' }],
+			},
+		] as unknown as readonly Customization[]);
+
+		assert.strictEqual(
+			windowsIndex.resolve({ kind: CustomizationRefKind.Path, value: 'C:\\repo\\.github\\skills\\sessions\\SKILL.md' })?.id,
+			'skill-1',
+		);
 	});
 
 	test('ignores unrelated paths and streaming tool calls', () => {
@@ -133,6 +148,20 @@ suite('Agent Host Session Customizations', () => {
 		assert.deepStrictEqual({
 			inside: pluginIndex.resolve({ kind: CustomizationRefKind.Path, value: '/home/.agents/plugins/foo/skills/a/SKILL.md' })?.id,
 			sibling: pluginIndex.resolve({ kind: CustomizationRefKind.Path, value: '/home/.agents/plugins/bar/SKILL.md' })?.id,
+		}, {
+			inside: 'plugin-1',
+			sibling: undefined,
+		});
+	});
+
+	test('a versioned plugin root does not claim its sibling roots', () => {
+		const pluginIndex = new CustomizationIndex([
+			{ id: 'plugin-1', type: CustomizationType.Plugin, uri: URI.file('/home/.agents/plugins/foo/1.2.0').toString(), name: 'foo' },
+		] as unknown as readonly Customization[]);
+
+		assert.deepStrictEqual({
+			inside: pluginIndex.resolve({ kind: CustomizationRefKind.Path, value: '/home/.agents/plugins/foo/1.2.0/skills/a/SKILL.md' })?.id,
+			sibling: pluginIndex.resolve({ kind: CustomizationRefKind.Path, value: '/home/.agents/plugins/bar/1.0.0/SKILL.md' })?.id,
 		}, {
 			inside: 'plugin-1',
 			sibling: undefined,

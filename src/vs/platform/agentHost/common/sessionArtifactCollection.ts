@@ -38,6 +38,25 @@ function requireString(value: unknown, field: string, toolName: string): string 
 	return value.trim();
 }
 
+/**
+ * A link is opened externally on click, which hands it to the OS protocol
+ * handler. Only web links may do that: a `file:` or custom-scheme link would
+ * otherwise let an agent-labelled pill launch a local target.
+ */
+function requireWebLink(value: unknown, field: string, toolName: string): string {
+	const link = requireString(value, field, toolName);
+	let scheme: string;
+	try {
+		scheme = new URL(link).protocol;
+	} catch {
+		throw new Error(`Invalid ${toolName} input: ${field} must be an absolute http(s) URL.`);
+	}
+	if (scheme !== 'http:' && scheme !== 'https:') {
+		throw new Error(`Invalid ${toolName} input: ${field} must be an http(s) URL, but was '${scheme}'.`);
+	}
+	return link;
+}
+
 /** Validates and normalizes raw `add_artifact` arguments. */
 export function parseSessionArtifactInput(rawArgs: unknown, toolName: string): ISessionArtifactInput {
 	if (!rawArgs || typeof rawArgs !== 'object' || Array.isArray(rawArgs)) {
@@ -56,7 +75,7 @@ export function parseSessionArtifactInput(rawArgs: unknown, toolName: string): I
 	};
 
 	if (linkTypes.has(artifactType)) {
-		input.link = requireString(args['link'], 'link', toolName);
+		input.link = requireWebLink(args['link'], 'link', toolName);
 	}
 	if (uriTypes.has(artifactType)) {
 		input.uri = requireString(args['uri'], 'uri', toolName);

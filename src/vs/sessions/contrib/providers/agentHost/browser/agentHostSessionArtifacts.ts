@@ -60,13 +60,36 @@ function toSessionArtifact(artifact: IProtocolSessionArtifact): ISessionArtifact
  * pill, so the two never show the same reference twice.
  */
 export interface ISessionArtifactPartition {
-	/** Artifacts that stay in the artifacts pill. */
-	readonly artifacts: readonly ISessionArtifact[];
+	/** Every artifact in stream order, paired with the link it may be promoted by. */
+	readonly entries: readonly ISessionArtifactEntry[];
 	/** Pull requests this session created; eligible to become the main pull request. */
 	readonly createdPullRequestUrls: readonly string[];
 	/** Pull requests the session only referenced; listed and polled, never main. */
 	readonly referencedPullRequestUrls: readonly string[];
 	readonly issueUrls: readonly string[];
+}
+
+/** An artifact, and the GitHub link it is promoted by when it has one. */
+export interface ISessionArtifactEntry {
+	readonly artifact: ISessionArtifact;
+	readonly promotedLink?: string;
+}
+
+/** Normalized key for comparing links irrespective of case and trailing slash. */
+export function linkKey(link: string): string {
+	return link.replace(/\/+$/, '').toLowerCase();
+}
+
+/**
+ * The artifacts the pill shows: everything except the promoted references that
+ * the GitHub pills actually surfaced. A promotion the session cannot surface —
+ * no repository, or a reference belonging to another repository — stays an
+ * artifact rather than disappearing from both places.
+ */
+export function getPresentedArtifacts(partition: ISessionArtifactPartition, surfacedLinks: ReadonlySet<string>): readonly ISessionArtifact[] {
+	return partition.entries
+		.filter(entry => !entry.promotedLink || !surfacedLinks.has(linkKey(entry.promotedLink)))
+		.map(entry => entry.artifact);
 }
 
 /**
@@ -88,18 +111,19 @@ function promotedLink(artifact: IProtocolSessionArtifact): string | undefined {
 }
 
 export function partitionSessionArtifacts(meta: SessionMeta | undefined): ISessionArtifactPartition {
-	const artifacts: ISessionArtifact[] = [];
+	const entries: ISessionArtifactEntry[] = [];
 	const createdPullRequestUrls: string[] = [];
 	const referencedPullRequestUrls: string[] = [];
 	const issueUrls: string[] = [];
 
 	for (const artifact of readSessionArtifacts(meta)) {
+		const mapped = toSessionArtifact(artifact);
+		if (!mapped) {
+			continue;
+		}
 		const link = promotedLink(artifact);
+		entries.push(link ? { artifact: mapped, promotedLink: link } : { artifact: mapped });
 		if (!link) {
-			const mapped = toSessionArtifact(artifact);
-			if (mapped) {
-				artifacts.push(mapped);
-			}
 			continue;
 		}
 
@@ -112,7 +136,7 @@ export function partitionSessionArtifacts(meta: SessionMeta | undefined): ISessi
 		}
 	}
 
-	return { artifacts, createdPullRequestUrls, referencedPullRequestUrls, issueUrls };
+	return { entries, createdPullRequestUrls, referencedPullRequestUrls, issueUrls };
 }
 
 /** Case-insensitive de-duplication that keeps the first occurrence's casing. */

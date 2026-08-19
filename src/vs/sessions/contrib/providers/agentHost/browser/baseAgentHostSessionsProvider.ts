@@ -51,7 +51,7 @@ import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvid
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
 import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionChatCustomization, ISessionFile, ISessionFileChange, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionStatus, SessionTypeAuthRequirement, toSessionId, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
-import { dedupeLinks, partitionSessionArtifacts } from './agentHostSessionArtifacts.js';
+import { dedupeLinks, getPresentedArtifacts, linkKey, partitionSessionArtifacts } from './agentHostSessionArtifacts.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -343,7 +343,16 @@ function toGitHubPullRequestRefs(pullRequestUrls: readonly string[] | undefined)
 	return refs.length > 0 ? refs : undefined;
 }
 
-function toGitHubInfo(meta: SessionMeta | undefined): IGitHubInfo | undefined {
+/**
+ * The GitHub info for a session, plus the promoted artifact links it surfaced.
+ * Anything it could not surface stays in the artifacts pill.
+ */
+interface IGitHubPromotion {
+	readonly info: IGitHubInfo | undefined;
+	readonly surfacedLinks: ReadonlySet<string>;
+}
+
+function toGitHubPromotion(meta: SessionMeta | undefined): IGitHubPromotion {
 	const state = readSessionGitHubState(meta);
 	const gitState = readSessionGitState(meta);
 	const { createdPullRequestUrls, referencedPullRequestUrls, issueUrls } = partitionSessionArtifacts(meta);
@@ -351,29 +360,50 @@ function toGitHubInfo(meta: SessionMeta | undefined): IGitHubInfo | undefined {
 	// Pull requests this session created outrank discovered ones for the main
 	// slot; referenced ones are listed and polled but never become main.
 	const mainEligibleUrls = dedupeLinks(createdPullRequestUrls, getSessionRelatedPullRequestUrls(state));
-	const pullRequests = toGitHubPullRequestRefs(dedupeLinks(mainEligibleUrls, referencedPullRequestUrls));
-	const mainEligible = new Set(mainEligibleUrls.map(url => url.replace(/\/+$/, '').toLowerCase()));
-	const pullRequest = pullRequests?.find(ref => mainEligible.has(ref.uri.toString().replace(/\/+$/, '').toLowerCase()));
+	const allPullRequests = toGitHubPullRequestRefs(dedupeLinks(mainEligibleUrls, referencedPullRequestUrls));
 	const repository = state?.owner && state.repo
 		? { owner: state.owner, repo: state.repo }
 		: gitState?.githubOwner && gitState.githubRepo
 			? { owner: gitState.githubOwner, repo: gitState.githubRepo }
-			: pullRequest ?? pullRequests?.[0];
+			: allPullRequests?.[0];
 
 	if (!repository) {
-		return undefined;
+		return { info: undefined, surfacedLinks: new Set() };
 	}
 
+	// A session carries one repository, so a reference from another repository
+	// would be polled against the wrong coordinates. Leave those as artifacts.
+	const belongsToRepository = (ref: { readonly owner: string; readonly repo: string }) =>
+		ref.owner.toLowerCase() === repository.owner.toLowerCase() && ref.repo.toLowerCase() === repository.repo.toLowerCase();
+
+	const pullRequests = allPullRequests?.filter(belongsToRepository);
+	const mainEligible = new Set(mainEligibleUrls.map(linkKey));
+	const pullRequest = pullRequests?.find(ref => mainEligible.has(linkKey(ref.uri.toString())));
+	const issues = toGitHubIssueRefs(dedupeLinks(state?.issueUrls, issueUrls))?.filter(belongsToRepository);
+
+	const promotedLinks = new Set([...createdPullRequestUrls, ...referencedPullRequestUrls, ...issueUrls].map(linkKey));
+	const surfacedLinks = new Set([
+		...(pullRequests ?? []).map(ref => linkKey(ref.uri.toString())),
+		...(issues ?? []).map(ref => linkKey(ref.uri.toString())),
+	].filter(link => promotedLinks.has(link)));
+
 	return {
-		owner: repository.owner,
-		repo: repository.repo,
-		pullRequests,
-		pullRequest: pullRequest ? {
-			number: pullRequest.number,
-			uri: pullRequest.uri,
-		} : undefined,
-		issues: toGitHubIssueRefs(dedupeLinks(state?.issueUrls, issueUrls)),
+		info: {
+			owner: repository.owner,
+			repo: repository.repo,
+			pullRequests: pullRequests?.length ? pullRequests : undefined,
+			pullRequest: pullRequest ? {
+				number: pullRequest.number,
+				uri: pullRequest.uri,
+			} : undefined,
+			issues: issues?.length ? issues : undefined,
+		},
+		surfacedLinks,
 	};
+}
+
+function toGitHubInfo(meta: SessionMeta | undefined): IGitHubInfo | undefined {
+	return toGitHubPromotion(meta).info;
 }
 
 // ============================================================================
@@ -894,7 +924,10 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this._meta = metadata._meta;
 		this._metaObs = observableValue<SessionMeta | undefined>('agentHostSessionMeta', this._meta);
 		this.isExternal = derived(this, reader => readSessionExternal(this._metaObs.read(reader)));
-		this.artifacts = derivedOpts<readonly ISessionArtifact[]>({ owner: this, equalsFn: structuralEquals }, reader => partitionSessionArtifacts(this._metaObs.read(reader)).artifacts);
+		this.artifacts = derivedOpts<readonly ISessionArtifact[]>({ owner: this, equalsFn: structuralEquals }, reader => {
+			const meta = this._metaObs.read(reader);
+			return getPresentedArtifacts(partitionSessionArtifacts(meta), toGitHubPromotion(meta).surfacedLinks);
+		});
 
 		const baseGitHubInfoObs = derivedOpts<IGitHubInfo | undefined>({
 			equalsFn: isGitHubInfoEqual

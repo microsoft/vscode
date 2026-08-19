@@ -219,11 +219,14 @@ export class SessionChatInputToolbar extends Disposable {
 			return createChatSectionPill(action, sections, options, resourceLabels, instantiationService);
 		};
 
-		// The customization sections are not visibility-gated at the source, so
-		// gate them here the way the two activity controls gate their own.
-		const hasCustomizations = derived(reader => getChatPillEntries(this._customizationSections.read(reader)).length > 0);
-		const customizationSections = derived(reader => turnStatusPillsEnabled.read(reader) && visibility.isVisible(SessionChatPillKind.Customizations, reader)
-			? this._customizationSections.read(reader)
+		// Customization sections are not gated at the source, so gate them here the
+		// way the two activity controls gate their own. Data presence follows the
+		// feature gate but not the user's visibility choice, otherwise hiding the
+		// pill would drop it from the menu that restores it.
+		const availableCustomizations = derived(reader => turnStatusPillsEnabled.read(reader) ? this._customizationSections.read(reader) : []);
+		const hasCustomizations = derived(reader => getChatPillEntries(availableCustomizations.read(reader)).length > 0);
+		const customizationSections = derived(reader => visibility.isVisible(SessionChatPillKind.Customizations, reader)
+			? availableCustomizations.read(reader)
 			: []);
 
 		// Every section-backed pill lives in the same toolbar, so the whole row is
