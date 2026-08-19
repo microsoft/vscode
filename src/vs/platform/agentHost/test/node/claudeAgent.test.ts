@@ -4575,7 +4575,7 @@ suite('ClaudeAgent', () => {
 		const sessionUri = created.session;
 		const observed: AgentSignal[] = [];
 		disposables.add(agent.onDidChatProgress(s => {
-			const resource = s.kind === 'action' ? s.resource : s.chat;
+			const resource = s.kind === 'action' || s.kind === 'model_call_completed' ? s.resource : s.chat;
 			if ((parseDefaultChatUri(resource) ?? resource.toString()) === sessionUri.toString()) {
 				observed.push(s);
 			}

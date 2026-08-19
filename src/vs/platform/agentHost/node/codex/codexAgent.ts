@@ -70,7 +70,8 @@ import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js
 import { CodexAppServerClient, JsonRpcError, transportFromChildProcess, type ICodexAppServerClient, type ServerRequestHandlerResult } from './codexAppServerClient.js';
 import { ICodexProxyService, type ICodexProxyHandle } from './codexProxyService.js';
 import { GITHUB_MCP_SERVER_NAME, resolveGitHubMcpServerConfiguration } from '../shared/githubMcpServer.js';
-import { createCodexSessionMapState, extractUserInputText, finalizeCodexTurnMapState, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangeOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, type ICodexSessionMapState } from './codexMapAppServerEvents.js';
+import { createCodexSessionMapState, extractUserInputText, finalizeCodexTurnMapState, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangeOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageModelCallCompleted, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, type ICodexSessionMapState } from './codexMapAppServerEvents.js';
+import type { ThreadTokenUsageUpdatedNotification } from './protocol/generated/v2/ThreadTokenUsageUpdatedNotification.js';
 import { unwrapShellInvocation } from './codexShellCommand.js';
 import { planForkedTurnIdMap, resolveForkBoundary } from './codexForkPlan.js';
 import { resolveCodexInput } from './codexPromptResolver.js';
@@ -639,6 +640,8 @@ interface ICodexSession {
 	customizationDirectory: URI | undefined;
 	/** Workbench-facing turn id for the active turn. */
 	currentTurnId: string | undefined;
+	/** Cumulative token-usage identity last observed for model-call deduplication. */
+	lastModelCallUsageId?: string;
 	/** Local monotonic timer for the active workbench-facing turn. */
 	turnStopWatch: StopWatch | undefined;
 	/** Codex app-server turn id for the active turn. */
@@ -2008,7 +2011,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._register(client.onNotification('item/reasoning/summaryPartAdded', params => this._dispatchByThread(params.threadId, s => mapReasoningSummaryPartAdded(s.mapState, this._withHostTurnId(s, params)))));
 		this._register(client.onNotification('item/reasoning/summaryTextDelta', params => this._dispatchByThread(params.threadId, s => mapReasoningSummaryTextDelta(s.mapState, this._withHostTurnId(s, params)))));
 		this._register(client.onNotification('item/reasoning/textDelta', params => this._dispatchByThread(params.threadId, s => mapReasoningTextDelta(s.mapState, this._withHostTurnId(s, params)))));
-		this._register(client.onNotification('thread/tokenUsage/updated', params => this._dispatchByThread(params.threadId, s => s.currentTurnId ? mapTokenUsageUpdated(this._withHostTurnId(s, params), s.model?.id) : [])));
+		this._register(client.onNotification('thread/tokenUsage/updated', params => this._dispatchTokenUsageUpdated(params)));
 		this._register(client.onNotification('item/completed', params => this._dispatchItemCompleted(params)));
 		this._register(client.onNotification('turn/completed', params => this._dispatchTurnCompleted(params)));
 		// Auto-review (guardian) surfacing. The guardian warning is shown as a
@@ -2692,6 +2695,41 @@ export class CodexAgent extends Disposable implements IAgent {
 		const actions = mapFn(session);
 		for (const action of actions) {
 			this._fire(session.sessionUri, action);
+		}
+	}
+
+	private _dispatchTokenUsageUpdated(params: ThreadTokenUsageUpdatedNotification): void {
+		const subagent = this._subagentsByThreadId.get(params.threadId);
+		if (subagent) {
+			const mapped = this._withHostTurnId(subagent.session, params);
+			for (const action of mapTokenUsageUpdated(mapped, subagent.session.model?.id)) {
+				this._fireSubagent(subagent, action);
+			}
+			const modelCall = mapTokenUsageModelCallCompleted(mapped, subagent.session.chatChannel!);
+			if (subagent.session.lastModelCallUsageId !== modelCall.modelCallId) {
+				subagent.session.lastModelCallUsageId = modelCall.modelCallId;
+				this._onDidChatProgress.fire({ ...modelCall, parentToolCallId: subagent.toolCallId });
+			}
+			return;
+		}
+		const sessionId = this._sessionIdByThreadId.get(params.threadId);
+		const session = sessionId ? this._sessions.get(sessionId) : undefined;
+		if (!session?.chatChannel) {
+			this._logService.trace(`[Codex] Ignoring token usage for inactive threadId=${params.threadId}`);
+			return;
+		}
+		const mapped = this._withHostTurnId(session, params);
+		const modelCall = mapTokenUsageModelCallCompleted(mapped, session.chatChannel);
+		const isNewModelCall = session.lastModelCallUsageId !== modelCall.modelCallId;
+		session.lastModelCallUsageId = modelCall.modelCallId;
+		if (!session.currentTurnId) {
+			return;
+		}
+		for (const action of mapTokenUsageUpdated(mapped, session.model?.id)) {
+			this._fire(session.sessionUri, action);
+		}
+		if (isNewModelCall) {
+			this._onDidChatProgress.fire(modelCall);
 		}
 	}
 
