@@ -91,9 +91,8 @@ export class TestContext {
 	private static readonly authenticodeExclude = /[\\/]node_modules[\\/]@microsoft[\\/]mxc-sdk[\\/]bin[\\/][^\\/]+[\\/]_manifest[\\/][^\\/]+[\\/]manifest\.cat$/i;
 	private static readonly authenticodeTestCertificate = /Code Sign Test \(DO NOT TRUST\)/i;
 	private static readonly versionInfoInclude = /^.+\.(exe|dll|node|msi)$/i;
-	// Electron helpers (dxil/ffmpeg) and Copilot-vendored MSAL runtime DLLs ship VersionInfo that
-	// FileVersionInfo cannot resolve to a ProductName (x64: msalruntime.dll, arm64: msalruntime_arm64.dll).
-	private static readonly versionInfoFileExclude = /^(dxil\.dll|ffmpeg\.dll|msalruntime(_arm64)?\.dll)$/i;
+	// Electron helpers and Copilot-vendored runtimes ship without a ProductName that FileVersionInfo can resolve.
+	private static readonly versionInfoFileExclude = /^(copilot-runtime\.exe|dxil\.dll|ffmpeg\.dll|msalruntime(_arm64)?\.dll)$/i;
 	// MXC SDK binaries under bin are signed, but they do not carry a ProductName VersionInfo resource.
 	private static readonly versionInfoPathExclude = /(?:^|[\\/])node_modules(?:\.asar\.unpacked)?[\\/]@microsoft[\\/]mxc-sdk[\\/]bin[\\/]/i;
 	private static readonly dpkgLockError = /dpkg frontend lock was locked by another process|unable to acquire the dpkg frontend lock|could not get lock \/var\/lib\/dpkg\/lock-frontend/i;
