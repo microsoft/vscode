@@ -1702,6 +1702,7 @@ export class ProtocolServerHandler extends Disposable {
 					providerLogsIncluded: result.providerLogsIncluded,
 					size: result.size,
 					uncompressedSize: result.uncompressedSize,
+					entries: result.entries,
 				}));
 			}
 			case ReadAgentHostDebugLogsChunkExtensionMethod: {

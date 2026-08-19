@@ -10,11 +10,12 @@ import { tmpdir } from 'os';
 import { URI } from '../../../../base/common/uri.js';
 import { timeout } from '../../../../base/common/async.js';
 import { join } from '../../../../base/common/path.js';
+import { joinPath } from '../../../../base/common/resources.js';
 import { buffer } from '../../../../base/node/zip.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostDebugLogsCollector } from '../../node/agentHostDebugLogs.js';
-import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_FILE_BYTES } from '../../common/agentService.js';
+import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, AGENT_HOST_DEBUG_LOGS_MAX_FILE_BYTES } from '../../common/agentService.js';
 
 suite('AgentHostDebugLogsCollector', () => {
 	const emptyProvider = { id: 'test', collectDebugLogs: async () => false };
@@ -93,6 +94,28 @@ suite('AgentHostDebugLogsCollector', () => {
 		assert.deepStrictEqual(await readdir(outputRoot), []);
 	});
 
+	test('rejects and cleans an artifact with too many files', async () => {
+		const logsHome = join(testRoot, 'logs');
+		const outputRoot = join(testRoot, 'tmp');
+		await mkdir(logsHome, { recursive: true });
+		await mkdir(outputRoot, { recursive: true });
+		const collector = disposables.add(new AgentHostDebugLogsCollector({
+			logsHome: URI.file(logsHome),
+			tmpDir: URI.file(outputRoot),
+		}, new NullLogService()));
+
+		await assert.rejects(collector.collect([{
+			id: 'test',
+			collectDebugLogs: async (_session, outputDirectory) => {
+				for (let i = 0; i <= AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES; i++) {
+					await writeFile(join(outputDirectory.fsPath, `${i}.log`), '');
+				}
+				return true;
+			},
+		}], URI.parse('test:/session-1'), 'archive'), /too many files/);
+		assert.deepStrictEqual(await readdir(outputRoot), []);
+	});
+
 	test('streams an archive artifact in bounded chunks and refuses foreign paths', async () => {
 		const logsHome = join(testRoot, 'logs');
 		const outputRoot = join(testRoot, 'tmp');
@@ -146,7 +169,7 @@ suite('AgentHostDebugLogsCollector', () => {
 		});
 	});
 
-	test('refuses to stream a directory artifact', async () => {
+	test('streams only files enumerated in a retained directory artifact', async () => {
 		const logsHome = join(testRoot, 'logs');
 		const outputRoot = join(testRoot, 'tmp');
 		await mkdir(logsHome, { recursive: true });
@@ -156,9 +179,30 @@ suite('AgentHostDebugLogsCollector', () => {
 			tmpDir: URI.file(outputRoot),
 		}, new NullLogService()));
 
-		const artifact = await collector.collect([emptyProvider], URI.parse('test:/session-1'), 'directory');
+		const artifact = await collector.collect([{
+			id: 'test',
+			collectDebugLogs: async (_session, outputDirectory) => {
+				await mkdir(join(outputDirectory.fsPath, 'nested'));
+				await writeFile(join(outputDirectory.fsPath, 'nested', 'debug.log'), 'directory artifact');
+				return true;
+			},
+		}], URI.parse('test:/session-1'), 'directory');
+		const file = joinPath(artifact.resource, 'nested', 'debug.log');
+		const chunk = await collector.readArtifactChunk(file, 0);
+		const foreignFile = URI.file(join(testRoot, 'foreign.log'));
+		await writeFile(foreignFile.fsPath, 'foreign');
 
-		await assert.rejects(collector.readArtifactChunk(artifact.resource, 0), /Unknown or expired/);
+		assert.deepStrictEqual({
+			data: chunk.data.toString(),
+			eof: chunk.eof,
+			rootRead: await collector.readArtifactChunk(artifact.resource, 0).then(() => 'resolved', () => 'rejected'),
+			foreignRead: await collector.readArtifactChunk(foreignFile, 0).then(() => 'resolved', () => 'rejected'),
+		}, {
+			data: 'directory artifact',
+			eof: true,
+			rootRead: 'rejected',
+			foreignRead: 'rejected',
+		});
 	});
 
 	test('accepts logs that exceed the transfer limit only before compression', async () => {

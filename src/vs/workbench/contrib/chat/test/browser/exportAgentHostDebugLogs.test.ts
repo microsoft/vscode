@@ -17,6 +17,7 @@ function artifactOfSize(size: number): IAgentHostDebugLogsArtifact {
 		providerLogsIncluded: true,
 		size,
 		uncompressedSize: size,
+		entries: [{ path: 'agenthost.log', size }],
 	};
 }
 

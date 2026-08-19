@@ -60,7 +60,7 @@ class NativeAgentHostDebugLogsExportService implements IAgentHostDebugLogsExport
 				// single protocol message.
 				localHostArchive = joinPath(this.environmentService.tmpDir, `agent-host-debug-logs-${generateUuid()}.zip`);
 				temporaryHostArchive = localHostArchive;
-				await this.fileService.writeFile(localHostArchive, createHostArtifactStream(artifact, readChunk));
+				await this.fileService.writeFile(localHostArchive, createHostArtifactStream(artifact, position => readChunk(artifact.resource, position)));
 			}
 			zipFiles.push({ sourceArchive: localHostArchive });
 			await this.nativeHostService.createZipFile(saveUri, zipFiles);

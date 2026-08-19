@@ -15,7 +15,7 @@ export interface IAgentHostExtensionCommandMap {
 	'diagnosticsFetch': { params: { url: string }; result: IAgentHostNetworkFetchResult };
 	[CollectAgentHostDebugLogsExtensionMethod]: {
 		params: { session?: string; kind: AgentHostDebugLogsArtifactKind };
-		result: { kind: AgentHostDebugLogsArtifactKind; resource: string; providerLogsIncluded: boolean; size: number; uncompressedSize: number };
+		result: { kind: AgentHostDebugLogsArtifactKind; resource: string; providerLogsIncluded: boolean; size: number; uncompressedSize: number; entries: readonly { path: string; size: number }[] };
 	};
 	[ReadAgentHostDebugLogsChunkExtensionMethod]: {
 		params: { resource: string; position: number };

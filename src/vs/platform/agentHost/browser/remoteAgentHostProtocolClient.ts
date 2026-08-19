@@ -19,7 +19,7 @@ import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
 import { AgentSession, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
-import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_BYTES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
+import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, AGENT_HOST_DEBUG_LOGS_MAX_FILE_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_STAGED_BYTES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
 import { CollectAgentHostDebugLogsExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, type IAgentHostExtensionCommandMap } from '../common/agentHostExtensionProtocol.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY } from '../common/agentHostConnectionsService.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
@@ -1139,9 +1139,28 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		if (resource.scheme !== Schemas.file) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Agent Host returned a non-file debug log resource: ${resource.toString()}`);
 		}
+		const maxUncompressedSize = kind === 'archive' ? AGENT_HOST_DEBUG_LOGS_MAX_STAGED_BYTES : AGENT_HOST_DEBUG_LOGS_MAX_BYTES;
 		if (!Number.isSafeInteger(result.size) || result.size < 0 || result.size > AGENT_HOST_DEBUG_LOGS_MAX_BYTES
-			|| !Number.isSafeInteger(result.uncompressedSize) || result.uncompressedSize < 0 || result.uncompressedSize > AGENT_HOST_DEBUG_LOGS_MAX_BYTES) {
+			|| !Number.isSafeInteger(result.uncompressedSize) || result.uncompressedSize < 0 || result.uncompressedSize > maxUncompressedSize) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned invalid debug log artifact sizes');
+		}
+		if (!Array.isArray(result.entries) || result.entries.length > AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an invalid debug log artifact manifest');
+		}
+		const entryPaths = new Set<string>();
+		let manifestSize = 0;
+		for (const entry of result.entries) {
+			const segments = entry.path.split('/');
+			if (!entry.path || entry.path.includes('\\') || segments.some((segment: string) => !segment || segment === '.' || segment === '..')
+				|| !Number.isSafeInteger(entry.size) || entry.size < 0 || entry.size > AGENT_HOST_DEBUG_LOGS_MAX_FILE_BYTES
+				|| entryPaths.has(entry.path)) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an invalid debug log artifact manifest entry');
+			}
+			entryPaths.add(entry.path);
+			manifestSize += entry.size;
+		}
+		if (!Number.isSafeInteger(manifestSize) || manifestSize !== result.uncompressedSize) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host debug log artifact manifest size does not match its declared size');
 		}
 		return {
 			kind: result.kind,
@@ -1149,6 +1168,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			providerLogsIncluded: result.providerLogsIncluded,
 			size: result.size,
 			uncompressedSize: result.uncompressedSize,
+			entries: result.entries,
 		};
 	}
 

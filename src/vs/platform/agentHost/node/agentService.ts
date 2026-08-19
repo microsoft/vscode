@@ -10,7 +10,7 @@ import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter, type Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
-import { getExtensionForMimeType, getMediaMime } from '../../../base/common/mime.js';
+import { getExtensionForMimeType, getMediaMime, getMediaOrTextMime } from '../../../base/common/mime.js';
 import { Schemas } from '../../../base/common/network.js';
 import { IObservable, observableValue } from '../../../base/common/observable.js';
 import { dirname as resourcesDirname, extname as resourcesExtname, extUriBiasedIgnorePathCase, isEqual, isEqualOrParent, joinPath } from '../../../base/common/resources.js';
@@ -5378,7 +5378,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return {
 				data: encoding === ContentEncoding.Base64 ? encodeBase64(content.value) : content.value.toString(),
 				encoding,
-				contentType: getMediaMime(uri.path) ?? 'application/octet-stream',
+				contentType: getMediaOrTextMime(uri.path) ?? 'application/octet-stream',
 			};
 		} catch (e) {
 			const error = e instanceof Error ? e : new Error(String(e));

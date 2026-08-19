@@ -1303,7 +1303,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 		transport.fireMessage({
 			jsonrpc: '2.0',
 			id: 1,
-			result: { kind: 'archive', resource: 'file:///tmp/agent-host-debug.zip', providerLogsIncluded: true, size: 1024, uncompressedSize: 2048 },
+			result: { kind: 'archive', resource: 'file:///tmp/agent-host-debug.zip', providerLogsIncluded: true, size: 1024, uncompressedSize: 2048, entries: [{ path: 'agenthost.log', size: 2048 }] },
 		});
 		const result = await resultPromise;
 		assert.deepStrictEqual({
@@ -1314,6 +1314,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 			scheme: result.resource.scheme,
 			authority: result.resource.authority,
 			path: result.resource.path,
+			entries: result.entries,
 		}, {
 			kind: 'archive',
 			providerLogsIncluded: true,
@@ -1322,6 +1323,47 @@ suite('RemoteAgentHostProtocolClient', () => {
 			scheme: 'vscode-agent-host',
 			authority: 'test.example__1234',
 			path: '/tmp/agent-host-debug.zip',
+			entries: [{ path: 'agenthost.log', size: 2048 }],
+		});
+	});
+
+	test('collectDebugLogs accepts an archive that expands beyond the transfer limit', async () => {
+		const { client, transport } = createClient();
+		const resultPromise = client.collectDebugLogs(URI.parse('copilotcli:/session-1'), 'archive');
+		const entrySize = 10 * 1024 * 1024;
+		transport.fireMessage({
+			jsonrpc: '2.0', id: 1,
+			result: {
+				kind: 'archive', resource: 'file:///tmp/agent-host-debug.zip', providerLogsIncluded: true,
+				size: 1024, uncompressedSize: entrySize * 2,
+				entries: [{ path: 'process.log', size: entrySize }, { path: 'events.jsonl', size: entrySize }],
+			},
+		});
+
+		assert.strictEqual((await resultPromise).uncompressedSize, entrySize * 2);
+	});
+
+	test('collectDebugLogs rejects an unsafe or inconsistent artifact manifest', async () => {
+		const unsafe = createClient();
+		const unsafeResult = unsafe.client.collectDebugLogs(URI.parse('copilotcli:/session-1'), 'archive');
+		unsafe.transport.fireMessage({
+			jsonrpc: '2.0', id: 1,
+			result: { kind: 'archive', resource: 'file:///tmp/agent-host-debug.zip', providerLogsIncluded: true, size: 10, uncompressedSize: 10, entries: [{ path: '../secret', size: 10 }] },
+		});
+
+		const inconsistent = createClient();
+		const inconsistentResult = inconsistent.client.collectDebugLogs(URI.parse('copilotcli:/session-1'), 'archive');
+		inconsistent.transport.fireMessage({
+			jsonrpc: '2.0', id: 1,
+			result: { kind: 'archive', resource: 'file:///tmp/agent-host-debug.zip', providerLogsIncluded: true, size: 10, uncompressedSize: 10, entries: [{ path: 'agenthost.log', size: 9 }] },
+		});
+
+		assert.deepStrictEqual({
+			unsafe: await unsafeResult.then(() => 'resolved', error => error.message),
+			inconsistent: await inconsistentResult.then(() => 'resolved', error => error.message),
+		}, {
+			unsafe: 'Agent Host returned an invalid debug log artifact manifest entry',
+			inconsistent: 'Agent Host debug log artifact manifest size does not match its declared size',
 		});
 	});
 
@@ -1331,7 +1373,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 		transport.fireMessage({
 			jsonrpc: '2.0',
 			id: 1,
-			result: { kind: 'archive', resource: 'vscode-userdata:/User/settings.json', providerLogsIncluded: true, size: 10, uncompressedSize: 10 },
+			result: { kind: 'archive', resource: 'vscode-userdata:/User/settings.json', providerLogsIncluded: true, size: 10, uncompressedSize: 10, entries: [{ path: 'agenthost.log', size: 10 }] },
 		});
 
 		await assertRemoteProtocolError(resultPromise, {

@@ -69,7 +69,7 @@ export interface IAgentHostDebugLogsExport {
  */
 export interface IAgentHostDebugLogsHostArtifact {
 	readonly artifact: IAgentHostDebugLogsArtifact;
-	readonly readChunk: (position: number) => Promise<IAgentHostDebugLogsChunk>;
+	readonly readChunk: (resource: URI, position: number) => Promise<IAgentHostDebugLogsChunk>;
 }
 
 export const IAgentHostDebugLogsExportService = createDecorator<IAgentHostDebugLogsExportService>('agentHostDebugLogsExportService');
@@ -90,7 +90,7 @@ export class BrowserAgentHostDebugLogsExportService implements IAgentHostDebugLo
 	) { }
 
 	async save(exportName: string, files: readonly IAgentHostDebugLogFile[], hostArtifact: IAgentHostDebugLogsHostArtifact): Promise<boolean> {
-		return exportFilesToLocalFolder(this.fileDialogService, this.fileService, exportName, files, hostArtifact.artifact);
+		return exportFilesToLocalFolder(this.fileDialogService, this.fileService, exportName, files, hostArtifact);
 	}
 }
 
@@ -189,6 +189,7 @@ export async function collectAgentHostDebugLogs(
 		} else {
 			const remoteConnection = getRemoteConnectionForSession(activeSession.resource, remoteAgentHostService.connections);
 			if (remoteConnection) {
+				channelIds.add(remoteAgentHostLogOutputChannelId(remoteConnection.address));
 				const remoteConnectionId = sanitizeFilePart(remoteConnection.address);
 				ahpLogNameFilter = name => name.includes(remoteConnectionId);
 			}
@@ -267,16 +268,13 @@ export async function collectAgentHostDebugLogs(
 	return {
 		files,
 		exportName: `ah-logs${titleSlug}`,
-		hostArtifact: { artifact: hostArtifact, readChunk: createChunkReader(connection, hostArtifact.resource) },
+		hostArtifact: { artifact: hostArtifact, readChunk: createChunkReader(connection) },
 	};
 }
 
 /** Binds a connection's chunked artifact read to one artifact. */
-function createChunkReader(
-	connection: IAgentConnection,
-	resource: URI,
-): (position: number) => Promise<IAgentHostDebugLogsChunk> {
-	return position => connection.readDebugLogsChunk(resource, position);
+function createChunkReader(connection: IAgentConnection): (resource: URI, position: number) => Promise<IAgentHostDebugLogsChunk> {
+	return (resource, position) => connection.readDebugLogsChunk(resource, position);
 }
 
 export async function exportAgentHostDebugLogs(
@@ -373,7 +371,7 @@ async function exportFilesToLocalFolder(
 	fileService: IFileService,
 	exportName: string,
 	files: readonly IAgentHostDebugLogFile[],
-	hostArtifact: IAgentHostDebugLogsArtifact | undefined,
+	hostArtifact: IAgentHostDebugLogsHostArtifact,
 ): Promise<boolean> {
 	const folders = await fileDialogService.showOpenDialog({
 		title: localize('exportDebugLogs.folderDialogTitle', "Select Folder for Agent Host Debug Logs"),
@@ -390,15 +388,10 @@ async function exportFilesToLocalFolder(
 
 	const exportFolder = joinPath(parentFolder, exportName);
 	await fileService.createFolder(exportFolder);
-	if (hostArtifact) {
-		if (hostArtifact.kind !== 'directory') {
-			throw new Error(`Expected an Agent Host debug-log directory, got ${hostArtifact.kind}`);
-		}
-		const hostFolder = await fileService.resolve(hostArtifact.resource);
-		for (const child of hostFolder.children ?? []) {
-			await fileService.copy(child.resource, joinPath(exportFolder, child.name), true);
-		}
+	if (hostArtifact.artifact.kind !== 'directory') {
+		throw new Error(`Expected an Agent Host debug-log directory, got ${hostArtifact.artifact.kind}`);
 	}
+	await copyHostArtifactDirectory(exportFolder, hostArtifact, fileService);
 	for (const file of files) {
 		const segments = toSafeRelativePathSegments(file.path);
 		if (segments.length === 0) {
@@ -419,6 +412,45 @@ async function exportFilesToLocalFolder(
 		}
 	}
 	return true;
+}
+
+async function copyHostArtifactDirectory(
+	target: URI,
+	hostArtifact: IAgentHostDebugLogsHostArtifact,
+	fileService: IFileService,
+): Promise<void> {
+	let copiedSize = 0;
+	for (const entry of hostArtifact.artifact.entries) {
+		copiedSize += entry.size;
+		if (copiedSize > hostArtifact.artifact.uncompressedSize) {
+			throw new Error(`Agent Host debug-log directory exceeded its declared size of ${hostArtifact.artifact.uncompressedSize} bytes`);
+		}
+
+		const source = joinPath(hostArtifact.artifact.resource, ...entry.path.split('/'));
+		const segments = toSafeRelativePathSegments(entry.path);
+		if (segments.length === 0) {
+			throw new Error(`Agent Host returned an invalid debug-log artifact path: ${entry.path}`);
+		}
+		let targetFolder = target;
+		for (const segment of segments.slice(0, -1)) {
+			targetFolder = joinPath(targetFolder, segment);
+			await fileService.createFolder(targetFolder);
+		}
+		const entryTarget = joinPath(targetFolder, segments[segments.length - 1]);
+		if (source.scheme === Schemas.file) {
+			const sourceStat = await fileService.resolve(source, { resolveMetadata: true });
+			if (!sourceStat.isFile || sourceStat.isSymbolicLink || sourceStat.size !== entry.size) {
+				throw new Error(`Agent Host debug-log file no longer matches its manifest: ${entry.path}`);
+			}
+			await fileService.copy(source, entryTarget, true);
+			continue;
+		}
+		const artifact = { ...hostArtifact.artifact, resource: source, size: entry.size, uncompressedSize: entry.size };
+		await fileService.writeFile(entryTarget, createHostArtifactStream(artifact, position => hostArtifact.readChunk(source, position)));
+	}
+	if (copiedSize !== hostArtifact.artifact.uncompressedSize) {
+		throw new Error(`Agent Host debug-log directory manifest accounts for ${copiedSize} bytes, expected ${hostArtifact.artifact.uncompressedSize}`);
+	}
 }
 
 async function createDebugLogFile(path: string, resource: URI, fileService: IFileService, size?: number, maxInlineSize?: number): Promise<IAgentHostDebugLogFile> {

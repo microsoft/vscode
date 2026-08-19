@@ -220,7 +220,7 @@ class MockAgentService implements IAgentService {
 	async diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> { return { url }; }
 	async collectDebugLogs(session: URI | undefined, kind: 'archive' | 'directory') {
 		this.collectDebugLogsCalls.push({ session: session?.toString(), kind });
-		return { kind, resource: URI.file('/tmp/agent-host-debug.zip'), providerLogsIncluded: true, size: 1024, uncompressedSize: 2048 };
+		return { kind, resource: URI.file('/tmp/agent-host-debug.zip'), providerLogsIncluded: true, size: 1024, uncompressedSize: 2048, entries: [{ path: 'agenthost.log', size: 2048 }] };
 	}
 	async authenticate(_params: AuthenticateParams): Promise<AuthenticateResult> { return { authenticated: true }; }
 	getAuthToken(): string | undefined { return undefined; }
@@ -638,7 +638,7 @@ suite('ProtocolServerHandler', () => {
 			response: {
 				jsonrpc: '2.0',
 				id: 12,
-				result: { kind: 'archive', resource: 'file:///tmp/agent-host-debug.zip', providerLogsIncluded: true, size: 1024, uncompressedSize: 2048 },
+				result: { kind: 'archive', resource: 'file:///tmp/agent-host-debug.zip', providerLogsIncluded: true, size: 1024, uncompressedSize: 2048, entries: [{ path: 'agenthost.log', size: 2048 }] },
 			},
 			calls: [{ session: 'copilotcli:/session-1', kind: 'archive' }],
 		});
@@ -672,7 +672,7 @@ suite('ProtocolServerHandler', () => {
 			response: {
 				jsonrpc: '2.0',
 				id: 16,
-				result: { kind: 'archive', resource: 'file:///tmp/agent-host-debug.zip', providerLogsIncluded: true, size: 1024, uncompressedSize: 2048 },
+				result: { kind: 'archive', resource: 'file:///tmp/agent-host-debug.zip', providerLogsIncluded: true, size: 1024, uncompressedSize: 2048, entries: [{ path: 'agenthost.log', size: 2048 }] },
 			},
 			calls: { session: undefined, kind: 'archive' },
 		});

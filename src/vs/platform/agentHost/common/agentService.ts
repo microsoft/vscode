@@ -72,6 +72,8 @@ export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLogging
 
 export type AgentHostDebugLogsArtifactKind = 'archive' | 'directory';
 export const AGENT_HOST_DEBUG_LOGS_MAX_BYTES = 16 * 1024 * 1024;
+/** Maximum number of files in one Agent Host debug-log artifact. */
+export const AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES = 1000;
 /**
  * Maximum payload of a single {@link IAgentHostDebugLogsChunk}. Debug-log
  * artifacts are streamed in chunks of at most this size so a remote agent host
@@ -92,12 +94,19 @@ export const AGENT_HOST_DEBUG_LOGS_MAX_STAGED_BYTES = 256 * 1024 * 1024;
  */
 export const AGENT_HOST_DEBUG_LOGS_MAX_FILE_BYTES = 10 * 1024 * 1024;
 
+export interface IAgentHostDebugLogsArtifactEntry {
+	readonly path: string;
+	readonly size: number;
+}
+
 export interface IAgentHostDebugLogsArtifact {
 	readonly kind: AgentHostDebugLogsArtifactKind;
 	readonly resource: URI;
 	readonly providerLogsIncluded: boolean;
 	readonly size: number;
 	readonly uncompressedSize: number;
+	/** Exact regular files staged in the artifact. Paths are relative, normalized, and unique. */
+	readonly entries: readonly IAgentHostDebugLogsArtifactEntry[];
 }
 
 /** One bounded slice of a debug-log artifact, read via `readDebugLogsChunk`. */
