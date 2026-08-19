@@ -270,10 +270,10 @@ The provider ships a rich set of session-scoped UI in `browser/`:
 | `agentHostSessionChangesets.ts` / `agentHostDiffs.ts` | Changeset model, operation mapping/invocation, and diff conversion (`mapProtocolStatus` maps the protocol status bitset → `SessionStatus`). |
 | `agentHostSessionBranchActions.ts` | Branch-related session actions. |
 | `exportDebugLogsAction.ts` | "Export debug logs" developer action. |
-| `openSessionEventsFileActions.ts` | "Open Copilot CLI State File" — Sessions-app variant resolving the session via `ISessionsManagementService.activeSession`. |
+| `openAgentHostStateFileAction.ts` | "Open Agent Host State File" — Sessions-app variant that resolves the active Agent Host connection and asks the owning provider for its live state-file resource. |
 | `mobile/` | Phone-layout variants: `mobileAgentHostModePicker.ts`, the scoped-model-backed `mobileChatInputConfigPicker.ts`, and the provider-backed `mobileChatPhoneInputPresenter.ts`. |
 
-Skill buttons and the `openSessionEventsFile` action are gated on `IsAgentHostSession` (and `ChatContextKeys.enabled`).
+Skill buttons and the state-file action are gated on `IsAgentHostSession` (and `ChatContextKeys.enabled`).
 
 ## Settings
 
@@ -300,4 +300,4 @@ Two synthetic filesystem providers expose JSONC settings editors:
 
 ## Tests
 
-`test/browser/` covers the provider and its pickers: `localAgentHostSessionsProvider.test.ts`, `agentHostAgentPicker.test.ts`, `agentHostAgents.test.ts`, `mobileChatPhoneInputTarget.test.ts`, `agentHostClaudePermissionModePicker.test.ts`, `agentHostSkillButtons.test.ts`, `agentSessionSettingsFileSystemProvider.test.ts`, `openSessionEventsFile.test.ts`, and `agentHost/agentHostPermissionPickerDelegate.test.ts`.
+`test/browser/` covers the provider and its pickers: `localAgentHostSessionsProvider.test.ts`, `agentHostAgentPicker.test.ts`, `agentHostAgents.test.ts`, `mobileChatPhoneInputTarget.test.ts`, `agentHostClaudePermissionModePicker.test.ts`, `agentHostSkillButtons.test.ts`, `agentSessionSettingsFileSystemProvider.test.ts`, `openAgentHostStateFile.test.ts`, and `agentHost/agentHostPermissionPickerDelegate.test.ts`.

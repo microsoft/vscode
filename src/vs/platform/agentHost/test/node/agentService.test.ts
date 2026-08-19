@@ -2537,6 +2537,21 @@ suite('AgentService (node dispatcher)', () => {
 				displayKind: 'document',
 			}]);
 		});
+
+		test('resolves provider-owned session state files through the local management service', async () => {
+			const provider: IAgent = copilotAgent;
+			provider.getSessionStateFile = async session => URI.file(`/state/${AgentSession.id(session)}/events.jsonl`);
+			service.registerProvider(provider);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
+
+			assert.deepStrictEqual({
+				supported: (await managementService.getSessionStateFile(AgentSession.uri('copilot', 'session-1')))?.toString(),
+				unsupported: await managementService.getSessionStateFile(AgentSession.uri('other', 'session-2')),
+			}, {
+				supported: 'file:///state/session-1/events.jsonl',
+				unsupported: undefined,
+			});
+		});
 	});
 
 	suite('createSession', () => {
