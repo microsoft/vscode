@@ -17,6 +17,7 @@ import { IActionViewItemService, NullActionViewItemService } from '../../../../p
 import { IMenu, IMenuService } from '../../../../platform/actions/common/actions.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
+import { InMemoryStorageService, IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IDiffProviderFactoryService } from '../../../browser/widget/diffEditor/diffProviderFactoryService.js';
 import { DiffEditorWidget } from '../../../browser/widget/diffEditor/diffEditorWidget.js';
 import { RefCounted } from '../../../browser/widget/diffEditor/utils.js';
@@ -42,6 +43,7 @@ suite('MultiDiffEditorWidget', () => {
 		services.set(IActionViewItemService, new NullActionViewItemService());
 		services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() { }());
 		services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
+		services.set(IStorageService, disposables.add(new InMemoryStorageService()));
 		services.set(IMenuService, new class extends mock<IMenuService>() {
 			override createMenu(): IMenu {
 				return new class extends mock<IMenu>() {
