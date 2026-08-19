@@ -44,16 +44,18 @@ import { IV8Profile } from '../../profiling/common/profiling.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { CancellationError } from '../../../base/common/errors.js';
-import { zip } from '../../../base/node/zip.js';
+import { extract, validateZip, zip, type IFile } from '../../../base/node/zip.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IProxyAuthService } from './auth.js';
 import { AuthInfo, Credentials, IRequestService } from '../../request/common/request.js';
 import { randomPath } from '../../../base/common/extpath.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, AGENT_HOST_DEBUG_LOGS_MAX_STAGED_BYTES } from '../../agentHost/common/agentService.js';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
 export const INativeHostMainService = createDecorator<INativeHostMainService>('nativeHostMainService');
+const MAX_MERGED_ZIP_SIZE = 16 * 1024 * 1024;
 
 export class NativeHostMainService extends Disposable implements INativeHostMainService {
 
@@ -1423,16 +1425,51 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region Zip
 
 	async createZipFile(windowId: number | undefined, zipPath: URI, files: INativeZipFile[]): Promise<void> {
-		await zip(zipPath.fsPath, files.map(file => {
-			if (hasKey(file, { contents: true })) {
-				return file;
+		const zipFiles: IFile[] = [];
+		const temporaryDirectories: string[] = [];
+		try {
+			for (const file of files) {
+				if (hasKey(file, { contents: true })) {
+					zipFiles.push(file);
+					continue;
+				}
+				if (hasKey(file, { sourceArchive: true })) {
+					const sourceArchive = URI.revive(file.sourceArchive);
+					if (sourceArchive.scheme !== Schemas.file) {
+						throw new Error(`Cannot merge non-local archive '${sourceArchive.toString()}'`);
+					}
+					const temporaryDirectory = join(this.environmentMainService.tmpDir.fsPath, `vscode-zip-merge-${randomPath()}`);
+					temporaryDirectories.push(temporaryDirectory);
+					const archiveSize = (await fs.promises.stat(sourceArchive.fsPath)).size;
+					if (archiveSize > MAX_MERGED_ZIP_SIZE) {
+						throw new Error(`ZIP is too large to merge (${archiveSize} bytes; limit ${MAX_MERGED_ZIP_SIZE} bytes)`);
+					}
+					await validateZip(sourceArchive.fsPath, {
+						maxEntries: AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES,
+						maxUncompressedSize: AGENT_HOST_DEBUG_LOGS_MAX_STAGED_BYTES,
+					});
+					await extract(sourceArchive.fsPath, temporaryDirectory, {}, CancellationToken.None);
+					zipFiles.push(...await collectZipFiles(temporaryDirectory));
+					continue;
+				}
+				const source = URI.revive(file.source);
+				if (source.scheme !== Schemas.file) {
+					throw new Error(`Cannot add non-local resource '${source.toString()}' to a zip file`);
+				}
+				zipFiles.push({ path: file.path, localPath: source.fsPath, localPathSize: file.size });
 			}
-			const source = URI.revive(file.source);
-			if (source.scheme !== Schemas.file) {
-				throw new Error(`Cannot add non-local resource '${source.toString()}' to a zip file`);
+
+			const paths = new Set<string>();
+			for (const file of zipFiles) {
+				if (paths.has(file.path)) {
+					throw new Error(`Duplicate ZIP entry '${file.path}'`);
+				}
+				paths.add(file.path);
 			}
-			return { path: file.path, localPath: source.fsPath, localPathSize: file.size };
-		}));
+			await zip(zipPath.fsPath, zipFiles);
+		} finally {
+			await Promise.all(temporaryDirectories.map(directory => Promises.rm(directory)));
+		}
 	}
 
 	//#endregion
@@ -1494,4 +1531,18 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		return this.auxiliaryWindowsMainService.getWindowByWebContents(contents);
 	}
+}
+
+async function collectZipFiles(root: string, relative = ''): Promise<IFile[]> {
+	const entries = await fs.promises.readdir(join(root, relative), { withFileTypes: true });
+	const files: IFile[] = [];
+	for (const entry of entries) {
+		const path = relative ? posix.join(relative, entry.name) : entry.name;
+		if (entry.isDirectory()) {
+			files.push(...await collectZipFiles(root, path));
+		} else if (entry.isFile()) {
+			files.push({ path, localPath: join(root, path) });
+		}
+	}
+	return files;
 }
