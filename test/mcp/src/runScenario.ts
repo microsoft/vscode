@@ -69,8 +69,8 @@ class SkipStep extends Error { }
 function loadScenario(scenarioPath: string): Scenario {
 	// A CommonJS scenario needs a `.cjs` extension because this package is an ES
 	// module package; an ES module scenario exporting a default works as well.
-	const loaded = require(scenarioPath) as Scenario | { default?: Scenario };
-	const scenario = ('default' in loaded && loaded.default ? loaded.default : loaded) as Scenario;
+	const loaded = require(scenarioPath) as Scenario & { default?: Scenario };
+	const scenario = loaded?.default ?? loaded;
 	if (!scenario || typeof scenario !== 'object') {
 		throw new Error(`Scenario '${scenarioPath}' did not export a scenario object.`);
 	}
