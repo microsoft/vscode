@@ -477,7 +477,7 @@ export class Git {
 		};
 
 		try {
-			const command = ['clone', url.includes(' ') ? encodeURI(url) : url, folderPath, '--progress'];
+			const command = ['clone', url.includes(' ') ? encodeURI(url) : url, folderName, '--progress'];
 			if (options.recursive) {
 				command.push('--recursive');
 			}
