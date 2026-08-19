@@ -6440,14 +6440,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		suite('initial provider migration race (#331648)', () => {
-			/**
-			 * Reproduces the startup ordering of #331648: the provider's
-			 * registration-time catalog migration (`listChatsToMigrate`) is still
-			 * in flight, during which per-session `getChatMetadata` cannot yet
-			 * answer and returns `undefined`. When `catalogAvailable` is false the
-			 * migration and its forced retry both fail, modelling a persistently
-			 * unavailable catalog.
-			 */
+			/** Provider whose catalog migration is gated; per-session metadata is unavailable until it completes. */
 			class StartupRaceAgent extends MockAgent {
 				override readonly onDidDiscoverChats = Event.None;
 				readonly migrationGate = new DeferredPromise<void>();
@@ -6582,6 +6575,38 @@ suite('AgentService (node dispatcher)', () => {
 				}, {
 					isProtocolError: true,
 					code: JSON_RPC_INTERNAL_ERROR,
+					hydrated: false,
+				});
+			});
+
+			test('reports a known (registered) session whose provider is currently unavailable as internal error, not not-found', async () => {
+				// Reviewer scenario (#331721): on a backfilled restart the one-time
+				// migration short-circuits without contacting the provider, so a
+				// provider that cannot currently describe the session (e.g. Claude
+				// whose SDK is not downloaded yet) returns `undefined`. Because the
+				// session is known to the registry, that miss must be transient, not
+				// the sticky false not-found.
+				const db = new TransientRegistryWriteDatabase();
+				const session = AgentSession.uri('copilot', 'registered-but-unavailable');
+				await db.registerSession(session.toString(), { provider: 'copilot', startTime: 1, source: 'restore' }, { checkTombstone: false });
+				await db.markProviderBackfilled('copilot');
+				const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
+				const agent = disposables.add(new StartupRaceAgent('copilot'));
+				agent.migrationGate.complete();
+				svc.registerProvider(agent);
+
+				let rejected: unknown;
+				await svc.restoreSession(session).catch(err => { rejected = err; });
+
+				assert.deepStrictEqual({
+					isProtocolError: rejected instanceof ProtocolError,
+					code: (rejected as ProtocolError)?.code,
+					migrationShortCircuited: agent.listChatsToMigrateCalls === 0,
+					hydrated: !!svc.stateManager.getSessionState(session.toString()),
+				}, {
+					isProtocolError: true,
+					code: JSON_RPC_INTERNAL_ERROR,
+					migrationShortCircuited: true,
 					hydrated: false,
 				});
 			});
@@ -7239,10 +7264,8 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('coalesces concurrent restores for the same session', async () => {
 			class BlockingRestoreAgent extends MockAgent {
-				// Isolate this test to restore-path coalescing: without this, the
-				// provider's discovery fires a session-list reconciliation whose
-				// own `getChatMetadata` read is incidental to restore and races the
-				// assertions (it previously stayed outside the window only by timing).
+				// Disable discovery so only restore drives `getChatMetadata` (discovery's
+				// reconciliation read is incidental and would race the assertions).
 				override readonly onDidDiscoverChats = Event.None;
 				readonly metadataReached = new DeferredPromise<void>();
 				readonly metadataGate = new DeferredPromise<void>();
