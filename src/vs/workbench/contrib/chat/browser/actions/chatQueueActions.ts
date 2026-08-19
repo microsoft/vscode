@@ -15,7 +15,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatRequestQueueKind, IChatService } from '../../common/chatService/chatService.js';
-import { IChatSideChatService } from '../../common/chatSideChatService.js';
+import { ChatSideChatSendResultKind, IChatSideChatService } from '../../common/chatSideChatService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { isRequestVM } from '../../common/model/chatViewModel.js';
 import { IChatWidgetService } from '../chat.js';
@@ -213,7 +213,10 @@ export class ChatAskInSideChatAction extends Action2 {
 		// actions; the text is restored below if the side chat cannot be created.
 		widget.setInput('');
 		try {
-			await sideChatService.askInSideChat(sessionResource, query, selection);
+			const result = await sideChatService.askInSideChat(sessionResource, query, selection);
+			if (result.kind === ChatSideChatSendResultKind.FailedAndPresented) {
+				logService.error('[askInSideChat] Failed to send side chat', result.error);
+			}
 		} catch (err) {
 			logService.error('[askInSideChat] Failed to create side chat', err);
 			notificationService.error(localize('chat.askInSideChat.createFailed', "The side chat could not be created."));

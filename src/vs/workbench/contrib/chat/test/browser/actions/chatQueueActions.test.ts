@@ -25,7 +25,7 @@ import { TestNotificationService } from '../../../../../../platform/notification
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { ChatAskInSideChatAction, ChatQueueMessageAction, ChatSteerWithMessageAction, registerChatQueueActions } from '../../../browser/actions/chatQueueActions.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
-import { IChatSideChatService } from '../../../common/chatSideChatService.js';
+import { ChatSideChatSendResultKind, IChatSideChatService } from '../../../common/chatSideChatService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatModel, IChatRequestModel } from '../../../common/model/chatModel.js';
 import { IChatViewModel } from '../../../common/model/chatViewModel.js';
@@ -130,7 +130,7 @@ suite('ChatSteerWithMessageAction', () => {
 suite('ChatAskInSideChatAction', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(options: { canAsk?: boolean; askFails?: boolean } = {}) {
+	function setup(options: { canAsk?: boolean; askFails?: boolean; askFailurePresented?: boolean } = {}) {
 		const store = disposables.add(new DisposableStore());
 		const instantiationService = store.add(new TestInstantiationService());
 		const sessionResource = URI.parse('test:///chat/source');
@@ -154,7 +154,12 @@ suite('ChatAskInSideChatAction', () => {
 					asked.push('failed');
 					throw new Error('nope');
 				}
+				if (options.askFailurePresented) {
+					asked.push('failedAndPresented');
+					return { kind: ChatSideChatSendResultKind.FailedAndPresented, error: new Error('nope') };
+				}
 				asked.push(`${resource.toString()}:${query}`);
+				return { kind: ChatSideChatSendResultKind.Sent };
 			},
 		}));
 		instantiationService.stub(INotificationService, new TestNotificationService());
@@ -188,6 +193,17 @@ suite('ChatAskInSideChatAction', () => {
 		assert.deepStrictEqual({ asked, input: getInput() }, {
 			asked: ['failed'],
 			input: 'what about this?',
+		});
+	});
+
+	test('keeps the composer cleared when the side chat presents its own failure', async () => {
+		const { run, asked, getInput } = setup({ askFailurePresented: true });
+
+		await run();
+
+		assert.deepStrictEqual({ asked, input: getInput() }, {
+			asked: ['failedAndPresented'],
+			input: '',
 		});
 	});
 
