@@ -8,7 +8,7 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import { pathToFileURL } from 'url';
 import { CancelablePromise, createCancelablePromise, DeferredPromise, Delayer, disposableTimeout, Limiter, raceTimeout, retry, Sequencer, SequencerByKey } from '../../../../base/common/async.js';
-import { type CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { CancellationError, getErrorMessage } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -40,7 +40,7 @@ import { createPricingMetaFromBilling, hasLongContextSurcharge, normalizeCAPIBil
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, DEFAULT_SESSION_CUSTOMIZATION_DISCOVERY_MODE, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostMcpServersConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
 import { prepareSideChatPrompt, sliceSideChatTurns } from '../agentPeerChats.js';
@@ -49,6 +49,7 @@ import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultR
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { AgentHostCopilotManagedSandboxEnabledConfigKey } from '../../common/sandboxConfigSchema.js';
 import { ICopilotConfigSlashCommandState } from '../../common/copilotConfigSlashCommands.js';
 import { getCopilotHomePath } from '../../common/copilotHome.js';
 import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDataService.js';
@@ -58,8 +59,8 @@ import type { ErrorInfo } from '../../common/state/protocol/common/state.js';
 import { ProtectedResourceMetadata, type AgentSelection, type ChildCustomizationType, type ConfigPropertySchema, type ConfigSchema, type CustomizationEnablement, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, AuthRequiredReason, type AuthRequiredParams, type SessionAction } from '../../common/state/sessionActions.js';
 import { areAdditionalWorkingDirectoriesEqual } from '../../common/state/sessionWorkingDirectories.js';
-import { AgentCustomization, CustomizationLoadStatus, CustomizationType, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, buildDefaultChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_READ_DB_KEY, isDefaultChatUri, withSessionEhcliAdoptable, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
-import { getByokLmAgentModelId } from '../../common/agentHostByokLm.js';
+import { AgentCustomization, CustomizationLoadStatus, CustomizationType, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, buildDefaultChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_READ_DB_KEY, isDefaultChatUri, withSessionEhcliAdoptable, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { getByokLmAgentModelId, resolveByokLmEnablement } from '../../common/agentHostByokLm.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
@@ -82,12 +83,14 @@ import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConver
 import { CopilotGitHubTelemetryForwarder } from './copilotGitHubTelemetryForwarder.js';
 import { CopilotSessionLauncher, ContextSizeConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, isCopilotReasoningEffort, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
 import { ShellManager } from './copilotShellTools.js';
+import { getServerManagedSandboxEnabled } from './sandboxConfigForSdk.js';
 import { isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
 import { AgentHostGitHubTelemetryRouter } from '../agentHostGitHubTelemetryRouter.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { CopilotSlashCommandCompletionProvider, ICopilotRuntimeSlashCommandQueryOptions } from './copilotSlashCommandCompletionProvider.js';
-import { DiscoveredType, SessionCustomizationDiscovery, areDiscoveredDirectoriesEqual, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
+import { DiscoveredType, SessionCustomizationDiscovery, areDiscoveredDirectoriesEqual, workspaceDirectoryHasHooks, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
+import { computeFolderPickerDecisionForRoots } from '../shared/folderPickerDecision.js';
 import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement.js';
 import { getAppNodeModulesPath } from '../appNodeModules.js';
 import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
@@ -759,6 +762,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	private readonly _hostCustomizations = new ResourceMap<readonly Customization[]>();
 	private readonly _slashCommandProvider: CopilotSlashCommandProvider;
+	private _managedSandboxEnabled: boolean | undefined;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -779,6 +783,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
 		@IAgentHostProxyResolver private readonly _proxyResolver: IAgentHostProxyResolver,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
 		this._lastManagedSettingsPermissions = this._managedSettingsService.permissions;
@@ -847,12 +852,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 					}
 				}
 			}
+			this._refreshByokModels();
 		}));
 
 		// Surface renderer BYOK models in the picker: republish them whenever the
 		// set of connected renderer bridges, or any renderer's models, change.
-		// The registry is only populated when `chat.agentHost.byokModels.enabled`
-		// is on, so this stays a no-op (empty list) while the feature is off.
 		this._register(this._byokBridgeRegistry.onDidChangeModels(() => {
 			this._logService.info('[Copilot] BYOK bridge changed; refreshing models');
 			this._refreshByokModels();
@@ -1239,6 +1243,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			throw new Error(`Copilot runtime diagnostics exceeded 4.5 seconds while ${stage}.`);
 		}
 		this._logService.debug('[Copilot] Runtime managed-settings diagnostics collected');
+		this._updateManagedSandbox(result.resolved);
 		return {
 			...result.resolved,
 			...(result.account ? { account: result.account } : {}),
@@ -1290,6 +1295,31 @@ export class CopilotAgent extends Disposable implements IAgent {
 		);
 		const customizations = [...fromPlugins, ...topLevelMcp];
 		return applyMcpServerEnablement(customizations, this._retainedHostCustomizations(session));
+	}
+
+	/**
+	 * Copilot applies hooks from the primary working directory only (see
+	 * `_hookWorkingDirectories` in sessionCustomizationDiscovery), so in a
+	 * multi-root workspace the folder carrying hooks must be the primary. Since
+	 * only the primary's hooks run, the picker is only needed to resolve
+	 * ambiguity between folders that carry hooks:
+	 * - several working directories have hooks under `.github/hooks/` → show the
+	 *   Folder picker so the user chooses which folder's hooks lead;
+	 * - exactly one does → pin it as the primary and hide the picker;
+	 * - none do → hide the picker and leave the current selection as-is (any
+	 *   folder is a valid primary when there are no hooks to run).
+	 *
+	 * The scan is intentionally scoped to `.github/hooks/*.json` only — it does
+	 * NOT cover the `settings.json`-based hook sources discovery also recognizes
+	 * (`.github/copilot/settings.json`, `.claude/settings.json`) — and never
+	 * exposes what it finds as customizations, so what a session exposes is
+	 * unchanged.
+	 */
+	async computeFolderPickerDecision(workingDirectories: readonly URI[], token: CancellationToken = CancellationToken.None): Promise<ISessionFolderPickerDecision | undefined> {
+		if (!this._isMultiRootEnabled()) {
+			return undefined;
+		}
+		return computeFolderPickerDecisionForRoots(workingDirectories, (directory, t) => workspaceDirectoryHasHooks(this._fileService, directory, t), token);
 	}
 
 	async handleMcpRequest(chat: URI, serverName: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
@@ -1388,6 +1418,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._updateRestrictedTelemetry(token);
 		this._refreshProxy();
 		if (!token) {
+			this._updateManagedSandbox(undefined);
 			await this._requestClientRestart('GitHub authentication cleared');
 			void this._scheduleModelRefresh();
 			return;
@@ -1418,7 +1449,30 @@ export class CopilotAgent extends Disposable implements IAgent {
 			await this._requestClientRestart('GitHub credential update failed');
 		}
 		await this._resolveCopilotSku(token);
+		void this._refreshManagedSandbox();
 		void this._scheduleModelRefresh();
+	}
+
+	private async _refreshManagedSandbox(): Promise<void> {
+		try {
+			await this.getManagedSettingsDiagnostics();
+		} catch (error) {
+			this._logService.warn(`[Copilot] Failed to refresh managed sandbox settings: ${getErrorMessage(error)}`);
+		}
+	}
+
+	private _updateManagedSandbox(data: ManagedSettingsResolvedData | undefined): void {
+		const enabled = data ? getServerManagedSandboxEnabled(data) : undefined;
+		if (this._managedSandboxEnabled === enabled) {
+			return;
+		}
+		this._managedSandboxEnabled = enabled;
+		for (const session of this._allLiveSessions()) {
+			session.setManagedSandboxEnabled(enabled);
+		}
+		this._configurationService.publishRootTransientValues?.({
+			[AgentHostCopilotManagedSandboxEnabledConfigKey]: enabled ?? null,
+		});
 	}
 
 	private _handleCopilotSessionAuthRequired(): void {
@@ -1676,6 +1730,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	private _refreshByokModels(): void {
 		if (this._shutdownPromise) {
+			return;
+		}
+		const rootConfigValue = this._configurationService.getRootValue(platformRootSchema, AgentHostByokModelsEnabledConfigKey);
+		const { enabled, trace } = resolveByokLmEnablement(rootConfigValue);
+		this._logService.trace(`[Copilot] BYOK model publication ${trace}`);
+		if (!enabled) {
+			this._byokModels = [];
+			this._publishModels();
 			return;
 		}
 		this._byokModels = this._byokBridgeRegistry.getModels().map((m): IAgentModelInfo => {
@@ -2141,6 +2203,25 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const result = mapped.filter((s): s is IAgentChatMetadata => s !== undefined);
 		this._logService.info(`[Copilot] Found ${result.length} legacy sessions`);
 		return result;
+	}
+
+	async collectDebugLogs(session: URI | undefined, outputDirectory: URI): Promise<boolean> {
+		const sessionTarget = session ? this._findSessionChat(session) : undefined;
+		if (sessionTarget) {
+			await sessionTarget.collectDebugLogs(outputDirectory, true);
+			return true;
+		}
+
+		// A new/closed UI session can have a URI without a live SDK session. In
+		// that case this is a host-wide export: use any live SDK session only as
+		// the gateway to collect process logs, without attributing events or shell
+		// logs from that unrelated session.
+		const processLogsTarget = this._allLiveSessions()[0];
+		if (!processLogsTarget) {
+			return false;
+		}
+		await processLogsTarget.collectDebugLogs(outputDirectory, false);
+		return true;
 	}
 
 	private _copilotChatDiscovery: Promise<void> | undefined;
@@ -2637,6 +2718,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		abort: (chatUri: URI, context: URI | IAgentChatContext): Promise<void> => {
 			return this._abortSession(chatUri, context);
 		},
+		getModel: (chatUri: URI): ModelSelection | undefined => this._chatBackings.get(chatUri.toString())?.model,
 		changeModel: (chatUri: URI, model: ModelSelection, context: URI | IAgentChatContext): Promise<void> => {
 			return this._changeModel(chatUri, model, context);
 		},
@@ -2803,7 +2885,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				project,
 				workspaceless: isWorkspaceless,
 			});
-			this._chatBackings.set(chat.toString(), { sdkSessionId });
+			this._chatBackings.set(chat.toString(), { sdkSessionId, ...(options.model ? { model: options.model } : {}) });
 		}
 
 		this._logService.info(`[Copilot] Chat created; its backing stays deferred until the first send: ${session.toString()}`);
@@ -3075,6 +3157,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				activeClientToolSet: activeClient.toolSet,
 				shellManager,
 				githubToken: this._githubToken,
+				managedSandboxEnabled: this._managedSandboxEnabled,
 				model: provisional.model,
 				longContextWindow: this._longContextWindowFor(provisional.model?.id),
 				freeLongContext: this._isFreeLongContext(provisional.model?.id),
@@ -3579,6 +3662,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
 					githubToken: this._githubToken,
+					managedSandboxEnabled: this._managedSandboxEnabled,
 					fallback: { model, longContextWindow: this._longContextWindowFor(model?.id), freeLongContext: this._isFreeLongContext(model?.id) },
 				};
 			} else if (options.sideChat) {
@@ -3608,6 +3692,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
 					githubToken: this._githubToken,
+					managedSandboxEnabled: this._managedSandboxEnabled,
 					fallback: { model, longContextWindow: this._longContextWindowFor(model?.id), freeLongContext: this._isFreeLongContext(model?.id) },
 				};
 			} else {
@@ -3623,6 +3708,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
 					githubToken: this._githubToken,
+					managedSandboxEnabled: this._managedSandboxEnabled,
 					model,
 					longContextWindow: this._longContextWindowFor(model?.id),
 					freeLongContext: this._isFreeLongContext(model?.id),
@@ -4024,6 +4110,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
 					githubToken: this._githubToken,
+					managedSandboxEnabled: this._managedSandboxEnabled,
 					fallback: { model: info.model, longContextWindow: this._longContextWindowFor(info.model?.id), freeLongContext: this._isFreeLongContext(info.model?.id) },
 				};
 				agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, { sessionUri: configurationResource, chatChannelUri: chat, resource: context.resource });
@@ -4316,6 +4403,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				sessionLauncher: this._sessionLauncher,
 				launchPlan,
 				shellManager: launchPlan.shellManager,
+				managedSandboxEnabled: this._managedSandboxEnabled,
+				onManagedSettingsResolved: data => this._updateManagedSandbox(data),
 				workingDirectory: launchPlan.workingDirectory,
 				customizationDirectory,
 				clientSnapshot: launchPlan.snapshot,
@@ -4482,6 +4571,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			activeClientToolSet: activeClient.toolSet,
 			shellManager,
 			githubToken: this._githubToken,
+			managedSandboxEnabled: this._managedSandboxEnabled,
 			workspaceless: storedMetadata.workspaceless,
 			fallback: {
 				model: storedMetadata.model,

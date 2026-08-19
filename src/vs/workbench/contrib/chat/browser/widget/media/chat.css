@@ -4413,8 +4413,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			background-clip: text;
 			-webkit-background-clip: text;
 			-webkit-text-fill-color: transparent;
-			animation: chat-thinking-shimmer 3s linear infinite;
-			will-change: background-position;
 		}
 
 		.monaco-toolbar .action-item.chat-restore-checkpoint-item.confirming .action-label:first-child .codicon {
@@ -4787,19 +4785,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-voice-mode-compact,
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-loading-compact,
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-debug-disconnect-compact {
-	box-sizing: border-box;
-	width: 22px;
-	height: 22px;
-	justify-content: center;
-	border-radius: var(--vscode-cornerRadius-circle);
-	font-size: var(--vscode-codiconFontSize-compact);
-}
-
-/* Add Context (+) button (quick / omni chat): the attach action lives in the
-	execute toolbar there, so give its glyph the same compact control tier as the
-	send and voice buttons. Without this it falls back to the default 16px codicon
-	size and reads visibly larger than the send button beside it. */
-.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-add-compact {
 	box-sizing: border-box;
 	width: 22px;
 	height: 22px;

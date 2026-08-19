@@ -16,7 +16,7 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
-import type { SchemaValues } from '../../common/agentHostSchema.js';
+import { AgentHostByokModelsEnabledConfigKey, type SchemaValues } from '../../common/agentHostSchema.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import type { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
@@ -290,11 +290,15 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 		return { service, get starts() { return starts; }, get disposes() { return disposes; } };
 	}
 
-	function createLauncher(store: DisposableStore, proxy: IByokLmProxyService, registry: IByokLmBridgeRegistry): CopilotSessionLauncher {
+	function createLauncher(store: DisposableStore, proxy: IByokLmProxyService, registry: IByokLmBridgeRegistry, byokModelsEnabled = true): CopilotSessionLauncher {
 		const services = new ServiceCollection();
 		services.set(ILogService, new NullLogService());
 		services.set(IByokLmProxyService, proxy);
 		services.set(IByokLmBridgeRegistry, registry);
+		services.set(IAgentConfigurationService, {
+			_serviceBrand: undefined,
+			getRootValue: (_schema: unknown, key: string) => key === AgentHostByokModelsEnabledConfigKey ? byokModelsEnabled : undefined,
+		} as unknown as IAgentConfigurationService);
 		// The launcher's other dependencies are unused by the BYOK path and
 		// resolve to `undefined` under the non-strict InstantiationService.
 		const instantiationService = store.add(new InstantiationService(services));
@@ -323,6 +327,21 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 		assert.notStrictEqual(third.providers![0].bearerToken, first.providers![0].bearerToken, 'the fresh bind carries a new nonce');
 
 		store.dispose();
+	});
+
+	test('does not synthesize BYOK session config while root configuration disables it', async () => {
+		const store = new DisposableStore();
+		const proxy = fakeProxyService();
+		const registry = new ByokLmBridgeRegistry();
+		store.add(registry.register('client-1', connectionOf(store, [{ vendor: 'acme', id: 'claude' }])));
+		const launcher = createLauncher(store, proxy.service, registry, false);
+
+		try {
+			const config = await (launcher as unknown as { _resolveByokSessionConfig(id: string): Promise<{ providers?: { bearerToken: string }[] }> })._resolveByokSessionConfig(sessionId);
+			assert.deepStrictEqual({ config, proxyStarts: proxy.starts }, { config: {}, proxyStarts: 0 });
+		} finally {
+			store.dispose();
+		}
 	});
 });
 

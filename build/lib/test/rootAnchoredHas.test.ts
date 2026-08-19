@@ -12,7 +12,7 @@ suite('stylelint root-anchored :has() check', () => {
 	test('flags root anchors regardless of position in the compound', () => {
 		assert.ok(containsRootAnchoredHas('body:has(.automation-dialog) .context-view.monaco-component'));
 		assert.ok(containsRootAnchoredHas('.monaco-workbench.floating-panels:has(.part.activitybar.compact) .part.statusbar'));
-		assert.ok(containsRootAnchoredHas('.style-override.monaco-workbench:has(.part.sidebar) .part'));
+		assert.ok(containsRootAnchoredHas('.modern-ui.monaco-workbench:has(.part.sidebar) .part'));
 		assert.ok(containsRootAnchoredHas('BODY:HAS(.foo)'));
 		assert.ok(containsRootAnchoredHas(':root:has(.foo)'));
 		assert.ok(containsRootAnchoredHas(':is(body, .embedded):has(.foo)'));
@@ -29,7 +29,7 @@ suite('stylelint root-anchored :has() check', () => {
 
 	test('ignores :has() anchored below the root', () => {
 		assert.ok(!containsRootAnchoredHas('.monaco-workbench .part > .title:has(.start-debug-action-item) > .title-actions'));
-		assert.ok(!containsRootAnchoredHas('.style-override.monaco-workbench .part:not(.editor):has(> .content)'));
+		assert.ok(!containsRootAnchoredHas('.modern-ui.monaco-workbench .part:not(.editor):has(> .content)'));
 		assert.ok(!containsRootAnchoredHas('.interactive-session .foo:has(.bar)'));
 		assert.ok(!containsRootAnchoredHas('.automations-list-widget .automations-row:has(:focus-visible)'));
 		assert.ok(!containsRootAnchoredHas('.foo:not(.monaco-workbench):has(.bar)'));

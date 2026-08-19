@@ -35,7 +35,7 @@ import { ActionType, isChatAction, type SessionAction, type ChatAction } from '.
 import { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
 import type { ConfigSchema, ModelSelection, ProtectedResourceMetadata, ToolDefinition, AgentSelection } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
-import { buildDefaultChatUri, isDefaultChatUri, parseRequiredSessionUriFromChatUri, withSessionWorkspaceless, CustomizationType, type ClientPluginCustomization, type DirectoryCustomization, type McpServerCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type PluginCustomization, type PolicyState, type ToolCallResult, ToolResultContentType, type Turn, ResponsePartKind } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, isDefaultChatUri, parseRequiredSessionUriFromChatUri, withSessionWorkspaceless, CustomizationType, type ClientPluginCustomization, type DirectoryCustomization, type ISessionFolderPickerDecision, type McpServerCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type PluginCustomization, type PolicyState, type ToolCallResult, ToolResultContentType, type Turn, ResponsePartKind } from '../../common/state/sessionState.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { McpCustomizationController } from '../shared/mcpCustomizationController.js';
@@ -50,6 +50,8 @@ import { McpAuthRequiredReason, McpServerStatus, type AhpMcpUiHostCapabilities, 
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../files/common/files.js';
+import { computeFolderPickerDecisionForRoots } from '../shared/folderPickerDecision.js';
+import { codexDirectoryHasHooks } from './codexFolderPickerCriteria.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IAgentPluginManager, type ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { parsePlugin } from '../../../agentPlugins/common/pluginParsers.js';
@@ -66,7 +68,8 @@ import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { CodexAppServerClient, JsonRpcError, transportFromChildProcess, type ICodexAppServerClient, type ServerRequestHandlerResult } from './codexAppServerClient.js';
 import { ICodexProxyService, type ICodexProxyHandle } from './codexProxyService.js';
-import { createCodexSessionMapState, extractUserInputText, finalizeCodexTurnMapState, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangeOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, type ICodexSessionMapState } from './codexMapAppServerEvents.js';
+import { createCodexSessionMapState, extractUserInputText, finalizeCodexTurnMapState, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangeOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageModelCallCompleted, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, type ICodexSessionMapState } from './codexMapAppServerEvents.js';
+import type { ThreadTokenUsageUpdatedNotification } from './protocol/generated/v2/ThreadTokenUsageUpdatedNotification.js';
 import { unwrapShellInvocation } from './codexShellCommand.js';
 import { planForkedTurnIdMap, resolveForkBoundary } from './codexForkPlan.js';
 import { resolveCodexInput } from './codexPromptResolver.js';
@@ -635,6 +638,8 @@ interface ICodexSession {
 	customizationDirectory: URI | undefined;
 	/** Workbench-facing turn id for the active turn. */
 	currentTurnId: string | undefined;
+	/** Cumulative token-usage identity last observed for model-call deduplication. */
+	lastModelCallUsageId?: string;
 	/** Local monotonic timer for the active workbench-facing turn. */
 	turnStopWatch: StopWatch | undefined;
 	/** Codex app-server turn id for the active turn. */
@@ -1953,7 +1958,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._register(client.onNotification('item/reasoning/summaryPartAdded', params => this._dispatchByThread(params.threadId, s => mapReasoningSummaryPartAdded(s.mapState, this._withHostTurnId(s, params)))));
 		this._register(client.onNotification('item/reasoning/summaryTextDelta', params => this._dispatchByThread(params.threadId, s => mapReasoningSummaryTextDelta(s.mapState, this._withHostTurnId(s, params)))));
 		this._register(client.onNotification('item/reasoning/textDelta', params => this._dispatchByThread(params.threadId, s => mapReasoningTextDelta(s.mapState, this._withHostTurnId(s, params)))));
-		this._register(client.onNotification('thread/tokenUsage/updated', params => this._dispatchByThread(params.threadId, s => s.currentTurnId ? mapTokenUsageUpdated(this._withHostTurnId(s, params), s.model?.id) : [])));
+		this._register(client.onNotification('thread/tokenUsage/updated', params => this._dispatchTokenUsageUpdated(params)));
 		this._register(client.onNotification('item/completed', params => this._dispatchItemCompleted(params)));
 		this._register(client.onNotification('turn/completed', params => this._dispatchTurnCompleted(params)));
 		// Auto-review (guardian) surfacing. The guardian warning is shown as a
@@ -2611,6 +2616,41 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
+	private _dispatchTokenUsageUpdated(params: ThreadTokenUsageUpdatedNotification): void {
+		const subagent = this._subagentsByThreadId.get(params.threadId);
+		if (subagent) {
+			const mapped = this._withHostTurnId(subagent.session, params);
+			for (const action of mapTokenUsageUpdated(mapped, subagent.session.model?.id)) {
+				this._fireSubagent(subagent, action);
+			}
+			const modelCall = mapTokenUsageModelCallCompleted(mapped, subagent.session.chatChannel!);
+			if (subagent.session.lastModelCallUsageId !== modelCall.modelCallId) {
+				subagent.session.lastModelCallUsageId = modelCall.modelCallId;
+				this._onDidChatProgress.fire({ ...modelCall, parentToolCallId: subagent.toolCallId });
+			}
+			return;
+		}
+		const sessionId = this._sessionIdByThreadId.get(params.threadId);
+		const session = sessionId ? this._sessions.get(sessionId) : undefined;
+		if (!session?.chatChannel) {
+			this._logService.trace(`[Codex] Ignoring token usage for inactive threadId=${params.threadId}`);
+			return;
+		}
+		const mapped = this._withHostTurnId(session, params);
+		const modelCall = mapTokenUsageModelCallCompleted(mapped, session.chatChannel);
+		const isNewModelCall = session.lastModelCallUsageId !== modelCall.modelCallId;
+		session.lastModelCallUsageId = modelCall.modelCallId;
+		if (!session.currentTurnId) {
+			return;
+		}
+		for (const action of mapTokenUsageUpdated(mapped, session.model?.id)) {
+			this._fire(session.sessionUri, action);
+		}
+		if (isNewModelCall) {
+			this._onDidChatProgress.fire(modelCall);
+		}
+	}
+
 	/**
 	 * `item/completed` dispatch. In addition to the normal per-thread mapping,
 	 * a parent session's completed `spawnAgent` collab tool call now carries
@@ -3186,6 +3226,20 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	/**
+	 * Hides the multi-root Folder picker unless several working directories carry
+	 * a Codex `.codex/hooks.json` hook manifest (see
+	 * {@link codexDirectoryHasHooks}). With one qualifying directory it pins that
+	 * folder; with several it shows the picker so the user chooses. This only
+	 * reads files to decide the picker — it never surfaces them as customizations.
+	 */
+	async computeFolderPickerDecision(workingDirectories: readonly URI[], token: CancellationToken = CancellationToken.None): Promise<ISessionFolderPickerDecision | undefined> {
+		if (!this._isMultiRootEnabled()) {
+			return undefined;
+		}
+		return computeFolderPickerDecisionForRoots(workingDirectories, (directory, t) => codexDirectoryHasHooks(this._fileService, directory, t), token);
+	}
+
+	/**
 	 * Resolve a host-addressed Codex chat to the session of the runtime backing
 	 * it. Resolution has exactly two sources, in order: the binding this agent
 	 * recorded when the chat was provisioned or restored, and the transient
@@ -3355,6 +3409,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		},
 		abort: (chat: URI, context: URI | IAgentChatContext): Promise<void> => {
 			return this._abort(chat, context);
+		},
+		getModel: (chat: URI, context: URI | IAgentChatContext): ModelSelection | undefined => {
+			const session = this._resolveConversationSession(chat, context);
+			return session ? this._sessions.get(AgentSession.id(session))?.model : undefined;
 		},
 		changeModel: (chat: URI, model: ModelSelection, context: URI | IAgentChatContext): Promise<void> => {
 			return this._changeModel(chat, model, context);
