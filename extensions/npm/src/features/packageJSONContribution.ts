@@ -195,6 +195,7 @@ export class PackageJSONContribution implements IJSONContribution {
 					proposal.kind = CompletionItemKind.Property;
 					proposal.insertText = name;
 					proposal.documentation = l10n.t("The currently latest version of the package");
+					proposal.sortText = 'a';
 					result.add(proposal);
 
 					name = JSON.stringify('^' + info.version);
@@ -202,6 +203,7 @@ export class PackageJSONContribution implements IJSONContribution {
 					proposal.kind = CompletionItemKind.Property;
 					proposal.insertText = name;
 					proposal.documentation = l10n.t("Matches the most recent major version (1.x.x)");
+					proposal.sortText = 'b';
 					result.add(proposal);
 
 					name = JSON.stringify('~' + info.version);
@@ -209,7 +211,22 @@ export class PackageJSONContribution implements IJSONContribution {
 					proposal.kind = CompletionItemKind.Property;
 					proposal.insertText = name;
 					proposal.documentation = l10n.t("Matches the most recent minor version (1.2.x)");
+					proposal.sortText = 'c';
 					result.add(proposal);
+
+					if (Array.isArray(info.versions)) {
+						for (let i = info.versions.length - 1; i >= 0; i--) {
+							const version = info.versions[i];
+							if (version && version !== info.version) {
+								const name = JSON.stringify(version);
+								const proposal = new CompletionItem(name);
+								proposal.kind = CompletionItemKind.Property;
+								proposal.insertText = name;
+								proposal.sortText = 'd' + (info.versions.length - i).toString().padStart(5, '0');
+								result.add(proposal);
+							}
+						}
+					}
 				}
 			}
 		}
@@ -323,15 +340,18 @@ export class PackageJSONContribution implements IJSONContribution {
 	}
 
 	private async npmView(npmCommandPath: string, pack: string, resource: Uri | undefined): Promise<ViewPackageInfo | undefined> {
-		const args = ['view', '--json', '--', pack, 'description', 'dist-tags.latest', 'homepage', 'version', 'time'];
+		const args = ['view', '--json', '--', pack, 'description', 'dist-tags.latest', 'homepage', 'version', 'time', 'versions'];
 		const stdout = await this.runNpmCommand(npmCommandPath, args, resource);
 		if (stdout) {
 			try {
 				const content = JSON.parse(stdout);
 				const version = content['dist-tags.latest'] || content['version'];
+				const rawVersions = content['versions'];
+				const versions = Array.isArray(rawVersions) ? rawVersions : (typeof rawVersions === 'string' ? [rawVersions] : undefined);
 				return {
 					description: content['description'],
 					version,
+					versions,
 					time: content.time?.[version],
 					homepage: content['homepage']
 				};
@@ -350,10 +370,12 @@ export class PackageJSONContribution implements IJSONContribution {
 				headers: { agent: USER_AGENT }
 			});
 			const obj = JSON.parse(success.responseText);
-			const version = obj['dist-tags']?.latest || Object.keys(obj.versions).pop() || '';
+			const version = obj['dist-tags']?.latest || Object.keys(obj.versions || {}).pop() || '';
+			const versions = obj.versions ? Object.keys(obj.versions) : undefined;
 			return {
 				description: obj.description || '',
 				version,
+				versions,
 				time: obj.time?.[version],
 				homepage: obj.homepage || ''
 			};
@@ -433,6 +455,7 @@ interface SearchPackageInfo {
 interface ViewPackageInfo {
 	description: string;
 	version?: string;
+	versions?: string[];
 	time?: string;
 	homepage?: string;
 	installedVersion?: string;
