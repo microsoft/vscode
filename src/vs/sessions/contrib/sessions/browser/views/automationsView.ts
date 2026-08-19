@@ -727,6 +727,7 @@ class AutomationHistorySection extends Disposable {
 		const list = disposables.add(this.instantiationService.createInstance(SessionsFlatList, entry.listContainer, {
 			showSessionHover: false,
 			alwaysConsumeMouseWheel: false,
+			useCompactQuickChatRows: false,
 			toolbarMenuId: Menus.AutomationsHistoryItem,
 			markSessionReadOnOpen: false,
 			approvalModel: this.approvalModel,
@@ -1014,7 +1015,7 @@ function formatHourMinute(hour: number, minute: number): string {
 }
 
 function getAutomationTargetLabel(target: AutomationTarget): string {
-	return target.kind === 'workspace' ? basename(target.folderUri) : localize('quickChat', "Quick Chat");
+	return target.kind === 'workspace' ? basename(target.folderUri) : localize('quickChat', "No workspace");
 }
 
 function groupRunsByDate(runs: readonly IAutomationRun[]): { key: string; label: string; runs: IAutomationRun[] }[] {

@@ -23,6 +23,7 @@ const stubChat: IChat = {
 	changes: constObservable([]),
 	checkpoints: constObservable(undefined),
 	modelId: constObservable(undefined),
+	modelSource: constObservable(undefined),
 	mode: constObservable(undefined),
 	isArchived: constObservable(false),
 	isRead: constObservable(true),
@@ -83,10 +84,11 @@ suite('VisibleSessions', () => {
 		};
 	}
 
-	test('forwards Git availability through visible and resource-override wrappers', () => {
+	test('forwards session metadata through visible and resource-override wrappers', () => {
 		const hasGitRepository = observableValue('hasGitRepository', false);
 		const completedStateIcon = observableValue('completedStateIcon', Codicon.gitMerge);
-		const session = { ...stubSession('A'), completedStateIcon, hasGitRepository };
+		const isExternal = observableValue('isExternal', true);
+		const session = { ...stubSession('A'), completedStateIcon, hasGitRepository, isExternal };
 		const model = createModel();
 		model.setActive(session);
 		const visible = model.activeSession.get();
@@ -97,11 +99,15 @@ suite('VisibleSessions', () => {
 			resourceOverride: resourceOverride.hasGitRepository === hasGitRepository,
 			visibleCompletedStateIcon: visible?.completedStateIcon === completedStateIcon,
 			resourceOverrideCompletedStateIcon: resourceOverride.completedStateIcon === completedStateIcon,
+			visibleExternal: visible?.isExternal === isExternal,
+			resourceOverrideExternal: resourceOverride.isExternal === isExternal,
 		}, {
 			visible: true,
 			resourceOverride: true,
 			visibleCompletedStateIcon: true,
 			resourceOverrideCompletedStateIcon: true,
+			visibleExternal: true,
+			resourceOverrideExternal: true,
 		});
 	});
 
@@ -1431,6 +1437,7 @@ suite('VisibleSession - per-chat model/mode', () => {
 			resource: URI.parse(`test:///chat/${id}`),
 			title: constObservable(id),
 			modelId: constObservable(modelId),
+			modelSource: constObservable(undefined),
 			mode: constObservable(modeId ? { id: modeId, kind: 'agent' } : undefined),
 		};
 	}

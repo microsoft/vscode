@@ -15,8 +15,8 @@ import { Action2, registerAction2 } from '../../../../../platform/actions/common
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
+import { GroupModelChangeKind } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
-import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
@@ -28,7 +28,7 @@ import { IActiveSession } from '../../../../services/sessions/common/sessionsMan
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { DetailPanelTarget, SinglePaneDetailPanelCoordinator } from './singlePaneDetailPanelCoordinator.js';
 import { SinglePaneDockedTabsCoordinator } from './singlePaneDockedTabsCoordinator.js';
-import { isChangesEditorInput, isFileEditorInput, isMainPartEmpty } from './singlePaneSharedHelpers.js';
+import { isChangesEditorInput, isEditorWithoutDockedDetails, isFileEditorInput, isMainPartEmpty } from './singlePaneSharedHelpers.js';
 import { ISinglePaneLayoutContext, SinglePaneLayoutStrategy } from './singlePaneLayoutStrategy.js';
 import { SessionVisibilityProfile, SinglePaneVisibilityProfileStore } from './singlePaneVisibilityProfileStore.js';
 
@@ -54,6 +54,7 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 
 	private _managedTabs: SinglePaneDockedTabsCoordinator | undefined;
 	private _detailHiddenTransiently = false;
+	private _detailHiddenByEditor = false;
 	private _changingDetailTransiently = false;
 
 	constructor(
@@ -82,7 +83,12 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 	}
 
 	private _registerEmptyGroupClose(): void {
-		this._register(this._editorService.onDidCloseEditor(() => {
+		// Close the whole pane before detail synchronization can persist its combined width as Editor-only.
+		this._register(this._editorService.onDidEditorsChange(event => {
+			if (!event || event.event.kind !== GroupModelChangeKind.EDITOR_CLOSE) {
+				return;
+			}
+
 			const session = this._sessionsService.activeSession.get();
 			if (this._ctx.isRestoringSessionLayout
 				|| this._ctx.multipleSessionsVisibleObs.get()
@@ -125,6 +131,7 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 		let wasQuickChatActive = false;
 		let previousIsCreated: boolean | undefined;
 		let previousSession: IActiveSession | undefined;
+		let togglingSidePane = false;
 
 		this._register(autorun(reader => {
 			const multipleSessionsVisible = this._ctx.multipleSessionsVisibleObs.read(reader);
@@ -179,25 +186,33 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 			if (e.partId !== Parts.EDITOR_PART && e.partId !== Parts.AUXILIARYBAR_PART) {
 				return;
 			}
-			if (e.partId === Parts.AUXILIARYBAR_PART && this._changingDetailTransiently) {
+			if (togglingSidePane || (e.partId === Parts.AUXILIARYBAR_PART && this._changingDetailTransiently)) {
 				return;
 			}
-			if (this._ctx.isRestoringSessionLayout) {
-				return;
-			}
-			if (this._ctx.multipleSessionsVisibleObs.get()) {
-				return;
-			}
-			const activeSession = this._sessionsService.activeSession.get();
-			if (!activeSession || activeSession.isQuickChat?.get() || !activeSession.isCreated.get()
-				|| this._layoutService.isEditorMaximized() || this._layoutService.isVisible(Parts.CUSTOM_VIEW_GRID_PART)) {
-				return;
-			}
-			this._visibilityStore.set(SessionVisibilityProfile.Existing, {
-				editorVisible: this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow),
-				auxiliaryBarVisible: this._layoutService.isVisible(Parts.AUXILIARYBAR_PART),
-			});
+			this._captureExistingProfileIfApplicable();
 		}));
+		this._register(this._layoutService.onWillToggleSidePane(() => {
+			togglingSidePane = true;
+		}));
+		this._register(this._layoutService.onDidToggleSidePane(() => {
+			try {
+				this._captureExistingProfileIfApplicable();
+			} finally {
+				togglingSidePane = false;
+			}
+		}));
+	}
+
+	private _captureExistingProfileIfApplicable(): void {
+		if (this._ctx.isRestoringSessionLayout || this._ctx.multipleSessionsVisibleObs.get()) {
+			return;
+		}
+		const activeSession = this._sessionsService.activeSession.get();
+		if (!activeSession || activeSession.isQuickChat?.get() || !activeSession.isCreated.get()
+			|| this._layoutService.isEditorMaximized() || this._layoutService.isVisible(Parts.CUSTOM_VIEW_GRID_PART)) {
+			return;
+		}
+		this._captureExistingProfile();
 	}
 
 	/** On submit, seed the Existing profile from the current on-screen composition so the view never jumps. */
@@ -309,6 +324,7 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 		this._register(this._layoutService.onDidChangePartVisibility(event => {
 			if (event.partId === Parts.AUXILIARYBAR_PART && event.source !== 'resize') {
 				this._detailHiddenTransiently = false;
+				this._detailHiddenByEditor = false;
 			}
 		}));
 	}
@@ -319,18 +335,20 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 		}
 
 		const detailVisible = this._layoutService.isVisible(Parts.AUXILIARYBAR_PART);
-		if (target === DetailPanelTarget.Hidden || target === DetailPanelTarget.BrowserHidden) {
-			if (!revealOnly && detailVisible) {
+		if (target === DetailPanelTarget.Hidden || target === DetailPanelTarget.EditorHidden) {
+			if ((target === DetailPanelTarget.EditorHidden || !revealOnly) && detailVisible) {
 				this._detailHiddenTransiently = true;
+				this._detailHiddenByEditor = target === DetailPanelTarget.EditorHidden;
 				this._setDetailHiddenTransiently(true);
 			}
 			return;
 		}
 
-		if (!this._detailHiddenTransiently || revealOnly || !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+		if (!this._detailHiddenTransiently || (revealOnly && !this._detailHiddenByEditor) || !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
 			return;
 		}
 		this._detailHiddenTransiently = false;
+		this._detailHiddenByEditor = false;
 		this._setDetailHiddenTransiently(false);
 	}
 
@@ -344,13 +362,12 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 	}
 
 	private _computeTarget(activeEditor: EditorInput | undefined, mainPartEmpty: boolean, editorMaximized: boolean, editorPartVisible: boolean): DetailPanelTarget {
-		// For a created session an empty editor group means the whole side pane was closed, so
-		// hide the detail. During a session-switch / submit restore the working-set apply
-		// transiently empties the group before the managed Changes/Files tabs are re-ensured,
-		// so leave it as-is (Preserve) instead — the detail then follows the active editor once
-		// the managed tabs settle.
 		if (mainPartEmpty) {
 			return this._ctx.isRestoringSessionLayout ? DetailPanelTarget.Preserve : DetailPanelTarget.Hidden;
+		}
+
+		if (activeEditor && isEditorWithoutDockedDetails(activeEditor)) {
+			return editorPartVisible ? DetailPanelTarget.EditorHidden : DetailPanelTarget.Changes;
 		}
 
 		if (editorMaximized) {
@@ -358,15 +375,6 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 		}
 
 		if (!activeEditor) {
-			return DetailPanelTarget.Changes;
-		}
-
-		if (activeEditor instanceof BrowserEditorInput) {
-			// Browser has no detail of its own, so it only hides the panel while the editor
-			// area is visible; once hidden, fall back to Changes instead of leaving it blank.
-			if (editorPartVisible) {
-				return DetailPanelTarget.BrowserHidden;
-			}
 			return DetailPanelTarget.Changes;
 		}
 
