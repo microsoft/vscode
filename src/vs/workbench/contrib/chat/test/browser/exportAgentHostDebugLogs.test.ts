@@ -5,10 +5,15 @@
 
 import assert from 'assert';
 import { VSBuffer, streamToBuffer } from '../../../../../base/common/buffer.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import type { IAgentHostDebugLogsArtifact, IAgentHostDebugLogsChunk } from '../../../../../platform/agentHost/common/agentService.js';
-import { createHostArtifactStream } from '../../browser/actions/exportAgentHostDebugLogsAction.js';
+import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { collectRotatedLogFiles, createHostArtifactStream } from '../../browser/actions/exportAgentHostDebugLogsAction.js';
 
 function artifactOfSize(size: number): IAgentHostDebugLogsArtifact {
 	return {
@@ -57,5 +62,34 @@ suite('createHostArtifactStream', () => {
 		const stream = createHostArtifactStream(artifactOfSize(10), async () => ({ data: VSBuffer.alloc(0), eof: false }));
 
 		await assert.rejects(streamToBuffer(stream), /empty debug log chunk/);
+	});
+});
+
+suite('collectRotatedLogFiles', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('collects the current and numbered rotated logs', async () => {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		const logs = URI.from({ scheme: Schemas.inMemory, path: '/logs' });
+		await fileService.createFolder(logs);
+		await Promise.all([
+			fileService.writeFile(URI.joinPath(logs, 'renderer.log'), VSBuffer.fromString('current')),
+			fileService.writeFile(URI.joinPath(logs, 'renderer.1.log'), VSBuffer.fromString('previous')),
+			fileService.writeFile(URI.joinPath(logs, 'renderer.5.log'), VSBuffer.fromString('oldest')),
+			fileService.writeFile(URI.joinPath(logs, 'renderer.old.log'), VSBuffer.fromString('not rotated')),
+			fileService.writeFile(URI.joinPath(logs, 'network.log'), VSBuffer.fromString('different log')),
+		]);
+
+		const files = await collectRotatedLogFiles('vscode-logs/Window', URI.joinPath(logs, 'renderer.log'), fileService);
+
+		assert.deepStrictEqual(files.map(file => ({
+			path: file.path,
+			contents: hasKey(file, { contents: true }) ? file.contents : undefined,
+		})).sort((a, b) => a.path.localeCompare(b.path)), [
+			{ path: 'vscode-logs/Window/renderer.1.log', contents: 'previous' },
+			{ path: 'vscode-logs/Window/renderer.5.log', contents: 'oldest' },
+			{ path: 'vscode-logs/Window/renderer.log', contents: 'current' },
+		]);
 	});
 });

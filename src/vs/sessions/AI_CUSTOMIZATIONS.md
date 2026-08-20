@@ -153,7 +153,7 @@ The shared plugin discovery pipeline selects format-specific component paths whi
 
 Runtime projection is provider-specific. Copilot receives strict skills and MCP explicitly rather than through legacy SDK plugin-directory discovery. Codex receives strict skill roots plus MCP, with remote transport selected by its existing auto-detection. Claude excludes strict packages from legacy plugin discovery and can project remote MCP through its existing auto-detection, but its current SDK cannot register external skill directories or provide the per-server working directory required by strict stdio MCP, so those components are reported and skipped.
 
-Claude Agent Host multi-root customization discovery is gated by the hidden, default-off `chat.agentHost.claudeAgent.multiRootEnabled` setting. When enabled, the primary working directory and each SDK `additionalDirectories` root contribute standalone `.claude/agents`, `.claude/skills`, and native plugin enablement to the Customizations editor. Roots are processed in session order, followed by user scope; same-named standalone agents or skills use the first visible definition as the display source. This display policy is centralized because the SDK reports standalone entries by name rather than source URI. Native plugin loaded state remains authoritative from the SDK snapshot. Rules, hooks, MCP configuration, commands, and CLAUDE.md remain primary-root/user scoped because Claude additional directories do not load those configuration types. Each contributing root has its own writable directory container, and secondary-root watchers observe only agents, skills, and plugin settings.
+Claude Agent Host multi-root customization discovery is gated by the hidden, default-off `chat.agentHost.claudeAgent.multiRootEnabled` setting. When enabled, the primary working directory and each SDK `additionalDirectories` root contribute standalone `.claude/agents`, `.claude/skills`, and native plugin enablement to the Customizations editor. Roots are processed in session order, followed by user scope; same-named standalone agents or skills use the first visible definition as the display source. This display policy is centralized because the SDK reports standalone entries by name rather than source URI. When a standalone agent or skill in one workspace folder is shadowed by a same-named copy in an earlier folder, the dropped copy is logged as a warning because it is unreachable by name (matching the Claude CLI); same-named user-scope copies are ordinary precedence and are not logged. Native plugin loaded state remains authoritative from the SDK snapshot. Rules, hooks, MCP configuration, commands, and CLAUDE.md remain primary-root/user scoped because Claude additional directories do not load those configuration types. Each contributing root has its own writable directory container, and secondary-root watchers observe only agents, skills, and plugin settings.
 
 ### IHarnessDescriptor
 
@@ -381,8 +381,14 @@ All commands and UI respect `ChatContextKeys.enabled`.
 
 | Command ID | Purpose |
 |-----------|---------|
-| `aiCustomization.openManagementEditor` | Opens the management editor, optionally accepting an `AICustomizationManagementSection` to deep-link |
+| `aiCustomization.openManagementEditor` | Opens the management editor, optionally accepting an `AICustomizationManagementSection` to deep-link, or an object with `section`, `sessionType`, and `revealUri` |
 | `aiCustomization.openMarketplace` | Opens the management editor with marketplace browse mode active. Accepts an optional section (`mcpServers` or `plugins`); defaults to `mcpServers` |
+
+### Revealing a Specific Customization
+
+`aiCustomization.openManagementEditor` accepts a `revealUri` alongside `section`, which selects that section and then reveals and selects the row backed by the URI (`AICustomizationManagementEditor.revealCustomizationByUri`). The reveal retries while the list loads, and clears the search box once so a filtered list cannot hide the target. Only prompt-backed sections have URI-addressable rows; for MCP servers and plugins, selecting the section is the whole reveal.
+
+The customizations pill above the Agents-window chat input is the main consumer: it lists the customizations a chat used or read and reveals the one the user picks.
 
 ## Settings
 
