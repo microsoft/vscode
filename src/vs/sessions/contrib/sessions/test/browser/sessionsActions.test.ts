@@ -45,7 +45,7 @@ suite('Sessions - Actions', () => {
 			when: action?.when?.serialize(),
 		}, {
 			title: 'New Chat in This Session',
-			group: '1_edit',
+			group: '1_newChat',
 			order: 0,
 			when: 'sessionIsCreated && sessionSupportsMultipleChats && !sessionIsArchived',
 		});

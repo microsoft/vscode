@@ -554,7 +554,7 @@ registerAction2(class AddChatToSessionAction extends Action2 {
 				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate()),
 			}, {
 				id: Menus.SessionItemContextMenu,
-				group: '1_edit',
+				group: '1_newChat',
 				order: 0,
 				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate()),
 			}],
