@@ -40,6 +40,7 @@ interface IRouterHarness {
 	readonly router: ClaudeSdkMessageRouter;
 	readonly signals: AgentSignal[];
 	readonly fileService: FileService;
+	readonly subagents: SubagentRegistry;
 }
 
 class RecordingAgentEditAttributionService extends NullAgentEditAttributionService {
@@ -88,7 +89,7 @@ function createRouter(
 	));
 	const signals: AgentSignal[] = [];
 	disposables.add(router.onDidProduceSignal(s => signals.push(s)));
-	return { router, signals, fileService };
+	return { router, signals, fileService, subagents };
 }
 
 function assistantMessage(content: unknown): Extract<SDKMessage, { type: 'assistant' }> {
@@ -103,10 +104,28 @@ suite('ClaudeSdkMessageRouter', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('handle with turnId=undefined produces no signals (turn-less messages are routed to nowhere)', async () => {
+	test('handle with turnId=undefined drops turn-scoped messages', async () => {
 		const { router, signals } = createRouter(disposables);
 		await router.handle(makeStreamEvent('sess-1', makeMessageStart()), undefined);
 		assert.deepStrictEqual(signals, []);
+	});
+
+	test('a background subagent that settles after its turn still completes', async () => {
+		const { router, signals, subagents } = createRouter(disposables);
+		subagents.recordSpawn('tu-1');
+		subagents.getSpawn('tu-1')!.background = true;
+
+		// The queue has drained by the time a background task notification
+		// arrives, so there is no turn id to scope it to.
+		await router.handle({
+			type: 'system',
+			subtype: 'task_notification',
+			tool_use_id: 'tu-1',
+			status: 'completed',
+		} as unknown as SDKMessage, undefined);
+
+		assert.deepStrictEqual(signals.map(s => s.kind), ['subagent_completed']);
+		assert.strictEqual(subagents.getSpawn('tu-1'), undefined);
 	});
 
 	test('handle with a turnId on a text content block produces ChatResponsePart + ChatDelta signals', async () => {
