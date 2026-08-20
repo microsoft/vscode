@@ -73,12 +73,17 @@ export interface SessionMetadata {
 	/** Server-owned project for this session */
 	project?: ProjectInfo;
 	/**
-	 * The default working directory URI for this session. Individual chats
-	 * MAY override via {@link ChatSummary.workingDirectory | their own
-	 * `workingDirectory`}; this field acts as the fallback for any chat that
-	 * does not.
+	 * The working directories the session's agent has tool access to, as
+	 * maintained by the `session/workingDirectorySet` /
+	 * `session/workingDirectoryRemoved` actions. Directories are equal peers
+	 * except when the agent advertises
+	 * {@link MultipleWorkingDirectoriesCapability.immutablePrimary} (the first
+	 * entry is then a fixed process root). Individual chats MAY restrict to a
+	 * subset via {@link ChatSummary.workingDirectories | their own
+	 * `workingDirectories`}; a chat that sets none operates against this full
+	 * set.
 	 */
-	workingDirectory?: URI;
+	workingDirectories?: URI[];
 	/**
 	 * Lightweight summary of this session's inline annotations channel
 	 * (`ahp-session:/<uuid>/annotations`). Surfaced so badge UI can render
@@ -167,9 +172,12 @@ export interface SessionState extends SessionMetadata {
 	 * Each entry is self-sufficient: it carries the owning chat's URI plus every
 	 * identifier the client needs to respond. A client answers by dispatching the
 	 * ordinary `chat/*` action to that chat's channel — see
-	 * {@link SessionInputRequest} for the per-variant response path. A present,
-	 * non-empty list implies {@link SessionStatus.InputNeeded} on
-	 * {@link SessionSummary.status}.
+	 * {@link SessionInputRequest} for the per-variant response path. A list
+	 * holding any entry other than
+	 * {@link SessionInputRequestKind.ToolClientExecution} implies
+	 * {@link SessionStatus.InputNeeded} on {@link SessionSummary.status};
+	 * client-execution entries are work delegated to a client rather than a
+	 * prompt, so they leave the session's activity unchanged.
 	 *
 	 * Host-managed: the host upserts entries with `session/inputNeededSet` as
 	 * chats raise requests and removes them with `session/inputNeededRemoved`
@@ -181,7 +189,7 @@ export interface SessionState extends SessionMetadata {
 	 *
 	 * Clients MAY look for well-known keys here to provide enhanced UI.
 	 * For example, a `git` key may provide extra git metadata about the session's
-	 * workingDirectory.
+	 * working directories.
 	 */
 	_meta?: Record<string, unknown>;
 }
@@ -406,9 +414,9 @@ export interface ProjectInfo {
  *   chat currently driving the promoted status bits when a non-default chat
  *   wins (e.g. the chat that raised `InputNeeded`).
  * - `modifiedAt`: the max of all chats' `modifiedAt`.
- * - `workingDirectory`: the session-level **default**. Individual chats MAY
- *   override via {@link ChatSummary.workingDirectory}; aggregating these up
- *   is meaningless and SHOULD NOT be attempted.
+ * - `workingDirectories`: the session-level set. Individual chats MAY restrict
+ *   to a subset via {@link ChatSummary.workingDirectories}; aggregating these
+ *   up is meaningless and SHOULD NOT be attempted.
  * - `changes`: optional roll-up across all chats. Producers MAY sum the
  *   per-chat changeset stats or report the most expensive chat's stats —
  *   whichever is cheaper for the host to compute.
@@ -622,6 +630,23 @@ export const enum CustomizationType {
 }
 
 /**
+ * Scope at which customization enablement is decided.
+ *
+ * @category Customization Types
+ */
+export const enum CustomizationEnablementKind {
+	Global = 'global',
+	Workspace = 'workspace',
+	Session = 'session',
+}
+
+/** A single explicit enablement decision. */
+export type CustomizationEnablement =
+	| { kind: CustomizationEnablementKind.Global; enabled: boolean }
+	| { kind: CustomizationEnablementKind.Workspace; uri: URI; enabled: boolean }
+	| { kind: CustomizationEnablementKind.Session; enabled: boolean };
+
+/**
  * Customization types that appear as children of a
  * {@link PluginCustomization} or {@link DirectoryCustomization}.
  *
@@ -748,8 +773,6 @@ export type CustomizationLoadState =
  * @category Customization Types
  */
 interface ContainerCustomizationBase extends CustomizationBase {
-	/** Whether this container is currently enabled. */
-	enabled: boolean;
 	/**
 	 * `clientId` of the client that contributed this container. Absent for
 	 * server-originated entries.
@@ -777,6 +800,8 @@ interface ContainerCustomizationBase extends CustomizationBase {
  */
 export interface PluginCustomization extends ContainerCustomizationBase {
 	type: CustomizationType.Plugin;
+	/** Explicit enablement decisions. See {@link McpServerCustomization.enablement}. */
+	enablement?: CustomizationEnablement[];
 	/**
 	 * Version of the plugin, sourced from the
 	 * [Open Plugins](https://open-plugins.com/) manifest's optional
@@ -804,6 +829,17 @@ export interface PluginCustomization extends ContainerCustomizationBase {
 export interface ClientPluginCustomization extends PluginCustomization {
 	/** Opaque version token used by the host to detect changes. */
 	nonce?: string;
+	/**
+	 * Explicit enablement decisions for children this plugin contributes,
+	 * keyed by child name (for MCP servers, the server name as it appears in
+	 * the bundled `.mcp.json`).
+	 *
+	 * Bundled children are discovered by the host rather than published by the
+	 * client, so the client cannot attach `enablement` to them directly. This
+	 * carries the client's global decision for each one; the host applies it
+	 * under the child's durable key.
+	 */
+	childEnablement?: Record<string, CustomizationEnablement[]>;
 }
 
 /**
@@ -821,6 +857,8 @@ export interface ClientPluginCustomization extends PluginCustomization {
  */
 export interface DirectoryCustomization extends ContainerCustomizationBase {
 	type: CustomizationType.Directory;
+	/** Whether this container is currently enabled. */
+	enabled: boolean;
 	/** Which child customization type this directory holds. */
 	contents: ChildCustomizationType;
 	/** Whether clients may write into this directory. */
@@ -834,8 +872,7 @@ export interface DirectoryCustomization extends ContainerCustomizationBase {
  * {@link HookCustomization}.
  *
  * {@link McpServerCustomization} is also a child but does not extend this
- * base: it always carries an explicit {@link McpServerCustomization.enabled}
- * because it can appear as a top-level customization too.
+ * base because it can appear as a top-level customization too.
  *
  * @category Customization Types
  */
@@ -846,9 +883,10 @@ interface ChildCustomizationBase extends CustomizationBase {
 	 * turned off on its own.
 	 *
 	 * This flag is independent of the parent container's: the **effective**
-	 * enabled state of a child is
-	 * `container.enabled && (child.enabled ?? true)`, so a disabled container
-	 * disables every child regardless of each child's own flag.
+	 * enabled state of a plugin child is the plugin's derived enabled value and
+	 * `(child.enabled ?? true)`, so a disabled plugin disables every child
+	 * regardless of each child's own flag. A directory child instead uses the
+	 * directory's `enabled` value and its own flag.
 	 *
 	 * A child is turned on or off by id with
 	 * {@link SessionCustomizationToggledAction | `session/customizationToggled`}.
@@ -1000,9 +1038,23 @@ export interface HookCustomization extends ChildCustomizationBase {
 export interface McpServerCustomization extends CustomizationBase {
 	type: CustomizationType.McpServer;
 	/**
-	 * Whether this MCP server is currently enabled.
+	 * Explicit enablement decisions for this customization, one entry per scope
+	 * that has one. This is a wire contract: producers MUST publish entries
+	 * sorted by descending specificity (Session, Workspace, then Global).
+	 * The agent host emits at most one Workspace entry, for the session's primary
+	 * working directory. Consumers MAY treat
+	 * `enablement[0]` as the decisive decision and
+	 * `enablement?.[0]?.enabled ?? true` as the effective enabled value. An
+	 * absent or empty array means no explicit decision exists, so the
+	 * customization is enabled by default.
+	 *
+	 * Flows in both directions. A client publishes this alongside a customization
+	 * to assert its global decision, which is authoritative for the Global scope;
+	 * a client always includes its global entry, even when enabled. The host
+	 * publishes the fully resolved set across all scopes, and consumers derive
+	 * the effective enabled value from that set.
 	 */
-	enabled: boolean;
+	enablement?: CustomizationEnablement[];
 	/**
 	 * Current lifecycle state of the MCP server.
 	 */
@@ -1237,7 +1289,7 @@ export interface McpOAuthClient {
  * Reusable MCP authentication challenge — the RFC 9728 discovery info a
  * client needs to obtain a token and push it via the `authenticate` command.
  * Deliberately carries **no token**: this describes what is being asked for,
- * never the ****** itself.
+ * never the bearer token itself.
  *
  * Shared by two independent state machines that describe the same OAuth
  * challenge from different vantage points:
@@ -1271,7 +1323,7 @@ export interface McpAuthRequirement {
 	resource: ProtectedResourceMetadata;
 	/**
 	 * Scopes required for the current challenge, parsed from the
-	 * `WWW-Authenticate: ******"…"` header (or `scopes_supported`
+	 * `WWW-Authenticate: Bearer scope="…"` header (or `scopes_supported`
 	 * fallback). Authoritative for the next authorization request — clients
 	 * MUST NOT assume any subset/superset relationship to
 	 * `resource.scopes_supported`.

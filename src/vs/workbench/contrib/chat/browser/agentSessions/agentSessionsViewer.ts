@@ -258,6 +258,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 	renderTemplate(container: HTMLElement): IAgentSessionItemTemplate {
 		const disposables = new DisposableStore();
 		const elementDisposable = disposables.add(new DisposableStore());
+		container.closest('.monaco-list-row')?.classList.add('agent-session-list-row', 'agent-session-item-row');
 
 		const elements = h(
 			'div.agent-session-item@item',
@@ -793,6 +794,7 @@ export class AgentSessionSectionRenderer implements ICompressibleTreeRenderer<IA
 
 	renderTemplate(container: HTMLElement): IAgentSessionSectionTemplate {
 		const disposables = new DisposableStore();
+		container.closest('.monaco-list-row')?.classList.add('agent-session-list-row', 'agent-session-section-row');
 
 		const elements = h(
 			'div.agent-session-section@container',
@@ -955,22 +957,26 @@ export class AgentSessionShowLessRenderer implements ICompressibleTreeRenderer<I
 export class AgentSessionsListDelegate implements IListVirtualDelegate<AgentSessionListItem> {
 
 	static readonly ITEM_HEIGHT = 54;
+	static readonly COMPACT_ITEM_HEIGHT = 52;
 	static readonly SECTION_HEIGHT = 26;
+	static readonly SPACED_SECTION_HEIGHT = 30;
 
 	constructor(private readonly _approvalModel?: AgentSessionApprovalModel,
 		private readonly _compactShowMore?: boolean,
+		private readonly _getItemHeight: () => number = () => AgentSessionsListDelegate.ITEM_HEIGHT,
+		private readonly _getSectionHeight: () => number = () => AgentSessionsListDelegate.SECTION_HEIGHT,
 	) { }
 
 	getHeight(element: AgentSessionListItem): number {
 		if (isAgentSessionSection(element)) {
-			return AgentSessionsListDelegate.SECTION_HEIGHT;
+			return this._getSectionHeight();
 		}
 
 		if (isAgentSessionShowMore(element) || isAgentSessionShowLess(element)) {
 			return this._compactShowMore ? AgentSessionShowMoreRenderer.COLLAPSED_HEIGHT : AgentSessionShowMoreRenderer.HEIGHT;
 		}
 
-		let height = AgentSessionsListDelegate.ITEM_HEIGHT;
+		let height = this._getItemHeight();
 		const approval = this._approvalModel?.getApproval(element.resource).get();
 		if (approval) {
 			height += AgentSessionRenderer.getApprovalRowHeight(approval.label);

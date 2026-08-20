@@ -14,6 +14,7 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { ITreeSitterLibraryService } from '../../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
 import { IAhpTerminalCommandSource, ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
@@ -31,12 +32,13 @@ function listenerCount(emitter: Emitter<any>): number {
 suite('TerminalChatService', () => {
 	const store = new DisposableStore();
 	let service: TerminalChatService;
+	let instantiationService: TestInstantiationService;
 	let onDidDisposeSessionEmitter: Emitter<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' }>;
 
 	setup(() => {
 		onDidDisposeSessionEmitter = store.add(new Emitter());
 
-		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
@@ -144,5 +146,23 @@ suite('TerminalChatService', () => {
 		await pendingTerminal.error(new Error('terminal creation failed'));
 
 		assert.strictEqual(await lookup, undefined);
+	});
+
+	suite('getAutoApproveActions', () => {
+
+		test('returns undefined for empty command lines without touching the analysis collaborators', async () => {
+			// No ITreeSitterLibraryService stub is installed, so reaching the
+			// parser would throw — passing proves the early return.
+			assert.strictEqual(await service.getAutoApproveActions('   ', 'shellscript'), undefined);
+		});
+
+		test('returns undefined when sub-command parsing fails', async () => {
+			instantiationService.stub(ITreeSitterLibraryService, new class extends mock<ITreeSitterLibraryService>() {
+				override getParserClass(): Promise<typeof import('@vscode/tree-sitter-wasm').Parser> {
+					return Promise.reject(new Error('tree-sitter unavailable in tests'));
+				}
+			});
+			assert.strictEqual(await service.getAutoApproveActions('foo && bar', 'shellscript'), undefined);
+		});
 	});
 });

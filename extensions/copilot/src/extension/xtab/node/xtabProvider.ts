@@ -19,7 +19,7 @@ import { LanguageContextEntry, LanguageContextResponse } from '../../../platform
 import { LanguageId } from '../../../platform/inlineEdits/common/dataTypes/languageId';
 import { NextCursorLinePrediction } from '../../../platform/inlineEdits/common/dataTypes/nextCursorLinePrediction';
 import * as xtabPromptOptions from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
-import { AggressivenessSetting, EarlyDivergenceCancellationMode, isAggressivenessStrategy, LanguageContextLanguages, LanguageContextOptions } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { AggressivenessSetting, EarlyDivergenceCancellationMode, isEagernessPrompt, LanguageContextLanguages, LanguageContextOptions } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { InlineEditRequestLogContext } from '../../../platform/inlineEdits/common/inlineEditLogContext';
 import { IInlineEditsModelService } from '../../../platform/inlineEdits/common/inlineEditsModelService';
 import { ResponseProcessor } from '../../../platform/inlineEdits/common/responseProcessor';
@@ -296,7 +296,10 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				return Result.error(new NoNextEditReason.GotCancelled('afterNeighborSnippetsAwait'));
 			}
 
-			const cascade = runGlobalBudgetCascade(activeDocument, request.xtabEditHistory, langCtx, XtabProvider.computeTokens, promptOptions, neighborSnippets, globalBudget);
+			const rejectedEditHistory = xtabPromptOptions.isRejectedEditMemoryEnabled(promptOptions)
+				? request.xtabRejectedEditHistory
+				: [];
+			const cascade = runGlobalBudgetCascade(activeDocument, request.xtabEditHistory, langCtx, XtabProvider.computeTokens, promptOptions, neighborSnippets, globalBudget, rejectedEditHistory);
 			const currentFileBudget = xtabPromptOptions.GlobalBudgetOptions.currentFileBudget(globalBudget);
 
 			const taggedCurrentFileContentResult = clipCurrentFileToBudget(currentFileBudget + cascade.finalSurplus);
@@ -488,6 +491,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			lintErrors,
 			XtabProvider.computeTokens,
 			promptOptions,
+			request.xtabRejectedEditHistory,
 			neighborSnippets,
 			precomputedCascade,
 		);
@@ -613,7 +617,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		}
 
 		// Adjust debounce based on user aggressiveness setting for non-aggressiveness models
-		if (!isAggressivenessStrategy(promptOptions.promptingStrategy)) {
+		if (!isEagernessPrompt(promptOptions)) {
 			this._applyAggressivenessSettings(delaySession, tracer);
 		}
 	}
@@ -1048,9 +1052,10 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				case xtabPromptOptions.ResponseFormat.CustomDiffPatch: {
 					const activeDoc = request.getActiveDocument();
 					const currentDocument = promptPieces.currentDocument;
-					const lastLine = currentDocument.lines[clippedTaggedCurrentDoc.keptRange.endExclusive - 1];
+					const keptRangeEndExclusive = Math.min(clippedTaggedCurrentDoc.keptRange.endExclusive, currentDocument.lines.length);
+					const lastLine = currentDocument.lines[keptRangeEndExclusive - 1];
 					const lastLineLength = lastLine.length;
-					const pseudoEditWindow = currentDocument.transformer.getOffsetRange(new Range(clippedTaggedCurrentDoc.keptRange.start + 1, 1, clippedTaggedCurrentDoc.keptRange.endExclusive, lastLineLength + 1));
+					const pseudoEditWindow = currentDocument.transformer.getOffsetRange(new Range(clippedTaggedCurrentDoc.keptRange.start + 1, 1, keptRangeEndExclusive, lastLineLength + 1));
 					const duplicateAdditionsMode = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabDuplicateAdditionsMode, this.expService);
 					const fastYieldLineWithCursor = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderPatchFastYieldLineWithCursor, this.expService);
 					const fastYieldLineWithCursorMultiLine = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderPatchFastYieldLineWithCursorMultiLine, this.expService);
@@ -1427,6 +1432,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 					request.recordingBookmark,
 					request.recording,
 					request.providerRequestStartDateTime,
+					request.xtabRejectedEditHistory,
 				);
 
 				return yield* this.doGetNextEditWithSelection(
@@ -1566,7 +1572,9 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				onlyForDocsInPrompt: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabDiffOnlyForDocsInPrompt, this.expService),
 				useRelativePaths: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabDiffUseRelativePaths, this.expService),
 			},
+			memory: undefined,
 			lintOptions: undefined,
+			eagernessPrompt: undefined,
 			includePostScript: true,
 			globalBudget: this.getGlobalBudget(),
 		};
@@ -1752,6 +1760,7 @@ export function mapChatFetcherErrorToNoNextEditReason(fetchError: ChatFetchError
 		case ChatFetchResponseType.OffTopic:
 		case ChatFetchResponseType.Filtered:
 		case ChatFetchResponseType.PromptFiltered:
+		case ChatFetchResponseType.Refusal:
 		case ChatFetchResponseType.Length:
 		case ChatFetchResponseType.RateLimited:
 		case ChatFetchResponseType.QuotaExceeded:
@@ -1774,6 +1783,7 @@ export function overrideModelConfig(modelConfig: ModelConfig, overridingConfig: 
 		...modelConfig,
 		modelName: overridingConfig.modelName,
 		promptingStrategy: overridingConfig.promptingStrategy,
+		eagernessPrompt: overridingConfig.eagernessPrompt ?? modelConfig.eagernessPrompt,
 		includePostScript: overridingConfig.includePostScript ?? modelConfig.includePostScript,
 		currentFile: {
 			...modelConfig.currentFile,
@@ -1781,6 +1791,7 @@ export function overrideModelConfig(modelConfig: ModelConfig, overridingConfig: 
 			includeTags: overridingConfig.includeTagsInCurrentFile,
 		},
 		recentlyViewedDocuments: { ...modelConfig.recentlyViewedDocuments, ...overridingConfig.recentlyViewedDocuments },
+		memory: overridingConfig.memory ? { ...modelConfig.memory, ...overridingConfig.memory } : modelConfig.memory,
 		lintOptions: overridingConfig.lintOptions
 			? mergeLintOptions(modelConfig.lintOptions, overridingConfig.lintOptions)
 			: modelConfig.lintOptions,

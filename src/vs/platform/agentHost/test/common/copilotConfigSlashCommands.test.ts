@@ -37,6 +37,11 @@ suite('copilotConfigSlashCommands', () => {
 			assert.strictEqual(getCopilotConfigSlashCommandItems('nope').length, 0);
 		});
 
+		test('fuzzy filters by command name', () => {
+			const commands = new Set(getCopilotConfigSlashCommandItems('pt').map(i => i.command));
+			assert.deepStrictEqual([...commands], ['autopilot']);
+		});
+
 		test('autopilot state hides the no-op toggle but keeps the prompt form', () => {
 			const inAutopilot = new Set(getCopilotConfigSlashCommandItems('autopilot', { mode: 'autopilot' }).map(i => i.label));
 			// Already in autopilot: only offer `off` (plus the always-on prompt form).

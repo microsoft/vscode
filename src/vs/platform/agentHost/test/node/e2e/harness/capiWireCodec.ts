@@ -500,7 +500,14 @@ export function responsesMessageToSse(message: IAnthropicMessage): string {
 	chunks.push(sseEvent('response.in_progress', { type: 'response.in_progress', sequence_number: seq++, response: skeleton }));
 
 	outputItems.forEach((item, index) => {
-		chunks.push(sseEvent('response.output_item.added', { type: 'response.output_item.added', sequence_number: seq++, output_index: index, item }));
+		// An item is *announced* here and streamed below, so it must arrive
+		// empty: a consumer that accumulates this content and then the deltas
+		// would otherwise count the same text twice (`SHELL_VALUE_73` replayed
+		// as `SHELL_VALUE_73SHELL_VALUE_73`).
+		const addedItem = item.type === 'message'
+			? { ...item, status: 'in_progress' as const, content: [] }
+			: { ...item, status: 'in_progress' as const, arguments: '' };
+		chunks.push(sseEvent('response.output_item.added', { type: 'response.output_item.added', sequence_number: seq++, output_index: index, item: addedItem }));
 		if (item.type === 'message') {
 			const text = item.content[0].text;
 			const part = { type: 'output_text', text, annotations: [], logprobs: [] };

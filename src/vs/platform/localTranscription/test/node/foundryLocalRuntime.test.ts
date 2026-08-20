@@ -5,7 +5,10 @@
 
 import * as assert from 'assert';
 import * as fs from 'fs';
+import type { AddressInfo } from 'net';
 import { tmpdir } from 'os';
+import * as tar from 'tar';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { join } from '../../../../base/common/path.js';
 import { Promises } from '../../../../base/node/pfs.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -16,6 +19,7 @@ import {
 	isFoundryLocalRuntimeSupported,
 	isRuntimeProvisioned,
 	promoteDir,
+	provisionRuntime,
 	requiredCoreLibraryNames,
 	resolveProxyUrl,
 } from '../../node/foundryLocalRuntime.js';
@@ -139,5 +143,104 @@ flakySuite('FoundryLocalRuntime', () => {
 			noProxyMiss: 'http://proxy:8080',
 			invalidUrl: undefined,
 		});
+	});
+
+	// --- provisionRuntime: download + {target} substitution + extract + verify ---
+
+	/**
+	 * Build a runtime tarball fixture (`<target>.tgz`) whose internal layout
+	 * matches what `provisionRuntime` extracts and verifies. Set `omitCoreLib`
+	 * to leave one required core library out (an incomplete/corrupt payload).
+	 */
+	async function makeTarball(key: string, opts?: { omitCoreLib?: boolean }): Promise<string> {
+		const src = join(testDir, `src-${key}`);
+		fs.mkdirSync(join(src, 'prebuilds', key), { recursive: true });
+		fs.writeFileSync(join(src, 'prebuilds', key, 'foundry_local_napi.node'), 'addon');
+		const coreDir = join(src, 'foundry-local-core', key);
+		fs.mkdirSync(coreDir, { recursive: true });
+		const libs = requiredCoreLibraryNames();
+		for (const name of opts?.omitCoreLib ? libs.slice(1) : libs) {
+			fs.writeFileSync(join(coreDir, name), 'lib');
+		}
+		const tgz = join(testDir, `${key}.tgz`);
+		await tar.c({ file: tgz, cwd: src, gzip: true }, ['prebuilds', 'foundry-local-core']);
+		return tgz;
+	}
+
+	/**
+	 * Serve `/<name>` → the file at `files[name]` (200), everything else 404.
+	 * Records requested paths so `{target}` substitution can be asserted.
+	 */
+	async function startServer(files: Record<string, string>): Promise<{ url: string; requested: string[]; dispose: () => Promise<void> }> {
+		const http = await import('http');
+		const requested: string[] = [];
+		const server = http.createServer((req, res) => {
+			const name = (req.url ?? '').replace(/^\//, '');
+			requested.push(name);
+			const file = files[name];
+			if (!file || !fs.existsSync(file)) {
+				res.statusCode = 404;
+				res.end('not found');
+				return;
+			}
+			res.statusCode = 200;
+			fs.createReadStream(file).pipe(res);
+		});
+		await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+		const port = (server.address() as AddressInfo).port;
+		return {
+			url: `http://127.0.0.1:${port}`,
+			requested,
+			dispose: () => new Promise<void>(resolve => server.close(() => resolve())),
+		};
+	}
+
+	test('provisionRuntime: substitutes {target}, extracts the expected layout, writes the marker', async () => {
+		const tgz = await makeTarball(platformKey);
+		const server = await startServer({ [`${platformKey}.tgz`]: tgz });
+		try {
+			const overrideDir = join(testDir, '1.2.3');
+			await provisionRuntime(overrideDir, platformKey, `${server.url}/{target}.tgz`, '1.2.3', CancellationToken.None);
+
+			// {target} was substituted with the platform key in the request URL.
+			assert.deepStrictEqual(server.requested, [`${platformKey}.tgz`]);
+			// Payload extracted into the cache layout + completion marker written.
+			assert.strictEqual(fs.existsSync(join(overrideDir, 'prebuilds', platformKey, 'foundry_local_napi.node')), true);
+			for (const name of requiredCoreLibraryNames()) {
+				assert.strictEqual(fs.existsSync(join(overrideDir, 'foundry-local-core', platformKey, name)), true);
+			}
+			assert.strictEqual(isRuntimeProvisioned(overrideDir, platformKey), true);
+		} finally {
+			await server.dispose();
+		}
+	});
+
+	test('provisionRuntime: rejects and writes no marker when the download 404s', async () => {
+		const server = await startServer({});
+		try {
+			const overrideDir = join(testDir, '1.2.3');
+			await assert.rejects(
+				provisionRuntime(overrideDir, platformKey, `${server.url}/{target}.tgz`, '1.2.3', CancellationToken.None),
+				/status 404/,
+			);
+			assert.strictEqual(isRuntimeProvisioned(overrideDir, platformKey), false);
+		} finally {
+			await server.dispose();
+		}
+	});
+
+	test('provisionRuntime: rejects an incomplete payload (missing core library) and writes no marker', async () => {
+		const tgz = await makeTarball(platformKey, { omitCoreLib: true });
+		const server = await startServer({ [`${platformKey}.tgz`]: tgz });
+		try {
+			const overrideDir = join(testDir, '1.2.3');
+			await assert.rejects(
+				provisionRuntime(overrideDir, platformKey, `${server.url}/{target}.tgz`, '1.2.3', CancellationToken.None),
+				/expected files are missing/,
+			);
+			assert.strictEqual(isRuntimeProvisioned(overrideDir, platformKey), false);
+		} finally {
+			await server.dispose();
+		}
 	});
 });

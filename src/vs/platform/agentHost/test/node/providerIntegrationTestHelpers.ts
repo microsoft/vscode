@@ -23,16 +23,18 @@ export async function createProviderSession(
 	clientId: string,
 	trackingList: string[],
 	workingDirectory: URI,
+	beforeCreateSession?: () => Promise<void>,
 ): Promise<string> {
 	client.setWorkingDirectory(workingDirectory.fsPath);
 	await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId }, 30_000);
 	await client.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: config.githubToken }, 30_000);
+	await beforeCreateSession?.();
 
 	const sessionUri = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
 	await client.call('createSession', {
 		channel: sessionUri,
 		provider: config.provider,
-		workingDirectory: workingDirectory.toString(),
+		workingDirectories: [workingDirectory.toString()],
 		config: { isolation: 'folder' },
 	}, 30_000);
 	trackingList.push(sessionUri);

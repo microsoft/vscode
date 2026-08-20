@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
-import { getAgentHostE2ETestTimeout, IServerHandle, startServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
+import { getAgentHostE2ETestTimeout, IServerHandle, startServer, stopServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
 
 suite('Agent Host Server', function () {
 
@@ -15,8 +15,9 @@ suite('Agent Host Server', function () {
 		server = await startServer({ quiet: false });
 	});
 
-	suiteTeardown(function () {
-		server.process.kill();
+	suiteTeardown(async function () {
+		this.timeout(getAgentHostE2ETestTimeout(20_000, 50_000));
+		await stopServer(server);
 	});
 
 	test('starts with production agent services registered', async function () {

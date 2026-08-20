@@ -6,6 +6,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import { dirname, join } from '../../../base/common/path.js';
+import { format2 } from '../../../base/common/strings.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
 
@@ -14,31 +15,31 @@ import { CancellationError } from '../../../base/common/errors.js';
  * dictation.
  *
  * `foundry-local-sdk` ships a prebuilt N-API addon (`foundry_local_napi.node`)
- * and downloads native core libraries (Foundry Local Core + ONNX Runtime +
- * ONNX Runtime GenAI) next to it. The addon requires a newer glibc than VS
- * Code's minimum supported Linux distros, so we deliberately do NOT bundle any
- * of this native payload with the product (see `build/gulpfile.vscode.ts`).
- * Instead we download it here, at runtime, only on supported platforms, into a
- * per-user writable cache — keeping the shipped package's glibc floor intact.
+ * and native core libraries (Foundry Local Core + ONNX Runtime + ONNX Runtime
+ * GenAI). The addon requires a newer glibc than VS Code's minimum supported
+ * Linux distros, so we deliberately do NOT bundle any of this native payload
+ * with the product (see `build/gulpfile.vscode.ts`). Instead we republish a
+ * per-target tarball of the addon + core libraries to VS Code's CDN at build
+ * time (see `build/dictation-runtime/`) and download it here, at runtime, only
+ * on supported platforms, into a per-user writable cache — keeping the shipped
+ * package's glibc floor intact and avoiding any runtime dependency on the npm
+ * registry or NuGet.
  *
  * The SDK loader (`dist/detail/coreInterop.js`) is patched during
  * `postinstall` to honor `VSCODE_FOUNDRY_LOCAL_NATIVE_DIR`, pointing it at the
- * cache directory this module populates. The cache layout mirrors the SDK's
- * own package layout so the patched resolution is a trivial path join:
+ * cache directory this module populates. The tarball's internal layout mirrors
+ * the SDK's own package layout so the patched resolution is a trivial path join:
  *
- *   <cacheRoot>/<sdkVersion>/prebuilds/<platformKey>/foundry_local_napi.node
- *   <cacheRoot>/<sdkVersion>/foundry-local-core/<platformKey>/<core libraries>
+ *   <cacheRoot>/<version>/prebuilds/<target>/foundry_local_napi.node
+ *   <cacheRoot>/<version>/foundry-local-core/<target>/<core libraries>
  *
- * NOTE: the two JavaScript download legs — the npm-registry addon tarball and
- * the NuGet core-library fetch (via the SDK's own installer) — honor the
- * standard proxy environment variables (`HTTPS_PROXY`/`HTTP_PROXY`/`ALL_PROXY`,
- * with `NO_PROXY`), matching how the GitHub desktop app's Rust
- * `foundry-local-sdk` reaches these endpoints. VS Code's `http.proxy`/
- * `http.noProxy` settings are applied as these same environment variables
- * before provisioning (see `LocalTranscriptionService.start`), so a proxy
- * configured only in VS Code is honored here and by the native model download
- * too; `http.proxyAuthorization` (Basic) is folded into the proxy URL and
- * `http.proxyStrictSSL === false` disables TLS verification for these Node legs.
+ * NOTE: the single CDN download leg honors the standard proxy environment
+ * variables (`HTTPS_PROXY`/`HTTP_PROXY`/`ALL_PROXY`, with `NO_PROXY`). VS Code's
+ * `http.proxy`/`http.noProxy` settings are applied as these same environment
+ * variables before provisioning (see `LocalTranscriptionService.start`), so a
+ * proxy configured only in VS Code is honored here and by the native model
+ * download too; `http.proxyAuthorization` (Basic) is folded into the proxy URL
+ * and `http.proxyStrictSSL === false` disables TLS verification for this leg.
  * TLS-intercepting proxies otherwise rely on the CA being in the OS trust store.
  */
 
@@ -68,6 +69,14 @@ export function isFoundryLocalRuntimeSupported(): boolean {
 /** Progress callback invoked while the native runtime is being fetched. */
 export type FoundryLocalRuntimeProgress = (message: string) => void;
 
+/** Where the native runtime tarball is published (from `product.dictationRuntime`). */
+export interface IFoundryLocalRuntimeDownload {
+	/** CDN URL template with a `{target}` placeholder for the host platform key. */
+	readonly urlTemplate: string;
+	/** The published runtime version (the pinned `foundry-local-sdk` version). */
+	readonly version: string;
+}
+
 /** De-dupes concurrent provisioning requests targeting the same cache dir. */
 const inFlight = new Map<string, Promise<string>>();
 
@@ -76,37 +85,34 @@ const DOWNLOAD_INACTIVITY_TIMEOUT_MS = 60_000;
 
 /**
  * Ensure the Foundry Local native runtime (addon + core libraries) is present
- * in `<cacheRoot>`, downloading it if necessary. Returns the versioned override
- * directory to set as `VSCODE_FOUNDRY_LOCAL_NATIVE_DIR` before loading the SDK.
+ * in `<cacheRoot>`, downloading the per-target CDN tarball if necessary. Returns
+ * the versioned override directory to set as `VSCODE_FOUNDRY_LOCAL_NATIVE_DIR`
+ * before loading the SDK.
  *
  * Idempotent: once a version is fully provisioned a per-platform `.complete`
  * marker is written and subsequent calls return immediately (after verifying the
  * payload) without touching the network.
  */
-export async function ensureFoundryLocalRuntime(cacheRoot: string, token: CancellationToken, onProgress?: FoundryLocalRuntimeProgress): Promise<string> {
+export async function ensureFoundryLocalRuntime(cacheRoot: string, download: IFoundryLocalRuntimeDownload, token: CancellationToken, onProgress?: FoundryLocalRuntimeProgress): Promise<string> {
 	const platformKey = foundryLocalPlatformKey();
 	if (!platformKey) {
 		throw new Error(`Foundry Local native runtime is not available on ${process.platform}-${process.arch}.`);
 	}
 
-	const nodeRequire = await getNativeRequire();
-	const sdkVersion: string = nodeRequire('foundry-local-sdk/package.json').version;
-	const overrideDir = join(cacheRoot, sdkVersion);
+	const overrideDir = join(cacheRoot, download.version);
 
 	// A single in-flight provisioning per override dir; late joiners share it.
 	const existing = inFlight.get(overrideDir);
 	if (existing) {
 		return existing;
 	}
-	const promise = doEnsure(overrideDir, platformKey, sdkVersion, nodeRequire, token, onProgress)
+	const promise = doEnsure(overrideDir, platformKey, download, token, onProgress)
 		.finally(() => inFlight.delete(overrideDir));
 	inFlight.set(overrideDir, promise);
 	return promise;
 }
 
-async function doEnsure(overrideDir: string, platformKey: string, sdkVersion: string, nodeRequire: NodeJS.Require, token: CancellationToken, onProgress?: FoundryLocalRuntimeProgress): Promise<string> {
-	const addonPath = foundryAddonPath(overrideDir, platformKey);
-	const coreDir = foundryCoreDir(overrideDir, platformKey);
+async function doEnsure(overrideDir: string, platformKey: string, download: IFoundryLocalRuntimeDownload, token: CancellationToken, onProgress?: FoundryLocalRuntimeProgress): Promise<string> {
 	// The completion marker is per-platform: the shared `<cacheRoot>/<version>`
 	// dir can hold payloads for multiple architectures (e.g. a win32-arm64
 	// machine running x64 VS Code under emulation, then arm64 VS Code). Verify
@@ -124,23 +130,36 @@ async function doEnsure(overrideDir: string, platformKey: string, sdkVersion: st
 	assertRuntimeLoadable(platformKey);
 
 	onProgress?.('Downloading dictation runtime…');
+	await provisionRuntime(overrideDir, platformKey, download.urlTemplate, download.version, token);
+	return overrideDir;
+}
+
+/**
+ * Download the `{target}`-substituted CDN tarball for `platformKey` into
+ * `overrideDir`, extract + verify + atomically promote its payload, and write the
+ * per-platform completion marker. Host-independent (does NOT run the glibc
+ * loadability gate); exported for tests. Callers that provision for the running
+ * host should use `ensureFoundryLocalRuntime`, which gates and de-dupes.
+ */
+export async function provisionRuntime(overrideDir: string, platformKey: string, urlTemplate: string, version: string, token: CancellationToken): Promise<void> {
+	const addonPath = foundryAddonPath(overrideDir, platformKey);
+	const coreDir = foundryCoreDir(overrideDir, platformKey);
 
 	// The cache is shared by the utility processes of every open VS Code window,
 	// so provision into a process-unique staging dir and atomically promote each
 	// payload directory into place. Two concurrent first-use downloads therefore
 	// never write to the same final path; whichever process wins the rename is
 	// the published copy and the loser accepts it as success.
+	const url = format2(urlTemplate, { target: platformKey });
 	const staging = join(overrideDir, `.staging-${process.pid}-${randomSuffix()}`);
 	const stagingAddon = join(staging, 'prebuilds', platformKey, 'foundry_local_napi.node');
 	const stagingCore = join(staging, 'foundry-local-core', platformKey);
 	try {
-		await ensureAddon(stagingAddon, platformKey, sdkVersion, token);
-		throwIfCancelled(token);
-		await ensureCoreLibraries(stagingCore, nodeRequire);
+		await downloadAndExtractTarball(url, staging, token);
 		throwIfCancelled(token);
 
 		if (!fs.existsSync(stagingAddon) || !hasAllCoreLibraries(stagingCore)) {
-			throw new Error('Foundry Local native runtime download completed but expected files are missing.');
+			throw new Error(`Foundry Local native runtime download from ${url} completed but expected files are missing.`);
 		}
 
 		await promoteDir(dirname(stagingAddon), dirname(addonPath));
@@ -154,8 +173,7 @@ async function doEnsure(overrideDir: string, platformKey: string, sdkVersion: st
 		throw new Error('Foundry Local native runtime is incomplete after provisioning.');
 	}
 
-	await fs.promises.writeFile(foundryMarkerPath(overrideDir, platformKey), `${sdkVersion}\n`).catch(() => { /* best effort marker */ });
-	return overrideDir;
+	await fs.promises.writeFile(foundryMarkerPath(overrideDir, platformKey), `${version}\n`).catch(() => { /* best effort marker */ });
 }
 
 /** Path of the per-platform completion marker inside a versioned override dir. */
@@ -246,68 +264,25 @@ function detectGlibcVersion(): [number, number] | undefined {
 }
 
 /**
- * Download the prebuilt N-API addon for `platformKey` from the pinned
- * `foundry-local-sdk` npm tarball and place it at `addonPath`.
+ * Download the per-target runtime tarball from `url` and extract it into
+ * `stagingDir`, which then contains `prebuilds/<target>/foundry_local_napi.node`
+ * and `foundry-local-core/<target>/<core libraries>` (the tarball's layout
+ * mirrors the cache layout). The tarball is published to VS Code's CDN by
+ * `build/dictation-runtime/`.
  */
-async function ensureAddon(addonPath: string, platformKey: string, sdkVersion: string, token: CancellationToken): Promise<void> {
-	const tarballUrl = `https://registry.npmjs.org/foundry-local-sdk/-/foundry-local-sdk-${sdkVersion}.tgz`;
-	const entryName = `package/prebuilds/${platformKey}/foundry_local_napi.node`;
-
-	const tmpDir = await fs.promises.mkdtemp(join(os.tmpdir(), 'vscode-foundry-addon-'));
+async function downloadAndExtractTarball(url: string, stagingDir: string, token: CancellationToken): Promise<void> {
+	await fs.promises.mkdir(stagingDir, { recursive: true });
+	const tmpDir = await fs.promises.mkdtemp(join(os.tmpdir(), 'vscode-foundry-runtime-'));
 	try {
-		const tarballPath = join(tmpDir, 'sdk.tgz');
-		await downloadFile(tarballUrl, tarballPath, token);
+		const tarballPath = join(tmpDir, 'runtime.tgz');
+		await downloadFile(url, tarballPath, token);
 		throwIfCancelled(token);
 
-		// npm tarballs are gzip'd tar; extract only the single addon we need.
 		// `tar` is a node_modules package, so it must be imported dynamically.
 		const tar = await import('tar');
-		await tar.x({ file: tarballPath, cwd: tmpDir, filter: p => p.replace(/\\/g, '/') === entryName });
-
-		const extracted = join(tmpDir, entryName);
-		if (!fs.existsSync(extracted)) {
-			throw new Error(`Foundry Local addon for ${platformKey} not found in ${tarballUrl}.`);
-		}
-
-		await fs.promises.mkdir(dirname(addonPath), { recursive: true });
-		// Publish atomically: copy to a sibling temp file, then rename into place.
-		const stagingPath = `${addonPath}.download`;
-		await fs.promises.copyFile(extracted, stagingPath);
-		await fs.promises.rename(stagingPath, addonPath);
+		await tar.x({ file: tarballPath, cwd: stagingDir });
 	} finally {
 		await fs.promises.rm(tmpDir, { recursive: true, force: true }).catch(() => { /* best effort */ });
-	}
-}
-
-/**
- * Download the Foundry Local core libraries into `coreDir` by reusing the SDK's
- * own NuGet installer (`script/install-utils.cjs`), targeted at our cache with
- * its `binDir` option. Replicates the standard variant's artifact selection
- * (`script/install-standard.cjs`), including the linux-x64 GPU ORT package.
- */
-async function ensureCoreLibraries(coreDir: string, nodeRequire: NodeJS.Require): Promise<void> {
-	const deps = nodeRequire('foundry-local-sdk/deps_versions.json');
-	const { runInstall } = nodeRequire('foundry-local-sdk/script/install-utils.cjs') as {
-		runInstall(artifacts: { name: string; version: string }[], options?: { binDir?: string }): Promise<void>;
-	};
-
-	// Microsoft.ML.OnnxRuntime.Gpu.Linux only ships x86_64 native binaries, so
-	// linux-arm64 falls back to the cross-platform Foundry ORT package.
-	const isLinuxX64 = process.platform === 'linux' && process.arch === 'x64';
-	const ortPackageName = isLinuxX64 ? 'Microsoft.ML.OnnxRuntime.Gpu.Linux' : 'Microsoft.ML.OnnxRuntime.Foundry';
-
-	const artifacts = [
-		{ name: 'Microsoft.AI.Foundry.Local.Core', version: deps['foundry-local-core'].nuget },
-		{ name: ortPackageName, version: deps.onnxruntime.version },
-		{ name: 'Microsoft.ML.OnnxRuntimeGenAI.Foundry', version: deps['onnxruntime-genai'].version },
-	];
-
-	await fs.promises.mkdir(coreDir, { recursive: true });
-	const restoreProxy = await applyGlobalProxyForNuget();
-	try {
-		await runInstall(artifacts, { binDir: coreDir });
-	} finally {
-		restoreProxy();
 	}
 }
 
@@ -385,32 +360,13 @@ async function resolveProxyAgent(targetUrl: string): Promise<import('http').Agen
 	return new HttpsProxyAgent(proxyUrl);
 }
 
-/**
- * Temporarily route `https.globalAgent` — used by the SDK installer's bare
- * `https.get(url, cb)` NuGet downloads — through the env-configured proxy so
- * corporate proxies are honored without patching third-party SDK code. Returns
- * a function that restores the previous global agent; no-ops when no proxy
- * applies.
- */
-async function applyGlobalProxyForNuget(): Promise<() => void> {
-	const agent = await resolveProxyAgent('https://api.nuget.org/');
-	if (!agent) {
-		return () => { /* nothing to restore */ };
-	}
-	const https = await import('https');
-	const previous = https.globalAgent;
-	// `HttpsProxyAgent` extends `http.Agent`, not `https.Agent`; the cast only
-	// satisfies the field's declared type.
-	https.globalAgent = agent as unknown as typeof previous;
-	return () => {
-		https.globalAgent = previous;
-	};
-}
-
 /** Download `url` to `dest`, following redirects, honoring cancellation. */
 async function downloadFile(url: string, dest: string, token: CancellationToken): Promise<void> {
-	// `https` is a slow-to-load builtin; import it lazily at runtime.
-	const https = await import('https');
+	// `http`/`https` are slow-to-load builtins; import them lazily at runtime.
+	// The CDN is always `https:`; `http:` support exists only so provisioning can
+	// be exercised against a local test server.
+	const [https, http] = await Promise.all([import('https'), import('http')]);
+	const getFor = (u: string) => (new URL(u).protocol === 'http:' ? http.get : https.get);
 	// A single proxy agent tunnels to whatever host each request (including any
 	// redirect target) addresses, so resolving it once from the initial URL is
 	// sufficient. `undefined` means "go direct".
@@ -454,7 +410,7 @@ async function downloadFile(url: string, dest: string, token: CancellationToken)
 				return;
 			}
 			armTimeout();
-			activeRequest = https.get(currentUrl, { agent }, response => {
+			activeRequest = getFor(currentUrl)(currentUrl, { agent }, response => {
 				armTimeout();
 				const status = response.statusCode ?? 0;
 				if (status >= 300 && status < 400 && response.headers.location) {
@@ -487,21 +443,4 @@ function throwIfCancelled(token: CancellationToken): void {
 	if (token.isCancellationRequested) {
 		throw new CancellationError();
 	}
-}
-
-let cachedNativeRequire: NodeJS.Require | undefined;
-/**
- * A CommonJS `require` bound to this module for loading `foundry-local-sdk`'s
- * package metadata and its NuGet installer at runtime. `foundry-local-sdk` has
- * no `exports` map, so its subpaths resolve directly; it is kept external from
- * the bundle (loaded from `node_modules`) like the SDK's own dynamic import.
- * Uses a dynamic `import('node:module')` so the `node:` specifier is resolved
- * lazily at runtime rather than at bundle/load time.
- */
-async function getNativeRequire(): Promise<NodeJS.Require> {
-	if (!cachedNativeRequire) {
-		const nodeModule = await import('node:module');
-		cachedNativeRequire = nodeModule.createRequire(import.meta.url);
-	}
-	return cachedNativeRequire;
 }

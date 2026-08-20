@@ -16,13 +16,18 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
+import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';
-import { SessionHeaderMetaActionViewItem } from '../../../browser/parts/sessionHeaderMetaActionViewItem.js';
+import { getSessionWorkspaceDisplayInfo, ISessionWorkspaceDisplayInfo } from '../../../browser/sessionWorkspace.js';
+import { ChatPillActionViewItem } from '../../../../workbench/browser/chatPills.js';
 import { SessionHasWorkspaceContext, IsQuickChatSessionContext } from '../../../common/contextkeys.js';
+import { NEW_FILE_TAB_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { SHOW_SESSION_METADATA_IN_CHAT_INPUT_SETTING } from '../../../common/sessionConfig.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
@@ -30,7 +35,7 @@ import { SESSIONS_FILES_VIEW_ID } from './filesView.js';
 
 // --- Open Files view action
 
-class OpenFilesViewAction extends Action2 {
+export class OpenFilesViewAction extends Action2 {
 	static readonly ID = 'workbench.agentSessions.action.openFilesView';
 
 	constructor() {
@@ -46,7 +51,11 @@ class OpenFilesViewAction extends Action2 {
 				id: Menus.SessionHeaderMeta,
 				group: 'navigation',
 				order: -10,
-				when: ContextKeyExpr.and(SessionHasWorkspaceContext, IsQuickChatSessionContext.negate())
+				when: ContextKeyExpr.and(
+					SessionHasWorkspaceContext,
+					IsQuickChatSessionContext.negate(),
+					ContextKeyExpr.notEquals(`config.${SHOW_SESSION_METADATA_IN_CHAT_INPUT_SETTING}`, true),
+				)
 			},
 		});
 	}
@@ -54,6 +63,8 @@ class OpenFilesViewAction extends Action2 {
 	override async run(accessor: ServicesAccessor, session?: IActiveSession): Promise<void> {
 		const sessionsService = accessor.get(ISessionsService);
 		const viewsService = accessor.get(IViewsService);
+		const commandService = accessor.get(ICommandService);
+		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
 
 		// The clicked session is forwarded as the argument by the session header,
 		// which has already promoted it to be the active session. Fall back to the
@@ -63,6 +74,10 @@ class OpenFilesViewAction extends Action2 {
 			return;
 		}
 
+		if (layoutService.isSinglePaneLayoutEnabled) {
+			await commandService.executeCommand(NEW_FILE_TAB_COMMAND_ID);
+		}
+
 		await viewsService.openView(SESSIONS_FILES_VIEW_ID, false);
 	}
 }
@@ -70,22 +85,15 @@ registerAction2(OpenFilesViewAction);
 
 // --- Open Files view action view item (session header workspace folder pill)
 
-interface IWorkspaceInfo {
-	readonly label: string;
-	readonly icon: ThemeIcon;
-	readonly workingDirectoryPath: string | undefined;
-	readonly branch: string | undefined;
-}
-
 /**
  * Renders the session's workspace folder as a `<folder-icon> <label>` pill for the
  * {@link OpenFilesViewAction} contributed into {@link Menus.SessionHeaderMeta}. Activating it
  * opens the Files view. The workspace is read from the {@link ISessionContext} so the correct
  * per-session folder is shown even when several session views are visible at once.
  */
-export class OpenFilesViewActionViewItem extends SessionHeaderMetaActionViewItem {
+export class OpenFilesViewActionViewItem extends ChatPillActionViewItem {
 
-	private readonly _workspaceObs: IObservable<IWorkspaceInfo | undefined>;
+	private readonly _workspaceObs: IObservable<ISessionWorkspaceDisplayInfo | undefined>;
 
 	constructor(
 		action: MenuItemAction,
@@ -94,21 +102,7 @@ export class OpenFilesViewActionViewItem extends SessionHeaderMetaActionViewItem
 	) {
 		super(undefined, action, options);
 
-		this._workspaceObs = derivedOpts<IWorkspaceInfo | undefined>({ owner: this, equalsFn: structuralEquals }, reader => {
-			const session = sessionContext.session.read(reader);
-			const workspace = session?.workspace.read(reader);
-			if (!workspace?.label) {
-				return undefined;
-			}
-			// Mirror the sessions list / hover icon logic: cloud for virtual
-			// workspaces, folder when the session runs in the repo checkout,
-			// worktree otherwise.
-			const folder = workspace.folders[0];
-			const isWorkspaceFolder = workspace.folders.length > 0 && folder?.gitRepository?.workTreeUri === undefined;
-			const icon = workspace.isVirtualWorkspace ? Codicon.cloudCompact : isWorkspaceFolder ? Codicon.folderCompact : Codicon.worktreeCompact;
-			const branch = folder?.gitRepository?.branchName?.trim() || undefined;
-			return { label: workspace.label, icon, workingDirectoryPath: folder?.workingDirectory.fsPath, branch };
-		});
+		this._workspaceObs = derivedOpts<ISessionWorkspaceDisplayInfo | undefined>({ owner: this, equalsFn: structuralEquals }, reader => getSessionWorkspaceDisplayInfo(sessionContext.session.read(reader), reader));
 
 		this._register(autorun(reader => {
 			this._workspaceObs.read(reader);
@@ -120,13 +114,13 @@ export class OpenFilesViewActionViewItem extends SessionHeaderMetaActionViewItem
 
 	override render(container: HTMLElement): void {
 		super.render(container);
-		this.element?.classList.add('chat-composite-bar-meta-workspace-item');
-		this.button?.element.classList.add('chat-composite-bar-meta-workspace-button');
+		this.element?.classList.add('chat-pill-workspace-item');
+		this.button?.element.classList.add('chat-pill-workspace-button');
 	}
 
 	protected override getIconElement(): HTMLElement | undefined {
 		const icon = this._workspaceObs.get()?.icon ?? Codicon.folder;
-		return $(`span.chat-composite-bar-meta-item-icon${ThemeIcon.asCSSSelector(icon)}`);
+		return $(`span.chat-pill-icon${ThemeIcon.asCSSSelector(icon)}`, { 'aria-hidden': 'true' });
 	}
 
 	protected override getLabelText(): string {
@@ -138,14 +132,25 @@ export class OpenFilesViewActionViewItem extends SessionHeaderMetaActionViewItem
 	}
 
 	protected override getAriaLabel(): string {
-		const label = this._workspaceObs.get()?.label;
-		return label
-			? localize('agentSessions.openFilesView.ariaLabel', "Open Files: {0}", label)
-			: this.getTooltip();
+		const workspace = this._workspaceObs.get();
+		if (!workspace?.label) {
+			return this.getTooltip();
+		}
+		return workspace.worktreePending
+			? localize('agentSessions.openFilesView.worktreePendingAriaLabel', "Open Files: {0}, creating worktree", workspace.label)
+			: localize('agentSessions.openFilesView.ariaLabel', "Open Files: {0}", workspace.label);
 	}
 
 	protected override getHoverContents(): IManagedHoverContent {
 		const workspace = this._workspaceObs.get();
+		if (workspace?.worktreePending) {
+			const message = localize('agentSessions.openFilesView.worktreePending', "Creating worktree… Its folder and branch are shown once ready.");
+			const md = new MarkdownString('', { supportThemeIcons: true });
+			md.appendMarkdown(`$(${Codicon.worktree.id}) `);
+			md.appendText(message);
+			return { markdown: md, markdownNotSupportedFallback: message };
+		}
+
 		if (!workspace?.workingDirectoryPath) {
 			return this.getTooltip();
 		}
