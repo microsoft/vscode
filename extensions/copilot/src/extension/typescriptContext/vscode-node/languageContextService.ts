@@ -370,7 +370,7 @@ export class InlineCompletionContribution implements vscode.Disposable, TokenBud
 	private typeScriptFileOpen(): void {
 		this.checkRegistration();
 		this.disposables.add(this.configurationService.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration(ConfigKey.TypeScriptLanguageContext.fullyQualifiedId) || TypeScript.affectsVersion(e)) {
+			if (e.affectsConfiguration(ConfigKey.TypeScriptLanguageContext.fullyQualifiedId) || e.affectsConfiguration(ConfigKey.TypeScript7LanguageContext.fullyQualifiedId) || TypeScript.affectsVersion(e)) {
 				this.checkRegistration();
 			}
 		}));
@@ -389,6 +389,7 @@ export class InlineCompletionContribution implements vscode.Disposable, TokenBud
 
 	private async register(): Promise<void> {
 		if (! await this.isTypeScriptRunning()) {
+			this.unregister();
 			return;
 		}
 
@@ -396,6 +397,7 @@ export class InlineCompletionContribution implements vscode.Disposable, TokenBud
 		const logService = this.logService;
 		try {
 			if (! await languageContextService.isActivated('typescript')) {
+				this.unregister();
 				return;
 			}
 
