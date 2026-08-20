@@ -152,7 +152,7 @@ interface IChatGroupsHarness {
 	readonly view: ChatGroupsView;
 }
 
-function createHarness(disposables: Pick<DisposableStore, 'add'>): IChatGroupsHarness {
+function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHeader = true): IChatGroupsHarness {
 	const store = disposables.add(new DisposableStore());
 	const instantiationService = workbenchInstantiationService(undefined, store);
 	const sessionsService = new TestSessionsService();
@@ -169,6 +169,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>): IChatGroupsHa
 	}());
 
 	const view = store.add(instantiationService.createInstance(ChatGroupsView));
+	view.setSingleGroupTabsReplaceHeader(tabsReplaceHeader);
 	mainWindow.document.body.appendChild(view.element);
 	store.add(toDisposable(() => view.element.remove()));
 	return { instantiationService, sessionsService, chatViewFactory, view };
@@ -453,6 +454,15 @@ suite('Sessions - ChatGroupsView', () => {
 			singleGroupHidden: false,
 			splitGroupsHidden: [true, true],
 		});
+	});
+
+	test('hides session actions when tabs do not replace the header', () => {
+		const { view } = createHarness(disposables, false);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		view.setSession(new TestActiveSession([main, secondary]), options);
+
+		assert.strictEqual(view.element.querySelector<HTMLElement>('.session-chat-tabs-actions')?.classList.contains('hidden'), true);
 	});
 
 });
