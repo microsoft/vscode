@@ -278,6 +278,9 @@ suite('AgentHostGitService', () => {
 				'renamed-old.txt',
 				' C copied-new.txt',
 				'copied-old.txt',
+				'AD deleted-index-addition.txt',
+				'RD deleted-rename-destination.txt',
+				'rename-source.txt',
 				' M modified.txt',
 				'',
 			].join('\x00');
@@ -291,6 +294,7 @@ suite('AgentHostGitService', () => {
 				'renamed-old.txt',
 				'copied-new.txt',
 				'copied-old.txt',
+				'rename-source.txt',
 			]);
 		});
 

@@ -45,7 +45,7 @@ import { ChatInteractivity, type MessageAttachment } from '../../common/state/pr
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
 import { AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionOptions } from '../../node/agentHostDatabase.js';
-import { AgentSessionRegistry } from '../../node/agentSessionRegistry.js';
+import { AgentSessionRegistry, type IRegisteredSession } from '../../node/agentSessionRegistry.js';
 import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
 import { AGENT_HOST_TITLE_SOURCE_AUTO, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
@@ -3152,6 +3152,42 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('a mode that hides every external session skips the catalog work for them', async () => {
+			const now = Date.now();
+			const perSession = createPerSessionDataService();
+			const svc = createExternalSessionService(() => now, perSession.service);
+			const agent = disposables.add(new TimedExternalAgent('copilot'));
+			agent.addSession('external-one', now);
+			agent.addSession('external-two', now);
+			svc.registerProvider(agent);
+			await svc.listSessions(AgentHostExternalSessionsMode.All);
+
+			// A catalog pass otherwise opens every registered session's database,
+			// so a mode that discards the row regardless must not pay for it.
+			const opened: string[] = [];
+			const dataService = perSession.service as { tryOpenDatabase(session: URI): Promise<unknown> };
+			const originalTryOpen = dataService.tryOpenDatabase;
+			dataService.tryOpenDatabase = async (session: URI) => {
+				opened.push(AgentSession.id(session));
+				return originalTryOpen.call(perSession.service, session);
+			};
+			try {
+				const hidden = (await svc.listSessions(AgentHostExternalSessionsMode.None)).map(session => AgentSession.id(session.session));
+				const openedWhileHidden = [...new Set(opened)].sort();
+				opened.length = 0;
+				const visible = (await svc.listSessions(AgentHostExternalSessionsMode.All)).map(session => AgentSession.id(session.session)).sort();
+
+				assert.deepStrictEqual({ hidden, openedWhileHidden, visible, openedWhileVisible: [...new Set(opened)].sort() }, {
+					hidden: [],
+					openedWhileHidden: [],
+					visible: ['external-one', 'external-two'],
+					openedWhileVisible: ['external-one', 'external-two'],
+				});
+			} finally {
+				dataService.tryOpenDatabase = originalTryOpen;
+			}
+		});
+
 		test('a mode change reconciles with a single catalog pass', async () => {
 			const day = 24 * 60 * 60 * 1000;
 			const now = Date.now();
@@ -3654,29 +3690,34 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MockAgent('copilot'));
 			svc.registerProvider(agent);
-			const gate = new DeferredPromise<void>();
-			const inner = svc as unknown as { _computeSessions(mode: AgentHostExternalSessionsMode): Promise<readonly IAgentSessionMetadata[]> };
-			const original = inner._computeSessions;
-			let computations = 0;
-			inner._computeSessions = async mode => {
-				computations++;
-				await gate.p;
-				return original.call(svc, mode);
+			await svc.listSessions();
+			const snapshotCaptured = new DeferredPromise<void>();
+			const releaseSnapshot = new DeferredPromise<void>();
+			const inner = svc as unknown as { _listRegisteredSessions(): Promise<IRegisteredSession[]> };
+			const original = inner._listRegisteredSessions;
+			let listCalls = 0;
+			inner._listRegisteredSessions = async () => {
+				const snapshot = await original.call(svc);
+				listCalls++;
+				if (listCalls === 1) {
+					snapshotCaptured.complete();
+					await releaseSnapshot.p;
+				}
+				return snapshot;
 			};
 
-			const preInvalidation = svc.listSessions();
+			const listing = svc.listSessions();
+			await snapshotCaptured.p;
 			await svc.createSession({ provider: 'copilot' });
-			const postInvalidation = svc.listSessions();
-			gate.complete();
+			releaseSnapshot.complete();
+			const listed = await listing;
 
 			assert.deepStrictEqual({
-				computations,
-				preInvalidation: (await preInvalidation).length,
-				postInvalidation: (await postInvalidation).length,
+				listCalls,
+				listed: listed.length,
 			}, {
-				computations: 2,
-				preInvalidation: 1,
-				postInvalidation: 1,
+				listCalls: 2,
+				listed: 1,
 			});
 		});
 
