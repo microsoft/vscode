@@ -168,7 +168,13 @@ function parseUserMessage(msg: SessionMessage, timestamp: string | undefined): P
 	}
 	// Mixed or text-only: text wins — matches prior behavior where tool_results
 	// in a text-bearing envelope are dropped (they should already have been delivered).
-	return { kind: 'user-text', uuid: msg.uuid, text: textBlocks.map(b => b.text).join('\n'), timestamp };
+	//
+	// Only the first block is the user's prompt. `resolvePromptToContentBlocks`
+	// appends host-composed context after it (attachment representations and the
+	// reference reminder), which is ambient and regenerated every turn. Joining
+	// those back in replays them as words the user typed, so they surface in the
+	// restored transcript and in titles derived from the first turn.
+	return { kind: 'user-text', uuid: msg.uuid, text: textBlocks[0].text, timestamp };
 }
 
 function parseAssistantMessage(msg: SessionMessage, timestamp: string | undefined): ParsedSessionMessage | undefined {
