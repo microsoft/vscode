@@ -16,8 +16,8 @@ import { TextDiffEditor } from '../../../../workbench/browser/parts/editor/textD
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { SessionChangesEditor } from '../../changes/browser/sessionChangesEditor.js';
-import { ISessionsDiffLayoutService } from '../common/diffEditor.js';
-import { SessionsDiffLayoutService } from './diffEditorService.js';
+import { IDiffEditorOptionsService } from '../common/diffEditorOptionsService.js';
+import { DiffEditorOptionsService } from './diffEditorOptionsService.js';
 
 /** Drives the shared preferred diff layout for supported editors in the Agents window. */
 export class SessionsDiffEditorCommandsService extends DiffEditorCommandsService {
@@ -26,7 +26,7 @@ export class SessionsDiffEditorCommandsService extends DiffEditorCommandsService
 		@IEditorService editorService: IEditorService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ISessionsDiffLayoutService private readonly sessionsDiffLayoutService: ISessionsDiffLayoutService,
+		@IDiffEditorOptionsService private readonly diffEditorOptionsService: IDiffEditorOptionsService,
 	) {
 		super(editorService, textResourceConfigurationService, contextKeyService);
 	}
@@ -49,18 +49,18 @@ export class SessionsDiffEditorCommandsService extends DiffEditorCommandsService
 					continue;
 				}
 
-				this.sessionsDiffLayoutService.toggleRenderSideBySide();
+				this.diffEditorOptionsService.toggleRenderSideBySide();
 				return;
 			}
 		}
 
 		if (this.editorService.activeEditorPane instanceof SessionChangesEditor) {
-			this.sessionsDiffLayoutService.toggleRenderSideBySide();
+			this.diffEditorOptionsService.toggleRenderSideBySide();
 			return;
 		}
 
 		if (resource) {
-			this.sessionsDiffLayoutService.toggleRenderSideBySide();
+			this.diffEditorOptionsService.toggleRenderSideBySide();
 			return;
 		}
 
@@ -74,19 +74,19 @@ export class SessionsDiffEditorLayoutContribution extends Disposable implements 
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
-		@ISessionsDiffLayoutService private readonly sessionsDiffLayoutService: ISessionsDiffLayoutService,
+		@IDiffEditorOptionsService private readonly diffEditorOptionsService: IDiffEditorOptionsService,
 	) {
 		super();
 		this._register(this.editorService.onDidActiveEditorChange(() => this.applyLayout()));
 		this._register(this.editorService.onDidVisibleEditorsChange(() => this.applyLayout()));
 		this._register(autorun(reader => {
-			this.sessionsDiffLayoutService.renderSideBySide.read(reader);
+			this.diffEditorOptionsService.renderSideBySide.read(reader);
 			this.applyLayout();
 		}));
 	}
 
 	private applyLayout(): void {
-		const renderSideBySide = this.sessionsDiffLayoutService.renderSideBySide.get();
+		const renderSideBySide = this.diffEditorOptionsService.renderSideBySide.get();
 		for (const pane of new Set([this.editorService.activeEditorPane, ...this.editorService.visibleEditorPanes])) {
 			if (pane instanceof TextDiffEditor) {
 				const control = pane.getControl();
@@ -98,6 +98,6 @@ export class SessionsDiffEditorLayoutContribution extends Disposable implements 
 	}
 }
 
-registerSingleton(ISessionsDiffLayoutService, SessionsDiffLayoutService, InstantiationType.Delayed);
+registerSingleton(IDiffEditorOptionsService, DiffEditorOptionsService, InstantiationType.Delayed);
 registerSingleton(IDiffEditorCommandsService, SessionsDiffEditorCommandsService, InstantiationType.Delayed);
 registerWorkbenchContribution2(SessionsDiffEditorLayoutContribution.ID, SessionsDiffEditorLayoutContribution, WorkbenchPhase.AfterRestored);

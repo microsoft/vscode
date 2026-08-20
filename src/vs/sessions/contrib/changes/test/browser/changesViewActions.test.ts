@@ -16,7 +16,7 @@ import { Context } from '../../../../../platform/contextkey/browser/contextKeySe
 import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
-import { SessionsDiffRenderSideBySideContext } from '../../../editor/common/diffEditor.js';
+import { SessionsDiffRenderSideBySideContext } from '../../../editor/common/diffEditorOptionsService.js';
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext, TextCompareEditorActiveContext } from '../../../../../workbench/common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';

@@ -19,7 +19,7 @@ import { TextDiffEditor } from '../../../../../workbench/browser/parts/editor/te
 import { IDiffEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
 import { ICodeEditor, IDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorType } from '../../../../../editor/common/editorCommon.js';
-import { ISessionsDiffLayoutService } from '../../common/diffEditor.js';
+import { IDiffEditorOptionsService } from '../../common/diffEditorOptionsService.js';
 
 suite('SessionsDiffEditorCommandsService', () => {
 
@@ -37,11 +37,11 @@ suite('SessionsDiffEditorCommandsService', () => {
 			override getContextKeyValue<T>(): T | undefined { return undefined; }
 		};
 		let toggleCount = 0;
-		const sessionsDiffLayoutService = new class extends mock<ISessionsDiffLayoutService>() {
+		const diffEditorOptionsService = new class extends mock<IDiffEditorOptionsService>() {
 			override toggleRenderSideBySide(): void { toggleCount++; }
 		};
 
-		const service = new SessionsDiffEditorCommandsService(editorService, textResourceConfigurationService, contextKeyService, sessionsDiffLayoutService);
+		const service = new SessionsDiffEditorCommandsService(editorService, textResourceConfigurationService, contextKeyService, diffEditorOptionsService);
 		return { service, getToggleCount: () => toggleCount };
 	}
 
@@ -135,10 +135,10 @@ suite('SessionsDiffEditorCommandsService', () => {
 			override get visibleEditorPanes() { return [visibleEditor as IVisibleEditorPane]; }
 		};
 		const renderSideBySide = observableValue('test', true);
-		const sessionsDiffLayoutService = new class extends mock<ISessionsDiffLayoutService>() {
+		const diffEditorOptionsService = new class extends mock<IDiffEditorOptionsService>() {
 			override readonly renderSideBySide = renderSideBySide;
 		};
-		disposables.add(new SessionsDiffEditorLayoutContribution(editorService, sessionsDiffLayoutService));
+		disposables.add(new SessionsDiffEditorLayoutContribution(editorService, diffEditorOptionsService));
 
 		renderSideBySide.set(false, undefined);
 

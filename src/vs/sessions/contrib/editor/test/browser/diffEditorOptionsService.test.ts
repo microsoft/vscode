@@ -7,17 +7,17 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { InMemoryStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
-import { SessionsDiffRenderSideBySideContext } from '../../common/diffEditor.js';
-import { SessionsDiffLayoutService } from '../../browser/diffEditorService.js';
+import { SessionsDiffRenderSideBySideContext } from '../../common/diffEditorOptionsService.js';
+import { DiffEditorOptionsService } from '../../browser/diffEditorOptionsService.js';
 
-suite('SessionsDiffLayoutService', () => {
+suite('DiffEditorOptionsService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('defaults to responsive side by side and persists the shared preference', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		const contextKeyService = disposables.add(new MockContextKeyService());
-		const service = disposables.add(new SessionsDiffLayoutService(storageService, contextKeyService));
+		const service = disposables.add(new DiffEditorOptionsService(storageService, contextKeyService));
 
 		const initial = {
 			renderSideBySide: service.renderSideBySide.get(),

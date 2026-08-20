@@ -28,7 +28,7 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { OPEN_PULL_REQUEST_ACTION_ID } from '../../github/common/types.js';
 import { ActiveSessionContextKeys, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
 import { IChangesViewService } from '../common/changesViewService.js';
-import { SessionsDiffRenderSideBySideContext } from '../../editor/common/diffEditor.js';
+import { SessionsDiffRenderSideBySideContext } from '../../editor/common/diffEditorOptionsService.js';
 import { CHANGES_HEADER_ACTIONS_ID } from './changesView.js';
 import { SessionChangesEditor } from './sessionChangesEditor.js';
 

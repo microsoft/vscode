@@ -8,11 +8,11 @@ import { observableValue } from '../../../../base/common/observable.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ISessionsDiffLayoutService, SessionsDiffRenderSideBySideContext } from '../common/diffEditor.js';
+import { IDiffEditorOptionsService, SessionsDiffRenderSideBySideContext } from '../common/diffEditorOptionsService.js';
 
 const PREFERRED_RENDER_SIDE_BY_SIDE_STORAGE_KEY = 'sessions.diffEditor.renderSideBySide';
 
-export class SessionsDiffLayoutService extends Disposable implements ISessionsDiffLayoutService {
+export class DiffEditorOptionsService extends Disposable implements IDiffEditorOptionsService {
 
 	declare readonly _serviceBrand: undefined;
 

@@ -51,7 +51,7 @@ import { CheckboxActionViewItem } from '../../../../base/browser/ui/toggle/toggl
 import { defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { localize } from '../../../../nls.js';
 import { getChangesEditorFileStats } from './changesEditorLabels.js';
-import { ISessionsDiffLayoutService } from '../../editor/common/diffEditor.js';
+import { IDiffEditorOptionsService } from '../../editor/common/diffEditorOptionsService.js';
 
 const HEADER_HEIGHT = 35;
 
@@ -201,7 +201,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		@IChangesViewService private readonly changesViewService: IChangesViewService,
 		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
 		@ISessionChangesService private readonly sessionChangesService: ISessionChangesService,
-		@ISessionsDiffLayoutService private readonly sessionsDiffLayoutService: ISessionsDiffLayoutService,
+		@IDiffEditorOptionsService private readonly diffEditorOptionsService: IDiffEditorOptionsService,
 	) {
 		super(
 			SessionChangesEditor.ID,
@@ -255,7 +255,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			CHANGES_DIFF_EDITOR_OPTIONS,
 		));
 		this._register(autorun(reader => {
-			this.widget?.setRenderSideBySide(this.sessionsDiffLayoutService.renderSideBySide.read(reader), { useInlineViewWhenSpaceIsLimited: true });
+			this.widget?.setRenderSideBySide(this.diffEditorOptionsService.renderSideBySide.read(reader), { useInlineViewWhenSpaceIsLimited: true });
 		}));
 	}
 

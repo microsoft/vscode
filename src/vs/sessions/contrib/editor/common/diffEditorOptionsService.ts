@@ -8,9 +8,9 @@ import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
-export const ISessionsDiffLayoutService = createDecorator<ISessionsDiffLayoutService>('sessionsDiffLayoutService');
+export const IDiffEditorOptionsService = createDecorator<IDiffEditorOptionsService>('diffEditorOptionsService');
 
-export interface ISessionsDiffLayoutService {
+export interface IDiffEditorOptionsService {
 	readonly _serviceBrand: undefined;
 	readonly renderSideBySide: IObservable<boolean>;
 	toggleRenderSideBySide(): void;
