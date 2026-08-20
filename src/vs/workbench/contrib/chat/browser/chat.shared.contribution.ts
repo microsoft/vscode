@@ -2292,6 +2292,15 @@ configurationRegistry.registerConfiguration({
 				mode: 'startup'
 			}
 		},
+		[ChatConfiguration.InlineChatAgentHostEnabled]: {
+			type: 'boolean',
+			description: nls.localize('chat.inlineChat.agentHost.enabled', "Controls whether editor inline chat is backed by the Agent Host instead of the extension host. Applied on startup."),
+			default: false,
+			tags: ['experimental'],
+			experiment: {
+				mode: 'startup'
+			}
+		},
 		[ChatConfiguration.CollectInstructionsInExtension]: {
 			type: 'boolean',
 			description: nls.localize('chat.experimental.collectInstructionsInExtension', "When enabled, automatic instruction collection (.instructions.md, agent instructions, customizations index) is performed by the GitHub Copilot Chat extension instead of the core workbench."),

@@ -718,6 +718,31 @@ suite('AgentSideEffects', () => {
 			].join('\n')]);
 		});
 
+		test('adds focused edit guidance for an editor inline-chat surface', async () => {
+			setupSession(undefined, withChatSurfaceMeta(undefined, { surface: 'editorInline', languageId: 'typescript' }));
+
+			sideEffects.handleAction(defaultChatUri, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'Rename the function', origin: { kind: MessageKind.User } },
+			});
+			await waitForSendMessageCalls(1);
+
+			const sendContext = agent.chatContexts.find(call => call.boundary === 'sendMessage')?.context;
+			assert.deepStrictEqual(!URI.isUri(sendContext) ? sendContext?.hostInstructions : undefined, [[
+				'<editor_inline_chat>',
+				'You specialize in focused inline edits. Make the requested change directly.',
+				'- Edit only the file attached as the current editor context. Do not create, delete, or modify other files.',
+				'- Make the smallest edit that satisfies the request; preserve surrounding style and indentation.',
+				'- Focus on the user\'s selected range when one is provided.',
+				'- Avoid broad repository exploration or context-gathering unless required to resolve ambiguity.',
+				'- Produce the edit directly rather than explaining it or writing a tutorial.',
+				'- The file\'s language is typescript.',
+				'</editor_inline_chat>',
+			].join('\n')]);
+		});
+
 		test('passes the dispatching client id and type to sendMessage', async () => {
 			setupSession();
 			const action: ChatAction = {
