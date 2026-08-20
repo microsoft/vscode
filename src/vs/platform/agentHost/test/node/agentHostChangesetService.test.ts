@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -1275,6 +1275,80 @@ class RecordingLogService extends NullLogService {
 	}
 }
 
+suite('AgentHostChangesetService - turn changeset lifecycle', () => {
+
+	const disposables = new DisposableStore();
+	const sessionStr = AgentSession.uri('mock', 'session-turn-lifecycle').toString();
+
+	teardown(() => {
+		disposables.clear();
+	});
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('marks a ready turn changeset as computing until recomputation completes', async () => {
+		const recomputeGate = new DeferredPromise<void>();
+		let computeCount = 0;
+		const git = createNoopGitService();
+		git.getRepositoryRoot = async wd => URI.parse(wd.toString());
+		git.computeFileDiffsBetweenRefs = async () => {
+			computeCount++;
+			if (computeCount > 1) {
+				await recomputeGate.p;
+			}
+			return [];
+		};
+		const checkpoint: IAgentHostCheckpointService = {
+			...NULL_CHECKPOINT_SERVICE,
+			getTurnCheckpointPair: async () => ({ parent: 'parent', current: 'current' }),
+		};
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const diffService = new TestDiffComputeService();
+		class TestableChangesetService extends AgentHostChangesetService {
+			protected override _createDiffComputeService() {
+				return diffService;
+			}
+		}
+		const svc = disposables.add(new TestableChangesetService(
+			stateManager,
+			new NullLogService(),
+			createSessionDataService(new TestSessionDatabase()),
+			git,
+			checkpoint,
+			disposables.add(new AgentConfigurationService(stateManager, new NullLogService())),
+			createOperationService(),
+			createSubscriptionService(),
+			NULL_REVIEW_SERVICE,
+			NullTelemetryService,
+		));
+		stateManager.createSession({
+			resource: sessionStr,
+			provider: 'mock',
+			title: 'Test',
+			status: SessionStatus.Idle,
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
+			workingDirectories: ['file:///repo'],
+		});
+		const turnUri = await svc.computeTurnChangeset(sessionStr, 'turn-1');
+
+		const recompute = svc.computeTurnChangeset(sessionStr, 'turn-1');
+		const whileRecomputing = stateManager.getChangesetState(turnUri)?.status;
+		recomputeGate.complete();
+		await recompute;
+
+		assert.deepStrictEqual({
+			whileRecomputing,
+			afterRecompute: stateManager.getChangesetState(turnUri),
+		}, {
+			whileRecomputing: ChangesetStatus.Computing,
+			afterRecompute: {
+				status: ChangesetStatus.Ready,
+				files: [],
+			},
+		});
+	});
+});
+
 /**
  * Multi-root turn changeset aggregation (AC-2). A separate top-level suite so
  * these run against the current service (the older `AgentHostChangesetService`
@@ -1311,7 +1385,7 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 		log?: RecordingLogService;
 		telemetry?: ITelemetryService;
 		subscriptions?: string[];
-		peer?: { resource: string; db: TestSessionDatabase; turnId: string };
+		peer?: { resource: string; db: TestSessionDatabase; turnId: string; onDispose?: () => void };
 	}): { svc: AgentHostChangesetService; stateManager: AgentHostStateManager; log: RecordingLogService } {
 		const log = options.log ?? new RecordingLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -1332,9 +1406,19 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			log,
 			{
 				...sessionDataService,
-				openDatabase: resource => options.peer?.resource === resource.toString()
-					? peerDataService!.openDatabase(resource)
-					: sessionDataService.openDatabase(resource),
+				openDatabase: resource => {
+					if (options.peer?.resource !== resource.toString()) {
+						return sessionDataService.openDatabase(resource);
+					}
+					const ref = peerDataService!.openDatabase(resource);
+					return {
+						object: ref.object,
+						dispose: () => {
+							options.peer?.onDispose?.();
+							ref.dispose();
+						},
+					};
+				},
 			},
 			options.git,
 			options.checkpoint,
@@ -1428,7 +1512,15 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 
 	test('uses the owning peer database for multi-root non-git fallback', async () => {
 		const sessionDb = new TestSessionDatabase();
-		const peerDb = new TestSessionDatabase();
+		const lifecycle: string[] = [];
+		class DelayedPeerDatabase extends TestSessionDatabase {
+			override async getFileEditsByTurn(turnId: string) {
+				await timeout(0);
+				lifecycle.push('read');
+				return super.getFileEditsByTurn(turnId);
+			}
+		}
+		const peerDb = new DelayedPeerDatabase();
 		peerDb.addEdit({ turnId: 'peer-turn', toolCallId: 'tc1', filePath: '/folderA/peer.txt', kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString('a'), afterContent: encodeString('a\nb') });
 		const peerResource = 'ahp-chat://peer-1/session-mr';
 		const { svc, stateManager } = build({
@@ -1436,14 +1528,18 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			git: createNoopGitService(),
 			checkpoint: NULL_CHECKPOINT_SERVICE,
 			db: sessionDb,
-			peer: { resource: peerResource, db: peerDb, turnId: 'peer-turn' },
+			peer: { resource: peerResource, db: peerDb, turnId: 'peer-turn', onDispose: () => lifecycle.push('dispose') },
 		});
 
 		const turnUri = await svc.computeTurnChangeset(sessionStr, 'peer-turn');
 
-		assert.deepStrictEqual(stateManager.getChangesetState(turnUri)?.files.map(file => file.id), [
-			URI.file('/folderA/peer.txt').toString(),
-		]);
+		assert.deepStrictEqual({
+			files: stateManager.getChangesetState(turnUri)?.files.map(file => file.id),
+			lifecycle,
+		}, {
+			files: [URI.file('/folderA/peer.txt').toString()],
+			lifecycle: ['read', 'dispose'],
+		});
 	});
 
 	test('diffs a repository shared by two working directories exactly once (dedup by repo root)', async () => {

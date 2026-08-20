@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getDevElectronPath, Quality, ConsoleLogger, FileLogger, Logger, MultiLogger, getBuildElectronPath, getBuildVersion, measureAndLog, Application } from '../../automation';
+import { getDevElectronPath, Quality, ConsoleLogger, FileLogger, Logger, MultiLogger, getBuildElectronPath, getBuildVersion, Application } from '../../automation';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import * as vscodetest from '@vscode/test-electron';
 import * as sqlite3 from '@vscode/sqlite3';
 import type { Page } from '@playwright/test';
-import { createApp, retry, parseVersion } from './utils';
+import { createApp, parseVersion } from './utils';
 import { opts } from './options';
 
 export type JSONValue = string | number | boolean | null | JSONValue[] | { [key: string]: JSONValue };
@@ -48,6 +47,11 @@ if (fs.existsSync(testDataPath)) {
 	fs.rmSync(testDataPath, { recursive: true, force: true, maxRetries: 10 });
 }
 fs.mkdirSync(testDataPath, { recursive: true });
+// Keep the launched instance out of the real extensions directory. Without this
+// a `--build` run loads whatever the user has installed, which both changes the
+// product under test and copies that extension's logs into the evidence bundle.
+const extensionsPath = path.join(testDataPath, 'extensions-dir');
+fs.mkdirSync(extensionsPath, { recursive: true });
 process.once('exit', () => {
 	try {
 		fs.rmSync(testDataPath, { recursive: true, force: true, maxRetries: 10 });
@@ -150,111 +154,35 @@ export function getProductVersion(): string {
 	return version ?? sourceVersion;
 }
 
-async function ensureStableCode(): Promise<void> {
-	let stableCodePath = opts['stable-build'];
-	if (!stableCodePath) {
-		const current = parseVersion(version!);
-		const versionsReq = await retry(() => measureAndLog(() => fetch('https://update.code.visualstudio.com/api/releases/stable'), 'versionReq', logger), 1000, 20);
-
-		if (!versionsReq.ok) {
-			throw new Error('Could not fetch releases from update server');
+/**
+ * Reject per-run arguments that would move the launched instance off its
+ * isolated profile.
+ *
+ * VS Code keeps the last value of a repeated string option, and per-run
+ * arguments are appended after the generated ones, so a caller-supplied
+ * `--user-data-dir` or `--extensions-dir` would silently replace the isolated
+ * directory and let the real profile and its extensions back into the run.
+ */
+export function assertNoProfileOverrides(extraArgs: string[] | undefined): void {
+	for (const option of ['--user-data-dir', '--extensions-dir']) {
+		if (extraArgs?.some(arg => arg === option || arg.startsWith(`${option}=`))) {
+			throw new Error(`Per-run extraArgs cannot override the isolated profile directory '${option}'.`);
 		}
-
-		const versions: string[] = await measureAndLog(() => versionsReq.json(), 'versionReq.json()', logger);
-		const stableVersion = versions.find(raw => {
-			const version = parseVersion(raw);
-			return version.major < current.major || (version.major === current.major && version.minor < current.minor);
-		});
-
-		if (!stableVersion) {
-			throw new Error(`Could not find suitable stable version for ${version}`);
-		}
-
-		logger.log(`Found VS Code v${version}, downloading previous VS Code version ${stableVersion}...`);
-
-		let lastProgressMessage: string | undefined = undefined;
-		let lastProgressReportedAt = 0;
-		const stableCodeDestination = path.join(testDataPath, 's');
-		const stableCodeExecutable = await retry(() => measureAndLog(() => vscodetest.download({
-			cachePath: stableCodeDestination,
-			version: stableVersion,
-			extractSync: true,
-			reporter: {
-				report: report => {
-					let progressMessage = `download stable code progress: ${report.stage}`;
-					const now = Date.now();
-					if (progressMessage !== lastProgressMessage || now - lastProgressReportedAt > 10000) {
-						lastProgressMessage = progressMessage;
-						lastProgressReportedAt = now;
-
-						if (report.stage === 'downloading') {
-							progressMessage += ` (${report.bytesSoFar}/${report.totalBytes})`;
-						}
-
-						logger.log(progressMessage);
-					}
-				},
-				error: error => logger.log(`download stable code error: ${error}`)
-			}
-		}), 'download stable code', logger), 1000, 3, () => new Promise<void>((resolve, reject) => {
-			fs.rm(stableCodeDestination, { recursive: true, force: true, maxRetries: 10 }, error => {
-				if (error) {
-					reject(error);
-				} else {
-					resolve();
-				}
-			});
-		}));
-
-		if (process.platform === 'darwin') {
-			// Visual Studio Code.app/Contents/MacOS/Code
-			stableCodePath = path.dirname(path.dirname(path.dirname(stableCodeExecutable)));
-		} else {
-			// VSCode/Code.exe (Windows) | VSCode/code (Linux)
-			stableCodePath = path.dirname(stableCodeExecutable);
-		}
-
-		opts['stable-version'] = parseVersion(stableVersion);
 	}
-
-	if (!fs.existsSync(stableCodePath)) {
-		throw new Error(`Cannot find Stable VSCode at ${stableCodePath}.`);
-	}
-
-	logger.log(`Using stable build ${stableCodePath} for migration tests`);
-
-	opts['stable-build'] = stableCodePath;
-}
-
-async function setup(): Promise<void> {
-	logger.log('Preparing smoketest setup...');
-
-	if (!opts.web && !opts.remote && opts.build) {
-		// only enabled when running with --build and not in web or remote
-		await measureAndLog(() => ensureStableCode(), 'ensureStableCode', logger);
-	}
-
-	logger.log('Smoketest setup done!\n');
 }
 
 export async function getApplication({ recordVideo, workspacePath, userSettings, extraArgs }: { recordVideo?: boolean; workspacePath?: string; userSettings?: Record<string, JSONValue>; extraArgs?: string[] } = {}) {
 	if (opts.web && extraArgs?.length) {
 		throw new Error('Per-run extraArgs are not supported by the web automation launcher.');
 	}
-	if (extraArgs?.some(arg => arg === '--user-data-dir' || arg.startsWith('--user-data-dir='))) {
-		throw new Error('Per-run extraArgs cannot override the isolated user data directory.');
-	}
-	const testCodePath = getDevElectronPath();
-	const electronPath = testCodePath;
-	if (!fs.existsSync(electronPath || '')) {
-		throw new Error(`Cannot find VSCode at ${electronPath}. Please run VSCode once first (scripts/code.sh, scripts\\code.bat) and try again.`);
-	}
-	process.env.VSCODE_REPOSITORY = rootPath;
-	process.env.VSCODE_DEV = '1';
-	process.env.VSCODE_CLI = '1';
+	assertNoProfileOverrides(extraArgs);
+	// The from-source environment is resolved once at module load, which is also
+	// where the Electron path is validated. Re-applying it here would set
+	// `VSCODE_DEV=1` for `--build` runs as well: a packaged build then behaves as
+	// if it were running from a checkout and never opens a window, so launching
+	// against an installed build times out waiting for its first window.
 	delete process.env.ELECTRON_RUN_AS_NODE; // Ensure we run as Node.js
 
-	await setup();
 	const application = createApp({
 		quality,
 		version: parseVersion(version ?? '0.0.0'),
@@ -262,6 +190,7 @@ export async function getApplication({ recordVideo, workspacePath, userSettings,
 		// Use provided workspace path, or fall back to rootPath on CI (GitHub Actions)
 		workspacePath: workspacePath ?? (process.env.GITHUB_ACTIONS ? rootPath : undefined),
 		userDataDir: path.join(testDataPath, 'd'),
+		extensionsPath,
 		useInMemorySecretStorage: true,
 		logger,
 		logsPath: logsRootPath,

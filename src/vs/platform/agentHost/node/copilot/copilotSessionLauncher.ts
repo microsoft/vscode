@@ -13,9 +13,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agent.js';
-import { getByokLmSelectionModelId, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
+import { getByokLmSelectionModelId, resolveByokLmEnablement, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { AgentHostByokModelsEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
-import { AgentHostByokModelsEnabledEnvVar, isAgentHostByokModelsEnabled } from '../../common/agentService.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeModelFamilyAlias, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverrideField } from '../../common/copilotCliConfig.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels, type ReasoningEffortLevel } from '../../common/reasoningEffort.js';
@@ -37,7 +36,7 @@ import { isGpt56Model } from './modelIdentifiers.js';
 import './prompts/allPrompts.js';
 import { agentHostPromptRegistry, type IAgentHostPromptContext } from './prompts/promptRegistry.js';
 import { describeSystemMessageConfig } from './prompts/systemMessage.js';
-import { buildSandboxConfigForSdk, type CopilotSandboxConfig } from './sandboxConfigForSdk.js';
+import { buildSandboxConfigForSdk, type SandboxConfig } from './sandboxConfigForSdk.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, agentHostModelSupportsToolSearch } from './toolSearchDeferral.js';
 
 export const ThinkingLevelConfigKey = 'thinkingLevel';
@@ -233,7 +232,6 @@ interface ICopilotSessionLaunchBase {
 	readonly activeClientToolSet: ActiveClientToolSet;
 	readonly shellManager: ShellManager | undefined;
 	readonly githubToken: string | undefined;
-	readonly managedSandboxEnabled?: boolean;
 
 	/**
 	 * Whether this is a workspace-less session. Threaded into the
@@ -536,7 +534,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 
 	async launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
 		const config = await this._buildSessionConfig(plan, runtime);
-		const sandboxConfig = this._computeSandboxConfig(plan.managedSandboxEnabled);
+		const sandboxConfig = this._computeSandboxConfig();
 		if (plan.kind === 'create') {
 			return this._createSession(plan, config, sandboxConfig);
 		}
@@ -592,7 +590,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		return this._otelService.withTraceContext(this._otelService.getSessionTraceContext(sessionId, sessionUri), fn);
 	}
 
-	private async _createSession(plan: ICopilotCreateSessionLaunchPlan, config: ResumeSessionConfig, sandboxConfig: CopilotSandboxConfig | undefined): Promise<CopilotSessionWrapper> {
+	private async _createSession(plan: ICopilotCreateSessionLaunchPlan, config: ResumeSessionConfig, sandboxConfig: SandboxConfig | undefined): Promise<CopilotSessionWrapper> {
 		const raw = await this._withTraceContext(plan.sessionId, () => plan.client.createSession({
 			...config,
 			sessionId: plan.sessionId,
@@ -606,7 +604,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		return this._finalizeSession(raw, sandboxConfig, plan.sessionId, plan.model?.id);
 	}
 
-	private async _finalizeSession(raw: CopilotSessionWrapper['session'], sandboxConfig: CopilotSandboxConfig | undefined, sessionId: string, modelId: string | undefined): Promise<CopilotSessionWrapper> {
+	private async _finalizeSession(raw: CopilotSessionWrapper['session'], sandboxConfig: SandboxConfig | undefined, sessionId: string, modelId: string | undefined): Promise<CopilotSessionWrapper> {
 		await this._applySandboxConfig(raw, sandboxConfig, sessionId);
 		// TODO: Remove these post-launch updates once the SDK exposes verbosity and
 		// reasoningSummary in SessionConfig, alongside launch options such as reasoningEffort.
@@ -657,12 +655,12 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	 * `chat.agent.sandbox.*` settings), mirroring what
 	 * `buildSandboxConfigForCLI` does for the Copilot extension's CLI path.
 	 */
-	private _computeSandboxConfig(managedSandboxEnabled: boolean | undefined): CopilotSandboxConfig | undefined {
+	private _computeSandboxConfig(): SandboxConfig | undefined {
 		const enableCustomTerminalTool = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableCustomTerminalTool) === true;
 		if (enableCustomTerminalTool) {
 			return undefined;
 		}
-		return buildSandboxConfigForSdk(process.platform, this._configurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox), managedSandboxEnabled);
+		return buildSandboxConfigForSdk(process.platform, this._configurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox));
 	}
 
 	/**
@@ -673,7 +671,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	 * No-op when {@link _computeSandboxConfig} returned `undefined` (custom
 	 * terminal tool enabled, or the host sandbox config evaluates to disabled).
 	 */
-	private async _applySandboxConfig(session: CopilotSessionWrapper['session'], sandboxConfig: CopilotSandboxConfig | undefined, sessionId: string): Promise<void> {
+	private async _applySandboxConfig(session: CopilotSessionWrapper['session'], sandboxConfig: SandboxConfig | undefined, sessionId: string): Promise<void> {
 		if (!sandboxConfig) {
 			return;
 		}
@@ -691,10 +689,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	 * shared proxy handle for this launcher (started lazily on first use).
 	 */
 	private _resolveByokSessionConfig(sessionId: string): Promise<{ providers?: NamedProviderConfig[]; models?: ProviderModelConfig[] }> {
-		const envValue = process.env[AgentHostByokModelsEnabledEnvVar];
 		const rootConfigValue = this._configurationService.getRootValue(platformRootSchema, AgentHostByokModelsEnabledConfigKey);
-		const enabled = isAgentHostByokModelsEnabled(envValue, rootConfigValue);
-		this._logService.trace(`[Copilot:${sessionId}] BYOK session configuration enabled: ${enabled} (environment: ${envValue ?? 'unset'}, root config: ${rootConfigValue ?? 'unset'})`);
+		const { enabled, trace } = resolveByokLmEnablement(rootConfigValue);
+		this._logService.trace(`[Copilot:${sessionId}] BYOK session configuration ${trace}`);
 		if (!enabled) {
 			return Promise.resolve({});
 		}
