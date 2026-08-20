@@ -55,6 +55,7 @@ interface EvidenceRun {
 	scenarioPath?: string;
 	workspacePath?: string;
 	startedAt: string;
+	videoStartedAt?: string;
 	completedAt?: string;
 	outcome?: RunOutcome;
 	notes?: string;
@@ -145,6 +146,9 @@ export class EvidenceService {
 			throw error;
 		}
 		run.environment.quality = qualityNames[app.quality] ?? String(app.quality);
+		if (app.code.driver.videoStartedAt !== undefined) {
+			run.videoStartedAt = new Date(app.code.driver.videoStartedAt).toISOString();
+		}
 		try {
 			run.pageListener = page => {
 				const video = page.video();
@@ -473,6 +477,7 @@ export class EvidenceService {
 			scenarioPath: run.scenarioPath,
 			workspacePath: run.workspacePath,
 			startedAt: run.startedAt,
+			videoStartedAt: run.videoStartedAt,
 			completedAt: run.completedAt,
 			outcome: run.outcome,
 			notes: run.notes,

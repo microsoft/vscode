@@ -5,7 +5,7 @@
 
 import { VSBuffer, newWriteableBufferStream, streamToBuffer, type VSBufferReadableStream } from '../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { joinPath } from '../../../../../base/common/resources.js';
+import { basename, dirname, joinPath } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -23,9 +23,10 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
+import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
-import { IOutputService } from '../../../../services/output/common/output.js';
+import { IOutputService, isMultiSourceOutputChannelDescriptor, isSingleSourceOutputChannelDescriptor } from '../../../../services/output/common/output.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { COPILOT_CLI_LOCAL_AH_SCHEME, getCopilotCliSessionRawId, parseRemoteAuthorityFromScheme } from '../copilotCliEventsUri.js';
@@ -213,6 +214,31 @@ export async function collectAgentHostDebugLogs(
 		if (!channel || !descriptor) {
 			continue;
 		}
+		const sources = isSingleSourceOutputChannelDescriptor(descriptor)
+			? [descriptor.source]
+			: isMultiSourceOutputChannelDescriptor(descriptor) ? descriptor.source : [];
+		const channelFolderName = channelId === WINDOW_LOG_CHANNEL_ID
+			? 'Window'
+			: channelId === SHARED_PROCESS_LOG_CHANNEL_ID ? 'Shared' : sanitizeFilePart(descriptor.label);
+		const channelFolder = `vscode-logs/${channelFolderName}`;
+		const sourceNames = sources.map(source => basename(source.resource));
+		const sourceResults = await Promise.all(sources.map(async (source, index) => {
+			const sourceName = sourceNames[index];
+			const sourceFolder = sourceNames.filter(name => name === sourceName).length > 1
+				? `${channelFolder}/${index + 1}-${sanitizeFilePart(source.name ?? sourceName)}`
+				: channelFolder;
+			try {
+				const files = await collectRotatedLogFiles(sourceFolder, source.resource, fileService);
+				return { files, complete: files.length > 0 };
+			} catch (error) {
+				logService.warn(`[ExportAgentHostDebugLogs] Failed to collect rotated logs for '${source.resource.toString()}': ${error instanceof Error ? error.message : String(error)}`);
+				return { files: [], complete: false };
+			}
+		}));
+		files.push(...sourceResults.flatMap(result => result.files));
+		if (sourceResults.length > 0 && sourceResults.every(result => result.complete)) {
+			continue;
+		}
 		const modelRef = await textModelService.createModelReference(channel.uri);
 		try {
 			const filename = `${descriptor.label.replace(/[/\\:*?"<>|]/g, '-')}.log`;
@@ -286,9 +312,14 @@ export async function exportAgentHostDebugLogs(
 	const chatEntitlementService = accessor.get(IChatEntitlementService);
 	const fileService = accessor.get(IFileService);
 	const logService = accessor.get(ILogService);
+	const progressService = accessor.get(IProgressService);
 	let hostArtifact: IAgentHostDebugLogsArtifact | undefined;
 	try {
-		const logs = await collectAgentHostDebugLogs(accessor, activeSession, artifact => hostArtifact = artifact);
+		const logs = await progressService.withProgress({
+			location: ProgressLocation.Notification,
+			title: localize('exportDebugLogs.collectProgress', "Collecting Agent Host debug logs..."),
+			delay: 500,
+		}, () => collectAgentHostDebugLogs(accessor, activeSession, artifact => hostArtifact = artifact));
 		try {
 			const saved = await exportService.save(logs.exportName, logs.files, logs.hostArtifact);
 			if (saved) {
@@ -468,6 +499,32 @@ async function createDebugLogFile(path: string, resource: URI, fileService: IFil
 	}
 	const content = await fileService.readFile(resource);
 	return { path, contents: content.value.toString() };
+}
+
+export async function collectRotatedLogFiles(path: string, current: URI, fileService: IFileService): Promise<IAgentHostDebugLogFile[]> {
+	const currentName = basename(current);
+	const parent = await fileService.resolve(dirname(current), { resolveMetadata: true });
+	const files: IAgentHostDebugLogFile[] = [];
+	for (const child of parent.children ?? []) {
+		if (child.isFile && !child.isSymbolicLink && isRotatedLogFile(child.name, currentName)) {
+			const contents = await fileService.readFile(child.resource, { length: child.size });
+			files.push({ path: `${path}/${child.name}`, contents: contents.value.toString() });
+		}
+	}
+	return files;
+}
+
+function isRotatedLogFile(candidate: string, current: string): boolean {
+	if (candidate === current) {
+		return true;
+	}
+	const stem = current.endsWith('.log') ? current.slice(0, -'.log'.length) : current;
+	const prefix = `${stem}.`;
+	if (!candidate.startsWith(prefix) || !candidate.endsWith('.log')) {
+		return false;
+	}
+	const rotation = candidate.slice(prefix.length, -'.log'.length);
+	return /^[1-9]\d*$/.test(rotation);
 }
 
 function toSafeRelativePathSegments(path: string): string[] {

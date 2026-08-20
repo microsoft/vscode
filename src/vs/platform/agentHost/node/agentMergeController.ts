@@ -6,6 +6,7 @@
 import { RunOnceScheduler, SequencerByKey } from '../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { structuralEquals } from '../../../base/common/equals.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { autorun } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
@@ -65,6 +66,13 @@ export class AgentMergeController extends Disposable {
 	private readonly _evaluations = new SequencerByKey<string>();
 	private readonly _activeTurns = new Map<string, IAgentMergeTurnContext>();
 
+	private readonly _onDidReleaseHold = this._register(new Emitter<string>());
+	/** Fires when Agent Merge stops holding a session, so the host can re-arm its idle release. */
+	readonly onDidReleaseHold: Event<string> = this._onDidReleaseHold.event;
+
+	/** Sessions kept resident so their monitoring survives with no client subscriber. */
+	private readonly _heldSessions = new Set<string>();
+
 	constructor(
 		private readonly _options: IAgentMergeControllerOptions,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
@@ -115,6 +123,15 @@ export class AgentMergeController extends Disposable {
 		return this._isFeatureEnabled();
 	}
 
+	/**
+	 * Whether Agent Merge is keeping `session` resident. The host consults this
+	 * before releasing an idle session, and re-arms that release when
+	 * {@link onDidReleaseHold} reports the hold has ended.
+	 */
+	holdsSession(session: string): boolean {
+		return this._heldSessions.has(session);
+	}
+
 	onSessionAvailable(session: string): void {
 		this._logService.trace(`[AgentMergeController] Session available: session=${session}`);
 		this._syncSession(session);
@@ -129,7 +146,53 @@ export class AgentMergeController extends Disposable {
 		return context;
 	}
 
+	/**
+	 * Whether monitoring needs `session` in memory. Persisted enablement counts
+	 * even before a runtime starts, so a restore is not evicted out from under
+	 * the runtime that is about to claim it.
+	 */
+	private _shouldHoldSession(session: string): boolean {
+		if (this._runtimes.has(session)) {
+			return true;
+		}
+		if (!this._isFeatureEnabled()) {
+			return false;
+		}
+		const state = this._stateManager.getSessionState(session);
+		if (!state || isSessionStatusArchived(state.status)) {
+			return false;
+		}
+		return readAgentMergeSessionState(state.config?.values)?.enabled === true;
+	}
+
+	/**
+	 * Recomputes the hold after a state transition. Tracking it here — rather
+	 * than lazily when the host happens to ask — keeps the answer correct for a
+	 * session the host has never had reason to evict.
+	 */
+	private _updateHold(session: string): void {
+		const shouldHold = this._shouldHoldSession(session);
+		if (shouldHold === this._heldSessions.has(session)) {
+			return;
+		}
+		if (shouldHold) {
+			this._heldSessions.add(session);
+			return;
+		}
+		this._heldSessions.delete(session);
+		this._logService.debug(`[AgentMergeController] Released session hold: session=${session}`);
+		this._onDidReleaseHold.fire(session);
+	}
+
 	private _syncSession(session: string): void {
+		try {
+			this._doSyncSession(session);
+		} finally {
+			this._updateHold(session);
+		}
+	}
+
+	private _doSyncSession(session: string): void {
 		const state = this._stateManager.getSessionState(session);
 		const agentMerge = readAgentMergeSessionState(state?.config?.values);
 		if (!state || !agentMerge?.enabled) {
@@ -653,6 +716,9 @@ export class AgentMergeController extends Disposable {
 			this._runtimes.deleteAndDispose(session);
 			this._logService.debug(`[AgentMergeController] Disposed session runtime: session=${session}`);
 		}
+		// Also reached directly when the session is removed from state, which
+		// does not go through `_syncSession`.
+		this._updateHold(session);
 	}
 
 	private _hasTargetBranch(state: ReturnType<AgentHostStateManager['getSessionState']>, branchName: string): boolean {

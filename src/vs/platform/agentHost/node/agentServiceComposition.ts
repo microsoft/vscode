@@ -19,7 +19,7 @@ import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { IAgentService } from '../common/agentService.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
-import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
+import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { AgentHostChangesetCoordinator } from './agentHostChangesetCoordinator.js';
 import { AgentHostChangesetOperationService } from './agentHostChangesetOperationService.js';
 import { AgentHostChangesetService } from './agentHostChangesetService.js';
@@ -101,7 +101,7 @@ export function createAgentService(
 		const managedSettingsService = owned.add(new AgentHostManagedSettingsService());
 		const core: IAgentServiceCore = {
 			disposables: owned,
-			authenticationService: new AgentHostAuthenticationService(logService),
+			authenticationService: owned.add(new AgentHostAuthenticationService(logService)),
 			orchestratorDatabase,
 			debugLogsCollector,
 			sessionRegistry,
@@ -115,6 +115,7 @@ export function createAgentService(
 		agentService = instantiationService.createInstance(AgentService, core);
 		const context = agentService.getCompositionContext();
 		services.set(IAgentService, agentService);
+		services.set(IAgentHostAuthenticationService, core.authenticationService);
 		services.set(IAgentConfigurationService, context.configurationService);
 		services.set(IAgentHostStateManager, context.stateManager);
 		services.set(IAgentHostStorageService, context.storageService);
