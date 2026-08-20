@@ -273,7 +273,7 @@ suite('SearchSubagentTool', () => {
 			const { tool } = makeToolInstance(false, 4, {
 				invokeFunction: sequencedInvokeFunction(
 					() => { throw new Error('outside workspace'); },
-					true,
+					{ needsConfirmation: true, realPath: undefined },
 				),
 			});
 
@@ -287,7 +287,7 @@ suite('SearchSubagentTool', () => {
 			const { tool } = makeToolInstance(false, 4, {
 				invokeFunction: sequencedInvokeFunction(
 					undefined,
-					false,
+					{ needsConfirmation: false, realPath: undefined },
 				),
 				openTextDocument: async () => { throw new Error('file not found'); },
 			});
