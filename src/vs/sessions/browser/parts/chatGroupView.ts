@@ -46,6 +46,9 @@ export interface IChatGroupContext {
 	/** Whether the group's tab strip should be shown. */
 	readonly tabsVisible: IObservable<boolean>;
 
+	/** Whether this group's tab row replaces the session header and shows its actions. */
+	readonly showSessionActions: IObservable<boolean>;
+
 	/** Activate (show + focus) the given chat within this group. */
 	openChat(resource: URI): void;
 
@@ -170,6 +173,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			activeChatResource: context.activeChatResource,
 			mainChatResource: context.mainChatResource,
 			visible: context.tabsVisible,
+			showSessionActions: context.showSessionActions,
 			openChat: resource => context.openChat(resource),
 			newChat: () => context.newChat(),
 			onTabDragStart: resource => context.onTabDragStart(resource),

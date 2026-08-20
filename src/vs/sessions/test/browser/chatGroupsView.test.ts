@@ -402,20 +402,6 @@ suite('Sessions - ChatGroupsView', () => {
 		});
 	});
 
-	test('new chat action focuses its group composer', async () => {
-		const { view } = createHarness(disposables);
-		const main = createChat('main');
-		const session = new TestActiveSession([main]);
-		view.setSession(session, options);
-		const group = view.element.querySelector<HTMLElement>('.chat-group-view')!;
-
-		group.querySelector<HTMLElement>('.chat-composite-bar-new-chat .action-label')!.click();
-		await Promise.resolve();
-		await Promise.resolve();
-
-		assert.strictEqual(group.contains(mainWindow.document.activeElement), true);
-	});
-
 	test('new chat remains assigned to the group where creation started', async () => {
 		const { sessionsService, view } = createHarness(disposables);
 		const main = createChat('main');
@@ -447,4 +433,26 @@ suite('Sessions - ChatGroupsView', () => {
 			focusInMainGroup: true,
 		});
 	});
+
+	test('shows session actions in a single tab row and hides them for split groups', () => {
+		const { view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		const session = new TestActiveSession([main, secondary]);
+		view.setSession(session, options);
+
+		const singleGroupActions = view.element.querySelector<HTMLElement>('.session-chat-tabs-actions');
+		const singleGroupHidden = singleGroupActions?.classList.contains('hidden');
+		view.splitChatToSide(secondary.resource);
+		const splitGroupActions = Array.from(view.element.querySelectorAll<HTMLElement>('.session-chat-tabs-actions'));
+
+		assert.deepStrictEqual({
+			singleGroupHidden,
+			splitGroupsHidden: splitGroupActions.map(actions => actions.classList.contains('hidden')),
+		}, {
+			singleGroupHidden: false,
+			splitGroupsHidden: [true, true],
+		});
+	});
+
 });

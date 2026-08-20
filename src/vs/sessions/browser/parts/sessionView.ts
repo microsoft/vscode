@@ -148,6 +148,14 @@ export class SessionView extends Disposable implements ISerializableView {
 			this.element.classList.toggle('grid-layout', isGridLayout);
 			this._layoutChildren();
 		}));
+
+		this._register(autorun(reader => {
+			const session = this._sessionObs.read(reader);
+			const tabsReplaceHeader = this._groupsView.groupCount.read(reader) === 1
+				&& (session?.isCreated.read(reader) ?? false)
+				&& (session?.shouldShowChatTabs.read(reader) ?? false);
+			this._header.setVisible(!tabsReplaceHeader);
+		}));
 	}
 
 	openSession(session: IActiveSession | undefined, options: ISessionViewOptions): void {
