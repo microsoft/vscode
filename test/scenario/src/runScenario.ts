@@ -3,12 +3,45 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { execFileSync } from 'child_process';
 import type { Page } from '@playwright/test';
 import * as path from 'path';
 import type { Application, Code, Workbench } from '../../automation';
 import { ApplicationService, JSONValue } from './application';
 import { EvidenceService } from './evidence';
-import { renderChapters } from './renderEvidenceChapters';
+import { tryRenderChapters } from './renderEvidenceChapters';
+
+/**
+ * Report missing video tooling before anything is launched.
+ *
+ * Captions are rendered after the run, so a missing ffmpeg is only discovered
+ * once the scenario has already finished. Say so up front, with the command to
+ * fix it, rather than letting the run complete and produce no annotated video.
+ */
+function checkVideoTooling(): void {
+	const missing = ['ffmpeg', 'ffprobe'].filter(tool => {
+		try {
+			execFileSync(process.env[`${tool.toUpperCase()}_PATH`] ?? tool, ['-version'], { stdio: 'ignore' });
+			return false;
+		} catch {
+			return true;
+		}
+	});
+	if (!missing.length) {
+		return;
+	}
+	const install = process.platform === 'win32'
+		? 'winget install Gyan.FFmpeg'
+		: process.platform === 'darwin'
+			? 'brew install ffmpeg'
+			: 'sudo apt install ffmpeg';
+	console.warn(
+		`Warning: ${missing.join(' and ')} not found on PATH, so the recording will not be captioned with step titles.\n` +
+		`         The run still produces the raw video, screenshots, trace and report.\n` +
+		`         To caption it, install ffmpeg (${install}), make sure it is on PATH, and re-run,\n` +
+		`         or annotate the finished run with: node test/scenario/out/renderEvidenceChapters.js <run-dir>`
+	);
+}
 
 /**
  * Runs a UI validation scenario end to end and writes an evidence bundle.
@@ -95,6 +128,7 @@ function loadScenario(scenarioPath: string): Scenario {
 }
 
 export async function runScenario(scenario: Scenario): Promise<{ runPath: string; outcome: 'passed' | 'failed' | 'aborted' }> {
+	checkVideoTooling();
 	const appService = new ApplicationService();
 	const evidence = new EvidenceService(appService);
 	const runPath = await evidence.start(
@@ -151,7 +185,7 @@ export async function runScenario(scenario: Scenario): Promise<{ runPath: string
 
 	const reportPath = await evidence.finish(outcome, notes);
 	console.log(`Report: ${reportPath}`);
-	renderChapters(runPath);
+	tryRenderChapters(runPath);
 	return { runPath, outcome };
 }
 

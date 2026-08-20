@@ -95,9 +95,60 @@ function parseQuality(): Quality {
 //
 // #### Electron ####
 //
+/**
+ * Locate an installed VS Code Insiders, then Stable.
+ *
+ * Reproducing a reported issue is the common case, and that means running the
+ * shipped product rather than a build from this checkout, so an installed build
+ * is used when the caller did not choose a target.
+ */
+function findInstalledBuild(): string | undefined {
+	const candidates: string[] = [];
+	switch (process.platform) {
+		case 'win32': {
+			const roots = [process.env.LOCALAPPDATA, process.env.ProgramFiles, process.env['ProgramFiles(x86)']].filter((root): root is string => !!root);
+			for (const root of roots) {
+				candidates.push(path.join(root, 'Programs', 'Microsoft VS Code Insiders'), path.join(root, 'Microsoft VS Code Insiders'));
+			}
+			for (const root of roots) {
+				candidates.push(path.join(root, 'Programs', 'Microsoft VS Code'), path.join(root, 'Microsoft VS Code'));
+			}
+			break;
+		}
+		case 'darwin':
+			candidates.push(
+				'/Applications/Visual Studio Code - Insiders.app',
+				path.join(os.homedir(), 'Applications', 'Visual Studio Code - Insiders.app'),
+				'/Applications/Visual Studio Code.app',
+				path.join(os.homedir(), 'Applications', 'Visual Studio Code.app')
+			);
+			break;
+		default:
+			candidates.push('/usr/share/code-insiders', '/opt/visual-studio-code-insiders', '/usr/share/code', '/opt/visual-studio-code');
+			break;
+	}
+	return candidates.find(candidate => {
+		try {
+			return fs.existsSync(candidate) && fs.existsSync(getBuildElectronPath(candidate));
+		} catch {
+			return false; // an incomplete install is not a usable target
+		}
+	});
+}
+
 if (!opts.web) {
 	let testCodePath = opts.build;
 	let electronPath: string | undefined;
+
+	if (!testCodePath && !opts.dev) {
+		testCodePath = findInstalledBuild();
+		if (testCodePath) {
+			// `getApplication` launches whatever `opts.build` names, so record the
+			// choice there rather than only in this block.
+			opts.build = testCodePath;
+			logger.log(`No target given, using the installed build at ${testCodePath}. Pass --dev to run this checkout instead.`);
+		}
+	}
 
 	if (testCodePath) {
 		electronPath = getBuildElectronPath(testCodePath);
@@ -111,7 +162,7 @@ if (!opts.web) {
 	}
 
 	if (!fs.existsSync(electronPath || '')) {
-		fail(`Cannot find VSCode at ${electronPath}. Please run VSCode once first (scripts/code.sh, scripts\\code.bat) and try again.`);
+		fail(`Cannot find VS Code at ${electronPath}. Install VS Code Insiders, pass --build <app-root>, or build this checkout and pass --dev.`);
 	}
 
 	quality = parseQuality();

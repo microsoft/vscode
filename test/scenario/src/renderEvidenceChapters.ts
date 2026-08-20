@@ -299,12 +299,24 @@ function wrap(value: string, limit: number, maxLines: number): string[] {
 	return lines;
 }
 
-if (require.main === module) {
+/**
+ * Render captions without letting a presentation step fail a validation run.
+ *
+ * The raw recording is authoritative, so a missing or failing ffmpeg is reported
+ * and otherwise ignored.
+ */
+export function tryRenderChapters(runRoot: string): void {
 	try {
-		renderChapters(path.resolve(process.argv[2] ?? process.env.RUN_ROOT ?? '.'));
+		renderChapters(runRoot);
 	} catch (error) {
-		// Captions are a presentation aid, so never fail a validation run because
-		// the recording could not be annotated. The raw recording is authoritative.
-		console.warn(`Unable to render evidence captions: ${error instanceof Error ? error.message : error}`);
+		const message = error instanceof Error ? error.message : String(error);
+		const missingTool = /spawnSync (ffmpeg|ffprobe) ENOENT/u.exec(message);
+		console.warn(missingTool
+			? `Unable to render evidence captions: ${missingTool[1]} is not on PATH. Install ffmpeg and re-run this command; the raw recording is unaffected.`
+			: `Unable to render evidence captions: ${message}`);
 	}
+}
+
+if (require.main === module) {
+	tryRenderChapters(path.resolve(process.argv[2] ?? process.env.RUN_ROOT ?? '.'));
 }
