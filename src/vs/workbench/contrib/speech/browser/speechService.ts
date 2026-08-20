@@ -11,7 +11,7 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { ISpeechService, ISpeechProvider, HasSpeechProvider, ISpeechToTextSession, SpeechToTextInProgress, KeywordRecognitionStatus, SpeechToTextStatus, speechLanguageConfigToLanguage, SPEECH_LANGUAGE_CONFIG, ITextToSpeechSession, TextToSpeechInProgress, TextToSpeechStatus } from '../common/speechService.js';
+import { ISpeechService, ISpeechProvider, HasSpeechProvider, HasTextToSpeechProvider, ISpeechToTextSession, SpeechToTextInProgress, KeywordRecognitionStatus, SpeechToTextStatus, speechLanguageConfigToLanguage, SPEECH_LANGUAGE_CONFIG, ITextToSpeechSession, TextToSpeechInProgress, TextToSpeechStatus, IBuiltinTextToSpeechEngine } from '../common/speechService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
@@ -55,10 +55,15 @@ export class SpeechService extends Disposable implements ISpeechService {
 
 	get hasSpeechProvider() { return this.providerDescriptors.size > 0 || this.providers.size > 0; }
 
+	get hasTextToSpeechProvider() { return this.hasSpeechProvider || !!this.findBuiltinTextToSpeechEngine(); }
+
 	private readonly providers = new Map<string, ISpeechProvider>();
 	private readonly providerDescriptors = new Map<string, ISpeechProviderDescriptor>();
 
+	private readonly builtinTextToSpeechEngines = new Set<IBuiltinTextToSpeechEngine>();
+
 	private readonly hasSpeechProviderContext: IContextKey<boolean>;
+	private readonly hasTextToSpeechProviderContext: IContextKey<boolean>;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -71,6 +76,7 @@ export class SpeechService extends Disposable implements ISpeechService {
 		super();
 
 		this.hasSpeechProviderContext = HasSpeechProvider.bindTo(contextKeyService);
+		this.hasTextToSpeechProviderContext = HasTextToSpeechProvider.bindTo(contextKeyService);
 		this.textToSpeechInProgress = TextToSpeechInProgress.bindTo(contextKeyService);
 		this.speechToTextInProgress = SpeechToTextInProgress.bindTo(contextKeyService);
 
@@ -123,8 +129,37 @@ export class SpeechService extends Disposable implements ISpeechService {
 		});
 	}
 
+	registerBuiltinTextToSpeechEngine(engine: IBuiltinTextToSpeechEngine): IDisposable {
+		this.builtinTextToSpeechEngines.add(engine);
+		this.handleHasSpeechProviderChange();
+
+		// An engine can become supported later, for example once it has been
+		// configured, and text to speech has to be offered when that happens.
+		const listener = engine.onDidChangeSupported?.(() => this.handleHasSpeechProviderChange());
+
+		return toDisposable(() => {
+			listener?.dispose();
+			this.builtinTextToSpeechEngines.delete(engine);
+			this.handleHasSpeechProviderChange();
+		});
+	}
+
+	/** The supported built-in engine with the highest priority, if any. */
+	private findBuiltinTextToSpeechEngine(): IBuiltinTextToSpeechEngine | undefined {
+		let best: IBuiltinTextToSpeechEngine | undefined;
+
+		for (const engine of this.builtinTextToSpeechEngines) {
+			if (engine.isSupported && (!best || engine.priority > best.priority)) {
+				best = engine;
+			}
+		}
+
+		return best;
+	}
+
 	private handleHasSpeechProviderChange(): void {
 		this.hasSpeechProviderContext.set(this.hasSpeechProvider);
+		this.hasTextToSpeechProviderContext.set(this.hasTextToSpeechProvider);
 
 		this._onDidChangeHasSpeechProvider.fire();
 	}
@@ -256,43 +291,56 @@ export class SpeechService extends Disposable implements ISpeechService {
 	private readonly textToSpeechInProgress: IContextKey<boolean>;
 
 	async createTextToSpeechSession(token: CancellationToken, context: string = 'speech'): Promise<ITextToSpeechSession> {
-		const provider = await this.getProvider();
-
 		const language = speechLanguageConfigToLanguage(this.configurationService.getValue<unknown>(SPEECH_LANGUAGE_CONFIG));
-		const session = provider.createTextToSpeechSession(token, typeof language === 'string' ? { language } : undefined);
+		const options = typeof language === 'string' ? { language } : undefined;
+
+		// An extension provided speech provider always wins, so that installing
+		// one keeps its voices in charge. Only fall back to the built-in engine
+		// when none is present.
+		const session = this.hasSpeechProvider
+			? (await this.getProvider()).createTextToSpeechSession(token, options)
+			: this.getBuiltinTextToSpeechEngine().createTextToSpeechSession(token, options);
 
 		const sessionStart = Date.now();
 		let sessionError = false;
 
 		const disposables = new DisposableStore();
 
+		// Cancelling also makes the session stop, so both paths lead here. The
+		// session is only reported as ended once, while disposal still happens
+		// whenever it is asked for.
+		let ended = false;
 		const onSessionStoppedOrCanceled = (dispose: boolean) => {
-			this.activeTextToSpeechSessions = Math.max(0, this.activeTextToSpeechSessions - 1);
-			if (!this.hasActiveTextToSpeechSession) {
-				this.textToSpeechInProgress.reset();
-			}
-			this._onDidEndTextToSpeechSession.fire();
+			if (!ended) {
+				ended = true;
 
-			type TextToSpeechSessionClassification = {
-				owner: 'bpasero';
-				comment: 'An event that fires when a text to speech session is created';
-				context: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Context of the session.' };
-				sessionDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Duration of the session.' };
-				sessionError: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If speech resulted in error.' };
-				sessionLanguage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Configured language for the session.' };
-			};
-			type TextToSpeechSessionEvent = {
-				context: string;
-				sessionDuration: number;
-				sessionError: boolean;
-				sessionLanguage: string;
-			};
-			this.telemetryService.publicLog2<TextToSpeechSessionEvent, TextToSpeechSessionClassification>('textToSpeechSession', {
-				context,
-				sessionDuration: Date.now() - sessionStart,
-				sessionError,
-				sessionLanguage: language
-			});
+				this.activeTextToSpeechSessions = Math.max(0, this.activeTextToSpeechSessions - 1);
+				if (!this.hasActiveTextToSpeechSession) {
+					this.textToSpeechInProgress.reset();
+				}
+				this._onDidEndTextToSpeechSession.fire();
+
+				type TextToSpeechSessionClassification = {
+					owner: 'bpasero';
+					comment: 'An event that fires when a text to speech session is created';
+					context: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Context of the session.' };
+					sessionDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Duration of the session.' };
+					sessionError: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If speech resulted in error.' };
+					sessionLanguage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Configured language for the session.' };
+				};
+				type TextToSpeechSessionEvent = {
+					context: string;
+					sessionDuration: number;
+					sessionError: boolean;
+					sessionLanguage: string;
+				};
+				this.telemetryService.publicLog2<TextToSpeechSessionEvent, TextToSpeechSessionClassification>('textToSpeechSession', {
+					context,
+					sessionDuration: Date.now() - sessionStart,
+					sessionError,
+					sessionLanguage: language
+				});
+			}
 
 			if (dispose) {
 				disposables.dispose();
@@ -322,6 +370,15 @@ export class SpeechService extends Disposable implements ISpeechService {
 		}));
 
 		return session;
+	}
+
+	private getBuiltinTextToSpeechEngine(): IBuiltinTextToSpeechEngine {
+		const engine = this.findBuiltinTextToSpeechEngine();
+		if (!engine) {
+			throw new Error(`No text-to-speech provider is registered.`);
+		}
+
+		return engine;
 	}
 
 	//#endregion

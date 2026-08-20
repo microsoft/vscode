@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { parseNextChatResponseChunk } from '../../../electron-browser/actions/voiceChatActions.js';
+import { parseNextChatResponseChunk, selectTextToRead } from '../../../electron-browser/actions/voiceChatActions.js';
 
 suite('VoiceChatActions', function () {
 
@@ -38,6 +38,28 @@ suite('VoiceChatActions', function () {
 		// Sparted by newlines
 		offset = assertChunk('Hello World.\nHow is your', 'Hello World.', 0).offset;
 		assertChunk('Hello World.\nHow is your day?\n', 'How is your day?', offset);
+	});
+
+	test('selectTextToRead falls back when there is no final answer to read', function () {
+		const markdown = 'Looked at the file. Ran the tests. They all passed.';
+
+		assert.deepStrictEqual({
+			// A response ending on a tool call has no trailing markdown, so
+			// reading only the answer would read nothing at all.
+			endsOnToolCall: selectTextToRead(markdown, '', true),
+			// So would one whose answer is just a sign-off.
+			answerIsOnlyASignOff: selectTextToRead(markdown, 'Done.', true),
+			answerCarriesTheResponse: selectTextToRead(markdown, 'They all passed.', true),
+			// While still streaming the whole response is followed as it comes in.
+			whileStreaming: selectTextToRead(markdown, '', false),
+			emptyResponse: selectTextToRead('', '', true)
+		}, {
+			endsOnToolCall: markdown,
+			answerIsOnlyASignOff: markdown,
+			answerCarriesTheResponse: 'They all passed.',
+			whileStreaming: markdown,
+			emptyResponse: ''
+		});
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
