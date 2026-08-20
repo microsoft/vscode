@@ -28,7 +28,7 @@ import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quic
 import { defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IBrowserViewModel } from '../../common/browserView.js';
-import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, IBrowserEditorWidget, IContainerLayout, IContainerLayoutOverride, BROWSER_EDITOR_ACTIVE, BrowserActionCategory, BrowserActionGroup } from '../browserEditor.js';
+import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, IBrowserEditorWidget, IContainerLayout, IContainerLayoutOverride, BROWSER_EDITOR_ACTIVE, BrowserActionCategory, BrowserActionGroup, CONTEXT_BROWSER_IS_INTERACTIVE } from '../browserEditor.js';
 
 const CONTEXT_BROWSER_EMULATION_TOOLBAR_VISIBLE = new RawContextKey<boolean>(
 	'browserEmulationToolbarVisible',
@@ -84,6 +84,7 @@ class BrowserEmulationToolbar extends Disposable {
 
 	private _suppressChange = false;
 	private _autoFitScale = 1;
+	private _isInteractive = true;
 
 	private static readonly ZOOM_PRESETS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 	private static readonly AUTO_INDEX = 0;
@@ -218,6 +219,15 @@ class BrowserEmulationToolbar extends Disposable {
 	refresh(): void {
 		this._writeInputs(this._feature.model?.device);
 		this._updateZoom();
+		this._updateControlEnablement();
+	}
+
+	setInteractive(isInteractive: boolean): void {
+		if (this._isInteractive === isInteractive) {
+			return;
+		}
+		this._isInteractive = isInteractive;
+		this._updateControlEnablement();
 	}
 
 	private _writeInputs(device: IBrowserDeviceProfile | undefined): void {
@@ -231,7 +241,6 @@ class BrowserEmulationToolbar extends Disposable {
 		} finally {
 			this._suppressChange = false;
 		}
-		this._swapDimensionsAction.enabled = !!width || !!height;
 	}
 
 	private _appendGroup(name: string): HTMLElement {
@@ -261,10 +270,18 @@ class BrowserEmulationToolbar extends Disposable {
 		this._suppressChange = true;
 		try {
 			this._zoom.select(this._currentZoomIndex());
-			this._zoom.setEnabled(!!this._feature.model?.device);
 		} finally {
 			this._suppressChange = wasSuppressed;
 		}
+	}
+
+	private _updateControlEnablement(): void {
+		this._widthInput.setEnabled(this._isInteractive);
+		this._heightInput.setEnabled(this._isInteractive);
+		this._dprInput.setEnabled(this._isInteractive);
+		const device = this._feature.model?.device;
+		this._swapDimensionsAction.enabled = this._isInteractive && (!!device?.width || !!device?.height);
+		this._zoom.setEnabled(this._isInteractive && !!device);
 	}
 
 	private _onDimensionInput(): void {
@@ -445,10 +462,15 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 	}
 
 	protected override onModelAttached(model: IBrowserViewModel, store: DisposableStore): void {
+		this._toolbar.setInteractive(model.isInteractive);
 		this._toolbar.refresh();
 		this._syncContextKeys(model.device);
 		this._updateSashState();
 		this._setToolbarVisible(!!model.device);
+		store.add(model.onDidChangeInteractivity(({ isInteractive }) => {
+			this._toolbar.setInteractive(isInteractive);
+			this._updateSashState();
+		}));
 		store.add(model.onDidChangeDevice(device => {
 			this._updateSashState();
 			// Turning emulation off discards any in-progress scale override so
@@ -470,6 +492,7 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 		// Editor input is being cleared — drop renderer-side state so a freshly
 		// reopened input starts without stale viewport overrides.
 		this._scale = undefined;
+		this._toolbar.setInteractive(true);
 		this._toolbar.refresh();
 		this._syncContextKeys(undefined);
 		this._setToolbarVisible(false);
@@ -595,7 +618,8 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 	}
 
 	private _updateSashState(): void {
-		const state = this.editor.model?.device ? SashState.Enabled : SashState.Disabled;
+		const model = this.editor.model;
+		const state = model?.device && model.isInteractive ? SashState.Enabled : SashState.Disabled;
 		if (this._eastSash) {
 			this._eastSash.state = state;
 		}
@@ -638,7 +662,7 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 
 		const onStart = () => {
 			const model = this.editor.model;
-			if (!model || !model.device) {
+			if (!model?.device || !model.isInteractive) {
 				return;
 			}
 			const device = model.device;
@@ -719,7 +743,7 @@ class ToggleBrowserEmulationAction extends Action2 {
 			icon: Codicon.deviceMobile,
 			f1: true,
 			toggled: CONTEXT_BROWSER_EMULATION_TOOLBAR_VISIBLE,
-			precondition: BROWSER_EDITOR_ACTIVE,
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_IS_INTERACTIVE),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: BrowserActionGroup.Tools,
@@ -756,7 +780,7 @@ class ToggleBrowserMobileEmulationAction extends Action2 {
 			icon: Codicon.deviceMobile,
 			f1: true,
 			toggled: CONTEXT_BROWSER_EMULATION_IS_MOBILE,
-			precondition: BROWSER_EDITOR_ACTIVE,
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_IS_INTERACTIVE),
 		});
 	}
 
@@ -805,7 +829,7 @@ class PickBrowserDevicePresetAction extends Action2 {
 			category: BrowserActionCategory,
 			icon: Codicon.library,
 			f1: true,
-			precondition: BROWSER_EDITOR_ACTIVE,
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_IS_INTERACTIVE),
 		});
 	}
 
@@ -857,7 +881,7 @@ class SetBrowserUserAgentAction extends Action2 {
 			icon: Codicon.tag,
 			f1: true,
 			toggled: CONTEXT_BROWSER_EMULATION_HAS_USER_AGENT,
-			precondition: BROWSER_EDITOR_ACTIVE,
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_IS_INTERACTIVE),
 		});
 	}
 
@@ -900,7 +924,7 @@ class ResetBrowserEmulationAction extends Action2 {
 			category: BrowserActionCategory,
 			icon: Codicon.discard,
 			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_EMULATION_TOOLBAR_VISIBLE),
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_EMULATION_TOOLBAR_VISIBLE, CONTEXT_BROWSER_IS_INTERACTIVE),
 		});
 	}
 

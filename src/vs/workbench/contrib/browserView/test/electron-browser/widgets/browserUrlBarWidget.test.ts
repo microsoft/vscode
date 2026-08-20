@@ -232,7 +232,7 @@ suite('BrowserUrlBarWidget', () => {
 			activeElement: true,
 			contentEditable: 'false',
 			ariaReadonly: 'true',
-			ariaLabel: 'Address. This address cannot be changed because the browser is locked to a file resource.',
+			ariaLabel: 'Address. The browser address is read-only.',
 			pickerVisible: false,
 			navigated: []
 		});

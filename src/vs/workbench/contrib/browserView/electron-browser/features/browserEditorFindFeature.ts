@@ -22,7 +22,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, BROWSER_EDITOR_ACTIVE, BrowserActionCategory, BrowserActionGroup, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, IBrowserEditorWidget } from '../browserEditor.js';
+import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, BROWSER_EDITOR_ACTIVE, BrowserActionCategory, BrowserActionGroup, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_IS_INTERACTIVE, IBrowserEditorWidget } from '../browserEditor.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 
 const CONTEXT_BROWSER_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('browserFindWidgetVisible', false, localize('browser.findWidgetVisible', "Whether the browser find widget is visible"));
@@ -236,8 +236,16 @@ export class BrowserEditorFindContribution extends BrowserEditorContribution {
 		return [{ location: BrowserWidgetLocation.Toolbar, element: this._findWidgetContainer, order: 0 }];
 	}
 
-	protected override onModelAttached(model: IBrowserViewModel, _store: DisposableStore): void {
+	protected override onModelAttached(model: IBrowserViewModel, store: DisposableStore): void {
 		this._findWidget.rawValue?.setModel(model);
+		if (!model.isInteractive) {
+			this.hideFind();
+		}
+		store.add(model.onDidChangeInteractivity(({ isInteractive }) => {
+			if (!isInteractive) {
+				this.hideFind();
+			}
+		}));
 	}
 
 	override onModelDetached(): void {
@@ -295,7 +303,7 @@ class ShowBrowserFindAction extends Action2 {
 			category: BrowserActionCategory,
 			icon: Codicon.search,
 			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate()),
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), CONTEXT_BROWSER_IS_INTERACTIVE),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: BrowserActionGroup.Tools,
@@ -325,7 +333,7 @@ class HideBrowserFindAction extends Action2 {
 			title: localize2('browser.hideFindAction', 'Close Find Widget'),
 			category: BrowserActionCategory,
 			f1: false,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE),
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE, CONTEXT_BROWSER_IS_INTERACTIVE),
 			keybinding: {
 				weight: KeybindingWeight.EditorContrib + 5,
 				primary: KeyCode.Escape
@@ -350,13 +358,13 @@ class BrowserFindNextAction extends Action2 {
 			title: localize2('browser.findNextAction', 'Find Next'),
 			category: BrowserActionCategory,
 			f1: false,
-			precondition: BROWSER_EDITOR_ACTIVE,
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_IS_INTERACTIVE),
 			keybinding: [{
-				when: CONTEXT_BROWSER_FIND_WIDGET_FOCUSED,
+				when: ContextKeyExpr.and(CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_IS_INTERACTIVE),
 				weight: KeybindingWeight.EditorContrib,
 				primary: KeyCode.Enter
 			}, {
-				when: CONTEXT_BROWSER_FIND_WIDGET_VISIBLE,
+				when: ContextKeyExpr.and(CONTEXT_BROWSER_FIND_WIDGET_VISIBLE, CONTEXT_BROWSER_IS_INTERACTIVE),
 				weight: KeybindingWeight.EditorContrib,
 				primary: KeyCode.F3,
 				mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyG }
@@ -381,13 +389,13 @@ class BrowserFindPreviousAction extends Action2 {
 			title: localize2('browser.findPreviousAction', 'Find Previous'),
 			category: BrowserActionCategory,
 			f1: false,
-			precondition: BROWSER_EDITOR_ACTIVE,
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_IS_INTERACTIVE),
 			keybinding: [{
-				when: CONTEXT_BROWSER_FIND_WIDGET_FOCUSED,
+				when: ContextKeyExpr.and(CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_IS_INTERACTIVE),
 				weight: KeybindingWeight.EditorContrib,
 				primary: KeyMod.Shift | KeyCode.Enter
 			}, {
-				when: CONTEXT_BROWSER_FIND_WIDGET_VISIBLE,
+				when: ContextKeyExpr.and(CONTEXT_BROWSER_FIND_WIDGET_VISIBLE, CONTEXT_BROWSER_IS_INTERACTIVE),
 				weight: KeybindingWeight.EditorContrib,
 				primary: KeyMod.Shift | KeyCode.F3,
 				mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG }

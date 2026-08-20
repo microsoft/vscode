@@ -155,6 +155,9 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 			return false;
 		}
 		this._container?.focus();
+		if (!this._canFocusPage()) {
+			return true;
+		}
 		if (this._focusTimeout || !this._model) {
 			return true;
 		}
@@ -164,7 +167,7 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 			if (!doc?.hasFocus() || doc.activeElement !== this._container) {
 				return;
 			}
-			if (this._model?.visible) {
+			if (this._model?.visible && this._canFocusPage()) {
 				void this._model.focus();
 			} else {
 				this.editor.ensureBrowserFocus();
@@ -183,6 +186,11 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 		store.add(model.onDidKeyCommand(keyEvent => void this._handleKeyEvent(keyEvent)));
 		store.add(model.onDidNavigate(() => this._refresh()));
 		store.add(model.onDidChangeLoadingState(() => this._refresh()));
+		store.add(model.onDidChangeInteractivity(() => {
+			if (!this._canFocusPage()) {
+				this._cancelFocusTimeout();
+			}
+		}));
 
 		this._refresh();
 		void this._doScreenshot();
@@ -211,6 +219,14 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 			&& !this._overlayObscured
 			&& !!this._model?.url
 			&& !this._model?.error;
+	}
+
+	private _canFocusPage(): boolean {
+		return !!this._model && (
+			this._model.isInteractive
+			|| this._model.elementSelectionState.active
+			|| this._model.isAreaSelectionActive
+		);
 	}
 
 	/**

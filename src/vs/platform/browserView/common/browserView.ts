@@ -321,6 +321,7 @@ export interface IBrowserViewState {
 	loading: boolean;
 	focused: boolean;
 	visible: boolean;
+	isInteractive: boolean;
 	isDevToolsOpen: boolean;
 	lastScreenshot: VSBuffer | undefined;
 	lastFavicon: string | undefined;
@@ -375,6 +376,10 @@ export interface IBrowserViewFocusEvent {
 
 export interface IBrowserViewVisibilityEvent {
 	visible: boolean;
+}
+
+export interface IBrowserViewInteractivityEvent {
+	isInteractive: boolean;
 }
 
 export interface IBrowserViewDevToolsStateEvent {
@@ -480,6 +485,7 @@ export interface IBrowserViewService {
 	onDynamicDidChangeLoadingState(id: string): Event<IBrowserViewLoadingEvent>;
 	onDynamicDidChangeFocus(id: string): Event<IBrowserViewFocusEvent>;
 	onDynamicDidChangeVisibility(id: string): Event<IBrowserViewVisibilityEvent>;
+	onDynamicDidChangeInteractivity(id: string): Event<IBrowserViewInteractivityEvent>;
 	onDynamicDidChangeDevToolsState(id: string): Event<IBrowserViewDevToolsStateEvent>;
 	onDynamicDidKeyCommand(id: string): Event<IBrowserViewKeyDownEvent>;
 	onDynamicDidChangeTitle(id: string): Event<IBrowserViewTitleChangeEvent>;
@@ -542,6 +548,11 @@ export interface IBrowserViewService {
 	 * @param visible Whether the view should be visible
 	 */
 	setVisible(id: string, visible: boolean): Promise<void>;
+
+	/**
+	 * Enable or disable browser page interactivity.
+	 */
+	setInteractive(id: string, isInteractive: boolean): Promise<void>;
 
 	/**
 	 * Navigate the browser view to a URL
