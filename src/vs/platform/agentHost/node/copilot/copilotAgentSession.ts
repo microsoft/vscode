@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, ManagedSettingsResolvedData, JsonValue, McpServersLoadedServer, MessageOptions, PermissionAllowAllMode, PermissionAutoApproval, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
+import type { CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, McpServersLoadedServer, MessageOptions, PermissionAllowAllMode, PermissionAutoApproval, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
 import { cp, rm } from 'fs/promises';
 import { raceCancellation, RunOnceScheduler, Sequencer, SequencerByKey, Throttler } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
@@ -61,7 +61,7 @@ import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
 import { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
 import { NonPtyShellTerminalStreams } from './copilotNonPtyShellTerminals.js';
-import { buildSandboxConfigForSdk, type CopilotSandboxConfig } from './sandboxConfigForSdk.js';
+import { buildSandboxConfigForSdk, type SandboxConfig } from './sandboxConfigForSdk.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify } from './copilotToolDisplay.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
@@ -381,8 +381,6 @@ export interface ICopilotAgentSessionOptions {
 	readonly sessionLauncher: ICopilotSessionLauncher;
 	readonly launchPlan: CopilotSessionLaunchPlan;
 	readonly shellManager: ShellManager | undefined;
-	readonly managedSandboxEnabled?: boolean;
-	readonly onManagedSettingsResolved?: (data: ManagedSettingsResolvedData) => void;
 	/** Working directory associated with the session, used to strip redundant `cd` prefixes from shell commands. */
 	readonly workingDirectory?: URI;
 	/** Directory used to resolve workspace-scoped customizations for this session. */
@@ -750,7 +748,7 @@ export class CopilotAgentSession extends Disposable {
 			destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
 			include: {
 				events: includeSessionLogs,
-				processLogs: true,
+				processLogs: false,
 				shellLogs: includeSessionLogs,
 			},
 		});
@@ -902,8 +900,6 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Platform used to compute the SDK sandbox policy (injectable for tests). */
 	private readonly _platform: NodeJS.Platform;
-	private _managedSandboxEnabled: boolean | undefined;
-	private readonly _onManagedSettingsResolved: (data: ManagedSettingsResolvedData) => void;
 
 	get mcpServerStates() {
 		return this._mcpCustomizations.runtimeStates;
@@ -946,9 +942,6 @@ export class CopilotAgentSession extends Disposable {
 		this._isLaunchTokenStillCurrent = options.isLaunchTokenCurrent ?? (() => true);
 		this._onTurnEnded = options.onTurnEnded ?? (() => { });
 		this._shellManager = options.shellManager;
-		this._managedSandboxEnabled = options.managedSandboxEnabled;
-		this._shellManager?.setManagedSandboxEnabled(this._managedSandboxEnabled);
-		this._onManagedSettingsResolved = options.onManagedSettingsResolved ?? (() => { });
 		this._nonPtyShellTerminals = this._register(this._instantiationService.createInstance(NonPtyShellTerminalStreams, options.sessionUri));
 		this._workingDirectory = options.workingDirectory;
 		this._customizationDirectory = options.customizationDirectory;
@@ -3193,9 +3186,6 @@ export class CopilotAgentSession extends Disposable {
 			}
 			return this._shellManager.getOrCreateSandboxEngine().isEnabled();
 		}
-		if (this._managedSandboxEnabled !== undefined) {
-			return this._managedSandboxEnabled;
-		}
 		// SDK-managed shell path: gate on the same host config that
 		// `CopilotSessionLauncher` reads when forwarding `sandboxConfig` to
 		// the SDK, so the two stay in lock-step.
@@ -3218,21 +3208,12 @@ export class CopilotAgentSession extends Disposable {
 	 * containment) or when the host sandbox config evaluates to disabled
 	 * (including on Windows, where the sandbox is not supported).
 	 */
-	private _computeSdkSandboxConfig(): CopilotSandboxConfig | undefined {
+	private _computeSdkSandboxConfig(): SandboxConfig | undefined {
 		if (this._isCustomTerminalToolEnabled()) {
 			return undefined;
 		}
 		const sandbox = this._configurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox);
-		return buildSandboxConfigForSdk(this._platform, sandbox, this._managedSandboxEnabled);
-	}
-
-	setManagedSandboxEnabled(enabled: boolean | undefined): void {
-		if (this._managedSandboxEnabled === enabled) {
-			return;
-		}
-		this._managedSandboxEnabled = enabled;
-		this._shellManager?.setManagedSandboxEnabled(enabled);
-		void this._applyEffectiveSandboxConfig();
+		return buildSandboxConfigForSdk(this._platform, sandbox);
 	}
 
 	/**
@@ -3276,6 +3257,9 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _syncPermissionModeAfterConfigChange(): Promise<void> {
+		if (!this.hasActiveTurn) {
+			return;
+		}
 		try {
 			await this.syncPermissionMode('config-change');
 			await this._applyEffectiveSandboxConfig(true);
@@ -3335,18 +3319,15 @@ export class CopilotAgentSession extends Disposable {
 	 *
 	 * Skips the SDK sandbox entirely when the custom terminal tool is enabled
 	 * (the host's own terminal sandbox engine handles containment and the SDK's
-	 * built-in shell is unused). Otherwise it always pushes the effective state
-	 * when sandboxing is locally controlled. When managed enablement is defined,
-	 * the runtime owns the effective configuration and the host sends no local
-	 * sandbox update.
+	 * built-in shell is unused). Otherwise it always pushes the effective state.
 	 */
 	private async _applyEffectiveSandboxConfig(failOnError = false): Promise<void> {
-		if (this._isCustomTerminalToolEnabled() || this._managedSandboxEnabled !== undefined) {
+		if (this._isCustomTerminalToolEnabled()) {
 			return;
 		}
 		const sandbox = this._configurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox);
-		const base = buildSandboxConfigForSdk(this._platform, sandbox, this._managedSandboxEnabled);
-		const sandboxConfig: CopilotSandboxConfig | { enabled: false } = base ?? { enabled: false };
+		const base = buildSandboxConfigForSdk(this._platform, sandbox);
+		const sandboxConfig: SandboxConfig = base ?? { enabled: false };
 		try {
 			const result = await this._wrapper.session.rpc.options.update({ sandboxConfig });
 			if (!result.success) {
@@ -5393,7 +5374,6 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onManagedSettingsResolved(e => {
 			this._logService.info(`[Copilot:${sessionId}] Managed settings resolved: source=${e.data.source}, managedKeys=${e.data.managedKeys.join(',') || '(none)'}, bypassPermissionsDisabled=${e.data.bypassPermissionsDisabled}, failClosed=${e.data.failClosed}`);
-			this._onManagedSettingsResolved(e.data);
 		}));
 
 		this._register(wrapper.onManagedSettingsEnforced(e => {
