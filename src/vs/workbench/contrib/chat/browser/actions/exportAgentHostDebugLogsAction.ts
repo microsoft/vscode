@@ -19,7 +19,7 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IsWebContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
+import { ByteSize, IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
@@ -37,6 +37,7 @@ import { buildAgentHostCustomizationsUri, buildAgentHostUsageUri } from '../chat
 const WINDOW_LOG_CHANNEL_ID = 'rendererLog';
 /** Output channel ID for the shared process compound log. */
 const SHARED_PROCESS_LOG_CHANNEL_ID = 'shared';
+const MAX_INLINE_DEBUG_LOGS_BYTES = 30 * ByteSize.MB;
 
 /**
  * Description of the agent-host session whose logs should be exported. If
@@ -53,7 +54,7 @@ export interface IActiveAgentHostSessionForExport {
 }
 
 export type IAgentHostDebugLogFile =
-	| { readonly path: string; readonly contents: string }
+	| { readonly path: string; readonly contents: string; readonly size: number }
 	| { readonly path: string; readonly resource: URI; readonly size: number };
 
 export interface IAgentHostDebugLogsExport {
@@ -178,6 +179,7 @@ export async function collectAgentHostDebugLogs(
 	// path-guessing implementation on this side.
 	const hostArtifact = await connection.collectDebugLogs(backendSession, exportService.hostArtifactKind);
 	onDidCreateHostArtifact(hostArtifact);
+	let remainingInlineBytes = MAX_INLINE_DEBUG_LOGS_BYTES;
 
 	// Collect all output channel IDs relevant for the current session's agent host.
 	const channelIds = new Set<string>();
@@ -206,6 +208,17 @@ export async function collectAgentHostDebugLogs(
 	channelIds.add(SHARED_PROCESS_LOG_CHANNEL_ID);
 
 	const files: IAgentHostDebugLogFile[] = [];
+	const appendFile = (file: IAgentHostDebugLogFile) => {
+		files.push(file);
+		if (hasKey(file, { contents: true })) {
+			remainingInlineBytes -= file.size;
+		}
+	};
+	const appendFiles = (collectedFiles: readonly IAgentHostDebugLogFile[]) => {
+		for (const file of collectedFiles) {
+			appendFile(file);
+		}
+	};
 
 	// 1. Output channels
 	for (const channelId of channelIds) {
@@ -222,27 +235,29 @@ export async function collectAgentHostDebugLogs(
 			: channelId === SHARED_PROCESS_LOG_CHANNEL_ID ? 'Shared' : sanitizeFilePart(descriptor.label);
 		const channelFolder = `vscode-logs/${channelFolderName}`;
 		const sourceNames = sources.map(source => basename(source.resource));
-		const sourceResults = await Promise.all(sources.map(async (source, index) => {
+		for (let index = 0; index < sources.length; index++) {
+			const source = sources[index];
 			const sourceName = sourceNames[index];
 			const sourceFolder = sourceNames.filter(name => name === sourceName).length > 1
 				? `${channelFolder}/${index + 1}-${sanitizeFilePart(source.name ?? sourceName)}`
 				: channelFolder;
 			try {
-				const files = await collectRotatedLogFiles(sourceFolder, source.resource, fileService);
-				return { files, complete: files.length > 0 };
+				const collectedFiles = await collectRotatedLogFiles(sourceFolder, source.resource, fileService, remainingInlineBytes);
+				appendFiles(collectedFiles);
 			} catch (error) {
 				logService.warn(`[ExportAgentHostDebugLogs] Failed to collect rotated logs for '${source.resource.toString()}': ${error instanceof Error ? error.message : String(error)}`);
-				return { files: [], complete: false };
 			}
-		}));
-		files.push(...sourceResults.flatMap(result => result.files));
-		if (sourceResults.length > 0 && sourceResults.every(result => result.complete)) {
+		}
+		if (sources.length > 0) {
 			continue;
 		}
 		const modelRef = await textModelService.createModelReference(channel.uri);
 		try {
 			const filename = `${descriptor.label.replace(/[/\\:*?"<>|]/g, '-')}.log`;
-			files.push({ path: filename, contents: modelRef.object.textEditorModel.getValue() });
+			const file = createInlineDebugLogFile(filename, VSBuffer.fromString(modelRef.object.textEditorModel.getValue()), remainingInlineBytes);
+			if (file) {
+				appendFile(file);
+			}
 		} finally {
 			modelRef.dispose();
 		}
@@ -258,7 +273,10 @@ export async function collectAgentHostDebugLogs(
 				continue;
 			}
 			try {
-				files.push(await createDebugLogFile(`ahp/${child.name}`, child.resource, fileService, child.size));
+				const file = await createDebugLogFile(`ahp/${child.name}`, child.resource, fileService, child.size, remainingInlineBytes);
+				if (file) {
+					appendFile(file);
+				}
 			} catch (error) {
 				logService.warn(`[ExportAgentHostDebugLogs] Failed to read AHP log '${child.name}': ${error instanceof Error ? error.message : String(error)}`);
 			}
@@ -281,7 +299,10 @@ export async function collectAgentHostDebugLogs(
 		];
 		for (const sidecar of sidecars) {
 			try {
-				files.push(await createDebugLogFile(sidecar.path, sidecar.resource, fileService));
+				const file = await createDebugLogFile(sidecar.path, sidecar.resource, fileService, undefined, remainingInlineBytes);
+				if (file) {
+					appendFile(file);
+				}
 			} catch {
 				// Absent when agent-host debug logging was off for this session.
 			}
@@ -484,31 +505,43 @@ async function copyHostArtifactDirectory(
 	}
 }
 
-async function createDebugLogFile(path: string, resource: URI, fileService: IFileService, size?: number, maxInlineSize?: number): Promise<IAgentHostDebugLogFile> {
-	if (resource.scheme === Schemas.file) {
+async function createDebugLogFile(path: string, resource: URI, fileService: IFileService, size: number | undefined, maxInlineSize: number): Promise<IAgentHostDebugLogFile | undefined> {
+	if (resource.scheme === Schemas.file || resource.scheme === Schemas.vscodeUserData) {
 		const observedSize = size ?? (await fileService.resolve(resource, { resolveMetadata: true })).size;
 		return { path, resource, size: observedSize };
 	}
-	// Non-local resources (e.g. remote agent-host logs) can't be streamed from
-	// disk, so read them inline, bounded to the captured size when known.
-	if (size !== undefined) {
-		const readSize = maxInlineSize === undefined ? size : Math.min(size, maxInlineSize);
-		const stream = await fileService.readFileStream(resource, { position: size - readSize, length: readSize });
-		const content = await streamToBuffer(stream.value);
-		return { path, contents: content.toString() };
+	const observedSize = size ?? (await fileService.resolve(resource, { resolveMetadata: true })).size;
+	const readSize = Math.min(observedSize, maxInlineSize);
+	if (readSize === 0) {
+		return undefined;
 	}
-	const content = await fileService.readFile(resource);
-	return { path, contents: content.value.toString() };
+	const stream = await fileService.readFileStream(resource, { position: observedSize - readSize, length: readSize });
+	return createInlineDebugLogFile(path, await streamToBuffer(stream.value), maxInlineSize);
 }
 
-export async function collectRotatedLogFiles(path: string, current: URI, fileService: IFileService): Promise<IAgentHostDebugLogFile[]> {
+function createInlineDebugLogFile(path: string, content: VSBuffer, maxInlineSize: number): IAgentHostDebugLogFile | undefined {
+	const size = Math.min(content.byteLength, maxInlineSize);
+	if (size === 0) {
+		return undefined;
+	}
+	const capturedContent = size === content.byteLength ? content : content.slice(content.byteLength - size);
+	return { path, contents: capturedContent.toString(), size };
+}
+
+export async function collectRotatedLogFiles(path: string, current: URI, fileService: IFileService, maxInlineSize = MAX_INLINE_DEBUG_LOGS_BYTES): Promise<IAgentHostDebugLogFile[]> {
 	const currentName = basename(current);
 	const parent = await fileService.resolve(dirname(current), { resolveMetadata: true });
 	const files: IAgentHostDebugLogFile[] = [];
+	let remainingInlineSize = maxInlineSize;
 	for (const child of parent.children ?? []) {
 		if (child.isFile && !child.isSymbolicLink && isRotatedLogFile(child.name, currentName)) {
-			const contents = await fileService.readFile(child.resource, { length: child.size });
-			files.push({ path: `${path}/${child.name}`, contents: contents.value.toString() });
+			const file = await createDebugLogFile(`${path}/${child.name}`, child.resource, fileService, child.size, remainingInlineSize);
+			if (file) {
+				files.push(file);
+				if (hasKey(file, { contents: true })) {
+					remainingInlineSize -= file.size;
+				}
+			}
 		}
 	}
 	return files;

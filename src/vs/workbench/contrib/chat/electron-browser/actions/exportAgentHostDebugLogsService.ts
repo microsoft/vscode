@@ -46,7 +46,7 @@ class NativeAgentHostDebugLogsExportService implements IAgentHostDebugLogsExport
 		const zipFiles: INativeZipFile[] = files.map(file => {
 			return hasKey(file, { contents: true })
 				? file
-				: { path: file.path, source: file.resource, size: file.size };
+				: { path: file.path, source: file.resource.scheme === Schemas.vscodeUserData ? file.resource.with({ scheme: Schemas.file }) : file.resource, size: file.size };
 		});
 		let temporaryHostArchive: URI | undefined;
 		try {
