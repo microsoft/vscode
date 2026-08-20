@@ -8,13 +8,16 @@ import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js
 import { IAction, SubmenuAction } from '../../../../../base/common/actions.js';
 import { Event } from '../../../../../base/common/event.js';
 import { isDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { constObservable } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IMenu, IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ISessionGroup, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
+import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { createListHarness, createSession } from './sessionsListTestUtils.js';
 
@@ -158,6 +161,60 @@ suite('Sessions list context menus', () => {
 		assert.deepStrictEqual(snapshotActions(contextMenuService.delegate!.getActions()), {
 			ids: ['sessions.createGroup', 'vs.actions.separator', 'sessions.renameGroupAction', 'sessions.deleteGroupAction'],
 			disposableIds: [],
+		});
+	});
+
+	test('chat rows open to the side and expose capability-gated deletion', async () => {
+		const createChat = (title: string, canDelete: boolean): IChat => upcastPartial<IChat>({
+			resource: URI.parse(`test-chat:/${title}`),
+			title: constObservable(title),
+			updatedAt: constObservable(new Date()),
+			status: constObservable(SessionStatus.Completed),
+			interactivity: constObservable(ChatInteractivity.Full),
+			capabilities: constObservable({ canRename: true, canDelete }),
+		});
+		const main = createChat('Session', true);
+		const peer = createChat('Peer', true);
+		const nonDeletable = createChat('Read Only', false);
+		const { session: baseSession } = createSession('Session');
+		const session: ISession = {
+			...baseSession,
+			chats: constObservable([main, peer, nonDeletable]),
+			mainChat: constObservable(main),
+		};
+		const contextMenuService = new TestContextMenuService();
+		const harness = createListHarness(disposables, [session], instantiationService => {
+			instantiationService.stub(IContextMenuService, contextMenuService);
+		});
+		const opened: { chat: IChat; preserveFocus: boolean; sideBySide: boolean }[] = [];
+		const container = harness.createContainer();
+		const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+			grouping: () => SessionsGrouping.Date,
+			sorting: () => SessionsSorting.Created,
+			onSessionOpen: () => { },
+			onChatOpen: (_session, chat, preserveFocus, sideBySide) => opened.push({ chat, preserveFocus, sideBySide }),
+		}));
+		list.layout(300, 400);
+		const chatRows = [...container.querySelectorAll<HTMLElement>('.session-chat-item')];
+
+		dispatchContextMenu(chatRows.find(row => row.textContent === 'Peer')!);
+		const peerActions = contextMenuService.delegate!.getActions();
+		await peerActions[0].run();
+		await peerActions[2].run();
+
+		dispatchContextMenu(chatRows.find(row => row.textContent === 'Read Only')!);
+		const readOnlyActions = contextMenuService.delegate!.getActions();
+
+		assert.deepStrictEqual({
+			peerActionIds: peerActions.map(action => action.id),
+			readOnlyActionIds: readOnlyActions.map(action => action.id),
+			opened,
+			deletedChats: harness.managementService.deletedChats,
+		}, {
+			peerActionIds: ['sessions.list.openChatToSide', 'vs.actions.separator', 'sessions.list.deleteChat'],
+			readOnlyActionIds: ['sessions.list.openChatToSide'],
+			opened: [{ chat: peer, preserveFocus: false, sideBySide: true }],
+			deletedChats: [{ session, chatResource: peer.resource }],
 		});
 	});
 });

@@ -10,6 +10,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
 import { IView, Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../../base/common/color.js';
@@ -59,13 +60,17 @@ const SESSIONS_SECTION_MIN_HEIGHT = 120;
  * the session is already the last visible one, this is a no-op aside from
  * activation.
  */
-export async function openSessionToTheSide(sessionsService: ISessionsService, session: ISession, options?: { preserveFocus?: boolean }): Promise<void> {
+export async function openSessionToTheSide(sessionsService: ISessionsService, session: ISession, options?: { preserveFocus?: boolean; chatResource?: URI }): Promise<void> {
 	const visible = sessionsService.visibleSessions.get();
 	const lastVisible = visible[visible.length - 1];
 	if (lastVisible && lastVisible.sessionId !== session.sessionId) {
 		sessionsService.insertAt(session, lastVisible.sessionId, 'right');
 	}
-	await sessionsService.openSession(session.resource, options);
+	if (options?.chatResource) {
+		await sessionsService.openChat(session, options.chatResource, { preserveFocus: options.preserveFocus });
+	} else {
+		await sessionsService.openSession(session.resource, { preserveFocus: options?.preserveFocus });
+	}
 }
 
 export const SessionsViewFilterSubMenu = new MenuId('SessionsViewPaneFilterSubMenu');
@@ -231,6 +236,18 @@ export class SessionsView extends ViewPane {
 				this.sessionsService.openSession(resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
 			},
 			canOpenSession: session => this.sessionsService.canOpenSession(session),
+			onChatOpen: (session, chat, preserveFocus, sideBySide) => {
+				const onOpened = () => {
+					if (isWeb && isPhoneLayout(this.layoutService)) {
+						this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
+					}
+				};
+				if (sideBySide) {
+					openSessionToTheSide(this.sessionsService, session, { preserveFocus, chatResource: chat.resource }).then(onOpened).catch(onUnexpectedError);
+					return;
+				}
+				this.sessionsService.openChat(session, chat.resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
+			},
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
 

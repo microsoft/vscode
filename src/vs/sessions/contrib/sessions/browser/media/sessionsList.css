@@ -127,6 +127,17 @@
 		color: var(--vscode-descriptionForeground);
 	}
 
+	.session-chat-chevron {
+		flex-shrink: 0;
+		display: none;
+		width: var(--vscode-spacing-size160);
+		height: var(--vscode-spacing-size160);
+		align-items: center;
+		justify-content: center;
+		color: var(--vscode-descriptionForeground);
+		font-size: var(--vscode-codiconFontSize-compact);
+	}
+
 	&.sticky {
 		border-left: 2px solid var(--vscode-focusBorder);
 		padding-left: 4px;
@@ -405,6 +416,61 @@
 				white-space: nowrap;
 			}
 		}
+	}
+}
+
+.monaco-list-row:hover .session-item .session-chat-chevron.collapsible,
+.monaco-list-row.focused .session-item .session-chat-chevron.collapsible {
+	display: flex;
+}
+
+.monaco-list-row:hover .session-item .session-chat-chevron.collapsible + .session-icon,
+.monaco-list-row.focused .session-item .session-chat-chevron.collapsible + .session-icon {
+	display: none;
+}
+
+.session-chat-item {
+	display: flex;
+	align-items: center;
+	height: 100%;
+	box-sizing: border-box;
+	position: relative;
+	gap: var(--vscode-spacing-size60);
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size120) var(--vscode-spacing-size60) var(--vscode-spacing-size360);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-agents-fontSize-body2);
+	font-weight: var(--vscode-agents-fontWeight-regular);
+
+	&::before {
+		content: '';
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		left: var(--vscode-spacing-size240);
+		border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
+	}
+
+	.session-chat-icon {
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: var(--vscode-spacing-size160);
+		height: var(--vscode-spacing-size160);
+		font-size: var(--vscode-codiconFontSize-compact);
+
+		> .monaco-pixel-spinner {
+			width: var(--vscode-spacing-size120);
+			height: var(--vscode-spacing-size120);
+		}
+	}
+
+	.session-chat-title {
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 }
 
@@ -771,6 +837,21 @@
 		&.quick-chat {
 			align-items: flex-start;
 		}
+	}
+
+	.session-item .session-chat-chevron.collapsible {
+		display: flex;
+		width: var(--vscode-spacing-size200);
+		height: var(--vscode-spacing-size200);
+	}
+
+	.session-item .session-chat-chevron.collapsible + .session-icon {
+		display: none;
+	}
+
+	.session-chat-item {
+		padding: var(--vscode-spacing-size120) var(--vscode-spacing-size120) var(--vscode-spacing-size120) var(--vscode-spacing-size360);
+		font-size: var(--vscode-agents-fontSize-body1);
 	}
 
 	.session-item .session-icon {

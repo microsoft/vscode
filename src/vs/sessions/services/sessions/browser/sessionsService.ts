@@ -185,8 +185,10 @@ export interface ISessionsService {
 
 	/**
 	 * Open a specific chat within a session and show it in the grid.
+	 * When `options.preserveFocus` is set, the chat is shown without moving
+	 * keyboard focus into it.
 	 */
-	openChat(session: ISession, chatUri: URI): Promise<void>;
+	openChat(session: ISession, chatUri: URI, options?: { preserveFocus?: boolean }): Promise<void>;
 
 	/**
 	 * Close a chat from the session view. The chat is hidden from the tab strip
@@ -718,12 +720,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 		return this._visibility.setActive(session, preserveFocus);
 	}
 
-	async openChat(session: ISession, chatUri: URI): Promise<void> {
+	async openChat(session: ISession, chatUri: URI, options?: { preserveFocus?: boolean }): Promise<void> {
 		const t0 = Date.now();
 		this._cancelRestore();
 		const token = this._startOpenSession();
 		this.logService.trace(`[SessionsView] openChat start uri=${chatUri.toString()} provider=${session.providerId}`);
-		this._activate(session);
+		this._activate(session, options?.preserveFocus);
 		if (!await this._waitForSessionToLoad(session, token)) {
 			this.logService.trace(`[SessionsView] openChat cancelled while waiting for session to load uri=${chatUri.toString()}`);
 			return;
