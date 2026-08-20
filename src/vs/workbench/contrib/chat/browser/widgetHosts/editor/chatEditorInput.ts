@@ -17,6 +17,7 @@ import { ConfirmResult, IDialogService } from '../../../../../../platform/dialog
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { registerIcon } from '../../../../../../platform/theme/common/iconRegistry.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -76,6 +77,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IAgentHostEnablementService private readonly agentHostEnablementService: IAgentHostEnablementService,
 		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -250,6 +252,8 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 				this._sessionResource,
 				this.logService,
 				this.configurationService,
+				this.telemetryService,
+				'restore',
 				LEGACY_MIGRATION_RESTORE_TIMEOUT_MS,
 			);
 			if (migrated) {

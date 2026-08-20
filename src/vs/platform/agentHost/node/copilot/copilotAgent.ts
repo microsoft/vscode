@@ -57,7 +57,7 @@ import type { ErrorInfo } from '../../common/state/protocol/common/state.js';
 import { ProtectedResourceMetadata, type AgentSelection, type ChildCustomizationType, type ConfigPropertySchema, type ConfigSchema, type CustomizationEnablement, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, AuthRequiredReason, type AuthRequiredParams, type SessionAction } from '../../common/state/sessionActions.js';
 import { areAdditionalWorkingDirectoriesEqual } from '../../common/state/sessionWorkingDirectories.js';
-import { AgentCustomization, CustomizationLoadStatus, CustomizationType, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, buildDefaultChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_READ_DB_KEY, isDefaultChatUri, withSessionEhcliAdoptable, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { AgentCustomization, CustomizationLoadStatus, CustomizationType, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, buildDefaultChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, isDefaultChatUri, withSessionEhcliAdoptable, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { getByokLmAgentModelId, resolveByokLmEnablement } from '../../common/agentHostByokLm.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.js';
@@ -576,6 +576,8 @@ const EXTENSION_HOST_CLI_MARKER_FILE = 'vscode.metadata.json';
 interface IExtensionHostCliMarker {
 	readonly origin?: string;
 	readonly customTitle?: string;
+	/** Whether the user archived the session in the extension host list. */
+	readonly archived?: boolean;
 	/** Folder-mode repository root recorded by the extension host. */
 	readonly repositoryProperties?: { readonly repositoryPath?: string };
 	/** Worktree-mode checkout; `worktreePath` is the directory the session ran in. */
@@ -2421,6 +2423,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		let outsideImportWindow = 0;
 		let withoutRepository = 0;
 		let suppressedAdoptable = 0;
+		let suppressedArchived = 0;
 		let failed = 0;
 		let discovered = 0;
 		let external = 0;
@@ -2434,6 +2437,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 				const adoptable = await this._isExtensionHostCliSession(s.sessionId);
 				if (adoptable && !emitAdoptable) {
 					suppressedAdoptable++;
+					return undefined;
+				}
+				// A chat the user archived in the extension host list stays archived:
+				// surfacing it here would resurface everything they filed away. It is
+				// still adoptable once unarchived there.
+				if (adoptable && await this._isExtensionHostCliSessionArchived(s.sessionId)) {
+					suppressedArchived++;
 					return undefined;
 				}
 				// A legacy chat the SDK reports without a cwd is still reachable: the
@@ -2492,7 +2502,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				publish(chats);
 			}
 		}
-		this._logService.info(`[Copilot] Chat discovery: ${sessions.length} SDK session(s) -> ${external} external, ${discovered - external} adoptable legacy extension-host, ${suppressedAdoptable} suppressed adoptable legacy extension-host, ${known} already known to Agent Host, ${withoutWorkingDirectory} without a working directory, ${unsupportedClientName} with unsupported or missing client name, ${outsideImportWindow} outside the import window, ${withoutRepository} without repository metadata, ${failed} failed to classify (adopt legacy extension-host chats: ${emitAdoptable})`);
+		this._logService.info(`[Copilot] Chat discovery: ${sessions.length} SDK session(s) -> ${external} external, ${discovered - external} adoptable legacy extension-host, ${suppressedAdoptable} suppressed adoptable legacy extension-host, ${suppressedArchived} suppressed archived legacy extension-host, ${known} already known to Agent Host, ${withoutWorkingDirectory} without a working directory, ${unsupportedClientName} with unsupported or missing client name, ${outsideImportWindow} outside the import window, ${withoutRepository} without repository metadata, ${failed} failed to classify (adopt legacy extension-host chats: ${emitAdoptable})`);
 		return true;
 	}
 
@@ -3083,6 +3093,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return typeof title === 'string' && title.trim() ? title : undefined;
 	}
 
+	/** Whether the user archived this session in the extension host list. */
+	private async _isExtensionHostCliSessionArchived(sessionId: string): Promise<boolean> {
+		return (await this._readExtensionHostCliMarker(sessionId))?.archived === true;
+	}
+
 	/**
 	 * Working directory recorded in the extension host's own marker, used when the
 	 * SDK reports no `workingDirectory` for a legacy chat. The extension host
@@ -3140,6 +3155,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Carry over the user-chosen session name (EH `customTitle`) so the
 			// adopted session keeps its title instead of regenerating one.
 			const customTitle = await this._readExtensionHostCliCustomTitle(sessionId);
+			const archived = await this._isExtensionHostCliSessionArchived(sessionId);
 			// Seed VS Code-layer metadata only — the SDK event log on disk is
 			// untouched. Writing `agentSessionData/<sanitizedId>/session.db` here
 			// is also what makes the legacy extension-host Copilot CLI list stop
@@ -3147,7 +3163,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// `isolation: 'folder'` keeps the session in place in the reused cwd —
 			// a git repo would otherwise default to worktree and show a spurious
 			// "Creating worktree…".
-			await this._storeSessionMetadata(session, undefined, workingDirectory, [workingDirectory], workingDirectory, project, project !== undefined, { [SessionConfigKey.Isolation]: 'folder' }, customTitle, /* markRead */ true);
+			await this._storeSessionMetadata(session, undefined, workingDirectory, [workingDirectory], workingDirectory, project, project !== undefined, { [SessionConfigKey.Isolation]: 'folder' }, customTitle, /* markRead */ true, archived);
 			await this._adoptLegacyTurnUsage(session, sessionId);
 			return { adopted: true, eligible: true };
 		});
@@ -4752,7 +4768,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 
-	private async _storeSessionMetadata(session: URI, model: ModelSelection | undefined, workingDirectory: URI | undefined, workingDirectories: readonly URI[] | undefined, customizationDirectory: URI | undefined, project: IAgentSessionProjectInfo | undefined, projectResolved = project !== undefined, configValues?: Record<string, unknown>, customTitle?: string, markRead?: boolean): Promise<void> {
+	private async _storeSessionMetadata(session: URI, model: ModelSelection | undefined, workingDirectory: URI | undefined, workingDirectories: readonly URI[] | undefined, customizationDirectory: URI | undefined, project: IAgentSessionProjectInfo | undefined, projectResolved = project !== undefined, configValues?: Record<string, unknown>, customTitle?: string, markRead?: boolean, archived?: boolean): Promise<void> {
 		const dbRef = this._sessionDataService.openDatabase(session);
 		const db = dbRef.object;
 		try {
@@ -4763,6 +4779,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Persist read ownership so the adopted session isn't reported unread on open.
 			if (markRead) {
 				work.push(db.setMetadata(AH_META_IS_READ_DB_KEY, 'true'));
+			}
+			// Archiving is user-curated state; losing it on adoption would resurface
+			// everything the user filed away in the extension host list.
+			if (archived) {
+				work.push(db.setMetadata(AH_META_IS_ARCHIVED_DB_KEY, 'true'));
 			}
 			if (workingDirectory) {
 				work.push(db.setMetadata(CopilotAgent._META_CWD, workingDirectory.toString()));

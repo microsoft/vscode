@@ -8,6 +8,7 @@ import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { AgentSession, IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -26,6 +27,25 @@ import { COPILOT_CLI_AGENT_PROVIDER, getCopilotCliSessionRawId, migratedCopilotC
  */
 export const LEGACY_MIGRATION_TIMEOUT_MS = 10_000;
 export const LEGACY_MIGRATION_RESTORE_TIMEOUT_MS = 60_000;
+
+/** Where a probe was triggered from, so outcomes can be attributed per entry point. */
+export type LegacyMigrationProbeSource = 'open' | 'restore';
+
+type LegacyMigrationProbeEvent = {
+	source: string;
+	outcome: 'redirected' | 'declined' | 'timedOut' | 'settingDisabled' | 'noConnection' | 'failed';
+	durationMs: number;
+	timeoutMs: number;
+};
+
+type LegacyMigrationProbeClassification = {
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Entry point that probed: open (user opened a session) or restore (startup/editor restore).' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Probe outcome: redirected (opened as the migrated agent-host session), declined (host refused, e.g. not an adoptable legacy chat), timedOut (no answer within the budget), settingDisabled, noConnection, or failed (probe threw).' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds spent probing before the outcome was known.' };
+	timeoutMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The probe budget that applied, so timeouts can be correlated with the entry point.' };
+	owner: 'vijayupadya';
+	comment: 'Counts adopt-on-open probe attempts for legacy extension-host Copilot CLI sessions. The host-side agentHost.legacyCopilotCliMigration event only fires once migration starts, so without this there is no denominator for a success rate and a silently-unmigrated open is indistinguishable from a user having no legacy sessions.';
+};
 
 /**
  * Redirects a legacy extension-host Copilot CLI resource to its agent-host twin,
@@ -47,10 +67,27 @@ export async function adoptLegacyCopilotCliResource(
 	resource: URI,
 	logService: ILogService,
 	configurationService: IConfigurationService,
+	telemetryService: ITelemetryService,
+	source: LegacyMigrationProbeSource,
 	timeoutMs: number = LEGACY_MIGRATION_TIMEOUT_MS,
 ): Promise<URI | undefined> {
 	const twin = migratedCopilotCliResource(resource);
-	if (!twin || !connection) {
+	if (!twin) {
+		return undefined;
+	}
+	const startedAt = Date.now();
+	// Reported only for resources that are actually legacy sessions, so the event
+	// counts migration opportunities rather than every open in the product.
+	const report = (outcome: LegacyMigrationProbeEvent['outcome']) => {
+		telemetryService.publicLog2<LegacyMigrationProbeEvent, LegacyMigrationProbeClassification>('agentHost.legacyCopilotCliMigrationProbe', {
+			source,
+			outcome,
+			durationMs: Date.now() - startedAt,
+			timeoutMs,
+		});
+	};
+	if (!connection) {
+		report('noConnection');
 		return undefined;
 	}
 	// The host restores a session whether or not it adopts it, so a successful
@@ -58,6 +95,7 @@ export async function adoptLegacyCopilotCliResource(
 	// without it we would move sessions onto the agent host for users who never
 	// opted in — including external ones, which are never adopted at all.
 	if (configurationService.getValue<boolean>(ChatConfiguration.MigrateLegacyCopilotCliSessions) !== true) {
+		report('settingDisabled');
 		return undefined;
 	}
 	const rawId = getCopilotCliSessionRawId(twin);
@@ -67,18 +105,20 @@ export async function adoptLegacyCopilotCliResource(
 	// AHP channels are backend session URIs (`<provider>:/<id>`); the
 	// `agent-host-` scheme is a client-side naming that the host does not know.
 	const backendSession = AgentSession.uri(COPILOT_CLI_AGENT_PROVIDER, rawId);
-	const startedAt = Date.now();
 	const store = new DisposableStore();
 	try {
 		const ref = store.add(connection.getSubscription(StateComponents.Session, backendSession, 'AgentHostLegacyMigration'));
 		const settled = await raceTimeout(whenSubscriptionSettles(ref.object as IAgentSubscription<SessionState>, store), timeoutMs);
 		if (settled === true) {
-			logService.trace(`[AgentHost] adopted legacy session ${resource.toString()} in ${Date.now() - startedAt}ms`);
+			report('redirected');
+			logService.info(`[AgentHost] adopted legacy session ${resource.toString()} in ${Date.now() - startedAt}ms`);
 			return twin;
 		}
+		report(settled === false ? 'declined' : 'timedOut');
 		logService.info(`[AgentHost] legacy session ${resource.toString()} not adopted (${settled === false ? 'declined by host' : `no answer within ${timeoutMs}ms`}); opening it unmigrated`);
 		return undefined;
 	} catch (err) {
+		report('failed');
 		logService.warn(`[AgentHost] legacy migration probe failed for ${resource.toString()}`, err);
 		return undefined;
 	} finally {

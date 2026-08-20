@@ -22,6 +22,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { adoptLegacyCopilotCliResource } from './agentHost/agentHostLegacyMigration.js';
 
 //#region Session Opener Registry
@@ -70,6 +71,8 @@ export async function openSessionByResource(accessor: ServicesAccessor, resource
 		resource,
 		logService,
 		accessor.get(IConfigurationService),
+		accessor.get(ITelemetryService),
+		'open',
 	) ?? resource;
 
 	for (const participant of sessionOpenerRegistry.getParticipants()) {
@@ -108,6 +111,8 @@ export async function openSession(accessor: ServicesAccessor, session: IAgentSes
 			session.resource,
 			logService,
 			accessor.get(IConfigurationService),
+			accessor.get(ITelemetryService),
+			'open',
 		);
 		if (migrated) {
 			session = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService).getSession(migrated)) ?? session;
