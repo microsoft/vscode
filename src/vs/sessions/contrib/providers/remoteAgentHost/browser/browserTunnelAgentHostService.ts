@@ -109,14 +109,8 @@ class BrowserTunnelRelayClient implements ITunnelRelayClient {
 
 /** Opens framed WebSockets directly over browser tunnel relay streams. */
 export class BrowserTunnelSocketFactory implements ITunnelSocketFactory {
-	constructor(
-		private readonly _loadDevTunnelsWeb: () => Promise<IDevTunnelsWeb>,
-	) {
-	}
-
 	async open(stream: ITunnelDuplexStream, path: string): Promise<ITunnelMessageSocket> {
-		const devTunnels = await this._loadDevTunnelsWeb();
-		return await connectWebSocketOverDuplex(stream, { path, webSocketConnectionCtor: devTunnels.WebSocketConnection });
+		return await connectWebSocketOverDuplex(stream, { path });
 	}
 }
 
@@ -172,7 +166,7 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 		this._loadDevTunnelsWeb = load;
 		this._connector = options.connector ?? this._register(new TunnelAgentHostConnector(
 			new BrowserTunnelRelayClientFactory(load),
-			new BrowserTunnelSocketFactory(load),
+			new BrowserTunnelSocketFactory(),
 			this._logService,
 		));
 		this._resolveGatewaySelection = options.resolveGatewaySelection ?? resolveGatewaySelection;
@@ -354,6 +348,7 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 	private async _getTokenForProvider(provider: 'github' | 'microsoft', silent: boolean): Promise<{ readonly token: string; readonly provider: 'github' | 'microsoft' } | undefined> {
 		const scopes = this._productService.tunnelApplicationConfig?.authenticationProviders?.[provider]?.scopes ?? [];
 		if (scopes.length === 0) {
+			this._logService.debug(`${LOG_PREFIX} No ${provider} tunnel authentication scopes are configured.`);
 			return undefined;
 		}
 

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { constObservable, derivedOpts, IObservable, mapObservableArrayCached } from '../../../../../base/common/observable.js';
+import { constObservable, derived, derivedOpts, IObservable, mapObservableArrayCached } from '../../../../../base/common/observable.js';
 import { compare as strCompare } from '../../../../../base/common/strings.js';
 import { getComparisonKey, isEqual, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -12,6 +12,7 @@ import type { FileEdit } from '../../../../../platform/agentHost/common/state/pr
 import {
 	buildDefaultChatUri,
 	type ChatState,
+	type Customization,
 	FileEditKind,
 	ResponsePartKind,
 	type SessionState,
@@ -22,8 +23,9 @@ import {
 	ToolResultContentType,
 } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISessionFile, ISessionTurnFileChange, ISessionWorkspace, SessionFileOperation, sessionTurnFileChangesEqual } from '../../../../services/sessions/common/session.js';
+import { ISessionChatCustomization, ISessionFile, ISessionTurnFileChange, ISessionWorkspace, SessionFileOperation, sessionTurnFileChangesEqual } from '../../../../services/sessions/common/session.js';
 import { createActiveSessionSubscriptionObs } from './agentHostSessionChangesets.js';
+import { createIncrementalChatCustomizationRefsParser, customizationRefsEqual, CustomizationIndex, resolveChatCustomizations, sessionChatCustomizationsEqual, type ICustomizationRef } from './agentHostSessionCustomizations.js';
 import { IAgentHostAdapterOptions } from './baseAgentHostSessionsProvider.js';
 
 /**
@@ -67,6 +69,11 @@ export interface ISessionOutputObs {
 	 * recent request produced.
 	 */
 	getLastTurnChanges(chatUri: URI): IObservable<readonly ISessionTurnFileChange[]>;
+	/**
+	 * Returns the customizations a specific chat used or read, keyed by that
+	 * chat's AHP chat URI. Ordered by first reference and de-duplicated.
+	 */
+	getChatCustomizations(chatUri: URI): IObservable<readonly ISessionChatCustomization[]>;
 }
 
 /**
@@ -113,11 +120,17 @@ export function createSessionOutputObs(
 	);
 
 	const lastTurnChangesByChat = new Map<string, IObservable<readonly ISessionTurnFileChange[]>>();
+	const customizationsByChat = new Map<string, IObservable<readonly ISessionChatCustomization[]>>();
 	const pruneLastTurnChanges = (chatUris: readonly URI[]): readonly URI[] => {
 		const chatKeys = new Set(chatUris.map(uri => uri.toString()));
 		for (const key of lastTurnChangesByChat.keys()) {
 			if (!chatKeys.has(key)) {
 				lastTurnChangesByChat.delete(key);
+			}
+		}
+		for (const key of customizationsByChat.keys()) {
+			if (!chatKeys.has(key)) {
+				customizationsByChat.delete(key);
 			}
 		}
 		return chatUris;
@@ -161,6 +174,7 @@ export function createSessionOutputObs(
 			constObservable(chatUri),
 		);
 		const parse = createIncrementalChatFileEditsParser(mapDiffUri);
+		const parseCustomizationRefs = createIncrementalChatCustomizationRefsParser();
 		return {
 			chatUri,
 			edits: derivedOpts<IChatFileEdits>({ equalsFn: chatFileEditsEqual }, reader => {
@@ -169,6 +183,15 @@ export function createSessionOutputObs(
 					return { allEdits: [], lastTurnEdits: [] };
 				}
 				return parse(chatState);
+			}),
+			// Kept separate from `edits` so a delta that only carries file edits
+			// does not invalidate the customization references, and vice versa.
+			customizationRefs: derivedOpts<readonly ICustomizationRef[]>({ equalsFn: customizationRefsEqual }, reader => {
+				const chatState = chatStateObs.read(reader).read(reader);
+				if (!chatState || chatState instanceof Error) {
+					return [];
+				}
+				return parseCustomizationRefs(chatState);
 			}),
 		};
 	}, chatUri => chatUri.toString());
@@ -203,7 +226,32 @@ export function createSessionOutputObs(
 		return changes;
 	};
 
-	return { externalFiles, getLastTurnChanges };
+	// The customization tree changes far less often than the output stream, so
+	// it is indexed on its own and the cheap ref lookup re-runs on either change.
+	const customizationsObs = derivedOpts<readonly Customization[] | undefined>({ equalsFn: (a, b) => a === b }, reader => {
+		const sessionState = sessionStateObs.read(reader).read(reader);
+		return !sessionState || sessionState instanceof Error ? undefined : sessionState.customizations;
+	});
+	const customizationIndexObs = derived(reader =>
+		new CustomizationIndex(customizationsObs.read(reader), getWorkspaceAndWorktreeRoots(workspaceObs.read(reader))));
+
+	const getChatCustomizations = (chatUri: URI): IObservable<readonly ISessionChatCustomization[]> => {
+		const key = chatUri.toString();
+		let customizations = customizationsByChat.get(key);
+		if (!customizations) {
+			customizations = derivedOpts<readonly ISessionChatCustomization[]>({ equalsFn: sessionChatCustomizationsEqual }, reader => {
+				const chat = editsPerChatObs.read(reader).find(entry => isEqual(entry.chatUri, chatUri));
+				if (!chat) {
+					return [];
+				}
+				return resolveChatCustomizations(chat.customizationRefs.read(reader), customizationIndexObs.read(reader));
+			});
+			customizationsByChat.set(key, customizations);
+		}
+		return customizations;
+	};
+
+	return { externalFiles, getLastTurnChanges, getChatCustomizations };
 }
 
 /**
