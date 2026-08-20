@@ -156,8 +156,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 				this._workspaceResolvedPromiseResolve();
 
 				if (!this.environmentService.remoteAuthority) {
-					// Persist folders passed via `--trust-folder` before signalling that
-					// trust is initialized, so they are already trusted at startup.
+					// Apply `--trust-folder` before signalling workspace trust initialization.
 					this.addTrustedFoldersFromCli().finally(() => this._workspaceTrustInitializedPromiseResolve());
 				}
 			});
@@ -171,9 +170,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 					await this.updateWorkspaceTrust();
 				})
 				.finally(() => {
-					// The remote authority is now resolved, so `--trust-folder` values
-					// for remote folders can be canonicalized before signalling that
-					// trust is initialized.
+					// Apply remote `--trust-folder` values after resolver canonicalization is available.
 					this.addTrustedFoldersFromCli().finally(() => this._workspaceTrustInitializedPromiseResolve());
 				});
 		}
@@ -296,17 +293,13 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		for (const folder of folders) {
 			let uri: URI;
 			try {
-				// A value with a scheme (e.g. a remote `vscode-remote://` folder) is
-				// parsed as a URI; otherwise it is treated as a local file path.
 				uri = folder.includes('://') ? URI.parse(folder) : URI.file(folder);
 			} catch {
 				continue; // ignore a malformed --trust-folder value
 			}
 
 			try {
-				// Trust each folder independently so one value that cannot be resolved
-				// (e.g. a remote URI the resolver rejects) does not discard the other,
-				// valid --trust-folder entries.
+				// Isolate resolution failures so valid `--trust-folder` entries are still applied.
 				await this.setUrisTrust([uri], true);
 			} catch {
 				// Never block workspace trust initialization on a bad --trust-folder value

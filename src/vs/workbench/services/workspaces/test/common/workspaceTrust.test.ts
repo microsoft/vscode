@@ -244,8 +244,7 @@ suite('Workspace Trust', () => {
 			environmentService.trustedFolders = [`vscode-remote://${remoteAuthority}/home/me/proj`];
 			instantiationService.stub(IWorkbenchEnvironmentService, { ...environmentService });
 
-			// A resolver that is reachable but does not mark the remote as trusted, so
-			// trust must come from the --trust-folder entry rather than the remote itself.
+			// Trust must come from `--trust-folder` rather than the remote resolver.
 			instantiationService.stub(IRemoteAuthorityResolverService, new class extends mock<IRemoteAuthorityResolverService>() {
 				override async resolveAuthority(authority: string): Promise<ResolverResult> {
 					return { authority: { authority } } as unknown as ResolverResult;
@@ -271,8 +270,7 @@ suite('Workspace Trust', () => {
 			environmentService.trustedFolders = [`vscode-remote://${remoteAuthority}/home/me/bad`, good.fsPath];
 			instantiationService.stub(IWorkbenchEnvironmentService, { ...environmentService });
 
-			// The resolver is reachable but rejects canonicalization of the remote URI,
-			// so trusting that one entry throws; the valid file entry must still be kept.
+			// A rejected remote URI must not discard the valid file entry.
 			instantiationService.stub(IRemoteAuthorityResolverService, new class extends mock<IRemoteAuthorityResolverService>() {
 				override async resolveAuthority(authority: string): Promise<ResolverResult> {
 					return { authority: { authority } } as unknown as ResolverResult;
@@ -298,8 +296,7 @@ suite('Workspace Trust', () => {
 			workspaceService.setWorkspace(testWorkspace(folder));
 			await initializeTestObject();
 
-			// A subsequent window without the flag still trusts the folder because
-			// it was persisted to the trusted folder list.
+			// The persisted entry must survive a launch without the flag.
 			environmentService.trustedFolders = [];
 			instantiationService.stub(IWorkbenchEnvironmentService, { ...environmentService });
 			const reloaded = await initializeTestObject();
