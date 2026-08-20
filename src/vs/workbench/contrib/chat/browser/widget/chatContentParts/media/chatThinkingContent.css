@@ -226,6 +226,11 @@
 				max-width: calc(100% - 6px);
 			}
 
+			.chat-confirmation-widget-title.monaco-text-button {
+				line-height: inherit;
+				padding-bottom: 0;
+			}
+
 			/* todo: ideally not !important, but the competing css has 14 specificity */
 			.codicon.codicon-check,
 			.codicon.codicon-loading {
