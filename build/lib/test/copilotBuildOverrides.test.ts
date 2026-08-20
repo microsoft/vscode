@@ -8,8 +8,8 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { afterEach, beforeEach, suite, test } from 'node:test';
-import { collectBuildOverrides } from '../../azure-pipelines/common/apply-sdk-canary-override.ts';
-import { copilotSourceVersion, readCopilotBuildOverrides, RUNTIME_NPM_NAME, SDK_NPM_NAME, type VscodeSourceMetadata } from '../../azure-pipelines/common/copilotSource.ts';
+import { collectBuildOverrides, resolveSourcePackageVersion } from '../../azure-pipelines/common/apply-sdk-canary-override.ts';
+import { readCopilotBuildOverrides, RUNTIME_NPM_NAME, SDK_NPM_NAME, type VscodeSourceMetadata } from '../../azure-pipelines/common/copilotSource.ts';
 
 const sdkRef = 'a'.repeat(40);
 const runtimeRef = 'b'.repeat(40);
@@ -36,25 +36,39 @@ afterEach(() => {
 });
 
 suite('Copilot build overrides', () => {
-	test('derives deterministic package versions and validates provenance', () => {
+	test('resolves package-specific source versions and validates provenance', () => {
 		const overrides = readCopilotBuildOverrides(workspace);
 		assert.ok(overrides);
-		const version = copilotSourceVersion(overrides.vscodeVersion, vscodeCommit);
+		const sdkVersion = `1.0.12-vscode.g${sdkRef}`;
+		const runtimeVersion = `1.0.81-vscode.g${runtimeRef}`;
 		const metadata = new Map<string, VscodeSourceMetadata>([
 			[SDK_NPM_NAME, { vscodeCommit, sourceCommit: sdkRef, sourceVersion: '1.0.11', sourceBuildId: '466393' }],
 			[RUNTIME_NPM_NAME, { vscodeCommit, sourceCommit: runtimeRef, sourceVersion: '1.0.81-0', sourceBuildId: '466393' }],
 		]);
 
-		assert.deepStrictEqual({
-			version,
-			overrides: collectBuildOverrides(overrides, vscodeCommit, packageName => metadata.get(packageName)!),
-		}, {
-			version: `0.0.0-vscode.1.135.0.g${vscodeCommit}`,
-			overrides: [
-				{ name: SDK_NPM_NAME, version },
-				{ name: RUNTIME_NPM_NAME, version },
-			],
-		});
+		assert.deepStrictEqual(collectBuildOverrides(
+			overrides,
+			vscodeCommit,
+			packageName => metadata.get(packageName)!,
+			'',
+			'',
+			packageName => packageName === SDK_NPM_NAME ? sdkVersion : runtimeVersion,
+		), [
+			{ name: SDK_NPM_NAME, version: sdkVersion },
+			{ name: RUNTIME_NPM_NAME, version: runtimeVersion },
+		]);
+	});
+
+	test('requires exactly one published version for each source hash', () => {
+		assert.equal(resolveSourcePackageVersion(SDK_NPM_NAME, sdkRef, [
+			'1.0.11',
+			`1.0.12-vscode.g${sdkRef}`,
+		]), `1.0.12-vscode.g${sdkRef}`);
+		assert.throws(() => resolveSourcePackageVersion(SDK_NPM_NAME, sdkRef, []), /found 0/);
+		assert.throws(() => resolveSourcePackageVersion(SDK_NPM_NAME, sdkRef, [
+			`1.0.11-vscode.g${sdkRef}`,
+			`1.0.12-vscode.g${sdkRef}`,
+		]), /found 2/);
 	});
 
 	test('rejects incomplete buildOverrides', () => {

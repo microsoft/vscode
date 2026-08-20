@@ -6,7 +6,7 @@
 import fs from 'fs';
 import path from 'path';
 import { execFileSync } from 'child_process';
-import { copilotSourceVersion, readCopilotBuildOverrides, RUNTIME_NPM_NAME, SDK_NPM_NAME, type CopilotBuildOverrides, type VscodeSourceMetadata } from './copilotSource.ts';
+import { readCopilotBuildOverrides, RUNTIME_NPM_NAME, SDK_NPM_NAME, type CopilotBuildOverrides, type VscodeSourceMetadata } from './copilotSource.ts';
 
 /**
  * Stage 3 of the Copilot SDK -> VS Code integration pipeline.
@@ -246,6 +246,34 @@ function readVscodeSourceMetadata(packageName: string, version: string): VscodeS
 	return metadata as VscodeSourceMetadata;
 }
 
+function readPublishedVersions(packageName: string): string[] {
+	let raw: string;
+	try {
+		raw = execFileSync(NPM, ['view', packageName, 'versions', '--json'], { encoding: 'utf8', shell: IS_WINDOWS });
+	} catch (error) {
+		throw new Error(
+			`[build-override] Could not list published ${packageName} versions from the configured feed. ` +
+			`Run the Copilot source pipeline: ${COPILOT_SOURCE_PIPELINE_URL}\n` +
+			`${error instanceof Error ? error.message : String(error)}`
+		);
+	}
+	const parsed = JSON.parse(raw || '[]');
+	return Array.isArray(parsed) ? parsed : parsed ? [parsed] : [];
+}
+
+export function resolveSourcePackageVersion(packageName: string, sourceCommit: string, versions: readonly string[] = readPublishedVersions(packageName)): string {
+	assertSafeSpec(`${packageName} source commit`, sourceCommit);
+	const suffix = `-vscode.g${sourceCommit}`;
+	const matches = versions.filter(version => version.endsWith(suffix));
+	if (matches.length !== 1) {
+		throw new Error(
+			`[build-override] Expected exactly one ${packageName} version ending in "${suffix}", found ${matches.length}: ` +
+			`${matches.length > 0 ? matches.join(', ') : '<none>'}. Run the Copilot source pipeline: ${COPILOT_SOURCE_PIPELINE_URL}`
+		);
+	}
+	return matches[0];
+}
+
 export function assertVscodeSourceMetadata(packageName: string, packageVersion: string, actual: VscodeSourceMetadata, expected: VscodeSourceMetadata): void {
 	const mismatches = (Object.keys(expected) as (keyof VscodeSourceMetadata)[])
 		.filter(key => key !== 'sourceBuildId' && actual[key] !== expected[key])
@@ -264,11 +292,11 @@ export function collectBuildOverrides(
 	metadataReader: (packageName: string, version: string) => VscodeSourceMetadata = readVscodeSourceMetadata,
 	queuedSdk = (process.env['VSCODE_SDK_CANARY_VERSION'] ?? '').trim(),
 	queuedCli = (process.env['VSCODE_CLI_CANARY_VERSION'] ?? '').trim(),
+	versionResolver: (packageName: string, sourceCommit: string) => string = resolveSourcePackageVersion,
 ): Override[] {
 	if (queuedSdk || queuedCli) {
 		throw new Error('[build-override] package.json buildOverrides cannot be combined with VSCODE_SDK_CANARY_VERSION or VSCODE_CLI_CANARY_VERSION.');
 	}
-	const version = copilotSourceVersion(buildOverrides.vscodeVersion, vscodeCommit);
 	const expectedByPackage = new Map<string, VscodeSourceMetadata>([
 		[SDK_NPM_NAME, {
 			vscodeCommit,
@@ -283,13 +311,17 @@ export function collectBuildOverrides(
 			sourceBuildId: '',
 		}],
 	]);
+	const resolvedVersions = new Map<string, string>();
 	for (const [packageName, expected] of expectedByPackage) {
+		const version = versionResolver(packageName, expected.sourceCommit);
 		assertVscodeSourceMetadata(packageName, version, metadataReader(packageName, version), expected);
+		resolvedVersions.set(packageName, version);
 	}
-	console.log(`##vso[build.addbuildtag]copilot-build-override=${version}`);
+	console.log(`##vso[build.addbuildtag]copilot-sdk-build-override=${resolvedVersions.get(SDK_NPM_NAME)}`);
+	console.log(`##vso[build.addbuildtag]copilot-runtime-build-override=${resolvedVersions.get(RUNTIME_NPM_NAME)}`);
 	return [
-		{ name: SDK_NPM_NAME, version },
-		{ name: RUNTIME_NPM_NAME, version },
+		{ name: SDK_NPM_NAME, version: resolvedVersions.get(SDK_NPM_NAME)! },
+		{ name: RUNTIME_NPM_NAME, version: resolvedVersions.get(RUNTIME_NPM_NAME)! },
 	];
 }
 
