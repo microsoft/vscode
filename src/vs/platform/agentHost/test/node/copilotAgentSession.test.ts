@@ -36,7 +36,7 @@ import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { TerminalClaimKind } from '../../common/state/protocol/state.js';
 import { toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
@@ -63,7 +63,8 @@ import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../common/san
 import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
 import { createNoopGitService, createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { OtelData } from '../../common/otlp/otlpLogEmitter.js';
-import { IAgentServerToolHost } from '../../common/agentServerTools.js';
+import { type IAgentServerToolDefinition, IAgentServerToolHost } from '../../common/agentServerTools.js';
+import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest, type IRestrictedTelemetryContext } from '../../node/shared/copilotApiService.js';
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
@@ -671,6 +672,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	chatChannelUri?: URI;
 	/** Optional server-tool host wired into the session. */
 	serverToolHost?: IAgentServerToolHost;
+	/** Whether the launch plan represents an ephemeral session. */
+	isEphemeral?: boolean;
 	/** Platform used to compute the SDK sandbox policy. Defaults to `'linux'` so sandbox tests are deterministic. */
 	platform?: NodeJS.Platform;
 	githubToken?: string;
@@ -743,6 +746,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		snapshot: options?.clientSnapshot ?? { tools: [], plugins: [], mcpServers: {} },
 		shellManager: undefined,
 		githubToken: options?.githubToken,
+		isEphemeral: options?.isEphemeral,
 	};
 	const model = options?.modelId ? { id: options.modelId } : undefined;
 	const launchPlan: CopilotSessionLaunchPlan = options?.resume
@@ -8921,14 +8925,13 @@ suite('CopilotAgentSession', () => {
 
 	suite('server tools', () => {
 
-		const fakeToolDefinitions: readonly ToolDefinition[] = [
+		const fakeToolDefinitions: readonly IAgentServerToolDefinition[] = [
 			{ name: 'serverToolA', description: 'A', inputSchema: { type: 'object', properties: {} } },
 			{ name: 'serverToolB', description: 'B', inputSchema: { type: 'object', properties: {} } },
 		];
 
 		class FakeServerToolHost implements IAgentServerToolHost {
-			readonly definitions: readonly ToolDefinition[] = fakeToolDefinitions;
-			readonly toolNames: readonly string[] = fakeToolDefinitions.map(def => def.name);
+			readonly toolNames: readonly string[];
 			readonly advertised: string[] = [];
 			readonly executions: Array<{ sessionUri: string; toolName: string; rawArgs: unknown }> = [];
 			readonly confirmationToolNames = new Set<string>();
@@ -8936,9 +8939,15 @@ suite('CopilotAgentSession', () => {
 			result = 'ok';
 			error: Error | undefined;
 
+			constructor(readonly definitions: readonly IAgentServerToolDefinition[] = fakeToolDefinitions) {
+				this.toolNames = definitions.map(def => def.name);
+			}
+
 			advertise(sessionUri: string): void {
 				this.advertised.push(sessionUri);
 			}
+
+			getDefinitionsForSession(): readonly IAgentServerToolDefinition[] { return this.definitions; }
 
 			canRequireConfirmation(toolName: string): boolean { return this.confirmationToolNames.has(toolName); }
 
@@ -8966,6 +8975,17 @@ suite('CopilotAgentSession', () => {
 			// eager (`defer: 'never'`) so tool search never hides them behind
 			// `tool_search_tool`.
 			assert.deepStrictEqual(tools.map(t => t.defer), tools.map(() => 'never'));
+		});
+
+		test('exposes only ephemeral-enabled server tools in an ephemeral session', async () => {
+			const serverToolHost = new FakeServerToolHost([
+				...fakeToolDefinitions,
+				{ name: 'ephemeralServerTool', description: 'Available in ephemeral sessions', inputSchema: { type: 'object', properties: {} }, enabledForEphemeralSessions: true },
+				{ name: SessionServerToolName.RenameChat, description: 'Rename the chat', inputSchema: { type: 'object', properties: {} } },
+			]);
+			const { runtime } = await createAgentSession(disposables, { serverToolHost, isEphemeral: true });
+
+			assert.deepStrictEqual(runtime.createServerSdkTools().map(tool => tool.name), ['ephemeralServerTool']);
 		});
 
 		test('server tool handler routes to the host and returns a success result', async () => {

@@ -41,12 +41,18 @@ export interface IChatEditingService {
 	/**
 	 * All editing sessions, sorted by recency, e.g the last created session comes first.
 	 */
-	readonly editingSessionsObs: IObservable<readonly IChatEditingSession[]>;
+	readonly editingSessionsObs: IObservable<readonly IChatEditReviewSession[]>;
 
 	/**
 	 * Creates a new short lived editing session
 	 */
 	createEditingSession(chatModel: ChatModel): IChatEditingSession;
+
+	/**
+	 * Registers a review session that was not created via {@link createEditingSession},
+	 * so editor-level review UI can discover its entries. Disposing the result removes it.
+	 */
+	registerEditReviewSession(session: IChatEditReviewSession): IDisposable;
 
 	/**
 	 * Creates an editing session with state transferred from the provided session.
@@ -99,22 +105,31 @@ export interface ISnapshotEntry {
 	readonly isDeleted?: boolean;
 }
 
-export interface IChatEditingSession extends IDisposable {
+/**
+ * A reviewable set of file changes: entries with editor decorations that can
+ * be kept or undone. This is the minimal surface that editor-level review UI
+ * (decorations, hunk navigation, keep/undo actions) depends on. Full chat
+ * editing sessions additionally support checkpoints, streaming edits, storage
+ * and multi-diff via {@link IChatEditingSession}.
+ */
+export interface IChatEditReviewSession extends IDisposable {
 	readonly isGlobalEditingSession: boolean;
-	readonly supportsKeepUndo: boolean;
 	readonly chatSessionResource: URI;
 	readonly onDidDispose: Event<void>;
-	readonly state: IObservable<ChatEditingSessionState>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
+	getEntry(uri: URI): IModifiedFileEntry | undefined;
+	readEntry(uri: URI, reader: IReader): IModifiedFileEntry | undefined;
+	accept(...uris: URI[]): Promise<void>;
+	reject(...uris: URI[]): Promise<void>;
+}
+
+export interface IChatEditingSession extends IChatEditReviewSession {
+	readonly supportsKeepUndo: boolean;
+	readonly state: IObservable<ChatEditingSessionState>;
 	/** Requests disabled by undo/redo in the session */
 	readonly requestDisablement: IObservable<IChatRequestDisablement[]>;
 
 	show(previousChanges?: boolean): Promise<void>;
-	accept(...uris: URI[]): Promise<void>;
-	reject(...uris: URI[]): Promise<void>;
-	getEntry(uri: URI): IModifiedFileEntry | undefined;
-	readEntry(uri: URI, reader: IReader): IModifiedFileEntry | undefined;
-
 	restoreSnapshot(requestId: string, stopId: string | undefined): Promise<void>;
 
 	/**

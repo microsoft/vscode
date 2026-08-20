@@ -24,7 +24,7 @@ import { arrayEquals, structuralEquals } from '../../../base/common/equals.js';
 import { preserveProviderBackedRootConfigValues } from '../common/agentCustomizationSettings.js';
 import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { readEphemeralSessionMeta } from '../common/meta/agentEphemeralSessionMeta.js';
-import { ITerminalChatSurfaceMeta, readChatSurfaceMeta } from '../common/meta/agentChatSurfaceMeta.js';
+import { type IChatSurfaceMeta, readChatSurfaceMeta } from '../common/meta/agentChatSurfaceMeta.js';
 
 export interface IAgentHostStateManagerOptions {
 	readonly changesetStateRetention?: IAgentHostChangesetStateRetentionOptions;
@@ -331,6 +331,9 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	private _emitSessionAdded(summary: SessionSummary): void {
+		if (readEphemeralSessionMeta(summary).isEphemeral) {
+			return;
+		}
 		this._summaryNotifier.announce(summary.resource, summary);
 		this._publishedSessionSummaries.add(summary.resource);
 		this._addedSessionSummaries.add(summary.resource);
@@ -614,7 +617,7 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	/** Returns the typed VS Code surface metadata for a tracked session, when present. */
-	getSessionSurfaceMeta(session: string): ITerminalChatSurfaceMeta | undefined {
+	getSessionSurfaceMeta(session: string): IChatSurfaceMeta | undefined {
 		const entry = this._sessionStates.get(session);
 		return entry ? readChatSurfaceMeta(entry.state) : undefined;
 	}
