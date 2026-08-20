@@ -1,5 +1,9 @@
 # Layout Controller — Per-Session Layout State
 
+> **Specification change gate:** A bug fix that restores an existing rule belongs
+> in a regression test, not this document. Update this specification only when
+> the intended layout state machine or persistence contract changes.
+
 This document specifies how the session layout controllers manage workbench layout as the user
 switches between sessions. The classic and mobile implementation is split across three files, each
 with its own file-level spec. Each spec states the behaviour as numbered **scenario rules** (and
@@ -27,7 +31,8 @@ coordinators rather than being injected into editor-part construction; in
 particular, editor-part construction must not acquire `ISessionsService`,
 because the Sessions service graph already depends on editor parts.
 
-It is the detailed companion to [LAYOUT.md §10 Per-Session Layout State](LAYOUT.md#10-per-session-layout-state).
+It is the detailed companion to the
+[layout-controller boundary](LAYOUT.md#layout-controller-boundary).
 
 ---
 
@@ -80,7 +85,8 @@ cleared — they survive multi-session mode.
 Skipped entirely on mobile web (`isWeb && isMobile`) to avoid disruptive auto-expand on narrow viewports.
 
 > **Docked detail panel (experimental).** With `sessions.layout.singlePaneDetailPanel` enabled, the auxiliary
-> bar is docked inside the editor part rather than being a grid column (see [LAYOUT.md](LAYOUT.md) §5).
+> bar is docked inside the editor part rather than being a grid column (see
+> [Editor presentation](LAYOUT.md#editor-presentation)).
 > `SinglePaneExistingSessionStrategy` persists one shared Existing Session Editor/Details profile
 > (via `SinglePaneVisibilityProfileStore`) under `sessions.singlePane.sidePaneVisibility`.
 > New Sessions do not apply or capture an Editor
@@ -346,44 +352,10 @@ does, causing the aux bar to fall back to the default-visible logic (§3.2) on t
 - **Observables, not events**, drive all session-switch logic.
 - **Multiple visible sessions** disable per-session view/panel sync and clear that state (working
   sets preserved).
-- **In the classic layout, the side pane is never auto-opened for existing sessions on restore** — it opens automatically as
-  the new-session default (§3.2 step 2) and stays visible when an already-visible new session is
-  submitted (§3.3). A created session with no explicit "visible" choice stays closed until the user
-  opens it.
-- **In single-pane, Existing Sessions restore a shared Editor/Details profile** while New Sessions apply their
-  entry rules. Quick Chat hides the whole side pane once on single-session entry; later explicit
-  editor opens follow normal workbench behavior. With multiple visible sessions, the focused session may reveal parts from its
-  matching profile, but it never automatically hides parts used by another session.
-- Existing→Existing detail content selection ignores the outgoing active editor. It selects content
-  only when a concrete different incoming editor activates or the incoming session-layout restore ends,
-  avoiding a Files→Changes flash.
-- Classic-layout D10 empty-Aux cleanup is disabled in single-pane mode; Quick Chat strategy is the
-  sole owner of Quick visibility and waits for entry editor restoration to settle before applying it.
-- **In the classic desktop layout, the sessions sidebar is auto-managed on a small window ([D7])** — when the main container is
-  1800px wide or narrower and both the editor and auxiliary bar are open, the sidebar is hidden; it is shown
-  again once either closes or the window widens, unless the user closed it themselves. Suspended while
-  multiple sessions are visible, and switching sessions never auto-hides the sidebar: the base-controller
-  restore epoch (`_withSessionLayoutRestore` / `_isRestoringSessionLayout`) wraps both the aux-bar restore
-  and the editor working-set apply (`_applyWorkingSet`), so the side-pane / editor reveals a switch causes
-  re-baseline the state instead of triggering an auto-hide. Gated by the
-  experimental setting `sessions.layout.autoCollapseSessionsSidebar` (default on in non-stable builds). See
-  [desktopSessionLayoutController.md](contrib/layout/browser/desktopSessionLayoutController.md) D7.
-- **In single-pane, the Sessions sidebar is always explicit** — opening/closing Details or opening an
-  editor never hides or shows the sidebar.
 - Working-set save/apply waits for **workspace folders** to catch up with the active session.
-- **An empty auxiliary bar is hidden (desktop, [D10])** — when the aux bar has no active view container
-  (e.g. a workspace-less quick chat where Changes/Files are gated off), the `AUXILIARYBAR_PART` is kept
-  hidden instead of showing an empty column, updating reactively as the active session flips — including
-  when the part itself becomes visible (a bare toggle / restore that shows the column before a container
-  opens), so the detail toggle never reads "on" over a blank panel. The empty-part hide runs under
-  `suppressEditorPartAutoVisibility()` so it never resurrects the editor as a side effect, and the docked
-  host never force-opens a `hideIfEmpty` container with no active views. The controller only hides an empty
-  aux bar (reveals stay with D3/D8), and **Toggle Side Panel** only reveals the part that has content —
-  never an empty aux bar, and is **disabled entirely for quick chats**
-  (`IsQuickChatSessionContext.negate()`). Invariant: `partVisibility.auxiliaryBar`
-  (⇒ `AuxiliaryBarVisibleContext` ⇒ the detail toggle) is true iff the docked detail panel is rendered with
-  an active view container.
-- **Single-pane new-session views hide only redundant Editor content (desktop, [D11])** — when an
-  uncreated workspace session is entered in single-pane mode and the restored editor set contains only
-  Empty Files, Editor is hidden once under `suppressEditorPartAutoVisibility()`. Auxiliary Bar visibility
-  is not changed or persisted by the New strategy, and later user editor reveals are respected.
+- Classic desktop behavior is owned by rules `D1`-`D11` in
+  [desktopSessionLayoutController.md](contrib/layout/browser/desktopSessionLayoutController.md).
+- Mobile behavior is owned by rules `M1`-`M2` in
+  [mobileSessionLayoutController.md](contrib/layout/browser/mobileSessionLayoutController.md).
+- Single-pane visibility and detail selection are owned by
+  [SINGLE_PANE_SCENARIOS.md](SINGLE_PANE_SCENARIOS.md) and the strategy tests.

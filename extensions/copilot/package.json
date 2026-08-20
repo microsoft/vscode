@@ -4341,6 +4341,23 @@
       {
         "id": "advanced",
         "properties": {
+          "github.copilot.chat.chatCompletionsTokenParameter": {
+            "type": "string",
+            "enum": [
+              "max_completion_tokens",
+              "max_tokens"
+            ],
+            "enumDescriptions": [
+              "%github.copilot.config.chatCompletionsTokenParameter.maxCompletionTokens%",
+              "%github.copilot.config.chatCompletionsTokenParameter.maxTokens%"
+            ],
+            "default": "max_tokens",
+            "markdownDescription": "%github.copilot.config.chatCompletionsTokenParameter%",
+            "tags": [
+              "advanced",
+              "onExp"
+            ]
+          },
           "github.copilot.chat.inlineEdits.xtabProvider.modelConfiguration": {
             "type": [
               "object",
@@ -7119,7 +7136,7 @@
     "esbuild@0.28.1": true,
     "keytar@7.9.0": true,
     "@playwright/browser-chromium@1.61.1": true,
-    "@vscode/vsce-sign@2.0.5": true,
+    "@vscode/vsce-sign@2.1.0": true,
     "protobufjs": false,
     "fsevents@2.3.3": true,
     "fsevents@2.3.2": true

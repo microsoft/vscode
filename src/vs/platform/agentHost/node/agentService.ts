@@ -99,6 +99,8 @@ import { IAgentHostChangesetOperationService } from '../common/agentHostChangese
  */
 const SESSION_GC_GRACE_MS = 30_000;
 const DAY_MS = 24 * 60 * 60 * 1000;
+const EXTERNAL_SESSION_MAX_AGE_MS = 30 * DAY_MS;
+const EXTERNAL_SESSION_PRUNE_DELAY_MS = 60_000;
 const RECENT_EXTERNAL_SESSION_LIMIT = 2;
 /** A catalog pass slower than this is logged at info, since it delays every session-list refresh. */
 const SLOW_LIST_SESSIONS_THRESHOLD_MS = 1_000;
@@ -764,6 +766,7 @@ export class AgentService extends Disposable implements IAgentService {
 				reason: AuthRequiredReason.Required,
 			});
 		}));
+		this._scheduleExternalSessionPrune();
 	}
 
 	/**
@@ -782,6 +785,54 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	get onDidStartTurn(): Event<string> {
 		return this._sideEffects.onDidStartTurn;
+	}
+
+	private _scheduleExternalSessionPrune(): void {
+		this._register(disposableTimeout(() => {
+			void this._pruneStaleExternalSessions().catch(error => {
+				this._logService.warn('[AgentService] Failed to prune stale external sessions', error);
+			});
+		}, EXTERNAL_SESSION_PRUNE_DELAY_MS));
+	}
+
+	private async _pruneStaleExternalSessions(): Promise<void> {
+		const now = Date.now();
+		const registered = await this._listRegisteredSessions();
+		const staleExternalSessions: URI[] = [];
+		for (const entry of registered) {
+			if (!entry.external) {
+				continue;
+			}
+			const provider = this._providers.get(entry.provider);
+			if (!provider) {
+				continue;
+			}
+			let metadata: IAgentSessionMetadata | undefined;
+			try {
+				metadata = await this._registeredSessionMetadata(provider, entry.session, true);
+			} catch (error) {
+				this._logService.warn(`[AgentService] Failed to load metadata while pruning stale external session ${entry.session.toString()}`, error);
+				continue;
+			}
+			if (!metadata) {
+				continue;
+			}
+			if (readSessionEhcliAdoptable(metadata._meta)) {
+				continue;
+			}
+			if (this._isExternalSessionOlderThanMaxAge(metadata.modifiedTime, now)) {
+				staleExternalSessions.push(entry.session);
+			}
+		}
+
+		for (const session of staleExternalSessions) {
+			await this._sessionRegistry.unregister(session);
+		}
+		if (staleExternalSessions.length > 0) {
+			this._invalidateSessionList();
+			this._queueSessionListReconciliation();
+		}
+		this._logService.info(`[AgentService] pruned ${staleExternalSessions.length} stale external session row(s) older than ${EXTERNAL_SESSION_MAX_AGE_MS / DAY_MS} days`);
 	}
 
 	// ---- provider registration ----------------------------------------------
@@ -1404,6 +1455,13 @@ export class AgentService extends Disposable implements IAgentService {
 		await Promise.all([...this._providers.values()].map(provider => this._awaitInitialProviderMigrationForProvider(provider)));
 	}
 
+	/**
+	 * Awaits the registration-time legacy migration for a single provider,
+	 * retrying once if that initial catalog pass was unavailable. Rejects only if
+	 * the retry also fails. Restore uses this to wait for its own provider's
+	 * catalog before reading per-session metadata, mirroring what
+	 * {@link _awaitInitialProviderMigration} does for `listSessions`.
+	 */
 	private async _awaitInitialProviderMigrationForProvider(provider: IAgent): Promise<void> {
 		const migration = this._initialProviderMigrations.get(provider.id);
 		if (!migration) {
@@ -1522,6 +1580,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const existing = new Map((await this._listRegisteredSessions()).map(session => [session.session.toString(), session.external]));
 		const discoveryLimiter = new Limiter<boolean>(4);
 		let suppressed = 0;
+		let skippedAsStale = 0;
 		let registeredExternal = false;
 		let alreadyRegistered = 0;
 		let registryChanged = false;
@@ -1537,6 +1596,10 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				if (isSubagentSession(session.toString()) || await this._isChatBacking(session)) {
 					suppressed++;
+					return false;
+				}
+				if (external && !readSessionEhcliAdoptable(sessionMetadata._meta) && this._isExternalSessionOlderThanMaxAge(sessionMetadata.modifiedTime, Date.now())) {
+					skippedAsStale++;
 					return false;
 				}
 				const identity: IRegisteredSession = { session, provider: provider.id, startTime: metadata.startTime, external, source: external ? 'discovery' : 'restore' };
@@ -1571,7 +1634,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (registeredExternal) {
 			this._queueSessionListReconciliation();
 		}
-		this._logService.info(`[AgentService] discovery for provider ${provider.id}: ${chats.length} candidate(s) (${chats.filter(chat => chat.external).length} external), ${registered} registered, ${alreadyRegistered} already registered, ${suppressed} suppressed as subagent/chat backing`);
+		this._logService.info(`[AgentService] discovery for provider ${provider.id}: ${chats.length} candidate(s) (${chats.filter(chat => chat.external).length} external), ${registered} registered, ${alreadyRegistered} already registered, ${suppressed} suppressed as subagent/chat backing, ${skippedAsStale} skipped as older than ${EXTERNAL_SESSION_MAX_AGE_MS / DAY_MS} days`);
 		return registered > 0;
 	}
 
@@ -1604,10 +1667,13 @@ export class AgentService extends Disposable implements IAgentService {
 			if (!identity) {
 				continue;
 			}
+			const metadata = sessions[index];
+			if (identity.external && !readSessionEhcliAdoptable(metadata._meta) && this._isExternalSessionOlderThanMaxAge(metadata.modifiedTime, Date.now())) {
+				continue;
+			}
 			const registered = await this._sessionRegistry.register(identity.session, identity, { checkTombstone: true });
 			if (registered) {
 				this._invalidateSessionList();
-				const metadata = sessions[index];
 				if (identity.external && existing.get(identity.session.toString()) !== true) {
 					await this._initializeExternalSessionReadState(identity.session);
 				}
@@ -1751,7 +1817,18 @@ export class AgentService extends Disposable implements IAgentService {
 		// chat backings and subagent sessions never enter it; ephemeral sessions
 		// are tombstoned at creation. A transiently missing provider snapshot no
 		// longer evicts a session.
-		const registered = await this._listRegisteredSessions();
+		const allRegistered = await this._listRegisteredSessions();
+		// External sessions that the current mode hides outright are dropped
+		// before any provider or database read. On a large catalogue these are
+		// most of the registry, and each one otherwise costs a provider metadata
+		// round-trip plus several session-database opens. Their keys are kept so
+		// the state-manager overlay below cannot re-surface them as fallbacks.
+		const hiddenExternal = this._hidesAllExternalSessions(mode)
+			? new Set(allRegistered.filter(entry => entry.external).map(entry => entry.session.toString()))
+			: new Set<string>();
+		const registered = hiddenExternal.size > 0
+			? allRegistered.filter(entry => !hiddenExternal.has(entry.session.toString()))
+			: allRegistered;
 		const metadataLimiter = new Limiter<IAgentSessionMetadata | undefined>(4);
 		const results = await Promise.all(registered.map(registeredSession => metadataLimiter.queue(async (): Promise<IAgentSessionMetadata | undefined> => {
 			const { session, provider, external } = registeredSession;
@@ -1915,7 +1992,10 @@ export class AgentService extends Disposable implements IAgentService {
 		// Idle provisional sessions are deliberately *not* overlaid so the
 		// new-session composer's eagerly-created session doesn't leak into the
 		// list before its first message (#321269).
-		const known = new Set(withStatus.map(s => s.session.toString()));
+		const known = new Set(hiddenExternal);
+		for (const session of withStatus) {
+			known.add(session.session.toString());
+		}
 		const additions: IAgentSessionMetadata[] = [];
 		for (const summary of this._stateManager.getOverlaySessionSummaries()) {
 			if (known.has(summary.resource)) {
@@ -1954,7 +2034,8 @@ export class AgentService extends Disposable implements IAgentService {
 			: undefined;
 		const visible: IAgentSessionMetadata[] = [];
 		// Adoptable-legacy rows are withheld by migrate-legacy, not by the external mode.
-		let hiddenByExternalMode = 0;
+		// Sessions skipped above were hidden by the mode too, so they still count.
+		let hiddenByExternalMode = hiddenExternal.size;
 		for (const session of combined) {
 			if (this._shouldIncludeSession(session, mode, now, recentSessionKeys)) {
 				visible.push(session);
@@ -1962,11 +2043,12 @@ export class AgentService extends Disposable implements IAgentService {
 				hiddenByExternalMode++;
 			}
 		}
-		this._logHiddenSessions(hiddenByExternalMode, combined.length, mode);
+		const total = combined.length + hiddenExternal.size;
+		this._logHiddenSessions(hiddenByExternalMode, total, mode);
 
 		// A catalog pass opens every registered session's database, so it can be slow.
 		const duration = Date.now() - startedAt;
-		const message = `[AgentService] listSessions computed ${visible.length} of ${combined.length} session(s) for mode '${mode}' in ${duration}ms (${additions.length} state-manager fallback)`;
+		const message = `[AgentService] listSessions computed ${visible.length} of ${total} session(s) for mode '${mode}' in ${duration}ms (${additions.length} state-manager fallback)`;
 		if (duration >= SLOW_LIST_SESSIONS_THRESHOLD_MS) {
 			this._logService.info(message);
 		} else {
@@ -2000,7 +2082,15 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private _getExternalSessionsMode(): AgentHostExternalSessionsMode {
+		const rootValue = this._configurationService.getRootConfigValues()?.[AgentHostShowExternalSessionsConfigKey];
+		if (rootValue === 'all') {
+			return AgentHostExternalSessionsMode.Last30Days;
+		}
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostShowExternalSessionsConfigKey) ?? AgentHostExternalSessionsMode.None;
+	}
+
+	private _isExternalSessionOlderThanMaxAge(modifiedTime: number, now: number): boolean {
+		return modifiedTime < now - EXTERNAL_SESSION_MAX_AGE_MS;
 	}
 
 	private _getRecentSessionKeys(sessions: readonly IAgentSessionMetadata[], now: number): ReadonlySet<string> {
@@ -2038,15 +2128,30 @@ export class AgentService extends Disposable implements IAgentService {
 			case AgentHostExternalSessionsMode.Recent:
 				return session.modifiedTime >= now - 7 * DAY_MS
 					&& (recentSessionKeys === undefined || recentSessionKeys.has(session.session.toString()));
-			case AgentHostExternalSessionsMode.All:
-				return true;
 			case AgentHostExternalSessionsMode.Last24Hours:
 				return session.modifiedTime >= now - DAY_MS;
 			case AgentHostExternalSessionsMode.Last7Days:
 				return session.modifiedTime >= now - 7 * DAY_MS;
+			case AgentHostExternalSessionsMode.Last30Days:
+				return !this._isExternalSessionOlderThanMaxAge(session.modifiedTime, now);
 			case AgentHostExternalSessionsMode.None:
 				return false;
 		}
+	}
+
+	/**
+	 * Whether {@link _shouldIncludeSession} is guaranteed to reject every
+	 * external session under `mode`, letting {@link _computeSessions} drop them
+	 * on the registry's `external` flag alone.
+	 *
+	 * `None` is the only mode that rejects external sessions outright. The
+	 * adoptable-legacy exemption is the single way one could still be visible,
+	 * and while migration is off that marker forces exclusion as well — which
+	 * matters because the marker is only discoverable from the provider
+	 * metadata read this skip avoids.
+	 */
+	private _hidesAllExternalSessions(mode: AgentHostExternalSessionsMode): boolean {
+		return mode === AgentHostExternalSessionsMode.None && !this._isMigrateLegacyEnabled();
 	}
 
 	/**
@@ -2078,6 +2183,8 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/** Tracks the migrate-legacy setting so the config listener acts only on transitions. */
 	private _lastMigrateLegacyEnabled = false;
+	/** Adoptable keys retracted in this window; re-enabling also recovers earlier ones from the catalog. */
+	private readonly _retractedAdoptableKeys = new Set<string>();
 
 	private _isMigrateLegacyEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostMigrateLegacyCopilotCliEnabledConfigKey) === true;
@@ -2095,7 +2202,12 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		this._lastMigrateLegacyEnabled = enabled;
 		if (enabled) {
-			return; // turning on re-surfaces through the normal discovery / list path
+			// Discovery skips chats already in the registry, so it cannot re-announce
+			// what disabling retracted — restore them from the registry instead.
+			this._sessionListReconciliation = this._sessionListReconciliation
+				.then(() => this._resurfaceAdoptableSessions())
+				.catch(error => this._logService.warn('[AgentService] Re-surfacing adoptable legacy sessions failed', error));
+			return;
 		}
 		for (const key of [...this._announcedSurfacedKeys]) {
 			if (this._stateManager.getSessionState(key)) {
@@ -2106,7 +2218,36 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			this._announcedSurfacedKeys.delete(key);
 			this._broadcastExternalSessions.delete(key);
+			this._retractedAdoptableKeys.add(key);
 			this._stateManager.retractSurfacedSession(key);
+		}
+	}
+
+	/**
+	 * Re-announces adoptable-legacy sessions that are not currently surfaced —
+	 * those this window retracted, plus any the catalog still reports as adoptable,
+	 * so rows retracted before a restart are recovered too.
+	 */
+	private async _resurfaceAdoptableSessions(): Promise<void> {
+		if (!this._isMigrateLegacyEnabled()) {
+			return;
+		}
+		for (const metadata of await this.listSessions()) {
+			const key = metadata.session.toString();
+			if (this._announcedSurfacedKeys.has(key) || this._stateManager.getSessionState(key)) {
+				this._retractedAdoptableKeys.delete(key);
+				continue;
+			}
+			if (!this._retractedAdoptableKeys.has(key) && !readSessionEhcliAdoptable(metadata._meta)) {
+				continue;
+			}
+			const provider = AgentSession.provider(metadata.session);
+			if (provider) {
+				await this._announceSurfacedSession(metadata, provider);
+			}
+			if (this._announcedSurfacedKeys.has(key) || this._stateManager.getSessionState(key)) {
+				this._retractedAdoptableKeys.delete(key);
+			}
 		}
 	}
 
@@ -2124,7 +2265,7 @@ export class AgentService extends Disposable implements IAgentService {
 			previouslyExposed.add(session);
 		}
 		const listed = previousMode !== undefined
-			? this._resolveModeChangeVisibility(await this.listSessions(AgentHostExternalSessionsMode.All), previousMode, previouslyExposed)
+			? this._resolveModeChangeVisibility(await this.listSessions(AgentHostExternalSessionsMode.Last30Days), previousMode, previouslyExposed)
 			: await this.listSessions();
 		const visible = new Set<string>();
 		let published = 0;
@@ -2174,7 +2315,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/**
 	 * Derives both the previous and current mode's visible sets from one catalog
-	 * pass, since {@link AgentHostExternalSessionsMode.All} is a superset of every
+	 * pass, since {@link AgentHostExternalSessionsMode.Last30Days} is a superset of every
 	 * mode and the mode is just a parameter to {@link _shouldIncludeSession}.
 	 * Adds what `previousMode` had exposed into `previouslyExposed`.
 	 */
@@ -2198,7 +2339,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const mode = this._getExternalSessionsMode();
 		const recentKeys = recentKeysFor(mode);
 		const visible = superset.filter(session => this._shouldIncludeSession(session, mode, now, recentKeys));
-		// The pass ran as `All`, so report the mode actually in effect instead.
+		// The pass ran as `Last30Days`, so report the mode actually in effect instead.
 		this._logHiddenSessions(superset.length - visible.length, superset.length, mode);
 		return visible;
 	}
@@ -4551,7 +4692,22 @@ export class AgentService extends Disposable implements IAgentService {
 		if (await this._sessionRegistry.isTombstoned(session)) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session was explicitly deleted: ${sessionStr}`);
 		}
-		await this._awaitInitialProviderMigrationForProvider(agent);
+		// Wait for the provider's one-time catalog migration before reading
+		// metadata, mirroring `listSessions`, so restore does not misread an
+		// unwarmed catalog as a missing session (#331648). A catalog that stays
+		// unavailable is non-fatal: fall through, but remember it so a resulting
+		// miss is classified as unavailable rather than absent.
+		let catalogReadable = true;
+		try {
+			await this._awaitInitialProviderMigrationForProvider(agent);
+		} catch (err) {
+			catalogReadable = false;
+			this._logService.warn(`[AgentService] restore: initial catalog migration for provider ${agent.id} failed; a metadata miss will be reported as unavailable, not missing`, err);
+		}
+		// Re-check after the (possibly lengthy) wait so a delete that landed meanwhile is not resurrected.
+		if (await this._sessionRegistry.isTombstoned(session)) {
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session was explicitly deleted: ${sessionStr}`);
+		}
 		const registeredSession = (await this._listRegisteredSessions()).find(entry => entry.session.toString() === sessionStr);
 		const external = registeredSession?.external ?? false;
 
@@ -4571,11 +4727,21 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const adopted = adoption.adopted;
 
+		// A session the registry does not know is only restorable when it is ours:
+		// either an adoptable legacy chat, or one that already has Agent Host
+		// metadata whose registry entry was lost. `external` defaults to false for
+		// unknown sessions, so without this an external chat (e.g. one the GitHub app
+		// created, hidden while `showExternalSessions` is `none`) would be
+		// materialized here and thereby claimed away from the extension host's list.
+		if (!registeredSession && migrateLegacyEnabled && agent.ensureChatAdopted && !adoption.eligible && !adoption.native) {
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session is not an adoptable legacy chat: ${sessionStr}`);
+		}
+
 		// From here the whole restore is wrapped so `migrated` is reported only
 		// after every required step succeeds, and any failure after a successful
 		// adoption is surfaced as a migration failure.
 		try {
-			const facts = await this._restoreSessionState(agent, session, sessionStr, adopted, external, registeredSession?.source ?? 'restore');
+			const facts = await this._restoreSessionState(agent, session, sessionStr, adopted, external, registeredSession?.source ?? 'restore', catalogReadable, !!registeredSession);
 			await this._restoreAnnotations(session);
 			if (adopted) {
 				this._reportLegacyMigration(agent.id, 'migrated', migrationStartTime, facts);
@@ -4672,10 +4838,16 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Returns the facts used for migration telemetry; throws if any required step
 	 * fails so the caller can report the outcome accurately.
 	 */
-	private async _restoreSessionState(agent: IAgent, session: URI, sessionStr: string, adopted: boolean, external: boolean, registrationSource: IRegisteredSession['source']): Promise<{ turnCount: number; hasProject: boolean; hasWorktree: boolean; workingDirectoryCount: number }> {
+	private async _restoreSessionState(agent: IAgent, session: URI, sessionStr: string, adopted: boolean, external: boolean, registrationSource: IRegisteredSession['source'], catalogReadable: boolean, sessionKnownToRegistry: boolean): Promise<{ turnCount: number; hasProject: boolean; hasWorktree: boolean; workingDirectoryCount: number }> {
 		let meta = await this._getSessionMetadataForRestore(agent, session, external);
 		if (!meta) {
-			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found on backend: ${sessionStr}`);
+			// Authoritative absence only when the catalog was readable this run and
+			// the registry has no record of the session; a miss for a known
+			// (registered) session, or while the catalog was unavailable, is
+			// transient — e.g. a provider whose SDK is not downloaded yet (#331648).
+			throw catalogReadable && !sessionKnownToRegistry
+				? new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found on backend: ${sessionStr}`)
+				: new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Provider ${agent.id} could not describe ${sessionStr} yet`);
 		}
 
 		// A freshly-adopted legacy session whose working directory is a
