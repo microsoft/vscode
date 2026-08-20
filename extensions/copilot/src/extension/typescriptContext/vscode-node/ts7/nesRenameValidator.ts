@@ -112,6 +112,12 @@ export async function validateNesRename(result: PrepareNesRenameResult, project:
 	}
 	const parent = await symbol.getParent();
 	const declarations = await symbols.getDeclarations(symbol);
+	for (const declaration of declarations) {
+		if (await symbols.isSourceFileFromLibrary(declaration.getSourceFile())) {
+			result.setCanRename(protocol.RenameKind.no, 'The symbol is declared in a library file');
+			return;
+		}
+	}
 	if (declarations.length === 1 && (Symbols.isBlockScopedVariable(symbol) || Symbols.isFunctionScopedVariable(symbol))) {
 		const inScope = await symbols.getSymbolsInScope(declarations[0], SymbolFlags.BlockScopedVariable | SymbolFlags.FunctionScopedVariable);
 		for (const inScopeSymbol of inScope) {

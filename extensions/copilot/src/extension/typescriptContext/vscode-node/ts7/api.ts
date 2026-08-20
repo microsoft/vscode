@@ -29,7 +29,7 @@ import { ModuleContextProvider } from './moduleContextProvider';
 import { PrepareNesRenameResult, validateNesRename } from './nesRenameValidator';
 import { SourceFileContextProvider } from './sourceFileContextProvider';
 import { RecoverableError } from './types';
-import tss, { type CancellationTokenWithTimer } from './typescripts';
+import tss, { Symbols, type CancellationTokenWithTimer } from './typescripts';
 
 class ProviderComputeContextImpl implements ProviderComputeContext {
 	private firstCallableProvider: ContextProvider | undefined;
@@ -186,7 +186,14 @@ export async function nesRename<FromLSP extends boolean>(api: API<FromLSP>, snap
 		if (renameTarget.node.getText(updatedSourceFile) !== oldName) {
 			return;
 		}
+		const symbols = new Symbols(updatedProject, token);
 		const referencedSymbols = await updatedProject.languageService.getReferencedSymbolsForNode(renameTarget.node, renameTarget.position);
+		for (const referencedSymbol of referencedSymbols) {
+			const definition = await referencedSymbol.definition.resolve(updatedProject);
+			if (definition === undefined || await symbols.isSourceFileFromLibrary(definition.getSourceFile())) {
+				return;
+			}
+		}
 		for (const referencedSymbol of referencedSymbols) {
 			for (const reference of referencedSymbol.references) {
 				token.throwIfCancellationRequested();
@@ -195,6 +202,9 @@ export async function nesRename<FromLSP extends boolean>(api: API<FromLSP>, snap
 					continue;
 				}
 				const sourceFile = node.getSourceFile();
+				if (await symbols.isSourceFileFromLibrary(sourceFile)) {
+					continue;
+				}
 				const startPosition = node.getStart(sourceFile);
 				const endPosition = node.getEnd();
 				const key = `${sourceFile.path}:${startPosition}:${endPosition}`;

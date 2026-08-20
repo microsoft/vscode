@@ -76,6 +76,7 @@ export class TS7NesRenameService implements vscode.Disposable {
 		if (api === undefined || token.isCancellationRequested) {
 			return [];
 		}
+		api.clearSourceFileCache();
 		const snapshot = await api.updateSnapshot({ openFiles: [{ uri: document.uri.toString() }] });
 		try {
 			const state = await this.getProjectState(snapshot, document);

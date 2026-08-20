@@ -178,6 +178,18 @@ export class Symbols {
 		return this.project.checker;
 	}
 
+	public async isSourceFileFromLibrary(sourceFile: SourceFile): Promise<boolean> {
+		this.token.throwIfCancellationRequested();
+		const isDefaultLibrary = await this.project.program.isSourceFileDefaultLibrary(sourceFile);
+		this.token.throwIfCancellationRequested();
+		if (isDefaultLibrary) {
+			return true;
+		}
+		const isExternalLibrary = await this.project.program.isSourceFileFromExternalLibrary(sourceFile);
+		this.token.throwIfCancellationRequested();
+		return isExternalLibrary;
+	}
+
 	public async getSymbolAtLocation(node: Node): Promise<NativeSymbol | undefined> {
 		this.token.throwIfCancellationRequested();
 		const result = await this.project.checker.getSymbolAtLocation(node);
