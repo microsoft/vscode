@@ -16,7 +16,7 @@ import { type IExtUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import type { AgentCustomization, SessionActiveClient, ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, CLIENT_SEMANTIC_SEARCH_TOOL_ID, CopilotSemanticSearchEnabledSettingId, SEMANTIC_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/semanticSearchConstants.js';
+import { CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, CopilotSemanticSearchEnabledSettingId, SEMANTIC_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/semanticSearchConstants.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
@@ -423,15 +423,23 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 						}
 					}
 				}
+				// Addressed by reference name, like every other client tool; routing
+				// resolves the same name through `getToolByName`, so the two agree.
+				const semanticSearchTool = isCopilotSession
+					? tools.find(tool => tool.toolReferenceName === CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME)
+					: undefined;
 				return coalesce(tools.filter(tool => enabledToolIds.has(tool.id)).map(tool => {
 					if (!isCopilotSession) {
 						return toolDataToDefinition(tool);
 					}
-					if (tool.id === CLIENT_SEMANTIC_SEARCH_TOOL_ID) {
+					// Published under the SDK's built-in name so the session can override it.
+					if (tool === semanticSearchTool) {
 						return semanticSearchEnabled
 							? { ...toolDataToDefinition(tool), name: SEMANTIC_SEARCH_TOOL_NAME }
 							: undefined;
 					}
+					// Nothing else may claim the published name: two client tools cannot
+					// share one SDK registration.
 					if (tool.toolReferenceName === CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME || tool.toolReferenceName === SEMANTIC_SEARCH_TOOL_NAME) {
 						return undefined;
 					}

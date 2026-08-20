@@ -131,6 +131,12 @@ non-deferred, permission-free built-in override. The launcher's
 `toSdkToolFilterPatterns` rewrite of `codebase` → `semantic_search` assumes that
 republishing, so the two must stay gated on the same predicate.
 
+The tool is addressed by its `codebase` reference name, like every other client
+tool, and routing resolves that same name via `getToolByName` — so publishing
+and routing cannot disagree about which tool owns the slot. Any *other* tool
+claiming `codebase` or `semantic_search` is dropped for the session, because two
+client tools cannot share one SDK registration.
+
 The tool-gated prompt reminders keep queries focused and require switching to
 `grep` or `glob` instead of retrying when the workspace index is unavailable,
 updating, empty, or otherwise unhelpful.

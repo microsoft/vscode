@@ -6,9 +6,6 @@
 /** VS Code setting that exposes the workbench semantic search to Copilot agent sessions. */
 export const CopilotSemanticSearchEnabledSettingId = 'chat.copilot.semanticSearch.enabled';
 
-/** Stable contribution id of the Copilot extension's workbench semantic-search tool. */
-export const CLIENT_SEMANTIC_SEARCH_TOOL_ID = 'copilot_searchCodebase';
-
 /** Runtime/model-facing name; overrides the Copilot SDK's built-in tool of the same name. */
 export const SEMANTIC_SEARCH_TOOL_NAME = 'semantic_search';
 

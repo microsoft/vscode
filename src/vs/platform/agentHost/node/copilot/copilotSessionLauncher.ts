@@ -162,6 +162,9 @@ export function filterClientToolNames(names: ReadonlySet<string>, availableTools
 	return result;
 }
 
+/** Source qualifier the SDK uses for client-contributed tools. */
+const CUSTOM_TOOL_PATTERN_PREFIX = 'custom:';
+
 /** Maps workbench client-tool names to their SDK-registered names. */
 function toSdkClientToolName(name: string): string {
 	switch (name) {
@@ -179,16 +182,9 @@ export function toSdkToolFilterPatterns(patterns: readonly string[] | undefined)
 	if (!patterns) {
 		return undefined;
 	}
-	return [...new Set(patterns.map(pattern => {
-		if (pattern === CLIENT_TOOL_SEARCH_REFERENCE_NAME || pattern === CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME) {
-			return toSdkClientToolName(pattern);
-		}
-		const customPrefix = 'custom:';
-		if (pattern.startsWith(customPrefix)) {
-			return `${customPrefix}${toSdkClientToolName(pattern.slice(customPrefix.length))}`;
-		}
-		return pattern;
-	}))];
+	return [...new Set(patterns.map(pattern => pattern.startsWith(CUSTOM_TOOL_PATTERN_PREFIX)
+		? `${CUSTOM_TOOL_PATTERN_PREFIX}${toSdkClientToolName(pattern.slice(CUSTOM_TOOL_PATTERN_PREFIX.length))}`
+		: toSdkClientToolName(pattern)))];
 }
 
 export interface ICopilotSessionRuntime {

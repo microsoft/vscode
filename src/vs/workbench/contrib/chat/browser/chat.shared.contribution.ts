@@ -1590,7 +1590,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[CopilotSemanticSearchEnabledSettingId]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.copilot.semanticSearch.enabled', "Controls whether Copilot agent sessions can search the workspace semantically. When disabled, neither the built-in nor the workspace semantic search tool is offered, even if the tool is enabled under Chat Customizations. Semantic search requires a usable workspace index; the agent falls back to exact-text and file-name search when the index is unavailable or returns no useful results."),
+			markdownDescription: nls.localize('chat.copilot.semanticSearch.enabled', "Controls whether Copilot agent sessions can search the workspace semantically. When disabled, neither the built-in nor the workspace semantic search tool is offered — even if the tool is enabled under Chat Customizations, and even if a model capability override allows it. Semantic search requires a usable workspace index; the agent falls back to exact-text and file-name search when the index is unavailable or returns no useful results."),
 			default: false,
 			tags: ['experimental', 'advanced'],
 		},

@@ -89,7 +89,7 @@ import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTy
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ILanguageModelToolsService, IToolResult, stringifyPromptTsxPart, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, IToolResult, stringifyPromptTsxPart, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { IChatWidgetService } from '../../chat.js';
 import { getAgentSessionProviderIcon } from '../agentSessions.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from './agentHostActiveClientService.js';
@@ -2499,6 +2499,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return invocation;
 	}
 
+	/** The workbench tool a runtime client-tool call maps to, or `undefined` when it is not installed. */
+	private _resolveClientTool(toolName: string): IToolData | undefined {
+		return this._toolsService.getToolByName(toClientToolReferenceName(toolName, isCopilotCliSessionType(this._config.sessionType)));
+	}
+
 	/**
 	 * Whether an unclaimed client tool must wait for a rendering observer
 	 * before running. There is no protocol field for this, so we use the tool's
@@ -2511,8 +2516,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * a claimed call always runs with context regardless.
 	 */
 	private _clientToolRequiresConfirmation(toolCall: ToolCallState): boolean {
-		const clientToolName = toClientToolReferenceName(toolCall.toolName, isCopilotCliSessionType(this._config.sessionType));
-		return this._toolsService.getToolByName(clientToolName)?.canRequestPreApproval === true;
+		return this._resolveClientTool(toolCall.toolName)?.canRequestPreApproval === true;
 	}
 
 	/**
@@ -2530,8 +2534,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const toolCall = request.toolCall;
 		const toolName = toolCall.toolName;
 		const isToolSearch = toolName === RUNTIME_TOOL_SEARCH_TOOL_NAME;
-		const clientToolName = toClientToolReferenceName(toolName, isCopilotCliSessionType(this._config.sessionType));
-		const toolData = this._toolsService.getToolByName(clientToolName);
+		const toolData = this._resolveClientTool(toolName);
 
 		// A tool-search completion (success or failure) must drop the transient
 		// candidate corpus from `_meta` while preserving any other metadata.
@@ -3900,8 +3903,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			adopted.didExecuteTool(undefined);
 		}
 
-		const clientToolName = toClientToolReferenceName(toolName, isCopilotCliSessionType(this._config.sessionType));
-		const toolData = this._toolsService.getToolByName(clientToolName);
+		const toolData = this._resolveClientTool(toolName);
 		if (!toolData) {
 			this._logService.warn(`[AgentHost] Client tool call for unknown tool: ${toolName}`);
 			this._dispatchAction(opts.backendSession, {

@@ -1032,20 +1032,22 @@ suite('CopilotSessionLauncher resume config', () => {
 
 	test('excludes the built-in semantic search unless the client override is enabled', async () => {
 		const store = new DisposableStore();
+		// Same configured filters on both arms, so the snapshot is the only variable.
+		const overrides = { modelCapabilityOverrides: { '*': { excludedTools: ['mcp:*'] } } };
 		const disabled = await buildResumeConfig(
-			createLauncher(store, { modelCapabilityOverrides: { '*': { excludedTools: ['mcp:*'] } } }),
+			createLauncher(store, overrides),
 			undefined,
 			{ tools: [], plugins: [], mcpServers: {} },
 		);
 		const enabled = await buildResumeConfig(
-			createLauncher(store, {}),
+			createLauncher(store, overrides),
 			undefined,
 			{ tools: [{ name: SEMANTIC_SEARCH_TOOL_NAME }], plugins: [], mcpServers: {} },
 		);
 
 		assert.deepStrictEqual(
 			[disabled.excludedTools, enabled.excludedTools],
-			[['mcp:*', `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`], undefined],
+			[['mcp:*', `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`], ['mcp:*']],
 		);
 		store.dispose();
 	});
