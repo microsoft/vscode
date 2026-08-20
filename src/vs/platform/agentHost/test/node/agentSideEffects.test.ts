@@ -22,6 +22,7 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSession, AgentSignal, IAgent, resolveSubagentChatParent, SubagentChatSignal, type IAgentChatContext } from '../../common/agent.js';
 import { buildDefaultChangesetCatalog } from '../../common/changesetUri.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
+import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
@@ -737,6 +738,7 @@ suite('AgentSideEffects', () => {
 				'- Make the smallest edit that satisfies the request; preserve surrounding style and indentation.',
 				'- Focus on the user\'s selected range when one is provided.',
 				'- Avoid broad repository exploration or context-gathering unless required to resolve ambiguity.',
+				'- After making the edit, stop; do not run tests, builds, linters, or other verification, and never summarize the change.',
 				'- Produce the edit directly rather than explaining it or writing a tutorial.',
 				'- The file\'s language is typescript.',
 				'</editor_inline_chat>',
@@ -1222,7 +1224,7 @@ suite('AgentSideEffects', () => {
 		 * how the agent host creates a session whose worktree/SDK setup happens on
 		 * the first `sendMessage`.
 		 */
-		function setupProvisionalSession(): void {
+		function setupProvisionalSession(isEphemeral = false): void {
 			stateManager.createSession({
 				resource: sessionUri.toString(),
 				provider: 'mock',
@@ -1230,6 +1232,7 @@ suite('AgentSideEffects', () => {
 				status: SessionStatus.Idle,
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
+				...(isEphemeral ? { _meta: withEphemeralSessionMeta(undefined, true) } : {}),
 			}, { emitNotification: false });
 		}
 
@@ -1353,6 +1356,34 @@ suite('AgentSideEffects', () => {
 			}]);
 		});
 
+		test('skips turn-start checkpoint capture for an ephemeral session', async () => {
+			setupProvisionalSession(true);
+			let captureCount = 0;
+			const checkpoints: IAgentHostCheckpointService = {
+				...NULL_CHECKPOINT_SERVICE,
+				captureTurnStartCheckpoint: async () => { captureCount++; },
+			};
+			const localSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				resolveWorkingDirectoryBeforeSend: async () => [URI.file('/wd')],
+				onTurnComplete: () => { },
+			}, undefined, NullTelemetryService, undefined, undefined, checkpoints);
+			const turnStarted = {
+				type: ActionType.ChatTurnStarted,
+				startedAt: '2025-01-01T00:00:00.000Z',
+				turnId: 'turn-1',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			} as const;
+			stateManager.dispatchClientAction(defaultChatUri, turnStarted, { clientId: 'test', clientSeq: 1 });
+
+			localSideEffects.handleAction(defaultChatUri, turnStarted);
+			await waitForSendMessageCalls(1);
+
+			assert.strictEqual(captureCount, 0);
+		});
+
 		test('client cancellation discards the pending turn start', async () => {
 			setupProvisionalSession();
 			const discarded = new DeferredPromise<void>();
@@ -1380,6 +1411,30 @@ suite('AgentSideEffects', () => {
 				duration: 0,
 			}, { clientId: 'test', clientSeq: 1 });
 			await discarded.p;
+		});
+
+		test('discards a turn-start checkpoint for an ephemeral session', async () => {
+			setupProvisionalSession(true);
+			let discardCount = 0;
+			const checkpoints: IAgentHostCheckpointService = {
+				...NULL_CHECKPOINT_SERVICE,
+				discardTurnStartCheckpoint: async () => { discardCount++; },
+			};
+			createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				onTurnComplete: () => { },
+			}, undefined, NullTelemetryService, undefined, undefined, checkpoints);
+
+			stateManager.dispatchClientAction(defaultChatUri, {
+				type: ActionType.ChatTurnCancelled,
+				turnId: 'turn-1',
+				duration: 0,
+			}, { clientId: 'test', clientSeq: 1 });
+			await new Promise(resolve => setTimeout(resolve));
+
+			assert.strictEqual(discardCount, 1);
 		});
 
 		test('cancellation before send skips turn-start capture', async () => {

@@ -33,6 +33,7 @@ import { toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServe
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { ShellManager, createShellTools, type IUnsandboxedCommandConfirmationRequest } from './copilotShellTools.js';
 import { isGpt56Model } from './modelIdentifiers.js';
+import { EPHEMERAL_DISABLED_COPILOT_TOOLS } from './copilotToolDisplay.js';
 import './prompts/allPrompts.js';
 import { agentHostPromptRegistry, type IAgentHostPromptContext } from './prompts/promptRegistry.js';
 import { describeSystemMessageConfig } from './prompts/systemMessage.js';
@@ -65,10 +66,11 @@ export const ContextTierConfigKey = 'contextTier';
 const ReasoningEfforts = reasoningEffortLevels;
 type AgentHostReasoningEffort = ReasoningEffortLevel;
 
-function disabledMcpServersSessionOption(plugins: readonly ICopilotPluginInfo[], disabledRootMcpServers: readonly string[] | undefined): Partial<SessionConfig> {
+function disabledMcpServersSessionOption(plugins: readonly ICopilotPluginInfo[], disabledRootMcpServers: readonly string[] | undefined, additionalDisabledMcpServers: readonly string[] | undefined): Partial<SessionConfig> {
 	const disabledMcpServers = [...new Set([
 		...plugins.flatMap(plugin => plugin.disabledMcpServers ?? []),
 		...(disabledRootMcpServers ?? []),
+		...(additionalDisabledMcpServers ?? []),
 	])];
 	return disabledMcpServers.length > 0 ? { disabledMcpServers } : {};
 }
@@ -207,6 +209,8 @@ type CopilotSessionClient = Pick<CopilotClient, 'createSession' | 'resumeSession
 interface ICopilotSessionLaunchBase {
 	readonly client: CopilotSessionClient;
 	readonly sessionId: string;
+	/** Whether this launch is for a transient session that skips durable-only provider work. */
+	readonly isEphemeral?: boolean;
 	readonly workingDirectory: URI | undefined;
 	/**
 	 * The additional working directories beyond the primary process root
@@ -747,11 +751,11 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// exception: the SDK validates the session-start `agent:` against `customAgents`
 		// by name, so the selected agent is force-included (see `toSdkSessionCustomAgents`).
 		const pluginsWithoutDirs = plugins.filter(p => !p.pluginDir || p.pluginDir.scheme !== Schemas.file);
-		const explicitMcpServers = plugins.flatMap(plugin => plugin.mcpServers.filter(server =>
+		const explicitMcpServers = plan.isEphemeral ? [] : plugins.flatMap(plugin => plugin.mcpServers.filter(server =>
 			!plugin.disabledMcpServers?.includes(server.name)
 			&& isMcpServerExplicitlyProjected(plugin, server)
 		));
-		const customAgents = await toSdkSessionCustomAgents(plugins, plan.resolvedAgentName, this._fileService);
+		const customAgents = plan.isEphemeral ? [] : await toSdkSessionCustomAgents(plugins, plan.resolvedAgentName, this._fileService);
 		const skillDirectories = toSdkSkillDirectories(pluginsWithoutDirs.flatMap(p => p.skills));
 		const instructionDirectories = toSdkInstructionDirectories(plugins.flatMap(p => p.instructions));
 		const model = plan.kind === 'create' ? plan.model : plan.fallback.model;
@@ -774,7 +778,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const availableTools = getToolFilterOverride(availableToolsOverride, 'availableTools', modelId, this._logService, plan.sessionId);
 		const excludedTools = getToolFilterOverride(excludedToolsOverride, 'excludedTools', modelId, this._logService, plan.sessionId);
 		const sdkAvailableTools = toSdkToolFilterPatterns(availableTools);
-		const sdkExcludedTools = toSdkToolFilterPatterns(excludedTools);
+		const sdkExcludedTools = plan.isEphemeral
+			? [...(toSdkToolFilterPatterns(excludedTools) ?? []), ...EPHEMERAL_DISABLED_COPILOT_TOOLS]
+			: toSdkToolFilterPatterns(excludedTools);
 		const modelCapabilitiesOverride = resolveModelCapabilityOverrideField(capabilityOverrides, model?.id, 'modelCapabilities', (value): value is Record<string, unknown> => isObject(value), () => {
 			this._logService.warn(`[Copilot:${plan.sessionId}] Ignoring invalid 'modelCapabilities' capability override for '${modelId}'; expected an object`);
 		});
@@ -811,7 +817,14 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 		return {
 			...byok,
-			...disabledMcpServersSessionOption(plugins, plan.disabledRootMcpServers),
+			...disabledMcpServersSessionOption(
+				plugins,
+				plan.disabledRootMcpServers,
+				plan.isEphemeral ? [
+					...plugins.flatMap(plugin => plugin.mcpServers.map(server => server.name)),
+					...Object.keys(plan.snapshot.mcpServers),
+				] : undefined,
+			),
 			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
 			// Resume only: `_createSession` re-resolves the full effort for a create,
 			// while a resumed session keeps the effort the runtime journaled unless
@@ -832,7 +845,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				onPostToolUse: input => runtime.handlePostToolUse(input),
 				onUserPromptSubmitted: () => runtime.handleUserPromptSubmitted(),
 			}),
-			mcpServers: { ...toSdkMcpServersFromConfigMap(plan.snapshot.mcpServers), ...toSdkMcpServers(explicitMcpServers) },
+			mcpServers: plan.isEphemeral ? {} : { ...toSdkMcpServersFromConfigMap(plan.snapshot.mcpServers), ...toSdkMcpServers(explicitMcpServers) },
 			onExitPlanModeRequest: (request, invocation) => runtime.handleExitPlanModeRequest(request, invocation),
 			workingDirectory: plan.workingDirectory?.fsPath,
 			customAgents,

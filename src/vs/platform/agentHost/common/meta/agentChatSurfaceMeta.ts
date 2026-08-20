@@ -130,6 +130,7 @@ export function createEditorInlineChatInstruction(surface: IEditorInlineChatSurf
 		'- Make the smallest edit that satisfies the request; preserve surrounding style and indentation.',
 		'- Focus on the user\'s selected range when one is provided.',
 		'- Avoid broad repository exploration or context-gathering unless required to resolve ambiguity.',
+		'- After making the edit, stop; do not run tests, builds, linters, or other verification, and never summarize the change.',
 		'- Produce the edit directly rather than explaining it or writing a tutorial.',
 		...(surface.languageId !== undefined ? [`- The file's language is ${surface.languageId}.`] : []),
 		'</editor_inline_chat>',

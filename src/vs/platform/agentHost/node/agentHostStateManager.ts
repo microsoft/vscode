@@ -331,6 +331,9 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	private _emitSessionAdded(summary: SessionSummary): void {
+		if (readEphemeralSessionMeta(summary).isEphemeral) {
+			return;
+		}
 		this._summaryNotifier.announce(summary.resource, summary);
 		this._publishedSessionSummaries.add(summary.resource);
 		this._addedSessionSummaries.add(summary.resource);

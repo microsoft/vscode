@@ -453,6 +453,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 		try {
 			sessions.add(await launcher.launch(createPlan, testRuntime));
 			sessions.add(await launcher.launch(resumePlan, testRuntime));
+			sessions.add(await launcher.launch({ ...createPlan, isEphemeral: true }, testRuntime));
 
 			assert.deepStrictEqual({
 				createClientName: createConfigs[0].clientName,
@@ -475,6 +476,9 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeHasExitPlanHandler: typeof resumeConfigs[0].onExitPlanModeRequest === 'function',
 				resumeLargeOutput: resumeConfigs[0].largeOutput,
 				resumeManagedSettings: resumeConfigs[0].managedSettings,
+				ephemeralMcpServers: createConfigs[1].mcpServers,
+				ephemeralDisabledMcpServers: createConfigs[1].disabledMcpServers,
+				ephemeralExcludedTools: createConfigs[1].excludedTools,
 			}, {
 				createClientName: 'vscode-agent-host',
 				createGitHubMcpToolConfig: { disableFormDeferral: true },
@@ -512,6 +516,9 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeHasExitPlanHandler: true,
 				resumeLargeOutput: { maxSizeBytes: 8192 },
 				resumeManagedSettings: { permissions: managedSettingsPermissions },
+				ephemeralMcpServers: {},
+				ephemeralDisabledMcpServers: ['azure', 'disabled-workspace-server', 'github', 'native-plugin-server', 'synced-server'],
+				ephemeralExcludedTools: ['task'],
 			});
 		} finally {
 			sessions.dispose();

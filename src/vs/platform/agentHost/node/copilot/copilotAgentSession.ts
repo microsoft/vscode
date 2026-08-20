@@ -1787,7 +1787,7 @@ export class CopilotAgentSession extends Disposable {
 		if (!host) {
 			return [];
 		}
-		return host.definitions.map(def => ({
+		return host.definitions.filter(def => !this._launchPlan.isEphemeral || def.enabledForEphemeralSessions).map(def => ({
 			name: def.name,
 			description: def.description ?? '',
 			parameters: def.inputSchema ?? { type: 'object' as const, properties: {} },

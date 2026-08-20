@@ -9,6 +9,7 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
 import { AgentSession, type AgentProvider, type IAgentCreateSessionConfig, type IAgentModelInfo, type IAgentSessionMetadata } from '../../common/agent.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
+import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
 import { buildChatUri, buildDefaultChatUri, getInlineToolInput, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionGitState, readSessionGitHubState, readSessionOrchestration, ResponsePartKind, ToolCallStatus, TurnState, type ISessionOrchestration, type Message, type ModelSelection, type ResponsePart, type SessionIdleNotification, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
@@ -135,8 +136,8 @@ const getSessionContextInputSchema: ToolDefinition['inputSchema'] = {
 	required: ['session'],
 };
 
-/** Protocol tool definitions for the session-management server tools. */
-export const sessionServerToolDefinitions: ToolDefinition[] = [
+/** Server tool definitions for session management. */
+export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: SessionServerToolName.ListSessions,
 		title: 'List Sessions',

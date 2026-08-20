@@ -6578,6 +6578,7 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 		confirmationRequiredForSession = false;
 
 		advertise(): void { }
+		getDefinitionsForSession(): readonly ToolDefinition[] { return this.definitions; }
 		canRequireConfirmation(): boolean { return true; }
 		requiresConfirmation(): boolean { return this.confirmationRequiredForSession; }
 		executeTool(): string { return 'ok'; }
@@ -10604,6 +10605,7 @@ suite('ClaudeAgent — host seams', () => {
 			definitions: [{ name: toolName, inputSchema: { type: 'object', properties: {} } }],
 			toolNames: [toolName],
 			advertise: () => { },
+			getDefinitionsForSession: () => [{ name: toolName, inputSchema: { type: 'object', properties: {} } }],
 			canRequireConfirmation: () => false,
 			requiresConfirmation: () => false,
 			executeTool: chatUri => {

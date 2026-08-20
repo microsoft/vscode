@@ -47,6 +47,7 @@ import { InlineChatAffordance } from './inlineChatAffordance.js';
 import { continueInPanelChat, IInlineChatSession, IInlineChatSessionService, rephraseInlineChat } from './inlineChatSessionService.js';
 import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 
 export abstract class InlineChatRunOptions {
 
@@ -445,7 +446,9 @@ export class InlineChatController implements IEditorContribution {
 			if (!response) {
 				return;
 			}
-			return observableFromEvent(this, response.onDidChange, () => response.response.value.findLast(part => part.kind === 'progressMessage')).read(r);
+			return observableFromEvent(this, response.onDidChange, () => response.response.value.findLast(part =>
+				part.kind === 'progressMessage' || part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized'
+			)).read(r);
 		});
 
 
@@ -479,12 +482,32 @@ export class InlineChatController implements IEditorContribution {
 			} else {
 				this.#zone.rawValue?.widget.domNode.classList.toggle('request-in-progress', true);
 				this.#zone.rawValue?.status.set('', undefined);
-				let placeholder = response.request?.message.text;
-				const lastProgress = lastResponseProgressObs.read(r);
-				if (lastProgress) {
-					placeholder = renderAsPlaintext(lastProgress.content);
-				}
-				this.#zone.rawValue?.widget.chatWidget.setInputPlaceholder(placeholder || localize('loading', "Working..."));
+				r.store.add(autorun(r => {
+					let placeholder: string | IMarkdownString | undefined = response.request?.message.text;
+					const lastProgress = lastResponseProgressObs.read(r);
+					if (lastProgress?.kind === 'progressMessage') {
+						placeholder = lastProgress.content;
+					} else if (lastProgress?.kind === 'toolInvocationSerialized') {
+						placeholder = lastProgress.invocationMessage ?? lastProgress.pastTenseMessage;
+					} else if (lastProgress?.kind === 'toolInvocation') {
+						const state = lastProgress.state.read(r);
+						if (state.type === IChatToolInvocation.StateKind.Executing) {
+							placeholder = state.progress.read(r).message;
+						} else if (state.type === IChatToolInvocation.StateKind.Streaming) {
+							placeholder = state.streamingMessage.read(r);
+						} else if (state.type === IChatToolInvocation.StateKind.Completed || state.type === IChatToolInvocation.StateKind.Cancelled) {
+							placeholder = lastProgress.pastTenseMessage;
+						} else {
+							placeholder = lastProgress.invocationMessage;
+						}
+					}
+
+					// Tool progress messages reference files as empty-text markdown links
+					// (`[](file:///…)`) for historical reasons; the link formatter substitutes
+					// the file's basename so the placeholder reads naturally.
+					const value = typeof placeholder === 'string' ? placeholder : (placeholder ? renderAsPlaintext(placeholder, { useLinkFormatter: true }) : localize('loading', "Working..."));
+					this.#zone.rawValue?.widget.chatWidget.setInputPlaceholder(value);
+				}));
 			}
 
 		}));
@@ -503,15 +526,28 @@ export class InlineChatController implements IEditorContribution {
 
 
 		this.#store.add(autorun(r => {
+			const model = editorObs.model.read(r);
+			const pane = this.#editorService.visibleEditorPanes.find(candidate => candidate.getControl() === this.#editor || isNotebookWithCellEditor(candidate, this.#editor));
+			if (!model || !pane) {
+				return;
+			}
 
+			for (const session of this.#chatEditingService.editingSessionsObs.read(r)) {
+				if (session.isGlobalEditingSession) {
+					continue;
+				}
+
+				const entry = session.readEntry(model.uri, r);
+				if (entry) {
+					entry.getEditorIntegration(pane);
+					return;
+				}
+			}
+		}));
+
+		this.#store.add(autorun(r => {
 			const session = visibleSessionObs.read(r);
 			const entry = session?.editingSession.readEntry(session.uri, r);
-
-			// make sure there is an editor integration
-			const pane = this.#editorService.visibleEditorPanes.find(candidate => candidate.getControl() === this.#editor || isNotebookWithCellEditor(candidate, this.#editor));
-			if (pane && entry) {
-				entry?.getEditorIntegration(pane);
-			}
 
 			// make sure the ZONE isn't inbetween a diff and move above if so
 			if (entry?.diffInfo && this.#zone.rawValue?.position) {
