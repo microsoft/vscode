@@ -253,7 +253,11 @@ export class TS7LanguageContextService extends AbstractTSLanguageContextService 
 					const offset = sourceFile.getPositionOfLineAndCharacter(position.line, position.character);
 					await computeServerContext(result, session, project, sourceFile, offset, cancellationToken);
 				} catch (error) {
-					if (!(error instanceof OperationCanceledException) && !(error instanceof TokenBudgetExhaustedError)) {
+					if (error instanceof OperationCanceledException) {
+						if (token.isCancellationRequested) {
+							throw error;
+						}
+					} else if (!(error instanceof TokenBudgetExhaustedError)) {
 						throw error;
 					}
 				}
