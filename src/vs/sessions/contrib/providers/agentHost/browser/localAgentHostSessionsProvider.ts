@@ -25,11 +25,12 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { AutomationStore } from '../../../automations/browser/automationService.js';
 import { providerAutomationStorageKey } from '../../../automations/common/automationStorageService.js';
-import { ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ISessionsProviderAutomations, type SessionResourceResolveReason } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { getCopilotCliSessionRawId, migratedCopilotCliResource } from '../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
-import { adoptLegacyCopilotCliResource } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLegacyMigration.js';
+import { adoptLegacyCopilotCliResource, LEGACY_MIGRATION_RESTORE_TIMEOUT_MS, LEGACY_MIGRATION_TIMEOUT_MS } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLegacyMigration.js';
+import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
@@ -90,11 +91,17 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 	 * Local-only by definition: `copilotcli:` and `agent-host-copilotcli:` name
 	 * sessions on this machine, so a remote host must never claim or probe them.
 	 */
-	async resolveSessionResource(resource: URI, timeoutMs?: number): Promise<URI | undefined> {
+	async resolveSessionResource(resource: URI, reason?: SessionResourceResolveReason): Promise<URI | undefined> {
+		if (this._configurationService.getValue<boolean>(ChatConfiguration.MigrateLegacyCopilotCliSessions) !== true) {
+			return undefined;
+		}
 		const rawId = getCopilotCliSessionRawId(migratedCopilotCliResource(resource));
 		if (rawId && this._sessionCache.has(rawId)) {
 			return migratedCopilotCliResource(resource); // already adopted; no round-trip
 		}
+		// Startup restore reopens persisted slots against a cold host, where the
+		// first catalog pass is far slower than an interactive open.
+		const timeoutMs = reason === 'restore' ? LEGACY_MIGRATION_RESTORE_TIMEOUT_MS : LEGACY_MIGRATION_TIMEOUT_MS;
 		return adoptLegacyCopilotCliResource(this.connection, resource, this._logService, this._configurationService, timeoutMs);
 	}
 

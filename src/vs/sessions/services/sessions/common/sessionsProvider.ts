@@ -23,6 +23,9 @@ export interface ISessionChangeEvent {
 	readonly changed: readonly ISession[];
 }
 
+/** Why a session resource is being resolved, so a provider can pick a latency budget. */
+export type SessionResourceResolveReason = 'open' | 'restore';
+
 /**
  * Options for sending a request to a session.
  */
@@ -178,8 +181,11 @@ export interface ISessionsProvider {
 	 * sessions must be consulted here, not only when the list is built.
 	 * Implementations must return quickly and synchronously decline resources
 	 * they do not own.
+	 *
+	 * `reason` says why the resource is being resolved so a provider can pick its
+	 * own latency budget; it carries no provider-specific policy.
 	 */
-	resolveSessionResource?(resource: URI, timeoutMs?: number): Promise<URI | undefined>;
+	resolveSessionResource?(resource: URI, reason?: SessionResourceResolveReason): Promise<URI | undefined>;
 	/**
 	 * Optional. Fires when a temporary (untitled) session is atomically replaced
 	 * by a committed session after the first turn.

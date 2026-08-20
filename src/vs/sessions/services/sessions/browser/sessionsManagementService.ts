@@ -24,7 +24,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { getSessionReferenceResource } from './sessionReference.js';
 import { ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
-import { IDeleteChatOptions, ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
+import { IDeleteChatOptions, ISessionChangeEvent, ISessionsProvider, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
 import { ChatModelSource, IChat, ISession, ISessionWorkspace, ISideChatSelection, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -202,13 +202,13 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	 * Copilot CLI adoption). Falls back to `resource` when no provider claims it,
 	 * so an unresolvable session still opens the way it does today.
 	 */
-	async resolveSessionResource(resource: URI, timeoutMs?: number): Promise<URI> {
+	async resolveSessionResource(resource: URI, reason?: SessionResourceResolveReason): Promise<URI> {
 		for (const provider of this.sessionsProvidersService.getProviders()) {
 			if (!provider.resolveSessionResource) {
 				continue;
 			}
 			try {
-				const resolved = await provider.resolveSessionResource(resource, timeoutMs);
+				const resolved = await provider.resolveSessionResource(resource, reason);
 				if (resolved) {
 					return resolved;
 				}

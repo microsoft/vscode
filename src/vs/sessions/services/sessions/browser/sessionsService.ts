@@ -29,7 +29,6 @@ import { ISessionsPartService } from './sessionsPartService.js';
 import { ICustomViewService } from '../../customView/browser/customViewService.js';
 import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { setActiveSessionContextKeys } from '../common/sessionContextKeys.js';
-import { LEGACY_MIGRATION_RESTORE_TIMEOUT_MS } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLegacyMigration.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
 
@@ -746,11 +745,17 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	async openSession(sessionResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
-		// Redirect a superseded resource (legacy Copilot CLI) before lookup, so an
-		// open by URI migrates rather than reaching the old provider.
-		const resolved = await this.sessionsManagementService.resolveSessionResource(sessionResource);
+		// Claim the open before resolving: resolution can take seconds for a legacy
+		// Copilot CLI resource, and a newer open must win regardless of which
+		// resolution finishes first.
 		this._cancelRestore();
 		const token = this._startOpenSession();
+		// Redirect a superseded resource (legacy Copilot CLI) before lookup, so an
+		// open by URI migrates rather than reaching the old provider.
+		const resolved = await this.sessionsManagementService.resolveSessionResource(sessionResource, 'open');
+		if (token.isCancellationRequested) {
+			return;
+		}
 		const sessionData = this._showSession(resolved, options);
 		await this._waitForOpenSessionToLoad(sessionData, token);
 	}
@@ -1195,14 +1200,28 @@ export class SessionsService extends Disposable implements ISessionsService {
 			readonly order: number;
 		}
 
+		// Use a dedicated cancellation token (not the shared open-session one)
+		// so that a new-session draft created during restore (e.g. by the
+		// new-chat composer on startup) does not abort restoring the grid. The
+		// token is cancelled only when the user explicitly opens a session.
+		// Installed before resolving targets, which can wait on a cold agent
+		// host, so an explicit open during that wait can cancel this restore.
+		const cts = new CancellationTokenSource();
+		this._restoreCts.value = cts;
+		const token = cts.token;
+
 		const targets: IRestoreTarget[] = await Promise.all(this._getVisibleSessionStates().map(async state => ({
 			// Persisted state names a session by URI, so a legacy Copilot CLI slot
 			// restores through the old provider unless it is redirected here.
-			resource: await this.sessionsManagementService.resolveSessionResource(URI.parse(state.sessionResource), LEGACY_MIGRATION_RESTORE_TIMEOUT_MS),
+			resource: await this.sessionsManagementService.resolveSessionResource(URI.parse(state.sessionResource), 'restore'),
 			isSticky: !!state.isSticky,
 			isActive: !!state.isActive,
 			order: state.visibleOrder!,
 		})));
+
+		if (token.isCancellationRequested) {
+			return;
+		}
 
 		if (targets.length === 0) {
 			targets.push({ resource: undefined, isSticky: false, isActive: true, order: 1 });
@@ -1214,14 +1233,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (activeIdx < 0) {
 			activeIdx = 0;
 		}
-
-		// Use a dedicated cancellation token (not the shared open-session one)
-		// so that a new-session draft created during restore (e.g. by the
-		// new-chat composer on startup) does not abort restoring the grid. The
-		// token is cancelled only when the user explicitly opens a session.
-		const cts = new CancellationTokenSource();
-		this._restoreCts.value = cts;
-		const token = cts.token;
 
 		// Sessions resolved so far, indexed by their position in `targets`.
 		// `null` marks the empty (new-session) slot, which has no session.
