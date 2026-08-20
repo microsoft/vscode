@@ -75,9 +75,8 @@ export interface ICopilotUtilityChatCompletionRequest {
 
 /**
  * Subset of the GitHub `copilot_internal/user` response we care about.
- * The full payload carries entitlement info; we only need `endpoints` (for
- * routing CAPI requests) and `access_type_sku` (which `CAPIClient.updateDomains`
- * stamps onto requests).
+ * Provides CAPI routing and SKU data together with the account metadata used
+ * for restricted and internal telemetry.
  */
 interface ICopilotUserResponse {
 	readonly login?: string;

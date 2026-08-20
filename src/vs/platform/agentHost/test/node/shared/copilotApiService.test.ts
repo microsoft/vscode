@@ -206,6 +206,25 @@ suite('CopilotApiService', () => {
 		]);
 	});
 
+	test('recognizes staff without an internal organization', async () => {
+		const service = createService(async input => {
+			const url = getUrl(input);
+			if (url.endsWith('/copilot_internal/user')) {
+				return userResponse({ is_staff: true });
+			}
+			throw new Error(`Unexpected request: ${url}`);
+		});
+
+		const context = await service.resolveRestrictedTelemetryContext('gh-token');
+		assert.deepStrictEqual({
+			isInternal: context.isInternal,
+			isVscodeTeamMember: context.isVscodeTeamMember,
+		}, {
+			isInternal: true,
+			isVscodeTeamMember: false,
+		});
+	});
+
 	// #region Endpoint Discovery
 
 	suite('Endpoint Discovery', () => {
