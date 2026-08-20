@@ -387,7 +387,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			centerGroup.appendChild(workspaceIconEl);
 
 			const workspaceEl = $('div.agent-sessions-titlebar-workspace');
-			workspaceEl.textContent = localize('workspaceless', "Workspaceless");
+			workspaceEl.textContent = localize('noWorkspace', "No workspace");
 			centerGroup.appendChild(workspaceEl);
 		}
 

@@ -196,7 +196,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		}),
 	}),
 
-	SessionsTitleBar_Workspaceless: defineComponentFixture({
+	SessionsTitleBar_NoWorkspace: defineComponentFixture({
 		render: (ctx) => renderTitleBar(ctx, {
 			activeSession: createMockActiveSession('Quick chat'),
 		}),
