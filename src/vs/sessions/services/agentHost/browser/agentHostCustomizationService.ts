@@ -18,6 +18,7 @@ import { type CustomizationEnablement } from '../../../../platform/agentHost/com
 import { ISession } from '../../sessions/common/session.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IAgentHostActiveClientService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 
 export class AgentHostCustomizationService extends AbstractAgentHostCustomizationService {
 	private readonly _providerListeners = this._register(new DisposableMap<ISessionsProvider>());
@@ -28,6 +29,7 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService logService: ILogService,
+		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
 	) {
 		super(instantiationService, logService);
 		this._register(this._sessionsManagementService.onDidChangeSessions(e => {
@@ -70,6 +72,7 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 			workingDirectory: provider.getWorkingDirectory(session.sessionId),
 			workingDirectories: provider.getWorkingDirectories(session.sessionId),
 			rootConfig: provider.getRootConfig(),
+			isBundledMcpServer: (pluginUri, serverName) => this._activeClientService.isBundledMcpServer(pluginUri, serverName),
 			authenticate: request => provider.authenticate(request),
 			setCustomizationEnablement: (rawId, enablement: readonly CustomizationEnablement[]) => {
 				provider.setCustomizationEnablement(session.sessionId, rawId, enablement);

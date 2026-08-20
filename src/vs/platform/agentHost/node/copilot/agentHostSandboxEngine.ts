@@ -137,4 +137,3 @@ export function createAgentHostSandboxEngine(
 	const host = new AgentHostTerminalSandboxHost(sessionId, workingDirectory, environmentService as INativeEnvironmentService, productService, agentConfigurationService, sandboxHelper);
 	return instantiationService.createInstance(TerminalSandboxEngine, host);
 }
-

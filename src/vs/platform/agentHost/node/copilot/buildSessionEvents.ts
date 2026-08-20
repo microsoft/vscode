@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SessionEvent } from '@github/copilot-sdk';
+import type { JsonValue, SessionEvent } from '@github/copilot-sdk';
 import { isObject } from '../../../../base/common/types.js';
 import { generateUuid, isUUID } from '../../../../base/common/uuid.js';
 import { getInlineToolInput, ResponsePartKind, ToolCallStatus, ToolResultContentType, TurnState, type ToolCallCompletedState, type ToolResultContent, type ToolResultSubagentContent, type Turn } from '../../common/state/sessionState.js';
@@ -88,13 +88,13 @@ export function buildSessionEventsFromTurns(turns: readonly Turn[], options: IBu
 
 	/** Emits the `tool.execution_start` + `tool.execution_complete` pair for a completed tool call. */
 	const pushCompletedToolCall = (tc: ToolCallCompletedState): void => {
-		let parsedToolInput: Record<string, unknown> | undefined;
+		let parsedToolInput: Record<string, JsonValue> | undefined;
 		const toolInput = getInlineToolInput(tc.toolInput);
 		if (toolInput) {
 			try {
 				const parsed = JSON.parse(toolInput);
 				if (isObject(parsed)) {
-					parsedToolInput = parsed as Record<string, unknown>;
+					parsedToolInput = parsed as Record<string, JsonValue>;
 				}
 			} catch {
 				// Non-JSON tool input: omit structured arguments (the forward

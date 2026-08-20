@@ -5,7 +5,7 @@
 
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import product from '../../../../platform/product/common/product.js';
@@ -15,6 +15,8 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 const CHAT_PET_ENABLED_STORAGE_KEY = 'chat.vscodePet.enabled';
 const CHAT_PET_VARIANT_STORAGE_KEY = 'chat.vscodePet.variant';
 const CHAT_PET_ON_THE_RUN_STORAGE_KEY = 'chat.vscodePet.onTheRun';
+const CHAT_PET_SCALE_STORAGE_KEY = 'chat.vscodePet.scale';
+const CHAT_PET_HORIZONTAL_POSITION_STORAGE_KEY = 'chat.vscodePet.horizontalPosition';
 const CHAT_PET_DEFAULT_SCALE = 1;
 
 export type ChatPetVariant = 'stable' | 'insiders';
@@ -38,6 +40,16 @@ export function getChatPetVariant(configuredVariant: string | undefined, product
 	return productQuality === 'stable' ? 'stable' : 'insiders';
 }
 
+function getChatPetScale(storedScale: string | undefined): number {
+	const scale = storedScale === undefined ? Number.NaN : Number.parseFloat(storedScale);
+	return Number.isFinite(scale) && scale > 0 ? scale : CHAT_PET_DEFAULT_SCALE;
+}
+
+function getChatPetHorizontalPosition(storedPosition: string | undefined): number | undefined {
+	const position = storedPosition === undefined ? Number.NaN : Number.parseFloat(storedPosition);
+	return Number.isFinite(position) ? Math.max(0, Math.min(1, position)) : undefined;
+}
+
 export const IChatPetService = createDecorator<IChatPetService>('chatPetService');
 
 export interface IChatPetService {
@@ -46,10 +58,12 @@ export interface IChatPetService {
 	readonly variant: IObservable<ChatPetVariant>;
 	readonly onTheRun: IObservable<boolean>;
 	readonly scale: IObservable<number>;
+	readonly horizontalPosition: IObservable<number | undefined>;
 	toggle(): boolean;
 	setVariant(variant: ChatPetVariant): void;
 	setOnTheRun(onTheRun: boolean): void;
 	setScale(scale: number): void;
+	setHorizontalPosition(position: number): void;
 }
 
 export class ChatPetService extends Disposable implements IChatPetService {
@@ -64,6 +78,8 @@ export class ChatPetService extends Disposable implements IChatPetService {
 	readonly onTheRun: IObservable<boolean>;
 	private readonly _scale;
 	readonly scale: IObservable<number>;
+	private readonly _horizontalPosition;
+	readonly horizontalPosition: IObservable<number | undefined>;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -77,8 +93,10 @@ export class ChatPetService extends Disposable implements IChatPetService {
 		this.variant = this._variant;
 		this._onTheRun = observableValue(this, this.storageService.getBoolean(CHAT_PET_ON_THE_RUN_STORAGE_KEY, StorageScope.APPLICATION, false));
 		this.onTheRun = this._onTheRun;
-		this._scale = observableValue(this, CHAT_PET_DEFAULT_SCALE);
+		this._scale = observableValue(this, getChatPetScale(this.storageService.get(CHAT_PET_SCALE_STORAGE_KEY, StorageScope.APPLICATION)));
 		this.scale = this._scale;
+		this._horizontalPosition = observableValue(this, getChatPetHorizontalPosition(this.storageService.get(CHAT_PET_HORIZONTAL_POSITION_STORAGE_KEY, StorageScope.APPLICATION)));
+		this.horizontalPosition = this._horizontalPosition;
 
 		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, CHAT_PET_ENABLED_STORAGE_KEY, this._store)(() => {
 			this._setEnabled(this.storageService.getBoolean(CHAT_PET_ENABLED_STORAGE_KEY, StorageScope.APPLICATION, false));
@@ -88,6 +106,12 @@ export class ChatPetService extends Disposable implements IChatPetService {
 		}));
 		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, CHAT_PET_ON_THE_RUN_STORAGE_KEY, this._store)(() => {
 			this._onTheRun.set(this.storageService.getBoolean(CHAT_PET_ON_THE_RUN_STORAGE_KEY, StorageScope.APPLICATION, false), undefined);
+		}));
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, CHAT_PET_SCALE_STORAGE_KEY, this._store)(() => {
+			this._scale.set(getChatPetScale(this.storageService.get(CHAT_PET_SCALE_STORAGE_KEY, StorageScope.APPLICATION)), undefined);
+		}));
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, CHAT_PET_HORIZONTAL_POSITION_STORAGE_KEY, this._store)(() => {
+			this._horizontalPosition.set(getChatPetHorizontalPosition(this.storageService.get(CHAT_PET_HORIZONTAL_POSITION_STORAGE_KEY, StorageScope.APPLICATION)), undefined);
 		}));
 		this._logEnablement(this._enabled.get(), 'startup');
 	}
@@ -106,12 +130,7 @@ export class ChatPetService extends Disposable implements IChatPetService {
 		if (enabled === this._enabled.get()) {
 			return;
 		}
-		transaction(tx => {
-			this._enabled.set(enabled, tx);
-			if (!enabled) {
-				this._scale.set(CHAT_PET_DEFAULT_SCALE, tx);
-			}
-		});
+		this._enabled.set(enabled, undefined);
 		this._logEnablement(enabled, 'change');
 	}
 
@@ -137,5 +156,12 @@ export class ChatPetService extends Disposable implements IChatPetService {
 
 	setScale(scale: number): void {
 		this._scale.set(scale, undefined);
+		this.storageService.store(CHAT_PET_SCALE_STORAGE_KEY, scale, StorageScope.APPLICATION, StorageTarget.USER);
+	}
+
+	setHorizontalPosition(position: number): void {
+		const normalizedPosition = Math.max(0, Math.min(1, position));
+		this._horizontalPosition.set(normalizedPosition, undefined);
+		this.storageService.store(CHAT_PET_HORIZONTAL_POSITION_STORAGE_KEY, normalizedPosition, StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 }

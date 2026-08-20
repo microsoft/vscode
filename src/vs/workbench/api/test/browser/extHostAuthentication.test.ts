@@ -6,17 +6,18 @@
 import assert from 'assert';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { URI } from '../../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogger, ILoggerService, NullLogger } from '../../../../platform/log/common/log.js';
 import { IAuthenticationProviderSessionOptions } from '../../../services/authentication/common/authentication.js';
-import { DynamicAuthProvider, IAuthorizationToken, TokenStore } from '../../common/extHostAuthentication.js';
+import { DynamicAuthProvider, IAuthorizationToken, reviveAccountIcon, TokenStore } from '../../common/extHostAuthentication.js';
 import { MainThreadAuthenticationShape } from '../../common/extHost.protocol.js';
 import { IExtHostInitDataService } from '../../common/extHostInitDataService.js';
 import { IExtHostProgress } from '../../common/extHostProgress.js';
 import { IExtHostUrlsService } from '../../common/extHostUrls.js';
 import { IExtHostWindow } from '../../common/extHostWindow.js';
+import { Proxied } from '../../../services/extensions/common/proxyIdentifier.js';
 
 /** Builds a structurally-valid JWT carrying the given claims. */
 function jwt(claims: object): string {
@@ -80,10 +81,8 @@ suite('DynamicAuthProvider', () => {
 				return new NullLogger();
 			}
 		}();
-		const proxy = new class extends mock<MainThreadAuthenticationShape>() {
-			override $setSessionsForDynamicAuthProvider(): Promise<void> {
-				return Promise.resolve();
-			}
+		const proxy = new class extends mock<Proxied<MainThreadAuthenticationShape>>() {
+			override $setSessionsForDynamicAuthProvider = (): Promise<void> => Promise.resolve();
 		}();
 		const provider = disposables.add(new TestDynamicAuthProvider(
 			new class extends mock<IExtHostWindow>() { }(),
@@ -126,5 +125,25 @@ suite('DynamicAuthProvider', () => {
 			generateNewClientIdCalls: 0,
 			clientId: 'client-id',
 		});
+	});
+});
+
+suite('Account Icon Revival', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const iconComponents: UriComponents = { scheme: 'https', authority: 'example.com', path: '/avatar.png', query: '', fragment: '' };
+
+	test('reviveAccountIcon revives a present icon into a URI and leaves a missing icon undefined', () => {
+		const withIcon: { id: string; label: string; icon?: UriComponents } = { id: 'account-with-icon', label: 'Has Icon', icon: iconComponents };
+		const withoutIcon: { id: string; label: string; icon?: UriComponents } = { id: 'account-without-icon', label: 'No Icon' };
+
+		assert.deepStrictEqual(
+			[reviveAccountIcon(withIcon), reviveAccountIcon(withoutIcon)],
+			[
+				{ ...withIcon, icon: URI.from(iconComponents) },
+				{ ...withoutIcon, icon: undefined }
+			]
+		);
 	});
 });

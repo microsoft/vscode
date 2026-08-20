@@ -348,7 +348,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			const closeButtonLabel = localize('chat.planReview.close', "Close");
 			const closeButton = this._register(new Button(headerActions, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: closeButtonLabel, ariaLabel: closeButtonLabel }));
 			closeButton.element.classList.add('chat-plan-review-title-button', 'chat-plan-review-title-icon-button', 'chat-plan-review-feedback-close');
-			closeButton.label = `$(${Codicon.close.id})`;
+			closeButton.label = `$(${Codicon.closeSmall.id})`;
 			this._register(closeButton.onDidClick(() => this.exitFeedbackMode()));
 		}
 
@@ -461,7 +461,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			removeButton.type = 'button';
 			removeButton.setAttribute('aria-label', removeLabel);
 			removeButton.title = removeLabel;
-			removeButton.classList.add(...ThemeIcon.asClassNameArray(Codicon.close));
+			removeButton.classList.add(...ThemeIcon.asClassNameArray(Codicon.closeSmall));
 
 			this._commentRowDisposables.add(dom.addDisposableListener(removeButton, dom.EventType.CLICK, e => {
 				e.stopPropagation();

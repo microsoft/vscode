@@ -12,18 +12,19 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
+import { isResourceMultiDiffEditorInput } from '../../../../../../common/editor.js';
+import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatCollapsibleContentPart } from '../../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { ChatThinkingContentPart, getToolInvocationIcon, maybePickFunWorkingMessage } from '../../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
 import { IChatExternalEdit, IChatMarkdownContent, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
-import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
+import { IChatContentPartDiffData, IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
-import { IEditSessionDiffStats } from '../../../../common/editing/chatEditingService.js';
 import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
-import { IRenderedMarkdown, MarkdownRenderOptions } from '../../../../../../../base/browser/markdownRenderer.js';
-import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { IRenderedMarkdown, MarkdownRenderOptions, renderMarkdown } from '../../../../../../../base/browser/markdownRenderer.js';
+import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { ChatConfiguration, ThinkingDisplayMode } from '../../../../common/constants.js';
 import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
@@ -32,6 +33,7 @@ import { ToolDataSource } from '../../../../common/tools/languageModelToolsServi
 import { URI } from '../../../../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { chatSessionResourceToId } from '../../../../common/model/chatUri.js';
+import { mock } from '../../../../../../../base/test/common/mock.js';
 
 suite('ChatThinkingContentPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -73,6 +75,18 @@ suite('ChatThinkingContentPart', () => {
 			kind: 'thinking',
 			value: value ?? '',
 			id: id ?? 'test-thinking-id'
+		};
+	}
+
+	function createDiffData(added: number, removed: number, resourceName = 'file.ts', version = '1'): IChatContentPartDiffData {
+		return {
+			added,
+			removed,
+			resources: [{
+				resource: URI.file(`/workspace/${resourceName}`),
+				originalURI: URI.file(`/snapshots/${version}/before/${resourceName}`),
+				modifiedURI: URI.file(`/snapshots/${version}/after/${resourceName}`),
+			}],
 		};
 	}
 
@@ -1674,7 +1688,12 @@ suite('ChatThinkingContentPart', () => {
 			} as IChatToolInvocation;
 		}
 
-		function createMockExecutingToolInvocation(toolId: string, invocationMessage: string, toolCallId: string): IChatToolInvocation {
+		function createMockExecutingToolInvocation(
+			toolId: string,
+			invocationMessage: string | IMarkdownString,
+			toolCallId: string,
+			progress = observableValue<{ message?: string | IMarkdownString; progress: number | undefined }>('progress', { progress: 0 }),
+		): IChatToolInvocation {
 			return {
 				kind: 'toolInvocation',
 				toolId,
@@ -1689,7 +1708,7 @@ suite('ChatThinkingContentPart', () => {
 				state: observableValue('state', {
 					type: IChatToolInvocation.StateKind.Executing,
 					confirmed: { type: 0 },
-					progress: observableValue('progress', { progress: 0 }),
+					progress,
 					parameters: {},
 					confirmationMessages: undefined,
 				}),
@@ -2033,6 +2052,53 @@ suite('ChatThinkingContentPart', () => {
 			assert.ok(labelText.includes('Replacing 5 lines in file.ts'), `Title should contain "Replacing 5 lines in file.ts" but got "${labelText}"`);
 		});
 
+		test('should preserve markdown file pills in the thinking header', () => {
+			const markdownRenderer: IMarkdownRenderer = {
+				render: (markdown, options) => renderMarkdown(markdown, options),
+			};
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				createThinkingPart('**Working**'),
+				createMockRenderContext(false),
+				markdownRenderer,
+				false
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			const title = 'Edit [](claudeAgent.ts)';
+			const progress = observableValue<{ message?: string | IMarkdownString; progress: number | undefined }>('progress', { progress: 0 });
+			const editTool = createMockExecutingToolInvocation('edit', title, 'call-markdown', progress);
+			part.appendItem(() => ({ domNode: $('div.test-item') }), editTool.toolId, editTool);
+
+			const button = part.domNode.querySelector<HTMLElement>('.chat-used-context-label .monaco-button');
+			const header = part.domNode.querySelector<HTMLElement>('.chat-used-context-label');
+			const initialPill = header?.querySelector<HTMLElement>('.chat-inline-anchor-widget .icon-label');
+			const invocationMessage = new MarkdownString(title);
+			invocationMessage.baseUri = URI.file('/workspace/');
+			progress.set({ message: invocationMessage, progress: undefined }, undefined);
+
+			const updatedPill = header?.querySelector<HTMLElement>('.chat-inline-anchor-widget .icon-label');
+			button?.click();
+			button?.click();
+			const restoredPill = header?.querySelector<HTMLElement>('.chat-inline-anchor-widget .icon-label');
+
+			assert.deepStrictEqual({
+				initialPill: initialPill?.textContent,
+				updatedPill: updatedPill?.textContent,
+				pillInsideCollapseButton: !!updatedPill?.closest('.monaco-button'),
+				restoredPill: restoredPill?.textContent,
+				ariaLabel: button?.ariaLabel,
+			}, {
+				initialPill: undefined,
+				updatedPill: 'claudeAgent.ts',
+				pillInsideCollapseButton: false,
+				restoredPill: 'claudeAgent.ts',
+				ariaLabel: 'Working: Edit claudeAgent.ts',
+			});
+		});
+
 		test('should keep original message for create_file tool even when streaming', () => {
 			const content = createThinkingPart('**Working**');
 			const context = createMockRenderContext(false);
@@ -2159,7 +2225,7 @@ suite('ChatThinkingContentPart', () => {
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 
-			const diffEmitter = store.add(new Emitter<IEditSessionDiffStats>());
+			const diffEmitter = store.add(new Emitter<IChatContentPartDiffData>());
 
 			part.appendItem(
 				() => ({ domNode: $('div.test-edit-pill') }),
@@ -2172,14 +2238,32 @@ suite('ChatThinkingContentPart', () => {
 			part.finalizeTitleIfDefault();
 
 			// Fire diff event
-			diffEmitter.fire({ added: 10, removed: 3 });
+			diffEmitter.fire(createDiffData(10, 3));
 
 			const addedEl = part.domNode.querySelector('.label-added');
 			const removedEl = part.domNode.querySelector('.label-removed');
-			assert.ok(addedEl, 'Should render +N element');
-			assert.ok(removedEl, 'Should render -N element');
-			assert.strictEqual(addedEl?.textContent, '+10');
-			assert.strictEqual(removedEl?.textContent, '-3');
+			const label = part.domNode.querySelector('.chat-used-context-label');
+			const titleButton = label?.querySelector<HTMLElement>('.monaco-icon-button');
+			const chevron = label?.querySelector<HTMLElement>('.chat-collapsible-hover-chevron');
+			const initialExpanded = titleButton?.ariaExpanded;
+			chevron?.click();
+			assert.deepStrictEqual({
+				added: addedEl?.textContent,
+				removed: removedEl?.textContent,
+				childClasses: [...label!.children].map(child => child.className),
+				initialExpanded,
+				expandedAfterChevronClick: titleButton?.ariaExpanded,
+			}, {
+				added: '+10',
+				removed: '-3',
+				childClasses: [
+					'monaco-button monaco-icon-button monaco-text-button chat-thinking-title-with-diff',
+					'monaco-button chat-thinking-title-diff',
+					'chat-collapsible-hover-chevron codicon codicon-chevron-right expanded',
+				],
+				initialExpanded: 'false',
+				expandedAfterChevronClick: 'true',
+			});
 		});
 
 		test('should aggregate diffs from multiple edit parts', () => {
@@ -2197,8 +2281,8 @@ suite('ChatThinkingContentPart', () => {
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 
-			const diffEmitter1 = store.add(new Emitter<IEditSessionDiffStats>());
-			const diffEmitter2 = store.add(new Emitter<IEditSessionDiffStats>());
+			const diffEmitter1 = store.add(new Emitter<IChatContentPartDiffData>());
+			const diffEmitter2 = store.add(new Emitter<IChatContentPartDiffData>());
 
 			part.appendItem(
 				() => ({ domNode: $('div.test-edit-pill-1') }),
@@ -2218,8 +2302,8 @@ suite('ChatThinkingContentPart', () => {
 
 			part.finalizeTitleIfDefault();
 
-			diffEmitter1.fire({ added: 5, removed: 2 });
-			diffEmitter2.fire({ added: 8, removed: 1 });
+			diffEmitter1.fire(createDiffData(5, 2, 'first.ts'));
+			diffEmitter2.fire(createDiffData(8, 1, 'second.ts'));
 
 			const addedEl = part.domNode.querySelector('.label-added');
 			const removedEl = part.domNode.querySelector('.label-removed');
@@ -2242,7 +2326,7 @@ suite('ChatThinkingContentPart', () => {
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 
-			const diffEmitter = store.add(new Emitter<IEditSessionDiffStats>());
+			const diffEmitter = store.add(new Emitter<IChatContentPartDiffData>());
 
 			part.appendItem(
 				() => ({ domNode: $('div.test-edit-pill') }),
@@ -2253,7 +2337,7 @@ suite('ChatThinkingContentPart', () => {
 			);
 
 			part.finalizeTitleIfDefault();
-			diffEmitter.fire({ added: 0, removed: 0 });
+			diffEmitter.fire(createDiffData(0, 0));
 
 			const addedEl = part.domNode.querySelector('.label-added');
 			const removedEl = part.domNode.querySelector('.label-removed');
@@ -2276,7 +2360,7 @@ suite('ChatThinkingContentPart', () => {
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 
-			const diffEmitter = store.add(new Emitter<IEditSessionDiffStats>());
+			const diffEmitter = store.add(new Emitter<IChatContentPartDiffData>());
 
 			part.appendItem(
 				() => ({ domNode: $('div.test-edit-pill') }),
@@ -2287,7 +2371,7 @@ suite('ChatThinkingContentPart', () => {
 			);
 
 			part.finalizeTitleIfDefault();
-			diffEmitter.fire({ added: 7, removed: 2 });
+			diffEmitter.fire(createDiffData(7, 2));
 
 			const button = part.domNode.querySelector('.monaco-button') as HTMLElement;
 			assert.ok(button?.ariaLabel?.includes('7'), 'aria-label should include added count');
@@ -2315,6 +2399,61 @@ suite('ChatThinkingContentPart', () => {
 			assert.strictEqual(diffContainer, null, 'Should not render diff container when no diffs exist');
 		});
 
+		test('opens each file from its first original to its last modified snapshot', () => {
+			let opened: unknown;
+			instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+				override async openEditor(...args: unknown[]): Promise<undefined> {
+					opened = args[0];
+					return undefined;
+				}
+			}());
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				createThinkingPart('**Editing files**'),
+				createMockRenderContext(true),
+				mockMarkdownRenderer,
+				true
+			));
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			const firstAppEdit = store.add(new Emitter<IChatContentPartDiffData>());
+			const utilEdit = store.add(new Emitter<IChatContentPartDiffData>());
+			const lastAppEdit = store.add(new Emitter<IChatContentPartDiffData>());
+			part.appendItem(() => ({ domNode: $('div') }), 'app-edit-1', undefined, undefined, firstAppEdit.event);
+			part.appendItem(() => ({ domNode: $('div') }), 'util-edit', undefined, undefined, utilEdit.event);
+			part.appendItem(() => ({ domNode: $('div') }), 'app-edit-2', undefined, undefined, lastAppEdit.event);
+			part.finalizeTitleIfDefault();
+
+			lastAppEdit.fire(createDiffData(4, 1, 'app.ts', 'last'));
+			utilEdit.fire(createDiffData(2, 3, 'util.ts', 'only'));
+			firstAppEdit.fire(createDiffData(5, 0, 'app.ts', 'first'));
+
+			part.domNode.querySelector<HTMLElement>('.chat-thinking-title-diff')?.click();
+
+			assert.ok(isResourceMultiDiffEditorInput(opened));
+			assert.deepStrictEqual({
+				label: opened.label,
+				resources: opened.resources?.map(resource => ({
+					original: resource.original.resource?.toString(),
+					modified: resource.modified.resource?.toString(),
+					goToFileResource: resource.goToFileResource?.toString(),
+				})),
+			}, {
+				label: 'Section File Changes',
+				resources: [{
+					original: 'file:///snapshots/first/before/app.ts',
+					modified: 'file:///snapshots/last/after/app.ts',
+					goToFileResource: 'file:///workspace/app.ts',
+				}, {
+					original: 'file:///snapshots/only/before/util.ts',
+					modified: 'file:///snapshots/only/after/util.ts',
+					goToFileResource: 'file:///workspace/util.ts',
+				}],
+			});
+		});
+
 		test('removeEditPillByPartId cleans up lazy item and diff stats', () => {
 			const content = createThinkingPart('**Editing files**');
 			const context = createMockRenderContext(true);
@@ -2330,8 +2469,8 @@ suite('ChatThinkingContentPart', () => {
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 
-			const diffEmitter1 = store.add(new Emitter<IEditSessionDiffStats>());
-			const diffEmitter2 = store.add(new Emitter<IEditSessionDiffStats>());
+			const diffEmitter1 = store.add(new Emitter<IChatContentPartDiffData>());
+			const diffEmitter2 = store.add(new Emitter<IChatContentPartDiffData>());
 
 			// Append two edit pills
 			part.appendItem(
@@ -2352,8 +2491,8 @@ suite('ChatThinkingContentPart', () => {
 			part.finalizeTitleIfDefault();
 
 			// Fire diff events for both
-			diffEmitter1.fire({ added: 5, removed: 2 });
-			diffEmitter2.fire({ added: 8, removed: 1 });
+			diffEmitter1.fire(createDiffData(5, 2, 'first.ts'));
+			diffEmitter2.fire(createDiffData(8, 1, 'second.ts'));
 
 			// Remove the first edit pill
 			part.removeEditPillByPartId('edit-part-1');

@@ -2000,7 +2000,92 @@ describe('processResponseFromChatEndpoint terminal events', () => {
 		expect(completion.error).toEqual({
 			code: 0,
 			message: 'something broke',
-			metadata: { code: 'internal_error' },
+			metadata: { code: 'internal_error', responseId: 'resp_failed' },
+		});
+	});
+
+	// Regression for https://github.com/microsoft/vscode/issues/330408
+	//
+	// A provider can terminate a Responses stream with `response.failed` while sending an
+	// error object that omits the `code`/`message` the API contract requires. Serializing
+	// that struct verbatim produced `{"code":0,"message":"","metadata":{}}`, which the BYOK
+	// endpoint surfaces as the entire user-facing reason — leaving no way to tell an outage
+	// from a malformed request. The failure must still be described and correlatable.
+	it('issue #330408: describes a response.failed event whose error omits code and message', async () => {
+		const failedEvent = {
+			type: 'response.failed',
+			response: {
+				id: 'resp_failed',
+				model: 'gpt-5-mini',
+				created_at: 123,
+				status: 'failed',
+				error: {},
+				output: [],
+			},
+		};
+
+		const [completion] = await runStream(`data: ${JSON.stringify(failedEvent)}\n\n`);
+
+		expect({
+			finishReason: completion.finishReason,
+			error: completion.error,
+		}).toEqual({
+			finishReason: FinishedCompletionReason.ServerError,
+			error: {
+				code: 0,
+				message: `The model provider reported a failed response without any error details (event: response.failed, status: failed, response: resp_failed).`,
+				metadata: { responseId: 'resp_failed' },
+			},
+		});
+	});
+
+	it('issue #330408: describes a terminal error that carries a code but no message', async () => {
+		const failedEvent = {
+			type: 'response.failed',
+			response: {
+				id: 'resp_failed',
+				model: 'gpt-5-mini',
+				created_at: 123,
+				status: 'failed',
+				error: { code: 'server_error' },
+				output: [],
+			},
+		};
+
+		const [completion] = await runStream(`data: ${JSON.stringify(failedEvent)}\n\n`);
+
+		expect(completion.error).toEqual({
+			code: 0,
+			message: `The model provider reported a failed response with code 'server_error' and no error message (event: response.failed, status: failed, response: resp_failed).`,
+			metadata: { code: 'server_error', responseId: 'resp_failed' },
+		});
+	});
+
+	it('issue #330408: describes a response.incomplete event whose error omits code and message', async () => {
+		const incompleteEvent = {
+			type: 'response.incomplete',
+			response: {
+				id: 'resp_incomplete',
+				model: 'gpt-5-mini',
+				created_at: 123,
+				status: 'incomplete',
+				error: {},
+				output: [],
+			},
+		};
+
+		const [completion] = await runStream(`data: ${JSON.stringify(incompleteEvent)}\n\n`);
+
+		expect({
+			finishReason: completion.finishReason,
+			error: completion.error,
+		}).toEqual({
+			finishReason: FinishedCompletionReason.ServerError,
+			error: {
+				code: 0,
+				message: `The model provider reported a failed response without any error details (event: response.incomplete, status: incomplete, response: resp_incomplete).`,
+				metadata: { responseId: 'resp_incomplete' },
+			},
 		});
 	});
 

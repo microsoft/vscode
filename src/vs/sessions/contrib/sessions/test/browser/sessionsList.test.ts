@@ -8,10 +8,15 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { ExtUri } from '../../../../../base/common/resources.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -19,7 +24,7 @@ import { IAutomationService } from '../../../../../workbench/contrib/chat/common
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, limitSessionsForList, SessionSectionRenderer, SessionsList, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionSectionRenderer, SessionsFlatList, SessionsList, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { createListHarness, createTestSession } from './sessionsListTestUtils.js';
 import '../../browser/views/sessionsViewActions.js';
 
@@ -75,6 +80,48 @@ suite('Sessions - SessionsList', () => {
 
 	suite('SessionSectionRenderer', () => {
 
+		test('selects the rendered section before the toolbar handles its context menu', () => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stubInstance(MenuWorkbenchToolBar, new class extends mock<MenuWorkbenchToolBar>() {
+				override set context(_context: unknown) { }
+				override dispose(): void { }
+			});
+			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+			const automationService = new class extends mock<IAutomationService>() {
+				override readonly runs = constObservable<readonly IAutomationRun[]>([]);
+			};
+			const selectedSections: ISessionSection[] = [];
+			const renderer = new SessionSectionRenderer(
+				true,
+				section => selectedSections.push(section),
+				instantiationService,
+				contextKeyService,
+				automationService,
+				constObservable([]),
+				new class extends mock<IUriIdentityService>() {
+					override readonly extUri = new ExtUri(() => true);
+				},
+				new class extends mock<ICustomViewService>() { },
+				new class extends mock<IMenuService>() { },
+			);
+			const container = document.createElement('div');
+			const template = renderer.renderTemplate(container);
+			disposables.add(template.disposables);
+			const section: ISessionSection = { id: 'workspace:test', label: 'Test', sessions: [] };
+			renderer.renderElement(upcastPartial<Parameters<SessionSectionRenderer['renderElement']>[0]>({
+				element: section,
+				collapsible: true,
+				collapsed: false,
+			}), 0, template);
+			const action = document.createElement('a');
+			template.toolbarContainer.append(action);
+			action.addEventListener('contextmenu', event => event.stopPropagation());
+
+			action.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, button: 2 }));
+
+			assert.deepStrictEqual(selectedSections, [section]);
+		});
+
 		test('derives terminal automation status from the supplied session snapshot', () => {
 			const session = createSession('automation', {
 				isRead: false,
@@ -103,12 +150,14 @@ suite('Sessions - SessionsList', () => {
 			};
 			const renderer = new SessionSectionRenderer(
 				true,
+				() => { },
 				new class extends mock<IInstantiationService>() { },
 				new class extends mock<IContextKeyService>() { },
 				automationService,
 				automationSessions,
 				uriIdentityService,
 				new class extends mock<ICustomViewService>() { },
+				new class extends mock<IMenuService>() { },
 			);
 			const runResource = URI.parse('test-session:/workspace/automation');
 			const statuses: (SessionStatus | undefined)[] = [];
@@ -158,12 +207,14 @@ suite('Sessions - SessionsList', () => {
 			};
 			const renderer = new SessionSectionRenderer(
 				true,
+				() => { },
 				new class extends mock<IInstantiationService>() { },
 				new class extends mock<IContextKeyService>() { },
 				automationService,
 				constObservable([runningSession, needsInputSession]),
 				uriIdentityService,
 				new class extends mock<ICustomViewService>() { },
+				new class extends mock<IMenuService>() { },
 			);
 			runs.set([
 				{
@@ -673,6 +724,64 @@ suite('Sessions - SessionsList', () => {
 				date: [
 					{ title: 'Ordinary', badge: 'monaco', ariaLabel: 'Ordinary, updated now, in monaco' },
 				],
+			});
+		});
+	});
+
+	suite('SessionsFlatList quick-chat presentation', () => {
+
+		function renderQuickChat(useCompactQuickChatRows: boolean) {
+			const quickChat = createTestSession('Investigate failure', { isQuickChat: true }).session;
+			const harness = createListHarness(disposables, [quickChat]);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, container, {
+				showSessionHover: false,
+				useCompactQuickChatRows,
+				onSessionOpen: () => { },
+			}));
+			list.setSessions([quickChat]);
+			const contentHeight = list.getContentHeight();
+			list.layout(contentHeight, 400);
+
+			const item = container.querySelector<HTMLElement>('.session-item');
+			assert.ok(item);
+			return {
+				usesStandardRowHeight: contentHeight === list.getRowHeight(),
+				isShorterThanStandardRow: contentHeight < list.getRowHeight(),
+				hasCompactClass: item.classList.contains('quick-chat'),
+				hasChatIcon: item.querySelector('.session-details-icon > .codicon')?.classList.contains('codicon-comment-discussion') ?? false,
+				badge: item.querySelector('.session-badge')?.textContent ?? undefined,
+				time: item.querySelector('.session-time')?.textContent ?? undefined,
+				hasDiff: !!item.querySelector('.session-diff'),
+				ariaLabel: item.closest('.monaco-list-row')?.getAttribute('aria-label') ?? null,
+			};
+		}
+
+		test('renders compact and regular quick-chat rows consistently', () => {
+			assert.deepStrictEqual({
+				compact: renderQuickChat(true),
+				regular: renderQuickChat(false),
+			}, {
+				compact: {
+					usesStandardRowHeight: false,
+					isShorterThanStandardRow: true,
+					hasCompactClass: true,
+					hasChatIcon: false,
+					badge: undefined,
+					time: undefined,
+					hasDiff: false,
+					ariaLabel: 'Investigate failure, updated now',
+				},
+				regular: {
+					usesStandardRowHeight: true,
+					isShorterThanStandardRow: false,
+					hasCompactClass: false,
+					hasChatIcon: true,
+					badge: 'No workspace',
+					time: 'now',
+					hasDiff: false,
+					ariaLabel: 'Investigate failure, chat, updated now',
+				},
 			});
 		});
 	});

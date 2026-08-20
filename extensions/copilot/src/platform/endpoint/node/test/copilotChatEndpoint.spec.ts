@@ -664,3 +664,50 @@ describe('ChatEndpoint - CAPI reasoning effort', () => {
 		expect(body.reasoning_effort).toBeUndefined();
 	});
 });
+
+describe('ChatEndpoint - model picker notices', () => {
+	let mockServices: ReturnType<typeof createMockServices>;
+
+	beforeEach(() => {
+		mockServices = createMockServices();
+	});
+
+	const createEndpoint = (metadata: IChatModelInformation) =>
+		new ChatEndpoint(
+			metadata,
+			mockServices.domainService,
+			mockServices.chatMLFetcher,
+			mockServices.tokenizerProvider,
+			mockServices.instantiationService,
+			mockServices.configurationService,
+			mockServices.expService,
+			mockServices.chatWebSocketService,
+			mockServices.logService
+		);
+
+	it('shows a pending deprecation as a warning and other info messages as info', () => {
+		const endpoint = createEndpoint({
+			...createNonAnthropicModelMetadata('gpt-4.1'),
+			warning_text: { data_retention: 'Prompts are retained for 30 days.' },
+			warning_messages: [{ code: 'model_degraded', message: 'GPT-4.1 is currently degraded.' }],
+			info_messages: [
+				{ code: 'model_pending_deprecation', message: 'GPT-4.1 has a planned deprecation date of 2026-06-01.' },
+				{ code: 'model_relocated', message: 'GPT-4.1 now serves from a new region.' },
+			],
+		});
+
+		expect({ warningText: endpoint.warningText, infoText: endpoint.infoText, degradationReason: endpoint.degradationReason }).toEqual({
+			warningText: {
+				data_retention: 'Prompts are retained for 30 days.',
+				model_pending_deprecation: 'GPT-4.1 has a planned deprecation date of 2026-06-01.',
+			},
+			infoText: { model_relocated: 'GPT-4.1 now serves from a new region.' },
+			degradationReason: 'GPT-4.1 is currently degraded.',
+		});
+	});
+
+	it('has no notices when CAPI sends none', () => {
+		const endpoint = createEndpoint({ ...createNonAnthropicModelMetadata('gpt-4.1'), info_messages: [] });
+		expect({ warningText: endpoint.warningText, infoText: endpoint.infoText }).toEqual({ warningText: undefined, infoText: undefined });
+	});
+});

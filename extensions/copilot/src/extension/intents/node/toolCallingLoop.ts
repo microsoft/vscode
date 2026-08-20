@@ -994,6 +994,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 			case ChatFetchResponseType.QuotaExceeded:
 			case ChatFetchResponseType.Canceled:
 			case ChatFetchResponseType.OffTopic:
+			case ChatFetchResponseType.Refusal:
 				return false;
 			default:
 				return response.type !== ChatFetchResponseType.Success;

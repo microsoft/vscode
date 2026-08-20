@@ -11,6 +11,14 @@
 	box-sizing: border-box;
 }
 
+.agent-sessions-workbench.dock-detail-panel .changes-view-body {
+	padding: 0;
+}
+
+.agent-sessions-workbench.dock-detail-panel .changes-view-body .chat-editing-session-container {
+	gap: 0;
+}
+
 /* SplitView container */
 .changes-view-body .changes-splitview-container {
 	flex: 1;
