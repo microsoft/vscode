@@ -42,6 +42,8 @@ function createMockActiveSession(title: string, workspaceLabel?: string): IActiv
 		const label = workspaceLabel;
 		workspace = new class extends mock<ISessionWorkspace>() {
 			override readonly label = label;
+			override readonly folders = [];
+			override readonly isVirtualWorkspace = false;
 		}();
 	}
 	return new class extends mock<IActiveSession>() {
