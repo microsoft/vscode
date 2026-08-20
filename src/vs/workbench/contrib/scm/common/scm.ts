@@ -42,6 +42,11 @@ export interface ISCMResourceDecorations {
 	faded?: boolean;
 }
 
+export interface ISCMResourceDiffStatistics {
+	readonly insertions: number;
+	readonly deletions: number;
+}
+
 export interface ISCMResource {
 	readonly resourceGroup: ISCMResourceGroup;
 	readonly sourceUri: URI;
@@ -50,6 +55,7 @@ export interface ISCMResource {
 	readonly command: Command | undefined;
 	readonly multiDiffEditorOriginalUri: URI | undefined;
 	readonly multiDiffEditorModifiedUri: URI | undefined;
+	readonly diffStatistics?: ISCMResourceDiffStatistics;
 	open(preserveFocus: boolean): Promise<void>;
 }
 

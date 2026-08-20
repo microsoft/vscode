@@ -1762,6 +1762,31 @@ export class Repository {
 		return this.diffFilesShortStat(undefined, { cached: false, path });
 	}
 
+	/**
+	 * Returns the changes between HEAD and the index (`cached`) or the working tree,
+	 * including the number of inserted/deleted lines for each of them.
+	 */
+	async diffWithHEADStatistics(options: { cached: boolean; similarityThreshold?: number }): Promise<DiffChange[]> {
+		const args = ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z'];
+
+		if (options.cached) {
+			args.push('--cached');
+		}
+
+		if (options.similarityThreshold) {
+			args.push(`--find-renames=${options.similarityThreshold}%`);
+		}
+
+		args.push('--');
+
+		const gitResult = await this.exec(args);
+		if (gitResult.exitCode) {
+			return [];
+		}
+
+		return parseGitChangesRaw(this.repositoryRoot, gitResult.stdout);
+	}
+
 	diffWith(ref: string): Promise<Change[]>;
 	diffWith(ref: string, path: string): Promise<string>;
 	diffWith(ref: string, path?: string | undefined): Promise<string | Change[]>;
