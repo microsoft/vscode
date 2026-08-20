@@ -113,10 +113,11 @@ does not fit the prompt-file contract.
 
 ## Active-session context
 
-In the Agents Window, opening the customizations editor synchronizes the harness
-and project root with the originating session. Commands and controls that can be
-shown for multiple sessions resolve this scoped context rather than reading an
-unrelated global active session.
+In the Agents Window, the customization harness and project root track
+`ISessionsService.activeSession`. Opening the editor synchronizes it with the
+currently active session, and switching the active session can update the
+editor's harness and project context. A transient project-root override takes
+precedence while it is set.
 
 Provider-backed items retain provider identity through the shared contract.
 Shared widgets must not import or branch on provider implementations.

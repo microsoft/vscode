@@ -27,8 +27,9 @@ environment. Mobile context keys are declarative inputs for menus, view
 registration, and presentation selection; they are not the source of truth for
 model or provider behavior.
 
-Responsive transitions dispose the old presentation and create the applicable
-mobile or desktop presentation through the owning part factory.
+Part factories select their mobile or desktop implementation once during
+construction, based on the initial viewport. They do not replace part instances
+when the viewport later crosses the phone breakpoint.
 
 ## Composition
 
@@ -49,12 +50,13 @@ navigation must not create a second active-session store.
 
 ## Mobile part pattern
 
-Shared part factories select mobile subclasses for phone-class viewports. A
-mobile subclass:
+When a factory selects a mobile subclass, that instance remains alive for the
+part's lifetime. It checks the current viewport and delegates to desktop
+behavior after rotating or resizing out of phone layout. A mobile subclass:
 
 - reuses the shared service and contribution contract;
 - changes only composition, interaction, or presentation;
-- owns and disposes its mobile navigation state;
+- gates mobile behavior on the current viewport without recreating the part;
 - preserves scoped session context for commands and menus.
 
 Desktop-only behavior must be gated before presentation rather than hidden with
@@ -63,9 +65,10 @@ layout.
 
 ## Navigation
 
-`MobileNavigationStack` owns nested mobile layers such as drawers, custom views,
-pickers, and full-screen editors. Platform back navigation dismisses the top
-layer before leaving the current session surface.
+The workbench-owned `MobileNavigationStack` tracks nested mobile layers such as
+drawers, custom views, pickers, and full-screen editors. Platform back
+navigation dismisses the top layer before leaving the current session surface;
+it does not control part-instance lifetime.
 
 Opening another session resets or replaces transient navigation layers through
 the owning service. Components do not coordinate navigation by reading another

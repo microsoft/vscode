@@ -155,8 +155,10 @@ A provider exposes:
 - workspace browsing and resolution;
 - provider capabilities.
 
-Catalog events distinguish added, removed, changed, and replaced facades.
-Mutable fields on a facade remain observable.
+Catalog events distinguish added, removed, and changed facades. Facade
+replacement is a separate `onDidReplaceSession` lifecycle notification; the
+management service also translates it into an ordinary catalog refresh. Mutable
+fields on a facade remain observable.
 
 ### Drafts
 
@@ -213,9 +215,10 @@ user chooses a workspace and session type
 ```
 
 On first send, the provider creates or selects the chat, sends the request, and
-commits the session. Providers may preserve the draft facade or replace it.
-Consumers follow the management replacement lifecycle rather than assuming one
-strategy.
+commits the session. Providers may preserve the draft facade or notify the
+management service through the separate replacement lifecycle. Consumers follow
+that lifecycle rather than assuming one strategy or a replacement field on a
+catalog event.
 
 ### Existing session
 
