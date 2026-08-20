@@ -162,6 +162,7 @@ export class InlineCompletionsSource extends Disposable {
 		userJumpedToActiveCompletion: IObservable<boolean>,
 		requestInfo: InlineSuggestRequestInfo,
 		forceUpdate = false,
+		resolveProviders?: () => InlineCompletionsProvider[],
 	): Promise<boolean> {
 		const position = this._cursorPosition.get();
 		const request = new UpdateRequest(position, context, this._textModel.getVersionId(), new Set(providers));
@@ -216,6 +217,14 @@ export class InlineCompletionsSource extends Disposable {
 				if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId) {
 					requestResponseInfo.setNoSuggestionReasonIfNotSet('canceled:beforeFetch');
 					return false;
+				}
+
+				if (resolveProviders) {
+					providers = resolveProviders();
+					request.providers.clear();
+					providers.forEach(provider => request.providers.add(provider));
+					requestInfo.availableProviders = providers.map(provider => provider.providerId).filter(isDefined);
+					requestResponseInfo.providers.splice(0, requestResponseInfo.providers.length, ...providers.filter(provider => provider.providerId));
 				}
 
 				const requestId = InlineCompletionsSource._requestId++;

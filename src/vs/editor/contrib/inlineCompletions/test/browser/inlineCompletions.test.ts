@@ -908,6 +908,156 @@ suite('Multi Cursor Support', () => {
 suite('Provider Selection', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('Availability changes do not activate inactive sessions', async function () {
+		const availabilityChanged = new Emitter<void>();
+		let available = false;
+		const provider = Object.assign(new MockInlineCompletionsProvider(), {
+			isAvailable: () => available,
+			onDidChangeAvailability: availabilityChanged.event,
+		});
+		provider.setReturnValue({ insertText: 'abc' });
+
+		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
+			{ fakeClock: true, provider, inlineSuggest: { enabled: true } },
+			async ({ context, model, store }) => {
+				store.add(availabilityChanged);
+
+				available = true;
+				availabilityChanged.fire();
+				await timeout(1000);
+				const callsBeforeFirstTrigger = provider.getAndClearCallHistory().length;
+
+				context.keyboardType('a');
+				await timeout(1000);
+				provider.getAndClearCallHistory();
+				model.stop();
+
+				available = false;
+				availabilityChanged.fire();
+				available = true;
+				availabilityChanged.fire();
+				await timeout(1000);
+
+				assert.deepStrictEqual({
+					callsBeforeFirstTrigger,
+					callsAfterStop: provider.getAndClearCallHistory().length,
+				}, {
+					callsBeforeFirstTrigger: 0,
+					callsAfterStop: 0,
+				});
+			}
+		);
+	});
+
+	test('Availability changes preserve an in-flight explicit request', async function () {
+		const availabilityChanged = new Emitter<void>();
+		let automaticAvailable = false;
+		const provider = Object.assign(new MockInlineCompletionsProvider(), {
+			isAvailable: (context: { triggerKind: InlineCompletionTriggerKind }) =>
+				context.triggerKind === InlineCompletionTriggerKind.Explicit || automaticAvailable,
+			onDidChangeAvailability: availabilityChanged.event,
+		});
+		provider.setReturnValue({ insertText: 'abc' }, 1000);
+
+		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
+			{ fakeClock: true, provider, inlineSuggest: { enabled: true } },
+			async ({ model, store }) => {
+				store.add(availabilityChanged);
+
+				const explicitRequest = model.triggerExplicitly();
+				await timeout(0);
+				automaticAvailable = true;
+				availabilityChanged.fire();
+				await timeout(1000);
+				await explicitRequest;
+
+				assert.deepStrictEqual(provider.getAndClearCallHistory(), [{
+					position: '(1,1)',
+					text: '',
+					triggerKind: InlineCompletionTriggerKind.Explicit,
+				}]);
+			}
+		);
+	});
+
+	test('Content changes from unavailable providers do not replace local suggestions', async function () {
+		const localProvider = new MockInlineCompletionsProvider();
+		const networkProvider = Object.assign(new MockInlineCompletionsProvider(), {
+			isAvailable: (context: { triggerKind: InlineCompletionTriggerKind }) => context.triggerKind === InlineCompletionTriggerKind.Explicit,
+		});
+		localProvider.setReturnValue({ insertText: 'abc' });
+		networkProvider.setReturnValue({ insertText: 'network' });
+
+		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
+			{ fakeClock: true, provider: localProvider, inlineSuggest: { enabled: true, triggerCommandOnProviderChange: true } },
+			async ({ context, instantiationService, store }) => {
+				const languageFeaturesService = instantiationService.get(ILanguageFeaturesService);
+				store.add(languageFeaturesService.inlineCompletionsProvider.register({ pattern: '**' }, networkProvider));
+
+				context.keyboardType('a');
+				await timeout(1000);
+				localProvider.getAndClearCallHistory();
+				networkProvider.getAndClearCallHistory();
+				const viewBeforeChange = context.currentPrettyViewState;
+
+				networkProvider.fireOnDidChange();
+				await timeout(1000);
+
+				assert.deepStrictEqual({
+					localProviderCalls: localProvider.getAndClearCallHistory().length,
+					networkProviderCalls: networkProvider.getAndClearCallHistory().length,
+					viewBeforeChange,
+					viewAfterChange: context.currentPrettyViewState,
+				}, {
+					localProviderCalls: 0,
+					networkProviderCalls: 0,
+					viewBeforeChange: 'a[bc]',
+					viewAfterChange: 'a[bc]',
+				});
+			}
+		);
+	});
+
+	test('Provider eligibility is recomputed after debounce', async function () {
+		const availabilityChanged = new Emitter<void>();
+		let networkAvailable = true;
+		const localProvider = Object.assign(new MockInlineCompletionsProvider(), {
+			groupId: 'local',
+		});
+		const networkProvider = Object.assign(new MockInlineCompletionsProvider(), {
+			groupId: 'network',
+			excludesGroupIds: ['local'],
+			debounceDelayMs: 100,
+			isAvailable: () => networkAvailable,
+			onDidChangeAvailability: availabilityChanged.event,
+		});
+		localProvider.setReturnValue({ insertText: 'abc' });
+		networkProvider.setReturnValue({ insertText: 'network' });
+
+		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
+			{ fakeClock: true, provider: localProvider, inlineSuggest: { enabled: true } },
+			async ({ context, instantiationService, store }) => {
+				store.add(availabilityChanged);
+				const languageFeaturesService = instantiationService.get(ILanguageFeaturesService);
+				store.add(languageFeaturesService.inlineCompletionsProvider.register({ pattern: '**' }, networkProvider));
+
+				context.keyboardType('a');
+				await timeout(0);
+				networkAvailable = false;
+				availabilityChanged.fire();
+				await timeout(1000);
+
+				assert.deepStrictEqual({
+					localProviderCalls: localProvider.getAndClearCallHistory().length,
+					networkProviderCalls: networkProvider.getAndClearCallHistory().length,
+				}, {
+					localProviderCalls: 1,
+					networkProviderCalls: 0,
+				});
+			}
+		);
+	});
+
 	test('Availability changes refresh all newly available providers once', async function () {
 		const availabilityChanged = new Emitter<void>();
 		let available = false;

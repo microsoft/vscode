@@ -223,6 +223,9 @@ export class InlineCompletionsModel extends Disposable {
 				if (!this.shouldHandleProviderChange()) {
 					return;
 				}
+				if (provider.isAvailable?.({ triggerKind: InlineCompletionTriggerKind.Automatic }) === false) {
+					return;
+				}
 
 				if (this._triggerCommandOnProviderChange.get()) {
 					// TODO@hediet remove this and always do the else branch.
@@ -259,10 +262,8 @@ export class InlineCompletionsModel extends Disposable {
 				if (!providerBecameAvailable) {
 					return;
 				}
-
 				transaction(tx => {
 					this._providerAvailabilityChangeSignal.trigger(tx);
-					this.trigger(tx);
 				});
 			}));
 		}).recomputeInitiallyAndOnChange(this._store);
@@ -389,8 +390,6 @@ export class InlineCompletionsModel extends Disposable {
 					changeSummary.provider = ctx.change?.provider;
 					changeSummary.changeHint = ctx.change?.changeHint;
 					changeSummary.forceUpdate = true;
-				} else if (ctx.didChange(this._providerAvailabilityChangeSignal)) {
-					changeSummary.forceUpdate = true;
 				}
 				return true;
 			},
@@ -489,7 +488,17 @@ export class InlineCompletionsModel extends Disposable {
 		const availableProviders = this.getAvailableProviders(providers.providers, context);
 		requestInfo.availableProviders = availableProviders.map(p => p.providerId).filter(isDefined);
 
-		return this._source.fetch(availableProviders, providers.label, context, itemToPreserve?.identity, changeSummary.shouldDebounce, userJumpedToActiveCompletion, requestInfo, changeSummary.forceUpdate);
+		return this._source.fetch(
+			availableProviders,
+			providers.label,
+			context,
+			itemToPreserve?.identity,
+			changeSummary.shouldDebounce,
+			userJumpedToActiveCompletion,
+			requestInfo,
+			changeSummary.forceUpdate,
+			() => this.getAvailableProviders(providers.providers, context),
+		);
 	});
 
 	// TODO: This is not an ideal implementation of excludesGroupIds, however as this is currently still behind proposed API
