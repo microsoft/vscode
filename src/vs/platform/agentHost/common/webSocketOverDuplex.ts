@@ -4,31 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
+import { TimeoutTimer } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
-import type { ITunnelDuplexStream, ITunnelMessageSocket, ITunnelSocketCloseEvent, IWebSocketConnection, IWebSocketConnectionConfig, IWebSocketDuplexStream, WebSocketConnectionCtor, WebSocketConnectionMessage } from './tunnelMessageSocket.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { encodeWebSocketFrame, type IWebSocketFrame, WebSocketFrameParser, WebSocketFrameTooLargeError, WebSocketOpcode } from '../../../base/parts/ipc/common/webSocketFraming.js';
+import type { ITunnelDuplexStream, ITunnelMessageSocket, ITunnelSocketCloseEvent } from './tunnelMessageSocket.js';
 
 const websocketAcceptGuid = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 const headerTerminator = VSBuffer.fromString('\r\n\r\n').buffer;
-const websocketConnectionConfig: IWebSocketConnectionConfig = {
-	maxReceivedFrameSize: 0x100000,
-	maxReceivedMessageSize: 0x800000,
-	fragmentOutgoingMessages: true,
-	fragmentationThreshold: 0x4000,
-	webSocketVersion: 13,
-	assembleFragments: true,
-	disableNagleAlgorithm: true,
-	closeTimeout: 5000,
-};
-
+const defaultMaxFramePayloadLength = 0x100000;
+const defaultMaxMessagePayloadLength = 0x800000;
+const defaultCloseTimeoutMs = 5000;
 /** Options used to establish a WebSocket connection over an existing tunnel stream. */
 export interface IWebSocketOverDuplexOptions {
 	/** Request path, e.g. '/agent-host/select' or '/?tkn=abc'. */
 	readonly path: string;
 	/** Host header value; the tunnel stream is already pointed at the right port. */
 	readonly host?: string;
-	/** Injected WebSocketConnection constructor from the lazily-loaded browser bundle. */
-	readonly webSocketConnectionCtor: WebSocketConnectionCtor;
+	/** Maximum accepted frame payload length. */
+	readonly maxFramePayloadLength?: number;
+	/** Maximum accepted assembled message payload length. */
+	readonly maxMessagePayloadLength?: number;
+	/** Time to wait for the peer to complete a close handshake. */
+	readonly closeTimeoutMs?: number;
 }
 
 /** Opens a framed WebSocket connection over an already-connected tunnel stream. */
@@ -62,11 +60,14 @@ export async function connectWebSocketOverDuplex(
 		}
 
 		responseReader.detach();
-		const connection = new options.webSocketConnectionCtor(new WebSocketDuplexStreamAdapter(stream), [], null, true, websocketConnectionConfig);
-		const socket = new TunnelMessageSocket(stream, connection);
-		connection._addSocketEventListeners();
+		const socket = new TunnelMessageSocket(
+			stream,
+			options.maxFramePayloadLength ?? defaultMaxFramePayloadLength,
+			options.maxMessagePayloadLength ?? defaultMaxMessagePayloadLength,
+			options.closeTimeoutMs ?? defaultCloseTimeoutMs,
+		);
 		for (const chunk of responseReader.remainingChunks(headerEnd)) {
-			connection.handleSocketData(chunk);
+			socket.acceptChunk(chunk);
 		}
 		return socket;
 	} catch (error) {
@@ -99,100 +100,6 @@ function createUpgradeRequest(path: string, host: string, key: string): string {
 export async function createWebSocketAccept(key: string): Promise<string> {
 	const digest = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(key + websocketAcceptGuid));
 	return encodeBase64(VSBuffer.wrap(new Uint8Array(digest)));
-}
-
-/** Adapts a tunnel duplex stream to the TCP-like socket surface required by `WebSocketConnection`. */
-class WebSocketDuplexStreamAdapter implements IWebSocketDuplexStream {
-	private _ended = false;
-	private _destroyed = false;
-
-	constructor(private readonly _stream: ITunnelDuplexStream) {
-	}
-
-	get remoteAddress(): string | undefined {
-		return this._stream.remoteAddress;
-	}
-
-	on(event: 'data', listener: (chunk: Uint8Array) => void): void;
-	on(event: 'error', listener: (err: Error) => void): void;
-	on(event: 'close', listener: (hadError?: boolean) => void): void;
-	on(event: 'end' | 'drain' | 'pause' | 'resume', listener: () => void): void;
-	on(event: 'data' | 'error' | 'end' | 'close' | 'drain' | 'pause' | 'resume', listener: ((chunk: Uint8Array) => void) | ((err: Error) => void) | ((hadError?: boolean) => void) | (() => void)): void {
-		switch (event) {
-			case 'data':
-				this._stream.on(event, listener as (chunk: Uint8Array) => void);
-				break;
-			case 'error':
-				this._stream.on(event, listener as (err: Error) => void);
-				break;
-			case 'close':
-				this._stream.on(event, listener as (hadError?: boolean) => void);
-				break;
-			default:
-				this._stream.on(event, listener as () => void);
-		}
-	}
-
-	removeListener(event: 'data', listener: (chunk: Uint8Array) => void): void;
-	removeListener(event: 'error', listener: (err: Error) => void): void;
-	removeListener(event: 'close', listener: (hadError?: boolean) => void): void;
-	removeListener(event: 'end' | 'drain' | 'pause' | 'resume', listener: () => void): void;
-	removeListener(event: 'data' | 'error' | 'end' | 'close' | 'drain' | 'pause' | 'resume', listener: ((chunk: Uint8Array) => void) | ((err: Error) => void) | ((hadError?: boolean) => void) | (() => void)): void {
-		switch (event) {
-			case 'data':
-				this._stream.removeListener(event, listener as (chunk: Uint8Array) => void);
-				break;
-			case 'error':
-				this._stream.removeListener(event, listener as (err: Error) => void);
-				break;
-			case 'close':
-				this._stream.removeListener(event, listener as (hadError?: boolean) => void);
-				break;
-			default:
-				this._stream.removeListener(event, listener as () => void);
-		}
-	}
-
-	removeAllListeners(event: 'error'): void {
-		this._stream.removeAllListeners(event);
-	}
-
-	write(chunk: Uint8Array | string, callback?: (error?: Error) => void): boolean {
-		const written = this._stream.write(chunk);
-		callback?.();
-		return written;
-	}
-
-	end(): void {
-		if (!this._ended) {
-			this._ended = true;
-			this._stream.end();
-		}
-	}
-
-	destroy(): void {
-		if (!this._destroyed) {
-			this._destroyed = true;
-			this._stream.destroy();
-		}
-	}
-
-	pause(): void {
-		this._stream.pause();
-	}
-
-	resume(): void {
-		this._stream.resume();
-	}
-
-	setNoDelay(_enable: boolean): void {
-	}
-
-	setTimeout(_timeout: number): void {
-	}
-
-	setKeepAlive(_enable: boolean, _initialDelay?: number): void {
-	}
 }
 
 /** A parsed HTTP WebSocket upgrade response. */
@@ -323,7 +230,7 @@ function findSequence(bytes: Uint8Array, sequence: Uint8Array): number {
 	return -1;
 }
 
-/** Adapts the bundled WebSocket framing implementation to the tunnel socket contract. */
+/** Adapts shared RFC 6455 framing to the tunnel socket contract. */
 class TunnelMessageSocket extends Disposable implements ITunnelMessageSocket {
 	private readonly _onDidReceiveMessage = this._register(new Emitter<string>({
 		onDidAddFirstListener: () => this.flushPendingMessages(),
@@ -332,45 +239,184 @@ class TunnelMessageSocket extends Disposable implements ITunnelMessageSocket {
 	private readonly _onDidClose = this._register(new Emitter<ITunnelSocketCloseEvent>());
 	readonly onDidClose: Event<ITunnelSocketCloseEvent> = this._onDidClose.event;
 	private readonly _pendingMessages: string[] = [];
+	private readonly _frameParser: WebSocketFrameParser;
+	private _fragmentedMessage: VSBuffer[] | undefined;
+	private _fragmentedMessageLength = 0;
 	private _closed = false;
+	private _closeSent = false;
+	private _streamEnded = false;
+	private _streamDestroyed = false;
+	private readonly _closeTimer = this._register(new TimeoutTimer());
 
 	constructor(
 		private readonly _stream: ITunnelDuplexStream,
-		private readonly _connection: IWebSocketConnection,
+		maxFramePayloadLength: number,
+		private readonly _maxMessagePayloadLength: number,
+		private readonly _closeTimeoutMs: number,
 	) {
 		super();
-		const onMessage = (message: WebSocketConnectionMessage) => this.acceptMessage(message);
-		const onClose = (code: number, reason: string) => this.finishClose({ code, reason });
-		const onError = (error: Error) => this.finishClose({ error });
-		this._connection.on('message', onMessage);
-		this._connection.on('close', onClose);
-		this._connection.on('error', onError);
-		this._register(toDisposable(() => this._connection.removeListener('message', onMessage)));
-		this._register(toDisposable(() => this._connection.removeListener('close', onClose)));
-		this._register(toDisposable(() => this._connection.removeListener('error', onError)));
+		this._frameParser = new WebSocketFrameParser({ maxPayloadLength: maxFramePayloadLength });
+		const onData = (data: Uint8Array) => this.acceptChunk(data);
+		const onError = (error: Error) => this.fail(error, 1002);
+		const onEnd = () => this.finishClose({});
+		const onClose = () => this.finishClose({});
+		this._stream.on('data', onData);
+		this._stream.on('error', onError);
+		this._stream.on('end', onEnd);
+		this._stream.on('close', onClose);
+		this._register({
+			dispose: () => {
+				this._stream.removeListener('data', onData);
+				this._stream.removeListener('error', onError);
+				this._stream.removeListener('end', onEnd);
+				this._stream.removeListener('close', onClose);
+			}
+		});
 	}
 
 	send(data: string): void {
-		this._connection.send(data);
+		if (!this._closed) {
+			this.writeFrame(VSBuffer.fromString(data), WebSocketOpcode.Text);
+		}
 	}
 
 	close(): void {
-		this._connection.close();
+		if (!this._closed) {
+			this.sendClose(1000, '');
+			this._closeTimer.setIfNotSet(() => {
+				const error = new Error(`WebSocket close handshake timed out after ${this._closeTimeoutMs}ms.`);
+				this.finishClose({ error });
+				this.endStream();
+				this.destroyStream();
+			}, this._closeTimeoutMs);
+		}
 	}
 
 	override dispose(): void {
-		this._connection.close();
-		this._stream.destroy();
+		this.close();
+		this.destroyStream();
 		super.dispose();
 	}
 
-	private acceptMessage(message: WebSocketConnectionMessage): void {
-		const data = message.type === 'utf8' ? message.utf8Data : new TextDecoder().decode(message.binaryData);
+	acceptChunk(data: Uint8Array): void {
+		try {
+			for (const frame of this._frameParser.acceptChunk(VSBuffer.wrap(data))) {
+				this.acceptFrame(frame);
+			}
+		} catch (error) {
+			if (error instanceof WebSocketFrameTooLargeError) {
+				this.fail(error, 1009);
+			} else {
+				this.fail(new Error('Received an invalid WebSocket frame.'), 1002);
+			}
+		}
+	}
+
+	private acceptFrame(frame: IWebSocketFrame): void {
+		if (this._closed) {
+			return;
+		}
+		if (frame.mask !== undefined) {
+			this.fail(new Error('Received a masked WebSocket frame from the server.'), 1002);
+			return;
+		}
+		if (frame.compressed) {
+			this.fail(new Error('Received an unsupported compressed WebSocket frame.'), 1002);
+			return;
+		}
+
+		switch (frame.opcode) {
+			case WebSocketOpcode.Text:
+				if (this._fragmentedMessage) {
+					this.fail(new Error('Received a WebSocket text frame before a fragmented message was complete.'), 1002);
+				} else if (frame.final) {
+					this.acceptText(frame.payload);
+				} else {
+					this._fragmentedMessage = [frame.payload];
+					this._fragmentedMessageLength = frame.payload.byteLength;
+					this.ensureMessageWithinLimit();
+				}
+				break;
+			case WebSocketOpcode.Continuation:
+				if (!this._fragmentedMessage) {
+					this.fail(new Error('Received a WebSocket continuation frame without a preceding text frame.'), 1002);
+				} else {
+					this._fragmentedMessage.push(frame.payload);
+					this._fragmentedMessageLength += frame.payload.byteLength;
+					if (!this.ensureMessageWithinLimit()) {
+						return;
+					}
+					if (frame.final) {
+						const payload = VSBuffer.concat(this._fragmentedMessage);
+						this._fragmentedMessage = undefined;
+						this._fragmentedMessageLength = 0;
+						this.acceptText(payload);
+					}
+				}
+				break;
+			case WebSocketOpcode.Binary:
+				this.fail(new Error('Received an unsupported binary WebSocket message.'), 1003);
+				break;
+			case WebSocketOpcode.Ping:
+				this.writeFrame(frame.payload, WebSocketOpcode.Pong);
+				break;
+			case WebSocketOpcode.Close:
+				this.acceptClose(frame.payload);
+				break;
+			case WebSocketOpcode.Pong:
+				break;
+		}
+	}
+
+	private acceptText(payload: VSBuffer): void {
+		if (payload.byteLength > this._maxMessagePayloadLength) {
+			this.fail(new Error(`WebSocket message payload length ${payload.byteLength} exceeds the configured limit of ${this._maxMessagePayloadLength}.`), 1009);
+			return;
+		}
+		let data: string;
+		try {
+			data = new TextDecoder('utf-8', { fatal: true }).decode(payload.buffer);
+		} catch {
+			this.fail(new Error('Received invalid UTF-8 WebSocket text.'), 1007);
+			return;
+		}
 		if (this._onDidReceiveMessage.hasListeners()) {
 			this._onDidReceiveMessage.fire(data);
 		} else {
 			this._pendingMessages.push(data);
 		}
+	}
+
+	private acceptClose(payload: VSBuffer): void {
+		if (payload.byteLength === 1) {
+			this.fail(new Error('Received a WebSocket close frame with an invalid payload.'), 1002);
+			return;
+		}
+
+		let event: ITunnelSocketCloseEvent = {};
+		if (payload.byteLength >= 2) {
+			const code = payload.readUInt8(0) * 2 ** 8 + payload.readUInt8(1);
+			if (!isValidCloseCode(code)) {
+				this.fail(new Error(`Received an invalid WebSocket close code ${code}.`), 1002);
+				return;
+			}
+			try {
+				event = {
+					code,
+					reason: new TextDecoder('utf-8', { fatal: true }).decode(payload.slice(2).buffer),
+				};
+			} catch {
+				this.fail(new Error('Received invalid UTF-8 WebSocket close reason.'), 1007);
+				return;
+			}
+		}
+
+		if (!this._closeSent) {
+			this.writeFrame(payload, WebSocketOpcode.Close);
+			this._closeSent = true;
+		}
+		this.finishClose(event);
+		this.endStream();
 	}
 
 	private flushPendingMessages(): void {
@@ -380,9 +426,67 @@ class TunnelMessageSocket extends Disposable implements ITunnelMessageSocket {
 	}
 
 	private finishClose(event: ITunnelSocketCloseEvent): void {
+		this._closeTimer.cancel();
 		if (!this._closed) {
 			this._closed = true;
 			this._onDidClose.fire(event);
 		}
 	}
+
+	private fail(error: Error, closeCode: number): void {
+		if (this._closed) {
+			return;
+		}
+		this.sendClose(closeCode, '');
+		this.finishClose({ error });
+		this.endStream();
+	}
+
+	private sendClose(code: number, reason: string): void {
+		if (this._closeSent) {
+			return;
+		}
+		const reasonPayload = VSBuffer.fromString(reason);
+		const payload = VSBuffer.alloc(2 + reasonPayload.byteLength);
+		payload.writeUInt8(code >>> 8, 0);
+		payload.writeUInt8(code, 1);
+		payload.set(reasonPayload, 2);
+		this.writeFrame(payload, WebSocketOpcode.Close);
+		this._closeSent = true;
+	}
+
+	private ensureMessageWithinLimit(): boolean {
+		if (this._fragmentedMessageLength > this._maxMessagePayloadLength) {
+			this.fail(new Error(`WebSocket message payload length ${this._fragmentedMessageLength} exceeds the configured limit of ${this._maxMessagePayloadLength}.`), 1009);
+			return false;
+		}
+		return true;
+	}
+
+	private writeFrame(payload: VSBuffer, opcode: WebSocketOpcode): void {
+		if (this._closed) {
+			return;
+		}
+		const maskBytes = crypto.getRandomValues(new Uint8Array(4));
+		const mask = maskBytes[0] * 2 ** 24 + maskBytes[1] * 2 ** 16 + maskBytes[2] * 2 ** 8 + maskBytes[3];
+		this._stream.write(encodeWebSocketFrame(payload, { opcode, mask }).buffer);
+	}
+
+	private endStream(): void {
+		if (!this._streamEnded) {
+			this._streamEnded = true;
+			this._stream.end();
+		}
+	}
+
+	private destroyStream(): void {
+		if (!this._streamDestroyed) {
+			this._streamDestroyed = true;
+			this._stream.destroy();
+		}
+	}
+}
+
+function isValidCloseCode(code: number): boolean {
+	return code === 1000 || (code >= 1001 && code <= 1014 && code !== 1004 && code !== 1005 && code !== 1006) || (code >= 3000 && code <= 4999);
 }

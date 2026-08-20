@@ -8,7 +8,6 @@ import { Gesture, EventType as TouchEventType } from '../../../../../base/browse
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { Event } from '../../../../../base/common/event.js';
 import { autorun, derived, IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -87,8 +86,6 @@ export interface IPermissionPickerDelegate {
 	readonly isSandboxToggleApplicable?: () => boolean;
 	readonly sandboxTogglePresentation?: 'standalone';
 	readonly getSandboxToggleSettingId?: () => string | undefined;
-	readonly getManagedSandboxEnabled?: () => boolean | undefined;
-	readonly onDidChangeSandboxToggle?: Event<void>;
 	readonly sandboxToggleConfigurationKeys?: readonly string[];
 }
 
@@ -163,9 +160,6 @@ export class PermissionPicker extends Disposable {
 		@IHoverService protected readonly hoverService: IHoverService,
 	) {
 		super();
-		if (this._delegate.onDidChangeSandboxToggle) {
-			this._register(this._delegate.onDidChangeSandboxToggle(() => this._updateTriggerLabel(this._triggerElement)));
-		}
 	}
 
 	render(container: HTMLElement): HTMLElement {
@@ -423,11 +417,8 @@ export class PermissionPicker extends Disposable {
 		}
 		return {
 			label: localize('permissionPicker.sandboxToggle', "Sandboxing for terminal"),
-			title: this._delegate.getManagedSandboxEnabled?.() === undefined
-				? localize('permissionPicker.sandboxToggleTitle', "Run terminal commands inside a sandbox that restricts file system and network access")
-				: localize('permissionPicker.managedSandboxToggleTitle', "Sandboxing is managed by your organization"),
+			title: localize('permissionPicker.sandboxToggleTitle', "Run terminal commands inside a sandbox that restricts file system and network access"),
 			checked: this._isSandboxingEnabled(),
-			disabled: this._delegate.getManagedSandboxEnabled?.() !== undefined,
 			onChange: (checked: boolean) => {
 				const settingId = this._delegate.getSandboxToggleSettingId?.();
 				if (settingId) {
@@ -446,10 +437,6 @@ export class PermissionPicker extends Disposable {
 	}
 
 	private _isSandboxingEnabled(): boolean {
-		const managedEnabled = this._delegate.getManagedSandboxEnabled?.();
-		if (managedEnabled !== undefined) {
-			return managedEnabled;
-		}
 		const settingId = this._delegate.getSandboxToggleSettingId?.();
 		return settingId !== undefined
 			&& isAgentSandboxEnabledValue(this.configurationService.getValue<AgentSandboxEnabledSettingValue>(settingId));

@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IRemoteAgentHostLocationPreferenceService } from '../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
 import { type ITunnelConnectResult, type ITunnelGatewaySelection, type ITunnelGatewaySelectionSession, type ITunnelInfo } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { resolveGatewaySelection, type IGatewaySelectionRequest } from '../../../../../../platform/agentHost/common/tunnelGatewaySelection.js';
-import type { ITunnelDuplexStream, IWebSocketConnectionConfig, IWebSocketDuplexStream, WebSocketConnectionMessage } from '../../../../../../platform/agentHost/common/tunnelMessageSocket.js';
+import type { ITunnelDuplexStream } from '../../../../../../platform/agentHost/common/tunnelMessageSocket.js';
 import type { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import {
 	BrowserTunnelRelayClientFactory,
@@ -219,36 +219,11 @@ suite('BrowserTunnelAgentHostService', () => {
 			}
 		}
 
-		class FakeWebSocketConnection {
-			constructor(
-				_stream: IWebSocketDuplexStream,
-				_extensions: [],
-				_protocol: string | null,
-				_maskOutgoingPackets: boolean,
-				_config: IWebSocketConnectionConfig,
-			) {
-			}
-
-			_addSocketEventListeners(): void { }
-			handleSocketData(_data: Uint8Array): void { }
-			on(_event: 'message', _listener: (message: WebSocketConnectionMessage) => void): void;
-			on(_event: 'close', _listener: (code: number, reason: string) => void): void;
-			on(_event: 'error', _listener: (error: Error) => void): void;
-			on(_event: 'message' | 'close' | 'error', _listener: ((message: WebSocketConnectionMessage) => void) | ((code: number, reason: string) => void) | ((error: Error) => void)): void { }
-			removeListener(_event: 'message', _listener: (message: WebSocketConnectionMessage) => void): void;
-			removeListener(_event: 'close', _listener: (code: number, reason: string) => void): void;
-			removeListener(_event: 'error', _listener: (error: Error) => void): void;
-			removeListener(_event: 'message' | 'close' | 'error', _listener: ((message: WebSocketConnectionMessage) => void) | ((code: number, reason: string) => void) | ((error: Error) => void)): void { }
-			send(_data: string): void { }
-			close(): void { }
-		}
-
 		const bundle: IDevTunnelsWeb = {
 			TunnelManagementHttpClient: FakeManagementClient,
 			ManagementApiVersions: { Version20230927preview: {} },
 			TunnelRelayTunnelClient: FakeRelayClient,
 			TunnelAccessScopes: {},
-			WebSocketConnection: FakeWebSocketConnection,
 		};
 		const session = await new BrowserTunnelRelayClientFactory(async () => bundle).getTunnel('tunnel-id', 'cluster-id', 'github', 'token');
 		await session!.createRelayClient();
