@@ -69,6 +69,11 @@ export class AgentSessionRegistry extends Disposable {
 		return this._database.registerSession(session.toString(), sessionOptions, registerOptions);
 	}
 
+	/** Removes any registry entry for `session` without writing a tombstone. */
+	async unregister(session: URI): Promise<void> {
+		await this._database.unregisterSession(session.toString());
+	}
+
 	/**
 	 * Removes any registry entry for `session` (a true delete) and durably
 	 * tombstones it so discovery cannot register it. Used both to delete a
