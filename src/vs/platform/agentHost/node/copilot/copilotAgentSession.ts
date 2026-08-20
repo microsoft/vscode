@@ -44,6 +44,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { resolveCopilotConfigSlashCommandOnSend } from '../../common/copilotConfigSlashCommands.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS, streamingToolDisplayText } from '../../common/streamingToolCallDisplay.js';
 import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAttachment } from '../../common/meta/agentFeedbackAttachments.js';
+import { isHostSnapshotAttachment } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment, type ToolCallContributor } from '../../common/state/protocol/state.js';
@@ -621,6 +622,7 @@ class CopilotTurn {
  */
 export class CopilotAgentSession extends Disposable {
 	private _hostInstructions: readonly string[] | undefined;
+	private _pendingSnapshotReminder: string | undefined;
 	readonly sessionId: string;
 	readonly resourceUri: URI;
 	private readonly _ownerSessionUri: URI;
@@ -1430,7 +1432,7 @@ export class CopilotAgentSession extends Disposable {
 		turn.toolCallDetailsReported = true;
 		void this._telemetryReporter.toolCallDetails({
 			clientContext: turn.clientContext,
-			provider: 'copilot',
+			provider: this._ownerSessionUri.scheme,
 			session: this.resourceUri.toString(),
 			turnId: turn.id,
 			clientType: turn.clientType,
@@ -1456,7 +1458,7 @@ export class CopilotAgentSession extends Disposable {
 		const confirmKind = mapPermissionResultToConfirmKind(record?.resultKind, record?.resolvedByHook === true);
 		this._telemetryReporter.toolApproval({
 			clientContext: this._currentTurn?.clientContext,
-			provider: 'copilot',
+			provider: this._ownerSessionUri.scheme,
 			session: this.resourceUri.toString(),
 			turnId: this._turnId,
 			toolId: toolName,
@@ -2120,6 +2122,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 		const turn = this._currentTurn;
 		this._hostInstructions = hostInstructions;
+		this._pendingSnapshotReminder = this._snapshotReadonlyReminder(attachments);
 		try {
 			await this._send(prompt, attachments, mode);
 		} catch (err) {
@@ -2133,15 +2136,51 @@ export class CopilotAgentSession extends Disposable {
 				this._clearActiveTurn();
 			}
 			this._hostInstructions = undefined;
+			this._pendingSnapshotReminder = undefined;
 			throw err;
 		}
 	}
 
 	handleUserPromptSubmitted(): { readonly additionalContext: string } | undefined {
-		const additionalContext = this._hostInstructions?.join('\n\n');
+		const parts = [
+			...(this._hostInstructions ?? []),
+			...(this._pendingSnapshotReminder ? [this._pendingSnapshotReminder] : []),
+		];
 		this._hostInstructions = undefined;
+		this._pendingSnapshotReminder = undefined;
+		const additionalContext = parts.length > 0 ? parts.join('\n\n') : undefined;
 		return additionalContext ? { additionalContext } : undefined;
 	}
+
+	/**
+	 * Build a read-only reminder naming each host-created snapshot attachment
+	 * (pasted content, unsaved editor, git: diff, …) so the model treats the
+	 * on-disk copy as read-only context and does not edit it (#331154). Returns
+	 * `undefined` when no attachment is a snapshot. The read-only signal rides
+	 * the prompt (as `additionalContext` on the main turn, a `<reminder>` note
+	 * on steering) rather than the attachment, because the runtime drops a file
+	 * attachment's `displayName` for text snapshots.
+	 */
+	private _snapshotReadonlyReminder(attachments: readonly MessageAttachment[] | undefined): string | undefined {
+		if (!attachments?.length) {
+			return undefined;
+		}
+		const paths: string[] = [];
+		for (const attachment of attachments) {
+			if (attachment.type !== MessageAttachmentKind.Resource || !isHostSnapshotAttachment(attachment)) {
+				continue;
+			}
+			const uri = URI.parse(attachment.uri);
+			paths.push(uri.scheme === 'file' ? uri.fsPath : uri.toString());
+		}
+		if (paths.length === 0) {
+			return undefined;
+		}
+		return 'The following attached files are read-only snapshots of content the user shared '
+			+ '(pasted text, an unsaved editor, or a diff view) and must not be edited:\n'
+			+ paths.map(path => `- ${path}`).join('\n');
+	}
+
 	private async _send(prompt: string, attachments: readonly MessageAttachment[] | undefined, mode: CopilotSdkMode | undefined): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] sendMessage called: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}" (${attachments?.length ?? 0} attachments)`);
 
@@ -2453,6 +2492,12 @@ export class CopilotAgentSession extends Disposable {
 		const uri = URI.parse(attachment.uri);
 		const path = uri.scheme === 'file' ? uri.fsPath : uri.toString();
 		const displayName = attachment.label ?? path;
+		// A host-created snapshot (pasted content, unsaved editor, git: diff, …) is shaped like any other
+		// resource here (file or selection). Its read-only signal is carried separately on the prompt — via
+		// `additionalContext` on the main turn and a `<reminder>` note on steering (see
+		// `_snapshotReadonlyReminder`) — because the runtime drops a file attachment's `displayName` for text
+		// snapshots, rendering only the path in `<tagged_files>` (#331154). Selected snapshots therefore keep
+		// the selection path below so the model still receives the selected text and range.
 		if (attachment.selection) {
 			try {
 				const text = await this._readSelectedText(uri, attachment.selection.range);
@@ -2534,8 +2579,16 @@ export class CopilotAgentSession extends Disposable {
 			await this._reconcileMcpServerEnablement();
 			this._pendingSteeringFlips.set(steeringMessage.id, steeringMessage);
 			const sdkAttachments = await this._toSdkAttachments(steeringMessage.message.attachments);
+			// Steering is injected into the active turn and never fires the SDK's `user-prompt-submitted`
+			// hook, so the read-only snapshot signal can't ride `additionalContext` here. Fold it into the
+			// prompt as a `<reminder>` block instead: the runtime forwards it to the model, and the host's
+			// `stripPromptScaffolding` removes it from the displayed message (#331154).
+			const snapshotReminder = this._snapshotReadonlyReminder(steeringMessage.message.attachments);
+			const steeringPrompt = snapshotReminder
+				? `${steeringMessage.message.text}\n\n<reminder>\n${snapshotReminder}\n</reminder>`
+				: steeringMessage.message.text;
 			await this._wrapper.session.send({
-				prompt: steeringMessage.message.text,
+				prompt: steeringPrompt,
 				attachments: sdkAttachments?.length ? sdkAttachments : undefined,
 				mode: 'immediate',
 			});
