@@ -12,20 +12,14 @@ import { IKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
 import { autorun, IObservable, IReader, observableSignalFromEvent } from '../../../base/common/observable.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
-import { Codicon } from '../../../base/common/codicons.js';
-import { ThemeIcon } from '../../../base/common/themables.js';
 import { localize } from '../../../nls.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
-import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
-import { ActionRunner, IAction } from '../../../base/common/actions.js';
+import { getUntitledSessionTitle } from '../../services/sessions/common/session.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
+import { MenuItemAction } from '../../../platform/actions/common/actions.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
-import { IHoverService } from '../../../platform/hover/browser/hover.js';
-import { getDefaultHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { IManagedHoverTooltipMarkdownString } from '../../../base/browser/ui/hover/hover.js';
-import { MarkdownString } from '../../../base/common/htmlContent.js';
 import { Menus } from '../menus.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../dnd.js';
@@ -34,35 +28,19 @@ import { applySessionBarThemeColors } from './sessionBarStyles.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { SessionStatusIcon } from '../sessionStatusIcon.js';
-
-/**
- * An action runner for the session header toolbars that promotes the header's
- * session to be the active session before running any contributed command. This
- * ensures commands (e.g. View Changes) operate on the clicked session even when
- * a different session is currently active.
- */
-class SessionActivatingActionRunner extends ActionRunner {
-
-	constructor(
-		private readonly _getSession: () => IActiveSession | undefined,
-		private readonly _sessionsService: ISessionsService,
-	) {
-		super();
-	}
-
-	protected override async runAction(action: IAction, context?: unknown): Promise<void> {
-		const session = this._getSession();
-		if (session) {
-			this._sessionsService.setActive(session);
-		}
-		await super.runAction(action, context);
-	}
-}
+import { ChatPillActionViewItem } from '../../../workbench/browser/chatPills.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { observableConfigValue } from '../../../platform/observable/common/platformObservableUtils.js';
+import { SHOW_SESSION_METADATA_IN_CHAT_INPUT_SETTING } from '../../common/sessionConfig.js';
+import { getSessionWorkspaceDisplayInfo } from '../sessionWorkspace.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { IHoverService } from '../../../platform/hover/browser/hover.js';
+import { SessionActivatingActionRunner } from '../sessionActionRunner.js';
 
 /**
  * The session header shown at the top of a session view. It surfaces the session
- * identity (status icon + title), a meta row (workspace · diff stats),
- * and the session toolbars (e.g. Run, Open in VS Code, New Chat).
+ * identity, optional workspace metadata, contributed metadata pills, and the
+ * session toolbars.
  *
  * It is intentionally decoupled from the {@link ChatCompositeBar} (the chat tab
  * strip) so the two surfaces evolve independently. The hosting view tells the
@@ -74,9 +52,8 @@ export class SessionHeader extends Disposable {
 	private readonly _iconEl: HTMLElement;
 	private readonly _titleEl: HTMLElement;
 	private readonly _titleTextEl: HTMLElement;
+	private readonly _workspaceMetaEl: HTMLElement;
 	private readonly _metaRow: HTMLElement;
-	private readonly _metaWorkspaceEl: HTMLElement;
-	private readonly _metaSeparatorEl: HTMLElement;
 	private readonly _toolbar: MenuWorkbenchToolBar;
 	private readonly _metaToolbar: MenuWorkbenchToolBar;
 	private readonly _titleActionsEl: HTMLElement;
@@ -85,6 +62,10 @@ export class SessionHeader extends Disposable {
 	private readonly _editingDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private _renameInput: HTMLInputElement | undefined;
 	private _session: IActiveSession | undefined;
+
+	// dragstart's own target is always the draggable container, so this tracks the
+	// preceding pointerdown's target to know where the gesture actually began.
+	private _lastPointerDownTarget: Node | undefined;
 
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
@@ -96,8 +77,9 @@ export class SessionHeader extends Disposable {
 
 	private readonly _sessionTransfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
 
-	private readonly _readStateSignal: IObservable<void>;
 	private readonly _metaActionsSignal: IObservable<void>;
+	private readonly _showMetadataInChatInput: IObservable<boolean>;
+	private readonly _workspaceHover = this._register(new MutableDisposable());
 
 	private readonly _statusIcon: SessionStatusIcon;
 
@@ -119,14 +101,13 @@ export class SessionHeader extends Disposable {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
-		@ISessionsListModelService private readonly _sessionsListModelService: ISessionsListModelService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super();
 
-		this._readStateSignal = observableSignalFromEvent(this, this._sessionsListModelService.onDidChange);
-
+		this._showMetadataInChatInput = observableConfigValue(SHOW_SESSION_METADATA_IN_CHAT_INPUT_SETTING, false, configurationService);
 		this._container = $('.chat-composite-bar.session-header-bar');
 
 		// Header: a status icon column alongside a main column that stacks the title
@@ -154,6 +135,9 @@ export class SessionHeader extends Disposable {
 		this._titleTextEl = $('span.chat-composite-bar-session-title-text');
 		this._titleEl.appendChild(this._titleTextEl);
 
+		this._workspaceMetaEl = $('.chat-composite-bar-workspace-meta');
+		titleRow.appendChild(this._workspaceMetaEl);
+
 		// Click the title to start an inline rename. Click is preferred over
 		// mousedown so that initiating a drag from the title doesn't also
 		// flip into edit mode.
@@ -172,35 +156,23 @@ export class SessionHeader extends Disposable {
 			menuOptions: { shouldForwardArgs: true },
 			highlightToggledItems: true,
 			// Render every group in the primary slot with a separator between groups
-			// so the New Chat action sits visually separated from the pin/maximize/close cluster.
+			// so the actions stay visually grouped.
 			toolbarOptions: { primaryGroup: () => true, useSeparatorsInPrimaryActions: true },
 		}));
 
 		this._metaRow = $('.chat-composite-bar-meta-row');
 		main.appendChild(this._metaRow);
 
-		// Workspace label (rebuilt per session) followed by a separator and the
-		// session header meta toolbar. Actions are contributed into the generic
-		// Menus.SessionHeaderMeta menu; the changes view contributes the diff-stats
-		// action, rendered as a clickable menu item that opens the multi-file diff
-		// editor.
-		this._metaWorkspaceEl = $('span.chat-composite-bar-meta-workspace');
-		this._metaRow.appendChild(this._metaWorkspaceEl);
-
-		// Hovering the workspace label reveals the complete absolute folder path
-		// and git branch — the same details surfaced in the session list hover.
-		this._register(this._hoverService.setupManagedHover(
-			getDefaultHoverDelegate('element'),
-			this._metaWorkspaceEl,
-			() => this._buildWorkspaceHover(),
-		));
-
-		this._metaSeparatorEl = $('span.chat-composite-bar-meta-separator');
-		this._metaRow.appendChild(this._metaSeparatorEl);
-
+		// Session header meta toolbar. Actions are contributed into the generic
+		// Menus.SessionHeaderMeta menu: the files view contributes the workspace
+		// folder pill (opens the Files view), the changes view contributes the
+		// diff-stats action (opens the multi-file diff editor) and the GitHub
+		// contribution contributes the pull request pill (opens the PR on GitHub),
+		// each rendered as a compact secondary button pill via
+		// ChatPillActionViewItem.
 		const metaToolbarContainer = $('.chat-composite-bar-meta-toolbar');
 		this._metaRow.appendChild(metaToolbarContainer);
-		// Commands contributed into the header meta toolbar (e.g. View Changes)
+		// Commands contributed into the header meta toolbar (e.g. View All Changes)
 		// operate on this view's session. Promote it to the active session before
 		// running any of them via a custom action runner, so the command always
 		// targets the clicked session even when another session is active.
@@ -209,6 +181,14 @@ export class SessionHeader extends Disposable {
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			menuOptions: { shouldForwardArgs: true },
 			actionRunner: metaActionRunner,
+			// Render every meta action as a consistent `icon title` pill unless it
+			// registers its own action view item via IActionViewItemService.
+			actionViewItemProvider: (action, options) => {
+				if (action instanceof MenuItemAction) {
+					return instantiationService.createInstance(ChatPillActionViewItem, undefined, action, options);
+				}
+				return undefined;
+			},
 		}));
 		// The meta row separator/visibility tracks whether the meta toolbar has any
 		// contributed actions, so recompute the header whenever they change.
@@ -254,6 +234,10 @@ export class SessionHeader extends Disposable {
 	private _registerDragSource(): void {
 		this._container.draggable = true;
 
+		this._register(addDisposableGenericMouseDownListener(this._container, (e: MouseEvent) => {
+			this._lastPointerDownTarget = (e.target as Node | null) ?? undefined;
+		}));
+
 		this._register(addDisposableListener(this._container, EventType.DRAG_START, (e: DragEvent) => {
 			const session = this._session;
 			if (!session || !e.dataTransfer) {
@@ -261,18 +245,14 @@ export class SessionHeader extends Disposable {
 				return;
 			}
 
-			// Don't initiate a drag when the gesture starts inside the header
-			// toolbar (Run, Open in VS Code, New Chat, pin, close). A small pointer
-			// move during a button click would otherwise start a session drag
-			// and swallow the click.
-			const target = e.target as Node | null;
-			if (target && this._titleActionsEl.contains(target)) {
+			// Don't swallow a click on the toolbar or meta row pills into a session drag.
+			const target = this._lastPointerDownTarget;
+			if (target && (this._titleActionsEl.contains(target) || this._metaRow.contains(target))) {
 				e.preventDefault();
 				return;
 			}
 
-			// Don't initiate a drag while the title is being renamed, otherwise
-			// the in-progress text selection / click would also start a drag.
+			// Don't initiate a drag while the title is being renamed.
 			if (this._renameInput) {
 				e.preventDefault();
 				return;
@@ -318,7 +298,6 @@ export class SessionHeader extends Disposable {
 		}
 
 		store.add(autorun(reader => {
-			this._readStateSignal.read(reader);
 			this._updateHeader(session, reader);
 		}));
 
@@ -330,73 +309,41 @@ export class SessionHeader extends Disposable {
 	private _updateHeader(session: IActiveSession, reader: IReader): void {
 		// Session icon — the SessionStatusIcon widget owns the rendering (spinner vs.
 		// codicon, cross-fade, reduced-motion); here we just feed it the latest state.
+		// The pull request is surfaced in the meta row, so in terminal/default states the
+		// title shows the read/unread dot indicator (no session type or PR icon).
 		const status = session.status.read(reader);
-		const isRead = this._sessionsListModelService.isSessionRead(session);
+		const isRead = session.isRead.read(reader);
 		const isArchived = session.isArchived.read(reader);
-		const pullRequestIcon = session.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader)?.pullRequest?.icon;
-		this._statusIcon.setStatus(status, isRead, isArchived, pullRequestIcon);
+		this._statusIcon.setStatus(status, isRead, isArchived);
 
-		// Session title
-		this._titleTextEl.textContent = session.title.read(reader) || localize('agentSessions.newSession', "New Session");
+		// Session title — quick chats use "New Chat" as the untitled fallback.
+		const isQuickChat = session.isQuickChat?.read(reader) ?? false;
+		this._titleTextEl.textContent = session.title.read(reader) || getUntitledSessionTitle(isQuickChat);
 		this._titleEl.classList.toggle('editable', this._isTitleEditable());
-
-		// Meta row: workspace · diff stats
-		const workspace = session.workspace.read(reader);
-
-		reset(this._metaWorkspaceEl);
-		const hasWorkspace = !!workspace?.label;
-		if (hasWorkspace) {
-			// Mirror the sessions list / hover icon logic: cloud for virtual workspaces,
-			// folder when the session runs in the repo checkout, worktree otherwise.
-			const isWorkspaceFolder = workspace.folders.length > 0 && workspace.folders[0]?.gitRepository?.workTreeUri === undefined;
-			const workspaceIcon = workspace.isVirtualWorkspace ? Codicon.cloudCompact : isWorkspaceFolder ? Codicon.folderCompact : Codicon.worktreeCompact;
-			this._metaWorkspaceEl.appendChild($('span.chat-composite-bar-meta-workspace-icon' + ThemeIcon.asCSSSelector(workspaceIcon)));
-			const workspaceLabel = $('span.chat-composite-bar-meta-workspace-label');
-			workspaceLabel.textContent = workspace.label;
-			this._metaWorkspaceEl.appendChild(workspaceLabel);
+		const showMetadataInChatInput = this._showMetadataInChatInput.read(reader);
+		const workspaceInfo = showMetadataInChatInput && !isQuickChat ? getSessionWorkspaceDisplayInfo(session, reader) : undefined;
+		this._workspaceMetaEl.classList.toggle('hidden', !workspaceInfo);
+		this._workspaceHover.clear();
+		if (workspaceInfo) {
+			const label = $('span.chat-composite-bar-workspace-meta-label', undefined, workspaceInfo.label);
+			reset(
+				this._workspaceMetaEl,
+				$('span.chat-composite-bar-workspace-meta-separator', { 'aria-hidden': 'true' }, '·'),
+				$(`span.chat-composite-bar-workspace-meta-icon${ThemeIcon.asCSSSelector(workspaceInfo.icon)}`, { 'aria-hidden': 'true' }),
+				label,
+			);
+			this._workspaceHover.value = this._hoverService.setupDelayedHover(label, { content: workspaceInfo.label });
+		} else {
+			reset(this._workspaceMetaEl);
 		}
-		this._metaWorkspaceEl.style.display = hasWorkspace ? '' : 'none';
 
-		// Show the meta row separator/row based on whether the meta toolbar has any
-		// contributed actions. Reading the signal re-runs this on menu changes.
+		// Meta row: contributed action pills (workspace folder · diff stats · pull request).
+		// Reading the signal re-runs this on menu changes.
 		this._metaActionsSignal.read(reader);
 		const hasMetaActions = !this._metaToolbar.isEmpty();
 
-		this._metaSeparatorEl.style.display = hasWorkspace && hasMetaActions ? '' : 'none';
-
-		this._metaRow.style.display = hasWorkspace || hasMetaActions ? '' : 'none';
+		this._metaRow.style.display = !showMetadataInChatInput && hasMetaActions ? '' : 'none';
 		this._onDidChangeHeight.fire();
-	}
-
-	/**
-	 * Builds the workspace hover content for the current session. Shows the repo
-	 * folder and, when the working directory differs from the repo root, the
-	 * working directory on a separate line, followed by the git branch.
-	 * Returns `undefined` when there is no workspace to describe.
-	 */
-	private _buildWorkspaceHover(): IManagedHoverTooltipMarkdownString | undefined {
-		const workspace = this._session?.workspace.get();
-		const folder = workspace?.folders[0];
-		if (!workspace || !folder) {
-			return undefined;
-		}
-
-		const workingDirPath = folder.workingDirectory.fsPath;
-		const branch = folder.gitRepository?.branchName?.trim();
-
-		const md = new MarkdownString('', { supportThemeIcons: true });
-		const fallbackLines: string[] = [];
-		md.appendMarkdown(`$(${Codicon.folder.id}) `);
-		md.appendText(workingDirPath);
-		fallbackLines.push(workingDirPath);
-
-		if (branch) {
-			md.appendMarkdown('\n\n$(git-branch) ');
-			md.appendText(branch);
-			fallbackLines.push(branch);
-		}
-
-		return { markdown: md, markdownNotSupportedFallback: fallbackLines.join('\n') };
 	}
 
 	private _setVisible(visible: boolean): void {
@@ -418,7 +365,7 @@ export class SessionHeader extends Disposable {
 	 * signal that gates the `Rename...` context menu action in the sessions list.
 	 */
 	private _isTitleEditable(): boolean {
-		return !!this._session && (this._session.capabilities.supportsRename ?? false);
+		return !!this._session && (this._session.capabilities.get().supportsRename ?? false);
 	}
 
 	startTitleEditing(): void {
@@ -440,11 +387,10 @@ export class SessionHeader extends Disposable {
 		}
 
 		const initialTitle = session.title.get();
-		// When the stored title is empty the header shows a localized fallback
-		// ("New Session"). Reflect that as a placeholder rather than seeding the
-		// input with it, so the user neither sees a blank field nor accidentally
-		// commits the fallback string.
-		const fallbackTitle = localize('agentSessions.newSession', "New Session");
+		// When the stored title is empty the header shows a localized fallback.
+		// Reflect that as a placeholder rather than seeding the input with it, so
+		// the user neither sees a blank field nor accidentally commits the fallback.
+		const fallbackTitle = getUntitledSessionTitle(session.isQuickChat?.get() ?? false);
 
 		const input = document.createElement('input');
 		input.type = 'text';

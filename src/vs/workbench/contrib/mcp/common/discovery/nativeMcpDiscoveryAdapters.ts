@@ -21,7 +21,7 @@ export interface NativeMpcDiscoveryAdapter {
 	adaptFile(contents: VSBuffer, details: INativeMcpDiscoveryData): Promise<McpServerDefinition[] | undefined>;
 }
 
-export async function claudeConfigToServerDefinition(idPrefix: string, contents: VSBuffer, cwd?: URI) {
+export async function claudeConfigToServerDefinition(idPrefix: string, contents: VSBuffer, options?: { cwd?: URI; defaultCwd?: URI }) {
 	let parsed: {
 		mcpServers: Record<string, {
 			command: string;
@@ -49,15 +49,19 @@ export async function claudeConfigToServerDefinition(idPrefix: string, contents:
 			command: server.command,
 			env: server.env || {},
 			envFile: undefined,
-			cwd: cwd?.fsPath,
+			cwd: options?.cwd?.fsPath,
 			sandbox: undefined
 		};
+		const defaultCwd = launch.type === McpServerTransportType.Stdio ? options?.defaultCwd : undefined;
+		// Keep the legacy fsPath-based nonce so existing trust decisions survive this URI-preservation change.
+		const nonceLaunch = defaultCwd && launch.type === McpServerTransportType.Stdio ? { ...launch, cwd: defaultCwd.fsPath } : launch;
 
 		return {
 			id: `${idPrefix}.${name}`,
 			label: name,
 			launch,
-			cacheNonce: await McpServerLaunch.hash(launch),
+			defaultCwd,
+			cacheNonce: await McpServerLaunch.hash(nonceLaunch),
 		};
 	}));
 }
@@ -84,7 +88,7 @@ export class ClaudeDesktopMpcDiscoveryAdapter implements NativeMpcDiscoveryAdapt
 	}
 
 	adaptFile(contents: VSBuffer, { homedir }: INativeMcpDiscoveryData): Promise<McpServerDefinition[] | undefined> {
-		return claudeConfigToServerDefinition(this.id, contents, homedir);
+		return claudeConfigToServerDefinition(this.id, contents, { cwd: homedir });
 	}
 }
 

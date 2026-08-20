@@ -95,7 +95,34 @@ export function applyWindowTools(server: McpServer, appService: ApplicationServi
 			const snapshot = await driver.getAccessibilitySnapshot();
 			const url = driver.currentPage.url();
 
-			return textResponse(`Page snapshot (URL: ${url}):\n\n${JSON.stringify(snapshot, null, 2)}`);
+			return textResponse(`Page snapshot (URL: ${url}):\n\n${snapshot}`);
+		}
+	));
+
+	tools.push(server.tool(
+		'vscode_automation_window_list_cdp_targets',
+		'List Chromium CDP targets, including out-of-process iframes',
+		async () => {
+			const app = await appService.getOrCreateApplication();
+			const targets = await app.code.driver.getCDPTargets();
+			return textResponse(`CDP targets (${targets.length}):\n${JSON.stringify(targets, null, 2)}`);
+		}
+	));
+
+	tools.push(server.tool(
+		'vscode_automation_window_cdp_target_evaluate',
+		'Evaluate JavaScript in a Chromium CDP target',
+		{
+			targetId: z.string().describe('CDP target ID'),
+			frameUrlPattern: z.string().optional().describe('Optional child frame URL substring'),
+			expression: z.string().describe('JavaScript expression to evaluate')
+		},
+		async ({ targetId, frameUrlPattern, expression }) => {
+			const app = await appService.getOrCreateApplication();
+			const result = frameUrlPattern
+				? await app.code.driver.evaluateCDPTargetFrame(targetId, frameUrlPattern, expression)
+				: await app.code.driver.evaluateCDPTarget(targetId, expression);
+			return textResponse(`Result:\n${JSON.stringify(result, null, 2)}`);
 		}
 	));
 
@@ -216,6 +243,34 @@ export function applyWindowTools(server: McpServer, appService: ApplicationServi
 			const driver = app.code.driver;
 			await driver.pressKey(key);
 			return textResponse(`Pressed key "${key}"`);
+		}
+	));
+
+	tools.push(server.tool(
+		'vscode_automation_window_keyboard_type',
+		'Type text with Playwright keyboard events in the currently focused element',
+		{
+			text: z.string().describe('Text to type'),
+			delay: z.number().optional().describe('Delay between key presses in milliseconds')
+		},
+		async ({ text, delay }) => {
+			const app = await appService.getOrCreateApplication();
+			await app.code.driver.currentPage.keyboard.type(text, { delay });
+			return textResponse(`Typed ${text.length} character(s) with keyboard events`);
+		}
+	));
+
+	tools.push(server.tool(
+		'vscode_automation_window_press_selector',
+		'Press a key or key combination on a specific element in the current window',
+		{
+			selector: z.string().describe('CSS selector for the target element'),
+			key: z.string().describe('Key to press')
+		},
+		async ({ selector, key }) => {
+			const app = await appService.getOrCreateApplication();
+			await app.code.driver.currentPage.locator(selector).press(key);
+			return textResponse(`Pressed "${key}" on "${selector}"`);
 		}
 	));
 

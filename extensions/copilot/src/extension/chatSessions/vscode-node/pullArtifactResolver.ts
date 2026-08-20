@@ -19,7 +19,6 @@ export interface ResolveOptions {
  * Resolve a raw {@link PullArtifactRef} to a full {@link PullRequestSearchItem} for UI rendering.
  *
  * Strategy:
- * - If the backend already provided `preResolved`, return it.
  * - Try the GraphQL `getPullRequestFromGlobalId` lookup using `globalId`.
  * - Fall back to listing the user's open PRs in the repo and matching on `headRef`.
  *
@@ -30,17 +29,18 @@ export async function resolvePullArtifact(
 	octokit: IOctoKitService,
 	log: ILogService,
 	ref: PullArtifactRef,
+	repo: { readonly owner: string; readonly name: string } | undefined,
 	agentTaskSessions?: AgentTaskSession[],
 	telemetry?: ITelemetryService,
 ): Promise<PullRequestSearchItem | undefined> {
 	// Records which strategy (primary or a specific fallback) resolved the PR, so we can see how
 	// often — and via which path — resolution degrades past the direct global-id lookup.
-	const reportResolved = (resolvedVia: 'preResolved' | 'globalId' | 'sessionGlobalId' | 'openPrDatabaseId' | 'openPrHeadRef' | 'unresolved') => {
+	const reportResolved = (resolvedVia: 'globalId' | 'sessionGlobalId' | 'openPrDatabaseId' | 'openPrHeadRef' | 'unresolved') => {
 		/* __GDPR__
 			"copilotcloud.pullArtifactResolve" : {
 				"owner": "osortega",
 				"comment": "Tracks which strategy resolved a cloud task's pull request artifact, to monitor how often resolution falls back past the direct global-id lookup.",
-				"resolvedVia": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Strategy that produced the pull request: preResolved, globalId, sessionGlobalId, openPrDatabaseId, openPrHeadRef, or unresolved." },
+				"resolvedVia": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Strategy that produced the pull request: globalId, sessionGlobalId, openPrDatabaseId, openPrHeadRef, or unresolved." },
 				"hadGlobalId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the artifact carried a GraphQL global id." },
 				"hadDatabaseId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the artifact carried a pull request database id." },
 				"hadHeadRef": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the artifact carried a head branch ref." },
@@ -57,10 +57,6 @@ export async function resolvePullArtifact(
 		});
 	};
 
-	if (ref.preResolved) {
-		reportResolved('preResolved');
-		return ref.preResolved;
-	}
 	if (ref.globalId) {
 		const data = await getPullRequestFromGlobalId(octokit, log, ref.globalId);
 		if (data) {
@@ -83,9 +79,9 @@ export async function resolvePullArtifact(
 	}
 	// Fallback 2: Listing the repo's open PRs and matching by databaseId or headRef. We list
 	// once and try both predicates so the round trip pays off when either signal is available.
-	if ((ref.databaseId !== undefined || ref.headRef) && ref.repo.owner && ref.repo.name) {
+	if ((ref.databaseId !== undefined || ref.headRef) && repo?.owner && repo?.name) {
 		try {
-			const prs = await octokit.getOpenPullRequestsForUser(ref.repo.owner, ref.repo.name, {});
+			const prs = await octokit.getOpenPullRequestsForUser(repo.owner, repo.name, {});
 			if (ref.databaseId !== undefined) {
 				const byId = prs.find(p => p.fullDatabaseId === ref.databaseId);
 				if (byId) {
@@ -101,7 +97,7 @@ export async function resolvePullArtifact(
 				}
 			}
 		} catch (e) {
-			log.trace(`resolvePullArtifact: getOpenPullRequestsForUser failed for ${ref.repo.owner}/${ref.repo.name}: ${e}`);
+			log.trace(`resolvePullArtifact: getOpenPullRequestsForUser failed for ${repo.owner}/${repo.name}: ${e}`);
 		}
 	}
 	reportResolved('unresolved');

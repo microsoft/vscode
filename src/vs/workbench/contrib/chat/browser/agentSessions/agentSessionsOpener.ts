@@ -18,11 +18,17 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { localize } from '../../../../../nls.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IAgentSessionsService } from './agentSessionsService.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { adoptLegacyCopilotCliResource } from './agentHost/agentHostLegacyMigration.js';
 
 //#region Session Opener Registry
 
 export interface ISessionOpenerParticipant {
 	handleOpenSession(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions): Promise<boolean>;
+	handleOpenSessionResource?(accessor: ServicesAccessor, resource: URI, openOptions?: ISessionOpenOptions): Promise<boolean>;
 }
 
 export interface ISessionOpenOptions {
@@ -53,9 +59,60 @@ export const sessionOpenerRegistry = new SessionOpenerRegistry();
 
 //#endregion
 
-export async function openSession(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions): Promise<IChatWidget | undefined> {
+export async function openSessionByResource(accessor: ServicesAccessor, resource: URI, openOptions?: ISessionOpenOptions): Promise<IChatWidget | undefined> {
 	const instantiationService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
+
+	// A superseded legacy resource is redirected (and adopted) before anything
+	// looks it up, so opening by URI migrates instead of reaching the old provider.
+	resource = await adoptLegacyCopilotCliResource(
+		accessor.get(IAgentHostConnectionsService).ambientConnection,
+		resource,
+		logService,
+		accessor.get(IConfigurationService),
+	) ?? resource;
+
+	for (const participant of sessionOpenerRegistry.getParticipants()) {
+		if (!participant.handleOpenSessionResource) {
+			continue;
+		}
+
+		try {
+			const handled = await instantiationService.invokeFunction(accessor => participant.handleOpenSessionResource?.(accessor, resource, openOptions));
+			if (handled) {
+				return undefined;
+			}
+		} catch (error) {
+			logService.error(error);
+		}
+	}
+
+	const session = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService).getSession(resource));
+	if (!session) {
+		throw new Error(`Chat session not found: ${resource.toString()}`);
+	}
+
+	return instantiationService.invokeFunction(openSession, session, openOptions, /* alreadyResolved */ true);
+}
+
+export async function openSession(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions, alreadyResolved?: boolean): Promise<IChatWidget | undefined> {
+	const instantiationService = accessor.get(IInstantiationService);
+	const logService = accessor.get(ILogService);
+
+	// List and picker clicks arrive here with a resolved session, so the redirect
+	// has to happen on this path too or those opens never migrate. A no-op for
+	// anything that is not a superseded legacy resource.
+	if (!alreadyResolved) {
+		const migrated = await adoptLegacyCopilotCliResource(
+			accessor.get(IAgentHostConnectionsService).ambientConnection,
+			session.resource,
+			logService,
+			accessor.get(IConfigurationService),
+		);
+		if (migrated) {
+			session = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService).getSession(migrated)) ?? session;
+		}
+	}
 
 	// First, give registered participants a chance to handle the session
 	for (const participant of sessionOpenerRegistry.getParticipants()) {

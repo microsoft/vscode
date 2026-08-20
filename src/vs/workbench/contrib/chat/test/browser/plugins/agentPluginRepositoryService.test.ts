@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -64,6 +66,7 @@ suite('AgentPluginRepositoryService', () => {
 
 		const fileService = {
 			exists: async (resource: URI) => onExists ? onExists(resource) : true,
+			createFolder: async () => undefined,
 		} as unknown as IFileService;
 
 		const progressService = {
@@ -137,6 +140,195 @@ suite('AgentPluginRepositoryService', () => {
 
 		assert.strictEqual(checkedPath, '/cache/agentPlugins/github.com/microsoft/vscode');
 		assert.strictEqual(uri.path, '/cache/agentPlugins/github.com/microsoft/vscode');
+	});
+
+	test('refreshes an existing repository without a recorded refresh timestamp', async () => {
+		let pullCount = 0;
+		const service = createService(async () => true, undefined, {
+			pull: async () => {
+				pullCount++;
+				return false;
+			},
+		});
+		const plugin = createPlugin('microsoft/vscode', 'plugins/myPlugin');
+
+		const uri = await service.ensureRepository(plugin.marketplaceReference, { refreshIfOlderThanMs: 8 * 60 * 60 * 1000 });
+
+		assert.deepStrictEqual({ pullCount, uri: uri.path }, { pullCount: 1, uri: '/cache/agentPlugins/github.com/microsoft/vscode' });
+	});
+
+	test('does not refresh an existing repository with a recent refresh timestamp', async () => {
+		let pullCount = 0;
+		const service = createService(async () => true, undefined, {
+			pull: async () => {
+				pullCount++;
+				return false;
+			},
+		});
+		const plugin = createPlugin('microsoft/vscode', 'plugins/myPlugin');
+
+		await service.ensureRepository(plugin.marketplaceReference, { refreshIfOlderThanMs: 8 * 60 * 60 * 1000 });
+		await service.ensureRepository(plugin.marketplaceReference, { refreshIfOlderThanMs: 8 * 60 * 60 * 1000 });
+
+		assert.strictEqual(pullCount, 1);
+	});
+
+	test('records a refresh timestamp for a newly cloned repository', async () => {
+		let repoExists = false;
+		let cloneCount = 0;
+		let pullCount = 0;
+		const service = createService(async () => repoExists, undefined, {
+			cloneRepository: async () => {
+				cloneCount++;
+				repoExists = true;
+			},
+			pull: async () => {
+				pullCount++;
+				return false;
+			},
+		});
+		const plugin = createPlugin('microsoft/vscode', 'plugins/myPlugin');
+
+		await service.ensureRepository(plugin.marketplaceReference, { refreshIfOlderThanMs: 8 * 60 * 60 * 1000 });
+		await service.ensureRepository(plugin.marketplaceReference, { refreshIfOlderThanMs: 8 * 60 * 60 * 1000 });
+
+		assert.deepStrictEqual({ cloneCount, pullCount }, { cloneCount: 1, pullCount: 0 });
+	});
+
+	test('refreshes an existing repository when refresh age is zero', async () => {
+		let pullCount = 0;
+		const service = createService(async () => true, undefined, {
+			pull: async () => {
+				pullCount++;
+				return false;
+			},
+		});
+		const plugin = createPlugin('microsoft/vscode', 'plugins/myPlugin');
+
+		await service.ensureRepository(plugin.marketplaceReference, { refreshIfOlderThanMs: 8 * 60 * 60 * 1000 });
+		await service.ensureRepository(plugin.marketplaceReference, { refreshIfOlderThanMs: 0 });
+
+		assert.strictEqual(pullCount, 2);
+	});
+
+	test('does not refresh an existing repository without a refresh policy', async () => {
+		let pullCount = 0;
+		const service = createService(async () => true, undefined, {
+			pull: async () => {
+				pullCount++;
+				return false;
+			},
+		});
+		const plugin = createPlugin('microsoft/vscode', 'plugins/myPlugin');
+
+		await service.ensureRepository(plugin.marketplaceReference);
+
+		assert.strictEqual(pullCount, 0);
+	});
+
+	test('does not refresh a local file marketplace repository', async () => {
+		let pullCount = 0;
+		const service = createService(async () => true, undefined, {
+			pull: async () => {
+				pullCount++;
+				return false;
+			},
+		});
+		const plugin = createPlugin('file:///marketplace-repo', 'plugins/myPlugin');
+
+		await service.ensureRepository(plugin.marketplaceReference, { refreshIfOlderThanMs: 0 });
+
+		assert.strictEqual(pullCount, 0);
+	});
+
+	test('does not refresh a repository pinned to a commit SHA', async () => {
+		let pullCount = 0;
+		const service = createService(async () => true, undefined, {
+			pull: async () => {
+				pullCount++;
+				return false;
+			},
+		});
+		const plugin = createPlugin('microsoft/vscode#a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0', 'plugins/myPlugin');
+
+		await service.ensureRepository(plugin.marketplaceReference, { refreshIfOlderThanMs: 0 });
+
+		assert.strictEqual(pullCount, 0);
+	});
+
+	test('does not refresh again after an explicit pull already updated the repository', async () => {
+		let pullCount = 0;
+		const service = createService(async () => true, undefined, {
+			pull: async () => {
+				pullCount++;
+				return false;
+			},
+		});
+		const plugin = createPlugin('microsoft/vscode', 'plugins/myPlugin');
+
+		// `updateAllPlugins` pulls each installed marketplace and then re-reads
+		// it, which must not pull the same repository a second time.
+		await service.pullRepository(plugin.marketplaceReference, { silent: true });
+		await service.ensureRepository(plugin.marketplaceReference, { refreshIfOlderThanMs: 8 * 60 * 60 * 1000 });
+
+		assert.strictEqual(pullCount, 1);
+	});
+
+	test('keeps an existing repository after a refresh failure and records the attempt', async () => {
+		let pullCount = 0;
+		const service = createService(async () => true, undefined, {
+			pull: async () => {
+				pullCount++;
+				throw new Error('Network unavailable');
+			},
+		});
+		const plugin = createPlugin('microsoft/vscode', 'plugins/myPlugin');
+
+		const first = await service.ensureRepository(plugin.marketplaceReference, { refreshIfOlderThanMs: 8 * 60 * 60 * 1000 });
+		const second = await service.ensureRepository(plugin.marketplaceReference, { refreshIfOlderThanMs: 8 * 60 * 60 * 1000 });
+
+		assert.deepStrictEqual({ pullCount, first: first.path, second: second.path }, {
+			pullCount: 1,
+			first: '/cache/agentPlugins/github.com/microsoft/vscode',
+			second: '/cache/agentPlugins/github.com/microsoft/vscode',
+		});
+	});
+
+	test('cancels a first-time clone when the caller token is cancelled', async () => {
+		const cts = store.add(new CancellationTokenSource());
+		let cloneCancelled = false;
+		const service = createService(async () => false, undefined, {
+			cloneRepository: async (_cloneUrl, _targetDir, _ref, token) => {
+				// Simulate a long-running clone that the caller aborts.
+				cts.cancel();
+				cloneCancelled = !!token?.isCancellationRequested;
+			},
+		});
+		const plugin = createPlugin('microsoft/vscode', 'plugins/myPlugin');
+
+		await service.ensureRepository(plugin.marketplaceReference, { token: cts.token });
+
+		assert.strictEqual(cloneCancelled, true);
+	});
+
+	test('does not record a cancelled refresh attempt', async () => {
+		let pullCount = 0;
+		const service = createService(async () => true, undefined, {
+			pull: async () => {
+				pullCount++;
+				throw new CancellationError();
+			},
+		});
+		const plugin = createPlugin('microsoft/vscode', 'plugins/myPlugin');
+
+		const first = await service.ensureRepository(plugin.marketplaceReference, { refreshIfOlderThanMs: 8 * 60 * 60 * 1000 });
+		const second = await service.ensureRepository(plugin.marketplaceReference, { refreshIfOlderThanMs: 8 * 60 * 60 * 1000 });
+
+		assert.deepStrictEqual({ pullCount, first: first.path, second: second.path }, {
+			pullCount: 2,
+			first: '/cache/agentPlugins/github.com/microsoft/vscode',
+			second: '/cache/agentPlugins/github.com/microsoft/vscode',
+		});
 	});
 
 	test('passes marketplace refs through cloneRepository', async () => {

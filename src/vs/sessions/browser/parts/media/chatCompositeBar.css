@@ -19,7 +19,11 @@
 }
 
 /* Tabs host: the chat tab strip, shown only when the session has multiple chats.
-	It lives in the same centered session-view content host as the header. */
+	It lives in the same centered session-view content host as the header.
+	Symmetric 10px gutter on both sides, matching the small, even inset editor
+	tabs use — the tab strip no longer tries to align its first tab under the
+	header's status-icon column, since that produced a much larger left gutter
+	than the shared modern-tab convention. */
 .chat-composite-bar.session-chat-tabs-bar {
 	padding: 0 10px;
 	box-sizing: border-box;
@@ -96,6 +100,45 @@
 	white-space: nowrap;
 }
 
+.chat-composite-bar-workspace-meta {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	flex: 0 1 auto;
+	min-width: 0;
+	max-width: 40%;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-agents-fontSize-label1);
+	font-weight: var(--vscode-agents-fontWeight-regular);
+	white-space: nowrap;
+}
+
+.chat-composite-bar-workspace-meta.hidden {
+	display: none;
+}
+
+/* Compact glyph at the compact size. The compound selector outranks the base
+	`.codicon` font shorthand; the clamped box keeps combined glyphs (wider
+	advance) tight against the label, and the padding optically centers it. */
+.monaco-workbench .chat-composite-bar-workspace-meta-icon.codicon[class*='codicon-'] {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
+	margin: 0;
+	padding: 3px 1px 0 2px;
+	font-size: var(--vscode-codiconFontSize-compact);
+	flex-shrink: 0;
+}
+
+.chat-composite-bar-workspace-meta-label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 /* Hover feedback: only when the title can actually be renamed and we aren't
 	currently editing it. */
 .chat-composite-bar-session-title.editable {
@@ -148,7 +191,9 @@
 	margin-left: auto;
 }
 
-/* Meta row: workspace · diff stats */
+/* Meta row: workspace + contributed changes / pull request buttons.
+	No `overflow: hidden` here — it would clip the meta buttons' focus ring at the
+	row's 22px height. The workspace label self-truncates via its own containers. */
 .chat-composite-bar-meta-row {
 	display: flex;
 	align-items: center;
@@ -158,80 +203,23 @@
 	font-weight: var(--vscode-agents-fontWeight-regular, 400);
 	line-height: 18px;
 	color: var(--chat-tab-inactive-foreground, var(--session-view-foreground));
-	overflow: hidden;
 	white-space: nowrap;
 }
 
-.chat-composite-bar-meta-workspace-label {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	min-width: 0;
-}
-
-.chat-composite-bar-meta-workspace {
-	display: inline-flex;
-	align-items: center;
-	gap: 4px;
-	min-width: 0;
-	overflow: hidden;
-}
-
-.monaco-workbench .chat-composite-bar-meta-workspace-icon.codicon[class*='codicon-'] {
-	display: inline-flex;
-	align-items: center;
-	font-size: var(--vscode-codiconFontSize-compact, 12px);
-	flex-shrink: 0;
-}
-
-.chat-composite-bar-meta-separator::before {
-	content: '\00B7';
-	opacity: 0.8;
-}
-
-/* Flatten the session header meta toolbar action bar so contributed items such as the diff-stats +/- counts read as inline, clickable labels rather than buttons. */
+/* Session header meta toolbar */
 .chat-composite-bar-meta-toolbar,
 .chat-composite-bar-meta-toolbar .monaco-action-bar,
 .chat-composite-bar-meta-toolbar .actions-container {
 	display: inline-flex;
 	align-items: center;
 	height: 100%;
+	min-width: 0;
+	max-width: 100%;
 }
 
-.chat-composite-bar-meta-diff {
-	display: inline-flex;
-	align-items: center;
-	flex-shrink: 0;
-}
-
-.chat-composite-bar-meta-diff .action-label {
-	display: inline-flex;
-	align-items: center;
+/* Spacing between the contributed meta buttons (e.g. changes · pull request). */
+.chat-composite-bar-meta-toolbar .actions-container {
 	gap: 6px;
-	color: inherit;
-	font: inherit;
-	font-variant-numeric: tabular-nums;
-	cursor: pointer;
-	padding: 0 2px;
-	border-radius: var(--vscode-cornerRadius-small);
-}
-
-.chat-composite-bar-meta-diff .action-label:hover {
-	color: inherit;
-	text-decoration: none;
-}
-
-.chat-composite-bar-meta-diff .action-label:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: 2px;
-}
-
-.chat-composite-bar-meta-added {
-	color: var(--vscode-chat-linesAddedForeground);
-}
-
-.chat-composite-bar-meta-removed {
-	color: var(--vscode-chat-linesRemovedForeground);
 }
 
 /* Tabs row */
@@ -253,7 +241,43 @@
 	display: flex;
 	align-items: center;
 	height: 100%;
-	gap: 0;
+	min-height: calc(var(--vscode-spacing-size240) + var(--vscode-spacing-size40) * 2);
+}
+
+/* "New Chat" button pinned at the end of the tab strip, after the Conversations menu. */
+.chat-composite-bar-tabs-row > .chat-composite-bar-new-chat {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	margin-left: 4px;
+}
+
+.chat-composite-bar-tabs-row > .chat-composite-bar-new-chat.hidden {
+	display: none;
+}
+
+/* Include the tab-row owner to outrank `.monaco-action-bar .action-item .codicon`,
+ * which otherwise resets this button's width and height from 26px to 16px. */
+.chat-composite-bar-tabs-row > .chat-composite-bar-new-chat .action-item .action-label {
+	box-sizing: border-box;
+	width: 26px;
+	height: 26px;
+	padding: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--chat-tab-inactive-foreground, currentColor);
+}
+
+.chat-composite-bar-new-chat .action-item .action-label:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--chat-tab-active-foreground);
+}
+
+.chat-composite-bar-new-chat .action-item .action-label:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 .chat-composite-bar-toolbar {
@@ -267,6 +291,10 @@
 	height: 20px;
 	line-height: 20px;
 	padding: 0 2px;
+}
+
+.chat-composite-bar-toolbar .monaco-action-bar .actions-container {
+	gap: 4px;
 }
 
 /* Floating variant: a lightweight, absolutely positioned toolbar with no header chrome */
@@ -283,41 +311,65 @@
 	container-type: unset;
 }
 
-/* Base tab: preserve chat title casing while keeping the same pill treatment */
-.chat-composite-bar-tab {
+/* The shared modern editor-tab hooks own tab geometry, typography, and states.
+	This file only supplies chat-specific layout and adornments. */
+.session-chat-tabs-bar .chat-composite-bar-tabs > .chat-composite-bar-tab {
 	display: flex;
 	align-items: center;
 	position: relative;
-	padding: 0 8px;
 	cursor: pointer;
 	color: var(--chat-tab-inactive-foreground);
-	font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
-	font-size: var(--vscode-agents-fontSize-label1, 12px);
-	line-height: 22px;
-	height: 26px;
-	border-radius: var(--vscode-cornerRadius-small);
 	user-select: none;
 	flex-shrink: 0;
 	max-width: var(--chat-tab-max-width);
 }
 
-.chat-composite-bar-tab-label {
+.session-chat-tabs-bar .chat-composite-bar-tab-fill {
+	display: block;
+	pointer-events: none;
+}
+
+.session-chat-tabs-bar .chat-composite-bar-tab-label {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	min-width: 0;
 }
 
+.chat-composite-bar-tab-lock,
+.chat-composite-bar-tab-input-container,
+.chat-composite-bar-tab-indicator {
+	position: relative;
+	z-index: 1;
+}
+
+/* Lock icon for read-only (non-interactive) chats, shown before the label.
+	Include the tab-strip owner to outrank
+	`.monaco-workbench .codicon[class*='codicon-']`, which otherwise resets the
+	compact 12px lock to 16px when the workbench stylesheet loads later. */
+.session-chat-tabs-bar .chat-composite-bar-tab .chat-composite-bar-tab-lock.codicon {
+	display: none;
+	flex-shrink: 0;
+	align-items: center;
+	margin-right: 4px;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
+}
+
+.chat-composite-bar-tab.read-only .chat-composite-bar-tab-lock.codicon {
+	display: inline-flex;
+}
+
 /* While editing, the tab expands to its max width. */
-.chat-composite-bar-tab.editing {
+.session-chat-tabs-bar .chat-composite-bar-tabs > .chat-composite-bar-tab.editing {
 	cursor: default;
-	padding: 0 2px;
+	padding: 0 var(--vscode-spacing-size20);
 	width: var(--chat-tab-max-width);
 	max-width: var(--chat-tab-max-width);
 }
 
 /* Hide the label and adornments so the input fills the tab while editing. */
 .session-chat-tabs-bar .chat-composite-bar-tab.editing .chat-composite-bar-tab-label,
+.session-chat-tabs-bar .chat-composite-bar-tab.editing .chat-composite-bar-tab-lock,
 .session-chat-tabs-bar .chat-composite-bar-tab.editing .chat-composite-bar-tab-indicator,
 .session-chat-tabs-bar .chat-composite-bar-tab.editing .chat-composite-bar-tab-actions {
 	display: none;
@@ -339,32 +391,16 @@
 	height: 22px;
 }
 
-.chat-composite-bar-tab-input.monaco-inputbox .input {
+/* Include the tab owner to outrank `.monaco-inputbox > .ibwrapper > .input`,
+ * which otherwise restores the base 4px 6px padding around the rename input. */
+.chat-composite-bar-tab .chat-composite-bar-tab-input.monaco-inputbox .input {
 	font-family: inherit;
 	font-weight: inherit;
 	font-size: inherit;
 	padding: 0 4px;
 }
 
-.chat-composite-bar-tab:hover {
-	color: var(--chat-tab-active-foreground);
-}
-
-/* Active state: background container instead of underline — mirrors auxiliarybar checked */
-.session-view .chat-composite-bar-tab.active {
-	color: var(--chat-tab-active-foreground);
-}
-
-.session-view.is-active .chat-composite-bar-tab.active {
-	background-color: color-mix(in srgb, var(--vscode-agentsPanel-foreground, var(--vscode-foreground)) 5%, transparent);
-}
-
-/* Reduce right padding when close button is present to avoid excess spacing */
-.chat-composite-bar-tab:has(.chat-composite-bar-tab-actions) {
-	padding-right: 2px;
-}
-
-/* Indicator: rendered inline between the label and the close action.
+/* Indicator: rendered inline after the label and beneath the overlaid close action.
 	Shows a small blue dot for unread, a yellow dot when input is needed,
 	or a spinner for in-progress.
 	Only one mode is set on the element at a time (mutually exclusive in JS). */
@@ -407,29 +443,149 @@
 	background-color: var(--vscode-list-warningForeground);
 }
 
-.chat-composite-bar-tab.in-progress .chat-composite-bar-tab-indicator-icon {
+/* Include the tab-strip owner to outrank
+ * `.monaco-workbench .codicon[class*='codicon-']` and keep the in-progress
+ * indicator at the compact 12px size. */
+.session-chat-tabs-bar .chat-composite-bar-tab.in-progress .chat-composite-bar-tab-indicator-icon {
 	font-size: var(--vscode-codiconFontSize-compact, 12px);
 }
 
-.chat-composite-bar-tab:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
-/* Close action — always visible, like the status indicator */
-.chat-composite-bar-tab-actions {
+.session-chat-tabs-bar .chat-composite-bar-tab-actions {
 	display: flex;
-	margin-left: 2px;
+	align-items: center;
+	justify-content: center;
+	position: absolute;
+	z-index: 7;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	margin: 0 var(--vscode-spacing-size20);
+	width: var(--vscode-spacing-size240);
+	overflow: visible;
+	border-block: var(--vscode-strokeThickness) solid transparent;
+	border-right: var(--vscode-strokeThickness) solid transparent;
+	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;
+	background-clip: padding-box;
+	box-sizing: border-box;
+	pointer-events: none;
 }
 
-.chat-composite-bar-tab-actions .action-item .action-label {
-	width: 16px;
-	height: 16px;
-	border-radius: var(--vscode-cornerRadius-small);
-	color: var(--chat-tab-inactive-foreground, currentColor);
+.session-chat-tabs-bar .chat-composite-bar-tab-actions > .monaco-action-bar {
+	width: var(--vscode-spacing-size240);
 }
 
-.chat-composite-bar-tab-actions .action-item .action-label:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-	color: var(--chat-tab-active-foreground);
+.session-chat-tabs-bar .chat-composite-bar-tab-actions .actions-container {
+	justify-content: center;
+}
+
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .session-chat-tabs-bar .chat-composite-bar-tab:hover > .chat-composite-bar-tab-actions::before,
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .session-chat-tabs-bar .chat-composite-bar-tab > .chat-composite-bar-tab-actions:focus-within::before {
+	content: '';
+	position: absolute;
+	top: 0;
+	right: 100%;
+	bottom: 0;
+	width: var(--vscode-spacing-size160);
+	border-block: var(--vscode-strokeThickness) solid transparent;
+	background-image: linear-gradient(to right, transparent, var(--modern-ui-editor-tab-action-hover-background));
+	background-clip: padding-box;
+	box-sizing: border-box;
+	pointer-events: none;
+}
+
+.session-chat-tabs-bar .chat-composite-bar-tab:hover > .chat-composite-bar-tab-actions,
+.session-chat-tabs-bar .chat-composite-bar-tab > .chat-composite-bar-tab-actions:focus-within {
+	background-color: var(--modern-ui-editor-tab-action-hover-background);
+	pointer-events: auto;
+}
+
+.modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .session-chat-tabs-bar .chat-composite-bar-tab:hover > .chat-composite-bar-tab-actions,
+.modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .session-chat-tabs-bar .chat-composite-bar-tab > .chat-composite-bar-tab-actions:focus-within {
+	background-color: var(--modern-ui-editor-tab-action-unfocused-hover-background);
+}
+
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .session-chat-tabs-bar .chat-composite-bar-tab:hover > .chat-composite-bar-tab-actions::before,
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .session-chat-tabs-bar .chat-composite-bar-tab > .chat-composite-bar-tab-actions:focus-within::before {
+	background-image: linear-gradient(to right, transparent, var(--modern-ui-editor-tab-action-unfocused-hover-background));
+}
+
+.session-chat-tabs-bar .chat-composite-bar-tab.active:hover > .chat-composite-bar-tab-actions,
+.session-chat-tabs-bar .chat-composite-bar-tab.active > .chat-composite-bar-tab-actions:focus-within {
+	background-color: var(--modern-ui-editor-tab-action-active-background);
+}
+
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .session-chat-tabs-bar .chat-composite-bar-tab.active:hover > .chat-composite-bar-tab-actions::before,
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .session-chat-tabs-bar .chat-composite-bar-tab.active > .chat-composite-bar-tab-actions:focus-within::before {
+	background-image: linear-gradient(to right, transparent, var(--modern-ui-editor-tab-action-active-background));
+}
+
+.modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .session-chat-tabs-bar .chat-composite-bar-tab.active:hover > .chat-composite-bar-tab-actions,
+.modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .session-chat-tabs-bar .chat-composite-bar-tab.active > .chat-composite-bar-tab-actions:focus-within {
+	background-color: var(--modern-ui-editor-tab-action-unfocused-active-background);
+}
+
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .session-chat-tabs-bar .chat-composite-bar-tab.active:hover > .chat-composite-bar-tab-actions::before,
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .session-chat-tabs-bar .chat-composite-bar-tab.active > .chat-composite-bar-tab-actions:focus-within::before {
+	background-image: linear-gradient(to right, transparent, var(--modern-ui-editor-tab-action-unfocused-active-background));
+}
+
+.session-chat-tabs-bar .chat-composite-bar-tab.active:hover > .chat-composite-bar-tab-actions {
+	background-color: var(--modern-ui-editor-tab-action-active-hover-background);
+}
+
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .session-chat-tabs-bar .chat-composite-bar-tab.active:hover > .chat-composite-bar-tab-actions::before {
+	background-image: linear-gradient(to right, transparent, var(--modern-ui-editor-tab-action-active-hover-background));
+}
+
+.modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .session-chat-tabs-bar .chat-composite-bar-tab.active:hover > .chat-composite-bar-tab-actions {
+	background-color: var(--modern-ui-editor-tab-action-unfocused-active-hover-background);
+}
+
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .session-chat-tabs-bar .chat-composite-bar-tab.active:hover > .chat-composite-bar-tab-actions::before {
+	background-image: linear-gradient(to right, transparent, var(--modern-ui-editor-tab-action-unfocused-active-hover-background));
+}
+
+.session-chat-tabs-bar .chat-composite-bar-tab:not(:hover) > .chat-composite-bar-tab-actions .action-label:not(:focus) {
+	opacity: 0;
+}
+
+.session-chat-tabs-bar .chat-composite-bar-tab:hover > .chat-composite-bar-tab-actions .action-label,
+.session-chat-tabs-bar .chat-composite-bar-tab > .chat-composite-bar-tab-actions .action-label:focus {
+	opacity: 1;
+}
+
+.session-chat-tabs-bar .chat-composite-bar-tab-actions .action-label.codicon {
+	box-sizing: content-box;
+	color: inherit;
+	font-size: var(--vscode-codiconFontSize);
+	padding: var(--vscode-spacing-size20);
+	width: var(--vscode-codiconFontSize);
+	height: var(--vscode-codiconFontSize);
+}
+
+:is(.hc-black, .hc-light) .session-chat-tabs-bar .chat-composite-bar-tab:hover .chat-composite-bar-tab-actions,
+:is(.hc-black, .hc-light) .session-chat-tabs-bar .chat-composite-bar-tab-actions:focus-within {
+	background-color: var(--session-view-background);
+}
+
+:is(.hc-black, .hc-light) .session-chat-tabs-bar .chat-composite-bar-tab-actions .action-label {
+	background-color: transparent;
+}
+
+:is(.hc-black, .hc-light) .session-chat-tabs-bar .chat-composite-bar-tab.active:hover > .chat-composite-bar-tab-actions {
+	border-block: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
+	border-right: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
+	box-sizing: border-box;
+}
+
+:is(.hc-black, .hc-light) .session-chat-tabs-bar .chat-composite-bar-tab:not(.active):hover > .chat-composite-bar-tab-actions {
+	border-block: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
+	border-right: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
+	box-sizing: border-box;
+}
+
+:is(.hc-black, .hc-light) .session-chat-tabs-bar .chat-composite-bar-tab > .chat-composite-bar-tab-actions:focus-within {
+	border-block: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	border-right: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	box-sizing: border-box;
 }

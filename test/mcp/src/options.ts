@@ -9,7 +9,6 @@ export const opts = minimist(args, {
 	string: [
 		'browser',
 		'build',
-		'stable-build',
 		'wait-time',
 		'test-repo',
 		'electronArgs',
@@ -32,7 +31,6 @@ export const opts = minimist(args, {
 	headless?: boolean;
 	web?: boolean;
 	build?: string;
-	'stable-build'?: string;
 	browser?: 'chromium' | 'webkit' | 'firefox' | 'chromium-msedge' | 'chromium-chrome' | undefined;
 	electronArgs?: string;
 	video?: boolean;

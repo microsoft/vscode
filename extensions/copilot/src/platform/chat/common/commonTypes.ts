@@ -98,6 +98,7 @@ export enum ChatFetchResponseType {
 	Filtered = 'filtered',
 	FilteredRetry = 'filteredRetry',
 	PromptFiltered = 'promptFiltered',
+	Refusal = 'refusal',
 	Length = 'length',
 	RateLimited = 'rateLimited',
 	QuotaExceeded = 'quotaExceeded',
@@ -142,6 +143,10 @@ export type ChatFetchError =
 	 * We requested conversation, but the prompt was filtered by RAI.
 	 */
 	| { type: ChatFetchResponseType.PromptFiltered; reason: string; reasonDetail?: string; category: FilterReason; requestId: string; serverRequestId: string | undefined }
+	/**
+	 * We requested conversation, but the model declined to answer.
+	 */
+	| { type: ChatFetchResponseType.Refusal; reason: string; reasonDetail?: string; requestId: string; serverRequestId: string | undefined }
 	/**
 	 * We requested conversation, but the response was too long.
 	 */
@@ -449,6 +454,12 @@ function getErrorDetailsFromChatFetchErrorInner(fetchResult: ChatFetchError, cop
 			details = {
 				message: getFilteredMessage(fetchResult.category),
 				responseIsFiltered: true,
+				level: ChatErrorLevel.Info,
+			};
+			break;
+		case ChatFetchResponseType.Refusal:
+			details = {
+				message: l10n.t(`Sorry, the model declined to complete this request. Please rephrase your prompt.`),
 				level: ChatErrorLevel.Info,
 			};
 			break;

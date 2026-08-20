@@ -32,6 +32,7 @@ function pluginDirForType(type: DiscoveredType): string | undefined {
 		case DiscoveredType.Agent: return 'agents';
 		case DiscoveredType.Skill: return 'skills';
 		case DiscoveredType.Instruction: return 'rules';
+		case DiscoveredType.Hook: return 'hooks';
 		case DiscoveredType.AgentInstruction: return undefined;
 	}
 }
@@ -138,7 +139,6 @@ export class SessionPluginBundler extends Disposable {
 				id: customizationId(rootUriString),
 				uri: rootUriString,
 				name: DISPLAY_NAME,
-				enabled: true,
 				nonce,
 			},
 		} satisfies IBundleResult;

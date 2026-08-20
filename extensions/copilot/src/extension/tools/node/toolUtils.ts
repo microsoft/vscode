@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { PromptElement, PromptPiece } from '@vscode/prompt-tsx';
+import { lstat, realpath } from 'fs/promises';
+import * as path from 'path';
 import type * as vscode from 'vscode';
 import { IChatDebugFileLoggerService } from '../../../platform/chat/common/chatDebugFileLoggerService';
 import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
@@ -281,7 +283,12 @@ export async function assertFileNotContentExcluded(accessor: ServicesAccessor, u
 	}
 }
 
-export async function isFileExternalAndNeedsConfirmation(accessor: ServicesAccessor, uri: URI, buildPromptContext?: IBuildPromptContext, options?: { readOnly?: boolean; workingDirectory?: URI }): Promise<boolean> {
+export interface FileExternalConfirmationResult {
+	readonly needsConfirmation: boolean;
+	readonly realPath: URI | undefined;
+}
+
+export async function isFileExternalAndNeedsConfirmation(accessor: ServicesAccessor, uri: URI, buildPromptContext?: IBuildPromptContext, options?: { readOnly?: boolean; workingDirectory?: URI }): Promise<FileExternalConfirmationResult> {
 	const workspaceService = accessor.get(IWorkspaceService);
 	const tabsAndEditorsService = accessor.get(ITabsAndEditorsService);
 	const customInstructionsService = accessor.get(ICustomInstructionsService);
@@ -295,28 +302,29 @@ export async function isFileExternalAndNeedsConfirmation(accessor: ServicesAcces
 
 	const workingDir = new WorkingDirectory(options?.workingDirectory, workspaceService);
 	if (workingDir.getFolder(normalizedUri)) {
-		return false;
+		const realPath = await getExternalSymlinkRealPath(normalizedUri, uri => workingDir.getFolder(uri));
+		return { needsConfirmation: realPath !== undefined, realPath };
 	}
 	if (options?.readOnly && isUriUnderAdditionalReadAccessPaths(normalizedUri, configurationService)) {
-		return false;
+		return { needsConfirmation: false, realPath: undefined };
 	}
 	if (uri.scheme === Schemas.untitled || uri.scheme === 'vscode-chat-response-resource') {
-		return false;
+		return { needsConfirmation: false, realPath: undefined };
 	}
 	if (await isExternalInstructionsFile(normalizedUri, customInstructionsService, buildPromptContext)) {
-		return false;
+		return { needsConfirmation: false, realPath: undefined };
 	}
 	if (diskSessionResources.isSessionResourceUri(normalizedUri)) {
-		return false;
+		return { needsConfirmation: false, realPath: undefined };
 	}
 	if (chatDebugFileLogger.isDebugLogUri(normalizedUri)) {
-		return false;
+		return { needsConfirmation: false, realPath: undefined };
 	}
 	if (sessionTranscriptService.isTranscriptUri(normalizedUri)) {
-		return false;
+		return { needsConfirmation: false, realPath: undefined };
 	}
 	if (tabsAndEditorsService.tabs.some(tab => isEqual(tab.uri, uri))) {
-		return false;
+		return { needsConfirmation: false, realPath: undefined };
 	}
 
 	// If the file doesn't exist, throw immediately rather than showing a confusing "external file"
@@ -326,7 +334,87 @@ export async function isFileExternalAndNeedsConfirmation(accessor: ServicesAcces
 		throw new Error(`File ${normalizedUri.fsPath} does not exist`);
 	}
 
-	return true;
+	return { needsConfirmation: true, realPath: undefined };
+}
+
+/**
+ * Checks whether a symlinked file resolves outside the workspace.
+ */
+export async function isExternalSymlinkedFile(uri: URI, getFolder: (uri: URI) => URI | undefined): Promise<boolean> {
+	return (await getExternalSymlinkRealPath(uri, getFolder)) !== undefined;
+}
+
+async function getExternalSymlinkRealPath(uri: URI, getFolder: (uri: URI) => URI | undefined): Promise<URI | undefined> {
+	if (uri.scheme !== Schemas.file) {
+		return undefined;
+	}
+
+	const workspaceFolder = getFolder(uri);
+	if (!workspaceFolder || workspaceFolder.scheme !== Schemas.file) {
+		return undefined;
+	}
+
+	let current = uri.fsPath;
+	while (!isEqual(normalizePath(URI.file(current)), normalizePath(workspaceFolder))) {
+		try {
+			if ((await lstat(current)).isSymbolicLink()) {
+				const resolvedUri = normalizePath(await resolveRealPathForNonexistent(uri, workspaceFolder));
+				const resolvedWorkspaceFolder = normalizePath(URI.file(await realpath(workspaceFolder.fsPath)));
+				return extUriBiasedIgnorePathCase.isEqualOrParent(resolvedUri, resolvedWorkspaceFolder) ? undefined : resolvedUri;
+			}
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+				throw error;
+			}
+		}
+
+		const parent = path.dirname(current);
+		if (parent === current) {
+			return undefined;
+		}
+		current = parent;
+	}
+
+	return undefined;
+}
+
+/**
+ * Resolves a path through its nearest existing ancestor without walking above `stopAt`.
+ */
+export async function resolveRealPathForNonexistent(resource: URI, stopAt?: URI): Promise<URI> {
+	try {
+		return URI.file(await realpath(resource.fsPath));
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+			throw error;
+		}
+	}
+
+	const tail = [path.basename(resource.fsPath)];
+	let current = path.dirname(resource.fsPath);
+	while (true) {
+		if (stopAt && isEqual(normalizePath(URI.file(current)), normalizePath(stopAt))) {
+			return URI.file(path.join(await realpath(stopAt.fsPath), ...tail));
+		}
+
+		const parent = path.dirname(current);
+		if (parent === current) {
+			// On Windows, resolving `\` adds the current drive and can make an unchanged path appear redirected.
+			return resource;
+		}
+
+		try {
+			return URI.file(path.join(await realpath(current), ...tail));
+		} catch (error) {
+			const code = (error as NodeJS.ErrnoException).code;
+			if (code !== 'ENOENT' && code !== 'ENOTDIR') {
+				throw error;
+			}
+		}
+
+		tail.unshift(path.basename(current));
+		current = parent;
+	}
 }
 
 export function isDirExternalAndNeedsConfirmation(accessor: ServicesAccessor, uri: URI, buildPromptContext?: IBuildPromptContext, options?: { readOnly?: boolean; workingDirectory?: URI }): boolean {

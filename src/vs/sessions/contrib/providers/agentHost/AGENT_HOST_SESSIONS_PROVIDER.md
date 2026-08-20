@@ -1,186 +1,148 @@
-# Agent Host Sessions Provider
+# Agent Host sessions provider
 
-**Folder:** `src/vs/sessions/contrib/providers/agentHost/`
+> **Specification change gate:** Do not update this document for provider bug
+> fixes, metadata additions, races, or transport behavior. Update it only when
+> provider ownership, identity, or the shared Agent Host lifecycle changes.
 
-The agent host provider family backs sessions run by an **agent host** — an out-of-process (or in-process) agent runtime that exposes one or more agents (Copilot CLI, Codex, Claude, …) over the agent host protocol (`platform/agentHost`). It is the largest provider in the Agents window and is shared between the local window and remote hosts:
+## Scope
 
-| Class | File | Purpose |
-|-------|------|---------|
-| `BaseAgentHostSessionsProvider` | `browser/baseAgentHostSessionsProvider.ts` | Abstract base implementing the full `ISessionsProvider` surface against an `IAgentConnection`. ~2700 lines; contains `AgentHostSessionAdapter` (the `ISession` impl) and `NewSession` (pre-creation draft). |
-| `LocalAgentHostSessionsProvider` | `browser/localAgentHostSessionsProvider.ts` | Concrete local-window provider backed by the in-process `IAgentHostService`. |
-| `RemoteAgentHostSessionsProvider` | `../remoteAgentHost/` | Concrete remote provider (one per connection). Documented separately in [`REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md`](../remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md). |
+The Agent Host provider family adapts Agent Host Protocol sessions into the
+provider-neutral Sessions model. The shared implementation supports local and
+remote hosts; this document covers the shared base and local registration.
 
-This document covers the shared base and the **local** concrete provider. For the remote variant, read the remote doc — it extends the same base.
+Remote connection-specific behavior is specified in
+[REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md](../remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md).
 
-## Extended Provider Interface
+## Implementations
 
-Agent host providers implement `IAgentHostSessionsProvider` (defined in sessions core at `src/vs/sessions/common/agentHostSessionsProvider.ts`), which extends `ISessionsProvider` with:
+| Implementation | Responsibility |
+|----------------|----------------|
+| `BaseAgentHostSessionsProvider` | Shared `ISessionsProvider` adaptation over an `IAgentConnection` |
+| `LocalAgentHostSessionsProvider` | Local provider backed by `IAgentHostService` |
+| `RemoteAgentHostSessionsProvider` | Per-connection remote specialization |
 
-- **Remote connection members** (optional, populated only by remote providers): `connectionStatus`, `remoteAddress`, `connect()`, `disconnect()`, `canConnectOnDemand`.
-- **Dynamic session config**: `onDidChangeSessionConfig`, `getSessionConfig`, `isSessionConfigResolving`, `setSessionConfigValue`, `replaceSessionConfig`, `getSessionConfigCompletions`. These power the per-session configuration picker (isolation, branch, and other host-declared properties resolved live from the backend schema).
+The shared base owns session adaptation, draft creation, catalog publication,
+request routing, and provider operations. Concrete providers own connection
+lifetime and environment-specific capabilities.
 
-`isAgentHostProvider(provider: ISessionsProvider)` (same file) is a type guard returning `true` for the local and remote agent host providers; `isAgentHostProviderId(providerId: string)` is the id-only variant, `true` for `local-agent-host` and any `agenthost-*` (remote) provider id.
+## Extended contract
+
+Agent Host providers implement `IAgentHostSessionsProvider`, which extends
+`ISessionsProvider` with:
+
+- optional remote connection state and connect/disconnect operations;
+- observable host-declared session configuration;
+- configuration mutation and completion APIs.
+
+Consumers use the extended type guard rather than matching provider IDs.
+Provider-neutral features continue to depend on `ISessionsProvider`.
 
 ## Registration
 
-Registered by `LocalAgentHostContribution` in `browser/localAgentHost.contribution.ts`:
+`LocalAgentHostContribution` registers the local provider only when the Agent
+Host runtime is available for the current environment. Agent discovery
+populates session types dynamically from host root state.
 
-- **Gated on `chat.agentHost.enabled`** (`AgentHostEnabledSettingId`). If the setting is off the contribution returns early and registers nothing.
-- Creates `LocalAgentHostSessionsProvider` via `IInstantiationService` and registers it through `ISessionsProvidersService.registerProvider`.
-- Registers a per-session-type **working-directory resolver** (`IAgentHostSessionWorkingDirectoryResolver`) for each `agent-host-${sessionType.id}` scheme, refreshed on `onDidChangeSessionTypes`.
-- The same module also wires the heavy lifting from the workbench chat layer at `WorkbenchPhase.AfterRestored`:
-  - `AgentHostContribution` — agent discovery, session-handler registration, language-model providers, customization harness (via `IChatSessionsService`).
-  - `AgentHostTerminalContribution` — terminal integration for agent host sessions.
-- Registers the experimental `chat.agentHost.defaultSessionsProvider` setting (`LocalAgentHostDefaultProviderSettingId`, default `false`, startup experiment).
-
-The Electron-only `electron-browser/agentHost.contribution.ts` adds desktop-only wiring on top.
+The contribution also registers the content and working-directory adapters
+needed by advertised session types. Runtime startup and shutdown rebind or
+dispose connection-scoped listeners; consumers must not assume registration
+means the backend has finished discovery.
 
 ## Identity
 
-`LocalAgentHostSessionsProvider`:
+The local provider uses:
 
-| Property | Value |
-|----------|-------|
-| `id` | `'local-agent-host'` (`LOCAL_AGENT_HOST_PROVIDER_ID`) |
-| `label` | `"Local Agent Host"` |
-| `icon` | `Codicon.vm` |
-| `supportsLocalWorkspaces` | `true` |
-| `browseActions` | `[]` (local folders are browsed through the shared workspace picker) |
-| `order` | `-1` when `chat.agentHost.defaultSessionsProvider` is enabled (sorts before all other providers), else `1` |
-| `sessionTypes` | Dynamically populated from the local agent host's `rootState.agents`; the type label is the agent's unadorned `displayName` (e.g. `"Copilot"`), the type **id** is the agent provider name (e.g. `copilotcli`) so the same agent shares one session type across local and remote hosts |
+| Property | Contract |
+|----------|----------|
+| Provider ID | `local-agent-host` |
+| Workspace support | Local workspaces |
+| Quick chats | Supported while the provider is available |
+| Session types | Dynamically derived from advertised agents |
 
-When the default-provider setting flips, the provider re-fires `onDidChangeSessionTypes` so the management service re-collects and re-sorts session types with the new `order`.
+Agent provider names form logical session-type identifiers. Resource URI
+schemes remain the routing identity for content and model providers. Consumers
+must not derive one identifier by parsing another.
 
-## IDs and URI Schemes
+## Session adaptation
 
-A single agent host session uses several distinct identifiers:
+`AgentHostSessionAdapter` is the stable `ISession` facade for a committed Agent
+Host session. It:
 
-| Purpose | Value | Example |
-|---------|-------|---------|
-| `ISession.sessionType` | Logical type — the agent provider name, shared across hosts | `copilotcli` |
-| `resource.scheme` | `agent-host-${sessionType.id}` (`resourceSchemeForProvider`) | `agent-host-copilotcli` |
-| LM vendor / `targetChatSessionType` | Same as the resource scheme | `agent-host-copilotcli` |
-| `rawId` | Session-local id parsed from the resource path; key in `_sessionCache` | `abc123` |
-| `sessionId` | `{providerId}:{resource}` via `toSessionId` | `local-agent-host:agent-host-copilotcli:///abc123` |
-| `providerId` | The provider instance id | `local-agent-host` |
+- preserves provider resource identity;
+- projects host metadata into observables;
+- exposes chats through stable `IChat` facades;
+- derives capabilities from the advertised agent and live host state;
+- updates observable state without replacing the facade when identity is stable.
 
-`ISession.sessionType` is intentionally the agent name (not the scheme) so a logical type like `copilotcli` covers local agent host, remote agent host, and extension-host Copilot CLI sessions in the filter menu and new-session picker. Routing (`registerChatSessionContentProvider`, model registration) is keyed off the per-provider `resource.scheme` instead.
+The provider cache owns adapter identity. Catalog notifications describe
+membership; adapter observables describe mutable state.
 
-`getModels(sessionId)` filters registered language models by `session.resource.scheme` (see `getAgentHostModels` in `browser/agentHostModelPicker.ts`); `getModelPickerOptions` returns grouped/featured models with no "Manage Models" action.
+Provider-specific metadata such as pull-request provenance, changesets, agent
+configuration, and external visibility is translated inside this provider.
+Shared Sessions code consumes only provider-neutral fields and capabilities.
 
-## Architecture
+Agent-recorded artifacts are persisted with the session and projected through
+`ISession.artifacts`. Pull request and issue artifacts that shared GitHub
+surfaces can represent are promoted into the existing GitHub metadata without
+duplicating them. Customizations used or read by the agent are derived per chat
+and projected through `IChat.customizations`.
 
-- **`AgentHostSessionAdapter`** (`baseAgentHostSessionsProvider.ts`) is the `ISession` implementation. It wraps an `IAgentSessionMetadata` from the backend and exposes the observable session surface (`status`, `title`, `workspace`, `mainChat`, `mode`, …). The base provider keeps a `_sessionCache` of adapters keyed by `rawId`.
-- **`NewSession`** is a disposable draft (pre-creation) session. Several can be in flight simultaneously; the management layer tears down superseded drafts via `deleteNewSession`. A draft eagerly creates its backend session once authentication settles, then **graduates** into a committed `AgentHostSessionAdapter` on first send.
-- The base provider is abstract; concrete providers supply: `connection`, `authenticationPending`, `resourceSchemeForProvider`, `_formatSessionTypeLabel`, `_adapterOptions` (workspace builder), `resolveWorkspace`, and optionally `_diffUriMapper`.
+## Draft and send lifecycle
 
-## How Chat Content Loads & Sends (no `IChatSessionItemController`)
+`NewSession` represents an untitled draft before the backend session is
+committed.
 
-A common point of confusion is whether the Agents window needs to register an
-`IChatSessionItemController` for agent host sessions. **It does not.** The item
-controller and the chat-content path are two unrelated APIs:
+```text
+create draft
+    -> resolve host configuration
+    -> create or select the chat
+    -> send through the owning agent connection
+    -> publish or replace the committed session facade
+```
 
-| API | Responsibility | Used by the Agents window? |
-|-----|----------------|----------------------------|
-| `IChatSessionItemController` (`registerChatSessionItemController`) | Enumerate session **items** (`.items`, `onDidChangeChatSessionItems`) for the **classic** chat sidebar list. | **No.** The agent host `ISessionsProvider` builds its own list via `getSessions()` straight from the connection (`listSessions()` / `notify/sessionAdded` / `rootState`). The workbench `AgentHostSessionListController` still implements this for the classic chat surfaces, but the Agents window never consumes it. |
-| `IChatSessionContentProvider` (`registerChatSessionContentProvider`) | Load a session's **chat content** (history/turns) for a resource, provide input completions, and handle the request stream. | **Yes — this is the only API on the chat path.** |
+The first send waits for tracked draft configuration. Cancellation disposes the
+draft. Later configuration changes are scoped to the committed session and do
+not recreate the entire facade.
 
-The classic `ChatWidget` is generic: it renders whatever `IChatModel` it is
-handed and sends through `IChatService`. The agent host plugs into chat through
-**two registrations**, neither of which is the item controller — both wired by
-`AgentHostContribution` (workbench) / the remote `*.contribution.ts` at startup:
+Existing-session requests route by the provider resource and chat resource.
+Host notifications update adapters and catalog membership reactively.
 
-1. **`registerChatSessionContentProvider(sessionType, AgentHostSessionHandler)`** —
-   binds the per-provider `resource.scheme` (e.g. `agent-host-copilotcli`) to a
-   content provider. `AgentHostSessionHandler.provideChatSessionContent()`
-   hydrates the model from the backend session state (turns → history) and owns
-   the request stream.
-2. **`AgentHostLanguageModelProvider`** — publishes language models under
-   `targetChatSessionType` = the same resource scheme so the widget's model
-   picker resolves the right models (see `getAgentHostModels`).
+## Persistence and discovery
 
-End-to-end in the Agents window:
+Startup metadata may seed lightweight session facades before a live connection
+finishes discovery. Live host state remains authoritative and upgrades or
+replaces cached state through the normal catalog lifecycle.
 
-- **List** — `getSessions()` reads from the agent host connection. *(no widget, no item controller)*
-- **Open / load content** — `ChatView.setChat(chat)` → `IChatService.acquireOrLoadSession(chat.resource, …)` → `ChatWidget.setModel(ref.object)`. `IChatService` routes the resource scheme to `AgentHostSessionHandler.provideChatSessionContent()`. `ChatView` first **locks** the widget to the contributed chat session type so follow-up turns keep routing to the same handler.
-- **Send** — `ISessionsManagementService.sendNewChatRequest` → `provider.createNewChat()` → `provider.sendRequest()` → `IChatService.sendRequest(chatResource, …)`, which the bound `AgentHostSessionHandler` forwards to the backend over the agent host protocol.
+External sessions remain provider-owned domain objects. Visibility and
+interactivity fields determine whether shared Sessions surfaces present them;
+shared code does not infer visibility from Agent Host URI formats.
 
-The Agents window thus depends on the classic `ChatWidget` for rendering and on
-the `IChatSessionContentProvider` for content/send, but **not** on
-`IChatSessionItemController` — that API exists only to feed the classic chat
-sidebar list.
+Host-owned background activities remain independent of client visibility. Agent
+Merge monitoring prevents an enabled session from idle eviction while work is
+active, resumes eligible sessions after host startup, and releases that
+retention when monitoring ends.
 
-## New Session Flow
+## Local and remote boundary
 
-`createNewSession(workspaceUri, sessionTypeId)`:
+The local provider owns local runtime availability and local workspace access.
+Remote providers own:
 
-1. Resolves the `ISessionType` and validates the workspace (`resolveWorkspace`).
-2. Constructs a `NewSession` draft, stores it in `_newSessions`, and fires `onDidChangeSessionConfig`.
-3. If a connection exists and authentication is **not** pending, eagerly starts the backend session and resolves its dynamic config in parallel. While auth is pending the draft waits; `_resumeNewSessionAfterAuthenticationSettles` (driven by the `authenticationPending` observable going false) starts the backend for all pending drafts.
+- connection establishment and recovery;
+- remote filesystem browsing;
+- remote authentication transport;
+- per-host routing identity.
 
-`createNewChat(chatId)` creates the chat session model (`IChatSessionsService.getOrCreateChatSession`) so the management service can open the widget, and returns the draft's main chat.
+Behavior shared by both belongs in the base provider. Connection policy stays
+in the remote contribution.
 
-## Send Flow
+## Testing
 
-`sendRequest(chatId, chatResource, options)`:
+Focused tests live under `test/browser/*.test.ts` beside this provider. Tests
+own concrete behavior, hydration races, metadata translation, and regressions;
+this document owns only stable provider boundaries.
 
-1. Requires the draft and an active connection.
-2. Builds `IChatSendRequestOptions` (agent mode from the selected custom agent or the built-in agent, selected model, attached context, and `agentHostSessionConfig` from `getCreateSessionConfig`).
-3. Loads the chat model and seeds the selected model / custom agent into the input state so the pickers reflect the choice immediately.
-4. Snapshots existing cache keys, then `IChatService.sendRequest` (which the registered `AgentHostSessionHandler` routes to the backend).
-5. Publishes a skeleton session (title seeded from the first line of the query) via `onDidChangeSessions` as `_pendingSession`.
-6. Waits for the committed backend session (`_waitForNewSession`); on arrival the draft **graduates** (releases its eager subscription without firing `disposeSession`), config is preserved, `_pendingSession` is cleared, and `onDidReplaceSession` fires from skeleton → committed session.
+## Change policy
 
-## CRUD & Stubbed Operations
-
-- `archiveSession` / `unarchiveSession` / `deleteSession` — round-trip to the backend.
-- `renameChat` — updates the session title.
-- `deleteChat` — no-op (agent host sessions don't model individually deletable chats).
-
-## Picker & Action Contributions
-
-The provider ships a rich set of session-scoped UI in `browser/`:
-
-| File | Responsibility |
-|------|----------------|
-| `agentHostSessionConfigPicker.ts` | The per-session config picker (isolation, branch, and host-declared dynamic properties) backed by the dynamic-session-config API; includes `media/agentHostSessionConfigPicker.css`. |
-| `agentHostAgentPicker.ts` | Custom-agent picker for a session. |
-| `agentHostModePicker.ts` | Agent mode enum picker (extends a shared `AgentHostSessionEnumPicker`). |
-| `agentHostModelPicker.ts` | `getAgentHostModels` — filters language models by the session resource scheme. |
-| `agentHostClaudePermissionModePicker.ts` | Claude-specific permission-mode picker. |
-| `agentHostPermissionPickerActionItem.ts` / `agentHostPermissionPickerDelegate.ts` | Toolbar action item + delegate for the permission picker. |
-| `agentHostSkillButtons.ts` | Built-in skill toolbar buttons; defines the `sessions.isAgentHostSession` (`IsAgentHostSession`) context key bound to the active session's provider. |
-| `agentHostSessionChangesets.ts` / `agentHostDiffs.ts` | Changeset model and diff conversion (`mapProtocolStatus` maps the protocol status bitset → `SessionStatus`). |
-| `agentHostSessionBranchActions.ts` | Branch-related session actions. |
-| `agentHostSessionDeleteAction.ts` | "Delete..." session context-menu action (gated on `ANY_AGENT_HOST_PROVIDER_RE`); delegates to the shared `confirmAndDeleteSessions` helper which confirms and calls `ISessionsManagementService.deleteSession`. |
-| `exportDebugLogsAction.ts` | "Export debug logs" developer action. |
-| `openSessionEventsFileActions.ts` | "Open Copilot CLI State File" — Sessions-app variant resolving the session via `ISessionsManagementService.activeSession`. |
-| `mobile/` | Phone-layout variants: `mobileAgentHostModePicker.ts`, `mobileChatInputConfigPicker.ts`, `mobileChatPhoneInputPresenter.ts`. |
-
-Skill buttons and the `openSessionEventsFile` action are gated on `IsAgentHostSession` (and `ChatContextKeys.enabled`).
-
-## Settings
-
-Two synthetic filesystem providers expose JSONC settings editors:
-
-| Scheme | URI shape | Scope |
-|--------|-----------|-------|
-| `agent-host-settings` | `agent-host-settings://{providerId}/settings.jsonc` | Host-wide settings for a provider (`agentHostSettingsFileSystemProvider.ts`, registered by `agentHostSettings.contribution.ts`). |
-| `agent-session-settings` | `agent-session-settings://{providerId}/{resourceScheme}{path}.jsonc` | Per-session settings, parseable back to a `sessionId` (`agentSessionSettingsFileSystemProvider.ts`, registered by `agentSessionSettings.contribution.ts`). |
-
-`agentHostSettingsShared.ts` provides the shared schema/serialization helpers (`buildAgentHostConfigJsonSchema`, `convertPropertySchema`, `serializeAgentHostConfigDocument`) used by both providers.
-
-## Local vs Remote Differences
-
-| Aspect | Local (`LocalAgentHostSessionsProvider`) | Remote (`RemoteAgentHostSessionsProvider`) |
-|--------|------------------------------------------|--------------------------------------------|
-| Connection | In-process `IAgentHostService` (always present) | One live `IAgentConnection` per remote host |
-| Instances | One | One per connection (created/disposed dynamically) |
-| Resource scheme | `agent-host-${sessionType.id}` | `remote-${authority}-${agent.provider}` |
-| Browse actions | none | host-filesystem "Folders" picker |
-| Diff URIs | `toAgentHostUri(uri, 'local')` | host-scoped mapper |
-| Extra interface members | — | `connectionStatus`, `remoteAddress`, `connect`/`disconnect` |
-
-## Tests
-
-`test/browser/` covers the provider and its pickers: `localAgentHostSessionsProvider.test.ts`, `agentHostAgentPicker.test.ts`, `agentHostAgents.test.ts`, `agentHostModelPicker.test.ts`, `agentHostClaudePermissionModePicker.test.ts`, `agentHostSkillButtons.test.ts`, `agentSessionSettingsFileSystemProvider.test.ts`, `openSessionEventsFile.test.ts`, and `agentHost/agentHostPermissionPickerDelegate.test.ts`.
+Update this specification only when provider ownership, the extended contract,
+identity rules, or the draft/catalog lifecycle changes. Do not append feature
+walkthroughs, race analyses, test-file inventories, or incident narratives.

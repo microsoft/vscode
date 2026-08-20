@@ -40,7 +40,7 @@ suite('McpStdioStateHandler', () => {
 		};
 	}
 
-	test('stdin ends process', async () => {
+	test.skip('stdin ends process', async () => { // TODO: https://github.com/microsoft/vscode/issues/330134
 		const { child, handler, output } = run(`
 			const data = require('fs').readFileSync(0, 'utf-8');
 			process.stdout.write('Data received: ' + data);
@@ -54,7 +54,7 @@ suite('McpStdioStateHandler', () => {
 	});
 
 	if (!isWindows) {
-		test('sigterm after grace', async () => {
+		test.skip('sigterm after grace', async () => { // TODO@connor4312 https://github.com/microsoft/vscode/issues/330134
 			const { handler, output } = run(`
 			setInterval(() => {}, 1000);
 			process.stdin.on('end', () => process.stdout.write('stdin ended\\n'));

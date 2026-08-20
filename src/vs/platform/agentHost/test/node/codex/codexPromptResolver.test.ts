@@ -76,4 +76,38 @@ suite('codexPromptResolver', () => {
 		assert.strictEqual(input.length, 1);
 		assert.strictEqual(input[0].type, 'text');
 	});
+
+	test('textual EmbeddedResource (unsaved document) is inlined with label', () => {
+		const body = 'console.log("draft")';
+		const att: MessageAttachment = {
+			type: MessageAttachmentKind.EmbeddedResource,
+			label: 'Untitled-1',
+			displayKind: 'document',
+			data: Buffer.from(body).toString('base64'),
+			contentType: 'text/plain',
+		} as MessageAttachment;
+		const { input, cleanupPaths } = resolveCodexInput('review this', [att]);
+		assert.strictEqual(cleanupPaths.length, 0);
+		assert.strictEqual(input.length, 1);
+		const text = (input[0] as { text: string }).text;
+		assert.ok(text.includes('review this'), `text: ${text}`);
+		assert.ok(text.includes('Untitled-1'), `text: ${text}`);
+		assert.ok(text.includes(body), `text: ${text}`);
+	});
+
+	test('textual EmbeddedResource selection annotates a one-based line range', () => {
+		const body = 'second line\nthird line';
+		const att: MessageAttachment = {
+			type: MessageAttachmentKind.EmbeddedResource,
+			label: 'foo.ts',
+			displayKind: 'selection',
+			data: Buffer.from(body).toString('base64'),
+			contentType: 'text/plain',
+			selection: { range: { start: { line: 1, character: 0 }, end: { line: 2, character: 9 } } },
+		} as MessageAttachment;
+		const { input } = resolveCodexInput('explain', [att]);
+		const text = (input[0] as { text: string }).text;
+		assert.ok(text.includes('foo.ts (lines 2-3)'), `text: ${text}`);
+		assert.ok(text.includes(body), `text: ${text}`);
+	});
 });

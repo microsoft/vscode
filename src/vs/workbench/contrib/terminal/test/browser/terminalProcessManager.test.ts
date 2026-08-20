@@ -14,7 +14,12 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ITerminalChildProcess, type ITerminalBackend } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
 import { TerminalProcessManager } from '../../browser/terminalProcessManager.js';
+import { IEnvironmentVariableService } from '../../common/environmentVariable.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+
+function listenerCount(emitter: Emitter<unknown>): number {
+	return (emitter as unknown as { _size: number })._size ?? 0;
+}
 
 class TestTerminalChildProcess implements ITerminalChildProcess {
 	id: number = 0;
@@ -80,6 +85,7 @@ class TestTerminalInstanceService implements Partial<ITerminalInstanceService> {
 suite('Workbench - TerminalProcessManager', () => {
 	let manager: TerminalProcessManager;
 	let terminalInstanceService: TestTerminalInstanceService;
+	let environmentVariableService: IEnvironmentVariableService;
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -103,8 +109,22 @@ suite('Workbench - TerminalProcessManager', () => {
 		store.add(terminalInstanceService.ptyHostRestartEmitter);
 		instantiationService.stub(ITerminalInstanceService, terminalInstanceService);
 		instantiationService.stub(ITerminalService, { setNextCommandId: async () => { } } as Partial<ITerminalService>);
+		environmentVariableService = instantiationService.get(IEnvironmentVariableService);
 
 		manager = store.add(instantiationService.createInstance(TerminalProcessManager, 1, undefined, undefined, undefined));
+	});
+
+	test('does not accumulate environment variable collection listeners when relaunching', async () => {
+		const changeCollectionsEmitter = (environmentVariableService as unknown as { _onDidChangeCollections: Emitter<unknown> })._onDidChangeCollections;
+		const initialListenerCount = listenerCount(changeCollectionsEmitter);
+
+		await manager.createProcess({}, 80, 24, false);
+		strictEqual(listenerCount(changeCollectionsEmitter), initialListenerCount + 1);
+
+		for (let i = 0; i < 3; i++) {
+			await manager.relaunch({}, 80, 24, false);
+			strictEqual(listenerCount(changeCollectionsEmitter), initialListenerCount + 1);
+		}
 	});
 
 	suite('process persistence', () => {

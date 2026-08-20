@@ -175,6 +175,7 @@ export interface ILogTarget {
 export interface ITelemetrySender {
 	sendTelemetryEvent(eventName: string, properties?: Record<string, string | undefined>, measurements?: Record<string, number | undefined>): void;
 	sendEnhancedTelemetryEvent?(eventName: string, properties?: Record<string, string | undefined>, measurements?: Record<string, number | undefined>): void;
+	setExperimentProperty?(name: string, value: string): void;
 }
 
 export interface INESProviderOptions {
@@ -184,6 +185,18 @@ export interface INESProviderOptions {
 	readonly terminalService: ITerminalService;
 	readonly telemetrySender: ITelemetrySender;
 	readonly logTarget?: ILogTarget;
+	/**
+	 * Identifies the host editor (e.g. `{ name: 'vscode', version: '1.99.0' }`).
+	 * Together with {@link editorPluginInfo} this sets the `Editor-Version` and
+	 * `Editor-Plugin-Version` headers on outgoing requests (including the model
+	 * list fetch) so the backend can identify the caller.
+	 */
+	readonly editorInfo: IEditorInfo;
+	/**
+	 * Identifies the plugin/integration embedding the provider (e.g.
+	 * `{ name: 'copilot-chat', version: '0.1.0' }`). See {@link editorInfo}.
+	 */
+	readonly editorPluginInfo: IEditorPluginInfo;
 	/**
 	 * If true, the provider will wait for treatment variables to be set.
 	 * INESProvider.updateTreatmentVariables() must be called to unblock.
@@ -386,7 +399,7 @@ class NESProvider extends Disposable implements INESProvider<NESResult> {
 }
 
 function setupServices(options: INESProviderOptions) {
-	const { fetcher, copilotTokenManager, telemetrySender, logTarget } = options;
+	const { fetcher, copilotTokenManager, telemetrySender, logTarget, editorInfo, editorPluginInfo } = options;
 	const builder = new InstantiationServiceBuilder();
 	builder.define(IConfigurationService, new SyncDescriptor(OverridableConfigurationService, [options.configOverrides ?? new Map()]));
 	builder.define(IExperimentationService, new SyncDescriptor(SimpleExperimentationService, [options.waitForTreatmentVariables]));
@@ -402,7 +415,14 @@ function setupServices(options: INESProviderOptions) {
 	builder.define(IDomainService, new SyncDescriptor(DomainService));
 	builder.define(ICAPIClientService, new SyncDescriptor(CAPIClientImpl));
 	builder.define(ICopilotTokenStore, new SyncDescriptor(CopilotTokenStore));
-	builder.define(IEnvService, new SyncDescriptor(NullEnvService));
+	builder.define(IEnvService, new class extends NullEnvService {
+		override getEditorInfo(): NameAndVersion {
+			return new NameAndVersion(editorInfo.name, editorInfo.version);
+		}
+		override getEditorPluginInfo(): NameAndVersion {
+			return new NameAndVersion(editorPluginInfo.name, editorPluginInfo.version);
+		}
+	});
 	builder.define(IFetcherService, new SyncDescriptor(SingleFetcherService, [fetcher]));
 	builder.define(ITelemetryService, new SyncDescriptor(SimpleTelemetryService, [telemetrySender]));
 	builder.define(IAuthenticationService, new SyncDescriptor(StaticGitHubAuthenticationService, [createStaticGitHubTokenProvider()]));
@@ -660,6 +680,9 @@ class SimpleTelemetryService implements ITelemetryService {
 		return;
 	}
 	setSharedProperty(name: string, value: string): void {
+		if (name === 'capi.assignmentcontext') {
+			this._telemetrySender.setExperimentProperty?.(name, value);
+		}
 		return;
 	}
 	setAdditionalExpAssignments(expAssignments: string[]): void {
@@ -858,6 +881,10 @@ class UnwrappingTelemetrySender implements ITelemetrySender {
 		if (this.sender.sendEnhancedTelemetryEvent) {
 			this.sender.sendEnhancedTelemetryEvent(this.normalizeEventName(eventName), properties, measurements);
 		}
+	}
+
+	setExperimentProperty(name: string, value: string): void {
+		this.sender.setExperimentProperty?.(name, value);
 	}
 
 	private normalizeEventName(eventName: string): string {

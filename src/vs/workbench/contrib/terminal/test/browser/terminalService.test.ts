@@ -24,6 +24,7 @@ suite('Workbench - TerminalService', () => {
 	let terminalService: TerminalService;
 	let configurationService: TestConfigurationService;
 	let dialogService: TestDialogService;
+	let instantiationService: ReturnType<typeof workbenchInstantiationService>;
 
 	setup(async () => {
 		dialogService = new TestDialogService();
@@ -37,7 +38,7 @@ suite('Workbench - TerminalService', () => {
 			}
 		});
 
-		const instantiationService = workbenchInstantiationService({
+		instantiationService = workbenchInstantiationService({
 			configurationService: () => configurationService,
 		}, store);
 		instantiationService.stub(IDialogService, dialogService);
@@ -47,6 +48,38 @@ suite('Workbench - TerminalService', () => {
 
 		terminalService = store.add(instantiationService.createInstance(TerminalService));
 		instantiationService.stub(ITerminalService, terminalService);
+	});
+
+	suite('background terminals', () => {
+		test('should remove disposed hidden terminals and their listeners', async () => {
+			const disposalEmitters = Array.from({ length: 3 }, () => store.add(new Emitter<ITerminalInstance>()));
+			const instances = disposalEmitters.map((emitter, index) => ({
+				instanceId: index + 1,
+				onDisposed: emitter.event,
+			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance));
+			let instanceIndex = 0;
+			instantiationService.stub(ITerminalInstanceService, 'convertProfileToShellLaunchConfig', () => ({ hideFromUser: true }));
+			instantiationService.stub(ITerminalInstanceService, 'createInstance', () => instances[instanceIndex++]);
+			terminalService.registerProcessSupport(true);
+
+			const backgroundedTerminalDisposables = Reflect.get(terminalService, '_backgroundedTerminalDisposables') as { size: number };
+			for (let i = 0; i < instances.length; i++) {
+				const instance = await terminalService.createTerminal({
+					config: { hideFromUser: true },
+					skipContributedProfileCheck: true,
+				});
+
+				strictEqual(terminalService.instances.includes(instance), true);
+				strictEqual(backgroundedTerminalDisposables.size, 1);
+				strictEqual(disposalEmitters[i].hasListeners(), true);
+
+				disposalEmitters[i].fire(instance);
+
+				strictEqual(terminalService.instances.includes(instance), false);
+				strictEqual(backgroundedTerminalDisposables.size, 0);
+				strictEqual(disposalEmitters[i].hasListeners(), false);
+			}
+		});
 	});
 
 	suite('safeDisposeTerminal', () => {

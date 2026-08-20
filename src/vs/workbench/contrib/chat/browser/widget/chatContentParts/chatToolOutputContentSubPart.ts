@@ -51,8 +51,13 @@ export class ChatToolOutputContentSubPart extends Disposable {
 			if (part.kind === 'code') {
 				// Collect adjacent code parts and combine their contents
 				const codeParts = [part];
-				while (i + 1 < this.parts.length && this.parts[i + 1].kind === 'code') {
-					codeParts.push(this.parts[++i] as IChatCollapsibleIOCodePart);
+				while (i + 1 < this.parts.length) {
+					const nextPart = this.parts[i + 1];
+					if (nextPart.kind !== 'code' || nextPart.title) {
+						break;
+					}
+					codeParts.push(nextPart);
+					i++;
 				}
 				this.addCodeBlock(codeParts, container);
 				continue;

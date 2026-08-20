@@ -6,6 +6,10 @@
 import * as dom from '../../../../../../base/browser/dom.js';
 import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IActionProvider } from '../../../../../../base/browser/ui/dropdown/dropdown.js';
+import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { IManagedHoverTooltipMarkdownString } from '../../../../../../base/browser/ui/hover/hover.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { basename } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -14,12 +18,17 @@ import { MenuItemAction } from '../../../../../../platform/actions/common/action
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActionWidgetDropdownOptions } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { ISCMService } from '../../../../scm/common/scm.js';
 import type { IChatWidget } from '../../chat.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from '../../widget/input/chatInputPickerActionItem.js';
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
+import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
+import { createFolderPickerTip } from './agentHostFolderPickerTip.js';
 
 /**
  * Folder picker for agent-host sessions in multi-root windows. An agent-host
@@ -33,6 +42,8 @@ import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderSe
  */
 export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewItem {
 
+	private _hoverSetup = false;
+
 	constructor(
 		action: MenuItemAction,
 		private readonly _widget: IChatWidget,
@@ -43,6 +54,10 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
+		@IAgentHostCustomizationService private readonly _customizationService: IAgentHostCustomizationService,
+		@ISCMService private readonly _scmService: ISCMService,
+		@IHoverService private readonly _hoverService: IHoverService,
+		@IStorageService storageService: IStorageService,
 	) {
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
@@ -77,6 +92,7 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 			actionBarActionProvider,
 			showItemKeybindings: false,
 			reporter: { id: 'AgentHostFolderPicker', name: 'AgentHostFolderPicker', includeOptions: false },
+			listOptionsProvider: createFolderPickerTip(storageService),
 		};
 
 		super(action, folderPickerOptions, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
@@ -96,6 +112,12 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 				this.renderLabel(this.element);
 			}
 		}));
+		// Re-render when asynchronous session state reveals the session's working directory.
+		this._register(this._customizationService.onDidChangeCustomizations(() => {
+			if (this.element) {
+				this.renderLabel(this.element);
+			}
+		}));
 	}
 
 	private _sessionResource(): URI | undefined {
@@ -106,19 +128,25 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 		const folders = this._workspaceContextService.getWorkspace().folders;
 		const sessionResource = this._sessionResource();
 		const stored = sessionResource ? this._newSessionFolderService.getFolder(sessionResource) : undefined;
+		// Stale workspace selections are cleared by the folder service; standalone selections remain valid.
 		if (stored) {
-			if (folders.some(folder => folder.uri.toString() === stored.toString())) {
-				return stored;
-			}
-			// The stored folder is no longer part of the workspace (folders
-			// changed); drop the stale selection and fall back to the first folder.
-			this._newSessionFolderService.clear(sessionResource!);
+			return stored;
 		}
-		return folders[0]?.uri;
+		// A started session's working directory is fixed at creation time and may
+		// differ from the current workspace's first folder (e.g. a single-folder
+		// session opened inside a multi-root workspace), so show its own folder
+		// rather than the workspace default.
+		const sessionWorkingDirectory = sessionResource ? this._customizationService.getWorkingDirectory(sessionResource) : undefined;
+		if (sessionWorkingDirectory) {
+			return URI.parse(sessionWorkingDirectory);
+		}
+		// No explicit choice for this session yet: default to the folder the
+		// user last picked in this window (if still valid) so a new chat keeps
+		// the previous selection instead of resetting to the first folder.
+		return this._newSessionFolderService.getDefaultFolder() ?? folders[0]?.uri;
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
-		this.setAriaLabelAttributes(element);
 		const selected = this._selectedFolder();
 		const folder = selected && this._workspaceContextService.getWorkspace().folders.find(f => f.uri.toString() === selected.toString());
 		const label = folder ? folder.name : (selected ? basename(selected) : localize('agentHost.selectFolder', "Folder"));
@@ -127,6 +155,68 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 			...renderLabelWithIcons(`$(folder)`),
 			dom.$('span.chat-input-picker-label', undefined, label),
 		);
+		// Set the aria label after the visible text is in place: the base class
+		// derives it from `element.textContent`, so labeling first would lag one
+		// selection behind.
+		this.setAriaLabelAttributes(element);
 		return null;
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+
+		// The chip often shows a disabled folder name — the working directory is
+		// fixed once the session starts — so a plain folder name alone doesn't
+		// explain what it represents. Surface a descriptive hover with the full
+		// folder path and current git branch, mirroring the agents window's
+		// session header. Set up once with a content factory so the hover always
+		// reflects the latest selection/branch at the time it is shown.
+		if (this.element && !this._hoverSetup) {
+			this._hoverSetup = true;
+			this._register(this._hoverService.setupManagedHover(
+				getDefaultHoverDelegate('element'),
+				this.element,
+				() => this._buildHoverContent(),
+			));
+		}
+	}
+
+	/**
+	 * Builds the hover content for the folder chip: the full folder path and,
+	 * when the folder maps to a git repository, the current branch name.
+	 * Returns `undefined` when no folder is selected so no hover is shown.
+	 */
+	private _buildHoverContent(): IManagedHoverTooltipMarkdownString | undefined {
+		const selected = this._selectedFolder();
+		if (!selected) {
+			return undefined;
+		}
+
+		const md = new MarkdownString('', { supportThemeIcons: true });
+		const fallbackLines: string[] = [];
+
+		md.appendMarkdown(`$(${Codicon.folder.id}) `);
+		md.appendText(selected.fsPath);
+		fallbackLines.push(selected.fsPath);
+
+		const branch = this._branchName(selected);
+		if (branch) {
+			md.appendMarkdown('\n\n$(git-branch) ');
+			md.appendText(branch);
+			fallbackLines.push(branch);
+		}
+
+		return { markdown: md, markdownNotSupportedFallback: fallbackLines.join('\n') };
+	}
+
+	/**
+	 * Resolves the current git branch name for the given folder via the SCM
+	 * service, or `undefined` when the folder has no associated repository or
+	 * branch information.
+	 */
+	private _branchName(folderUri: URI): string | undefined {
+		const repository = this._scmService.getRepository(folderUri);
+		const historyProvider = repository?.provider.historyProvider.get();
+		return historyProvider?.historyItemRef.get()?.name.trim() || undefined;
 	}
 }

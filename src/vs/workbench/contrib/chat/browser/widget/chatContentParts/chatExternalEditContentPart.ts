@@ -10,16 +10,16 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { localize } from '../../../../../../nls.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
+import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IOpenEditorOptions } from '../../../../../../platform/editor/browser/editor.js';
 import { IEditorService, SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
 import { IChatExternalEdit } from '../../../common/chatService/chatService.js';
-import { IEditSessionDiffStats } from '../../../common/editing/chatEditingService.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
-import { ChatEditPillElement } from './chatEditPillElement.js';
-import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
+import { ChatEditPillElement, isResourceContentEmpty } from './chatEditPillElement.js';
+import { IChatContentPart, IChatContentPartDiffData, IChatContentPartRenderContext } from './chatContentParts.js';
 
 /**
  * Renders an {@link IChatExternalEdit} progress part as a static "edit pill".
@@ -33,21 +33,23 @@ import { IChatContentPart, IChatContentPartRenderContext } from './chatContentPa
  *
  * Activation (click / Enter) opens the side-by-side diff editor when both
  * `beforeContentUri` and `afterContentUri` are present, falling back to
- * opening the resulting file otherwise.
+ * opening the resulting file otherwise. A pure addition into an empty (or
+ * non-existent) original is treated as the fallback case, since there is
+ * nothing meaningful to diff against.
  */
 export class ChatExternalEditContentPart extends ChatEditPillElement implements IChatContentPart {
 
-	private readonly _onDidChangeDiff = this._register(new Emitter<IEditSessionDiffStats>());
+	private readonly _onDidChangeDiff = this._register(new Emitter<IChatContentPartDiffData>());
 	/**
-	 * Fires once with the static diff stats from the part data. Wired up by
+	 * Fires once with the static diff data from the part data. Wired up by
 	 * the list renderer so {@link ChatThinkingContentPart} can aggregate
-	 * per-file stats into the thinking title.
+	 * per-file changes into the thinking title.
 	 *
 	 * The fire is deferred to the next microtask so that consumers
 	 * subscribing immediately after construction (e.g. via
 	 * `ChatThinkingContentPart.appendItem`) still receive the initial value.
 	 */
-	readonly onDidChangeDiff: Event<IEditSessionDiffStats> = this._onDidChangeDiff.event;
+	readonly onDidChangeDiff: Event<IChatContentPartDiffData> = this._onDidChangeDiff.event;
 
 	get domNode(): HTMLElement { return this.element; }
 
@@ -59,6 +61,7 @@ export class ChatExternalEditContentPart extends ChatEditPillElement implements 
 		@ILanguageService languageService: ILanguageService,
 		@IHoverService hoverService: IHoverService,
 		@IEditorService private readonly editorService: IEditorService,
+		@ITextModelService private readonly textModelService: ITextModelService,
 	) {
 		super(labelService, modelService, languageService, hoverService);
 
@@ -95,7 +98,15 @@ export class ChatExternalEditContentPart extends ChatEditPillElement implements 
 				if (this._store.isDisposed) {
 					return;
 				}
-				this._onDidChangeDiff.fire({ added: diff.added, removed: diff.removed });
+				this._onDidChangeDiff.fire({
+					added: diff.added,
+					removed: diff.removed,
+					resources: [{
+						resource: edit.uri,
+						originalURI: edit.beforeContentUri,
+						modifiedURI: edit.editKind === 'delete' ? undefined : edit.afterContentUri ?? edit.uri,
+					}],
+				});
 			});
 		} else {
 			this.setDiff(undefined);
@@ -103,9 +114,16 @@ export class ChatExternalEditContentPart extends ChatEditPillElement implements 
 		}
 	}
 
-	private openEdit({ editorOptions: options, openToSide }: IOpenEditorOptions): void {
+	private async openEdit({ editorOptions: options, openToSide }: IOpenEditorOptions): Promise<void> {
 		const group = openToSide ? SIDE_GROUP : undefined;
 		if (this.edit.beforeContentUri && this.edit.afterContentUri) {
+			// If the change is a pure addition into a file whose original version did not
+			// exist or was empty, there is nothing meaningful to diff against. Open the
+			// resulting file in a normal editor instead of a diff editor.
+			if (this.edit.editKind === 'edit' && (this.edit.diff?.removed ?? 0) === 0 && await isResourceContentEmpty(this.textModelService, this.edit.beforeContentUri)) {
+				this.editorService.openEditor({ resource: this.edit.uri, options }, group);
+				return;
+			}
 			this.editorService.openEditor({
 				original: { resource: this.edit.beforeContentUri },
 				modified: { resource: this.edit.afterContentUri },
@@ -145,4 +163,3 @@ function describeEdit(edit: IChatExternalEdit): { icon: ThemeIcon; label: string
 			return { icon: Codicon.check, label: localize('chat.codeblock.edited', 'Edited') };
 	}
 }
-

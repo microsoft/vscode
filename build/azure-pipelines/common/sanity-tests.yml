@@ -17,11 +17,19 @@ parameters:
   - name: args
     type: string
     default: ""
+  # Build pipeline artifacts to download before running. When set, targets resolve from them
+  # instead of the update service, which only serves published builds.
+  - name: artifacts
+    type: object
+    default: []
+  - name: continueOnError
+    type: boolean
+    default: true
 
 jobs:
   - job: ${{ parameters.name }}
     displayName: ${{ parameters.displayName }}
-    continueOnError: true
+    continueOnError: ${{ parameters.continueOnError }}
     pool:
       name: ${{ parameters.poolName }}
       os: ${{ parameters.os }}
@@ -43,10 +51,24 @@ jobs:
           continueOnError: true
           sbomEnabled: false
     variables:
-      TEST_DIR: $(Build.SourcesDirectory)/test/sanity
-      LOG_FILE: $(TEST_DIR)/results.xml
-      SCREENSHOTS_DIR: $(TEST_DIR)/screenshots
-      CRASH_DUMPS_DIR: $(TEST_DIR)/crash-dumps
+      - name: TEST_DIR
+        value: $(Build.SourcesDirectory)/test/sanity
+      - name: LOG_FILE
+        value: $(TEST_DIR)/results.xml
+      - name: SCREENSHOTS_DIR
+        value: $(TEST_DIR)/screenshots
+      - name: CRASH_DUMPS_DIR
+        value: $(TEST_DIR)/crash-dumps
+      # Kept under TEST_DIR so container runs see it through the volume run-docker.sh mounts at /root.
+      - name: ARTIFACTS_DIR
+        value: $(TEST_DIR)/artifacts
+      - name: ARTIFACTS_ARG
+        ${{ if eq(length(parameters.artifacts), 0) }}:
+          value: ""
+        ${{ elseif ne(parameters.container, '') }}:
+          value: --artifacts-dir /root/artifacts
+        ${{ else }}:
+          value: --artifacts-dir $(ARTIFACTS_DIR)
     steps:
       - checkout: self
         fetchDepth: 1
@@ -54,6 +76,14 @@ jobs:
         sparseCheckoutDirectories: build/azure-pipelines/config test/sanity .nvmrc
         retryCountOnTaskFailure: 3
         displayName: Checkout test/sanity
+
+      - ${{ each artifact in parameters.artifacts }}:
+        - task: DownloadPipelineArtifact@2
+          inputs:
+            artifact: ${{ artifact }}
+            path: $(ARTIFACTS_DIR)/${{ artifact }}
+          retryCountOnTaskFailure: 3
+          displayName: Download ${{ artifact }}
 
       - ${{ if eq(parameters.os, 'windows') }}:
         - script: mkdir "$(SCREENSHOTS_DIR)"
@@ -76,40 +106,41 @@ jobs:
             @echo off
             setlocal enabledelayedexpansion
 
-            set "NODE_VERSION=v22.22.0"
-            set "EXPECTED_HASH=5b44fd410df7b4cd0a1891a05a7b606f8fb7d8786a94997b996a372e82478d7a"
-            set "NODE_ROOT=$(Agent.TempDirectory)\nodejs"
-            set "NODE_EXE=!NODE_ROOT!\node.exe"
+            set "PACKAGE_VERSION=10.0.26100.1"
+            set "SDK_VERSION=10.0.26100.0"
+            set "EXPECTED_HASH=7e37f35384a7b146730fa67dde243d46b97ce5ca73aaeb1c3141cd812b286395"
+            set "SDK_ROOT=$(Agent.TempDirectory)\windows-sdk-build-tools"
+            set "SIGNTOOL_ROOT=!SDK_ROOT!\bin\!SDK_VERSION!\arm64"
+            set "SIGNTOOL_EXE=!SIGNTOOL_ROOT!\signtool.exe"
 
-            if not exist "!NODE_EXE!" (
-              if exist "!NODE_ROOT!" rmdir /s /q "!NODE_ROOT!"
+            if not exist "!SIGNTOOL_EXE!" (
+              if exist "!SDK_ROOT!" rmdir /s /q "!SDK_ROOT!"
 
-              set "NODE_ZIP=$(Agent.TempDirectory)\node.zip"
-              curl.exe -fsSL "https://nodejs.org/dist/!NODE_VERSION!/node-!NODE_VERSION!-win-arm64.zip" -o "!NODE_ZIP!"
+              set "SDK_PACKAGE=$(Agent.TempDirectory)\windows-sdk-build-tools.nupkg"
+              curl.exe -fsSL --retry 5 --retry-delay 2 --retry-all-errors "https://api.nuget.org/v3-flatcontainer/microsoft.windows.sdk.buildtools/!PACKAGE_VERSION!/microsoft.windows.sdk.buildtools.!PACKAGE_VERSION!.nupkg" -o "!SDK_PACKAGE!"
 
               set "ACTUAL_HASH="
-              for /f "skip=1" %%A in ('certutil -hashfile "!NODE_ZIP!" SHA256') do if not defined ACTUAL_HASH set "ACTUAL_HASH=%%A"
+              for /f "skip=1" %%A in ('certutil -hashfile "!SDK_PACKAGE!" SHA256') do if not defined ACTUAL_HASH set "ACTUAL_HASH=%%A"
               if /I not "!ACTUAL_HASH!"=="!EXPECTED_HASH!" (
-                echo Hash mismatch for node.zip
+                echo Hash mismatch for windows-sdk-build-tools.nupkg
                 echo   expected: !EXPECTED_HASH!
                 echo   actual:   !ACTUAL_HASH!
-                del "!NODE_ZIP!"
+                del "!SDK_PACKAGE!"
                 exit /b 1
               )
 
-              tar -xf "!NODE_ZIP!" -C "$(Agent.TempDirectory)"
-              ren "$(Agent.TempDirectory)\node-!NODE_VERSION!-win-arm64" nodejs
-              del "!NODE_ZIP!"
+              mkdir "!SDK_ROOT!"
+              tar -xf "!SDK_PACKAGE!" -C "!SDK_ROOT!"
+              del "!SDK_PACKAGE!"
             )
 
-            echo ##vso[task.prependpath]%NODE_ROOT%
-          displayName: Install Node.js (Windows ARM64)
+            echo ##vso[task.prependpath]!SIGNTOOL_ROOT!
+          displayName: Install SignTool (Windows ARM64)
 
-      - ${{ else }}:
-        - task: UseNode@1
-          inputs:
-            version: '22.22.0'
-          displayName: Install Node.js
+      - task: UseNode@1
+        inputs:
+          version: '22.22.0'
+        displayName: Install Node.js
 
       - task: Cache@2
         inputs:
@@ -147,7 +178,7 @@ jobs:
 
       # Windows
       - ${{ if eq(parameters.os, 'windows') }}:
-        - script: $(TEST_DIR)/scripts/run-win32.cmd -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -s $(SCREENSHOTS_DIR) -d $(CRASH_DUMPS_DIR) -v ${{ parameters.args }}
+        - script: $(TEST_DIR)/scripts/run-win32.cmd -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -s $(SCREENSHOTS_DIR) -d $(CRASH_DUMPS_DIR) -v $(ARTIFACTS_ARG) ${{ parameters.args }}
           workingDirectory: $(TEST_DIR)
           displayName: Run Sanity Tests
           env:
@@ -156,7 +187,7 @@ jobs:
 
       # macOS
       - ${{ if eq(parameters.os, 'macOS') }}:
-        - bash: $(TEST_DIR)/scripts/run-macOS.sh -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -s $(SCREENSHOTS_DIR) -d $(CRASH_DUMPS_DIR) -v ${{ parameters.args }}
+        - bash: $(TEST_DIR)/scripts/run-macOS.sh -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -s $(SCREENSHOTS_DIR) -d $(CRASH_DUMPS_DIR) -v $(ARTIFACTS_ARG) ${{ parameters.args }}
           workingDirectory: $(TEST_DIR)
           displayName: Run Sanity Tests
           env:
@@ -165,7 +196,7 @@ jobs:
 
       # Native Linux host
       - ${{ if and(eq(parameters.container, ''), eq(parameters.os, 'linux')) }}:
-        - bash: $(TEST_DIR)/scripts/run-ubuntu.sh -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -s $(SCREENSHOTS_DIR) -d $(CRASH_DUMPS_DIR) -v ${{ parameters.args }}
+        - bash: $(TEST_DIR)/scripts/run-ubuntu.sh -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -s $(SCREENSHOTS_DIR) -d $(CRASH_DUMPS_DIR) -v $(ARTIFACTS_ARG) ${{ parameters.args }}
           workingDirectory: $(TEST_DIR)
           displayName: Run Sanity Tests
           env:
@@ -191,6 +222,7 @@ jobs:
               --screenshots-dir "/root/screenshots" \
               --crash-dumps-dir "/root/crash-dumps" \
               --verbose \
+              $(ARTIFACTS_ARG) \
               ${{ parameters.args }}
           workingDirectory: $(TEST_DIR)
           displayName: Run Sanity Tests

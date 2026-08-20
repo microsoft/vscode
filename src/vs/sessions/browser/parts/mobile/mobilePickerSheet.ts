@@ -14,6 +14,11 @@ import { localize } from '../../../../nls.js';
 
 const $ = DOM.$;
 
+/** Returns whether the target belongs to a mobile picker sheet mounted at the workbench root. */
+export function isMobilePickerSheetTarget(target: HTMLElement): boolean {
+	return !!target.closest('.mobile-picker-sheet');
+}
+
 /**
  * One row in the {@link showMobilePickerSheet} bottom sheet.
  *
@@ -28,6 +33,13 @@ export interface IMobilePickerSheetItem {
 	readonly icon?: ThemeIcon;
 	readonly checked?: boolean;
 	readonly disabled?: boolean;
+	/**
+	 * When true, the row is rendered with a trailing chevron to signal
+	 * that tapping it navigates deeper (drill-down) rather than selecting
+	 * a final value. Navigational rows never show the radio checkmark and
+	 * are excluded from the in-section radio toggle.
+	 */
+	readonly navigates?: boolean;
 	/**
 	 * Optional section title shown above this row. When set, a divider is
 	 * inserted above the row (for sections after the first) and the title
@@ -82,17 +94,39 @@ export interface IMobilePickerSheetOptions {
 	/**
 	 * Called when a row is tapped and {@link stayOpenOnSelect} is true.
 	 * Callers should write-through the selection (e.g.
-	 * `provider.setSessionConfigValue`) and optionally update the
-	 * sheet's visual state via {@link IMobilePickerSheetController}.
+	 * `provider.setSessionConfigValue`).
 	 *
 	 * If the callback returns a string, that string is injected into
 	 * the search input and a new query is triggered — use this for
 	 * drill-down navigation where tapping a folder replaces the query
 	 * with `folderName/` to list its children.
 	 *
+	 * If the callback returns {@link MOBILE_PICKER_SHEET_CONFIRM}, the
+	 * tapped row is treated as confirmed: the sheet resolves with that
+	 * row's id and closes immediately.
+	 *
 	 * Ignored when `stayOpenOnSelect` is false.
 	 */
-	readonly onDidSelect?: (id: string) => string | void;
+	readonly onDidSelect?: (id: string) => string | typeof MOBILE_PICKER_SHEET_CONFIRM | void;
+
+	/**
+	 * Optional override for the dismiss button label (defaults to "Done").
+	 * Use "Cancel" for sheets where rows self-confirm on tap and the
+	 * header button is purely a dismiss affordance.
+	 */
+	readonly doneLabel?: string;
+}
+
+/**
+ * A pinned, single primary action rendered above the scrollable list.
+ * Tapping it runs {@link run} and then closes the sheet. Produced by
+ * {@link IMobilePickerSheetSearchSource.getPrimaryAction} for the current
+ * query.
+ */
+export interface IMobilePickerSheetPrimaryAction {
+	readonly label: string;
+	readonly icon?: ThemeIcon;
+	readonly run: () => void;
 }
 
 export interface IMobilePickerSheetHeaderAction {
@@ -119,6 +153,13 @@ export interface IMobilePickerSheetSearchSource {
 	readonly emptyMessage?: string;
 	/** Loads the result rows for the given query. */
 	loadItems(query: string, token: CancellationToken): Promise<readonly IMobilePickerSheetItem[]>;
+	/**
+	 * Optional pinned primary action for the given query, rendered above
+	 * the result list. Return `undefined` to hide it. Called on every
+	 * query change, so the action can track the browse state (e.g. an
+	 * "Open this folder" button that follows the folder being browsed).
+	 */
+	getPrimaryAction?(query: string): IMobilePickerSheetPrimaryAction | undefined;
 }
 
 /**
@@ -176,6 +217,11 @@ export interface IMobileContentSheetOptions {
 export const MOBILE_PICKER_SHEET_HEADER_ACTION_PREFIX = 'headerAction:';
 
 /**
+ * Return from `onDidSelect` to confirm the tapped row and close the sheet while `stayOpenOnSelect` is enabled.
+ */
+export const MOBILE_PICKER_SHEET_CONFIRM = Symbol('mobilePickerSheetConfirm');
+
+/**
  * Show a phone-friendly bottom sheet for picker-style choices.
  *
  * Renders as a fixed-position overlay docked at the bottom of the
@@ -209,6 +255,7 @@ export function showMobilePickerSheet(
 		const shell: IMobileSheetShell = buildMobileSheetShell(workbenchContainer, title, {
 			caption: options?.caption,
 			headerActions: options?.headerActions,
+			doneLabel: options?.doneLabel,
 			onDismiss: () => finish(undefined),
 			onHeaderAction: actionId => finish(`${MOBILE_PICKER_SHEET_HEADER_ACTION_PREFIX}${actionId}`),
 		});
@@ -229,6 +276,40 @@ export function showMobilePickerSheet(
 			searchInput.setAttribute('aria-label', options.search.ariaLabel ?? options.search.placeholder);
 		}
 
+		// -- Pinned primary action -------------------------------------
+		// Optional single, prominent confirm action that sits above the
+		// scrollable list and stays put as the list scrolls. Refreshed
+		// from `search.getPrimaryAction(query)` on every query change;
+		// tapping it runs the action and closes the sheet.
+		const pinnedContainer = DOM.append(sheet, $('div.mobile-picker-sheet-pinned'));
+		pinnedContainer.style.display = 'none';
+		const pinnedStore = disposables.add(new DisposableStore());
+		const setPrimaryAction = (action: IMobilePickerSheetPrimaryAction | undefined) => {
+			pinnedStore.clear();
+			DOM.clearNode(pinnedContainer);
+			if (!action) {
+				pinnedContainer.style.display = 'none';
+				return;
+			}
+			pinnedContainer.style.display = '';
+			const btn = DOM.append(pinnedContainer, $('button.mobile-picker-sheet-primary-action', { type: 'button' })) as HTMLButtonElement;
+			btn.setAttribute('aria-label', action.label);
+			if (action.icon) {
+				const iconSlot = DOM.append(btn, $('span.mobile-picker-sheet-primary-action-icon'));
+				const iconGlyph = DOM.append(iconSlot, $('span.mobile-picker-sheet-primary-action-icon-glyph'));
+				iconGlyph.classList.add(...ThemeIcon.asClassNameArray(action.icon));
+			}
+			const textCol = DOM.append(btn, $('span.mobile-picker-sheet-primary-action-text'));
+			DOM.append(textCol, $('span.mobile-picker-sheet-primary-action-label')).textContent = action.label;
+			// Plain `click` only (no Gesture/Tap) so the action runs
+			// exactly once on touch-tap; `run` is not idempotent.
+			pinnedStore.add(DOM.addDisposableListener(btn, DOM.EventType.CLICK, (e: MouseEvent) => {
+				e.preventDefault();
+				action.run();
+				finish(undefined);
+			}));
+		};
+
 		// -- Items list ------------------------------------------------
 		const list = DOM.append(sheet, $('div.mobile-picker-sheet-list'));
 		list.setAttribute('role', 'list');
@@ -242,7 +323,7 @@ export function showMobilePickerSheet(
 
 		// Registry of rendered rows keyed by section index, used to
 		// toggle checkmarks within a section on tap.
-		const rowsBySection = new Map<number, { row: HTMLButtonElement; checkSlot: HTMLElement; id: string }[]>();
+		const rowsBySection = new Map<number, IMobilePickerSheetRowRef[]>();
 
 		// Mutable reference so handleRowTap can trigger a search-query
 		// update when onDidSelect returns a drill-down string. Populated
@@ -252,10 +333,15 @@ export function showMobilePickerSheet(
 		const handleRowTap = options?.stayOpenOnSelect && options.onDidSelect
 			? (id: string, _row: HTMLElement, sectionIndex: number) => {
 				// Update visual: uncheck all rows in the same section,
-				// then check the tapped row.
+				// then check the tapped row. Skipped for navigational
+				// rows (drill-down) — they don't carry a radio checkmark.
 				const sectionRows = rowsBySection.get(sectionIndex);
-				if (sectionRows) {
+				const targetEntry = sectionRows?.find(entry => entry.id === id);
+				if (sectionRows && !targetEntry?.navigates) {
 					for (const entry of sectionRows) {
+						if (!entry.checkSlot) {
+							continue;
+						}
 						const isTarget = entry.id === id;
 						entry.row.classList.toggle('checked', isTarget);
 						entry.row.setAttribute('aria-current', isTarget ? 'true' : 'false');
@@ -266,17 +352,23 @@ export function showMobilePickerSheet(
 						}
 					}
 				}
-				const drillDown = options.onDidSelect!(id);
-				if (typeof drillDown === 'string' && searchInput && setSearchQuery) {
-					searchInput.value = drillDown;
-					setSearchQuery(drillDown);
+				const selectResult = options.onDidSelect!(id);
+				if (selectResult === MOBILE_PICKER_SHEET_CONFIRM) {
+					finish(id);
+				} else if (typeof selectResult === 'string' && searchInput && setSearchQuery) {
+					searchInput.value = selectResult;
+					setSearchQuery(selectResult);
 				}
 			}
 			: (id: string, _row: HTMLElement, _sectionIndex: number) => { finish(id); };
 
+		// Static items live in their own container so the search flow can
+		// hide them while the user is browsing/searching (a non-empty
+		// query), keeping recents from cluttering search results.
+		const staticContainer = DOM.append(list, $('div.mobile-picker-sheet-static'));
 		const renderState: IRenderState = { firstRow: undefined, firstCheckedRow: undefined, sectionCount: 0 };
 		for (const item of items) {
-			renderRow(list, item, renderState, handleRowTap, disposables, rowsBySection);
+			renderRow(staticContainer, item, renderState, handleRowTap, disposables, rowsBySection);
 		}
 
 		// -- Dynamic search results -----------------------------------
@@ -289,6 +381,18 @@ export function showMobilePickerSheet(
 			const resultsContainer = DOM.append(list, $('div.mobile-picker-sheet-search-results'));
 			let currentQueryTokens: CancellationTokenSource | undefined;
 			let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+			const searchSectionBase = renderState.sectionCount + 1;
+			const pruneSearchRows = () => {
+				for (const key of [...rowsBySection.keys()]) {
+					if (key >= searchSectionBase) {
+						rowsBySection.delete(key);
+					}
+				}
+			};
+			// Row listeners for search results are scoped here (not to the
+			// sheet-lifetime store) and cleared on each re-render so we
+			// don't accumulate handlers bound to detached rows.
+			const searchRowsStore = disposables.add(new DisposableStore());
 
 			const cancelInflight = () => {
 				currentQueryTokens?.cancel();
@@ -303,9 +407,15 @@ export function showMobilePickerSheet(
 
 			const renderResults = async (query: string): Promise<void> => {
 				cancelInflight();
+				// Recents (static items) are only relevant at the root.
+				// Once the user types or drills into a path, hide them so
+				// the list shows just the search results.
+				staticContainer.style.display = query ? 'none' : '';
 				const tokens = new CancellationTokenSource();
 				currentQueryTokens = tokens;
 				DOM.clearNode(resultsContainer);
+				pruneSearchRows();
+				searchRowsStore.clear();
 				const status = DOM.append(resultsContainer, $('div.mobile-picker-sheet-search-status'));
 				status.textContent = localize('mobilePickerSheet.searching', "Searching…");
 
@@ -318,9 +428,13 @@ export function showMobilePickerSheet(
 				if (tokens.token.isCancellationRequested || resolved) {
 					return;
 				}
+				// Refresh the pinned primary action for the live query
+				// (only after the cancellation check so stale queries
+				// don't leave a mismatched action behind).
+				setPrimaryAction(search.getPrimaryAction?.(query));
 				DOM.clearNode(resultsContainer);
 
-				const localState: IRenderState = { firstRow: undefined, firstCheckedRow: undefined, sectionCount: 0 };
+				const localState: IRenderState = { firstRow: undefined, firstCheckedRow: undefined, sectionCount: searchSectionBase };
 				if (search.resultsSectionTitle) {
 					const sectionTitle = DOM.append(resultsContainer, $('div.mobile-picker-sheet-section-title'));
 					sectionTitle.textContent = search.resultsSectionTitle;
@@ -331,7 +445,7 @@ export function showMobilePickerSheet(
 					return;
 				}
 				for (const item of results) {
-					renderRow(resultsContainer, item, localState, handleRowTap, disposables, rowsBySection);
+					renderRow(resultsContainer, item, localState, handleRowTap, searchRowsStore, rowsBySection);
 				}
 			};
 
@@ -651,6 +765,18 @@ interface IRenderState {
 }
 
 /**
+ * A rendered row registered per section so `stayOpenOnSelect` mode can
+ * toggle the radio checkmark within a section on tap. Navigational rows
+ * have no {@link checkSlot} and are skipped by the toggle.
+ */
+interface IMobilePickerSheetRowRef {
+	readonly row: HTMLButtonElement;
+	readonly checkSlot?: HTMLElement;
+	readonly id: string;
+	readonly navigates?: boolean;
+}
+
+/**
  * Append a single picker row (and any preceding section divider) to the
  * given list element. Wires up touch/click handlers so taps invoke
  * {@link onTap}. Shared between the static items list and the dynamic
@@ -662,7 +788,7 @@ function renderRow(
 	state: IRenderState,
 	onTap: (id: string, row: HTMLButtonElement, sectionIndex: number) => void,
 	disposables: DisposableStore,
-	rowsBySection?: Map<number, { row: HTMLButtonElement; checkSlot: HTMLElement; id: string }[]>,
+	rowsBySection?: Map<number, IMobilePickerSheetRowRef[]>,
 ): void {
 	if (item.sectionTitle !== undefined) {
 		if (state.sectionCount > 0) {
@@ -708,23 +834,32 @@ function renderRow(
 		DOM.append(textCol, $('span.mobile-picker-sheet-description')).textContent = item.description;
 	}
 
-	// Trailing checkmark for the currently-selected row. Same child-span
-	// pattern as the icon slot so flex centering wins over codicon's
-	// `display: inline-block`.
-	const checkSlot = DOM.append(row, $('span.mobile-picker-sheet-check'));
-	if (item.checked) {
-		const checkGlyph = DOM.append(checkSlot, $('span.mobile-picker-sheet-check-glyph'));
-		checkGlyph.classList.add(...ThemeIcon.asClassNameArray(Codicon.check));
+	// Trailing affordance. Navigational rows show a chevron (tap drills
+	// deeper); selectable rows show a checkmark when active. Same
+	// child-span pattern as the icon slot so flex centering wins over
+	// codicon's `display: inline-block`.
+	let checkSlot: HTMLElement | undefined;
+	if (item.navigates && !item.checked) {
+		const chevronSlot = DOM.append(row, $('span.mobile-picker-sheet-chevron'));
+		const chevronGlyph = DOM.append(chevronSlot, $('span.mobile-picker-sheet-chevron-glyph'));
+		chevronGlyph.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRight));
+	} else {
+		checkSlot = DOM.append(row, $('span.mobile-picker-sheet-check'));
+		if (item.checked) {
+			const checkGlyph = DOM.append(checkSlot, $('span.mobile-picker-sheet-check-glyph'));
+			checkGlyph.classList.add(...ThemeIcon.asClassNameArray(Codicon.check));
+		}
 	}
 
 	// Register this row so `stayOpenOnSelect` mode can toggle
 	// checkmarks within the same section on tap.
 	if (rowsBySection) {
+		const entry: IMobilePickerSheetRowRef = { row, checkSlot, id: item.id, navigates: item.navigates };
 		const sectionRows = rowsBySection.get(state.sectionCount);
 		if (sectionRows) {
-			sectionRows.push({ row, checkSlot, id: item.id });
+			sectionRows.push(entry);
 		} else {
-			rowsBySection.set(state.sectionCount, [{ row, checkSlot, id: item.id }]);
+			rowsBySection.set(state.sectionCount, [entry]);
 		}
 	}
 

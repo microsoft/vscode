@@ -16,9 +16,11 @@ import { IProviderSessionType, ISessionsManagementService } from '../../../../se
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { IObservable } from '../../../../../base/common/observable.js';
-import { SessionTypePicker } from '../sessionTypePicker.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { SessionTypePicker, ISessionTypePickerOptions } from '../sessionTypePicker.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { IMobilePickerSheetItem, showMobilePickerSheet } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 /**
  * Phone variant of {@link SessionTypePicker} that renders the picker as
@@ -35,6 +37,7 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 
 	constructor(
 		session: IObservable<ISession | undefined>,
+		options: ISessionTypePickerOptions | undefined,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
@@ -43,9 +46,11 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@ILanguageModelsService languageModelsService: ILanguageModelsService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		super(session, actionWidgetService, sessionsManagementService, _sessionsProvidersService, storageService, telemetryService, chatSessionsService, chatEntitlementService, languageModelsService);
+		super(session, options, actionWidgetService, sessionsManagementService, _sessionsProvidersService, storageService, telemetryService, chatSessionsService, chatEntitlementService, languageModelsService, configurationService, contextKeyService);
 	}
 
 	override render(container: HTMLElement, options?: { className?: string }): void {
@@ -67,7 +72,7 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 			super._showPicker();
 			return;
 		}
-		if (this._folderSessionTypes.length <= 1) {
+		if (this._folderSessionTypes.length <= 1 && this._pickServedByFolder(this._picked)) {
 			return;
 		}
 

@@ -9,7 +9,7 @@ import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGro
 // Loaded here (rather than in the workbench-layer fixture) so the
 // `.interactive-input-part` padding (32px each side) that the `isSessionsWindow`
 // layout path accounts for is available without a layering violation.
-import '../../../../browser/media/style.css';
+import '../../browser/media/chatView.css';
 
 /**
  * Wraps the fixture context so the chat input renders inside the sessions window
@@ -35,8 +35,8 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/input/' }, {
 		})
 	}),
 	// Partial multi-line selection so the reverse-rounded selection corners are
-	// rendered. These cut-out pieces use `.monaco-editor-background`, which the
-	// sessions CSS forces transparent, so the bug shows here as blocky corners.
+	// rendered. These cut-out pieces use `.monaco-editor-background`, which must
+	// remain opaque so the selection corners render correctly.
 	SessionsWindowSelection: defineComponentFixture({
 		render: context => renderChatInput(sessionsWindowContext(context), {
 			isSessionsWindow: true,

@@ -25,7 +25,7 @@ import { defaultButtonStyles } from '../../../../../platform/theme/browser/defau
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
-import { UninstallPluginAction, createPolicyBlockedEnableAction, isPluginPolicyBlocked } from '../agentPluginActions.js';
+import { createPolicyBlockedEnableAction, createUninstallPluginAction, isPluginPolicyBlocked } from '../agentPluginActions.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { basename, dirname, joinPath } from '../../../../../base/common/resources.js';
@@ -236,8 +236,9 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			return;
 		}
 
-		if (item.plugin.remove) {
-			const uninstallAction = this.renderDisposables.add(new UninstallPluginAction(item.plugin));
+		const uninstallAction = createUninstallPluginAction(item.plugin);
+		if (uninstallAction) {
+			this.renderDisposables.add(uninstallAction);
 			const uninstallButton = this.renderDisposables.add(new Button(this.titleActionsEl, { ...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: uninstallAction.label }));
 			uninstallButton.element.classList.add('embedded-detail-uninstall-button');
 			uninstallButton.label = uninstallAction.label;

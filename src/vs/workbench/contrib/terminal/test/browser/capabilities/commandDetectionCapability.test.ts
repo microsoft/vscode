@@ -134,6 +134,48 @@ suite('CommandDetectionCapability', () => {
 		});
 	});
 
+	test('should not inherit the previous exit code when a duplicate command is interrupted', async () => {
+		await printStandardCommand('$ ', 'echo test', 'test', undefined, 0);
+
+		capability.handlePromptStart();
+		await writeP(xterm, `\r$ `);
+		capability.handleCommandStart();
+		await writeP(xterm, 'echo test');
+		xterm.input('\x03');
+		await writeP(xterm, '^C');
+		capability.setCommandLine('echo test', true);
+		capability.handleCommandExecuted();
+		await writeP(xterm, `\r\n`);
+		capability.handleCommandFinished(undefined);
+
+		await printCommandStart('$ ');
+
+		assertCommands([
+			{ command: 'echo test', exitCode: 0, cwd: undefined, marker: { line: 0 } },
+			{ command: 'echo test', exitCode: undefined, cwd: undefined, marker: { line: 2 } }
+		]);
+	});
+
+	test('should inherit the previous exit code for duplicate commands without interruption', async () => {
+		await printStandardCommand('$ ', 'echo ^C', 'test', undefined, 0);
+
+		capability.handlePromptStart();
+		await writeP(xterm, `\r$ `);
+		capability.handleCommandStart();
+		await writeP(xterm, 'echo ^C');
+		capability.setCommandLine('echo ^C', true);
+		capability.handleCommandExecuted();
+		await writeP(xterm, `\r\ntest\r\n`);
+		capability.handleCommandFinished(undefined);
+
+		await printCommandStart('$ ');
+
+		assertCommands([
+			{ command: 'echo ^C', exitCode: 0, cwd: undefined, marker: { line: 0 } },
+			{ command: 'echo ^C', exitCode: 0, cwd: undefined, marker: { line: 2 } }
+		]);
+	});
+
 	test('should preserve explicit newlines at 80-column wrap boundaries in command output', async () => {
 		const boundaryWidthLine = 'A'.repeat(80);
 		await printStandardCommand('$ ', 'cat content.txt', `${boundaryWidthLine}\r\nafter`, undefined, 0);
