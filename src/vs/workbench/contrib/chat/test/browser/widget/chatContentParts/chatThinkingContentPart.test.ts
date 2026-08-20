@@ -876,7 +876,37 @@ suite('ChatThinkingContentPart', () => {
 			});
 		});
 
-		test('keeps the dropped header as the title when a tool joins the group', () => {
+		test('keeps the dropped header as the title over a restored content title', () => {
+			const markdownRenderer: IMarkdownRenderer = {
+				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
+			};
+			const content = createThinkingPart('**Reviewing the plan**\n\n**Applying the change**');
+			content.generatedTitle = 'Reviewed implementation details';
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				createMockRenderContext(true),
+				markdownRenderer,
+				true
+			));
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			part.finalizeTitleIfDefault();
+			part.domNode.querySelector<HTMLElement>('.monaco-button')?.click();
+
+			assert.deepStrictEqual({
+				title: part.domNode.querySelector('.chat-used-context-label .monaco-button')?.textContent?.trim(),
+				rows: Array.from(part.domNode.querySelectorAll<HTMLElement>('.chat-thinking-item.markdown-content'), row => row.textContent?.trim()),
+				generatedTitle: content.generatedTitle,
+			}, {
+				title: 'Reviewing the plan',
+				rows: ['Applying the change'],
+				generatedTitle: 'Reviewing the plan',
+			});
+		});
+
+		test('keeps the dropped header as the title when a titled tool joins the group', () => {
 			const markdownRenderer: IMarkdownRenderer = {
 				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
 			};
@@ -904,7 +934,7 @@ suite('ChatThinkingContentPart', () => {
 				presentation: undefined,
 				source: ToolDataSource.Internal,
 				isAttachedToThinking: false,
-				generatedTitle: undefined,
+				generatedTitle: 'Edited implementation details',
 				state: observableValue('state', {
 					type: IChatToolInvocation.StateKind.Executing,
 					confirmed: { type: 0 },
@@ -926,6 +956,44 @@ suite('ChatThinkingContentPart', () => {
 			}, {
 				title: 'Analyzing the request',
 				summaryRows: ['Planning the edits'],
+			});
+		});
+
+		test('keeps the dropped header as the title over a cached title', () => {
+			const markdownRenderer: IMarkdownRenderer = {
+				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
+			};
+			const context = createMockRenderContext(true);
+			const thinkingId = 'restored-summary-part';
+			const cacheKey = `${chatSessionResourceToId(context.element.sessionResource)}:${thinkingId}`;
+			instantiationService.get(IStorageService).store(
+				'chat.thinkingTitleCache',
+				JSON.stringify({ [cacheKey]: { title: 'Reviewed implementation details', storedAt: Date.now() } }),
+				StorageScope.PROFILE,
+				StorageTarget.MACHINE
+			);
+			const content = createThinkingPart('**Analyzing the request**\n\n**Verifying the result**', thinkingId);
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				markdownRenderer,
+				true
+			));
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			part.finalizeTitleIfDefault();
+			part.domNode.querySelector<HTMLElement>('.monaco-button')?.click();
+
+			assert.deepStrictEqual({
+				title: part.domNode.querySelector('.chat-used-context-label .monaco-button')?.textContent?.trim(),
+				rows: Array.from(part.domNode.querySelectorAll<HTMLElement>('.chat-thinking-item.markdown-content'), row => row.textContent?.trim()),
+				generatedTitle: content.generatedTitle,
+			}, {
+				title: 'Analyzing the request',
+				rows: ['Verifying the result'],
+				generatedTitle: 'Analyzing the request',
 			});
 		});
 

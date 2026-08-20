@@ -1498,6 +1498,15 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 		this.updateDropdownClickability();
 
+		// A leading summary header removed from the rows must remain the title, even when a restored generated title exists.
+		if (this.droppedSummaryHeader) {
+			this.currentTitle = this.droppedSummaryHeader;
+			this.content.generatedTitle = this.droppedSummaryHeader;
+			this.setGeneratedTitleOnAllParts(this.droppedSummaryHeader);
+			this.setFinalizedTitle(this.droppedSummaryHeader);
+			return;
+		}
+
 		if (this.content.generatedTitle) {
 			this.currentTitle = this.content.generatedTitle;
 			this.setGeneratedTitleOnAllParts(this.content.generatedTitle);
@@ -1557,18 +1566,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			if (this.singleItemInfo && this.restoreSingleItemToOriginalPosition()) {
 				return;
 			}
-		}
-
-		// A multi-header reasoning summary drops its leading header from the rows;
-		// keep it as the finalized title so that header is never displayed nowhere.
-		// This wins over a sibling block's single extracted title and holds even when
-		// tools joined the group, since the header was removed from the rows.
-		if (this.droppedSummaryHeader) {
-			this.currentTitle = this.droppedSummaryHeader;
-			this.content.generatedTitle = this.droppedSummaryHeader;
-			this.setGeneratedTitleOnAllParts(this.droppedSummaryHeader);
-			this.setFinalizedTitle(this.droppedSummaryHeader);
-			return;
 		}
 
 		// if exactly one actual extracted title and no tool invocations, use that as the final title.
