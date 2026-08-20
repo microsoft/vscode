@@ -13,7 +13,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, platformRootSchema, plat
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
-import { SessionStatus, buildDefaultChatUri, MessageKind, type SessionSummary } from '../../common/state/sessionState.js';
+import { SessionStatus, buildDefaultChatUri, MessageKind, withSessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
 import { IGitHubService } from '../../../github/common/githubService.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
@@ -215,6 +215,69 @@ suite('AgentMergeController', () => {
 			mode: 'interactive',
 			autoApprove: 'default',
 			injected: undefined,
+		});
+	});
+
+	test('recovers a session whose persisted git state lost its branch', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		configurationService.updateRootConfig({ [AgentMergeConfigKey.Enabled]: true });
+		const session = `copilot:/agent-merge-controller-${++sessionCounter}`;
+		let refreshCount = 0;
+		const gitStateService = new class extends mock<IAgentHostGitStateService>() {
+			override readonly onDidRefreshSessionGitState = Event.None;
+			override readonly onDidChangeSessionGitHubState = Event.None;
+			override async refreshSessionGitState(sessionKey: string): Promise<void> {
+				refreshCount++;
+				stateManager.setSessionMeta(sessionKey, withSessionGitState(stateManager.getSessionState(sessionKey)?._meta, { branchName: 'feature', baseBranchName: 'main' }));
+			}
+			// The follow-up evaluation triggered by capturing the target reaches
+			// this; it finds no pull request and idles on the backstop.
+			override async attachSessionGitHubPullRequest(): Promise<void> { }
+		}();
+		const endpointService = disposables.add(new AgentHostGitHubEndpointService(configurationService, logService));
+		disposables.add(new AgentMergeController(
+			{
+				startTurn: () => false,
+				cancelTurn: () => { },
+				getAutonomousSessionConfig: () => ({}),
+			},
+			stateManager,
+			configurationService,
+			gitStateService,
+			new class extends mock<IGitHubService>() { }(),
+			endpointService,
+			logService,
+		));
+		stateManager.createSession(summary(session));
+		stateManager.setSessionConfig(session, {
+			schema: platformSessionSchema.toProtocol(),
+			values: {},
+		});
+		// A failed git probe leaves the branch behind but keeps the base branch,
+		// which is exactly the state that used to stall Agent Merge forever.
+		stateManager.setSessionMeta(session, withSessionGitState(undefined, { baseBranchName: 'main' }));
+		configurationService.updateSessionConfig(session, {
+			[SessionConfigKey.AgentMerge]: { enabled: true },
+		});
+
+		const captured = new Promise<void>(resolve => {
+			disposables.add(stateManager.onDidChangeSessionConfig(event => {
+				if (event.session.toString() === session && readAgentMergeSessionState(event.current?.values)?.target) {
+					resolve();
+				}
+			}));
+		});
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		await captured;
+
+		assert.deepStrictEqual({
+			refreshCount,
+			branchName: readAgentMergeSessionState(configurationService.getSessionConfigValues(session))?.target?.branchName,
+		}, {
+			refreshCount: 1,
+			branchName: 'feature',
 		});
 	});
 

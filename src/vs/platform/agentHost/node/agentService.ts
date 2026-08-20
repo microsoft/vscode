@@ -3842,9 +3842,11 @@ export class AgentService extends Disposable implements IAgentService {
 			// restore path that normally calls `_attachGitState` is skipped — so
 			// trigger it lazily here for the first subscriber. `_attachGitState`
 			// is async and updates `_meta.git` once ready, which clients see via
-			// the normal state-update stream.
+			// the normal state-update stream. A state without a branch is treated
+			// as missing too: a failed git probe can persist one, and it would
+			// otherwise mask the very repair this lazy refresh exists to perform.
 			const sessionState = this._stateManager.getSessionState(resourceStr);
-			if (!isAhpChatChannel(resourceStr) && sessionState && readSessionGitState(sessionState._meta) === undefined) {
+			if (!isAhpChatChannel(resourceStr) && sessionState && readSessionGitState(sessionState._meta)?.branchName === undefined) {
 				const workingDirectory = sessionState.workingDirectories?.[0]
 					? URI.parse(sessionState.workingDirectories[0])
 					: undefined;

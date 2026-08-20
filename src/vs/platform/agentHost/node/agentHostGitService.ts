@@ -947,6 +947,18 @@ export class AgentHostGitService implements IAgentHostGitService {
 			configuredBaseBranch ? undefined : this._runGit(repositoryRoot, ['symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD']),
 		]);
 
+		// `git status` is the only probe that reports the branch, so a state
+		// computed without it is not merely incomplete — it is misleading.
+		// Callers persist the result wholesale, so returning a branch-less
+		// object here would overwrite the last known good branch and strand
+		// every consumer that keys off it (Agent Merge binds its pull request
+		// by branch). Report the failure instead and let callers keep what
+		// they already had.
+		if (statusOutput === undefined) {
+			this._logService.warn(`[agentHostGitService] Not reporting session git state because git status failed: ${repositoryRoot.fsPath}`);
+			return undefined;
+		}
+
 		const status = parseGitStatusV2(statusOutput);
 		const hasGitHubRemote = parseHasGitHubRemote(remotesOutput);
 		const baseBranchName = configuredBaseBranch ?? parseDefaultBranchRef(defaultBranchRef);
@@ -1048,6 +1060,16 @@ export class AgentHostGitService implements IAgentHostGitService {
 					// raw progress/diagnostic text is still available.
 					if (stderr) {
 						this._logService.warn(`[agentHostGitService] > git ${args.join(' ')} failed; full stderr:\n${stderr}`);
+					} else if (didTimeOut || error.killed) {
+						// A timed-out or signalled git writes nothing to stderr,
+						// so this is the only trace such a failure ever leaves.
+						// Callers that degrade quietly on `undefined` are then
+						// impossible to diagnose from logs alone.
+						this._logService.warn(`[agentHostGitService] > git ${args.join(' ')} failed: ${formatGitError(args, timeoutMs, didTimeOut, error, stderr)}`);
+					} else {
+						// A silent non-zero exit is how the `--quiet` probes
+						// report "not found", so this stays below `warn`.
+						this._logService.trace(`[agentHostGitService] > git ${args.join(' ')} failed: ${formatGitError(args, timeoutMs, didTimeOut, error, stderr)}`);
 					}
 					if (options?.throwOnError) {
 						reject(new Error(formatGitError(args, timeoutMs, didTimeOut, error, stderr), { cause: error }));

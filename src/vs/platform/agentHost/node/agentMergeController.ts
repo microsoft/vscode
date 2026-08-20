@@ -337,8 +337,10 @@ export class AgentMergeController extends Disposable {
 		if (!runtime || !state || !agentMerge?.enabled || this._stateManager.hasActiveTurn(session)) {
 			return;
 		}
-		const gitState = readSessionGitState(state._meta);
-		const branchName = gitState?.branchName;
+		const branchName = await this._resolveCurrentBranch(session, runtime, state);
+		if (!this._isCurrentRuntime(session, runtime)) {
+			return;
+		}
 		if (!branchName) {
 			this._logService.trace(`[AgentMergeController] Waiting for a current branch: session=${session}`);
 			runtime.backstopScheduler.schedule();
@@ -477,6 +479,35 @@ export class AgentMergeController extends Disposable {
 				await this._merge(session, runtime, ref, snapshot, configuration, agentMerge);
 				return;
 		}
+	}
+
+	/**
+	 * Resolves the branch Agent Merge should act on, repairing session git
+	 * state that is missing it.
+	 *
+	 * A failed git probe can leave persisted git state without a branch. The
+	 * refresh that would repair it normally rides along with a client watching
+	 * the session or an edit landing in the worktree, and neither happens for a
+	 * session this controller is holding resident on its own. Every later step
+	 * — binding the pull request, subscribing to it, acting on its feedback —
+	 * is gated on the branch, so without this the session idles on the backstop
+	 * indefinitely and Agent Merge silently never runs.
+	 */
+	private async _resolveCurrentBranch(session: string, runtime: AgentMergeRuntime, state: NonNullable<ReturnType<AgentHostStateManager['getSessionState']>>): Promise<string | undefined> {
+		const branchName = readSessionGitState(state._meta)?.branchName;
+		if (branchName) {
+			return branchName;
+		}
+		this._logService.debug(`[AgentMergeController] Refreshing git state because the session reports no branch: session=${session}`);
+		await this._gitStateService.refreshSessionGitState(session, state.workingDirectories?.[0] ? URI.parse(state.workingDirectories[0]) : undefined);
+		if (!this._isCurrentRuntime(session, runtime)) {
+			return undefined;
+		}
+		const refreshed = readSessionGitState(this._stateManager.getSessionState(session)?._meta)?.branchName;
+		if (refreshed) {
+			this._logService.info(`[AgentMergeController] Recovered the session branch after refreshing git state: session=${session}`);
+		}
+		return refreshed;
 	}
 
 	private async _resolveRef(parsed: IParsedPullRequestUrl, signal: AbortSignal): Promise<PullRequestRef | undefined> {
