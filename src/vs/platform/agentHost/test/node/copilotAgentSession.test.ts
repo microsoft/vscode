@@ -6504,8 +6504,13 @@ suite('CopilotAgentSession', () => {
 
 		test('tool-call aggregate emits once with cancelled result across abort and idle', async () => {
 			const telemetryService = new CapturingTelemetryService();
+			const sessionUri = AgentSession.uri('copilotcli', 'test-session-1');
+			const peerChatUri = URI.parse(buildChatUri(sessionUri, 'peer-1'));
 			const { session, mockSession, signals } = await createAgentSession(disposables, {
 				telemetryService,
+				sessionUri,
+				chatChannelUri: peerChatUri,
+				resource: peerChatUri,
 				clientSnapshot: { tools: [{ name: 'grep' }, { name: 'edit' }], plugins: [], mcpServers: {} },
 			});
 			session.resetTurnState('turn-tool-details');
@@ -6556,7 +6561,7 @@ suite('CopilotAgentSession', () => {
 			}, {
 				telemetry: [{
 					eventName: 'toolCallDetails',
-					provider: 'copilot',
+					provider: 'copilotcli',
 					requestId: 'turn-tool-details',
 					responseType: 'cancelled',
 					toolCounts: JSON.stringify({ grep: 1, edit: 1 }),
@@ -6612,7 +6617,14 @@ suite('CopilotAgentSession', () => {
 
 		test('tool approval waits for permission outcome and falls back only at completion', async () => {
 			const telemetryService = new CapturingTelemetryService();
-			const { session, mockSession } = await createAgentSession(disposables, { telemetryService });
+			const sessionUri = AgentSession.uri('copilotcli', 'test-session-1');
+			const peerChatUri = URI.parse(buildChatUri(sessionUri, 'peer-1'));
+			const { session, mockSession } = await createAgentSession(disposables, {
+				telemetryService,
+				sessionUri,
+				chatChannelUri: peerChatUri,
+				resource: peerChatUri,
+			});
 			session.resetTurnState('turn-approval');
 
 			mockSession.fire('tool.execution_start', {
@@ -6653,16 +6665,17 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'chat.toolApproval').map(event => {
 				const data = event.data as Record<string, unknown>;
 				return {
+					provider: data.provider,
 					toolId: data.toolId,
 					confirmKind: data.confirmKind,
 					confirmationNotNeededReason: data.confirmationNotNeededReason,
 				};
 			}), [{
-				toolId: 'bash', confirmKind: 'userAction', confirmationNotNeededReason: undefined,
+				provider: 'copilotcli', toolId: 'bash', confirmKind: 'userAction', confirmationNotNeededReason: undefined,
 			}, {
-				toolId: 'edit', confirmKind: 'denied', confirmationNotNeededReason: undefined,
+				provider: 'copilotcli', toolId: 'edit', confirmKind: 'denied', confirmationNotNeededReason: undefined,
 			}, {
-				toolId: 'grep', confirmKind: 'confirmationNotNeeded', confirmationNotNeededReason: undefined,
+				provider: 'copilotcli', toolId: 'grep', confirmKind: 'confirmationNotNeeded', confirmationNotNeededReason: undefined,
 			}]);
 		});
 
