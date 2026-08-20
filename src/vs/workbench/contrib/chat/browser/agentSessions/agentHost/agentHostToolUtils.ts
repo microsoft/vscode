@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, SEMANTIC_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/semanticSearchConstants.js';
+import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/toolSearchConstants.js';
 import type { IToolData } from '../../../common/tools/languageModelToolsService.js';
 
 /**
@@ -19,4 +21,16 @@ export function toolDataToDefinition(tool: IToolData): ToolDefinition {
 		definition.inputSchema = tool.inputSchema as ToolDefinition['inputSchema'];
 	}
 	return definition;
+}
+
+/** Maps a runtime-facing override name back to the workbench tool reference. */
+export function toClientToolReferenceName(toolName: string, semanticSearchOverride: boolean): string {
+	switch (toolName) {
+		case RUNTIME_TOOL_SEARCH_TOOL_NAME:
+			return CLIENT_TOOL_SEARCH_REFERENCE_NAME;
+		case SEMANTIC_SEARCH_TOOL_NAME:
+			return semanticSearchOverride ? CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME : toolName;
+		default:
+			return toolName;
+	}
 }

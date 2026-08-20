@@ -19,6 +19,7 @@ import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IB
 import { AgentHostByokModelsEnabledConfigKey, type SchemaValues } from '../../common/agentHostSchema.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
+import { CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import type { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels } from '../../common/reasoningEffort.js';
 import { CustomizationType, McpServerStatus, type ModelSelection } from '../../common/state/protocol/state.js';
@@ -931,6 +932,22 @@ suite('filterClientToolNames', () => {
 			]
 		);
 	});
+
+	test('keeps workbench and SDK semantic-search names consistent', () => {
+		const names = new Set([SEMANTIC_SEARCH_TOOL_NAME]);
+		assert.deepStrictEqual(
+			[
+				[...filterClientToolNames(names, [CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME], undefined)],
+				[...filterClientToolNames(names, undefined, [`custom:${CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME}`])],
+				toSdkToolFilterPatterns([CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, `custom:${CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME}`, 'builtin:*']),
+			],
+			[
+				[SEMANTIC_SEARCH_TOOL_NAME],
+				[],
+				[SEMANTIC_SEARCH_TOOL_NAME, `custom:${SEMANTIC_SEARCH_TOOL_NAME}`, 'builtin:*'],
+			]
+		);
+	});
 });
 
 /**
@@ -1013,6 +1030,26 @@ suite('CopilotSessionLauncher resume config', () => {
 		return (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean } }> })._buildSessionConfig(plan, runtime);
 	}
 
+	test('excludes the built-in semantic search unless the client override is enabled', async () => {
+		const store = new DisposableStore();
+		const disabled = await buildResumeConfig(
+			createLauncher(store, { modelCapabilityOverrides: { '*': { excludedTools: ['mcp:*'] } } }),
+			undefined,
+			{ tools: [], plugins: [], mcpServers: {} },
+		);
+		const enabled = await buildResumeConfig(
+			createLauncher(store, {}),
+			undefined,
+			{ tools: [{ name: SEMANTIC_SEARCH_TOOL_NAME }], plugins: [], mcpServers: {} },
+		);
+
+		assert.deepStrictEqual(
+			[disabled.excludedTools, enabled.excludedTools],
+			[['mcp:*', `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`], undefined],
+		);
+		store.dispose();
+	});
+
 	test('forwards a configured override on resume and leaves the effort untouched otherwise', async () => {
 		const store = new DisposableStore();
 		const model: ModelSelection = { id: 'gpt-5', config: { thinkingLevel: 'medium' } };
@@ -1054,7 +1091,7 @@ suite('CopilotSessionLauncher resume config', () => {
 
 		assert.deepStrictEqual(
 			[config.reasoningEffort, config.excludedTools],
-			['high', ['mcp:*']]
+			['high', ['mcp:*', `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]]
 		);
 		store.dispose();
 	});
@@ -1096,7 +1133,7 @@ suite('CopilotSessionLauncher resume config', () => {
 				undefined,
 				{
 					availableTools: ['custom:*'],
-					excludedTools: ['mcp:*'],
+					excludedTools: ['mcp:*', `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 					modelCapabilities: { supports: { vision: true } },
 				},
 				undefined,
@@ -1119,7 +1156,7 @@ suite('CopilotSessionLauncher resume config', () => {
 
 		assert.deepStrictEqual(
 			[config.availableTools, config.excludedTools],
-			[[RUNTIME_TOOL_SEARCH_TOOL_NAME], [`custom:${RUNTIME_TOOL_SEARCH_TOOL_NAME}`]]
+			[[RUNTIME_TOOL_SEARCH_TOOL_NAME], [`custom:${RUNTIME_TOOL_SEARCH_TOOL_NAME}`, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]]
 		);
 		store.dispose();
 	});

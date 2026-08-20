@@ -58,6 +58,7 @@ import { IAgentConfigurationService } from '../../node/agentConfigurationService
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
+import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../common/sandboxConfigSchema.js';
 import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
@@ -7996,6 +7997,32 @@ suite('CopilotAgentSession', () => {
 			toolSet.set(clientId, snapshot.tools);
 			return toolSet;
 		};
+
+		test('semantic search overrides the built-in tool and is never deferred', async () => {
+			const semanticSearchSnapshot: IActiveClientSnapshot = {
+				tools: [{
+					name: SEMANTIC_SEARCH_TOOL_NAME,
+					description: 'Semantically searches the workspace',
+					inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
+				}],
+				plugins: [],
+				mcpServers: {},
+			};
+			const { runtime } = await createAgentSession(disposables, { clientSnapshot: semanticSearchSnapshot });
+			const [tool] = runtime.createClientSdkTools(true);
+
+			assert.deepStrictEqual({
+				name: tool.name,
+				defer: tool.defer,
+				overridesBuiltInTool: tool.overridesBuiltInTool,
+				skipPermission: tool.skipPermission,
+			}, {
+				name: SEMANTIC_SEARCH_TOOL_NAME,
+				defer: 'never',
+				overridesBuiltInTool: true,
+				skipPermission: true,
+			});
+		});
 
 		test('client tool started with no connected client fails immediately', async () => {
 			// No activeClientState is provided, so the session seeds one with

@@ -71,13 +71,12 @@ const TOOL_INSTRUCTION_LINES: readonly ToolInstructionLine[] = [largeOutputToolI
 ```
 
 **Caveat — `hasTool` sees CLIENT tools only.** It is `context.hasClientTool`,
-which knows only the forwarded workbench tools, addressed by their **camelCase
-`toolReferenceName`** (e.g. `openBrowserPage`, `runTask`, `getTaskOutput`) — NOT
-the extension's snake_case ids, and NOT shell / server-SDK / MCP tools (MCP is
-discovered dynamically and isn't in the launch snapshot). A
-line gated on a name that is never a client tool silently never renders. The
-default client-tool allowlist is `chat.agentHost.clientTools` (see
-`chat.shared.contribution.ts`). Broadening this context is a known follow-up.
+which knows only the forwarded workbench tools, addressed by their
+`toolReferenceName` (e.g. `openBrowserPage`, `runTask`, `getTaskOutput`,
+`semantic_search`) — NOT shell / server-SDK / MCP tools (MCP is discovered
+dynamically and isn't in the launch snapshot). A line gated on a name that is
+never a client tool silently never renders. Client-tool membership is
+controlled by the Chat Customizations tools enablement.
 
 These lines compose with a per-model `tool_instructions` override (see
 `composeToolInstructions`), so Lever 1 and Lever 2 stack.
@@ -117,6 +116,18 @@ whether *that* tool is deferred.
 This B-inject bridge is intentionally interim. A follow-up moves tool-search
 registration and ranking into VS Code core so Agent Host no longer depends on
 the Copilot extension's tool implementation or embeddings plumbing.
+
+## Semantic search override
+
+`chat.copilot.semanticSearch.enabled` controls the complete Copilot
+semantic-search surface. When off, the launcher excludes the SDK's built-in
+`semantic_search`. When on, `AgentHostActiveClientService` publishes the Copilot
+extension's `semantic_search` client tool; the session registers it as a
+non-deferred, permission-free built-in override.
+
+The tool-gated prompt reminders keep queries focused and require switching to
+`grep` or `glob` instead of retrying when the workspace index is unavailable,
+updating, empty, or otherwise unhelpful.
 
 ## Lever 2 — per-model contributor (`promptRegistry.ts` + `allPrompts.ts`)
 

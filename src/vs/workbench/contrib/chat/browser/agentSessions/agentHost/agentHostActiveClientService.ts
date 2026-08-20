@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { coalesce } from '../../../../../../base/common/arrays.js';
 import { DeferredPromise, Delayer } from '../../../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
@@ -15,9 +16,12 @@ import { type IExtUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import type { AgentCustomization, SessionActiveClient, ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, CopilotSemanticSearchEnabledSettingId, SEMANTIC_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/semanticSearchConstants.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
@@ -29,7 +33,7 @@ import { IConfigurationResolverService } from '../../../../../services/configura
 import { AgentCustomizationSyncProvider } from './agentCustomizationSyncProvider.js';
 import { type ILocalCustomizationSyncOptions, resolveCustomizationRefs, resolveLocalCustomAgents } from './agentHostLocalCustomizations.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
-import { IAgentHostToolSetEnablementService, isToolEnabledInSet } from './agentHostToolSetEnablementService.js';
+import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, IAgentHostToolSetEnablementService, isToolEnabledInSet } from './agentHostToolSetEnablementService.js';
 import { type ISyncedCustomizationOrigin, SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
 
 export const IAgentHostActiveClientService = createDecorator<IAgentHostActiveClientService>('agentHostActiveClientService');
@@ -348,6 +352,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 
 	private readonly _allToolsObs: IObservable<readonly IToolData[]>;
 	private readonly _allToolSetsObs: IObservable<Iterable<IToolSet>>;
+	private readonly _semanticSearchEnabled: IObservable<boolean>;
 	private readonly _clientToolsByType = new Map<string, IObservable<readonly ToolDefinition[]>>();
 	private readonly _registrationsByType = new Map<string, AgentRegistration>();
 	private _isDisposed = false;
@@ -358,10 +363,12 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentHostToolSetEnablementService private readonly _toolSetEnablementService: IAgentHostToolSetEnablementService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 		this._allToolsObs = this._toolsService.observeTools(undefined);
 		this._allToolSetsObs = this._toolsService.toolSets;
+		this._semanticSearchEnabled = observableConfigValue(CopilotSemanticSearchEnabledSettingId, false, configurationService);
 	}
 
 	registerForAgent(sessionType: string, options?: IAgentRegistrationOptions): IAgentRegistration {
@@ -403,6 +410,8 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 				const tools = this._allToolsObs.read(reader);
 				const toolSets = this._allToolSetsObs.read(reader);
 				const enablement = this._toolSetEnablementService.observe(sessionType).read(reader);
+				const isCopilotSession = sessionType === AGENT_HOST_COPILOT_CLI_SESSION_TYPE;
+				const semanticSearchEnabled = isCopilotSession && this._semanticSearchEnabled.read(reader);
 				const enabledToolIds = new Set<string>();
 				for (const ts of toolSets) {
 					if (ts.deprecated) {
@@ -414,7 +423,15 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 						}
 					}
 				}
-				return tools.filter(t => enabledToolIds.has(t.id)).map(toolDataToDefinition);
+				return coalesce(tools.filter(tool => enabledToolIds.has(tool.id)).map(tool => {
+					if (!isCopilotSession || tool.toolReferenceName !== CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME) {
+						return toolDataToDefinition(tool);
+					}
+					// Published under the SDK's built-in name so the session can override it.
+					return semanticSearchEnabled
+						? { ...toolDataToDefinition(tool), name: SEMANTIC_SEARCH_TOOL_NAME }
+						: undefined;
+				}));
 			});
 			this._clientToolsByType.set(sessionType, obs);
 		}

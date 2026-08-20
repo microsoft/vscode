@@ -14,13 +14,14 @@ import { DisposableStore, IReference, toDisposable } from '../../../../../../bas
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { constObservable, observableValue, autorun } from '../../../../../../base/common/observable.js';
+import { constObservable, observableValue, autorun, type IObservable } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { AgentSession, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, CopilotSemanticSearchEnabledSettingId, SEMANTIC_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/toolSearchConstants.js';
 import { isChatAction, isSessionAction, type ActionEnvelope, type ChatAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createDefaultChatSummary, ChatInputResponseKind, MessageKind, SessionLifecycle, SessionStatus, createSessionState, StateComponents, parseDefaultChatUri, ToolCallCancellationReason, type ChatState, type SessionState, type SessionSummary, type RootState, type ToolInput } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -39,10 +40,11 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
-import { AgentHostSessionHandler, toolDataToDefinition, toolResultToProtocol, UNOBSERVED_CLIENT_TOOL_GRACE_MS } from '../../../browser/agentSessions/agentHost/agentHostSessionHandler.js';
+import { AgentHostSessionHandler, toolResultToProtocol, UNOBSERVED_CLIENT_TOOL_GRACE_MS } from '../../../browser/agentSessions/agentHost/agentHostSessionHandler.js';
 import { AgentHostActiveClientService, IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostCustomizationService, NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
-import { IAgentHostToolSetEnablementService, IToolEnablementState } from '../../../browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
+import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, IAgentHostToolSetEnablementService, IToolEnablementState } from '../../../browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
+import { toolDataToDefinition, toClientToolReferenceName } from '../../../browser/agentSessions/agentHost/agentHostToolUtils.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestFileService } from '../../../../../test/common/workbenchTestServices.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -56,7 +58,7 @@ import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHos
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostSessionWorkingDirectorySynchronizer } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectorySynchronizer.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
-import { ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult, ToolAndToolSetEnablementMap, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult, IToolSet, ToolAndToolSetEnablementMap, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { IChatWidgetService } from '../../../browser/chat.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
@@ -80,8 +82,13 @@ suite('AgentHostClientTools', () => {
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('shares a customization scope for equivalent root sets', async () => {
+	function createActiveClientService(
+		tools: IObservable<readonly IToolData[]> = constObservable([]),
+		toolSets: IObservable<Iterable<IToolSet>> = constObservable([]),
+	) {
 		const instantiationService = disposables.add(new TestInstantiationService());
+		let semanticSearchEnabled = false;
+		const onDidChangeConfiguration = disposables.add(new Emitter<IConfigurationChangeEvent>());
 		instantiationService.stub(IFileService, TestFileService);
 		instantiationService.stub(IAgentHostFileSystemService, {
 			ensureSyncedCustomizationProvider: () => { },
@@ -91,8 +98,8 @@ suite('AgentHostClientTools', () => {
 			override readonly extUri = extUriBiasedIgnorePathCase;
 		});
 		instantiationService.stub(IConfigurationService, {
-			getValue: () => false,
-			onDidChangeConfiguration: Event.None,
+			getValue: (section: string) => section === CopilotSemanticSearchEnabledSettingId ? semanticSearchEnabled : false,
+			onDidChangeConfiguration: onDidChangeConfiguration.event,
 		} as Partial<IConfigurationService> as IConfigurationService);
 		instantiationService.stub(IConfigurationResolverService, {} as Partial<IConfigurationResolverService>);
 		instantiationService.stub(IPromptsService, new class extends mock<IPromptsService>() {
@@ -112,8 +119,8 @@ suite('AgentHostClientTools', () => {
 			servers: observableValue('mcpServers', []),
 		});
 		instantiationService.stub(ILanguageModelToolsService, {
-			observeTools: () => constObservable([]),
-			toolSets: constObservable([]),
+			observeTools: () => tools,
+			toolSets,
 		} as Partial<ILanguageModelToolsService> as ILanguageModelToolsService);
 		instantiationService.stub(IAgentHostToolSetEnablementService, {
 			observe: () => constObservable<IToolEnablementState>({ toolSets: new Map(), tools: new Map() }),
@@ -123,6 +130,21 @@ suite('AgentHostClientTools', () => {
 		});
 
 		const service = disposables.add(instantiationService.createInstance(AgentHostActiveClientService));
+		return {
+			service,
+			setSemanticSearchEnabled: (enabled: boolean) => {
+				semanticSearchEnabled = enabled;
+				onDidChangeConfiguration.fire(new class extends mock<IConfigurationChangeEvent>() {
+					override affectsConfiguration(section: string): boolean {
+						return section === CopilotSemanticSearchEnabledSettingId;
+					}
+				});
+			},
+		};
+	}
+
+	test('shares a customization scope for equivalent root sets', async () => {
+		const { service } = createActiveClientService();
 		const registration = disposables.add(service.registerForAgent('agent-host-claude'));
 		const rootA = URI.file('/Workspace-A');
 		const rootB = URI.file('/Workspace-B');
@@ -154,6 +176,57 @@ suite('AgentHostClientTools', () => {
 				customAgents: true,
 			},
 			scopeAfterRegistrationDisposal: undefined,
+		});
+	});
+
+	test('gates semantic search for Copilot sessions', async () => {
+		const semanticSearchTool: IToolData = {
+			id: 'copilot_searchCodebase',
+			toolReferenceName: CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME,
+			displayName: 'Search Codebase',
+			modelDescription: 'Semantically searches the workspace',
+			source: ToolDataSource.Internal,
+		};
+		const readFileTool: IToolData = {
+			id: 'vscode.readFile',
+			toolReferenceName: 'readFile',
+			displayName: 'Read File',
+			modelDescription: 'Reads a file',
+			source: ToolDataSource.Internal,
+		};
+		const searchToolSet = new class extends mock<IToolSet>() {
+			override readonly id = 'search';
+			override readonly deprecated = false;
+			override getTools(): Iterable<IToolData> {
+				return [semanticSearchTool, readFileTool];
+			}
+		};
+		const { service, setSemanticSearchEnabled } = createActiveClientService(
+			constObservable([semanticSearchTool, readFileTool]),
+			constObservable([searchToolSet]),
+		);
+		const registration = disposables.add(service.registerForAgent(AGENT_HOST_COPILOT_CLI_SESSION_TYPE));
+		const scope = disposables.add(registration.acquireScope([]));
+		const otherRegistration = disposables.add(service.registerForAgent('agent-host-claude'));
+		const otherScope = disposables.add(otherRegistration.acquireScope([]));
+		await scope.whenResolved();
+		await otherScope.whenResolved();
+		const observedNames: string[][] = [];
+		disposables.add(autorun(reader => observedNames.push(scope.tools.read(reader).map(tool => tool.name))));
+
+		setSemanticSearchEnabled(true);
+		setSemanticSearchEnabled(false);
+
+		assert.deepStrictEqual({
+			copilotNames: observedNames,
+			otherNames: otherScope.tools.get().map(tool => tool.name),
+		}, {
+			copilotNames: [
+				['readFile'],
+				[SEMANTIC_SEARCH_TOOL_NAME, 'readFile'],
+				['readFile'],
+			],
+			otherNames: [CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, 'readFile'],
 		});
 	});
 
@@ -202,6 +275,38 @@ suite('AgentHostClientTools', () => {
 
 			const def = toolDataToDefinition(tool);
 			assert.strictEqual(def.name, 'vscode.runTests');
+		});
+
+		test('maps runtime override names back to their workbench references', () => {
+			const tool: IToolData = {
+				id: 'copilot_searchCodebase',
+				toolReferenceName: CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME,
+				displayName: 'Search Codebase',
+				modelDescription: 'Semantically searches the workspace',
+				source: ToolDataSource.Internal,
+			};
+
+			assert.deepStrictEqual({
+				definition: toolDataToDefinition(tool),
+				clientNames: [
+					toClientToolReferenceName(RUNTIME_TOOL_SEARCH_TOOL_NAME, true),
+					toClientToolReferenceName(SEMANTIC_SEARCH_TOOL_NAME, true),
+					toClientToolReferenceName(SEMANTIC_SEARCH_TOOL_NAME, false),
+					toClientToolReferenceName('readFile', true),
+				],
+			}, {
+				definition: {
+					name: CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME,
+					title: 'Search Codebase',
+					description: 'Semantically searches the workspace',
+				},
+				clientNames: [
+					CLIENT_TOOL_SEARCH_REFERENCE_NAME,
+					CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME,
+					SEMANTIC_SEARCH_TOOL_NAME,
+					'readFile',
+				],
+			});
 		});
 
 		test('omits inputSchema when schema type is not object', () => {
@@ -622,6 +727,7 @@ suite('AgentHostClientTools', () => {
 			disposables: DisposableStore,
 			tools: IToolData[],
 			toolServiceOptions?: { requireConfirmation?: boolean; throwBeforeConfirmation?: Error; invokeResult?: DeferredPromise<IToolResult> },
+			sessionType = 'agent-host-copilot',
 		) {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			const connection = new MockAgentHostConnection();
@@ -750,7 +856,7 @@ suite('AgentHostClientTools', () => {
 			const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
 				provider: 'copilot' as const,
 				agentId: 'agent-host-copilot',
-				sessionType: 'agent-host-copilot',
+				sessionType,
 				fullName: 'Test',
 				description: 'Test',
 				connection,
@@ -800,6 +906,24 @@ suite('AgentHostClientTools', () => {
 			toolReferenceName: CLIENT_TOOL_SEARCH_REFERENCE_NAME,
 			displayName: 'Search Tools',
 			modelDescription: 'Searches for tools',
+			source: ToolDataSource.Internal,
+			inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
+		};
+
+		const testCodebaseTool: IToolData = {
+			id: 'copilot_searchCodebase',
+			toolReferenceName: CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME,
+			displayName: 'Search Codebase',
+			modelDescription: 'Semantically searches the workspace',
+			source: ToolDataSource.Internal,
+			inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
+		};
+
+		const testSemanticSearchTool: IToolData = {
+			id: 'other.semanticSearch',
+			toolReferenceName: SEMANTIC_SEARCH_TOOL_NAME,
+			displayName: 'Other Semantic Search',
+			modelDescription: 'Runs another semantic search',
 			source: ToolDataSource.Internal,
 			inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
 		};
@@ -2371,6 +2495,110 @@ suite('AgentHostClientTools', () => {
 				},
 			});
 		}));
+
+		test('maps semantic search to codebase only for Copilot sessions', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const invoke = async (sessionType: string, toolCallId: string) => {
+				const codebaseTool = sessionType === AGENT_HOST_COPILOT_CLI_SESSION_TYPE
+					? testCodebaseTool
+					: { ...testCodebaseTool, canRequestPreApproval: true };
+				const { handler, connection, toolsService } = createHandlerWithMocks(
+					disposables,
+					[codebaseTool, testSemanticSearchTool],
+					undefined,
+					sessionType,
+				);
+				const sessionResource = URI.from({ scheme: sessionType, path: '/session-1' });
+				const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+				await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+
+				connection.applySessionAction(URI.parse(backendSession), {
+					type: ActionType.SessionInputNeededSet,
+					request: {
+						id: `execution-${toolCallId}`,
+						kind: SessionInputRequestKind.ToolClientExecution,
+						chat: buildSubagentChatUri(backendSession, `task-${toolCallId}`),
+						turnId: `turn-${toolCallId}`,
+						clientId: connection.clientId,
+						toolCall: {
+							status: ToolCallStatus.Running,
+							toolCallId,
+							toolName: SEMANTIC_SEARCH_TOOL_NAME,
+							displayName: 'Semantic Search',
+							invocationMessage: 'Searching',
+							toolInput: '{"query":"tool routing"}',
+							confirmed: ToolCallConfirmationReason.NotNeeded,
+							contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
+						},
+					},
+				});
+				await timeout(0);
+
+				return toolsService.invokedToolCalls[0]?.toolId;
+			};
+
+			assert.deepStrictEqual(
+				[
+					await invoke(AGENT_HOST_COPILOT_CLI_SESSION_TYPE, 'copilot-semantic'),
+					await invoke('agent-host-claude', 'claude-semantic'),
+				],
+				[testCodebaseTool.id, testSemanticSearchTool.id],
+			);
+		}));
+
+		test('renders non-Copilot semantic search as the exact client tool', async () => {
+			const sessionType = 'agent-host-claude';
+			const { handler, connection, toolsService } = createHandlerWithMocks(
+				disposables,
+				[testCodebaseTool, testSemanticSearchTool],
+				undefined,
+				sessionType,
+			);
+			const sessionResource = URI.from({ scheme: sessionType, path: '/session-1' });
+			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+			const chatURI = URI.parse(buildDefaultChatUri(backendSession));
+
+			connection.applySessionAction(chatURI, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-semantic',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'search', origin: { kind: MessageKind.User } },
+			});
+			connection.applySessionAction(chatURI, {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-semantic',
+				toolCallId: 'semantic-call',
+				toolName: SEMANTIC_SEARCH_TOOL_NAME,
+				displayName: 'Semantic Search',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
+			});
+			connection.applySessionAction(chatURI, {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-semantic',
+				toolCallId: 'semantic-call',
+				invocationMessage: 'Searching',
+				toolInput: '{"query":"tool routing"}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+
+			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			applyRunningClientExecution(connection, chatURI.toString(), 'turn-semantic', {
+				toolCallId: 'semantic-call',
+				toolName: SEMANTIC_SEARCH_TOOL_NAME,
+				displayName: 'Semantic Search',
+				invocationMessage: 'Searching',
+				toolInput: '{"query":"tool routing"}',
+			});
+			await timeout(0);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				begun: toolsService.begunToolCalls[0]?.toolId,
+				invoked: toolsService.invokedToolCalls[0]?.toolId,
+			}, {
+				begun: testSemanticSearchTool.id,
+				invoked: testSemanticSearchTool.id,
+			});
+		});
 
 		test('executes a claimed client tool exactly once, with chat context', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
