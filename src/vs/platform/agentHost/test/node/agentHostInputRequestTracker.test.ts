@@ -6,7 +6,9 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { AgentSession } from '../../common/agentService.js';
+import { AgentSession } from '../../common/agent.js';
+import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { ActionType, type ChatInputCompletedAction } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri, buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, ChatOriginKind, MessageKind, ResponsePartKind, SessionStatus, type ChatInputAnswer, type ChatInputRequest, type ChatState } from '../../common/state/sessionState.js';
 import { AgentHostInputRequestTracker } from '../../node/agentHostInputRequestTracker.js';
@@ -40,11 +42,11 @@ suite('AgentHostInputRequestTracker', () => {
 	const rootChat = buildDefaultChatUri(rootSession);
 	const subagentChat = buildSubagentChatUri(rootSession, 'subagent-tool');
 
-	function createTracker(): { telemetry: CapturingTelemetryService; tracker: AgentHostInputRequestTracker } {
+	function createTracker(clientContext?: IAgentHostClientTelemetryContext): { telemetry: CapturingTelemetryService; tracker: AgentHostInputRequestTracker } {
 		const telemetry = new CapturingTelemetryService();
 		return {
 			telemetry,
-			tracker: new AgentHostInputRequestTracker(new AgentHostTelemetryReporter(telemetry), () => ({ elapsed: () => 25 })),
+			tracker: new AgentHostInputRequestTracker(new AgentHostTelemetryReporter(telemetry), () => ({ elapsed: () => 25 }), () => clientContext),
 		};
 	}
 
@@ -75,7 +77,14 @@ suite('AgentHostInputRequestTracker', () => {
 	}
 
 	test('emits accepted metrics from reduced state with standard root identifiers', () => {
-		const { telemetry, tracker } = createTracker();
+		const { telemetry, tracker } = createTracker({
+			clientType: AgentHostClientType.EditorWindow,
+			connectionKind: AgentHostClientConnectionKind.RemoteExtensionHost,
+			transportKind: AgentHostTransportKind.MessagePort,
+			hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+			machineId: 'client-machine-id',
+			devDeviceId: 'client-dev-device-id',
+		});
 		const request: ChatInputRequest = {
 			id: 'request-1',
 			purpose: ChatInputRequestPurpose.AskUser,
@@ -104,6 +113,12 @@ suite('AgentHostInputRequestTracker', () => {
 		assert.deepStrictEqual(telemetry.events.map(event => ({ eventName: event.eventName, data: event.data })), [{
 			eventName: 'askQuestionsToolInvoked',
 			data: {
+				initiatorClientType: 'editor_window',
+				initiatorConnectionKind: 'remote_extension_host',
+				initiatorTransportKind: 'message_port',
+				hostLaunchKind: 'vscode_main_process',
+				initiatorMachineId: 'client-machine-id',
+				initiatorDevDeviceId: 'client-dev-device-id',
 				requestId: 'turn-1',
 				questionCount: 7,
 				answeredCount: 5,

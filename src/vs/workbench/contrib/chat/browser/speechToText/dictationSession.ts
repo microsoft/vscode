@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/dictationSession.css';
+import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorOption } from '../../../../../editor/common/config/editorOptions.js';
@@ -294,6 +295,16 @@ interface IActiveDictation {
  * (toggle action, hold-to-talk, and the sessions composer button).
  */
 let _active: IActiveDictation | undefined;
+const _onDidChangeDictationEditor = new Emitter<void>();
+/** Fires when the active or finalizing dictation editor changes. */
+export const onDidChangeDictationEditor = _onDidChangeDictationEditor.event;
+
+function setActiveDictation(active: IActiveDictation | undefined): void {
+	if (_active !== active) {
+		_active = active;
+		_onDidChangeDictationEditor.fire();
+	}
+}
 
 /**
  * The in-flight {@link stopDictation} finalization, if any. `stopDictation`
@@ -302,6 +313,13 @@ let _active: IActiveDictation | undefined;
  * the final transcript it inserts) instead of racing ahead with interim text.
  */
 let _finalizing: { readonly editor: ICodeEditor; readonly promise: Promise<void> } | undefined;
+
+function setFinalizingDictation(finalizing: typeof _finalizing): void {
+	if (_finalizing !== finalizing) {
+		_finalizing = finalizing;
+		_onDidChangeDictationEditor.fire();
+	}
+}
 
 /** True while a dictation is in progress. */
 export function isDictating(): boolean {
@@ -313,9 +331,29 @@ export function activeDictationEditor(): ICodeEditor | undefined {
 	return _active?.editor;
 }
 
+/** Whether `editor` owns the active or finalizing dictation session. */
+export function isDictationActiveForEditor(editor: ICodeEditor): boolean {
+	return _active?.editor === editor || _finalizing?.editor === editor;
+}
+
 /** Start dictating into `editor`, rendering the transcript live. */
 export async function startDictation(service: IChatSpeechToTextService, editor: ICodeEditor, window: Window & typeof globalThis, logService: ILogService, surface: ChatDictationSurface = 'chat'): Promise<void> {
-	if (_active || service.state !== ChatSpeechToTextState.Idle) {
+	// Already dictating into this exact editor: nothing to do (callers toggle
+	// stopping separately).
+	if (_active?.editor === editor) {
+		return;
+	}
+	// Only one surface can use the shared on-device engine at a time. If a
+	// dictation is already running — in the chat input, another editor, or the
+	// terminal — cancel it so this surface can take over. The previous surface
+	// clears its own state and UI when it observes the engine go Idle, keeping
+	// whatever transcript it had already inserted.
+	if (_active || service.isBusy) {
+		await service.cancel();
+	}
+	// If the engine did not return to Idle (an unexpected busy state), do not
+	// attach this surface's listeners to it.
+	if (service.state !== ChatSpeechToTextState.Idle) {
 		return;
 	}
 	const inserter = new LiveTranscriptInserter(editor, logService);
@@ -391,7 +429,7 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 			// If the service ends the session on its own (e.g. the model failed
 			// to load and it surfaced an error), drop the stale active reference
 			// so the toolbar and glow reflect that dictation is no longer running.
-			_active = undefined;
+			setActiveDictation(undefined);
 			disposables.dispose();
 			return;
 		}
@@ -401,13 +439,13 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 	// composer is closed); cancel dictation instead of leaving the microphone
 	// and local transcription running against a dead editor.
 	disposables.add(editor.onDidDispose(() => cancelDictation()));
-	_active = { service, editor, inserter, disposables, logService, surface };
+	setActiveDictation({ service, editor, inserter, disposables, logService, surface });
 	try {
 		await service.start(window, surface);
 	} catch {
 		// Acquisition/connection failure is surfaced by the service.
 		if (_active?.service === service) {
-			_active = undefined;
+			setActiveDictation(undefined);
 		}
 		disposables.dispose();
 	}
@@ -423,14 +461,14 @@ export async function stopDictation(): Promise<void> {
 		await _finalizing?.promise;
 		return;
 	}
-	_active = undefined;
+	setActiveDictation(undefined);
 	const promise = finalizeDictation(active);
-	_finalizing = { editor: active.editor, promise };
+	setFinalizingDictation({ editor: active.editor, promise });
 	try {
 		await promise;
 	} finally {
 		if (_finalizing?.promise === promise) {
-			_finalizing = undefined;
+			setFinalizingDictation(undefined);
 		}
 	}
 }
@@ -483,12 +521,12 @@ export function cancelDictation(): void {
 	if (!active) {
 		return;
 	}
-	_active = undefined;
+	setActiveDictation(undefined);
 	// Remove any live transcript already written to the editor so Escape leaves
 	// the input exactly as it was before dictation started.
 	active.inserter.revert();
 	active.disposables.dispose();
-	active.service.cancel();
+	void active.service.cancel();
 }
 
 /**

@@ -10,6 +10,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { CODEX_ACCOUNT_SIGN_IN_REQUEST_KEY, CODEX_ACCOUNT_SIGN_OUT_REQUEST_KEY, ICodexAccountInfo, readCodexAccountInfo } from '../../../../platform/agentHost/common/codexAccount.js';
 import { AgentHostCodexAgentEnabledSettingId, CodexPreferAgentHostEditorSettingId, IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
+import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { ActionType } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { ROOT_STATE_URI } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -30,8 +31,13 @@ export interface ICodexAccountService {
 	signOut(): void;
 }
 
+export function hasSignedInCodexChatGPTAccount(account: ICodexAccountInfo, visible = true): boolean {
+	return visible && account.status === 'signedIn';
+}
+
 export function shouldShowCodexAccount(configurationService: ICodexAccountVisibilityConfiguration, isSessionsWindow: boolean): boolean {
-	return configurationService.getValue<boolean>(AgentHostCodexAgentEnabledSettingId) === true
+	return configurationService.getValue<boolean>(ChatAIDisabledSettingId) !== true
+		&& configurationService.getValue<boolean>(AgentHostCodexAgentEnabledSettingId) === true
 		&& (isSessionsWindow || configurationService.getValue<boolean>(CodexPreferAgentHostEditorSettingId) === true);
 }
 
@@ -50,6 +56,9 @@ export function createCodexAccountMenuActions(service: ICodexAccountService, vis
 			? localize('chatGPTAccountWithProvider', "{0} (ChatGPT)", account.email)
 			: localize('chatGPTAccount', "ChatGPT");
 		return [new SubmenuAction('codex.chatgptAccount', accountLabel, [signOut])];
+	}
+	if (account.status === 'downloading') {
+		return [new Action('codex.downloadingAgent', localize('downloadingCodexAgent', "Downloading Codex agent…"), undefined, false)];
 	}
 	if (account.status === 'unknown' || account.status === 'signedOut' || account.status === 'error') {
 		return [new Action('codex.signInToChatGPT', localize('signInToChatGPT', "Sign in to ChatGPT"), undefined, true, () => service.signIn())];

@@ -82,6 +82,7 @@ function makeAgentSession(opts: {
 		status: observableValue('test.status', 0),
 		changes: observableValue('test.changes', []),
 		modelId: observableValue('test.modelId', undefined),
+		modelSource: observableValue('test.modelSource', undefined),
 		mode: observableValue('test.mode', undefined),
 		isArchived: observableValue('test.isArchived', opts.isArchived ?? false),
 		isRead: observableValue('test.isRead', true),
@@ -150,6 +151,7 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 		status: observableValue('test.status', 0),
 		changes: observableValue('test.changes', []),
 		modelId: observableValue('test.modelId', undefined),
+		modelSource: observableValue('test.modelSource', undefined),
 		mode: observableValue('test.mode', undefined),
 		isArchived: observableValue('test.isArchived', false),
 		isRead: observableValue('test.isRead', true),
@@ -419,28 +421,6 @@ suite('SessionsTerminalContribution', () => {
 	test('falls back to repository when worktree is undefined for a background session', async () => {
 		const repoUri = URI.file('/repo');
 		const session = makeAgentSession({ repository: repoUri, providerType: AgentSessionProviders.Background });
-		activeSessionObs.set(session, undefined);
-		await tick();
-
-		assert.strictEqual(createdTerminals.length, 1);
-		assert.strictEqual(createdTerminals[0].cwd.fsPath, repoUri.fsPath);
-	});
-
-	// --- Claude provider: also uses worktree/repository path ---
-
-	test('creates a terminal at the worktree for a Claude session', async () => {
-		const worktreeUri = URI.file('/worktree');
-		const session = makeAgentSession({ worktree: worktreeUri, repository: URI.file('/repo'), providerType: AgentSessionProviders.Claude });
-		activeSessionObs.set(session, undefined);
-		await tick();
-
-		assert.strictEqual(createdTerminals.length, 1);
-		assert.strictEqual(createdTerminals[0].cwd.fsPath, worktreeUri.fsPath);
-	});
-
-	test('falls back to repository when worktree is undefined for a Claude session', async () => {
-		const repoUri = URI.file('/repo');
-		const session = makeAgentSession({ repository: repoUri, providerType: AgentSessionProviders.Claude });
 		activeSessionObs.set(session, undefined);
 		await tick();
 

@@ -26,8 +26,8 @@ import { MultiDiffEditor } from '../../../../workbench/contrib/multiDiffEditor/b
 import { DiffEditorWidget } from '../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';
-import { SessionHeaderMetaActionViewItem } from '../../../browser/parts/sessionHeaderMetaActionViewItem.js';
-import { SessionHasChangesContext, IsQuickChatSessionContext } from '../../../common/contextkeys.js';
+import { ChatPillActionViewItem } from '../../../../workbench/browser/chatPills.js';
+import { IsQuickChatSessionContext, SessionHasChangesContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { SessionChangesetOperationScope } from '../../../services/sessions/common/session.js';
@@ -56,7 +56,10 @@ class ViewAllChangesAction extends Action2 {
 				id: Menus.SessionHeaderMeta,
 				group: 'navigation',
 				order: 0,
-				when: ContextKeyExpr.and(SessionHasChangesContext, IsQuickChatSessionContext.negate())
+				when: ContextKeyExpr.and(
+					SessionHasChangesContext,
+					ContextKeyExpr.or(IsQuickChatSessionContext.negate(), SinglePaneLayoutEnabledContext)
+				)
 			},
 		});
 	}
@@ -64,7 +67,6 @@ class ViewAllChangesAction extends Action2 {
 	override async run(accessor: ServicesAccessor, session?: IActiveSession): Promise<void> {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionChangesService = accessor.get(ISessionChangesService);
-		const changesViewService = accessor.get(IChangesViewService);
 		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
 
 		// The clicked session is forwarded as the argument by the session header,
@@ -75,20 +77,13 @@ class ViewAllChangesAction extends Action2 {
 			return;
 		}
 
-		// The header pill reflects the session's default changeset, so reset any
-		// Changes-view selection to the default before opening so the diff editor
-		// (a shared per-session resource) shows the same changes as the pill.
-		changesViewService.setChangesetId(undefined);
-
 		// Opening the Changes editor from the pill is a deliberate user action, so
 		// reveal the (possibly hidden) editor area explicitly — the automatic
 		// single-pane hide rules must not undo it.
 		layoutService.revealEditorPartExplicitly();
 
-		// Open the session Changes editor in the editor part. The resource list is
-		// resolved reactively via the `ChangesMultiDiffSourceResolver` registered as
-		// a workbench contribution.
-		await sessionChangesService.openChangesEditor(sessionResource);
+		// The header pill reflects the default changeset.
+		await sessionChangesService.openChangesEditor(sessionResource, { changesetSelection: { kind: 'id', id: undefined } });
 	}
 }
 registerAction2(ViewAllChangesAction);
@@ -240,7 +235,7 @@ interface IDiffStats {
 /**
  * Renders the {@link ViewAllChangesAction} menu item contributed into {@link Menus.SessionHeaderMeta}
  * (the session header meta row) as a `<diff-icon> <n> files +insertions -deletions` pill. It extends the
- * generic {@link SessionHeaderMetaActionViewItem} (so the icon and label render consistently with other
+ * generic {@link ChatPillActionViewItem} (so the icon and label render consistently with other
  * meta actions) and appends the session's live aggregate diff stats. Activating the item runs the
  * action, which opens the multi-file diff editor.
  *
@@ -250,7 +245,7 @@ interface IDiffStats {
  * changeset the provider marks as {@link ISessionChangeset.isDefault} (or the session's
  * top-level {@link IActiveSession.changes} when none is default).
  */
-export class ViewAllChangesActionViewItem extends SessionHeaderMetaActionViewItem {
+export class ViewAllChangesActionViewItem extends ChatPillActionViewItem {
 
 	private readonly _diffStatsObs: IObservable<IDiffStats>;
 
@@ -314,8 +309,8 @@ export class ViewAllChangesActionViewItem extends SessionHeaderMetaActionViewIte
 	protected override getAdditionalLabelContent(): Array<HTMLElement | string> {
 		const { insertions, deletions } = this._diffStatsObs.get();
 		return [
-			$('span.chat-composite-bar-meta-added', undefined, `+${insertions}`),
-			$('span.chat-composite-bar-meta-removed', undefined, `-${deletions}`),
+			$('span.chat-pill-added', undefined, `+${insertions}`),
+			$('span.chat-pill-removed', undefined, `-${deletions}`),
 		];
 	}
 

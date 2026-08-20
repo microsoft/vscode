@@ -9,7 +9,7 @@ import { DisposableStore, IReference } from '../../../../../base/common/lifecycl
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
-import { IAgentConnection, IAgentCreateSessionConfig, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostDebugLogsArtifactKind, IAgentConnection, IAgentCreateSessionConfig, IAgentHostDebugLogsArtifact, IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../../../../../platform/agentHost/common/agentService.js';
 import { ActionType, StateAction } from '../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { RootState, TerminalClaimKind, type TerminalState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -76,6 +76,9 @@ class MockAgentConnection implements IAgentConnection {
 	async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> { return { version: 'test', os: 'test', arch: 'test', proxySettings: {}, proxyEnv: {}, endpoints: [] }; }
 	async getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]> { return []; }
 	async diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> { return { url }; }
+	async getSessionStateFile(_session: URI): Promise<URI | undefined> { throw new Error('Not implemented'); }
+	async collectDebugLogs(_session: URI | undefined, _kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> { throw new Error('Not implemented'); }
+	async readDebugLogsChunk(_resource: URI, _position: number): Promise<IAgentHostDebugLogsChunk> { throw new Error('Not implemented'); }
 	async listSessions(): Promise<IAgentSessionMetadata[]> { return []; }
 	async createSession(_config?: IAgentCreateSessionConfig): Promise<URI> { return URI.parse('copilot:///test'); }
 	async resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> { return { schema: { type: 'object', properties: {} }, values: {} }; }

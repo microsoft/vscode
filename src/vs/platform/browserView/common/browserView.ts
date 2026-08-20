@@ -5,6 +5,8 @@
 
 import { Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ITunnelProxyInfo } from '../../tunnel/common/tunnelProxy.js';
 import { IPermissionCategoryState, ISerializedBrowserPermissionsSnapshot, IBrowserDeviceCandidate, BrowserDeviceType, PermissionCategory } from './browserPermissions.js';
@@ -236,12 +238,36 @@ export interface IBrowserViewOwner {
 }
 
 /**
+ * Grants matching agents access to a browser view. Omitted identifiers match all values.
+ */
+export interface IBrowserViewAgentAudience {
+	readonly type: 'agent';
+	readonly sessionId?: string;
+}
+
+export type IBrowserViewAudience = IBrowserViewAgentAudience;
+
+export function equalsBrowserViewAudience(first: IBrowserViewAudience, second: IBrowserViewAudience): boolean {
+	return first.type === second.type
+		&& first.sessionId === second.sessionId;
+}
+
+/**
+ * Returns whether an audience satisfies a pattern whose omitted identifiers are wildcards.
+ */
+export function matchesBrowserViewAudience(candidate: IBrowserViewAudience, pattern: IBrowserViewAudience): boolean {
+	return candidate.type === pattern.type
+		&& (pattern.sessionId === undefined || pattern.sessionId === candidate.sessionId);
+}
+
+/**
  * Summary information about a browser view, including its current state and
  * ownership. Returned by the main service when listing or creating views.
  */
 export interface IBrowserViewInfo {
 	readonly id: string;
 	readonly owner: IBrowserViewOwner;
+	readonly associatedResource?: UriComponents;
 	readonly state: IBrowserViewState;
 }
 
@@ -268,7 +294,16 @@ export interface IBrowserViewCreatedEvent {
 export interface IBrowserViewCreateOptions {
 	readonly owner: IBrowserViewOwner;
 	readonly sessionOptions: IBrowserSessionOptions;
+	readonly associatedResource?: UriComponents;
 	readonly initialState?: Partial<IBrowserViewState>;
+}
+
+export function isBrowserViewAssociatedResourceNavigation(associatedResource: URI, target: string): boolean {
+	const targetResource = URI.parse(target);
+	return extUriBiasedIgnorePathCase.isEqual(
+		associatedResource.with({ query: null, fragment: null }),
+		targetResource.with({ query: null, fragment: null })
+	);
 }
 
 /** `applicationSharedStorage` keys this session writes to. Empty for ephemeral sessions. */
@@ -299,6 +334,7 @@ export interface IBrowserViewState {
 	isRemoteSession: boolean;
 	isAreaSelectionActive: boolean;
 	device: IBrowserDeviceProfile | undefined;
+	audiences: IBrowserViewAudience[];
 }
 
 export interface IBrowserViewNavigationEvent {
@@ -433,7 +469,7 @@ export const browserViewIsolatedWorldId = 999;
 
 export interface IBrowserViewService {
 	/**
-	 * Fires when a new browser view is created from an internal source (e.g. CDP or window.open).
+	 * Fires when a new browser view is created.
 	 */
 	onDidCreateBrowserView: Event<IBrowserViewCreatedEvent>;
 
@@ -457,6 +493,7 @@ export interface IBrowserViewService {
 	onDynamicDidChangeAreaSelectionActive(id: string): Event<boolean>;
 	onDynamicDidChangeDeviceEmulation(id: string): Event<IBrowserDeviceProfile | undefined>;
 	onDynamicDidChangeRemoteStatus(id: string): Event<boolean>;
+	onDynamicDidChangeAudiences(id: string): Event<IBrowserViewAudience[]>;
 	onDynamicDidRequestPermission(id: string): Event<IBrowserViewPermissionRequestEvent>;
 	onDynamicDidChangePermissions(id: string): Event<ISerializedBrowserPermissionsSnapshot>;
 
@@ -466,12 +503,12 @@ export interface IBrowserViewService {
 	getBrowserViews(windowId?: number): Promise<IBrowserViewInfo[]>;
 
 	/**
-	 * Get or create a browser view instance. Does not fire `onDidCreateBrowserView`.
+	 * Get or create a browser view instance.
 	 *
 	 * @param id The browser view identifier
 	 * @param options Creation options. If a view with the given ID already exists, these options are ignored.
 	 */
-	getOrCreateBrowserView(id: string, options: IBrowserViewCreateOptions): Promise<IBrowserViewState>;
+	getOrCreateBrowserView(id: string, options: IBrowserViewCreateOptions): Promise<IBrowserViewInfo>;
 
 	/**
 	 * Destroy a browser view instance
@@ -486,6 +523,11 @@ export interface IBrowserViewService {
 	 * @throws If no browser view exists for the given ID
 	 */
 	getState(id: string): Promise<IBrowserViewState>;
+
+	/**
+	 * Adds an audience or, when disabled, removes every audience matching it.
+	 */
+	setAudience(id: string, audience: IBrowserViewAudience, enabled: boolean): Promise<void>;
 
 	/**
 	 * Update the bounds of a browser view

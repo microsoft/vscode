@@ -111,12 +111,6 @@ export interface ProtectedResourceMetadata {
 	/** OPTIONAL. JSON array of JWS signing algorithms supported. */
 	resource_signing_alg_values_supported?: string[];
 
-	/** OPTIONAL. JSON array of JWE encryption algorithms (alg) supported. */
-	resource_encryption_alg_values_supported?: string[];
-
-	/** OPTIONAL. JSON array of JWE encryption algorithms (enc) supported. */
-	resource_encryption_enc_values_supported?: string[];
-
 	/** OPTIONAL. URL of human-readable documentation for the resource. */
 	resource_documentation?: string;
 

@@ -33,6 +33,8 @@ export interface IAgentHostSessionWorkspaceOptions {
 	 * `baseBranchProtected` on the resulting repository.
 	 */
 	readonly branchProtectionPatterns?: readonly string[];
+	/** Overrides the inferred folder/worktree type icon. See {@link ISessionWorkspace.typeIcon}. */
+	readonly typeIcon?: ThemeIcon;
 }
 
 /**
@@ -92,7 +94,7 @@ export function agentHostSessionWorkspaceKey(workspace: ISessionWorkspace | unde
 			String(repo?.uncommittedChanges ?? ''),
 		].join('\u0001');
 	});
-	return [workspace.label, String(workspace.canCreateSession ?? true), ...folderKeys].join('\n');
+	return [workspace.label, ...folderKeys].join('\n');
 }
 
 export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProjectSummary | undefined, workingDirectories: readonly URI[] | undefined, options: IAgentHostSessionWorkspaceOptions, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState?: ISessionGitState): ISessionWorkspace | undefined {
@@ -136,6 +138,7 @@ export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProject
 			}, ...additionalFolders],
 			requiresWorkspaceTrust: options.requiresWorkspaceTrust,
 			isVirtualWorkspace: false,
+			typeIcon: options.typeIcon,
 		};
 	}
 
@@ -160,5 +163,6 @@ export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProject
 		}, ...additionalFolders],
 		requiresWorkspaceTrust: options.requiresWorkspaceTrust,
 		isVirtualWorkspace: false,
+		typeIcon: options.typeIcon,
 	};
 }

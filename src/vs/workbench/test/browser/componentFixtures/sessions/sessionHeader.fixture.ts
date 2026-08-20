@@ -12,6 +12,8 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { IObservable, constObservable } from '../../../../../base/common/observable.js';
 import { IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IActionViewItemService, IActionViewItemFactory } from '../../../../../platform/actions/browser/actionViewItemService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { BRANCH_CHANGES_CHANGESET_ID, IGitHubInfo, ISessionCapabilities, ISessionChangeset, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -27,18 +29,22 @@ import { Menus } from '../../../../../sessions/browser/menus.js';
 // eslint-disable-next-line local/code-import-patterns
 import { SessionHeader } from '../../../../../sessions/browser/parts/sessionHeader.js';
 // eslint-disable-next-line local/code-import-patterns
+import { SHOW_SESSION_METADATA_IN_CHAT_INPUT_SETTING } from '../../../../../sessions/common/sessionConfig.js';
+// eslint-disable-next-line local/code-import-patterns
 import { GitHubPullRequestState, IGitHubPullRequest } from '../../../../../sessions/contrib/github/common/types.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IGitHubService } from '../../../../../sessions/contrib/github/browser/githubService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { OpenPullRequestActionViewItem } from '../../../../../sessions/contrib/github/browser/pullRequestActions.js';
 // eslint-disable-next-line local/code-import-patterns
+import { IPullRequestIconCache } from '../../../../../sessions/contrib/github/browser/pullRequestIconCache.js';
+// eslint-disable-next-line local/code-import-patterns
 import { ViewAllChangesActionViewItem } from '../../../../../sessions/contrib/changes/browser/changesActions.js';
 // eslint-disable-next-line local/code-import-patterns
 import { OpenFilesViewActionViewItem } from '../../../../../sessions/contrib/files/browser/workspaceFolderActions.js';
 import { FixtureMenuService } from '../chat/chatFixtureUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
-import { createFixtureGitHubService } from './githubFixtureUtils.js';
+import { createFixtureGitHubService, createFixturePullRequestIconCache } from './githubFixtureUtils.js';
 
 // eslint-disable-next-line local/code-import-patterns
 import '../../../../../sessions/browser/parts/media/chatCompositeBar.css';
@@ -183,7 +189,7 @@ class FixtureActionViewItemService implements IActionViewItemService {
 // Render helper
 // ============================================================================
 
-function renderHeader(ctx: ComponentFixtureContext, session: IActiveSession): void {
+function renderHeader(ctx: ComponentFixtureContext, session: IActiveSession, showMetadataInInput = false): void {
 	const { container, disposableStore } = ctx;
 
 	const actionViewItemService = new FixtureActionViewItemService();
@@ -200,6 +206,7 @@ function renderHeader(ctx: ComponentFixtureContext, session: IActiveSession): vo
 			reg.defineInstance(IActionViewItemService, actionViewItemService);
 			reg.defineInstance(ISessionContext, new SessionContext(constObservable<IActiveSession | undefined>(session)));
 			reg.defineInstance(IGitHubService, createFixtureGitHubService([{ owner: 'microsoft', repo: 'vscode', pullRequest: openPullRequestDetails }]));
+			reg.defineInstance(IPullRequestIconCache, createFixturePullRequestIconCache());
 			reg.defineInstance(ISessionsListModelService, createMockListModelService());
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessions = Event.None;
@@ -210,6 +217,7 @@ function renderHeader(ctx: ComponentFixtureContext, session: IActiveSession): vo
 			}());
 		},
 	});
+	(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SHOW_SESSION_METADATA_IN_CHAT_INPUT_SETTING, showMetadataInInput);
 
 	// Register the production action view items for the meta toolbar pills, then
 	// contribute the matching menu items — mirroring how the GitHub and changes
@@ -311,6 +319,14 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 			workspace: createMockWorkspace({ label: 'vscode', isWorktree: true, pullRequest: openPr }),
 			changes: [createMockChange(42, 7), createMockChange(5, 0)],
 		})),
+	}),
+
+	SessionHeader_MetadataInInput: defineComponentFixture({
+		render: (ctx) => renderHeader(ctx, createMockSession({
+			title: 'Add session header PR link',
+			workspace: createMockWorkspace({ label: 'vscode', isWorktree: true, pullRequest: openPr }),
+			changes: [createMockChange(42, 7), createMockChange(5, 0)],
+		}), true),
 	}),
 
 	SessionHeader_InProgress: defineComponentFixture({

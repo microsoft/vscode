@@ -75,7 +75,14 @@ const REAL_CODEX_ENABLED = process.env['AGENT_HOST_REAL_CODEX'] === '1';
 
 	setup(async function () {
 		this.timeout(60_000);
-		server = await startRealServer({ codexSdkRoot: CODEX_CONFIG.codexSdkRoot });
+		const homeDirectory = mkdtempSync(join(tmpdir(), 'codex-live-home-'));
+		tempDirs.push(homeDirectory);
+		server = await startRealServer({
+			codexSdkRoot: CODEX_CONFIG.codexSdkRoot,
+			homeDir: homeDirectory,
+			userDataDir: join(homeDirectory, 'user-data'),
+			codexHomeDir: join(homeDirectory, '.codex'),
+		});
 		client = new TestProtocolClient(server.port);
 		await client.connect();
 	});

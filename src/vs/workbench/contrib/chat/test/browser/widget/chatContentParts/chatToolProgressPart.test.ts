@@ -9,7 +9,7 @@ import { Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { IRenderedMarkdown, MarkdownRenderOptions, renderAsPlaintext, renderMarkdown } from '../../../../../../../base/browser/markdownRenderer.js';
-import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
@@ -25,6 +25,7 @@ import { ChatToolInvocationPart } from '../../../../browser/widget/chatContentPa
 import { ChatToolConfirmationCarouselPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolConfirmationCarouselPart.js';
 import { BaseChatToolInvocationSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationSubPart.js';
 import { ChatToolProgressSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolProgressPart.js';
+import { ChatToolStreamingSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolStreamingSubPart.js';
 import { isAskQuestionsToolInvocation, isMcpToolInvocation } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
 import { DiffEditorPool, EditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { IChatAutomationConfiguredData, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
@@ -79,11 +80,24 @@ suite('ChatToolProgressSubPart', () => {
 		};
 	}
 
+	function createStreamingToolInvocation(streamingMessage: string, isAttachedToThinking: boolean = false): IChatToolInvocation {
+		const state = observableValue<IChatToolInvocation.State>('state', {
+			type: IChatToolInvocation.StateKind.Streaming,
+			partialInput: observableValue('partialInput', {}),
+			streamingMessage: observableValue('streamingMessage', streamingMessage)
+		});
+		return {
+			...createToolInvocation({ invocationMessage: streamingMessage }),
+			isAttachedToThinking,
+			state,
+		};
+	}
+
 	function createSerializedToolInvocation(options: {
 		source?: ToolDataSourceType;
 		toolId?: string;
 		isComplete?: boolean;
-		invocationMessage?: string;
+		invocationMessage?: string | IMarkdownString;
 	} = {}): IChatToolInvocationSerialized {
 		return {
 			presentation: undefined,
@@ -104,7 +118,7 @@ suite('ChatToolProgressSubPart', () => {
 	function createToolInvocation(options: {
 		source?: ToolDataSourceType;
 		toolId?: string;
-		invocationMessage?: string;
+		invocationMessage?: string | IMarkdownString;
 		progressMessage?: string;
 	} = {}): IChatToolInvocation {
 		const source = options.source ?? ToolDataSource.Internal;
@@ -419,6 +433,49 @@ suite('ChatToolProgressSubPart', () => {
 		assert.strictEqual(part.domNode.querySelector('.shimmer-progress'), null);
 	});
 
+	test('shimmers only the leading verb of standalone streaming progress, but not inside a thinking part', () => {
+		const patchPart = disposables.add(instantiationService.createInstance(
+			ChatToolStreamingSubPart,
+			createStreamingToolInvocation('Generating patch (282 lines)'),
+			createRenderContext(false),
+			mockMarkdownRenderer
+		));
+		const editPart = disposables.add(instantiationService.createInstance(
+			ChatToolStreamingSubPart,
+			createStreamingToolInvocation('Editing 5 lines'),
+			createRenderContext(false),
+			mockMarkdownRenderer
+		));
+		const thinkingPart = disposables.add(instantiationService.createInstance(
+			ChatToolStreamingSubPart,
+			createStreamingToolInvocation('Generating patch (282 lines)', /* isAttachedToThinking */ true),
+			createRenderContext(false),
+			mockMarkdownRenderer
+		));
+
+		const inspect = (part: ChatToolStreamingSubPart) => {
+			const shimmerText = part.domNode.querySelector<HTMLElement>('.chat-progress-shimmer-text');
+			return {
+				shimmer: !!part.domNode.querySelector('.shimmer-progress'),
+				spinner: !!part.domNode.querySelector('.codicon-loading'),
+				shimmerText: shimmerText?.textContent,
+				// A negative animation-delay keeps the sweep continuous across streaming rerenders.
+				shimmerPhaseSynced: (shimmerText?.style.animationDelay ?? '').endsWith('ms'),
+				text: part.domNode.textContent,
+			};
+		};
+
+		assert.deepStrictEqual({
+			patch: inspect(patchPart),
+			edit: inspect(editPart),
+			thinking: inspect(thinkingPart),
+		}, {
+			patch: { shimmer: true, spinner: false, shimmerText: 'Generating patch', shimmerPhaseSynced: true, text: 'Generating patch (282 lines)' },
+			edit: { shimmer: true, spinner: false, shimmerText: 'Editing', shimmerPhaseSynced: true, text: 'Editing 5 lines' },
+			thinking: { shimmer: false, spinner: false, shimmerText: undefined, shimmerPhaseSynced: false, text: 'Generating patch (282 lines)' },
+		});
+	});
+
 	test('adds shimmer styling only for active ask questions invocation progress', () => {
 		const askQuestionsTool = disposables.add(instantiationService.createInstance(
 			ChatToolProgressSubPart,
@@ -489,6 +546,28 @@ suite('ChatToolProgressSubPart', () => {
 		));
 
 		assert.strictEqual(part.domNode.querySelector('.codicon-loading'), null);
+	});
+
+	test('renders markdown file pills in regular tool messages', () => {
+		const invocationMessage = new MarkdownString('Edit [](claudeAgent.ts)');
+		invocationMessage.baseUri = URI.file('/workspace/');
+		const tool = createToolInvocation({ toolId: 'edit', invocationMessage });
+		const markdownRenderer: IMarkdownRenderer = {
+			render: (markdown, options) => renderMarkdown(markdown, options),
+		};
+
+		const part = disposables.add(instantiationService.createInstance(
+			ChatToolProgressSubPart,
+			tool,
+			createRenderContext(false),
+			markdownRenderer,
+			new Set<string>()
+		));
+
+		assert.strictEqual(
+			part.domNode.querySelector<HTMLElement>('.chat-inline-anchor-widget .icon-label')?.textContent,
+			'claudeAgent.ts'
+		);
 	});
 
 	test('does not add shimmer styling for non-MCP tool progress', () => {

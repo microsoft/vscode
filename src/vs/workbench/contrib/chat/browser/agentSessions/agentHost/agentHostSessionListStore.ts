@@ -10,8 +10,8 @@ import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resour
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ActionType, type IIsArchivedChangedAction, type IIsReadChangedAction, type INotification, type SessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { readSessionMultiRootMetadata, SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { readSessionEhcliAdoptable, readSessionMultiRootMetadata, SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { IWorkspaceContextService, type IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 
 /**
  * Minimal agent-host connection surface needed by the session list store.
@@ -101,6 +101,7 @@ export class AgentHostSessionListStore extends Disposable {
 		// doesn't know which workspace this VS Code window has open.
 		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(() => {
 			this._cacheValid = false;
+			this._filterEntriesToWorkspace();
 			void this.refresh(CancellationToken.None);
 		}));
 	}
@@ -117,6 +118,11 @@ export class AgentHostSessionListStore extends Disposable {
 	/** Whether a session was created locally and the backend has not surfaced it yet. */
 	isPendingNewSession(provider: string, rawId: string): boolean {
 		return this._pendingNewSessions.has(this._key(provider, rawId));
+	}
+
+	/** Stop treating a locally-created session as pending without adding it to the visible list. */
+	clearPendingNewSession(provider: string, rawId: string): void {
+		this._pendingNewSessions.delete(this._key(provider, rawId));
 	}
 
 	resetCache(): void {
@@ -217,16 +223,6 @@ export class AgentHostSessionListStore extends Disposable {
 		try {
 			sessions = await this._connection.listSessions();
 		} catch {
-			// If notifications mutated the list while we were fetching, the
-			// in-memory state is more up-to-date than our failed fetch.
-			if (startGeneration !== this._mutationGeneration) {
-				return;
-			}
-			if (this._entries.size === 0) {
-				return;
-			}
-			this._entries.clear();
-			this._onDidChangeSessions.fire({ removed: previousEntries.map(entry => this._toRemoval(entry)) });
 			return;
 		}
 
@@ -348,6 +344,13 @@ export class AgentHostSessionListStore extends Disposable {
 				modifiedAt: new Date(session.modifiedTime).toISOString(),
 				changes: session.changes,
 				workingDirectories: session.workingDirectories?.map(d => d.toString()),
+				// The repository root a worktree-isolated session belongs to; the
+				// workspace filter matches on it because the worktree itself lives
+				// outside the repository folder.
+				...(session.project ? { project: { uri: session.project.uri.toString(), displayName: session.project.displayName } } : {}),
+				// Carry `_meta` so the adoptable-legacy marker survives into the list
+				// item; consumers use it to avoid passively restoring (and thereby
+				// migrating) an un-adopted legacy Copilot CLI session.
 				...(session._meta !== undefined ? { _meta: session._meta } : {}),
 			},
 		};
@@ -368,20 +371,62 @@ export class AgentHostSessionListStore extends Disposable {
 
 	/** Uses workspace-file provenance for multi-root workspaces and path containment otherwise. */
 	private _isSessionInWorkspace(entry: IAgentHostSessionListEntry): boolean {
-		const workingDirectories = entry.summary.workingDirectories?.map(directory => URI.parse(directory)) ?? [];
+		const workingDirectories = this._containmentCandidates(entry.summary);
 		const workspace = this._workspaceContextService.getWorkspace();
 		const folders = workspace.folders;
+		const configuration = workspace.configuration;
 		const multiRoot = readSessionMultiRootMetadata(entry.summary._meta);
 		if (multiRoot) {
-			return URI.isUri(workspace.configuration)
-				&& extUriBiasedIgnorePathCase.isEqual(URI.parse(multiRoot.workspaceFile), workspace.configuration);
+			// A multi-root window matches strictly by workspace-file identity so two
+			// different `.code-workspace` files that share a folder don't cross over.
+			if (URI.isUri(configuration)) {
+				return extUriBiasedIgnorePathCase.isEqual(URI.parse(multiRoot.workspaceFile), configuration);
+			}
+			// An empty window shows every session; a single-folder (or other
+			// non-multi-root) window falls back to working-directory containment.
+			return folders.length === 0 || this._matchesAnyFolder(workingDirectories, folders);
 		}
 		if (folders.length === 0) {
 			return true;
 		}
+		return this._matchesAnyFolder(workingDirectories, folders);
+	}
+
+	private _filterEntriesToWorkspace(): void {
+		// The retained projection can only narrow; a successful refresh supplies newly eligible sessions.
+		const removed: IAgentHostSessionListRemoval[] = [];
+		for (const [key, entry] of this._entries) {
+			if (!this._isSessionInWorkspace(entry)) {
+				this._entries.delete(key);
+				this._pendingNewSessions.delete(key);
+				removed.push(this._toRemoval(entry));
+			}
+		}
+		if (removed.length > 0) {
+			this._mutationGeneration++;
+			this._onDidChangeSessions.fire({ removed });
+		}
+	}
+
+	private _matchesAnyFolder(workingDirectories: readonly URI[], folders: readonly IWorkspaceFolder[]): boolean {
 		return workingDirectories.some(directory =>
 			folders.some(folder => extUriBiasedIgnorePathCase.isEqualOrParent(directory, folder.uri))
 		);
+	}
+
+	/**
+	 * The directories a session may be matched against a workspace folder by: its
+	 * working directories plus - for legacy Copilot CLI sessions only - its
+	 * server-owned project (repository) root. Those legacy sessions run out of a
+	 * `copilot-worktrees/` directory outside the repository, so working
+	 * directories alone would hide them from a window opened on that repository.
+	 */
+	private _containmentCandidates(summary: SessionSummary): readonly URI[] {
+		const candidates = summary.workingDirectories?.map(directory => URI.parse(directory)) ?? [];
+		if (summary.project?.uri && readSessionEhcliAdoptable(summary._meta)) {
+			candidates.push(URI.parse(summary.project.uri));
+		}
+		return candidates;
 	}
 
 	private _toRemoval(entry: IAgentHostSessionListEntry): IAgentHostSessionListRemoval {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import * as url from 'url';
+import { pathToFileURL } from 'url';
 import * as cp from 'child_process';
 import type * as http from 'http';
 import { cwd } from '../../base/common/process.js';
@@ -394,7 +394,7 @@ async function openInBrowser(args: string[], verbose: boolean) {
 	for (const location of args) {
 		try {
 			if (/^[a-z-]+:\/\/.+/.test(location)) {
-				uris.push(url.parse(location).href);
+				uris.push(new URL(location).href);
 			} else {
 				uris.push(pathToURI(location).href);
 			}
@@ -480,11 +480,11 @@ function fatal(message: string, err: unknown): void {
 
 const preferredCwd = process.env.PWD || cwd(); // prefer process.env.PWD as it does not follow symlinks
 
-function pathToURI(input: string): url.URL {
+function pathToURI(input: string): URL {
 	input = input.trim();
 	input = resolve(preferredCwd, input);
 
-	return url.pathToFileURL(input);
+	return pathToFileURL(input);
 }
 
 function translatePath(input: string, mapFileUri: (input: string) => string, folderURIS: string[], fileURIS: string[]) {

@@ -12,6 +12,8 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
 import type { IRelayMessage } from '../common/relayTransport.js';
 import {
 	IWSLRemoteAgentHostMainService,
@@ -80,6 +82,7 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		@IProductService private readonly _productService: IProductService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -193,6 +196,7 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 			commit: this._commit,
 			os: targetOs,
 			arch: targetArch,
+			telemetryLevel: telemetryLevelToAgentHostValue(this._telemetryService.telemetryLevel),
 			remoteAgentHostCommand: config.remoteAgentHostCommand,
 		});
 
