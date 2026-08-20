@@ -9,29 +9,28 @@ import { Action2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { openCopilotCliStateFile } from '../../../../../workbench/contrib/chat/browser/actions/openCopilotCliStateFileAction.js';
+import { openAgentHostStateFile } from '../../../../../workbench/contrib/chat/browser/actions/openAgentHostStateFileAction.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IsAgentHostSession } from './agentHostSkillButtons.js';
 
 /**
- * Sessions-app variant of "Open Copilot State File". Uses the Agents
+ * Sessions-app variant of "Open Agent Host State File". Uses the Agents
  * window's `ISessionsService.activeSession` to find the active
- * Copilot session, then defers to the shared workbench helper for
- * the actual resolution and editor opening.
+ * Agent Host session, then defers to the shared workbench helper.
  *
  * The vscode workbench registers a separate action class
- * (`OpenCopilotCliStateFileAction` in
- * `workbench/contrib/chat/browser/actions/openCopilotCliStateFileAction.ts`)
+ * (`OpenAgentHostStateFileAction` in
+ * `workbench/contrib/chat/browser/actions/openAgentHostStateFileAction.ts`)
  * that resolves the session resource via `IChatWidgetService` instead.
  */
-export class OpenSessionEventsFileAction extends Action2 {
+export class OpenAgentHostStateFileAction extends Action2 {
 
 	static readonly ID = 'agentHost.openSessionEventsFile';
 
 	constructor() {
 		super({
-			id: OpenSessionEventsFileAction.ID,
-			title: localize2('openSessionEventsFile', "Open Copilot State File"),
+			id: OpenAgentHostStateFileAction.ID,
+			title: localize2('openAgentHostStateFile', "Open Agent Host State File"),
 			f1: true,
 			category: Categories.Developer,
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, IsAgentHostSession),
@@ -41,6 +40,6 @@ export class OpenSessionEventsFileAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionResource = sessionsService.activeSession.get()?.resource;
-		await openCopilotCliStateFile(accessor, sessionResource);
+		await openAgentHostStateFile(accessor, sessionResource);
 	}
 }
