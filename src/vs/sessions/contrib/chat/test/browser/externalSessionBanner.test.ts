@@ -18,7 +18,8 @@ suite('Sessions - External Session Banner', () => {
 		assert.deepStrictEqual({
 			recent: shouldConfirmExternalSessionVisibilityChange(ChatExternalSessionsMode.Recent, new Date(now), now),
 			none: shouldConfirmExternalSessionVisibilityChange(ChatExternalSessionsMode.None, new Date(now), now),
-			all: shouldConfirmExternalSessionVisibilityChange(ChatExternalSessionsMode.All, new Date(0), now),
+			at30Days: shouldConfirmExternalSessionVisibilityChange(ChatExternalSessionsMode.Last30Days, new Date(now - 30 * day), now),
+			olderThan30Days: shouldConfirmExternalSessionVisibilityChange(ChatExternalSessionsMode.Last30Days, new Date(now - 30 * day - 1), now),
 			at24Hours: shouldConfirmExternalSessionVisibilityChange(ChatExternalSessionsMode.Last24Hours, new Date(now - day), now),
 			olderThan24Hours: shouldConfirmExternalSessionVisibilityChange(ChatExternalSessionsMode.Last24Hours, new Date(now - day - 1), now),
 			at7Days: shouldConfirmExternalSessionVisibilityChange(ChatExternalSessionsMode.Last7Days, new Date(now - 7 * day), now),
@@ -26,7 +27,8 @@ suite('Sessions - External Session Banner', () => {
 		}, {
 			recent: true,
 			none: true,
-			all: false,
+			at30Days: false,
+			olderThan30Days: true,
 			at24Hours: false,
 			olderThan24Hours: true,
 			at7Days: false,

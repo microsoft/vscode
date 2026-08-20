@@ -246,6 +246,8 @@ export interface IChatResponseViewModel {
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
 	readonly isStale: boolean;
+	/** Whether this is the last row in the transcript. */
+	readonly isLast: boolean;
 	readonly vote: ChatAgentVoteDirection | undefined;
 	readonly replyFollowups?: IChatFollowup[];
 	readonly errorDetails?: IChatResponseErrorDetails;

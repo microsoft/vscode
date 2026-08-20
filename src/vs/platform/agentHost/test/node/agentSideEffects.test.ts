@@ -6702,6 +6702,70 @@ suite('AgentSideEffects', () => {
 				{ requestId: 'inner-perm-1', approved: true },
 			]);
 		});
+
+		test('hard-denies a write to a snapshot under the session attachments dir, even with global auto-approve, and dispatches no confirmation-ready action (#331154)', async () => {
+			// `isSessionAttachmentPath` compares the write path (a `file:` URI) against the session
+			// attachments dir, so the session-data dir must resolve to a `file:` URI here.
+			const attachmentsSessionDataService: ISessionDataService = {
+				...createNullSessionDataService(),
+				getSessionDataDir: () => URI.file('/session-data/session-1'),
+			};
+			const localSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: attachmentsSessionDataService,
+				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+				onTurnComplete: () => { },
+			});
+
+			setupSession();
+			// Global auto-approve would otherwise approve the write; the snapshot deny must win because it
+			// is evaluated before `getAutoApproval`.
+			stateManager.dispatchServerAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostGlobalAutoApproveEnabledConfigKey]: true },
+			});
+			startTurn('turn-1');
+			disposables.add(localSideEffects.registerProgressListener(agent));
+
+			// A confirmation-ready action would only be dispatched by the auto-approval path; the deny path
+			// returns before dispatching one, so capturing them proves nothing was surfaced to the client.
+			const readyActions: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+				if (envelope.action.type === ActionType.ChatToolCallReady) {
+					readyActions.push(envelope);
+				}
+			}));
+
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: {
+					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
+					toolCallId: 'tc-snapshot-write', toolName: 'edit', displayName: 'Edit', contributor: undefined,
+					_meta: { toolKind: undefined, language: undefined },
+				},
+			});
+			agent.fireProgress({
+				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
+				state: {
+					status: ToolCallStatus.PendingConfirmation,
+					toolCallId: 'tc-snapshot-write', toolName: 'edit', displayName: 'Edit',
+					invocationMessage: 'Edit file', toolInput: undefined,
+					confirmationTitle: 'Edit file', edits: undefined,
+				},
+				permissionKind: 'write',
+				permissionPath: '/session-data/session-1/attachments/abc/Pasted text #1.txt',
+			});
+
+			await waitForState(stateManager, () => agent.respondToPermissionCalls.length > 0 || undefined);
+			assert.deepStrictEqual({
+				responses: agent.respondToPermissionCalls,
+				readyActionCount: readyActions.length,
+			}, {
+				responses: [{ requestId: 'tc-snapshot-write', approved: false }],
+				readyActionCount: 0,
+			});
+		});
 	});
 
 	// ---- Forwarding into IAgentHostChangesetService ------------------------
