@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatViewTitleControl.css';
-import { addDisposableListener, EventType, h } from '../../../../../../base/browser/dom.js';
+import { addDisposableListener, DisposableResizeObserver, EventType, getWindow, h } from '../../../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { localize } from '../../../../../../nls.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
@@ -49,14 +49,14 @@ export class ChatViewTitleControl extends Disposable {
 	constructor(
 		private readonly container: HTMLElement,
 		private readonly delegate: IChatViewTitleDelegate,
-		createResizeObserver: (callback: ResizeObserverCallback) => ResizeObserver = callback => new ResizeObserver(callback),
+		resizeObserverCtor: typeof ResizeObserver | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
 		this.render(this.container);
 		// Avoid forcing layout; ResizeObserver reports the final size before paint and triggers relayout.
-		const resizeObserver = createResizeObserver(entries => {
+		const resizeObserver = this._register(new DisposableResizeObserver('ChatViewTitleControl.height', entries => {
 			const entry = entries.find(entry => entry.target === this.titleContainer);
 			if (!entry) {
 				return;
@@ -66,9 +66,8 @@ export class ChatViewTitleControl extends Disposable {
 				this.lastKnownHeight = height;
 				this._onDidChangeHeight.fire();
 			}
-		});
-		resizeObserver.observe(this.titleContainer!);
-		this._register(toDisposable(() => resizeObserver.disconnect()));
+		}, getWindow(this.titleContainer!), { resizeObserverCtor }));
+		this._register(resizeObserver.observe(this.titleContainer!, { box: 'border-box' }));
 
 		this.registerActions();
 	}

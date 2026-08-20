@@ -10,16 +10,17 @@ import { MenuWorkbenchToolBar } from '../../../../../../../platform/actions/brow
 import { ChatViewTitleControl } from '../../../../browser/widgetHosts/viewPane/chatViewTitleControl.js';
 
 class TestResizeObserver implements ResizeObserver {
-	private callback: ResizeObserverCallback | undefined;
-	private target: Element | undefined;
+	static instance: TestResizeObserver | undefined;
+	private observedTarget: Element | undefined;
+	observedBox: ResizeObserverBoxOptions | undefined;
 
-	readonly create = (callback: ResizeObserverCallback): ResizeObserver => {
-		this.callback = callback;
-		return this;
-	};
+	constructor(private readonly callback: ResizeObserverCallback) {
+		TestResizeObserver.instance = this;
+	}
 
-	observe(target: Element): void {
-		this.target = target;
+	observe(target: Element, options?: ResizeObserverOptions): void {
+		this.observedTarget = target;
+		this.observedBox = options?.box;
 	}
 
 	unobserve(): void { }
@@ -27,10 +28,10 @@ class TestResizeObserver implements ResizeObserver {
 	takeRecords(): ResizeObserverEntry[] { return []; }
 
 	fire(height: number): void {
-		assert.ok(this.target);
+		assert.ok(this.observedTarget);
 		const size: ResizeObserverSize = { inlineSize: 0, blockSize: height };
-		this.callback?.([{
-			target: this.target,
+		this.callback([{
+			target: this.observedTarget,
 			contentRect: DOMRectReadOnly.fromRect({ height }),
 			borderBoxSize: [size],
 			contentBoxSize: [size],
@@ -44,15 +45,16 @@ suite('ChatViewTitleControl', () => {
 
 	test('tracks height changes from ResizeObserver', () => {
 		const container = document.createElement('div');
-		const resizeObserver = new TestResizeObserver();
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stubInstance(MenuWorkbenchToolBar, { dispose: () => { } });
 		const control = disposables.add(instantiationService.createInstance(
 			ChatViewTitleControl,
 			container,
 			{ focusChat: () => { } },
-			resizeObserver.create
+			TestResizeObserver
 		));
+		const resizeObserver = TestResizeObserver.instance;
+		assert.ok(resizeObserver);
 		let heightChangeCount = 0;
 		disposables.add(control.onDidChangeHeight(() => heightChangeCount++));
 
@@ -62,10 +64,12 @@ suite('ChatViewTitleControl', () => {
 
 		assert.deepStrictEqual({
 			height: control.getHeight(),
-			heightChangeCount
+			heightChangeCount,
+			observedBox: resizeObserver.observedBox
 		}, {
 			height: 0,
-			heightChangeCount: 2
+			heightChangeCount: 2,
+			observedBox: 'border-box'
 		});
 	});
 });
