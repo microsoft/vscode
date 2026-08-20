@@ -111,8 +111,8 @@ suite('Copilot source pipeline', () => {
 	test('pins Zig to the runtime release build version', () => {
 		const toolchain = fs.readFileSync(TOOLCHAIN_PATH, 'utf8');
 		assert.deepStrictEqual({
-			linuxZig: toolchain.includes("'ziglang==0.13.0'"),
-			macosBrewZig: toolchain.includes("tryRun('brew', ['install', 'zig'])"),
+			linuxZig: toolchain.includes(`'ziglang==0.13.0'`),
+			macosBrewZig: toolchain.includes(`tryRun('brew', ['install', 'zig'])`),
 		}, {
 			linuxZig: true,
 			macosBrewZig: false,
