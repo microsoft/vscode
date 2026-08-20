@@ -162,7 +162,7 @@ Inline chat uses the same invocation shape, with `invoke_agent Inline Chat` as t
 | `github.copilot.git.repository` | When in a repo | `https://github.com/microsoft/vscode.git` |
 | `github.copilot.git.branch` | When in a repo | `main` |
 | `github.copilot.git.commit_sha` | When in a repo | `deadbeef...` |
-| `github.copilot.github.org` | GitHub remotes only | `microsoft` |
+| `github.copilot.github.org` | Recognized GitHub hosts only — github.com, `*.ghe.com`, and ssh host aliases normalizing to either (e.g. `alias-github.com`); absent for custom-domain GitHub Enterprise Server | `microsoft` |
 | `copilot_chat.repo.remote_url` | **Legacy** — prefer `github.copilot.git.repository` | `https://github.com/...` |
 | `copilot_chat.repo.head_branch_name` | **Legacy** — prefer `github.copilot.git.branch` | `main` |
 | `copilot_chat.repo.head_commit_hash` | **Legacy** — prefer `github.copilot.git.commit_sha` | `deadbeef...` |
