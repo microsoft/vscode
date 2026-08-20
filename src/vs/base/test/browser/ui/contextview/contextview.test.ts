@@ -47,7 +47,7 @@ suite('ContextView', () => {
 	test('hide() delays render disposal for close animations', () => {
 		const clock = sinon.useFakeTimers();
 		const container = $('.container');
-		container.classList.add('style-override', 'monaco-enable-motion');
+		container.classList.add('modern-ui', 'monaco-enable-motion');
 		const contextView = new ContextView(container, ContextViewDOMPosition.ABSOLUTE);
 
 		let disposeCount = 0;
@@ -61,7 +61,7 @@ suite('ContextView', () => {
 			closeAnimation: {
 				className: 'closing',
 				duration: 100,
-				requiredAncestorClasses: ['style-override', 'monaco-enable-motion']
+				requiredAncestorClasses: ['modern-ui', 'monaco-enable-motion']
 			}
 		};
 
@@ -215,7 +215,7 @@ suite('ContextView', () => {
 
 	test('menu motion does not retain a containing block for submenus (#326248)', () => {
 		const container = $('.container');
-		container.classList.add('style-override', 'monaco-enable-motion');
+		container.classList.add('modern-ui', 'monaco-enable-motion');
 		document.body.appendChild(container);
 
 		const surface = $('.monaco-scrollable-element');

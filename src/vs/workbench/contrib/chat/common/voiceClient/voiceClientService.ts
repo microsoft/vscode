@@ -8,7 +8,29 @@ import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '.
 import { autorun, IReader, observableValue } from '../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { VoiceCloseKind } from './voiceCloseCodes.js';
 import { IChatToolInvocation, type ChatVoiceProgressStage } from '../chatService/chatService.js';
+
+export function normalizeAgentsVoiceId(value: unknown): string {
+	const voiceId = typeof value === 'string' ? value.trim() : '';
+	switch (voiceId) {
+		case 'harper_neutral':
+		case 'birch_neutral':
+		case 'junho_neutral':
+		case 'oak_neutral':
+			return voiceId;
+		case 'victoria_neutral':
+			return 'harper_neutral';
+		case 'maya_neutral':
+			return 'birch_neutral';
+		case 'daniel_neutral':
+			return 'junho_neutral';
+		case 'kevin_neutral':
+			return 'oak_neutral';
+		default:
+			return 'birch_neutral';
+	}
+}
 
 /**
  * One selectable option on a pending question, positioned in *displayed* order.
@@ -80,9 +102,11 @@ interface IActivePendingToolOccurrence {
 }
 
 const activePendingToolOccurrences = new Map<string, IActivePendingToolOccurrence>();
+const resolvedPendingToolOccurrences = new Map<string, IActivePendingToolOccurrence>();
 const pendingToolOccurrenceByPart = new WeakMap<IChatToolInvocation, IActivePendingToolOccurrence>();
 const pendingToolOccurrenceById = new Map<string, IActivePendingToolOccurrence>();
 const pendingToolResolutionVersion = observableValue('pendingToolResolutionVersion', 0);
+const MAX_RESOLVED_PENDING_TOOL_OCCURRENCES = 200;
 
 function isPendingToolState(state: IChatToolInvocation.State): boolean {
 	return state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
@@ -135,6 +159,20 @@ function pendingToolOccurrenceId(occurrence: IActivePendingToolOccurrence): stri
 	return `${occurrence.requestId}#${occurrence.token}`;
 }
 
+function pruneResolvedPendingToolOccurrences(): void {
+	while (resolvedPendingToolOccurrences.size > MAX_RESOLVED_PENDING_TOOL_OCCURRENCES) {
+		const oldest = resolvedPendingToolOccurrences.entries().next().value;
+		if (!oldest) {
+			return;
+		}
+		const [semanticKey, occurrence] = oldest;
+		resolvedPendingToolOccurrences.delete(semanticKey);
+		if (occurrence.participants.size === 0 && pendingToolOccurrenceById.get(pendingToolOccurrenceId(occurrence)) === occurrence) {
+			pendingToolOccurrenceById.delete(pendingToolOccurrenceId(occurrence));
+		}
+	}
+}
+
 function resolvePendingToolOccurrence(occurrence: IActivePendingToolOccurrence): void {
 	if (occurrence.resolved) {
 		return;
@@ -143,10 +181,13 @@ function resolvePendingToolOccurrence(occurrence: IActivePendingToolOccurrence):
 	if (activePendingToolOccurrences.get(occurrence.semanticKey) === occurrence) {
 		activePendingToolOccurrences.delete(occurrence.semanticKey);
 	}
+	resolvedPendingToolOccurrences.delete(occurrence.semanticKey);
+	resolvedPendingToolOccurrences.set(occurrence.semanticKey, occurrence);
+	pruneResolvedPendingToolOccurrences();
 	pendingToolResolutionVersion.set(pendingToolResolutionVersion.get() + 1, undefined);
 }
 
-function pendingToolOccurrence(requestId: string, invocation: IChatToolInvocation, mint: boolean, store?: DisposableStore): IActivePendingToolOccurrence | undefined {
+function pendingToolOccurrence(requestId: string, invocation: IChatToolInvocation, mint: boolean, store?: DisposableStore, restoreResolved = false): IActivePendingToolOccurrence | undefined {
 	const semanticKey = pendingToolSemanticKey(requestId, invocation);
 	const current = pendingToolOccurrenceByPart.get(invocation);
 	if (!semanticKey) {
@@ -166,6 +207,9 @@ function pendingToolOccurrence(requestId: string, invocation: IChatToolInvocatio
 	}
 
 	let occurrence = activePendingToolOccurrences.get(semanticKey);
+	if (!occurrence && restoreResolved) {
+		occurrence = resolvedPendingToolOccurrences.get(semanticKey);
+	}
 	if (!occurrence) {
 		if (!mint) {
 			return undefined;
@@ -195,7 +239,11 @@ function pendingToolOccurrence(requestId: string, invocation: IChatToolInvocatio
 		if (trackedOccurrence.participants.size === 0 && activePendingToolOccurrences.get(trackedOccurrence.semanticKey) === trackedOccurrence) {
 			activePendingToolOccurrences.delete(trackedOccurrence.semanticKey);
 		}
-		if (trackedOccurrence.participants.size === 0 && pendingToolOccurrenceById.get(pendingToolOccurrenceId(trackedOccurrence)) === trackedOccurrence) {
+		if (
+			trackedOccurrence.participants.size === 0
+			&& (!trackedOccurrence.resolved || resolvedPendingToolOccurrences.get(trackedOccurrence.semanticKey) !== trackedOccurrence)
+			&& pendingToolOccurrenceById.get(pendingToolOccurrenceId(trackedOccurrence)) === trackedOccurrence
+		) {
 			pendingToolOccurrenceById.delete(pendingToolOccurrenceId(trackedOccurrence));
 		}
 		observer.dispose();
@@ -278,6 +326,16 @@ export function markPendingIdResolved(pendingId: string): boolean {
 export function isPendingIdResolved(pendingId: string, reader?: IReader): boolean {
 	pendingToolResolutionVersion.read(reader);
 	return pendingToolOccurrenceById.get(pendingId)?.resolved === true;
+}
+
+/** Restore the retired id for a late rehydrated copy of an already-handled tool approval. */
+export function restoreResolvedPendingId(requestId: string, part: object, store?: DisposableStore): string | undefined {
+	const invocation = part as Partial<IChatToolInvocation>;
+	if (invocation.kind !== 'toolInvocation' || !invocation.state) {
+		return undefined;
+	}
+	const occurrence = pendingToolOccurrence(requestId, invocation as IChatToolInvocation, false, store, true);
+	return occurrence?.resolved ? pendingToolOccurrenceId(occurrence) : undefined;
 }
 
 /**
@@ -477,12 +535,21 @@ export interface IVoiceTurnAutoEnded {
 }
 
 /**
- * Payload for a terminal, non-recoverable websocket close (see
- * {@link IVoiceClientService.onFatalDisconnect}). `code` is the websocket close
- * code (e.g. 4008 when another window takes over the session); `reason` is the
- * server-provided close reason, if any.
+ * Payload for a terminal websocket close. Despite the name this covers every
+ * close that will not reconnect, including an expected end of session: `kind`
+ * distinguishes them, and an `expected` close must not paint the UI red or
+ * raise a toast. `clientSide` marks a failure that never reached the network,
+ * such as an unconfigured backend URL.
  */
 export interface IVoiceFatalDisconnect {
+	readonly code: number;
+	readonly reason: string;
+	readonly kind?: VoiceCloseKind;
+	readonly clientSide?: boolean;
+}
+
+/** A recoverable connection problem; the client keeps retrying. */
+export interface IVoiceConnectionIssue {
 	readonly code: number;
 	readonly reason: string;
 }
@@ -549,6 +616,11 @@ export interface IVoiceFeedbackTranscriptTurn {
 	readonly timestamp: string;
 }
 
+export interface IVoicePttStartOptions {
+	readonly hasActiveSession: boolean;
+	readonly passive?: boolean;
+}
+
 export interface IVoiceClientService {
 	readonly _serviceBrand: undefined;
 
@@ -557,7 +629,7 @@ export interface IVoiceClientService {
 	disconnect(): void;
 
 	// --- Outbound messages ---
-	sendPttStart(turnId: string, passive?: boolean): void;
+	sendPttStart(turnId: string, options: IVoicePttStartOptions): void;
 	sendPttAudioChunk(audio: string): void;
 	sendPttEnd(): void;
 	/**
@@ -636,12 +708,14 @@ export interface IVoiceClientService {
 	readonly onError: Event<string>;
 	readonly onDidChangeConnectionState: Event<boolean>;
 	/**
-	 * Fired on a terminal, non-recoverable close (e.g. code 4008 when another
-	 * window takes over the single voice session). Distinct from a transient
-	 * disconnect: consumers should tear down to a clean, restartable state
-	 * rather than entering a reconnect loop.
+	 * Fired when the current socket will not reconnect: a refusal, an expected
+	 * end of session, or a give-up. Consumers should tear down to a clean,
+	 * restartable state rather than entering a reconnect loop.
 	 */
 	readonly onFatalDisconnect: Event<IVoiceFatalDisconnect>;
+
+	/** Fired on a recoverable close so the UI can explain what it is waiting on. */
+	readonly onConnectionIssue: Event<IVoiceConnectionIssue>;
 	/**
 	 * Fired when the backend ends a held turn on its own (server VAD silence or
 	 * a matched stop phrase). Consumers stop capturing for that turn and clear

@@ -163,7 +163,6 @@ export function defineCustomizationDiscoveryTests(context: IAgentHostE2ETestCont
 			uri: pluginUri,
 			name: 'E2E Plugin',
 			nonce: '1',
-			enabled: true,
 		};
 
 		const sessionUri = await createDiscoverySession('plugin', workspace, 'discover', [clientCustomization]);

@@ -82,6 +82,13 @@ export class TestSessionDatabase implements ISessionDatabase {
 		this._metadata.set(key, value);
 	}
 
+	async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
+		for (const [key, value] of Object.entries(values)) {
+			this.setMetadataCalls.push({ key, value });
+			this._metadata.set(key, value);
+		}
+	}
+
 	async setChatDraft(chat: URI, draft: Message | undefined): Promise<void> {
 		const key = chat.toString();
 		if (draft) {
@@ -284,6 +291,7 @@ export function createNoopGitService(): import('../../common/agentHostGitService
 		branchExists: async () => false,
 		hasUncommittedChanges: async () => false,
 		commitAll: async () => { },
+		mergeBranch: async () => '',
 		restore: async () => { },
 		hasUpstream: async () => false,
 		pull: async () => { },
@@ -359,7 +367,10 @@ export class RecordingCheckpointService implements IAgentHostCheckpointService {
 	async captureBaselineCheckpoint(sessionUri: URI, workingDirectories: readonly URI[] | undefined): Promise<void> {
 		this.baselineCalls.push({ session: sessionUri.toString(), workingDirectories: workingDirectories?.map(w => w.toString()) });
 	}
+	async captureTurnStartCheckpoint(): Promise<void> { }
 	async captureTurnCheckpoint(): Promise<void> { }
+	async discardTurnStartCheckpoint(): Promise<void> { }
+	async discardChatTurnStartCheckpoints(): Promise<void> { }
 	async getTurnCheckpointPair(): Promise<{ parent: string; current: string } | undefined> { return undefined; }
 	async getBaselineCheckpoint(): Promise<string | undefined> { return undefined; }
 	async deleteCheckpoints(): Promise<void> { }

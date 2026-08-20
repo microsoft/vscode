@@ -23,7 +23,7 @@ import { TelemetryLogAppender } from '../../telemetry/common/telemetryLogAppende
 import { TelemetryService } from '../../telemetry/common/telemetryService.js';
 import { getPiiPathsFromEnvironment, isInternalTelemetry, isLoggingOnly, NullTelemetryService, supportsTelemetry, type ITelemetryAppender } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostTelemetryLevelConfigKey, agentHostConfigValueToTelemetryLevel } from '../common/agentHostSchema.js';
-import { AgentHostDevDeviceIdEnvKey, AgentHostMachineIdEnvKey, AgentHostSqmIdEnvKey } from '../common/agentHostTelemetryEnv.js';
+import { AgentHostDevDeviceIdEnvKey, AgentHostMachineIdEnvKey, AgentHostSqmIdEnvKey, AgentHostTelemetryLevelEnvKey } from '../common/agentHostTelemetryEnv.js';
 import { AgentHostRestrictedTelemetrySender, IAgentHostRestrictedTelemetry, IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetryContext, TelemetryMeasurements, TelemetryProps } from './agentHostRestrictedTelemetry.js';
 import { AgentHostInternalTelemetrySender } from './agentHostMicrosoftTelemetry.js';
 
@@ -37,6 +37,7 @@ export interface IAgentHostTelemetryServiceOptions {
 	readonly disableTelemetry?: boolean;
 	readonly fetchFn?: typeof globalThis.fetch;
 	readonly requestService?: IRequestService;
+	readonly readTelemetryLevelEnvironment?: () => string | undefined;
 }
 
 export interface IAgentHostTelemetryService extends ITelemetryService, IAgentHostRestrictedTelemetry {
@@ -46,7 +47,7 @@ export interface IAgentHostTelemetryService extends ITelemetryService, IAgentHos
 export class AgentHostTelemetryService extends Disposable implements IAgentHostTelemetryService {
 	declare readonly _serviceBrand: undefined;
 
-	private _telemetryLevel = TelemetryLevel.USAGE;
+	private _telemetryLevel: TelemetryLevel;
 
 	/**
 	 * Whether the current Copilot token opts into enhanced/restricted telemetry (`rt=1`). Defaults
@@ -61,8 +62,10 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 		private readonly _restricted?: IAgentHostRestrictedTelemetry,
 		copilotSdkVersion?: string,
 		copilotRuntimeVersion?: string,
+		initialTelemetryLevel: TelemetryLevel = TelemetryLevel.USAGE,
 	) {
 		super();
+		this._telemetryLevel = initialTelemetryLevel;
 		if (isDisposable(_delegate)) {
 			this._register(_delegate);
 		}
@@ -197,6 +200,7 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 
 	setCommonProperty(name: string, value: string | boolean): void {
 		this._delegate.setCommonProperty(name, value);
+		this._restricted?.setCommonProperty(name, value);
 	}
 
 	updateTelemetryLevel(telemetryLevel: TelemetryLevel): void {
@@ -273,5 +277,15 @@ export async function createAgentHostTelemetryService(options: IAgentHostTelemet
 	const internalSender = loggingOnly ? undefined : disposables.add(new AgentHostInternalTelemetrySender({ requestService: options.requestService, commonProperties, extensionVersion }));
 	const restricted = loggingOnly ? undefined : new AgentHostRestrictedTelemetrySender(commonProperties, logService, undefined, internalSender, options.fetchFn);
 
-	return disposables.add(new AgentHostTelemetryService(telemetryService, restricted, productService.copilotVersions?.sdk, productService.copilotVersions?.runtime));
+	const initialTelemetryLevel = Math.min(
+		parseLaunchTelemetryLevel(environmentService.args?.['telemetry-level']),
+		parseLaunchTelemetryLevel((options.readTelemetryLevelEnvironment ?? (() => process.env[AgentHostTelemetryLevelEnvKey]))()),
+	);
+	return disposables.add(new AgentHostTelemetryService(telemetryService, restricted, productService.copilotVersions?.sdk, productService.copilotVersions?.runtime, initialTelemetryLevel));
+}
+
+function parseLaunchTelemetryLevel(value: string | undefined): TelemetryLevel {
+	return value === undefined
+		? TelemetryLevel.USAGE
+		: agentHostConfigValueToTelemetryLevel(value) ?? TelemetryLevel.NONE;
 }

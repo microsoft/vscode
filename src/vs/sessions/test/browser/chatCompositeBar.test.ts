@@ -16,7 +16,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/comm
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
-import { ChatCompositeBar } from '../../browser/parts/chatCompositeBar.js';
+import { ChatCompositeBar, IChatCompositeBarDelegate } from '../../browser/parts/chatCompositeBar.js';
+import { getSessionChatDragData, isSessionChatDrag } from '../../browser/dnd.js';
 import { CLOSE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsPartService } from '../../services/sessions/browser/sessionsPartService.js';
@@ -102,7 +103,16 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>): IChatComposit
 	}());
 
 	const bar = store.add(instantiationService.createInstance(ChatCompositeBar));
-	bar.setSession(session);
+	const delegate: IChatCompositeBarDelegate = {
+		session,
+		chats: session.visibleChatTabs,
+		activeChatResource: constObservable(session.activeChat.get().resource.toString()),
+		mainChatResource: constObservable(session.mainChat.get().resource.toString()),
+		visible: session.shouldShowChatTabs,
+		openChat: resource => { sessionsService.openChat(session, resource); },
+		newChat: () => { },
+	};
+	bar.setGroup(delegate);
 	const container = mainWindow.document.createElement('div');
 	container.appendChild(bar.element);
 	const tabs = Array.from(bar.element.querySelectorAll<HTMLElement>('.chat-composite-bar-tab'));
@@ -112,6 +122,24 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>): IChatComposit
 
 suite('Sessions - ChatCompositeBar', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('creates scoped chat tab presentation elements', () => {
+		const { tabs } = createHarness(disposables);
+
+		assert.deepStrictEqual({
+			tabs: tabs.map(tab => ({
+				hasSharedPresentation: tab.classList.contains('modern-ui-editor-tab'),
+				hasFill: tab.querySelector(':scope > .chat-composite-bar-tab-fill.modern-ui-editor-tab-fill') !== null,
+				hasLabel: tab.querySelector(':scope > .chat-composite-bar-tab-label.modern-ui-editor-tab-label') !== null,
+				hasActions: tab.querySelector(':scope > .chat-composite-bar-tab-actions') !== null,
+			})),
+		}, {
+			tabs: [
+				{ hasSharedPresentation: true, hasFill: true, hasLabel: true, hasActions: false },
+				{ hasSharedPresentation: true, hasFill: true, hasLabel: true, hasActions: true },
+			],
+		});
+	});
 
 	test('middle-click closes the targeted inactive non-main chat', () => {
 		const { store, commandService, sessionsService, bar, session, tabs } = createHarness(disposables);
@@ -206,6 +234,34 @@ suite('Sessions - ChatCompositeBar', () => {
 			mouseDownDefaultPrevented: false,
 			mouseUpDefaultPrevented: false,
 			auxClickDefaultPrevented: false,
+		});
+	});
+
+	// Regression: a chat-tab drag must carry its group-move payload on the
+	// `dataTransfer` (readable by the chat-groups drop target), not on the shared
+	// LocalSelectionTransfer singleton. The singleton is also used by the
+	// chat-reference drag, and — being single-slot — the reference payload would
+	// otherwise clobber the group-move payload, so dragging a tab to split chats
+	// side by side silently did nothing. See the chat-groups DnD in
+	// chatGroupDropTarget.ts / chatGroupsView.ts.
+	test('dragging a chat tab carries the group-move payload on the dataTransfer', () => {
+		const { tabs, session } = createHarness(disposables);
+		const dataTransfer = new DataTransfer();
+		const dragStart = new DragEvent(EventType.DRAG_START, { bubbles: true, cancelable: true, dataTransfer });
+
+		tabs[1].dispatchEvent(dragStart);
+
+		const secondaryChat = session.visibleChatTabs.get()[1];
+		assert.deepStrictEqual({
+			isChatDrag: isSessionChatDrag(dragStart),
+			isSameSessionDrag: isSessionChatDrag(dragStart, session.sessionId),
+			isOtherSessionDrag: isSessionChatDrag(dragStart, 'other-session'),
+			payload: getSessionChatDragData(dragStart),
+		}, {
+			isChatDrag: true,
+			isSameSessionDrag: true,
+			isOtherSessionDrag: false,
+			payload: { sessionId: session.sessionId, resource: secondaryChat.resource.toString() },
 		});
 	});
 });

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, getFloatingEditorVerticalMargins, getFloatingOuterEdgeOwners, getFloatingPaneCompositeVerticalMargins, getFloatingSidebarSiblingToEditorStatus, isFloatingTopEdgeExposed, type PanelAlignment, Parts, Position } from '../../browser/layoutService.js';
+import { FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, getFloatingEditorVerticalMargins, getFloatingOuterEdgeOwners, getFloatingPaneCompositeHorizontalMargins, getFloatingPaneCompositeVerticalMargins, getFloatingSidebarSiblingToEditorStatus, isFloatingTopEdgeExposed, type PanelAlignment, Parts, Position } from '../../browser/layoutService.js';
 import { TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
 
 suite('LayoutService - isFloatingTopEdgeExposed', () => {
@@ -46,15 +46,15 @@ suite('LayoutService - floating panel spacing', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('uses a 6px inter-card gap', () => {
+	test('uses a 4px inter-card gap', () => {
 		assert.deepStrictEqual({
 			leadingMargin: FLOATING_PANEL_MARGIN,
 			trailingMargin: FLOATING_PANEL_INNER_MARGIN,
 			gap: FLOATING_PANEL_MARGIN + FLOATING_PANEL_INNER_MARGIN,
 		}, {
 			leadingMargin: 4,
-			trailingMargin: 2,
-			gap: 6,
+			trailingMargin: 0,
+			gap: 4,
 		});
 	});
 });
@@ -128,6 +128,40 @@ suite('LayoutService - getFloatingOuterEdgeOwners', () => {
 			verticalPanelFull: { left: undefined, right: Parts.AUXILIARYBAR_PART },
 			maximizedVerticalPanel: { left: Parts.PANEL_PART, right: Parts.PANEL_PART },
 			horizontalPanelVisible: { left: Parts.SIDEBAR_PART, right: Parts.AUXILIARYBAR_PART },
+		});
+	});
+});
+
+suite('LayoutService - getFloatingPaneCompositeHorizontalMargins', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	class HorizontalMarginLayoutService extends TestLayoutService {
+		floatingPanelsEnabled = true;
+		sideBarPosition = Position.LEFT;
+		visibleParts = new Set<Parts>();
+
+		override isFloatingPanelsEnabled(): boolean { return this.floatingPanelsEnabled; }
+		override getSideBarPosition(): Position { return this.sideBarPosition; }
+		override isVisible(part: Parts): boolean { return this.visibleParts.has(part); }
+	}
+
+	function margins(partId: Parts, visibleParts: Parts[], sideBarPosition = Position.LEFT): { left: number; right: number } {
+		const service = new HorizontalMarginLayoutService();
+		service.sideBarPosition = sideBarPosition;
+		service.visibleParts = new Set(visibleParts);
+		return getFloatingPaneCompositeHorizontalMargins(service, partId);
+	}
+
+	test('secondary side bar uses an 8px gutter opposite the activity bar', () => {
+		assert.deepStrictEqual({
+			activityBarLeft: margins(Parts.AUXILIARYBAR_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.AUXILIARYBAR_PART]),
+			activityBarRight: margins(Parts.AUXILIARYBAR_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.AUXILIARYBAR_PART], Position.RIGHT),
+			secondarySideBarOnly: margins(Parts.AUXILIARYBAR_PART, [Parts.AUXILIARYBAR_PART]),
+		}, {
+			activityBarLeft: { left: 4, right: 8 },
+			activityBarRight: { left: 8, right: 0 },
+			secondarySideBarOnly: { left: 8, right: 8 },
 		});
 	});
 });
@@ -228,10 +262,10 @@ suite('LayoutService - getFloatingPaneCompositeVerticalMargins', () => {
 		};
 
 		assert.deepStrictEqual(actual, {
-			editorVisible: { top: margin, bottom: inner },
-			maximizedUnderTitleBar: { top: 0, bottom: inner },
-			maximizedAtTopEdge: { top: outer, bottom: inner },
-			maximizedUnderBanner: { top: 0, bottom: inner },
+			editorVisible: { top: margin, bottom: margin },
+			maximizedUnderTitleBar: { top: inner, bottom: margin },
+			maximizedAtTopEdge: { top: outer, bottom: margin },
+			maximizedUnderBanner: { top: inner, bottom: margin },
 		});
 	});
 
@@ -260,12 +294,12 @@ suite('LayoutService - getFloatingPaneCompositeVerticalMargins', () => {
 		};
 
 		assert.deepStrictEqual(actual, {
-			topPanelStatusBarHidden: { top: 0, bottom: inner },
+			topPanelStatusBarHidden: { top: inner, bottom: inner },
 			leftPanelAtBothEdges: { top: outer, bottom: outer },
-			sideBarTopPanelCentered: { top: outer, bottom: inner },
-			sideBarTopPanelJustified: { top: margin, bottom: inner },
-			sideBarBottomPanelJustified: { top: 0, bottom: inner },
-			sideBarBottomPanelCentered: { top: 0, bottom: outer },
+			sideBarTopPanelCentered: { top: outer, bottom: margin },
+			sideBarTopPanelJustified: { top: margin, bottom: margin },
+			sideBarBottomPanelJustified: { top: inner, bottom: inner },
+			sideBarBottomPanelCentered: { top: inner, bottom: outer },
 			disabled: { top: 0, bottom: 0 },
 		});
 	});
@@ -310,12 +344,12 @@ suite('LayoutService - getFloatingEditorVerticalMargins', () => {
 		};
 
 		assert.deepStrictEqual(actual, {
-			titleAndStatusBarVisible: { top: 0, bottom: inner },
-			titleBarHidden: { top: outer, bottom: inner },
-			bannerInsteadOfTitleBar: { top: 0, bottom: inner },
-			topPanelAtTopEdge: { top: margin, bottom: inner },
-			statusBarHidden: { top: 0, bottom: outer },
-			bottomPanelStatusBarHidden: { top: 0, bottom: inner },
+			titleAndStatusBarVisible: { top: inner, bottom: margin },
+			titleBarHidden: { top: outer, bottom: margin },
+			bannerInsteadOfTitleBar: { top: inner, bottom: margin },
+			topPanelAtTopEdge: { top: margin, bottom: margin },
+			statusBarHidden: { top: inner, bottom: outer },
+			bottomPanelStatusBarHidden: { top: inner, bottom: inner },
 			disabled: { top: 0, bottom: 0 },
 		});
 	});

@@ -28,6 +28,7 @@ const stubChat = {
 	changes: constObservable([]),
 	checkpoints: constObservable(undefined),
 	modelId: constObservable(undefined),
+	modelSource: constObservable(undefined),
 	mode: constObservable(undefined),
 	isArchived: constObservable(false),
 	isRead: constObservable(true),
@@ -46,6 +47,7 @@ function stubChatWithId(id: string, status: SessionStatus = SessionStatus.Comple
 		checkpoints: constObservable(undefined),
 		changes: constObservable([]),
 		modelId: constObservable(undefined),
+		modelSource: constObservable(undefined),
 		mode: constObservable(undefined),
 		isArchived: constObservable(false),
 		isRead: constObservable(true),
@@ -160,6 +162,10 @@ class MockSessionStore implements ISessionsManagementService {
 		return this._sessions.get(resource.toString());
 	}
 
+	async resolveSessionResource(resource: URI): Promise<URI> {
+		return resource;
+	}
+
 	getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined {
 		for (const session of this._sessions.values()) {
 			const chat = session.chats.get().find(c => c.resource.toString() === resource.toString());
@@ -228,6 +234,7 @@ class MockSessionStore implements ISessionsManagementService {
 	closeSession(_session: ISession | undefined): void { throw new Error('not implemented'); }
 	closeAllSessions(): void { throw new Error('not implemented'); }
 	setActive(_session: IActiveSession): void { throw new Error('not implemented'); }
+	cancelCurrentRequest(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	archiveSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	unarchiveSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	setSessionReadState(_session: ISession, _isRead: boolean): Promise<void> { throw new Error('not implemented'); }

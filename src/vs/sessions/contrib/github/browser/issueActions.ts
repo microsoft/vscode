@@ -20,16 +20,18 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
+import { IURLService } from '../../../../platform/url/common/url.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
+import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { Menus } from '../../../browser/menus.js';
-import { SessionHeaderMetaActionViewItem } from '../../../browser/parts/sessionHeaderMetaActionViewItem.js';
+import { ChatPillActionViewItem } from '../../../../workbench/browser/chatPills.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { SessionHasIssuesContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { IGitHubIssueRef, ISession } from '../../../services/sessions/common/session.js';
-import { computeAggregateIssueIcon, computeIssueIcon, GitHubIssueState, IGitHubIssue } from '../common/types.js';
+import { computeAggregateIssueIcon, computeIssueIcon, GitHubIssueState, IGitHubIssue, OPEN_ISSUE_ACTION_ID } from '../common/types.js';
 import { IGitHubService } from './githubService.js';
 import { createIssueHoverElement } from './issueHover.js';
 import { createGitHubReferenceListElement } from './githubReferenceList.js';
@@ -42,8 +44,15 @@ interface IResolvedSessionIssue {
 
 // --- Open Issue action
 
+const githubPullRequestsExtensionId = 'github.vscode-pull-request-github';
+const openIssueWebviewPath = '/open-issue-webview';
+
+class IssueActionContext {
+	constructor(readonly issue: IGitHubIssueRef) { }
+}
+
 class OpenIssueAction extends Action2 {
-	static readonly ID = 'workbench.agentSessions.action.openIssue';
+	static readonly ID = OPEN_ISSUE_ACTION_ID;
 
 	constructor() {
 		super({
@@ -64,14 +73,31 @@ class OpenIssueAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, session?: IActiveSession | ISession | ISession[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, sessionOrContext?: IActiveSession | ISession | ISession[] | IssueActionContext): Promise<void> {
 		const openerService = accessor.get(IOpenerService);
 		const sessionsService = accessor.get(ISessionsService);
+		const extensionService = accessor.get(IExtensionService);
+		const urlService = accessor.get(IURLService);
 
-		const targetSession = (Array.isArray(session) ? session[0] : session) ?? sessionsService.activeSession.get();
-		const issue = getSessionIssues(targetSession)[0];
+		const target = (Array.isArray(sessionOrContext) ? sessionOrContext[0] : sessionOrContext) ?? sessionsService.activeSession.get();
+		const issue = target instanceof IssueActionContext ? target.issue : getSessionIssues(target)[0];
 		if (!issue) {
 			return;
+		}
+
+		if (await extensionService.getExtension(githubPullRequestsExtensionId)) {
+			const uri = urlService.create({
+				authority: githubPullRequestsExtensionId,
+				path: openIssueWebviewPath,
+				query: JSON.stringify({
+					owner: issue.owner,
+					repo: issue.repo,
+					issueNumber: issue.number,
+				}),
+			});
+			if (await urlService.open(uri, { trusted: true })) {
+				return;
+			}
 		}
 
 		await openerService.open(issue.uri, { openExternal: true });
@@ -98,10 +124,11 @@ function getSessionIssues(session: ISession | undefined): readonly IGitHubIssueR
  * The issues are read from the {@link ISessionContext} so the correct per-session issues are
  * shown even when several session views are visible at once.
  */
-export class OpenIssueActionViewItem extends SessionHeaderMetaActionViewItem {
+export class OpenIssueActionViewItem extends ChatPillActionViewItem {
 
 	private readonly _issueRefsObs: IObservable<readonly IGitHubIssueRef[]>;
 	private readonly _issuesObs: IObservable<readonly IResolvedSessionIssue[]>;
+	private _issuePickerVisible = false;
 
 	constructor(
 		action: MenuItemAction,
@@ -154,7 +181,16 @@ export class OpenIssueActionViewItem extends SessionHeaderMetaActionViewItem {
 		}));
 	}
 
+	protected override hasOpenDropdown(): boolean {
+		return this._issuePickerVisible;
+	}
+
 	protected override onDidClickButton(): void {
+		if (this.hasOpenDropdown()) {
+			this._hoverService.hideHover(true);
+			return;
+		}
+
 		const issues = this._issuesObs.get();
 		if (issues.length > 1) {
 			this._showIssuePicker(issues);
@@ -166,7 +202,7 @@ export class OpenIssueActionViewItem extends SessionHeaderMetaActionViewItem {
 
 	protected override getIconElement(): HTMLElement | undefined {
 		const icon = this._computeIcon();
-		const iconElement = $(`span.chat-composite-bar-meta-item-icon${ThemeIcon.asCSSSelector(icon)}`);
+		const iconElement = $(`span.chat-pill-icon${ThemeIcon.asCSSSelector(icon)}`, { 'aria-hidden': 'true' });
 		if (icon.color) {
 			// Inline `!important` wins over `button.css`'s `.monaco-text-button .codicon
 			// { color: inherit !important }`, so the glyph reflects the live issue state color.
@@ -236,23 +272,30 @@ export class OpenIssueActionViewItem extends SessionHeaderMetaActionViewItem {
 		}
 
 		const entries = issues.map(({ ref, issue }) => ({
+			owner: ref.owner,
+			repo: ref.repo,
 			number: ref.number,
 			title: issue?.title,
 			icon: issue ? computeIssueIcon(issue.state, issue.stateReason) : computeIssueIcon(GitHubIssueState.Open, undefined),
 			uri: ref.uri,
 		}));
 
-		this._hoverService.showInstantHover({
+		this._issuePickerVisible = true;
+		const hover = this._hoverService.showInstantHover({
 			content: createGitHubReferenceListElement(entries, entry => {
 				this._hoverService.hideHover();
-				this._openerService.open(entry.uri, { openExternal: true });
+				this.actionRunner.run(this._action, new IssueActionContext(entry));
 			}),
 			target,
 			position: { hoverPosition: HoverPosition.BELOW },
 			persistence: { sticky: true, hideOnKeyDown: true },
 			appearance: { showPointer: false, skipFadeInAnimation: true },
 			trapFocus: true,
+			onDidHide: () => this._issuePickerVisible = false,
 		}, true);
+		if (!hover) {
+			this._issuePickerVisible = false;
+		}
 	}
 
 	private _getRepositoryUri(ref: IGitHubIssueRef): URI {

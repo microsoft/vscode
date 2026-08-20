@@ -5,6 +5,19 @@
 
 /* ---- Chat Layout ---- */
 
+.chat-view-chat {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+}
+
+.chat-view-chat > .chat-view-widget {
+	position: relative;
+	flex: 1 1 auto;
+	min-width: 0;
+	min-height: 0;
+}
+
 .agent-sessions-workbench .interactive-session {
 	max-width: none;
 }
@@ -31,6 +44,48 @@
 		var(--vscode-spacing-size320),
 		calc((100% - var(--session-view-centered-content-max-width, 950px)) / 2 + var(--vscode-spacing-size320))
 	);
+}
+
+.agent-sessions-workbench .interactive-session.chat-transcript-progress-active > .interactive-list,
+.agent-sessions-workbench .interactive-session.chat-transcript-context-active > .interactive-list {
+	position: relative;
+}
+
+.agent-sessions-workbench .interactive-session > .interactive-list > .chat-transcript-context {
+	position: absolute;
+	top: var(--vscode-spacing-size320);
+	left: 0;
+	right: 0;
+	z-index: 1;
+	display: flex;
+	justify-content: flex-end;
+	max-width: var(--session-view-centered-content-max-width, 950px);
+	margin: 0 auto;
+	padding: 0 var(--vscode-spacing-size320);
+	box-sizing: border-box;
+	pointer-events: none;
+}
+
+.agent-sessions-workbench .chat-transcript-context > .chat-attached-context-attachment {
+	pointer-events: auto;
+}
+
+.agent-sessions-workbench .interactive-session > .interactive-list > .chat-transcript-progress {
+	position: absolute;
+	top: var(--vscode-spacing-size320);
+	left: 0;
+	right: 0;
+	z-index: 1;
+	pointer-events: none;
+}
+
+.agent-sessions-workbench .interactive-session.chat-transcript-context-active > .interactive-list > .chat-transcript-progress {
+	top: calc(var(--vscode-spacing-size320) + var(--vscode-spacing-size320));
+}
+
+.agent-sessions-workbench .interactive-session > .interactive-list > .chat-transcript-context[hidden],
+.agent-sessions-workbench .interactive-session > .interactive-list > .chat-transcript-progress[hidden] {
+	display: none;
 }
 
 .agent-sessions-workbench .part.sessionspart .interactive-session .interactive-item-container,
@@ -80,7 +135,6 @@
 /* ---- Chat Input ---- */
 
 .agent-sessions-workbench .interactive-session .chat-input-container {
-	border-radius: var(--vscode-cornerRadius-large);
 	border-color: var(--vscode-agentsChatInput-border) !important;
 	background-color: var(--vscode-agentsChatInput-background);
 	color: var(--vscode-agentsChatInput-foreground);

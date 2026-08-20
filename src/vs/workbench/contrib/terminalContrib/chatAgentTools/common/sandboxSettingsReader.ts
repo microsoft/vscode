@@ -54,7 +54,7 @@ export function readAgentHostSandboxValues(configurationService: IConfigurationS
 /**
  * Coerce values into the canonical shape the agent-host schema expects.
  * Today the non-trivial cases are the boolean sandbox enabled settings,
- * which are forwarded as the `'on' | 'off' | 'allowNetwork'` enum for
+ * which are forwarded as the `'on' | 'off'` enum for
  * agent-host compatibility.
  */
 function normalizeSandboxSettingValue<T>(settingId: string, value: T | undefined): T | undefined {

@@ -18,7 +18,8 @@ import { AgentHostCommitOperationHandler } from '../../node/agentHostCommitOpera
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { CopilotApiError, type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
-import { GITHUB_COPILOT_PROTECTED_RESOURCE, IAgentService } from '../../common/agentService.js';
+import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
+import { IAgentService } from '../../common/agentService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ChangesSummary } from '../../common/state/protocol/state.js';
 import type { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
@@ -53,6 +54,7 @@ class TestGitService implements IAgentHostGitService {
 		this.calls.push(`commitAll:${message}`);
 		this.uncommitted = false;
 	}
+	async mergeBranch(): Promise<string> { return ''; }
 	async restore(): Promise<void> { }
 	async hasUpstream(): Promise<boolean> { return false; }
 	async pull(): Promise<void> { }
@@ -176,7 +178,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 suite('AgentHostCommitOperationHandler', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test.skip('generates a commit message, commits all changes, and refreshes changesets', async () => {
+	test('generates a commit message, commits all changes, and invokes post-commit refresh', async () => {
 		const gitService = new TestGitService();
 		const copilotApiService = new TestCopilotApiService();
 		const changesets = new TestChangesetService();
@@ -194,7 +196,7 @@ suite('AgentHostCommitOperationHandler', () => {
 			message: { markdown: 'Committed changes with message: `Update session changes`' },
 			gitCalls: ['hasUncommittedChanges', 'computeSessionFileDiffs', 'commitAll:Update session changes'],
 			completion: [{ token: 'gh-repo-token', fileIncluded: true }],
-			changesetCalls: ['onCommitted:agent:/session', 'computeUncommitted:agent:/session', 'refreshSession:agent:/session'],
+			changesetCalls: ['onCommitted:agent:/session'],
 			committedSessions: ['agent:/session'],
 		});
 	});
@@ -216,7 +218,7 @@ suite('AgentHostCommitOperationHandler', () => {
 		});
 	});
 
-	test.skip('returns success when post-commit refresh fails', async () => {
+	test('returns success when post-commit refresh fails', async () => {
 		const gitService = new TestGitService();
 		const copilotApiService = new TestCopilotApiService();
 		const changesets = new TestChangesetService();
@@ -232,7 +234,7 @@ suite('AgentHostCommitOperationHandler', () => {
 		}, {
 			message: { markdown: 'Committed changes with message: `Update session changes`' },
 			gitCalls: ['hasUncommittedChanges', 'computeSessionFileDiffs', 'commitAll:Update session changes'],
-			changesetCalls: ['onCommitted:agent:/session', 'computeUncommitted:agent:/session', 'refreshSession:agent:/session'],
+			changesetCalls: ['onCommitted:agent:/session'],
 			committedSessions: ['agent:/session'],
 		});
 	});

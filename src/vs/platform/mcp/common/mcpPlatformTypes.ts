@@ -67,6 +67,7 @@ export interface IMcpRemoteServerOAuthConfiguration {
 
 export interface IMcpRemoteServerConfiguration extends ICommonMcpServerConfiguration {
 	readonly type: McpServerType.REMOTE;
+	readonly transport?: 'http' | 'sse';
 	readonly url: string;
 	readonly headers?: Record<string, string>;
 	readonly oauth?: IMcpRemoteServerOAuthConfiguration;
