@@ -994,6 +994,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		const result: ISessionGitState = {
 			hasGitHubRemote,
 			branchName: status.branchName,
+			isDetachedHead: status.isDetachedHead,
 			baseBranchName,
 			upstreamBranchName: status.upstreamBranchName,
 			incomingChanges: status.incomingChanges,
@@ -1526,6 +1527,7 @@ export function parseGitDiffRawNumstat(output: string, repositoryRoot: URI, sess
  */
 export function parseGitStatusV2(output: string | undefined): {
 	branchName?: string;
+	isDetachedHead?: boolean;
 	upstreamBranchName?: string;
 	outgoingChanges?: number;
 	incomingChanges?: number;
@@ -1535,6 +1537,7 @@ export function parseGitStatusV2(output: string | undefined): {
 		return {};
 	}
 	let branchName: string | undefined;
+	let isDetachedHead: boolean | undefined;
 	let upstreamBranchName: string | undefined;
 	let outgoingChanges: number | undefined;
 	let incomingChanges: number | undefined;
@@ -1544,8 +1547,11 @@ export function parseGitStatusV2(output: string | undefined): {
 		if (!line) { continue; }
 		if (line.startsWith('# branch.head ')) {
 			const head = line.substring('# branch.head '.length).trim();
-			// `(detached)` is what git emits for a detached HEAD. Treat as no branch.
-			branchName = head === '(detached)' ? undefined : head;
+			// `(detached)` is what git emits for a detached HEAD. Treat as no
+			// branch, but report why so consumers can tell an intentionally
+			// branch-less checkout from a status probe that never ran.
+			isDetachedHead = head === '(detached)' ? true : undefined;
+			branchName = isDetachedHead ? undefined : head;
 		} else if (line.startsWith('# branch.upstream ')) {
 			upstreamBranchName = line.substring('# branch.upstream '.length).trim();
 		} else if (line.startsWith('# branch.ab ')) {
@@ -1558,7 +1564,7 @@ export function parseGitStatusV2(output: string | undefined): {
 			uncommittedChanges++;
 		}
 	}
-	return { branchName, upstreamBranchName, outgoingChanges, incomingChanges, uncommittedChanges };
+	return { branchName, isDetachedHead, upstreamBranchName, outgoingChanges, incomingChanges, uncommittedChanges };
 }
 
 /** Exported for tests. */

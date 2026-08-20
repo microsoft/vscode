@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { timeout } from '../../../../base/common/async.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -278,6 +279,73 @@ suite('AgentMergeController', () => {
 		}, {
 			refreshCount: 1,
 			branchName: 'feature',
+		});
+	});
+
+	test('recomputes git state at most once per runtime and never for a detached HEAD', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		configurationService.updateRootConfig({ [AgentMergeConfigKey.Enabled]: true });
+		const detached = `copilot:/agent-merge-controller-${++sessionCounter}`;
+		const stranded = `copilot:/agent-merge-controller-${++sessionCounter}`;
+		const refreshCounts = new Map<string, number>();
+		const onDidRefreshSessionGitState = disposables.add(new Emitter<string>());
+		const gitStateService = new class extends mock<IAgentHostGitStateService>() {
+			override readonly onDidRefreshSessionGitState = onDidRefreshSessionGitState.event;
+			override readonly onDidChangeSessionGitHubState = Event.None;
+			// Stands in for a checkout that cannot report a branch however often
+			// it is probed, which is what makes an unbounded retry expensive.
+			override async refreshSessionGitState(sessionKey: string): Promise<void> {
+				refreshCounts.set(sessionKey, (refreshCounts.get(sessionKey) ?? 0) + 1);
+			}
+			override async attachSessionGitHubPullRequest(): Promise<void> { }
+		}();
+		const endpointService = disposables.add(new AgentHostGitHubEndpointService(configurationService, logService));
+		disposables.add(new AgentMergeController(
+			{
+				startTurn: () => false,
+				cancelTurn: () => { },
+				getAutonomousSessionConfig: () => ({}),
+			},
+			stateManager,
+			configurationService,
+			gitStateService,
+			new class extends mock<IGitHubService>() { }(),
+			endpointService,
+			logService,
+		));
+		for (const [session, gitState] of [
+			[detached, { isDetachedHead: true, baseBranchName: 'main' }],
+			[stranded, { baseBranchName: 'main' }],
+		] as const) {
+			stateManager.createSession(summary(session));
+			stateManager.setSessionConfig(session, {
+				schema: platformSessionSchema.toProtocol(),
+				values: {},
+			});
+			stateManager.setSessionMeta(session, withSessionGitState(undefined, gitState));
+			configurationService.updateSessionConfig(session, {
+				[SessionConfigKey.AgentMerge]: { enabled: true },
+			});
+			stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		}
+
+		// Drive several evaluation cycles; without a guard each one would spawn
+		// another git call for both sessions.
+		for (let cycle = 0; cycle < 3; cycle++) {
+			onDidRefreshSessionGitState.fire(detached);
+			onDidRefreshSessionGitState.fire(stranded);
+			await timeout(0);
+			await timeout(0);
+		}
+
+		assert.deepStrictEqual({
+			detached: refreshCounts.get(detached) ?? 0,
+			stranded: refreshCounts.get(stranded) ?? 0,
+		}, {
+			detached: 0,
+			stranded: 1,
 		});
 	});
 

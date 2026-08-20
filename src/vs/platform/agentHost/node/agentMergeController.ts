@@ -21,7 +21,7 @@ import { deriveGitHubEndpoints } from '../common/githubEndpoints.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ActionType } from '../common/state/protocol/common/actions.js';
 import { AuthRequiredReason } from '../common/state/sessionActions.js';
-import { getSessionRelatedPullRequestUrls, isAhpChatChannel, isSessionStatusArchived, parseRequiredSessionUriFromChatUri, readSessionGitHubState, readSessionGitState, SessionLifecycle, TurnState } from '../common/state/sessionState.js';
+import { getSessionRelatedPullRequestUrls, isAhpChatChannel, isSessionStatusArchived, needsSessionGitStateRefresh, parseRequiredSessionUriFromChatUri, readSessionGitHubState, readSessionGitState, SessionLifecycle, TurnState } from '../common/state/sessionState.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
@@ -47,6 +47,13 @@ class AgentMergeRuntime extends Disposable {
 	readonly evaluationScheduler: RunOnceScheduler;
 	readonly backstopScheduler: RunOnceScheduler;
 	ref: PullRequestRef | undefined;
+	/**
+	 * Whether this runtime already tried to recompute git state that reported
+	 * no usable branch. Caps that repair at one git call per runtime so a
+	 * checkout that can never report a branch does not spawn one on every
+	 * backstop.
+	 */
+	didRefreshForMissingBranch = false;
 
 	constructor(
 		readonly session: string,
@@ -483,7 +490,7 @@ export class AgentMergeController extends Disposable {
 
 	/**
 	 * Resolves the branch Agent Merge should act on, repairing session git
-	 * state that is missing it.
+	 * state that does not report one.
 	 *
 	 * A failed git probe can leave persisted git state without a branch. The
 	 * refresh that would repair it normally rides along with a client watching
@@ -492,12 +499,21 @@ export class AgentMergeController extends Disposable {
 	 * — binding the pull request, subscribing to it, acting on its feedback —
 	 * is gated on the branch, so without this the session idles on the backstop
 	 * indefinitely and Agent Merge silently never runs.
+	 *
+	 * A detached `HEAD` is excluded: it reports no branch by design, so
+	 * refreshing would never produce one. The attempt is capped at once per
+	 * runtime regardless, so any other checkout that cannot report a branch
+	 * costs a single git call rather than one per backstop.
 	 */
 	private async _resolveCurrentBranch(session: string, runtime: AgentMergeRuntime, state: NonNullable<ReturnType<AgentHostStateManager['getSessionState']>>): Promise<string | undefined> {
-		const branchName = readSessionGitState(state._meta)?.branchName;
-		if (branchName) {
-			return branchName;
+		const gitState = readSessionGitState(state._meta);
+		if (gitState?.branchName) {
+			return gitState.branchName;
 		}
+		if (runtime.didRefreshForMissingBranch || !needsSessionGitStateRefresh(gitState)) {
+			return undefined;
+		}
+		runtime.didRefreshForMissingBranch = true;
 		this._logService.debug(`[AgentMergeController] Refreshing git state because the session reports no branch: session=${session}`);
 		await this._gitStateService.refreshSessionGitState(session, state.workingDirectories?.[0] ? URI.parse(state.workingDirectories[0]) : undefined);
 		if (!this._isCurrentRuntime(session, runtime)) {
@@ -506,6 +522,8 @@ export class AgentMergeController extends Disposable {
 		const refreshed = readSessionGitState(this._stateManager.getSessionState(session)?._meta)?.branchName;
 		if (refreshed) {
 			this._logService.info(`[AgentMergeController] Recovered the session branch after refreshing git state: session=${session}`);
+		} else {
+			this._logService.warn(`[AgentMergeController] Session still reports no branch after refreshing git state: session=${session}`);
 		}
 		return refreshed;
 	}
