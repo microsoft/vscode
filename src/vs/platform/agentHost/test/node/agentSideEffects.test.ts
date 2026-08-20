@@ -4982,8 +4982,9 @@ suite('AgentSideEffects', () => {
 			});
 		});
 
-		test('first peer persists the inherited default chat title', async () => {
+		test('first peer persists the inherited default chat title and provenance', async () => {
 			await sessionDb.setMetadata(SESSION_CUSTOM_TITLE_KEY, 'Initial');
+			await sessionDb.setMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY, 'auto');
 			const sessionDataService = createSessionDataService(sessionDb);
 			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 			const localAgent = new MockAgent();
@@ -5006,7 +5007,13 @@ suite('AgentSideEffects', () => {
 
 			localStateManager.addChat(sessionUri.toString(), buildChatUri(sessionUri.toString(), 'peer'), { title: 'Peer' });
 
-			assert.strictEqual(await waitForMetadata(customChatTitleMetadataKey(defaultChat)), 'Initial');
+			assert.deepStrictEqual({
+				title: await waitForMetadata(customChatTitleMetadataKey(defaultChat)),
+				source: await waitForMetadata(customChatTitleSourceMetadataKey(defaultChat)),
+			}, {
+				title: 'Initial',
+				source: 'auto',
+			});
 		});
 
 		test('default chat title snapshot does not overwrite an existing persisted title', async () => {

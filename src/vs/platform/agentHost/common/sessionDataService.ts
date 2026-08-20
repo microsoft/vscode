@@ -291,6 +291,12 @@ export interface ISessionDatabase extends IDisposable {
 	setMetadataValues(values: Readonly<Record<string, string>>): Promise<void>;
 
 	/**
+	 * Atomically stores metadata values only when `key` is absent. Values named
+	 * by `copies` are read from their source keys and copied when present.
+	 */
+	setMetadataValuesIfAbsent(key: string, values: Readonly<Record<string, string>>, copies?: Readonly<Record<string, string>>): Promise<boolean>;
+
+	/**
 	 * Store or clear the draft for a chat in this session.
 	 */
 	setChatDraft(chat: URI, draft: Message | undefined): Promise<void>;

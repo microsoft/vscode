@@ -756,6 +756,60 @@ suite('SessionDatabase', () => {
 			});
 		});
 
+		test('setMetadataValuesIfAbsent atomically copies source metadata', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadata('customTitleSource', 'auto');
+
+			const stored = await db.setMetadataValuesIfAbsent('customChatTitle:default', {
+				'customChatTitle:default': 'Inherited title',
+			}, {
+				'customChatTitleSource:default': 'customTitleSource',
+			});
+
+			assert.deepStrictEqual({
+				stored,
+				metadata: await db.getMetadataObject({
+					'customChatTitle:default': true,
+					'customChatTitleSource:default': true,
+				}),
+			}, {
+				stored: true,
+				metadata: {
+					'customChatTitle:default': 'Inherited title',
+					'customChatTitleSource:default': 'auto',
+				},
+			});
+		});
+
+		test('setMetadataValuesIfAbsent preserves existing metadata', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadataValues({
+				'customChatTitle:default': 'Existing title',
+				'customChatTitleSource:default': 'user',
+				customTitleSource: 'auto',
+			});
+
+			const stored = await db.setMetadataValuesIfAbsent('customChatTitle:default', {
+				'customChatTitle:default': 'Replacement title',
+			}, {
+				'customChatTitleSource:default': 'customTitleSource',
+			});
+
+			assert.deepStrictEqual({
+				stored,
+				metadata: await db.getMetadataObject({
+					'customChatTitle:default': true,
+					'customChatTitleSource:default': true,
+				}),
+			}, {
+				stored: false,
+				metadata: {
+					'customChatTitle:default': 'Existing title',
+					'customChatTitleSource:default': 'user',
+				},
+			});
+		});
+
 		test('setMetadataValues serializes with turn ID remapping transactions', async () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));
 			await db.createTurn('old-1');

@@ -89,6 +89,24 @@ export class TestSessionDatabase implements ISessionDatabase {
 		}
 	}
 
+	async setMetadataValuesIfAbsent(key: string, values: Readonly<Record<string, string>>, copies: Readonly<Record<string, string>> = {}): Promise<boolean> {
+		if (this._metadata.has(key)) {
+			return false;
+		}
+		for (const [targetKey, value] of Object.entries(values)) {
+			this.setMetadataCalls.push({ key: targetKey, value });
+			this._metadata.set(targetKey, value);
+		}
+		for (const [targetKey, sourceKey] of Object.entries(copies)) {
+			const value = this._metadata.get(sourceKey);
+			if (value !== undefined) {
+				this.setMetadataCalls.push({ key: targetKey, value });
+				this._metadata.set(targetKey, value);
+			}
+		}
+		return true;
+	}
+
 	async setChatDraft(chat: URI, draft: Message | undefined): Promise<void> {
 		const key = chat.toString();
 		if (draft) {

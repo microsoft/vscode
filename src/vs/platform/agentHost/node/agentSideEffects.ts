@@ -1927,13 +1927,16 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 		const persist = async () => {
-			if (await ref.object.getMetadata(customChatTitleMetadataKey(chat)) !== undefined) {
-				return;
-			}
+			await Promise.resolve();
 			if (this._stateManager.getChatState(chat)?.title !== title) {
 				return;
 			}
-			await ref.object.setMetadata(customChatTitleMetadataKey(chat), title);
+			const titleKey = customChatTitleMetadataKey(chat);
+			await ref.object.setMetadataValuesIfAbsent(
+				titleKey,
+				{ [titleKey]: title },
+				{ [customChatTitleSourceMetadataKey(chat)]: SESSION_CUSTOM_TITLE_SOURCE_KEY },
+			);
 		};
 		void persist().catch(error => {
 			this._logService.warn('[AgentSideEffects] Failed to persist default chat title snapshot', error);
