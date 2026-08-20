@@ -76,6 +76,7 @@ import {
 } from '../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
 import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestionAnswers, IChatService, IChatToolInvocation, IRemotePendingRequest, ToolConfirmKind, type IChatAutoModeResolutionPart, type IChatMcpAuthenticationRequired, type IChatMcpAuthenticationRequiredServer, type IChatMcpStartingServer, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData, type IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
+import { isInConversationModelChoice } from '../../../common/modelSelection.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, isTerminalCommandPrompt, SessionType, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
@@ -379,16 +380,36 @@ function emptyDraftFromLastTurn(state: ISessionWithDefaultChat): Message | undef
 	};
 }
 
-/**
- * Whether two drafts carry the same user-authored content, ignoring the
- * {@link Message.model | model} / {@link Message.agent | agent} selection.
- *
- * Used to recognize a draft that differs from an applied remote one only
- * because this client substituted a model it could resolve locally, which must
- * not be published back over the originating client's selection.
- */
-function sameDraftUserContent(a: Message | undefined, b: Message | undefined): boolean {
-	return (a?.text ?? '') === (b?.text ?? '') && equals(a?.attachments, b?.attachments);
+/** The draft the chat channel holds, so we only send real changes and can keep its model. */
+export class DraftSyncState {
+	private _synced: Message | undefined;
+	private _remoteModel: ModelSelection | undefined;
+
+	constructor(remoteDraft: Message | undefined) {
+		this._synced = remoteDraft;
+		this._remoteModel = remoteDraft?.model;
+	}
+
+	get synced(): Message | undefined {
+		return this._synced;
+	}
+
+	get remoteModel(): ModelSelection | undefined {
+		return this._remoteModel;
+	}
+
+	applyRemote(remoteDraft: Message | undefined): void {
+		this._synced = remoteDraft;
+		this._remoteModel = remoteDraft?.model;
+	}
+
+	shouldPublish(outgoing: Message | undefined): boolean {
+		if (equals(this._synced, outgoing)) {
+			return false;
+		}
+		this._synced = outgoing;
+		return true;
+	}
 }
 
 /**
@@ -5146,28 +5167,25 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const value = chatSubscription.value;
 			return value && !(value instanceof Error) ? value.draft : undefined;
 		};
-		let syncedDraft = readRemoteDraft();
+		const draftState = new DraftSyncState(readRemoteDraft());
 		// The last `draft` object seen on the chat channel. Protocol state is
 		// immutable, so an identical reference means the draft did not change —
 		// letting the listener bail on a reference check instead of a deep
 		// compare, which matters because it runs on every chat state change
 		// (each streaming delta), not just draft changes.
-		let lastRemoteDraft = syncedDraft;
-		let appliedRemoteDraft: Message | undefined;
+		let lastRemoteDraft = draftState.synced;
 		const syncDraft = (state: IChatModelInputState | undefined): void => {
 			if (state?.origin === ChatInputStateOrigin.Remote) {
 				return;
 			}
-			const draft = this._inputStateToDraft(sessionResource, state);
-			if (equals(syncedDraft, draft)) {
+			let draft = this._inputStateToDraft(sessionResource, state);
+			// Don't overwrite the channel's model with one we only fell back to.
+			if (draft && draftState.remoteModel && !isInConversationModelChoice(state?.selectedModelReason)) {
+				draft = { ...draft, model: draftState.remoteModel };
+			}
+			if (!draftState.shouldPublish(draft)) {
 				return;
 			}
-			if (appliedRemoteDraft && sameDraftUserContent(draft, appliedRemoteDraft)) {
-				syncedDraft = draft;
-				return;
-			}
-			appliedRemoteDraft = undefined;
-			syncedDraft = draft;
 
 			this._config.connection.dispatch(chatKey, {
 				type: ActionType.ChatDraftChanged,
@@ -5184,16 +5202,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return;
 			}
 			lastRemoteDraft = remoteDraft;
-			if (equals(syncedDraft, remoteDraft)) {
+			if (equals(draftState.synced, remoteDraft)) {
 				return;
 			}
 			const localDraft = this._inputStateToDraft(sessionResource, inputModel.state.get());
-			if (!equals(syncedDraft, localDraft)) {
+			if (!equals(draftState.synced, localDraft)) {
 				// The pending outbound debounce will publish the local edit (last writer wins).
 				return;
 			}
-			syncedDraft = remoteDraft;
-			appliedRemoteDraft = remoteDraft;
+			draftState.applyRemote(remoteDraft);
 			this._applyRemoteDraft(inputModel, sessionResource, remoteDraft);
 		}));
 		store.add(toDisposable(() => {
