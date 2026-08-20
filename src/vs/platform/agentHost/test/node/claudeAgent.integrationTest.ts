@@ -405,7 +405,7 @@ class ProxyRoundTripSdkService implements IClaudeAgentSdkService {
 		return true;
 	}
 
-	async ensureAvailableForDiscovery(): Promise<void> { }
+	async ensureAvailable(): Promise<void> { }
 
 	async getSessionInfo(_sessionId: string): Promise<SDKSessionInfo | undefined> {
 		return undefined;

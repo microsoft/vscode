@@ -1205,9 +1205,9 @@ class PrimaryButtonActionViewItem extends BaseActionViewItem {
 
 	override render(container: HTMLElement): void {
 		this.element = container;
-		container.classList.add('chat-composite-bar-meta-item');
+		container.classList.add('chat-pill-item');
 		const button = this.button = this._register(new Button(container, { secondary: false, ...defaultButtonStyles }));
-		button.element.classList.add('monaco-text-button', 'chat-composite-bar-meta-item-button');
+		button.element.classList.add('monaco-text-button', 'chat-pill-button');
 		this._register(button.onDidClick(() => {
 			if (this._action.enabled) {
 				this.actionRunner.run(this._action, this._context);
@@ -1217,7 +1217,9 @@ class PrimaryButtonActionViewItem extends BaseActionViewItem {
 		this.updateEnabled();
 	}
 
-	override focus(): void { this.button?.focus(); }
+	// Focus must restore the tab stop that `blur` removed, otherwise arrow
+	// navigation can leave the containing toolbar with no tabbable item.
+	override focus(): void { if (this.button) { this.button.element.tabIndex = 0; this.button.focus(); } }
 	override blur(): void { if (this.button) { this.button.element.tabIndex = -1; this.button.element.blur(); } }
 	override setFocusable(focusable: boolean): void { if (this.button) { this.button.element.tabIndex = focusable ? 0 : -1; } }
 

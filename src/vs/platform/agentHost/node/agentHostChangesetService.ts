@@ -470,6 +470,12 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	private async _computeTurnChangeset(session: ProtocolURI, turnId: string, reportTelemetry: boolean, clientContext?: IAgentHostClientTelemetryContext): Promise<ProtocolURI> {
 		const turnUri = this._stateManager.registerChangeset(buildTurnChangesetUri(session, turnId));
+		if (this._stateManager.getChangesetState(turnUri)?.status !== ChangesetStatus.Computing) {
+			this._stateManager.dispatchServerAction(turnUri, {
+				type: ActionType.ChangesetStatusChanged,
+				status: ChangesetStatus.Computing,
+			});
+		}
 		const stopWatch = StopWatch.create();
 		let outcome: TurnChangesetOutcome = 'error';
 		let result: ITurnDiffResult | undefined;
@@ -712,7 +718,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 			const workingDirectories = this._configurationService.getEffectiveWorkingDirectories(session);
 			if (isMultiRootSession(workingDirectories)) {
-				return this._computeMultiFolderTurnDiffs(session, trackedSource.sessionUri, trackedSource.db, turnId, workingDirectories!);
+				return await this._computeMultiFolderTurnDiffs(session, trackedSource.sessionUri, trackedSource.db, turnId, workingDirectories!);
 			}
 			const diffs = await this._computeSingleFolderTurnDiffs(session, trackedSource.sessionUri, trackedSource.db, turnId);
 			return { diffs, outcome: 'computed' };

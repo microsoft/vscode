@@ -1,6 +1,7 @@
 # Mobile Diff Editors
 
-This document is the seed design note for the mobile file diff editor and mobile multi-file diff editor in Agent Sessions. Keep it intentionally small for now; it can grow toward a fuller user-guide shape as the implementation settles.
+This document describes the mobile file diff and multi-file diff editor design
+used by the Agents Window.
 
 > Quick summary: mobile diff review uses phone-native full-screen overlays instead of desktop panes. The single-file view renders one unified diff. The multi-file view renders changed files in a continuous review surface with file-level and body-level virtualization.
 
