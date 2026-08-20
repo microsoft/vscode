@@ -32,6 +32,8 @@ import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { getSessionTypeAvailability, getSessionTypePickerAvailability, getSessionTypeUnavailableDescription, getSessionTypeUnavailableHover, SessionTypeAvailability } from '../../agentSessions/sessionTypeAvailability.js';
+import { hasAgentSdkSetupNotification } from '../../agentSessions/agentHost/agentHostSdkSetupNotification.js';
+import { IChatInputNotificationService } from './chatInputNotificationService.js';
 import { ChatConfiguration, getDefaultNewChatSessionType, isVisibleEditorChatSessionType, recordUserSelectedSessionType } from '../../../common/constants.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ISessionTypePickerDelegate } from '../../chat.js';
@@ -91,12 +93,14 @@ export function getConfiguredSessionTypePickerAvailability(
 	chatSessionsService: IChatSessionsService,
 	chatEntitlementService: IChatEntitlementService,
 	languageModelsService: ILanguageModelsService,
+	chatInputNotificationService: IChatInputNotificationService,
 ): SessionTypeAvailability {
 	const allowSignedOutWhenUsable = configurationService.getValue<boolean>(AgentHostAllowSignedOutWhenUsableSettingId) === true;
 	return getSessionTypePickerAvailability(
 		type,
 		getSessionTypeAvailability(chatSessionsService, chatEntitlementService, languageModelsService, type, allowSignedOutWhenUsable),
 		allowSignedOutWhenUsable,
+		hasAgentSdkSetupNotification(chatInputNotificationService, type),
 	);
 }
 
@@ -126,6 +130,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		@IStorageService protected readonly storageService: IStorageService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IAgentHostEnablementService private readonly agentHostEnablementService: IAgentHostEnablementService,
+		@IChatInputNotificationService protected readonly chatInputNotificationService: IChatInputNotificationService,
 	) {
 
 		const actionProvider: IActionWidgetDropdownActionProvider = {
@@ -140,6 +145,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 						this.chatSessionsService,
 						this.chatEntitlementService,
 						this.languageModelsService,
+						this.chatInputNotificationService,
 					);
 					actions.push(createSessionTypePickerAction(
 						action,

@@ -379,23 +379,27 @@ suite('CodexAgent', () => {
 		});
 	});
 
-	test('cold native discovery waits for the SDK and emits through one deterministic path', async () => {
-		const sdkReady = new DeferredPromise<string>();
+	test('cold native discovery waits for the SDK rather than fetching it, and runs again once it lands', async () => {
 		const onDidDiscoverChats = new Emitter<readonly IAgentDiscoveredChat[]>();
 		const discoveredChats: number[] = [];
 		const listener = onDidDiscoverChats.event(chats => discoveredChats.push(chats.length));
-		const startDiscovery = (CodexAgent.prototype as unknown as {
-			_startCodexChatDiscovery(this: {
-				_codexChatDiscovery: Promise<void> | undefined;
-				_resolveSdkRoot(): Promise<string>;
-				_emitCodexChats(): Promise<boolean>;
-				_logService: { warn(message: string): void };
-			}): Promise<void>;
-		})._startCodexChatDiscovery;
-		const harness = {
-			_logService: { warn: () => { } },
-			_codexChatDiscovery: undefined as Promise<void> | undefined,
-			_resolveSdkRoot: () => sdkReady.p,
+		type DiscoveryHarness = {
+			_codexChatDiscovery: Promise<void> | undefined;
+			_isSdkResolvableWithoutDownload(): Promise<boolean>;
+			_emitCodexChats(): Promise<boolean>;
+			_startCodexChatDiscovery(): Promise<void>;
+			_logService: { warn(message: string): void; info(message: string): void };
+		};
+		const discovery = CodexAgent.prototype as unknown as {
+			_startCodexChatDiscovery(this: DiscoveryHarness): Promise<void>;
+			_restartChatDiscovery(this: DiscoveryHarness): void;
+		};
+		let sdkIsLocal = false;
+		const harness: DiscoveryHarness = {
+			_logService: { warn: () => { }, info: () => { } },
+			_codexChatDiscovery: undefined,
+			_isSdkResolvableWithoutDownload: async () => sdkIsLocal,
+			_startCodexChatDiscovery: () => discovery._startCodexChatDiscovery.call(harness),
 			_emitCodexChats: async () => {
 				onDidDiscoverChats.fire([{
 					chat: URI.parse('agenthost-chat://codex/session/default'),
@@ -407,13 +411,15 @@ suite('CodexAgent', () => {
 			},
 		};
 
-		const discovery = startDiscovery.call(harness);
-		assert.deepStrictEqual(discoveredChats, []);
+		await discovery._startCodexChatDiscovery.call(harness);
+		const cold = [...discoveredChats];
 
-		sdkReady.complete('/sdk-root');
-		await discovery;
+		// What the explicit download does on its way out.
+		sdkIsLocal = true;
+		discovery._restartChatDiscovery.call(harness);
+		await harness._codexChatDiscovery;
 
-		assert.deepStrictEqual(discoveredChats, [1]);
+		assert.deepStrictEqual({ cold, after: discoveredChats }, { cold: [], after: [1] });
 		listener.dispose();
 		onDidDiscoverChats.dispose();
 	});
@@ -429,36 +435,31 @@ suite('CodexAgent', () => {
 		];
 		const listChatsToMigrate = (CodexAgent.prototype as unknown as {
 			listChatsToMigrate(this: {
-				_resolveSdkRoot(): Promise<string>;
+				_isSdkResolvableWithoutDownload(): Promise<boolean>;
 				_listCodexChats(): Promise<typeof chats>;
 				_isKnownCodexChat(chat: (typeof chats)[number]): Promise<boolean>;
-				_logService: NullLogService;
+				_logService: { info(message: string): void };
 			}): Promise<typeof chats | undefined>;
 		}).listChatsToMigrate;
-
-		const result = await listChatsToMigrate.call({
-			_resolveSdkRoot: async () => '/sdk-root',
+		// Deferred while the SDK is absent: the catalog it reads lives inside one,
+		// and fetching it is the user's call.
+		let sdkIsLocal = false;
+		const harness = {
+			_logService: { info: () => { } },
+			_isSdkResolvableWithoutDownload: async () => sdkIsLocal,
 			_listCodexChats: async () => chats,
-			_isKnownCodexChat: async chat => {
+			_isKnownCodexChat: async (chat: (typeof chats)[number]) => {
 				const id = AgentSession.id(URI.parse(parseRequiredSessionUriFromChatUri(chat.chat)));
 				return id !== 'unknown-external';
 			},
-			_logService: new NullLogService(),
-		});
+		};
 
-		assert.deepStrictEqual(result, chats.slice(0, 2));
-		assert.deepStrictEqual(await listChatsToMigrate.call({
-			_resolveSdkRoot: async () => '/sdk-root',
-			_listCodexChats: async () => [],
-			_isKnownCodexChat: async () => false,
-			_logService: new NullLogService(),
-		}), []);
-		assert.deepStrictEqual(await listChatsToMigrate.call({
-			_resolveSdkRoot: async () => { throw new Error('SDK unavailable'); },
-			_listCodexChats: async () => [],
-			_isKnownCodexChat: async () => false,
-			_logService: new NullLogService(),
-		}), undefined);
+		const cold = await listChatsToMigrate.call(harness);
+		sdkIsLocal = true;
+		const result = await listChatsToMigrate.call(harness);
+		const empty = await listChatsToMigrate.call({ ...harness, _listCodexChats: async () => [], _isKnownCodexChat: async () => false });
+
+		assert.deepStrictEqual({ cold, result, empty }, { cold: undefined, result: chats.slice(0, 2), empty: [] });
 	});
 
 	test('native discovery emits only unknown Codex chats as external', async () => {

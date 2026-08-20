@@ -12,9 +12,9 @@ export type ChatEditAutoApprovePatterns = Readonly<Record<string, boolean>>;
 export const enum ChatExternalSessionsMode {
 	Recent = 'recent',
 	None = 'none',
-	All = 'all',
 	Last24Hours = 'last24Hours',
 	Last7Days = 'last7Days',
+	Last30Days = 'last30Days',
 }
 
 /** Edit paths whose executable side effects require confirmation regardless of user configuration. */
