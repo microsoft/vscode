@@ -8,7 +8,6 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { observableFromEvent } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, IAction2Options, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -29,6 +28,7 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { OPEN_PULL_REQUEST_ACTION_ID } from '../../github/common/types.js';
 import { ActiveSessionContextKeys, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
 import { IChangesViewService } from '../common/changesViewService.js';
+import { SessionsDiffRenderSideBySideContext } from '../../editor/common/diffEditor.js';
 import { CHANGES_HEADER_ACTIONS_ID } from './changesView.js';
 import { SessionChangesEditor } from './sessionChangesEditor.js';
 
@@ -337,8 +337,8 @@ MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, {
 		icon: Codicon.diffSidebyside,
 		toggled: {
 			condition: ContextKeyExpr.or(
-				ContextKeyExpr.and(singlePaneChangesEditorActive, EditorContextKeys.multiDiffEditorRenderSideBySide),
-				ContextKeyExpr.and(singlePaneFileDiffEditorActive, ContextKeyExpr.equals('config.diffEditor.renderSideBySide', true))
+				ContextKeyExpr.and(singlePaneChangesEditorActive, SessionsDiffRenderSideBySideContext),
+				ContextKeyExpr.and(singlePaneFileDiffEditorActive, SessionsDiffRenderSideBySideContext)
 			)!,
 			title: localize('preferInlineDiff', "Prefer Inline Diff"),
 			tooltip: localize('preferInlineDiff.tooltip', "Always uses inline layout."),

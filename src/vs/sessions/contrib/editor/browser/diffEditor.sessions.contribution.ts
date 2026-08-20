@@ -5,30 +5,30 @@
 
 import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { DiffEditorCommandsService, IDiffEditorCommandsService } from '../../../../workbench/browser/parts/editor/diffEditorCommandsService.js';
 import { TextDiffEditor } from '../../../../workbench/browser/parts/editor/textDiffEditor.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { SessionChangesEditor } from '../../changes/browser/sessionChangesEditor.js';
+import { ISessionsDiffLayoutService } from '../common/diffEditor.js';
+import { SessionsDiffLayoutService } from './diffEditorService.js';
 
-/**
- * Agents window implementation that also drives the multi-diff Changes editor. Unlike a single
- * diff editor, it has no single modified resource, so the render mode is toggled via the
- * workspace `diffEditor.renderSideBySide` setting, which the Changes editor observes.
- */
+/** Drives the shared preferred diff layout for supported editors in the Agents window. */
 export class SessionsDiffEditorCommandsService extends DiffEditorCommandsService {
 
 	constructor(
 		@IEditorService editorService: IEditorService,
-		@ITextResourceConfigurationService private readonly sessionsTextResourceConfigurationService: ITextResourceConfigurationService,
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ISessionsDiffLayoutService private readonly sessionsDiffLayoutService: ISessionsDiffLayoutService,
 	) {
-		super(editorService, sessionsTextResourceConfigurationService, contextKeyService);
+		super(editorService, textResourceConfigurationService, contextKeyService);
 	}
 
 	override async toggleRenderSideBySide(args: unknown[]): Promise<void> {
@@ -49,30 +49,18 @@ export class SessionsDiffEditorCommandsService extends DiffEditorCommandsService
 					continue;
 				}
 
-				const key = 'diffEditor.renderSideBySide';
-				if (modifiedResource) {
-					const renderSideBySide = !(this.sessionsTextResourceConfigurationService.getValue<boolean>(modifiedResource, key) ?? true);
-					await this.sessionsTextResourceConfigurationService.updateValue(modifiedResource, key, renderSideBySide);
-					const useInlineViewWhenSpaceIsLimited = this.sessionsTextResourceConfigurationService.getValue<boolean>(modifiedResource, 'diffEditor.useInlineViewWhenSpaceIsLimited') ?? true;
-					control.updateOptions({ renderSideBySide, useInlineViewWhenSpaceIsLimited });
-				} else {
-					const renderSideBySide = !(this.configurationService.getValue<boolean>(key) ?? true);
-					const useInlineViewWhenSpaceIsLimited = this.configurationService.getValue<boolean>('diffEditor.useInlineViewWhenSpaceIsLimited') ?? true;
-					control.updateOptions({ renderSideBySide, useInlineViewWhenSpaceIsLimited });
-				}
+				this.sessionsDiffLayoutService.toggleRenderSideBySide();
 				return;
 			}
 		}
 
 		if (this.editorService.activeEditorPane instanceof SessionChangesEditor) {
-			this.editorService.activeEditorPane.togglePreferredDiffLayout();
+			this.sessionsDiffLayoutService.toggleRenderSideBySide();
 			return;
 		}
 
 		if (resource) {
-			const key = 'diffEditor.renderSideBySide';
-			const value = this.sessionsTextResourceConfigurationService.getValue<boolean>(resource, key);
-			await this.sessionsTextResourceConfigurationService.updateValue(resource, key, !value);
+			this.sessionsDiffLayoutService.toggleRenderSideBySide();
 			return;
 		}
 
@@ -80,4 +68,36 @@ export class SessionsDiffEditorCommandsService extends DiffEditorCommandsService
 	}
 }
 
+export class SessionsDiffEditorLayoutContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.sessions.diffEditorLayout';
+
+	constructor(
+		@IEditorService private readonly editorService: IEditorService,
+		@ISessionsDiffLayoutService private readonly sessionsDiffLayoutService: ISessionsDiffLayoutService,
+	) {
+		super();
+		this._register(this.editorService.onDidActiveEditorChange(() => this.applyLayout()));
+		this._register(this.editorService.onDidVisibleEditorsChange(() => this.applyLayout()));
+		this._register(autorun(reader => {
+			this.sessionsDiffLayoutService.renderSideBySide.read(reader);
+			this.applyLayout();
+		}));
+	}
+
+	private applyLayout(): void {
+		const renderSideBySide = this.sessionsDiffLayoutService.renderSideBySide.get();
+		for (const pane of new Set([this.editorService.activeEditorPane, ...this.editorService.visibleEditorPanes])) {
+			if (pane instanceof TextDiffEditor) {
+				const control = pane.getControl();
+				if (isDiffEditor(control)) {
+					control.updateOptions({ renderSideBySide, useInlineViewWhenSpaceIsLimited: true });
+				}
+			}
+		}
+	}
+}
+
+registerSingleton(ISessionsDiffLayoutService, SessionsDiffLayoutService, InstantiationType.Delayed);
 registerSingleton(IDiffEditorCommandsService, SessionsDiffEditorCommandsService, InstantiationType.Delayed);
+registerWorkbenchContribution2(SessionsDiffEditorLayoutContribution.ID, SessionsDiffEditorLayoutContribution, WorkbenchPhase.AfterRestored);

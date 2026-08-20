@@ -16,6 +16,7 @@ import { Context } from '../../../../../platform/contextkey/browser/contextKeySe
 import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
+import { SessionsDiffRenderSideBySideContext } from '../../../editor/common/diffEditor.js';
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext, TextCompareEditorActiveContext } from '../../../../../workbench/common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -180,8 +181,7 @@ suite('Changes View Actions', () => {
 			tooltip: typeof item.command.tooltip === 'string' ? item.command.tooltip : item.command.tooltip?.value,
 			toggledTitle: toggledInfo?.title,
 			toggledTooltip: toggledInfo?.tooltip,
-			toggledOnMultiDiffSideBySide: toggledInfo?.condition.serialize().includes(EditorContextKeys.multiDiffEditorRenderSideBySide.key),
-			toggledOnSingleDiffPreference: toggledInfo?.condition.serialize().includes('config.diffEditor.renderSideBySide'),
+			toggledOnSharedPreference: toggledInfo?.condition.serialize().includes(SessionsDiffRenderSideBySideContext.key),
 			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
 			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
 			hasTextCompareEditorGate: when.includes(TextCompareEditorActiveContext.key),
@@ -197,8 +197,7 @@ suite('Changes View Actions', () => {
 			tooltip: 'Uses side-by-side layout when space allows.',
 			toggledTitle: 'Prefer Inline Diff',
 			toggledTooltip: 'Always uses inline layout.',
-			toggledOnMultiDiffSideBySide: true,
-			toggledOnSingleDiffPreference: true,
+			toggledOnSharedPreference: true,
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
 			hasTextCompareEditorGate: true,
