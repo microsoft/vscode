@@ -7,6 +7,7 @@ import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/
 import { derived, IObservable, IReader, observableSignal } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, getAgentHostCopilotSandboxSettingId } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { narrowClaudePermissionMode } from '../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
@@ -74,6 +75,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 	readonly isApplicable: IObservable<boolean>;
 	readonly isResolving: IObservable<boolean>;
 	readonly sandboxTogglePresentation = 'standalone' as const;
+	readonly managedSandboxEnforced: IObservable<boolean>;
 	readonly sandboxToggleConfigurationKeys = [
 		AgentHostCustomTerminalToolEnabledSettingId,
 		AgentHostSdkSandboxEnabledSettingId,
@@ -132,8 +134,10 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		private readonly _session: IObservable<IActiveSession | undefined>,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IAgentHostEnablementService agentHostEnablementService: IAgentHostEnablementService,
 	) {
 		super();
+		this.managedSandboxEnforced = agentHostEnablementService.managedSandboxEnforced;
 
 		this._watchProviders(this._sessionsProvidersService.getProviders());
 		this._register(this._sessionsProvidersService.onDidChangeProviders(e => {
