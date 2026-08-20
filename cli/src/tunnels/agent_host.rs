@@ -31,7 +31,7 @@ use crate::async_pipe::{
 use crate::constants::VSCODE_CLI_QUALITY;
 use crate::download_cache::DownloadCache;
 use crate::log;
-use crate::options::Quality;
+use crate::options::{Quality, TelemetryLevel};
 use crate::state::LauncherPaths;
 use crate::update_service::{
 	unzip_downloaded_release, Platform, Release, TargetKind, UpdateService,
@@ -98,6 +98,7 @@ const UPGRADE_KILL_DELAY: Duration = Duration::from_secs(3);
 #[derive(Clone, Debug)]
 pub struct AgentHostConfig {
 	pub server_data_dir: Option<String>,
+	pub telemetry_level: Option<TelemetryLevel>,
 	pub without_connection_token: bool,
 	pub connection_token: Option<String>,
 	pub connection_token_file: Option<String>,
@@ -261,6 +262,10 @@ impl AgentHostManager {
 		if let Some(a) = &self.config.server_data_dir {
 			cmd.arg("--server-data-dir");
 			cmd.arg(a);
+		}
+		if let Some(level) = self.config.telemetry_level {
+			cmd.arg("--telemetry-level");
+			cmd.arg(level.to_string());
 		}
 		if self.config.without_connection_token {
 			cmd.arg("--without-connection-token");
@@ -1176,6 +1181,20 @@ impl AgentHostSidecar {
 		}
 	}
 
+	/// Returns a cloned handle for reporting client activity to
+	/// `--idle-timeout` bookkeeping, or `None` when idle-timeout is
+	/// disabled.
+	///
+	/// Callers serving connections this sidecar did not accept itself (the
+	/// dev-tunnel-hosted port in `run_supervisor`, which is handed sockets
+	/// by the tunnel relay rather than by [`Self::serve`]'s accept loop)
+	/// must report each connection and attach the resulting guard to that
+	/// connection's transport with [`idle_timeout::GuardedStream`], so the
+	/// client counts as activity for as long as it stays connected.
+	pub fn activity_tracker(&self) -> Option<idle_timeout::ActivityTracker> {
+		self.activity.clone()
+	}
+
 	/// Returns the wrapped manager, e.g. so callers can pre-fetch the latest
 	/// release, run an update loop, or directly serve tunnel-relayed
 	/// connections that bypass the public connection token.
@@ -1204,13 +1223,17 @@ impl AgentHostSidecar {
 					};
 					let mgr = self.manager.clone();
 					let token = self.public_token.clone();
-					// Held for the connection task's whole lifetime so
+					// Attached to the stream (not held by this task) so
 					// `--idle-timeout` bookkeeping (when enabled) sees
-					// exactly one Connected/Disconnected pair per
-					// accepted connection.
-					let activity_guard = self.activity.as_ref().map(|a| a.client_connected());
+					// exactly one Connected/Disconnected pair spanning
+					// the connection's *whole* life, including after a
+					// WebSocket upgrade hands the transport off. See
+					// `idle_timeout::GuardedStream`.
+					let stream = idle_timeout::GuardedStream::new(
+						stream,
+						self.activity.as_ref().map(|a| a.client_connected()),
+					);
 					tokio::spawn(async move {
-						let _activity_guard = activity_guard;
 						let io = TokioIo::new(stream);
 						let svc = service_fn(move |req| {
 							let mgr = mgr.clone();
@@ -1238,10 +1261,14 @@ impl AgentHostSidecar {
 		RW: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
 	{
 		debug!(self.log, "Serving tunnel agent host connection");
-		// Held for this connection's whole lifetime, same as the local
-		// accept loop in `serve`, so a tunnel-relayed client also counts
-		// as activity for `--idle-timeout` bookkeeping.
-		let _activity_guard = self.activity.as_ref().map(|a| a.client_connected());
+		// Attached to the stream, same as the local accept loop in
+		// `serve`, so a tunnel-relayed client also counts as activity for
+		// `--idle-timeout` bookkeeping for as long as it stays connected
+		// -- including after a WebSocket upgrade.
+		let rw = idle_timeout::GuardedStream::new(
+			rw,
+			self.activity.as_ref().map(|a| a.client_connected()),
+		);
 		let mgr = self.manager.clone();
 		let svc = service_fn(move |req| {
 			let mgr = mgr.clone();
@@ -2233,6 +2260,7 @@ mod tests {
 			Arc::new(ReqwestSimpleHttp::new()),
 			AgentHostConfig {
 				server_data_dir: None,
+				telemetry_level: None,
 				without_connection_token: true,
 				connection_token: None,
 				connection_token_file: None,
@@ -2418,6 +2446,115 @@ mod tests {
 
 		opener.open(ShutdownSignal::CtrlC);
 		serve_task.await.unwrap().unwrap();
+	}
+
+	/// Regression test for the ~5-minute agent host recycle: the
+	/// `--idle-timeout` activity guard must span a connection's *whole*
+	/// life, including after it upgrades to a WebSocket.
+	///
+	/// `serve_connection_with_upgrades` resolves as soon as the upgrade is
+	/// handed off, so a guard held by the task awaiting it reported a
+	/// disconnect within milliseconds of a WebSocket starting. The idle
+	/// timer then saw zero clients, armed, and 300s later killed a
+	/// supervisor that was actively serving that WebSocket -- taking the
+	/// agent host server process tree (and any in-flight turn) with it.
+	/// Mirrors `AgentHostSidecar::serve`'s accept loop, including its use
+	/// of `idle_timeout::GuardedStream`.
+	#[tokio::test]
+	async fn activity_guard_spans_whole_websocket_session_not_just_the_upgrade() {
+		let (tracker, mut activity_rx) = idle_timeout::new_activity_channel();
+		let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+		let addr = listener.local_addr().unwrap();
+
+		tokio::spawn(async move {
+			loop {
+				let (stream, _) = listener.accept().await.unwrap();
+				let stream =
+					idle_timeout::GuardedStream::new(stream, Some(tracker.client_connected()));
+				tokio::spawn(async move {
+					let io = TokioIo::new(stream);
+					let svc = service_fn(move |mut req: Request<Incoming>| async move {
+						let key = req
+							.headers()
+							.get("sec-websocket-key")
+							.map(|k| {
+								tokio_tungstenite::tungstenite::handshake::derive_accept_key(
+									k.as_bytes(),
+								)
+							})
+							.unwrap();
+						tokio::spawn(async move {
+							if let Ok(upgraded) = hyper::upgrade::on(&mut req).await {
+								let mut ws = WebSocketStream::from_raw_socket(
+									TokioIo::new(upgraded),
+									Role::Server,
+									None,
+								)
+								.await;
+								while let Some(Ok(m)) = ws.next().await {
+									if m.is_text() {
+										let _ = ws.send(m).await;
+									}
+								}
+							}
+						});
+						Ok::<_, Infallible>(
+							Response::builder()
+								.status(101)
+								.header("connection", "Upgrade")
+								.header("upgrade", "websocket")
+								.header("sec-websocket-accept", key)
+								.body(empty_body())
+								.unwrap(),
+						)
+					});
+					let _ = ServerBuilder::new(TokioExecutor::new())
+						.serve_connection_with_upgrades(io, svc)
+						.await;
+				});
+			}
+		});
+
+		let stream = tokio::net::TcpStream::connect(addr).await.unwrap();
+		let (mut client_ws, _) = tokio_tungstenite::client_async("ws://localhost/", stream)
+			.await
+			.expect("ws upgrade should succeed");
+
+		assert_eq!(
+			activity_rx.recv().await,
+			Some(idle_timeout::ActivityEvent::Connected)
+		);
+
+		// Prove the WebSocket is genuinely alive and carrying traffic.
+		client_ws
+			.send(Message::Text("still here".into()))
+			.await
+			.unwrap();
+		match client_ws.next().await {
+			Some(Ok(Message::Text(t))) => assert_eq!(t.as_str(), "still here"),
+			other => panic!("expected echo, got {other:?}"),
+		}
+
+		// A bounded wait is used only to prove no disconnect is reported
+		// while the session is demonstrably in use; it is not a timing
+		// dependency, since the pre-fix disconnect arrived immediately on
+		// upgrade (long before this point) and is already queued.
+		let premature = tokio::time::timeout(Duration::from_millis(500), activity_rx.recv()).await;
+		assert!(
+			premature.is_err(),
+			"no activity event may be reported while the websocket is still open, got {premature:?}"
+		);
+
+		// Closing the connection must still report the disconnect, so the
+		// idle timer can arm once the client is genuinely gone.
+		drop(client_ws);
+		let disconnected = tokio::time::timeout(Duration::from_secs(2), activity_rx.recv())
+			.await
+			.expect("did not observe a Disconnected activity event in time");
+		assert_eq!(
+			disconnected,
+			Some(idle_timeout::ActivityEvent::Disconnected)
+		);
 	}
 
 	#[tokio::test]
@@ -2906,6 +3043,30 @@ mod tests {
 		port
 	}
 
+	/// Like [`spawn_fake_target_endpoint`], but keeps echoing for as long
+	/// as the client stays connected instead of closing after one message.
+	/// Needed when a test must distinguish "the proxied session is still
+	/// live" from "the target hung up".
+	async fn spawn_persistent_fake_target_endpoint() -> u16 {
+		let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+		let port = listener.local_addr().unwrap().port();
+		tokio::spawn(async move {
+			loop {
+				let (stream, _) = listener.accept().await.unwrap();
+				tokio::spawn(async move {
+					if let Ok(mut ws) = tokio_tungstenite::accept_async(stream).await {
+						while let Some(Ok(msg)) = ws.next().await {
+							if msg.is_text() && ws.send(msg).await.is_err() {
+								break;
+							}
+						}
+					}
+				});
+			}
+		});
+		port
+	}
+
 	/// Drives a full client-side selection session against an in-process
 	/// [`run_gateway_session`] over an in-memory duplex pipe, returning the
 	/// client's WebSocket end after the initial inventory message (parsed
@@ -3385,5 +3546,113 @@ mod tests {
 		let endpoints = inventory["endpoints"].as_array().unwrap();
 		assert_eq!(endpoints.len(), 1);
 		assert_eq!(endpoints[0]["instanceId"], "instance-direct-tunnel");
+	}
+
+	/// The dev-tunnel-hosted port in `run_supervisor` is handed sockets by
+	/// the tunnel relay, so they never pass through
+	/// `AgentHostSidecar::serve`'s accept loop and get no guard from it.
+	/// The gateway's inner dial back into our own listener does not cover
+	/// this either: a client still deciding what to select, or one whose
+	/// selection resolves to a *different* endpoint (as here), never
+	/// reaches that accept loop, so the supervisor owning the tunnel would
+	/// see zero clients and could time itself out while actively proxying.
+	///
+	/// Drives the real router (`serve_agent_host_tunnel_connection`) over a
+	/// guarded transport, exactly as `run_supervisor` now wires it up.
+	#[tokio::test]
+	async fn tunnel_hosted_gateway_connection_counts_as_activity_for_its_whole_session() {
+		let dir = tempfile::tempdir().unwrap();
+		let user_data_path = dir.path().join("user-data");
+		let launcher_paths = LauncherPaths::new_without_replacements(dir.path().to_path_buf());
+		let (tracker, mut activity_rx) = idle_timeout::new_activity_channel();
+
+		// A live endpoint that is *not* this supervisor, so a selection
+		// resolving to it never dials our own listener.
+		let target_port = spawn_persistent_fake_target_endpoint().await;
+		let entry = make_tcp_endpoint("instance-other-host", target_port, "");
+		agent_host_registry::publish_agent_host_endpoint(
+			&log::Logger::test(),
+			&user_data_path,
+			&entry,
+		)
+		.unwrap();
+
+		let active_agent_host = crate::tunnels::control_server::ready_active_agent_host(
+			crate::commands::agent_host::ActiveAgentHost {
+				pid: 0,
+				host: Some("127.0.0.1".to_string()),
+				port: 1,
+				token: None,
+			},
+		);
+
+		let (client_io, server_io) = tokio::io::duplex(64 * 1024);
+		let server_io =
+			idle_timeout::GuardedStream::new(server_io, Some(tracker.client_connected()));
+		tokio::spawn(async move {
+			serve_agent_host_tunnel_connection(
+				log::Logger::test(),
+				server_io,
+				active_agent_host,
+				launcher_paths,
+				user_data_path,
+				false,
+			)
+			.await;
+		});
+
+		let (mut client_ws, _resp) = tokio_tungstenite::client_async(
+			format!("ws://localhost{AGENT_HOST_GATEWAY_SELECT_PATH}"),
+			client_io,
+		)
+		.await
+		.expect("gateway select upgrade should succeed");
+
+		assert_eq!(
+			activity_rx.recv().await,
+			Some(idle_timeout::ActivityEvent::Connected)
+		);
+
+		match client_ws.next().await {
+			Some(Ok(Message::Text(_))) => {}
+			other => panic!("expected inventory message, got {other:?}"),
+		}
+
+		// Select the *other* endpoint and exchange a frame through the
+		// proxy, proving the session is live and served entirely by this
+		// tunnel connection without any inner dial back into our listener.
+		client_ws
+			.send(Message::Text(
+				r#"{"instanceId":"instance-other-host"}"#.into(),
+			))
+			.await
+			.unwrap();
+		match client_ws.next().await {
+			Some(Ok(Message::Text(t))) => {
+				let ack: serde_json::Value = serde_json::from_str(&t).unwrap();
+				assert_eq!(ack["ok"], true);
+			}
+			other => panic!("expected selection ack, got {other:?}"),
+		}
+		client_ws.send(Message::Text("ping".into())).await.unwrap();
+		match client_ws.next().await {
+			Some(Ok(Message::Text(t))) => assert_eq!(t.as_str(), "ping"),
+			other => panic!("expected proxied echo, got {other:?}"),
+		}
+
+		let premature = tokio::time::timeout(Duration::from_millis(500), activity_rx.recv()).await;
+		assert!(
+			premature.is_err(),
+			"a proxied tunnel client must count as activity for its whole session, got {premature:?}"
+		);
+
+		drop(client_ws);
+		let disconnected = tokio::time::timeout(Duration::from_secs(2), activity_rx.recv())
+			.await
+			.expect("did not observe a Disconnected activity event in time");
+		assert_eq!(
+			disconnected,
+			Some(idle_timeout::ActivityEvent::Disconnected)
+		);
 	}
 }

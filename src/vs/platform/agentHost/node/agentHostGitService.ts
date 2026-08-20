@@ -59,7 +59,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 
 	async getDefaultBranch(workingDirectory: URI): Promise<IDefaultBranch | undefined> {
 		// Try to read the default branch from the remote HEAD reference
-		const remoteRef = (await this._runGit(workingDirectory, ['symbolic-ref', 'refs/remotes/origin/HEAD']))?.trim();
+		const remoteRef = (await this._runGit(workingDirectory, ['symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD']))?.trim();
 		if (remoteRef) {
 			if (!remoteRef.startsWith('refs/remotes/origin/')) {
 				return { name: remoteRef, startPoint: remoteRef };
@@ -351,7 +351,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async hasUncommittedChanges(workingDirectory: URI): Promise<boolean> {
-		const output = await this._runGit(workingDirectory, ['status', '--porcelain']);
+		const output = await this._runGitStatus(workingDirectory, ['--porcelain']);
 		return !!output && output.trim().length > 0;
 	}
 
@@ -463,7 +463,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		// have to use the temp-index trick so the untracked content is
 		// included in `--cached --raw` output; otherwise a plain `git diff`
 		// is sufficient and avoids the temp-dir overhead.
-		const statusOut = await this._runGit(repositoryRoot, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
+		const statusOut = await this._runGitStatus(repositoryRoot, ['--porcelain=v1', '-z', '--untracked-files=all']);
 		if (statusOut === undefined) {
 			return undefined;
 		}
@@ -724,7 +724,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		if (!repositoryRoot) {
 			return undefined;
 		}
-		const status = await this._runGit(repositoryRoot, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
+		const status = await this._runGitStatus(repositoryRoot, ['--porcelain=v1', '-z', '--untracked-files=all']);
 		return status === undefined ? undefined : parseUntrackedPaths(status);
 	}
 
@@ -734,7 +734,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 			return undefined;
 		}
 
-		const statusOut = await this._runGit(repositoryRoot, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
+		const statusOut = await this._runGitStatus(repositoryRoot, ['--porcelain=v1', '-z', '--untracked-files=all']);
 		if (statusOut === undefined) {
 			return undefined;
 		}
@@ -942,7 +942,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 			remotesOutput,
 			defaultBranchRef,
 		] = await Promise.all([
-			this._runGit(repositoryRoot, ['status', '-b', '--porcelain=v2']),
+			this._runGitStatus(repositoryRoot, ['-b', '--porcelain=v2']),
 			this._runGit(repositoryRoot, ['remote', '-v']),
 			configuredBaseBranch ? undefined : this._runGit(repositoryRoot, ['symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD']),
 		]);
@@ -1020,6 +1020,11 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 		const count = Number(output.trim());
 		return Number.isFinite(count) ? { hasChanges: count > 0, count } : undefined;
+	}
+
+	private _runGitStatus(workingDirectory: URI, args: readonly string[]): Promise<string | undefined> {
+		// Background status probes must not contend with mutating git commands for index.lock.
+		return this._runGit(workingDirectory, ['status', ...args], { env: { GIT_OPTIONAL_LOCKS: '0' } });
 	}
 
 	private _runGit(workingDirectory: URI, args: readonly string[], options?: { readonly timeout?: number; readonly throwOnError?: boolean; readonly env?: Record<string, string>; readonly maxBuffer?: number; readonly onStderr?: (chunk: string) => void }): Promise<string | undefined> {
@@ -1303,7 +1308,9 @@ export function parseUntrackedPaths(output: string | undefined): string[] {
  * Parses NUL-separated `git status --porcelain=v1 -z --untracked-files=all`
  * output and returns all changed repo-relative paths. Rename/copy entries
  * include both the destination and source paths so scoped `git add -A`
- * stages both sides of the change.
+ * stages both sides of the change. Paths added to the index and then deleted
+ * from the worktree are omitted because they do not exist in either HEAD or
+ * the worktree.
  *
  * Exported for tests.
  */
@@ -1329,7 +1336,10 @@ export function parseChangedPaths(output: string | undefined, includeStatus: (st
 		const path = seg.substring(3);
 		const isRenameOrCopy = status[0] === 'R' || status[1] === 'R' || status[0] === 'C' || status[1] === 'C';
 		if (includeStatus(status)) {
-			addPath(path);
+			const isDeletedIndexAddition = status[1] === 'D' && (status[0] === 'A' || status[0] === 'R' || status[0] === 'C');
+			if (!isDeletedIndexAddition) {
+				addPath(path);
+			}
 			if (isRenameOrCopy) {
 				const sourcePath = segments[++i];
 				if (sourcePath) {

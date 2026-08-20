@@ -18,7 +18,8 @@ export interface IPersistedSideChat {
 	readonly turnId: string;
 	readonly selection?: { readonly text: string; readonly responsePartId?: string };
 	readonly providerAnchorTurnId?: string;
-	readonly inheritedTurnCount: number;
+	/** Id of the last turn the chat inherited from its source. */
+	readonly inheritedTurnId?: string;
 	readonly partialResponse?: string;
 	readonly context?: string;
 }
@@ -92,7 +93,7 @@ export function injectSideChatContext(prompt: string, partialResponse?: string, 
 }
 
 export function prepareSideChatPrompt(prompt: string, turns: readonly Turn[], sideChat: IPersistedSideChat | undefined): string {
-	if (!sideChat || turns.length > sideChat.inheritedTurnCount) {
+	if (!sideChat || turns.length > resolveSideChatBoundary(turns, sideChat)) {
 		return prompt;
 	}
 	const selectedSourceTurn = turns.find(turn => turn.id === sideChat.turnId);
@@ -118,14 +119,9 @@ function buildSideChatContextBlock(message: string, response: string | undefined
 		: `User request:\n${userText}`;
 }
 
-export function stripSideChatContext(turns: readonly Turn[], sideChat: IPersistedSideChat | undefined): readonly Turn[] {
-	if (!sideChat || turns.length === 0) {
-		return turns;
-	}
-	const first = turns[0];
-	const text = first.message.text;
+function parseSideChatSeed(text: string): string | undefined {
 	if (!text.startsWith(SIDE_CHAT_CONTEXT_START)) {
-		return turns;
+		return undefined;
 	}
 	const lengthHeaderStart = SIDE_CHAT_CONTEXT_START.length + 1;
 	if (text.slice(lengthHeaderStart).startsWith(SIDE_CHAT_CONTEXT_LENGTH_PREFIX)) {
@@ -137,17 +133,52 @@ export function stripSideChatContext(turns: readonly Turn[], sideChat: IPersiste
 			const contextStart = lengthLineEnd + 1;
 			const contextEnd = contextStart + parsedLength;
 			if (text.slice(contextEnd, contextEnd + SIDE_CHAT_CONTEXT_END.length + 1) === `\n${SIDE_CHAT_CONTEXT_END}`) {
-				const userPrompt = text.slice(contextEnd + SIDE_CHAT_CONTEXT_END.length + 1).trimStart();
-				return [{ ...first, message: { ...first.message, text: userPrompt } }, ...turns.slice(1)];
+				return text.slice(contextEnd + SIDE_CHAT_CONTEXT_END.length + 1).trimStart();
 			}
 		}
 	}
 	const endIndex = text.lastIndexOf(SIDE_CHAT_CONTEXT_END);
-	if (endIndex < 0) {
+	return endIndex < 0 ? undefined : text.slice(endIndex + SIDE_CHAT_CONTEXT_END.length).trimStart();
+}
+
+export function stripSideChatContext(turns: readonly Turn[], sideChat: IPersistedSideChat | undefined): readonly Turn[] {
+	if (!sideChat || turns.length === 0) {
 		return turns;
 	}
-	const userPrompt = text.slice(endIndex + SIDE_CHAT_CONTEXT_END.length).trimStart();
+	const first = turns[0];
+	const userPrompt = parseSideChatSeed(first.message.text);
+	if (userPrompt === undefined) {
+		return turns;
+	}
 	return [{ ...first, message: { ...first.message, text: userPrompt } }, ...turns.slice(1)];
+}
+
+/** Resolves the index of the first turn owned by a side chat. */
+export function resolveSideChatBoundary(turns: readonly Turn[], sideChat: IPersistedSideChat | undefined): number {
+	if (!sideChat) {
+		return 0;
+	}
+	if (sideChat.inheritedTurnId !== undefined) {
+		const inheritedIndex = turns.findIndex(turn => turn.id === sideChat.inheritedTurnId);
+		if (inheritedIndex !== -1) {
+			return inheritedIndex + 1;
+		}
+	}
+	for (let i = turns.length - 1; i >= 0; i--) {
+		if (parseSideChatSeed(turns[i].message.text) !== undefined) {
+			return i;
+		}
+	}
+	return turns.length;
+}
+
+/** Returns the turns owned by a side chat. */
+export function sliceSideChatTurns(turns: readonly Turn[], sideChat: IPersistedSideChat | undefined): readonly Turn[] {
+	if (!sideChat) {
+		return turns;
+	}
+
+	return stripSideChatContext(turns.slice(resolveSideChatBoundary(turns, sideChat)), sideChat);
 }
 
 /**
@@ -203,7 +234,7 @@ export function decodeProviderData(providerData: string): IPersistedChat | undef
 		const validAgent = agent && typeof agent === 'object' && typeof agent.uri === 'string'
 			? { uri: agent.uri }
 			: undefined;
-		const sideChat = value.sideChat as { source?: unknown; turnId?: unknown; selection?: unknown; providerAnchorTurnId?: unknown; inheritedTurnCount?: unknown; partialResponse?: unknown; context?: unknown } | undefined;
+		const sideChat = value.sideChat as { source?: unknown; turnId?: unknown; selection?: unknown; providerAnchorTurnId?: unknown; inheritedTurnId?: unknown; partialResponse?: unknown; context?: unknown } | undefined;
 		const validSelection = sideChat?.selection
 			&& typeof sideChat.selection === 'object'
 			&& typeof (sideChat.selection as { text?: unknown }).text === 'string'
@@ -217,7 +248,7 @@ export function decodeProviderData(providerData: string): IPersistedChat | undef
 			&& (sideChat.source === undefined || typeof sideChat.source === 'string')
 			&& typeof sideChat.turnId === 'string'
 			&& (sideChat.providerAnchorTurnId === undefined || typeof sideChat.providerAnchorTurnId === 'string')
-			&& typeof sideChat.inheritedTurnCount === 'number'
+			&& (sideChat.inheritedTurnId === undefined || typeof sideChat.inheritedTurnId === 'string')
 			&& (sideChat.partialResponse === undefined || typeof sideChat.partialResponse === 'string')
 			&& (sideChat.context === undefined || typeof sideChat.context === 'string')
 			? {
@@ -225,7 +256,7 @@ export function decodeProviderData(providerData: string): IPersistedChat | undef
 				turnId: sideChat.turnId,
 				...(validSelection ? { selection: validSelection } : {}),
 				...(sideChat.providerAnchorTurnId ? { providerAnchorTurnId: sideChat.providerAnchorTurnId } : {}),
-				inheritedTurnCount: sideChat.inheritedTurnCount,
+				...(sideChat.inheritedTurnId !== undefined ? { inheritedTurnId: sideChat.inheritedTurnId } : {}),
 				...(sideChat.partialResponse ? { partialResponse: sideChat.partialResponse } : {}),
 				...(sideChat.context ? { context: sideChat.context } : {}),
 			}

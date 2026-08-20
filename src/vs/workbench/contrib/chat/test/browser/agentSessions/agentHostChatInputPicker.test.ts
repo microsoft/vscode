@@ -9,7 +9,7 @@ import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/com
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import type { SessionConfigPropertySchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { getAgentHostSandboxSettingId, getConfigPickerItemHover, getConfigPickerListOptions, getConfigPickerTriggerHover, isAgentHostSandboxToggleItem, resolveConfigChipValue } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.js';
+import { getAgentHostSandboxSettingId, getConfigPickerItemHover, getConfigPickerListOptions, getConfigPickerTriggerHover, getConfigPickerTriggerLabel, resolveConfigChipValue } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.js';
 import { AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
@@ -59,18 +59,6 @@ suite('AgentHostChatInputPicker - list options', () => {
 		});
 	});
 
-	test('attaches the sandbox toggle only to Default permissions', () => {
-		assert.deepStrictEqual({
-			defaultPermissions: isAgentHostSandboxToggleItem(SessionConfigKey.AutoApprove, ChatPermissionLevel.Default),
-			assistedPermissions: isAgentHostSandboxToggleItem(SessionConfigKey.AutoApprove, ChatPermissionLevel.Assisted),
-			modeDefault: isAgentHostSandboxToggleItem(SessionConfigKey.Mode, ChatPermissionLevel.Default),
-		}, {
-			defaultPermissions: true,
-			assistedPermissions: false,
-			modeDefault: false,
-		});
-	});
-
 	test('resolves the Copilot Agent Host sandbox setting', () => {
 		assert.deepStrictEqual({
 			sdk: getAgentHostSandboxSettingId(SessionType.AgentHostCopilot, false, false),
@@ -85,6 +73,39 @@ suite('AgentHostChatInputPicker - list options', () => {
 			customTerminalWindows: AgentSandboxSettingId.AgentSandboxWindowsEnabled,
 			claude: undefined,
 		});
+	});
+});
+
+suite('AgentHostChatInputPicker - trigger labels', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const permissionsSchema = {
+		type: 'string',
+		title: 'Permissions',
+		enum: [ChatPermissionLevel.Default, ChatPermissionLevel.Assisted, ChatPermissionLevel.AutoApprove, ChatPermissionLevel.Autopilot],
+		enumLabels: ['Default permissions', 'Assisted permissions', 'Allow all', 'Autopilot'],
+	} as SessionConfigPropertySchema;
+
+	test('appends the sandbox state to every selected permission mode', () => {
+		assert.deepStrictEqual({
+			default: getConfigPickerTriggerLabel(permissionsSchema, ChatPermissionLevel.Default, true),
+			assisted: getConfigPickerTriggerLabel(permissionsSchema, ChatPermissionLevel.Assisted, true),
+			allowAll: getConfigPickerTriggerLabel(permissionsSchema, ChatPermissionLevel.AutoApprove, true),
+			autopilot: getConfigPickerTriggerLabel(permissionsSchema, ChatPermissionLevel.Autopilot, true),
+		}, {
+			default: 'Default permissions (sandboxed)',
+			assisted: 'Assisted permissions (sandboxed)',
+			allowAll: 'Allow all (sandboxed)',
+			autopilot: 'Autopilot (sandboxed)',
+		});
+	});
+
+	test('leaves the selected permission label unchanged when sandboxing is disabled', () => {
+		assert.strictEqual(
+			getConfigPickerTriggerLabel(permissionsSchema, ChatPermissionLevel.Assisted, false),
+			'Assisted permissions'
+		);
 	});
 });
 
@@ -146,7 +167,7 @@ suite('AgentHostChatInputPicker - resolveConfigChipValue', () => {
 			title: 'Approvals',
 			description: 'Tool approval behavior for this session',
 			enum: ['default', 'autoApprove'],
-			enumLabels: ['Default permissions', 'Allow all'],
+			enumLabels: ['Manual permissions', 'Allow all'],
 			enumDescriptions: ['Asks when approval settings don\'t apply', 'Runs tool calls without asking'],
 		} as SessionConfigPropertySchema;
 

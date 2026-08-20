@@ -17,9 +17,10 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
-import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
 import { AgentSession, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
-import { IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from '../common/agentService.js';
+import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
+import { CollectAgentHostDebugLogsExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, type IAgentHostExtensionCommandMap } from '../common/agentHostExtensionProtocol.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY } from '../common/agentHostConnectionsService.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
@@ -31,18 +32,18 @@ import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents,
 import { SUPPORTED_PROTOCOL_VERSIONS } from '../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
-import { isClientTransport, type IProtocolTransport } from '../common/state/sessionTransport.js';
-import { AhpErrorCodes } from '../common/state/protocol/errors.js';
+import { isClientTransport, NonReconnectableTransportError, type IProtocolTransport } from '../common/state/sessionTransport.js';
+import { AhpErrorCodes, JsonRpcErrorCodes } from '../common/state/protocol/errors.js';
 import { ChatSourceKind, ContentEncoding, ResourceRequestParams, type CompletionsParams, type CompletionsResult, type CreateTerminalParams, type ResolveSessionConfigResult, type SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
-import { encodeBase64 } from '../../../base/common/buffer.js';
+import { decodeBase64, encodeBase64 } from '../../../base/common/buffer.js';
 import { ILoadEstimator, LoadEstimator } from '../../../base/parts/ipc/common/ipc.net.js';
-import { TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
+import { ITelemetryService, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
-import { AgentHostTelemetryLevelConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, getAgentHostTerminalAutoApproveRulesConfig, PREFER_LONG_CONTEXT_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
-import { getAgentHostConfigurationSyncEntries, resolveAgentHostConfigurationSyncPatch, resolveAgentHostConfigurationSyncValue } from '../common/agentHostConfigurationSync.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, getAgentHostTerminalAutoApproveRulesConfig, GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
+import { formatAgentHostConfigurationSyncValueForLog, getAgentHostConfigurationSyncEntries, getAgentHostConfigurationSyncTarget, resolveAgentHostConfigurationSyncPatch, resolveAgentHostConfigurationSyncValue } from '../common/agentHostConfigurationSync.js';
 import { managedPermissionsConfigurationIds, resolveManagedSettingsPermissions, type IAgentHostManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
-import { AgentHostClientConnectionKind, toClientConnectionTelemetryMeta } from '../common/agentHostTelemetry.js';
+import { AgentHostClientConnectionKind, toAgentHostClientMeta } from '../common/agentHostTelemetry.js';
 import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otlp/notifications.js';
 import type { TelemetryCapabilities } from '../common/state/protocol/channels-otlp/state.js';
 import type { Implementation, InitializeResult } from '../common/state/protocol/common/commands.js';
@@ -97,13 +98,6 @@ function connectionDisposedError(address: string): ProtocolError {
 
 function transportLostError(address: string): ProtocolError {
 	return new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, `Transport lost (reconnecting): ${address}`);
-}
-
-interface IRemoteAgentHostExtensionCommandMap {
-	'shutdown': { params: undefined; result: void };
-	'getNetworkDiagnosticsInfo': { params: undefined; result: IAgentHostNetworkDiagnosticsInfo };
-	'getManagedSettingsDiagnostics': { params: undefined; result: readonly IAgentHostManagedSettingsDiagnostics[] };
-	'diagnosticsFetch': { params: { url: string }; result: IAgentHostNetworkFetchResult };
 }
 
 interface IRemoteAgentHostExtensionNotificationMap {
@@ -228,6 +222,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	private readonly _onDidClose = this._register(new Emitter<void>());
 	readonly onDidClose = this._onDidClose.event;
 
+	private readonly _onDidFatalClose = this._register(new Emitter<ProtocolError>());
+	readonly onDidFatalClose = this._onDidFatalClose.event;
+
 	private readonly _onDidChangeConnectionState = this._register(new Emitter<AgentHostClientState>());
 	readonly onDidChangeConnectionState = this._onDidChangeConnectionState.event;
 
@@ -319,6 +316,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostResourceService private readonly _resourceService: IAgentHostResourceService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		this._resourceIdentity = identity;
@@ -353,23 +351,27 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				return;
 			}
 			const patch: Record<string, unknown> = {};
-			for (const entry of getAgentHostConfigurationSyncEntries(this._resourceIdentity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY)) {
+			// These keys are host-level and last-writer-wins across windows.
+			const mirrored: string[] = [];
+			for (const entry of getAgentHostConfigurationSyncEntries(getAgentHostConfigurationSyncTarget(this._resourceIdentity))) {
 				if (!e.affectsConfiguration(entry.settingId)) {
 					continue;
 				}
 				const value = resolveAgentHostConfigurationSyncValue(this._configurationService, entry);
 				if (value !== undefined) {
 					patch[entry.sync.key] = value;
+					mirrored.push(`${entry.sync.key}=${formatAgentHostConfigurationSyncValueForLog(entry.settingId, value)} (${entry.settingId})`);
 				}
 			}
 			if (Object.keys(patch).length) {
+				this._logService.info(`[RemoteAgentHostProtocol] Mirroring configuration to host root config from ${ConfigurationTargetToString(e.source)}: ${mirrored.join(', ')}`);
 				this._dispatchRootConfig(patch);
+			}
+			if (e.affectsConfiguration(GLOBAL_AUTO_APPROVE_SETTING_ID)) {
+				this._updateAutoApprovePolicyRestriction();
 			}
 			if (e.affectsConfiguration(TELEMETRY_SETTING_ID) || e.affectsConfiguration(TELEMETRY_OLD_SETTING_ID) || e.affectsConfiguration(TELEMETRY_CRASH_REPORTER_SETTING_ID)) {
 				this._updateTelemetryLevel();
-			}
-			if (e.affectsConfiguration(PREFER_LONG_CONTEXT_SETTING_ID)) {
-				this._updatePreferLongContextEnabled();
 			}
 			if (e.affectsConfiguration(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID)) {
 				this._updateTerminalAutoApproveEnabled();
@@ -457,7 +459,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				protocolVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
 				clientId: this._clientId,
 				clientInfo: this._clientInfo,
-				...this._clientConnectionTelemetryMeta(),
+				_meta: this._clientMeta(),
 				initialSubscriptions: [ROOT_STATE_URI],
 			}, { bypassInitializeQueue: true });
 			this._applyInitializeResult(result);
@@ -490,7 +492,15 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				this._transitionTo({ kind: AgentHostClientState.Incompatible, error: protocolError });
 				throw error;
 			}
-			if (this._state.kind === AgentHostClientState.Reconnecting && this._transportFactory) {
+			if (error instanceof NonReconnectableTransportError) {
+				this._onDidFatalClose.fire(protocolError);
+				this._handleClose(protocolError);
+				throw error;
+			}
+			if (this._state.kind === AgentHostClientState.Reconnecting) {
+				throw error;
+			}
+			if (protocolError.code === AHP_CLIENT_CONNECTION_CLOSED && this._beginReconnectFromConnecting(protocolError)) {
 				throw error;
 			}
 			this._handleClose(protocolError);
@@ -527,18 +537,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			case AgentHostClientState.Closed:
 				return;
 			case AgentHostClientState.Connecting:
-				if (!this._transportFactory) {
+				if (!this._beginReconnectFromConnecting(connectionClosedError(this._address))) {
 					this._handleClose(connectionClosedError(this._address));
-					return;
 				}
-				this._logService.info(`[RemoteAgentHostProtocol] Transport lost while connecting to ${this._address}; scheduling a fresh initialize.`);
-				this._transitionTo({
-					kind: AgentHostClientState.Reconnecting,
-					reconnect: { ...this._newReconnectState(), outbox: this._state.outbox },
-				});
-				this._cancelLivenessTimers();
-				this._rejectPendingRequests(transportLostError(this._address));
-				this._scheduleReconnect();
 				return;
 			case AgentHostClientState.Incompatible:
 				this._handleClose(connectionClosedError(this._address));
@@ -573,6 +574,38 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				this._rejectPendingRequests(transportLostError(this._address));
 				return;
 		}
+	}
+
+	private _beginReconnectFromConnecting(error: ProtocolError): boolean {
+		if (this._state.kind !== AgentHostClientState.Connecting || !this._transportFactory) {
+			return false;
+		}
+		this._logService.info(`[RemoteAgentHostProtocol] Transport lost while connecting to ${this._address}; scheduling a fresh initialize.`);
+		// Carry the pre-handshake outbox into the reconnect state so queued
+		// messages are replayed once the fresh initialize succeeds.
+		const outbox = this._state.outbox;
+		this._rejectPendingRequests(error);
+		this._grantedImplicitReadUris.clear();
+		this._implicitReadGrants.clear();
+		this._transitionTo({
+			kind: AgentHostClientState.Reconnecting,
+			reconnect: { ...this._newReconnectState(), outbox },
+		});
+		this._cancelLivenessTimers();
+		this._scheduleReconnect();
+		return true;
+	}
+
+	/**
+	 * Reopens a terminal connection after its host has been explicitly restarted.
+	 */
+	reconnectFromClosed(): boolean {
+		if (this._state.kind !== AgentHostClientState.Closed || !this._transportFactory || this._store.isDisposed) {
+			return false;
+		}
+		this._transitionTo({ kind: AgentHostClientState.Reconnecting, reconnect: this._newReconnectState() });
+		this._scheduleReconnect();
+		return true;
 	}
 
 	private _scheduleReconnect(): void {
@@ -657,6 +690,12 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			if (this._state.kind !== AgentHostClientState.Reconnecting) {
 				return;
 			}
+			if (err instanceof NonReconnectableTransportError) {
+				const protocolError = new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, err.message);
+				this._onDidFatalClose.fire(protocolError);
+				this._handleClose(protocolError);
+				return;
+			}
 			// Replace the gate so awaiting callers see the failure but new
 			// callers gate on the next attempt instead of slipping through onto
 			// the dead transport. Outbox carries forward to the next attempt.
@@ -673,7 +712,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				clientId: this._clientId,
 				lastSeenServerSeq,
 				subscriptions,
-				...this._clientConnectionTelemetryMeta(),
+				_meta: this._clientMeta(),
 			}, { bypassReconnectGate: true });
 			return { result, freshInitialize: false };
 		} catch (error) {
@@ -688,7 +727,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			protocolVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
 			clientId: this._clientId,
 			clientInfo: this._clientInfo,
-			...this._clientConnectionTelemetryMeta(),
+			_meta: this._clientMeta(),
 			initialSubscriptions: subscriptions,
 		}, { bypassReconnectGate: true });
 		this._applyInitializeResult(initializeResult, false);
@@ -742,9 +781,15 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		}, { bypassReconnectGate: true })));
 	}
 
-	private _clientConnectionTelemetryMeta(): { _meta: Record<string, unknown> } | Record<string, never> {
-		const meta = toClientConnectionTelemetryMeta(this._transport.clientConnectionKind);
-		return meta ? { _meta: meta } : {};
+	private _clientMeta(): Record<string, unknown> {
+		const telemetryLevel = this._effectiveTelemetryLevel();
+		const sendIdentity = telemetryLevel >= TelemetryLevel.USAGE;
+		return toAgentHostClientMeta(
+			this._transport.clientConnectionKind,
+			telemetryLevel,
+			sendIdentity ? this._telemetryService.machineId : undefined,
+			sendIdentity ? this._telemetryService.devDeviceId : undefined,
+		);
 	}
 
 	private _applyInitializeResult(result: CommandMap['initialize']['result'], forwardClientConfig = true): void {
@@ -773,15 +818,20 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 * settings contributed by an extension rather than by core.
 	 */
 	private _forwardClientConfig(includeManagedSettings = true): void {
-		this._dispatchRootConfig(resolveAgentHostConfigurationSyncPatch(this._configurationService, this._resourceIdentity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY));
+		this._dispatchRootConfig(resolveAgentHostConfigurationSyncPatch(this._configurationService, getAgentHostConfigurationSyncTarget(this._resourceIdentity)));
 		this._updateTelemetryLevel();
-		this._updatePreferLongContextEnabled();
 		this._updateTerminalAutoApproveEnabled();
 		this._updateTerminalAutoApproveRules();
+		this._updateAutoApprovePolicyRestriction();
 		this._updateDisableRepoInfoTelemetry();
 		if (includeManagedSettings) {
 			void this._updateManagedSettingsPermissions();
 		}
+	}
+
+	private _updateAutoApprovePolicyRestriction(): void {
+		const policyRestricted = this._configurationService.inspect<boolean>(GLOBAL_AUTO_APPROVE_SETTING_ID)?.policyValue === false;
+		this._dispatchRootConfig({ [AgentHostAutoApprovePolicyRestrictedConfigKey]: policyRestricted });
 	}
 
 	/**
@@ -802,7 +852,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				if (envelope.origin?.clientId === this._clientId
 					&& envelope.origin.clientSeq !== undefined
 					&& !envelope.rejectionReason) {
-					this._subscriptionManager.dropPendingSessionAction(envelope.channel, envelope.origin.clientSeq);
+					this._subscriptionManager.dropPendingAction(envelope.channel, envelope.origin.clientSeq);
 				}
 				if (envelope.serverSeq > maxSeq) {
 					maxSeq = envelope.serverSeq;
@@ -831,7 +881,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 *
 	 * 1. Resend pending optimistic session actions that the server did NOT
 	 *    echo back in the replay buffer (i.e. anything still on
-	 *    {@link AgentSubscriptionManager.getPendingSessionActions}).
+	 *    {@link AgentSubscriptionManager.getPendingActions}).
 	 * 2. Flush every message that {@link _sendNotification} queued onto the
 	 *    outbox while the gate was engaged.
 	 *
@@ -852,7 +902,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		}
 
 		const replays: ProtocolMessage[] = [];
-		for (const entry of this._subscriptionManager.getPendingSessionActions()) {
+		for (const entry of this._subscriptionManager.getPendingActions()) {
 			if (queuedSeqs.has(entry.clientSeq)) {
 				continue;
 			}
@@ -1077,6 +1127,81 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		return this._sendExtensionRequest('getManagedSettingsDiagnostics');
 	}
 
+	async getSessionStateFile(session: URI): Promise<URI | undefined> {
+		const result = await this._sendExtensionRequest(GetAgentHostSessionStateFileExtensionMethod, {
+			session: session.toString(),
+		});
+		if (!result.resource) {
+			return undefined;
+		}
+		const resource = URI.parse(result.resource, true);
+		if (resource.scheme !== Schemas.file) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Agent Host returned a non-file session state resource: ${resource.toString()}`);
+		}
+		return toAgentHostUri(resource, this._connectionAuthority);
+	}
+
+	async collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> {
+		const result = await this._sendExtensionRequest(CollectAgentHostDebugLogsExtensionMethod, {
+			session: session?.toString(),
+			kind,
+		});
+		if (result.kind !== kind) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Agent Host returned ${result.kind} debug logs for a ${kind} request`);
+		}
+		const resource = URI.parse(result.resource, true);
+		if (resource.scheme !== Schemas.file) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Agent Host returned a non-file debug log resource: ${resource.toString()}`);
+		}
+		if (!Number.isSafeInteger(result.size) || result.size < 0 || result.size > AGENT_HOST_DEBUG_LOGS_MAX_BYTES
+			|| !Number.isSafeInteger(result.uncompressedSize) || result.uncompressedSize < 0 || result.uncompressedSize > AGENT_HOST_DEBUG_LOGS_MAX_BYTES) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned invalid debug log artifact sizes');
+		}
+		if (!Array.isArray(result.entries) || result.entries.length > AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an invalid debug log artifact manifest');
+		}
+		const entryPaths = new Set<string>();
+		let manifestSize = 0;
+		for (const entry of result.entries) {
+			const segments = entry.path.split('/');
+			if (!entry.path || entry.path.includes('\\') || segments.some((segment: string) => !segment || segment === '.' || segment === '..')
+				|| !Number.isSafeInteger(entry.size) || entry.size < 0
+				|| entryPaths.has(entry.path)) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an invalid debug log artifact manifest entry');
+			}
+			entryPaths.add(entry.path);
+			manifestSize += entry.size;
+		}
+		if (!Number.isSafeInteger(manifestSize) || manifestSize !== result.uncompressedSize) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host debug log artifact manifest size does not match its declared size');
+		}
+		return {
+			kind: result.kind,
+			resource: toAgentHostUri(resource, this._connectionAuthority),
+			providerLogsIncluded: result.providerLogsIncluded,
+			size: result.size,
+			uncompressedSize: result.uncompressedSize,
+			entries: result.entries,
+		};
+	}
+
+	/**
+	 * Read one bounded slice of a debug-log artifact previously returned by
+	 * {@link collectDebugLogs}. `resource` is the agent-host URI handed out by
+	 * that call; it is unwrapped back to the host-local path here.
+	 */
+	async readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk> {
+		const result = await this._sendExtensionRequest(ReadAgentHostDebugLogsChunkExtensionMethod, {
+			resource: fromAgentHostUri(resource).toString(),
+			position,
+		});
+		const data = decodeBase64(result.data);
+		if (data.byteLength > AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an oversized debug log chunk');
+		}
+		return { data, eof: result.eof === true };
+	}
+
 	/**
 	 * Probe connectivity from the remote agent host to a single `url`.
 	 */
@@ -1236,8 +1361,8 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	/**
 	 * Read the content of a resource on the remote host.
 	 */
-	async resourceRead(uri: URI): Promise<CommandMap['resourceRead']['result']> {
-		return this._sendRequest('resourceRead', { channel: ROOT_STATE_URI, uri: uri.toString() });
+	async resourceRead(uri: URI, encoding?: ContentEncoding): Promise<CommandMap['resourceRead']['result']> {
+		return this._sendRequest('resourceRead', { channel: ROOT_STATE_URI, uri: uri.toString(), encoding });
 	}
 
 	async resourceWrite(params: CommandMap['resourceWrite']['params']): Promise<CommandMap['resourceWrite']['result']> {
@@ -1577,12 +1702,16 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	}
 
 	/** Send a JSON-RPC request for a VS Code extension method (not in the protocol spec). */
-	private _sendExtensionRequest<M extends keyof IRemoteAgentHostExtensionCommandMap>(method: M, params?: IRemoteAgentHostExtensionCommandMap[M]['params']): Promise<IRemoteAgentHostExtensionCommandMap[M]['result']> {
-		return this._dispatchRequest<IRemoteAgentHostExtensionCommandMap[M]['result']>(method, params);
+	private _sendExtensionRequest<M extends keyof IAgentHostExtensionCommandMap>(method: M, params?: IAgentHostExtensionCommandMap[M]['params']): Promise<IAgentHostExtensionCommandMap[M]['result']> {
+		return this._dispatchRequest<IAgentHostExtensionCommandMap[M]['result']>(method, params);
 	}
 
 	private _updateTelemetryLevel(): void {
-		this._dispatchRootConfig({ [AgentHostTelemetryLevelConfigKey]: telemetryLevelToAgentHostConfigValue(getTelemetryLevel(this._configurationService)) });
+		this._dispatchRootConfig({ [AgentHostTelemetryLevelConfigKey]: telemetryLevelToAgentHostConfigValue(this._effectiveTelemetryLevel()) });
+	}
+
+	private _effectiveTelemetryLevel(): TelemetryLevel {
+		return Math.min(getTelemetryLevel(this._configurationService), this._telemetryService.telemetryLevel);
 	}
 
 	/** Merge a patch into the agent host's root configuration. */
@@ -1596,11 +1725,6 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	private _updateDisableRepoInfoTelemetry(): void {
 		const disabled = this._configurationService.getValue<boolean>(DISABLE_REPO_INFO_TELEMETRY_SETTING_ID) === true;
 		this._dispatchRootConfig({ [AgentHostDisableRepoInfoTelemetryConfigKey]: disabled });
-	}
-
-	private _updatePreferLongContextEnabled(): void {
-		const enabled = this._configurationService.getValue<boolean>(PREFER_LONG_CONTEXT_SETTING_ID) === true;
-		this._dispatchRootConfig({ [AgentHostPreferLongContextEnabledConfigKey]: enabled });
 	}
 
 	private _updateTerminalAutoApproveEnabled(): void {

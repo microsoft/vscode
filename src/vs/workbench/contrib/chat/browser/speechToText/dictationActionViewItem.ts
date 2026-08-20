@@ -5,6 +5,7 @@
 
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IManagedHoverContent } from '../../../../../base/browser/ui/hover/hover.js';
+import { IObservable } from '../../../../../base/common/observable.js';
 import { MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -33,6 +34,7 @@ export class DictationActionViewItem extends MenuEntryActionViewItem {
 	constructor(
 		action: MenuItemAction,
 		options: IMenuEntryActionViewItemOptions | undefined,
+		private readonly _isActive: IObservable<boolean>,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -54,11 +56,11 @@ export class DictationActionViewItem extends MenuEntryActionViewItem {
 			() => getDictationContextMenuActions(this._commandService, this._configurationService, this._keybindingService, this._action.id),
 			this._contextMenuService,
 		));
-		this._register(setupDictationMicGlow(container, this._speechToTextService, this._dictationAccessibilityService, undefined, this._dictationThemeService));
+		this._register(setupDictationMicGlow(container, this._speechToTextService, this._dictationAccessibilityService, this._isActive, this._dictationThemeService));
 	}
 
 	protected override getHoverContents(): IManagedHoverContent {
-		if (this._speechToTextService.isPreparingModel) {
+		if (this._isActive.get() && this._speechToTextService.isPreparingModel) {
 			return getDictationDownloadHoverContent(this._speechToTextService);
 		}
 		return getDictationHoverContent(this.getTooltip() ?? '', this._configurationService);

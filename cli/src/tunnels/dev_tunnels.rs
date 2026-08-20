@@ -35,6 +35,7 @@ use tunnels::management::{
 };
 
 static TUNNEL_COUNT_LIMIT_NAME: &str = "TunnelsPerUserPerLocation";
+static TUNNEL_PORT_PROTOCOL_CONFLICT_DETAIL: &str = "The tunnel port protocol cannot be changed.";
 
 #[allow(dead_code)]
 mod tunnel_flags {
@@ -1026,17 +1027,29 @@ impl ActiveTunnelManager {
 		privacy: PortPrivacy,
 		protocol: PortProtocol,
 	) -> Result<(), WrappedError> {
-		self.relay
-			.lock()
-			.await
-			.add_port(&TunnelPort {
-				port_number,
-				protocol: Some(protocol.to_contract_str().to_string()),
-				access_control: Some(privacy_to_tunnel_acl(privacy)),
-				..Default::default()
-			})
-			.await
-			.map_err(|e| wrap(e, "error adding port to relay"))?;
+		let relay = self.relay.lock().await;
+		let port = TunnelPort {
+			port_number,
+			protocol: Some(protocol.to_contract_str().to_string()),
+			access_control: Some(privacy_to_tunnel_acl(privacy)),
+			..Default::default()
+		};
+
+		match relay.add_port(&port).await {
+			Ok(()) => {}
+			Err(error) if is_tunnel_port_protocol_conflict(&error) => {
+				relay
+					.remove_port(port_number)
+					.await
+					.map_err(|e| wrap(e, "error replacing port protocol in relay"))?;
+				relay
+					.add_port(&port)
+					.await
+					.map_err(|e| wrap(e, "error adding port to relay"))?;
+			}
+			Err(error) => return Err(wrap(error, "error adding port to relay")),
+		}
+
 		Ok(())
 	}
 
@@ -1045,17 +1058,28 @@ impl ActiveTunnelManager {
 		&self,
 		port_number: u16,
 	) -> Result<mpsc::UnboundedReceiver<ForwardedPortConnection>, WrappedError> {
-		self.relay
-			.lock()
-			.await
-			.add_port_raw(&TunnelPort {
-				port_number,
-				protocol: Some(TUNNEL_PROTOCOL_AUTO.to_owned()),
-				access_control: Some(privacy_to_tunnel_acl(PortPrivacy::Private)),
-				..Default::default()
-			})
-			.await
-			.map_err(|e| wrap(e, "error adding port to relay"))
+		let relay = self.relay.lock().await;
+		let port = TunnelPort {
+			port_number,
+			protocol: Some(TUNNEL_PROTOCOL_AUTO.to_owned()),
+			access_control: Some(privacy_to_tunnel_acl(PortPrivacy::Private)),
+			..Default::default()
+		};
+
+		match relay.add_port_raw(&port).await {
+			Ok(receiver) => Ok(receiver),
+			Err(error) if is_tunnel_port_protocol_conflict(&error) => {
+				relay
+					.remove_port(port_number)
+					.await
+					.map_err(|e| wrap(e, "error replacing port protocol in relay"))?;
+				relay
+					.add_port_raw(&port)
+					.await
+					.map_err(|e| wrap(e, "error adding port to relay"))
+			}
+			Err(error) => Err(wrap(error, "error adding port to relay")),
+		}
 	}
 
 	/// Removes a port from TCP/IP forwarding.
@@ -1251,6 +1275,16 @@ fn vec_eq_as_set(a: &[String], b: &[String]) -> bool {
 	true
 }
 
+// This is only relevant for Node-owned tunnels created before
+// https://github.com/microsoft/vscode/pull/329066 was merged. The pinned dev-tunnels
+// revision does not expose the inner HttpError as Error::source(), so match its detail
+// in the formatted error until the SDK provides a structured error code.
+fn is_tunnel_port_protocol_conflict(error: &impl std::fmt::Display) -> bool {
+	error
+		.to_string()
+		.contains(TUNNEL_PORT_PROTOCOL_CONFLICT_DETAIL)
+}
+
 fn privacy_to_tunnel_acl(privacy: PortPrivacy) -> TunnelAccessControl {
 	TunnelAccessControl {
 		entries: vec![match privacy {
@@ -1309,5 +1343,16 @@ mod test {
 			"coolname-with-chars".to_string()
 		);
 		assert_eq!(clean_hostname_for_tunnel("z"), "remote-machine".to_string());
+	}
+
+	#[test]
+	fn test_is_tunnel_port_protocol_conflict() {
+		assert!(is_tunnel_port_protocol_conflict(&format!(
+			"failed to add port to tunnel: response error: HTTP status 400: \
+			 {{\"detail\":\"{TUNNEL_PORT_PROTOCOL_CONFLICT_DETAIL}\"}}"
+		)));
+		assert!(!is_tunnel_port_protocol_conflict(
+			&"response error: Another validation error."
+		));
 	}
 }

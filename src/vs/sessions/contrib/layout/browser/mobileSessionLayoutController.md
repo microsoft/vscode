@@ -1,5 +1,9 @@
 # Mobile Session Layout Controller — Spec
 
+> **Specification change gate:** A bug fix that restores an existing `M*` rule
+> belongs in a regression test. Update this file only when the intended mobile
+> controller behavior changes.
+
 Specifies [`mobileSessionLayoutController.ts`](./mobileSessionLayoutController.ts)
 (`MobileLayoutController`), the reduced layout controller used on the **web phone** layout. It extends
 [`BaseLayoutController`](./baseSessionLayoutController.md) (rules `B*`).

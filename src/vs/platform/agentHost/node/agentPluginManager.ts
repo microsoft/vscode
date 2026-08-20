@@ -6,7 +6,7 @@
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { SequencerByKey } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
-import { IFileService } from '../../files/common/files.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentPluginManager, type ISyncedCustomization } from '../common/agentPluginManager.js';
 import { CustomizationLoadStatus, type ClientPluginCustomization, type PluginCustomization } from '../common/state/sessionState.js';
@@ -58,8 +58,7 @@ export class AgentPluginManager implements IAgentPluginManager {
 	 */
 	private readonly _lru: ICacheEntry[] = [];
 
-	/** Whether the on-disk cache has been loaded. */
-	private _cacheLoaded = false;
+	private _cacheLoadPromise: Promise<void> | undefined;
 
 	constructor(
 		userDataPath: URI,
@@ -196,6 +195,9 @@ export class AgentPluginManager implements IAgentPluginManager {
 			await this._fileService.del(dir, { recursive: true });
 			return true;
 		} catch (err) {
+			if (toFileOperationResult(err) === FileOperationResult.FILE_NOT_FOUND) {
+				return true;
+			}
 			this._logService.warn(`[AgentPluginManager] Failed to remove plugin dir ${dir.toString()}`, err);
 			return false;
 		}
@@ -248,12 +250,12 @@ export class AgentPluginManager implements IAgentPluginManager {
 
 	// ---- cache persistence --------------------------------------------------
 
-	private async _ensureCacheLoaded(): Promise<void> {
-		if (this._cacheLoaded) {
-			return;
-		}
-		this._cacheLoaded = true;
+	private _ensureCacheLoaded(): Promise<void> {
+		this._cacheLoadPromise ??= this._loadCache();
+		return this._cacheLoadPromise;
+	}
 
+	private async _loadCache(): Promise<void> {
 		try {
 			if (!await this._fileService.exists(this._cachePath)) {
 				return;
