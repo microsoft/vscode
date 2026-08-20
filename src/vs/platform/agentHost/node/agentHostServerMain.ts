@@ -32,8 +32,6 @@ import { IProductService } from '../../product/common/productService.js';
 import { createAgentHostRuntime } from './agentHostBootstrap.js';
 import { BANG_COMMAND_PREFIX } from './agentHostBangCommand.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
-import { NullByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
-import { NullByokLmProxyService } from './copilot/byokLmProxyService.js';
 import { ClaudeAgent } from './claude/claudeAgent.js';
 import { ClaudeSdkPackage } from './claude/claudeAgentSdkService.js';
 import { CodexAgent, CodexSdkPackage } from './codex/codexAgent.js';
@@ -196,10 +194,7 @@ async function main(): Promise<void> {
 		transientProxyConfiguration: false,
 		hostLaunchKind: AgentHostLaunchKind.VSCodeCLI,
 		providerConfigurations: [createCodexProviderConfiguration(environmentService.userHome)],
-		providerInfrastructure: options.quiet ? undefined : {
-			byokBridgeRegistry: new NullByokLmBridgeRegistry(),
-			byokLmProxyService: new NullByokLmProxyService(),
-		}
+		byok: { kind: 'unavailable' },
 	});
 	const { agentService, instantiationService, fileService, sessionDataService } = runtime;
 	disposables.add(agentService);
@@ -208,7 +203,7 @@ async function main(): Promise<void> {
 	// Register agents
 	let sdkDownloadProgress: Event<IAgentSdkDownloadProgress> | undefined;
 	if (!options.quiet) {
-		const agentSdkDownloader = runtime.agentSdkDownloader!;
+		const agentSdkDownloader = runtime.agentSdkDownloader;
 		sdkDownloadProgress = runtime.sdkDownloadProgress;
 		const copilotAgent = disposables.add(instantiationService.createInstance(CopilotAgent));
 		agentService.registerProvider(copilotAgent);

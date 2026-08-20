@@ -47,8 +47,8 @@ import { AgentSdkDownloader, IAgentSdkDownloader, type IAgentSdkDownloadProgress
 import { IClaudeAgentSdkService, ClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';
 import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';
 import { CodexProxyService, ICodexProxyService } from './codex/codexProxyService.js';
-import { IByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
-import { ByokLmProxyService, IByokLmProxyService } from './copilot/byokLmProxyService.js';
+import { IByokLmBridgeRegistry, NullByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
+import { ByokLmProxyService, IByokLmProxyService, NullByokLmProxyService } from './copilot/byokLmProxyService.js';
 import { registerPendingEditContentProvider } from './copilot/pendingEditContentStore.js';
 import { SessionDataService } from './sessionDataService.js';
 import { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
@@ -57,11 +57,6 @@ import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
 export interface IAgentHostNetworkServices {
 	readonly proxyResolver: IAgentHostProxyResolver;
 	readonly requestService: IRequestService;
-}
-
-export interface IAgentHostProviderInfrastructureOptions {
-	readonly byokBridgeRegistry: IByokLmBridgeRegistry;
-	readonly byokLmProxyService?: IByokLmProxyService;
 }
 
 export interface ICreateAgentHostRuntimeOptions {
@@ -74,7 +69,11 @@ export interface ICreateAgentHostRuntimeOptions {
 	readonly transientProxyConfiguration: boolean;
 	readonly hostLaunchKind: AgentHostLaunchKind;
 	readonly providerConfigurations: readonly IAgentCustomizationSettingsRegistration[];
-	readonly providerInfrastructure?: IAgentHostProviderInfrastructureOptions;
+	/**
+	 * The utility-process host has a renderer bridge; standalone hosts use the
+	 * unavailable variant but still register the same complete service graph.
+	 */
+	readonly byok: { readonly kind: 'renderer'; readonly bridgeRegistry: IByokLmBridgeRegistry } | { readonly kind: 'unavailable' };
 }
 
 export interface IAgentHostRuntime {
@@ -84,8 +83,8 @@ export interface IAgentHostRuntime {
 	readonly sessionDataService: ISessionDataService;
 	readonly proxyResolver: IAgentHostProxyResolver;
 	readonly telemetryService: IAgentHostTelemetryService;
-	readonly agentSdkDownloader: AgentSdkDownloader | undefined;
-	readonly sdkDownloadProgress: Event<IAgentSdkDownloadProgress> | undefined;
+	readonly agentSdkDownloader: AgentSdkDownloader;
+	readonly sdkDownloadProgress: Event<IAgentSdkDownloadProgress>;
 }
 
 /**
@@ -163,19 +162,31 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		const networkDiagnosticsService = instantiationService.createInstance(NetworkDiagnosticsService);
 		services.set(INetworkDiagnosticsService, networkDiagnosticsService);
 		agentService.setNetworkDiagnosticsService(networkDiagnosticsService);
-		const providerInfrastructure = options.providerInfrastructure
-			? registerProviderInfrastructure({
-				services,
-				instantiationService,
-				agentService,
-				environmentService,
-				fileService,
-				logService,
-				disposables,
-				fetchFn,
-				...options.providerInfrastructure,
-			})
-			: undefined;
+		services.set(IAgentPluginManager, new AgentPluginManager(URI.file(environmentService.userDataPath), fileService, logService));
+		services.set(IDiffComputeService, disposables.add(instantiationService.createInstance(NodeWorkerDiffComputeService)));
+		const editAttributionService = disposables.add(instantiationService.createInstance(AgentEditAttributionService, undefined, undefined));
+		services.set(IAgentEditAttributionService, editAttributionService);
+		agentService.setEditAttributionService(editAttributionService);
+		services.set(IEditSurvivalReporterFactory, instantiationService.createInstance(EditSurvivalReporterFactory));
+		services.set(IEditArcReporterService, disposables.add(instantiationService.createInstance(EditArcReporterService, undefined)));
+
+		const worktreeIsolation = disposables.add(instantiationService.createInstance(WorktreeIsolation, undefined));
+		services.set(IAgentHostWorktreeIsolation, worktreeIsolation);
+		agentService.setWorktreeIsolation(worktreeIsolation);
+
+		const agentSdkDownloader = disposables.add(instantiationService.createInstance(AgentSdkDownloader));
+		services.set(IAgentSdkDownloader, agentSdkDownloader);
+		services.set(IClaudeProxyService, disposables.add(instantiationService.createInstance(ClaudeProxyService)));
+		services.set(IClaudeAgentSdkService, instantiationService.createInstance(ClaudeAgentSdkService));
+		services.set(ICodexProxyService, disposables.add(instantiationService.createInstance(CodexProxyService)));
+		services.set(IAgentHostOTelService, disposables.add(instantiationService.createInstance(AgentHostOTelService, fetchFn)));
+		const byokBridgeRegistry = options.byok.kind === 'renderer' ? options.byok.bridgeRegistry : new NullByokLmBridgeRegistry();
+		services.set(IByokLmBridgeRegistry, byokBridgeRegistry);
+		const byokLmProxyService: IByokLmProxyService = options.byok.kind === 'renderer'
+			? disposables.add(instantiationService.createInstance(ByokLmProxyService))
+			: new NullByokLmProxyService();
+		services.set(IByokLmProxyService, byokLmProxyService);
+
 		return {
 			instantiationService,
 			agentService,
@@ -183,56 +194,12 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 			sessionDataService,
 			proxyResolver,
 			telemetryService,
-			agentSdkDownloader: providerInfrastructure?.agentSdkDownloader,
-			sdkDownloadProgress: providerInfrastructure?.sdkDownloadProgress,
+			agentSdkDownloader,
+			sdkDownloadProgress: agentSdkDownloader.onDidDownloadProgress,
 		};
 	} catch (error) {
 		agentService?.dispose();
 		instantiationService.dispose();
 		throw error;
 	}
-}
-
-interface IRegisterProviderInfrastructureOptions extends IAgentHostProviderInfrastructureOptions {
-	readonly services: ServiceCollection;
-	readonly instantiationService: IInstantiationService;
-	readonly agentService: AgentService;
-	readonly environmentService: INativeEnvironmentService;
-	readonly fileService: IFileService;
-	readonly logService: ILogService;
-	readonly disposables: DisposableStore;
-	readonly fetchFn: typeof globalThis.fetch;
-}
-
-interface IProviderInfrastructure {
-	readonly agentSdkDownloader: AgentSdkDownloader;
-	readonly sdkDownloadProgress: Event<IAgentSdkDownloadProgress>;
-}
-
-function registerProviderInfrastructure(options: IRegisterProviderInfrastructureOptions): IProviderInfrastructure {
-	const { services, instantiationService, agentService, environmentService, fileService, logService, disposables, fetchFn } = options;
-	services.set(IAgentPluginManager, new AgentPluginManager(URI.file(environmentService.userDataPath), fileService, logService));
-	services.set(IDiffComputeService, disposables.add(instantiationService.createInstance(NodeWorkerDiffComputeService)));
-	const editAttributionService = disposables.add(instantiationService.createInstance(AgentEditAttributionService, undefined, undefined));
-	services.set(IAgentEditAttributionService, editAttributionService);
-	agentService.setEditAttributionService(editAttributionService);
-	services.set(IEditSurvivalReporterFactory, instantiationService.createInstance(EditSurvivalReporterFactory));
-	services.set(IEditArcReporterService, disposables.add(instantiationService.createInstance(EditArcReporterService, undefined)));
-
-	const worktreeIsolation = disposables.add(instantiationService.createInstance(WorktreeIsolation, undefined));
-	services.set(IAgentHostWorktreeIsolation, worktreeIsolation);
-	agentService.setWorktreeIsolation(worktreeIsolation);
-
-	const agentSdkDownloader = disposables.add(instantiationService.createInstance(AgentSdkDownloader));
-	services.set(IAgentSdkDownloader, agentSdkDownloader);
-	services.set(IClaudeProxyService, disposables.add(instantiationService.createInstance(ClaudeProxyService)));
-	services.set(IClaudeAgentSdkService, instantiationService.createInstance(ClaudeAgentSdkService));
-	services.set(ICodexProxyService, disposables.add(instantiationService.createInstance(CodexProxyService)));
-	services.set(IAgentHostOTelService, disposables.add(instantiationService.createInstance(AgentHostOTelService, fetchFn)));
-
-	services.set(IByokLmBridgeRegistry, options.byokBridgeRegistry);
-	const byokLmProxyService = options.byokLmProxyService ?? disposables.add(instantiationService.createInstance(ByokLmProxyService));
-	services.set(IByokLmProxyService, byokLmProxyService);
-
-	return { agentSdkDownloader, sdkDownloadProgress: agentSdkDownloader.onDidDownloadProgress };
 }

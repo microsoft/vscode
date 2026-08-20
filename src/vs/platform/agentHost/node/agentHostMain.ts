@@ -122,16 +122,14 @@ async function startAgentHost(): Promise<void> {
 			transientProxyConfiguration: true,
 			hostLaunchKind,
 			providerConfigurations: [createCodexProviderConfiguration(environmentService.userHome)],
-			providerInfrastructure: {
-				byokBridgeRegistry: byokLmBridgeRegistry,
-			},
+			byok: { kind: 'renderer', bridgeRegistry: byokLmBridgeRegistry },
 		});
 		agentService = runtime.agentService;
 		instantiationService = runtime.instantiationService;
 		fileService = runtime.fileService;
 		proxyResolver = runtime.proxyResolver;
 		errorTelemetry.value = new ErrorTelemetry(runtime.telemetryService);
-		const agentSdkDownloader = runtime.agentSdkDownloader!;
+		const agentSdkDownloader = runtime.agentSdkDownloader;
 		sdkDownloadProgress = runtime.sdkDownloadProgress;
 		agentService.registerProvider(instantiationService.createInstance(CopilotAgent));
 		// Claude and Codex providers are gated on two things:

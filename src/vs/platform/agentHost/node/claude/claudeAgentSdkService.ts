@@ -153,14 +153,7 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		@IAgentSdkDownloader private readonly _downloader: IAgentSdkDownloader,
-	) {
-		// Set before any SDK call so full transcripts are always read back.
-		// An explicit value from the environment wins so the optimization can
-		// still be re-enabled from outside.
-		if (process.env[ClaudeDisablePrecompactSkipEnvVar] === undefined) {
-			process.env[ClaudeDisablePrecompactSkipEnvVar] = '1';
-		}
-	}
+	) { }
 
 	async listSessions(): Promise<readonly SDKSessionInfo[]> {
 		const sdk = await this._getSdk();
@@ -245,6 +238,12 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 	}
 
 	private async _getSdk(): Promise<IClaudeSdkBindings> {
+		// Set before the first SDK call so full transcripts are always read back.
+		// An explicit value from the environment wins so the optimization can
+		// still be re-enabled from outside.
+		if (process.env[ClaudeDisablePrecompactSkipEnvVar] === undefined) {
+			process.env[ClaudeDisablePrecompactSkipEnvVar] = '1';
+		}
 		if (this._sdkModule) {
 			return this._sdkModule;
 		}
