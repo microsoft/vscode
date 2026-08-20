@@ -12,10 +12,10 @@ import type { SourceFile } from '@typescript/native/unstable/ast';
 import type * as vscode from 'vscode';
 import { afterAll, beforeAll, suite, test } from 'vitest';
 import { z } from 'zod';
-import * as protocol from '../../common/serverProtocol';
-import { nesRename, prepareNesRename } from './api';
-import { PrepareNesRenameResult } from './nesRenameValidator';
-import { CancellationTokenWithTimer } from './typescripts';
+import * as protocol from '../../../common/serverProtocol';
+import { nesRename, prepareNesRename } from '../api';
+import { PrepareNesRenameResult } from '../nesRenameValidator';
+import { CancellationTokenWithTimer } from '../typescripts';
 
 const fixtures = path.join(__dirname, '../../serverPlugin/fixtures/nes');
 const cancellationToken: vscode.CancellationToken = {

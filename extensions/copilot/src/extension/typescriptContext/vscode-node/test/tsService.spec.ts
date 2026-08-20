@@ -10,7 +10,7 @@ import { suite, test, vi } from 'vitest';
 
 vi.mock('vscode', () => ({}));
 
-import { TypeScript } from './tsService';
+import { TypeScript } from '../tsService';
 
 suite('TypeScript service', () => {
 	test('prefers the current TS7 extension and falls back to the legacy extension', () => {

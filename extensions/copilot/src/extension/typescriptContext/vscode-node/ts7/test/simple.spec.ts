@@ -10,10 +10,10 @@ import { API } from '@typescript/native/unstable/async';
 import { version } from '@typescript/native';
 import type * as vscode from 'vscode';
 import { afterAll, beforeAll, suite, test } from 'vitest';
-import * as protocol from '../../common/serverProtocol';
-import { computeContext } from './api';
-import { CharacterBudget, ComputeContextSession, ContextResult, RequestContext } from './contextProvider';
-import { CancellationTokenWithTimer } from './typescripts';
+import * as protocol from '../../../common/serverProtocol';
+import { computeContext } from '../api';
+import { CharacterBudget, ComputeContextSession, ContextResult, RequestContext } from '../contextProvider';
+import { CancellationTokenWithTimer } from '../typescripts';
 
 const fixtures = path.join(__dirname, '../../serverPlugin/fixtures/context');
 const cancellationToken: vscode.CancellationToken = {
