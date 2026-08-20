@@ -533,13 +533,14 @@ export class InlayHintsController implements IEditorContribution {
 
 		// utils to collect/create injected text decorations
 		const newDecorationsData: InlayHintDecorationRenderInfo[] = [];
-		const addInjectedText = (item: InlayHintItem, ref: ClassNameReference, content: string, cursorStops: InjectedTextCursorStops, attachedData?: RenderedInlayHintLabelPart | object): void => {
+		const addInjectedText = (item: InlayHintItem, ref: ClassNameReference, content: string, cursorStops: InjectedTextCursorStops, attachedData?: RenderedInlayHintLabelPart | object, widthInEm?: number): void => {
 			const opts: InjectedTextOptions = {
 				content,
 				inlineClassNameAffectsLetterSpacing: true,
 				inlineClassName: ref.className,
 				cursorStops,
-				attachedData
+				attachedData,
+				widthInEm
 			};
 			newDecorationsData.push({
 				item,
@@ -559,11 +560,10 @@ export class InlayHintsController implements IEditorContribution {
 		};
 
 		const addInjectedWhitespace = (item: InlayHintItem, isLast: boolean): void => {
-			const marginRule = this._ruleFactory.createClassNameRef({
-				width: `${(fontSize / 3) | 0}px`,
-				display: 'inline-block'
-			});
-			addInjectedText(item, marginRule, '\u200a', isLast ? InjectedTextCursorStops.Right : InjectedTextCursorStops.None, InlayHintsController._whitespaceData);
+			const marginWidthInPixels = (fontSize / 3) | 0;
+			const marginRule = this._ruleFactory.createClassNameRef({});
+			const editorFontSize = this._editor.getOption(EditorOption.fontSize);
+			addInjectedText(item, marginRule, '\u200a', isLast ? InjectedTextCursorStops.Right : InjectedTextCursorStops.None, InlayHintsController._whitespaceData, marginWidthInPixels / editorFontSize);
 		};
 
 

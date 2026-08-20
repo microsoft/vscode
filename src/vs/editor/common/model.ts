@@ -348,6 +348,12 @@ export interface InjectedTextOptions {
 	readonly inlineClassNameAffectsLetterSpacing?: boolean;
 
 	/**
+	 * Overrides the width used for line wrapping, measured in em.
+	 * @internal
+	 */
+	readonly widthInEm?: number;
+
+	/**
 	 * This field allows to attach data to this injected text.
 	 * The data can be read when injected texts at a given position are queried.
 	 */
