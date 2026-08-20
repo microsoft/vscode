@@ -44,7 +44,7 @@ function wait(milliseconds: number): Promise<void> {
  * Runs a UI validation scenario end to end and writes an evidence bundle.
  *
  * ```
- * node test/scenario/out/runScenario.js <scenario.cjs> [--build <app-root>]
+ * node test/scenario/out/runScenario.js <scenario.cjs> [--build <app-root> | --dev]
  * ```
  *
  * The scenario file is not part of this repository, so it can be written next to
@@ -237,7 +237,10 @@ export async function runScenario(scenario: Scenario): Promise<{ runPath: string
 if (require.main === module) {
 	const scenarioArgument = process.argv.slice(2).find(argument => !argument.startsWith('--'));
 	if (!scenarioArgument) {
-		console.error('Usage: node test/scenario/out/runScenario.js <scenario.cjs> [--build <app-root>]');
+		console.error('Usage: node test/scenario/out/runScenario.js <scenario.cjs> [--build <app-root> | --dev]');
+		console.error('  (no target)      run the installed VS Code Insiders, else Stable');
+		console.error('  --build <path>   run a specific installed build');
+		console.error('  --dev            run the build from this checkout');
 		process.exit(2);
 	}
 	const scenarioPath = path.resolve(scenarioArgument);

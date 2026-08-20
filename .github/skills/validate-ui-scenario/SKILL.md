@@ -58,8 +58,10 @@ Linux, or the `.app` bundle on macOS:
 
 Every target runs with its own profile and extensions directory, so your extensions and settings
 never leak into the recording, and the window is sized to the recording canvas so the capture has no
-empty margins. An installed build only reproduces **shipped** behavior — to validate an unmerged
-change, use `--dev` in a checkout that contains it.
+empty margins. The evidence records the quality of the build that actually ran (`Insiders`,
+`Stable`, `Dev`), so a report always names the product it validated. An installed build only
+reproduces **shipped** behavior — to validate an unmerged change, use `--dev` in a checkout that
+contains it.
 
 ## Write the scenario
 

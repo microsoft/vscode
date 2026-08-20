@@ -71,12 +71,47 @@ function fail(errorMessage): void {
 let quality: Quality;
 let version: string | undefined;
 
-function parseQuality(): Quality {
-	if (process.env.VSCODE_DEV === '1') {
+/**
+ * Read the `quality` a build was stamped with.
+ *
+ * `parseQuality` reads the environment, which only describes a build made from
+ * this checkout. An installed build carries its own quality in `product.json`,
+ * and without it every installed run is labelled `Dev` in the evidence, which
+ * misreports which product was actually validated.
+ */
+function readBuildQuality(root: string): string | undefined {
+	// Windows installs nest the app under a commit-stamped directory, so the
+	// manifest is not always directly under the application root.
+	const candidates = [path.join(root, 'resources', 'app', 'product.json')];
+	try {
+		for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+			if (entry.isDirectory()) {
+				candidates.push(path.join(root, entry.name, 'resources', 'app', 'product.json'));
+			}
+		}
+	} catch {
+		// an unreadable root is reported by the electron path check below
+	}
+	candidates.push(path.join(root, 'Contents', 'Resources', 'app', 'product.json')); // macOS bundle
+	for (const candidate of candidates) {
+		try {
+			const product = JSON.parse(fs.readFileSync(candidate, 'utf8')) as { quality?: string };
+			if (product.quality) {
+				return product.quality;
+			}
+		} catch {
+			// try the next location
+		}
+	}
+	return undefined;
+}
+
+function parseQuality(stamped?: string): Quality {
+	if (!stamped && process.env.VSCODE_DEV === '1') {
 		return Quality.Dev;
 	}
 
-	const quality = process.env.VSCODE_QUALITY ?? '';
+	const quality = stamped ?? process.env.VSCODE_QUALITY ?? '';
 
 	switch (quality) {
 		case 'stable':
@@ -124,7 +159,15 @@ function findInstalledBuild(): string | undefined {
 			);
 			break;
 		default:
-			candidates.push('/usr/share/code-insiders', '/opt/visual-studio-code-insiders', '/usr/share/code', '/opt/visual-studio-code');
+			candidates.push(
+				'/usr/share/code-insiders',
+				'/opt/visual-studio-code-insiders',
+				// Snap keeps the app under a read-only revision root.
+				'/snap/code-insiders/current/usr/share/code-insiders',
+				'/usr/share/code',
+				'/opt/visual-studio-code',
+				'/snap/code/current/usr/share/code'
+			);
 			break;
 	}
 	return candidates.find(candidate => {
@@ -165,7 +208,7 @@ if (!opts.web) {
 		fail(`Cannot find VS Code at ${electronPath}. Install VS Code Insiders, pass --build <app-root>, or build this checkout and pass --dev.`);
 	}
 
-	quality = parseQuality();
+	quality = parseQuality(testCodePath ? readBuildQuality(testCodePath) : undefined);
 
 	if (opts.remote) {
 		logger.log(`Running desktop remote smoke tests against ${electronPath}`);
