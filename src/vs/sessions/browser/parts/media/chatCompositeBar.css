@@ -186,11 +186,11 @@
 	overflow: hidden;
 }
 
-.chat-groups-view.single-group .chat-composite-bar-tabs-row {
+.session-view.tabs-replace-header .chat-groups-view.single-group .chat-composite-bar-tabs-row {
 	border-bottom: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--session-view-foreground, var(--chat-tab-active-foreground)) 12%, transparent);
 }
 
-:is(.hc-black, .hc-light) .chat-groups-view.single-group .chat-composite-bar-tabs-row {
+:is(.hc-black, .hc-light) .session-view.tabs-replace-header .chat-groups-view.single-group .chat-composite-bar-tabs-row {
 	border-bottom-color: var(--vscode-contrastBorder);
 }
 
