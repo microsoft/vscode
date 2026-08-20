@@ -14,18 +14,31 @@ Open `http://127.0.0.1:3000`. Managed settings is mocked by default. Use the
 switch beside each endpoint tab to choose mock or passthrough. Presets apply
 immediately; status and JSON edits auto-save.
 
-Point a client at the server with either:
+The GUI opens on the **Policies** workspace. Select **Setup** in the header to
+open a modal that guides you through either connection method:
 
-- **Code OSS from sources:** select **Apply Overrides**, reload, sign in, and run
-  **Developer: Sync Account Policy**.
-- **Stable, Insiders, CLI, or another client:** configure the system proxy
-  mapping shown for the selected endpoint and copy the VS Code `http.proxy`
-  setting.
+- **System proxy (recommended):** works with Code OSS, Stable, Insiders, Copilot
+  CLI, and SDK/runtime clients. The page recommends Proxyman on macOS and
+  provides a **Map Remote** rule. VS Code normally uses the system proxy; the
+  `http.proxy` setting is available as an optional fallback when explicit client
+  configuration is needed.
+- **Code OSS overrides:** the quicker option for Code OSS from this checkout.
+  Select **Apply Overrides**, reload, and sign in. This option does not redirect
+  SDK/runtime requests.
 
-If no request appears in **Live Requests**, use **Clear Policy Cache**. A fresh
-managed-settings cache entry can prevent the client from making a request for up
-to one hour. Then run **Developer: Restart Local Agent Host** to force a new SDK
-policy resolution.
+After connecting, open the VS Code Command Palette and run **> Developer: Sync
+Account Policy**. To refresh the policy used by Local Agent Host, also run
+**> Developer: Restart Local Agent Host**.
+
+The Setup dialog checks Code OSS overrides directly. It tests the system proxy by
+sending a request without credentials to the managed settings URL and confirming
+that the response came from this local server. It does not inspect Proxyman or
+macOS proxy configuration. The test runs automatically, and the global header
+always shows a green or red connection indicator.
+
+If no real request appears in **Live Requests**, use **Clear Policy Cache**. A
+fresh managed-settings cache entry can prevent the client from making a request
+for up to one hour. Then run the commands above again.
 
 Other Copilot clients share that cache. For an isolated run, start both the
 server and Code OSS with the same temporary cache home:

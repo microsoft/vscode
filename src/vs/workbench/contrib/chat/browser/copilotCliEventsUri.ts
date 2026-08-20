@@ -22,6 +22,8 @@ import { IRemoteAgentHostConnectionInfo } from '../../../../platform/agentHost/c
 const COPILOT_CLI_PROVIDER = 'copilotcli';
 export const COPILOT_CLI_LOCAL_AH_SCHEME = `agent-host-${COPILOT_CLI_PROVIDER}`;
 export const COPILOT_CLI_EH_SCHEME = COPILOT_CLI_PROVIDER;
+/** Agent-host provider id for Copilot CLI, used to build backend (AHP channel) session URIs. */
+export const COPILOT_CLI_AGENT_PROVIDER = COPILOT_CLI_PROVIDER;
 
 /**
  * Builds the local `events.jsonl` URI under `<COPILOT_HOME>/session-state/<rawId>/`.
@@ -112,6 +114,53 @@ export function getCopilotCliSessionRawId(sessionResource: URI | undefined): str
 		return undefined;
 	}
 	return getRawSessionId(sessionResource);
+}
+
+/**
+ * Drops the legacy extension-host row for any Copilot CLI session that also has
+ * a local agent-host row, so a migrated session is listed once.
+ *
+ * Only `copilotcli:` is ever dropped, and only against `agent-host-copilotcli:`.
+ * A remote agent-host session (`remote-<authority>-copilotcli:`) shares the
+ * Copilot CLI session type and can carry the same raw id as a local one, but is
+ * a different session and must never be deduped against it.
+ */
+export function dedupeMigratedCopilotCliSessions<T>(items: readonly T[], resourceOf: (item: T) => URI): T[] {
+	let migratedRawIds: Set<string> | undefined;
+	for (const item of items) {
+		const resource = resourceOf(item);
+		if (resource.scheme === COPILOT_CLI_LOCAL_AH_SCHEME) {
+			const rawId = getCopilotCliSessionRawId(resource);
+			if (rawId) {
+				(migratedRawIds ??= new Set<string>()).add(rawId);
+			}
+		}
+	}
+	if (!migratedRawIds) {
+		return items.slice();
+	}
+	return items.filter(item => {
+		const resource = resourceOf(item);
+		if (resource.scheme !== COPILOT_CLI_EH_SCHEME) {
+			return true;
+		}
+		const rawId = getCopilotCliSessionRawId(resource);
+		return !rawId || !migratedRawIds.has(rawId);
+	});
+}
+
+/**
+ * The local agent-host resource a legacy extension-host Copilot CLI session
+ * would migrate to, or `undefined` when `resource` is not such a session.
+ * Synchronous by design: open paths must not pay a round-trip for the
+ * overwhelmingly common case of a session that is not legacy.
+ */
+export function migratedCopilotCliResource(resource: URI | undefined): URI | undefined {
+	if (resource?.scheme !== COPILOT_CLI_EH_SCHEME) {
+		return undefined;
+	}
+	const rawId = getCopilotCliSessionRawId(resource);
+	return rawId ? URI.from({ scheme: COPILOT_CLI_LOCAL_AH_SCHEME, path: `/${rawId}` }) : undefined;
 }
 
 export type ResolveEventsUriResult =
