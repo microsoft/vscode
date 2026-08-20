@@ -3,15 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { URI } from '../../../../base/common/uri.js';
-import { IHeaders, IRequestContext } from '../../../../base/parts/request/common/request.js';
+import { IHeaders } from '../../../../base/parts/request/common/request.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
-import { IExtensionGalleryManifestService, IExtensionGalleryManifest, ExtensionGalleryServiceUrlConfigKey, ExtensionGalleryAuthProviderConfigKey, ExtensionGalleryManifestStatus } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { IExtensionGalleryManifestService, IExtensionGalleryManifest, ExtensionGalleryServiceUrlConfigKey, ExtensionGalleryManifestStatus } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { ExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifestService.js';
 import { resolveMarketplaceHeaders } from '../../../../platform/externalServices/common/marketplace.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -19,13 +17,12 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { ISharedProcessService } from '../../../../platform/ipc/electron-browser/services.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { asJson, asText, IRequestService } from '../../../../platform/request/common/request.js';
+import { asJson, IRequestService } from '../../../../platform/request/common/request.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IHostService } from '../../host/browser/host.js';
-import { MarketplaceAuthRequiredError, MarketplaceClientRejectedError } from './extensionGalleryAccess.js';
 import { ExtensionGalleryAccountStatus, IExtensionGalleryAccountService } from './extensionGalleryAccountService.js';
 
 export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryManifestService implements IExtensionGalleryManifestService {
@@ -41,8 +38,6 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 	private _onDidChangeExtensionGalleryManifestStatus = this._register(new Emitter<ExtensionGalleryManifestStatus>());
 	override readonly onDidChangeExtensionGalleryManifestStatus = this._onDidChangeExtensionGalleryManifestStatus.event;
 
-	private readonly resolutionTokenSource = this._register(new MutableDisposable<CancellationTokenSource>());
-
 	constructor(
 		@IProductService productService: IProductService,
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -53,10 +48,10 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IRequestService private readonly requestService: IRequestService,
+		@IExtensionGalleryAccountService private readonly galleryAccountService: IExtensionGalleryAccountService,
 		@ILogService private readonly logService: ILogService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IHostService private readonly hostService: IHostService,
-		@IExtensionGalleryAccountService private readonly galleryAccountService: IExtensionGalleryAccountService,
 	) {
 		super(productService);
 		this.commonHeadersPromise = resolveMarketplaceHeaders(
@@ -79,6 +74,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		};
 		this.getExtensionGalleryManifest().then(manifest => {
 			if (this._store.isDisposed) {
+				this.logService.trace('[Marketplace] Store is already disposed, skipping channel initialization');
 				return;
 			}
 			updateChannels(manifest);
@@ -106,104 +102,64 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		const configuredServiceUrl = this.configurationService.getValue<string>(ExtensionGalleryServiceUrlConfigKey);
 		if (configuredServiceUrl) {
 			this.logService.trace('[Marketplace] Private marketplace configured, checking access and fetching manifest', configuredServiceUrl);
-			// Registered before the first resolution: it may await a slow index fetch, and a sign-out
-			// during that window still has to supersede it.
-			this._register(this.galleryAccountService.onDidChangeAccount(() => this.resolve(configuredServiceUrl)));
-			await this.resolve(configuredServiceUrl);
+			this._register(this.galleryAccountService.onDidChangeAccount(() => this.handleMarketplaceAccountAccess(configuredServiceUrl)));
+			await this.handleMarketplaceAccountAccess(configuredServiceUrl);
 		} else {
 			const defaultExtensionGalleryManifest = await super.getExtensionGalleryManifest();
 			this.update(defaultExtensionGalleryManifest);
 		}
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (!e.affectsConfiguration(ExtensionGalleryServiceUrlConfigKey)
-				&& !e.affectsConfiguration(ExtensionGalleryAuthProviderConfigKey)) {
+			if (!e.affectsConfiguration(ExtensionGalleryServiceUrlConfigKey)) {
 				return;
 			}
 			this.requestRestart();
 		}));
 	}
 
-	private async resolve(configuredServiceUrl: string): Promise<void> {
-		const token = this.beginResolution();
+	private async handleMarketplaceAccountAccess(configuredServiceUrl: string): Promise<void> {
 		try {
 			const account = await this.galleryAccountService.getAccount();
-			if (token.isCancellationRequested) {
-				return;
-			}
 			if (!account) {
-				this.applyNoAccount();
+				this.logService.debug('[Marketplace] Enterprise marketplace configured but user not signed in');
+				this.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
 				return;
 			}
-			if (this.galleryAccountService.accountStatus === ExtensionGalleryAccountStatus.Ineligible) {
-				this.logService.debug('[Marketplace] User signed in but lacks access to private marketplace');
-				this.update(null, ExtensionGalleryManifestStatus.AccessDenied);
-				return;
+
+			switch (this.galleryAccountService.accountStatus) {
+				case ExtensionGalleryAccountStatus.Unknown:
+					this.logService.debug('[Marketplace] User signed in but account status is unknown');
+					this.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
+					return;
+				case ExtensionGalleryAccountStatus.Ineligible:
+					this.logService.debug('[Marketplace] User signed in but lacks access to private marketplace');
+					this.update(null, ExtensionGalleryManifestStatus.AccessDenied);
+					return;
+				case ExtensionGalleryAccountStatus.SignedOut:
+					this.logService.debug('[Marketplace] User signed out');
+					this.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
+					return;
+				case ExtensionGalleryAccountStatus.Eligible:
+					try {
+
+						const manifest = await this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl);
+						this.update(manifest);
+						this.telemetryService.publicLog2<
+							{},
+							{
+								owner: 'sandy081';
+								comment: 'Reports when a user successfully accesses a custom marketplace';
+							}>('galleryservice:custom:marketplace');
+					} catch (error) {
+						this.logService.error('[Marketplace] Error fetching manifest from custom marketplace', error);
+						this.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
+					}
+					return;
 			}
-			if (account.accessToken && !isHttpsUrl(configuredServiceUrl)) {
-				this.logService.error('[Marketplace] Refusing to send the Microsoft token to a non-HTTPS service index URL.');
-				this.update(null, ExtensionGalleryManifestStatus.Misconfigured);
-				return;
-			}
-			const manifest = await this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl, token, account.accessToken);
-			if (token.isCancellationRequested) {
-				return;
-			}
-			this.setAvailable(manifest);
 		} catch (error) {
-			if (!token.isCancellationRequested) {
-				this.applyFetchError(error);
-			}
+			this.logService.error('[Marketplace] Error handling marketplace account access', error);
+			this.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
 		}
-	}
-
-	private applyNoAccount(): void {
-		// A transient auth failure is not a sign-out, so it must not demand sign-in.
-		if (this.galleryAccountService.accountStatus === ExtensionGalleryAccountStatus.Unknown) {
-			if (this.currentStatus !== ExtensionGalleryManifestStatus.Available) {
-				this.update(null, ExtensionGalleryManifestStatus.Unreachable);
-			}
-			return;
-		}
-		this.logService.debug('[Marketplace] Private marketplace configured but user not signed in');
-		this.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
-	}
-
-	private applyFetchError(error: unknown): void {
-		// A rejection by the server is durable, so retrying cannot help. Anything else is transient and
-		// must not downgrade a marketplace that is already available.
-		if (error instanceof MarketplaceAuthRequiredError || error instanceof MarketplaceClientRejectedError) {
-			this.update(null, ExtensionGalleryManifestStatus.AccessDenied);
-			return;
-		}
-		this.logService.error('[Marketplace] Error validating marketplace access', error);
-		if (this.currentStatus !== ExtensionGalleryManifestStatus.Available) {
-			this.update(null, ExtensionGalleryManifestStatus.Unreachable);
-		}
-	}
-
-	// Cancels the previous generation so a superseded result can never publish a stale manifest.
-	private beginResolution(): CancellationToken {
-		this.resolutionTokenSource.value?.cancel();
-		const source = new CancellationTokenSource();
-		this.resolutionTokenSource.value = source;
-		return source.token;
-	}
-
-	private setAvailable(manifest: IExtensionGalleryManifest): void {
-		// Published unconditionally: the catalog is account-scoped, so switching to a different
-		// eligible account has to replace it rather than keep the previous account's.
-		const wasAvailable = this.currentStatus === ExtensionGalleryManifestStatus.Available;
-		this.update(manifest);
-		if (wasAvailable) {
-			return;
-		}
-		this.telemetryService.publicLog2<
-			{},
-			{
-				owner: 'sandy081';
-				comment: 'Reports when a user successfully accesses a custom marketplace';
-			}>('galleryservice:custom:marketplace');
 	}
 
 	private update(manifest: IExtensionGalleryManifest | null, status?: ExtensionGalleryManifestStatus): void {
@@ -232,40 +188,21 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		}
 	}
 
-	private async getExtensionGalleryManifestFromServiceUrl(url: string, token: CancellationToken, accessToken?: string): Promise<IExtensionGalleryManifest> {
+	private async getExtensionGalleryManifestFromServiceUrl(url: string): Promise<IExtensionGalleryManifest> {
 		const commonHeaders = await this.commonHeadersPromise;
-		const headers: IHeaders = {
+		const headers = {
 			...commonHeaders,
 			'Content-Type': 'application/json',
 			'Accept-Encoding': 'gzip',
 		};
-		if (accessToken) {
-			headers['Authorization'] = `Bearer ${accessToken}`;
-		}
 
 		try {
 			const context = await this.requestService.request({
 				type: 'GET',
 				url,
 				headers,
-				// Never follow a redirect while a bearer is attached: the request service would forward
-				// the Authorization header to the target, possibly a different origin.
-				followRedirects: accessToken ? 0 : undefined,
 				callSite: 'extensionGalleryManifestService.fetchManifest'
-			}, token);
-
-			const statusCode = context.res.statusCode;
-			if (statusCode === 401 || statusCode === 403) {
-				throw new MarketplaceAuthRequiredError(statusCode);
-			}
-			if (statusCode && (statusCode < 200 || statusCode >= 300)) {
-				const detail = await this.readErrorDetail(context);
-				const message = `Service index returned status ${statusCode}${detail ? `: ${detail}` : ''}`;
-				if (statusCode >= 400 && statusCode < 500) {
-					throw new MarketplaceClientRejectedError(statusCode, message);
-				}
-				throw new Error(message);
-			}
+			}, CancellationToken.None);
 
 			const extensionGalleryManifest = await asJson<IExtensionGalleryManifest>(context);
 
@@ -273,43 +210,11 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 				throw new Error('Unable to retrieve extension gallery manifest.');
 			}
 
-			// Valid JSON is not necessarily a service index (a captive-portal page parses fine). Reject
-			// here so it counts as a failed fetch instead of throwing later during endpoint discovery.
-			if (!Array.isArray(extensionGalleryManifest.resources)
-				|| !extensionGalleryManifest.resources.every(resource => resource && typeof resource.id === 'string' && typeof resource.type === 'string')) {
-				throw new Error('Service index response is not a valid extension gallery manifest.');
-			}
-
 			return extensionGalleryManifest;
 		} catch (error) {
-			if (error instanceof MarketplaceAuthRequiredError) {
-				this.logService.trace('[Marketplace] Extension gallery manifest requires authentication', error.statusCode);
-			} else {
-				this.logService.error('[Marketplace] Error retrieving extension gallery manifest', error);
-			}
+			this.logService.error('[Marketplace] Error retrieving extension gallery manifest', error);
 			throw error;
 		}
-	}
-
-	private async readErrorDetail(context: IRequestContext): Promise<string | undefined> {
-		try {
-			const text = await asText(context);
-			const trimmed = text?.trim();
-			if (!trimmed) {
-				return undefined;
-			}
-			return trimmed.length > 200 ? `${trimmed.slice(0, 200)}…` : trimmed;
-		} catch {
-			return undefined;
-		}
-	}
-}
-
-function isHttpsUrl(url: string): boolean {
-	try {
-		return URI.parse(url, true).scheme === 'https';
-	} catch {
-		return false;
 	}
 }
 
