@@ -155,8 +155,7 @@ export class TS6LanguageContextService extends AbstractTSLanguageContextService 
 	}
 
 	public override dispose(): void {
-		this.runnableResultManager.dispose();
-		this.neighborFileModel.dispose();
+		this.inflightCachePopulationRequest?.cancel();
 		this.inflightCachePopulationRequest = undefined;
 		super.dispose();
 	}

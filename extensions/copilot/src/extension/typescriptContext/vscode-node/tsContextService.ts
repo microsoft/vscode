@@ -687,8 +687,8 @@ export abstract class AbstractTSLanguageContextService implements TSLanguageCont
 		this.experimentationService = experimentationService;
 		this.logService = logService;
 		this.telemetrySender = new TelemetrySender(telemetryService, logService);
-		this.neighborFileModel = new NeighborFileModel();
-		this.runnableResultManager = new RunnableResultManager();
+		this.neighborFileModel = this.disposables.add(new NeighborFileModel());
+		this.runnableResultManager = this.disposables.add(new RunnableResultManager());
 
 		this.usageMode = this.getUsageMode();
 		this.cachePopulationTimeout = this.getCachePopulationBudget();
