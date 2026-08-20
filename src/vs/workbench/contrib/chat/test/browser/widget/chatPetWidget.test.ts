@@ -607,8 +607,12 @@ suite('ChatPetWidget', () => {
 		service.setAccessory(ChatPetAccessoryIds.CowboyHat);
 		service.setScale(1.4);
 		service.setHorizontalPosition(0.3);
+		storageService.store('chat.vscodePet.achievement.chatFork', true, StorageScope.APPLICATION_SHARED, StorageTarget.USER);
+		storageService.store('chat.vscodePet.achievement.chatFork', true, StorageScope.APPLICATION, StorageTarget.USER);
 		const disabledUnlock = service.unlockAchievement(ChatPetAchievementIds.ModelSwitch);
 		service.resetAchievements();
+		storageService.store('chat.vscodePet.achievementCatalogVersion', 3, StorageScope.APPLICATION_SHARED, StorageTarget.USER);
+		const migratedService = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
 
 		assert.deepStrictEqual({
 			freshUnlocked,
@@ -620,6 +624,9 @@ suite('ChatPetWidget', () => {
 			horizontalPosition: service.horizontalPosition.get(),
 			storedFirstMessage: storageService.getBoolean('chat.vscodePet.achievement.firstChatMessage', StorageScope.APPLICATION_SHARED, false),
 			storedDisabled: storageService.getBoolean('chat.vscodePet.achievement.modelSwitch', StorageScope.APPLICATION_SHARED, false),
+			storedChatForkShared: storageService.getBoolean('chat.vscodePet.achievement.chatFork', StorageScope.APPLICATION_SHARED, false),
+			storedChatForkLocal: storageService.getBoolean('chat.vscodePet.achievement.chatFork', StorageScope.APPLICATION, false),
+			migratedUnlocks: migratedService.unlockedAchievements.get(),
 		}, {
 			freshUnlocked: [],
 			disabledUnlock: false,
@@ -630,6 +637,9 @@ suite('ChatPetWidget', () => {
 			horizontalPosition: 0.3,
 			storedFirstMessage: false,
 			storedDisabled: false,
+			storedChatForkShared: false,
+			storedChatForkLocal: false,
+			migratedUnlocks: [],
 		});
 	});
 
@@ -795,6 +805,7 @@ suite('ChatPetWidget', () => {
 			atlasCellSizes: chatPetAchievements.flatMap(achievement => achievement.accessories.map(accessory => accessory.atlasCellSize ?? 64)),
 			rewardCounts: chatPetAchievements.map(achievement => achievement.accessories.length),
 			coversAntennae: chatPetAchievements.every(achievement => achievement.accessories.every(accessory => accessory.coversAntennae)),
+			crownAccessoryId: ChatPetAccessoryIds.Crown,
 			disabledAccessoryIds: disabledChatPetAchievements.flatMap(achievement => achievement.accessories.map(accessory => accessory.id)),
 		}, {
 			count: 6,
@@ -812,7 +823,7 @@ suite('ChatPetWidget', () => {
 				ChatPetAccessoryIds.BaseballCap,
 				ChatPetAccessoryIds.ConstructionHardHat,
 				ChatPetAccessoryIds.FirefighterHelmet,
-				ChatPetAccessoryIds.GraduationCap,
+				ChatPetAccessoryIds.Crown,
 			],
 			atlasNames: [
 				'grand-top-hat-monocle',
@@ -825,6 +836,7 @@ suite('ChatPetWidget', () => {
 			atlasCellSizes: Array(6).fill(96),
 			rewardCounts: Array(6).fill(1),
 			coversAntennae: true,
+			crownAccessoryId: 'crown',
 			disabledAccessoryIds: [
 				ChatPetAccessoryIds.SailorHat,
 				ChatPetAccessoryIds.SpinnerHat,
@@ -862,7 +874,7 @@ suite('ChatPetWidget', () => {
 				ChatPetAccessoryIds.BaseballCap,
 				ChatPetAccessoryIds.ConstructionHardHat,
 				ChatPetAccessoryIds.FirefighterHelmet,
-				ChatPetAccessoryIds.GraduationCap,
+				ChatPetAccessoryIds.Crown,
 			],
 		});
 	});

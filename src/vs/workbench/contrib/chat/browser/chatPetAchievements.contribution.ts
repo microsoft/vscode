@@ -122,6 +122,7 @@ export class ChatPetCustomizationAchievementContribution extends Disposable impl
 	private observedCustomizationSource: IAICustomizationItemSource | undefined;
 	private observedSkillIds = new Set<string>();
 	private observedInstructionIds = new Set<string>();
+	private observationInitializationStarted = false;
 
 	constructor(
 		@IChatPetService private readonly chatPetService: IChatPetService,
@@ -132,8 +133,14 @@ export class ChatPetCustomizationAchievementContribution extends Disposable impl
 	) {
 		super();
 
-		void this.initializeCustomizationObservation();
-		void this.initializeMcpObservation();
+		this._register(autorun(reader => {
+			if (!this.chatPetService.enabled.read(reader) || this.observationInitializationStarted) {
+				return;
+			}
+			this.observationInitializationStarted = true;
+			void this.initializeCustomizationObservation();
+			void this.initializeMcpObservation();
+		}));
 	}
 
 	private async initializeCustomizationObservation(): Promise<void> {
@@ -240,7 +247,7 @@ function getUserCustomizationIds(items: readonly IAICustomizationListItem[]): Se
 }
 
 function getMcpServerIds(mcpWorkbenchService: IMcpWorkbenchService): Set<string> {
-	return new Set(mcpWorkbenchService.getEnabledLocalMcpServers().map(server => server.id));
+	return new Set(mcpWorkbenchService.local.map(server => server.id));
 }
 
 function hasAddedId(currentIds: ReadonlySet<string>, previousIds: ReadonlySet<string>): boolean {

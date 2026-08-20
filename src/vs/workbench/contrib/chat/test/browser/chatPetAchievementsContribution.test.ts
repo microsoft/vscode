@@ -20,7 +20,6 @@ import { AICustomizationManagementSection } from '../../common/aiCustomizationWo
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer } from '../../../mcp/common/mcpTypes.js';
-import { IWorkbenchLocalMcpServer } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 
 suite('Chat Pet Customization Achievements', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -37,13 +36,13 @@ suite('Chat Pet Customization Achievements', () => {
 		};
 	}
 
-	function mcpServer(id: string): IWorkbenchLocalMcpServer {
-		return new class extends mock<IWorkbenchLocalMcpServer>() {
+	function mcpServer(id: string): IWorkbenchMcpServer {
+		return new class extends mock<IWorkbenchMcpServer>() {
 			override readonly id = id;
 		}();
 	}
 
-	test('waits for existing customizations and unlocks identity additions within the active source', async () => {
+	test('defers observation until enabled and unlocks only added customization identities', async () => {
 		const skills = observableValue<readonly IAICustomizationListItem[]>('skills', []);
 		const instructions = observableValue<readonly IAICustomizationListItem[]>('instructions', []);
 		const customizationsLoaded = new DeferredPromise<void>();
@@ -51,11 +50,14 @@ suite('Chat Pet Customization Achievements', () => {
 		const mcpChanged = disposables.add(new Emitter<IWorkbenchMcpServer | undefined>());
 		const activeSessionResource = observableValue('activeSessionResource', URI.parse('test://session/one'));
 		let activeSource = new class extends mock<IAICustomizationItemSource>() { }();
-		let servers: IWorkbenchLocalMcpServer[] = [];
+		let servers: IWorkbenchMcpServer[] = [];
+		let getItemsCalls = 0;
+		let queryLocalCalls = 0;
 		const unlockedAchievements = observableValue<readonly ChatPetAchievementId[]>('unlockedAchievements', []);
 		const unlocked: ChatPetAchievementId[] = [];
 		const itemsModel = new class extends mock<IAICustomizationItemsModel>() {
 			override getItems(section: ItemsModelSection) {
+				getItemsCalls++;
 				return section === AICustomizationManagementSection.Skills ? skills : instructions;
 			}
 			override getActiveItemSource(): IAICustomizationItemSource {
@@ -72,16 +74,18 @@ suite('Chat Pet Customization Achievements', () => {
 		const mcpWorkbenchService = new class extends mock<IMcpWorkbenchService>() {
 			override readonly onChange = mcpChanged.event;
 			override readonly onReset = Event.None;
-			override async queryLocal(): Promise<IWorkbenchMcpServer[]> {
-				await mcpLoaded.p;
-				return [];
+			override get local(): readonly IWorkbenchMcpServer[] {
+				return servers;
 			}
-			override getEnabledLocalMcpServers(): IWorkbenchLocalMcpServer[] {
+			override async queryLocal(): Promise<IWorkbenchMcpServer[]> {
+				queryLocalCalls++;
+				await mcpLoaded.p;
 				return servers;
 			}
 		}();
+		const enabled = observableValue('enabled', false);
 		const chatPetService = new class extends mock<IChatPetService>() {
-			override readonly enabled = observableValue('enabled', true);
+			override readonly enabled = enabled;
 			override readonly unlockedAchievements = unlockedAchievements;
 			override unlockAchievement(id: ChatPetAchievementId): boolean {
 				unlocked.push(id);
@@ -101,6 +105,8 @@ suite('Chat Pet Customization Achievements', () => {
 		skills.set([customization('existing-skill', PromptsType.skill)], undefined);
 		instructions.set([customization('existing-instructions', PromptsType.instructions)], undefined);
 		servers = [mcpServer('existing-server')];
+		const callsBeforeEnablement = { getItemsCalls, queryLocalCalls };
+		enabled.set(true, undefined);
 		customizationsLoaded.complete();
 		mcpLoaded.complete();
 		await timeout(0);
@@ -113,6 +119,10 @@ suite('Chat Pet Customization Achievements', () => {
 		await timeout(0);
 		const sourceSwitchUnlocks = [...unlocked];
 
+		mcpChanged.fire(servers[0]);
+		const enablementChangeUnlocks = [...unlocked];
+		servers = [servers[0], mcpServer('new-disabled-server')];
+		mcpChanged.fire(servers[1]);
 		skills.set([
 			customization('other-existing-skill', PromptsType.skill),
 			customization('new-skill', PromptsType.skill),
@@ -121,20 +131,24 @@ suite('Chat Pet Customization Achievements', () => {
 			customization('other-existing-instructions', PromptsType.instructions),
 			customization('new-instructions', PromptsType.instructions),
 		], undefined);
-		servers = [mcpServer('existing-server'), mcpServer('new-server')];
-		mcpChanged.fire(undefined);
 
 		assert.deepStrictEqual({
+			callsBeforeEnablement,
+			callsAfterEnablement: { getItemsCalls, queryLocalCalls },
 			startupUnlocks,
 			sourceSwitchUnlocks,
+			enablementChangeUnlocks,
 			unlocked,
 		}, {
+			callsBeforeEnablement: { getItemsCalls: 0, queryLocalCalls: 0 },
+			callsAfterEnablement: { getItemsCalls: 2, queryLocalCalls: 1 },
 			startupUnlocks: [],
 			sourceSwitchUnlocks: [],
+			enablementChangeUnlocks: [],
 			unlocked: [
+				ChatPetAchievementIds.McpServerPresent,
 				ChatPetAchievementIds.CustomSkillPresent,
 				ChatPetAchievementIds.InstructionPresent,
-				ChatPetAchievementIds.McpServerPresent,
 			],
 		});
 	});

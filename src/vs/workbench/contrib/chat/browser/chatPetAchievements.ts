@@ -34,7 +34,7 @@ export const ChatPetAccessoryIds = {
 	ConstructionHardHat: 'constructionHardHat',
 	FirefighterHelmet: 'firefighterHelmet',
 	VikingHelmet: 'vikingHelmet',
-	GraduationCap: 'graduationCap',
+	Crown: 'crown',
 	ArtistBeret: 'artistBeret',
 } as const;
 
@@ -145,8 +145,8 @@ const enabledChatPetAchievements: readonly IChatPetAchievement[] = [
 		enabled: true,
 		accessories: [
 			{
-				id: ChatPetAccessoryIds.GraduationCap,
-				label: localize('chatPet.accessory.graduationCap', "Crown"),
+				id: ChatPetAccessoryIds.Crown,
+				label: localize('chatPet.accessory.crown', "Crown"),
 				atlasName: 'crown',
 				atlasCellSize: 96,
 				coversAntennae: true,

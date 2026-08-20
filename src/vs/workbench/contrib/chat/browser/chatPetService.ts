@@ -287,6 +287,8 @@ export class ChatPetService extends Disposable implements IChatPetService {
 			this.storageService.remove('chat.vscodePet.achievement.checkpointRestore', StorageScope.APPLICATION);
 			this.storageService.remove('chat.vscodePet.achievement.integratedBrowserOpened', StorageScope.APPLICATION_SHARED);
 			this.storageService.remove('chat.vscodePet.achievement.integratedBrowserOpened', StorageScope.APPLICATION);
+			this.storageService.remove('chat.vscodePet.achievement.chatFork', StorageScope.APPLICATION_SHARED);
+			this.storageService.remove('chat.vscodePet.achievement.chatFork', StorageScope.APPLICATION);
 			this.storageService.remove(CHAT_PET_ACCESSORY_STORAGE_KEY, StorageScope.APPLICATION_SHARED);
 			this.storageService.remove(CHAT_PET_ACCESSORY_STORAGE_KEY, StorageScope.APPLICATION);
 		} finally {

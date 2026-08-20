@@ -140,10 +140,10 @@
 	top: var(--vscode-spacing-size100);
 	right: var(--vscode-spacing-size100);
 	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
-	border: var(--vscode-strokeThickness) solid var(--vscode-charts-yellow);
+	border: var(--vscode-strokeThickness) solid var(--vscode-badge-background);
 	border-radius: var(--vscode-cornerRadius-circle);
-	background: var(--vscode-editorWidget-background);
-	color: var(--vscode-charts-yellow);
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
 	font-size: var(--vscode-fontSize-label3);
 	font-weight: var(--vscode-fontWeight-semiBold);
 	line-height: 1;

@@ -99,7 +99,7 @@ const productionAccessoryPreviews: readonly IChatPetProductionAccessoryPreview[]
 		shape: 'Balanced steel helmet with a longer forward horn and short nose guard',
 	},
 	{
-		accessoryId: ChatPetAccessoryIds.GraduationCap,
+		accessoryId: ChatPetAccessoryIds.Crown,
 		shape: 'Gold crown with tall points and jewel highlights',
 	},
 	{

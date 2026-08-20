@@ -86,7 +86,7 @@ export default defineThemedFixtureGroup({ path: 'chat/petAchievements/standalone
 		render: context => renderAchievementsEditor(context, {
 			enabled: true,
 			unlockedAchievements: chatPetAchievements.map(achievement => achievement.id),
-			selectedAccessory: ChatPetAccessoryIds.GraduationCap,
+			selectedAccessory: ChatPetAccessoryIds.Crown,
 			variant: 'insiders',
 		}),
 	}),
