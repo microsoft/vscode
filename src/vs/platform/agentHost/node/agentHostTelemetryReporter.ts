@@ -185,6 +185,8 @@ export interface IAgentHostTurnCompletedEvent extends IAgentHostInitiatorTelemet
 	failureStage: AgentHostTurnFailureStage | undefined;
 	isMultiRoot: boolean;
 	folderCount: number;
+	billedNanoAiu: number | undefined;
+	modelCallCount: number;
 }
 
 export type IAgentHostTurnCompletedClassification = IAgentHostInitiatorClassification & {
@@ -205,8 +207,10 @@ export type IAgentHostTurnCompletedClassification = IAgentHostInitiatorClassific
 	failureStage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded stage at which the agent host turn failed.' };
 	isMultiRoot: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the session spans more than one working directory.' };
 	folderCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of effective working directories for the session at turn completion.' };
+	billedNanoAiu: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The AI credit usage billed for the turn in nano-AIU, when reported by the provider.' };
+	modelCallCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of completed upstream model responses attributed directly to the turn.' };
 	owner: 'roblourens';
-	comment: 'Tracks agent host turn performance including time to first visible progress and total turn duration.';
+	comment: 'Tracks agent host turn completion, including performance, configuration context, completed model responses, and billed AI credit usage when reported by the provider.';
 };
 
 export interface IAgentHostTurnFailedEvent extends IAgentHostInitiatorTelemetry {
@@ -266,6 +270,8 @@ export interface IAgentHostTurnCompletedReport extends IAgentHostTurnAttributedR
 	failure: IAgentHostTurnFailure | undefined;
 	isMultiRoot: boolean;
 	folderCount: number;
+	billedNanoAiu: number | undefined;
+	modelCallCount: number;
 }
 
 /**
@@ -346,6 +352,7 @@ export interface IAgentHostTurnHungEvent extends IAgentHostInitiatorTelemetry {
 	isExpected: boolean;
 	hadAnyProgress: boolean;
 	lastActivityKind: AgentHostTurnActivityTelemetryKind;
+	currentStage: AgentHostTurnFailureStage;
 	blockedOn: SessionInputRequestKind | undefined;
 	toolId: string | undefined;
 	toolSourceKind: string | undefined;
@@ -367,6 +374,7 @@ export type IAgentHostTurnHungClassification = IAgentHostInitiatorClassification
 	isExpected: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the quiet period is explained by a legitimate wait (blocked on the user or running a tool) rather than an unexplained hang.' };
 	hadAnyProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether any turn activity at all was observed before the watchdog fired.' };
 	lastActivityKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'A bounded category for the last observed turn activity, preserving the AHP action namespace and action name without slash-like syntax. Values are none, other, or categories such as chat.delta and chat.toolCallReady.' };
+	currentStage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded turn stage active when the hang watchdog fired.' };
 	blockedOn: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The kind of outstanding user-blocking session input request, when there is one. Client tool execution is not counted, since it is delegated work rather than a prompt.' };
 	toolId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the tool the turn appears to be stuck on. When hangReason is waitingOnUser this is the tool gated by the blocking request, which is exact; when it is runningTool this is the longest-running in-flight tool call, which is a best guess when several are running. Undefined when no tool explains the hang.' };
 	toolSourceKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the stuck tool is provided by the agent host, an MCP server, or a client.' };
@@ -387,6 +395,7 @@ export interface IAgentHostTurnHungReport extends IAgentHostTurnAttributedReport
 	hangReason: AgentHostTurnHangReason;
 	hadAnyProgress: boolean;
 	lastActivityKind: string;
+	currentStage: AgentHostTurnFailureStage;
 	blockedOn: SessionInputRequestKind | undefined;
 	toolId: string | undefined;
 	toolSourceKind: string | undefined;
@@ -1139,6 +1148,8 @@ export class AgentHostTelemetryReporter {
 			failureStage: report.failure?.stage,
 			isMultiRoot: report.isMultiRoot,
 			folderCount: report.folderCount,
+			billedNanoAiu: report.billedNanoAiu,
+			modelCallCount: report.modelCallCount,
 		});
 		if (report.failure) {
 			const { providerCallId, serviceRequestId } = readAgentErrorTelemetryMeta(report.failure.error);
@@ -1179,6 +1190,7 @@ export class AgentHostTelemetryReporter {
 			isExpected: report.hangReason === 'waitingOnUser' || report.hangReason === 'runningTool',
 			hadAnyProgress: report.hadAnyProgress,
 			lastActivityKind: normalizeTurnActivityKind(report.lastActivityKind),
+			currentStage: report.currentStage,
 			blockedOn: report.blockedOn,
 			toolId: report.toolId,
 			toolSourceKind: report.toolSourceKind,

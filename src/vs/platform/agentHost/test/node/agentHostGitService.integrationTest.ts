@@ -29,8 +29,15 @@ import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvid
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { AgentHostGitService } from '../../node/agentHostGitService.js';
 
-function createGitService(disposables: Pick<DisposableStore, 'add'>): AgentHostGitService {
-	const logService = new NullLogService();
+class TestLogService extends NullLogService {
+	readonly warnings: string[] = [];
+
+	override warn(message: string): void {
+		this.warnings.push(message);
+	}
+}
+
+function createGitService(disposables: Pick<DisposableStore, 'add'>, logService: NullLogService = new NullLogService()): AgentHostGitService {
 	const fileService = disposables.add(new FileService(logService));
 	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(logService))));
 	const env: Partial<INativeEnvironmentService> = { tmpDir: URI.file(tmpdir()) };
@@ -54,10 +61,12 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 
 	let tmpRoot: string | undefined;
 	let svc: AgentHostGitService | undefined;
+	let logService: TestLogService;
 
 	setup(() => {
 		tmpRoot = undefined;
-		svc = createGitService(disposables);
+		logService = new TestLogService();
+		svc = createGitService(disposables, logService);
 	});
 
 	teardown(() => {
@@ -147,6 +156,18 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		assert.deepStrictEqual(await svc!.getDefaultBranch(URI.file(dir)), {
 			name: 'main',
 			startPoint: 'origin/main',
+		});
+	});
+
+	(hasGit ? test : test.skip)('does not warn when the default remote-tracking ref is missing', async () => {
+		const dir = initRepo();
+
+		assert.deepStrictEqual({
+			defaultBranch: await svc!.getDefaultBranch(URI.file(dir)),
+			warnings: logService.warnings,
+		}, {
+			defaultBranch: undefined,
+			warnings: [],
 		});
 	});
 
@@ -308,6 +329,23 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 			rename: { before: 'old.txt', after: 'new.txt' },
 			fresh: 'fresh.txt',
 		});
+	});
+
+	(hasGit ? test : test.skip)('ignores an index addition deleted from the worktree during temp-index staging', async () => {
+		const fs = await import('fs/promises');
+		const { dir, run } = initRepo();
+		await fs.writeFile(join(dir, 'tracked.txt'), 'tracked\n');
+		run('add', '.');
+		run('commit', '-q', '-m', 'init');
+
+		await fs.writeFile(join(dir, 'deleted-addition.txt'), 'temporary\n');
+		run('add', 'deleted-addition.txt');
+		await fs.unlink(join(dir, 'deleted-addition.txt'));
+		await fs.writeFile(join(dir, 'fresh.txt'), 'fresh\n');
+
+		const result = await svc!.computeSessionFileDiffs(URI.file(dir), { sessionUri: 'copilot:/s' });
+
+		assert.deepStrictEqual(result?.map(diff => URI.parse(diff.after?.uri ?? diff.before!.uri).path.split('/').pop()), ['fresh.txt']);
 	});
 
 	(hasGit && !isWindows ? test : test.skip)('returns undefined when temp-index staging fails', async () => {

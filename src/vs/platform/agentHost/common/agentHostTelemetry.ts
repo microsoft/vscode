@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { TelemetryConfiguration, TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
 
 export const enum AgentHostLaunchKind {
@@ -49,11 +50,14 @@ export function createUnknownAgentHostClientTelemetryContext(clientType: AgentHo
 }
 
 const CLIENT_CONNECTION_KIND_META_KEY = 'vscode.clientConnectionKind';
+const CLIENT_TELEMETRY_LEVEL_META_KEY = 'vscode.telemetryLevel';
 const CLIENT_MACHINE_ID_META_KEY = 'vscode.clientMachineId';
 const CLIENT_DEV_DEVICE_ID_META_KEY = 'vscode.clientDevDeviceId';
 
-export function toClientTelemetryMeta(connectionKind: AgentHostClientConnectionKind | undefined, machineId: string | undefined, devDeviceId: string | undefined): Record<string, unknown> | undefined {
-	const meta: Record<string, unknown> = {};
+export function toAgentHostClientMeta(connectionKind: AgentHostClientConnectionKind | undefined, telemetryLevel: TelemetryLevel, machineId: string | undefined, devDeviceId: string | undefined): Record<string, unknown> {
+	const meta: Record<string, unknown> = {
+		[CLIENT_TELEMETRY_LEVEL_META_KEY]: telemetryLevelToAgentHostValue(telemetryLevel),
+	};
 	if (connectionKind !== undefined && connectionKind !== AgentHostClientConnectionKind.Unknown) {
 		meta[CLIENT_CONNECTION_KIND_META_KEY] = connectionKind;
 	}
@@ -63,7 +67,7 @@ export function toClientTelemetryMeta(connectionKind: AgentHostClientConnectionK
 	if (devDeviceId) {
 		meta[CLIENT_DEV_DEVICE_ID_META_KEY] = devDeviceId;
 	}
-	return Object.keys(meta).length > 0 ? meta : undefined;
+	return meta;
 }
 
 export function readClientConnectionKind(meta: Record<string, unknown> | undefined): AgentHostClientConnectionKind {
@@ -79,6 +83,37 @@ export function readClientConnectionKind(meta: Record<string, unknown> | undefin
 			return value;
 		default:
 			return AgentHostClientConnectionKind.Unknown;
+	}
+}
+
+export function readClientTelemetryLevel(meta: Record<string, unknown> | undefined): TelemetryLevel | undefined {
+	const value = meta?.[CLIENT_TELEMETRY_LEVEL_META_KEY];
+	switch (value) {
+		case TelemetryConfiguration.OFF:
+			return TelemetryLevel.NONE;
+		case TelemetryConfiguration.CRASH:
+			return TelemetryLevel.CRASH;
+		case TelemetryConfiguration.ERROR:
+			return TelemetryLevel.ERROR;
+		case TelemetryConfiguration.ON:
+			return TelemetryLevel.USAGE;
+		default:
+			return value === undefined ? undefined : TelemetryLevel.NONE;
+	}
+}
+
+export function telemetryLevelToAgentHostValue(telemetryLevel: TelemetryLevel | undefined): TelemetryConfiguration {
+	switch (telemetryLevel) {
+		case TelemetryLevel.NONE:
+			return TelemetryConfiguration.OFF;
+		case TelemetryLevel.CRASH:
+			return TelemetryConfiguration.CRASH;
+		case TelemetryLevel.ERROR:
+			return TelemetryConfiguration.ERROR;
+		case TelemetryLevel.USAGE:
+			return TelemetryConfiguration.ON;
+		default:
+			return TelemetryConfiguration.OFF;
 	}
 }
 

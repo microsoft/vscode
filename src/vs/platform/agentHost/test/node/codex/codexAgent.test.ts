@@ -17,8 +17,10 @@ import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { getCustomizationEnablementKey, type CustomizationEnablementResolution, type ICustomizationEnablementTarget } from '../../../node/agentHostCustomizationEnablementService.js';
 import { CodexAgent } from '../../../node/codex/codexAgent.js';
 import { CodexClientCustomizationStore, type ICodexClientPlugin } from '../../../node/codex/codexClientCustomizations.js';
+import type { ICodexMcpServerConfigJson, ICodexMcpServerEntry } from '../../../node/codex/codexMcpServers.js';
 import { targetForMcpServer } from '../../../node/shared/customizationEnablementGate.js';
 import { McpCustomizationController, type IMcpCustomizationControllerOptions } from '../../../node/shared/mcpCustomizationController.js';
+import { createGitHubMcpServerConfiguration, getGitHubMcpTools } from '../../../node/shared/githubMcpServer.js';
 
 /**
  * Exactly the state `_resolveConversationSession` reads: the provider id it
@@ -35,6 +37,8 @@ interface ICodexConversationResolverHarness {
 interface ICodexMcpControllerSession {
 	readonly sessionId: string;
 	readonly sessionUri: URI;
+	readonly configurationResource: URI;
+	chatChannel: URI | undefined;
 	readonly clientCustomizations: CodexClientCustomizationStore;
 	mcpController: McpCustomizationController | undefined;
 }
@@ -47,7 +51,32 @@ interface ICodexMcpControllerHarness {
 	readonly _customizationEnablementService: {
 		resolve(session: string, target: ICustomizationEnablementTarget): CustomizationEnablementResolution;
 	};
-	readonly _fire: (...args: readonly unknown[]) => void;
+	readonly _emitMcpCustomizationAction: (...args: readonly unknown[]) => void;
+	readonly _preferredMcpPublisher: (configurationResource: URI) => ICodexMcpControllerSession | undefined;
+	readonly _switchMcpPublisher: (session: ICodexMcpControllerSession) => void;
+}
+
+interface ICodexMcpRequestHarness {
+	readonly _sessionIdByChatUri: Map<string, string>;
+	readonly _sessions: Map<string, { readonly chatChannel: URI | undefined; readonly threadId?: string }>;
+	readonly _mcpInventory: {
+		forThread(threadId: string | undefined): ReadonlyMap<string, ICodexMcpServerEntry>;
+	};
+}
+
+interface ICodexGitHubMcpHarness {
+	_buildSessionMcpServers(session: {
+		readonly sessionId: string;
+		readonly workingDirectory: URI;
+	}): Record<string, ICodexMcpServerConfigJson>;
+}
+
+interface ICodexGitHubEndpointChangeHarness {
+	_handleGitHubEndpointChange(): void;
+}
+
+interface ICodexAuthenticateHarness {
+	authenticate(resource: string, token: string): Promise<boolean>;
 }
 
 function resolveConversationSession(harness: ICodexConversationResolverHarness, address: URI, context?: URI | IAgentChatContext): URI | undefined {
@@ -57,11 +86,18 @@ function resolveConversationSession(harness: ICodexConversationResolverHarness, 
 	return resolver.call(harness, address, context);
 }
 
-function getOrCreateMcpController(harness: ICodexMcpControllerHarness, session: ICodexMcpControllerSession): McpCustomizationController {
+function getOrCreateMcpController(harness: ICodexMcpControllerHarness, session: ICodexMcpControllerSession): McpCustomizationController | undefined {
 	const getOrCreate = (CodexAgent.prototype as unknown as {
-		_getOrCreateMcpController(this: ICodexMcpControllerHarness, session: ICodexMcpControllerSession): McpCustomizationController;
+		_getOrCreateMcpController(this: ICodexMcpControllerHarness, session: ICodexMcpControllerSession): McpCustomizationController | undefined;
 	})._getOrCreateMcpController;
 	return getOrCreate.call(harness, session);
+}
+
+function handleMcpRequest(harness: ICodexMcpRequestHarness, chat: URI): Promise<unknown> {
+	const handler = (CodexAgent.prototype as unknown as {
+		handleMcpRequest(this: ICodexMcpRequestHarness, chat: URI, serverName: string, method: string, params: undefined): Promise<unknown>;
+	}).handleMcpRequest;
+	return handler.call(harness, chat, 'server', 'tools/list', undefined);
 }
 
 function emptyHarness(): ICodexConversationResolverHarness {
@@ -71,6 +107,123 @@ function emptyHarness(): ICodexConversationResolverHarness {
 suite('CodexAgent', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('GitHub MCP injection respects unowned server enablement', () => {
+		const createHarness = (enabled: boolean, customizationEnabled: boolean, token: string | undefined): ICodexGitHubMcpHarness => Object.assign(Object.create(CodexAgent.prototype), {
+			_configurationService: { getRootValue: () => undefined },
+			_sessionMcpDiscoveries: new Map(),
+			_enabledClientPlugins: () => [],
+			_mcpAuthTokens: new Map(),
+			_githubMcpServerEnabled: enabled,
+			_githubToken: token,
+			_gitHubMcpServerConfiguration: token ? createGitHubMcpServerConfiguration('https://api.githubcopilot.com') : undefined,
+			_isMcpServerEnabledForSdk: (_session: unknown, name: string) => name !== 'github-mcp-server' || customizationEnabled,
+		});
+
+		const enabledServers = createHarness(true, true, 'token')._buildSessionMcpServers({ sessionId: 'enabled', workingDirectory: URI.file('/work') });
+		const customizationDisabledServers = createHarness(true, false, 'token')._buildSessionMcpServers({ sessionId: 'customization-disabled', workingDirectory: URI.file('/work') });
+		const settingDisabledServers = createHarness(false, true, 'token')._buildSessionMcpServers({ sessionId: 'setting-disabled', workingDirectory: URI.file('/work') });
+		const unauthenticatedServers = createHarness(true, true, undefined)._buildSessionMcpServers({ sessionId: 'unauthenticated', workingDirectory: URI.file('/work') });
+
+		assert.deepStrictEqual({
+			enabled: enabledServers['github-mcp-server'],
+			customizationDisabled: customizationDisabledServers['github-mcp-server'],
+			settingDisabled: settingDisabledServers['github-mcp-server'],
+			unauthenticated: unauthenticatedServers['github-mcp-server'],
+		}, {
+			enabled: {
+				url: 'https://api.githubcopilot.com/mcp',
+				http_headers: {
+					'X-MCP-Features': 'remote_mcp_ui_apps,mcp_apps_disable_form_deferral',
+					'X-MCP-Tools': getGitHubMcpTools(false).join(','),
+				},
+			},
+			customizationDisabled: undefined,
+			settingDisabled: undefined,
+			unauthenticated: undefined,
+		});
+
+		const aliasedServers = Object.assign(Object.create(CodexAgent.prototype), {
+			_configurationService: { getRootValue: () => ({ alias: { type: 'http', url: 'https://api.githubcopilot.com/mcp/' } }) },
+			_sessionMcpDiscoveries: new Map(),
+			_enabledClientPlugins: () => [],
+			_mcpAuthTokens: new Map(),
+			_githubMcpServerEnabled: true,
+			_githubToken: 'token',
+			_gitHubMcpServerConfiguration: createGitHubMcpServerConfiguration('https://api.githubcopilot.com'),
+			_isMcpServerEnabledForSdk: () => true,
+		}) as ICodexGitHubMcpHarness;
+		assert.deepStrictEqual(aliasedServers._buildSessionMcpServers({ sessionId: 'alias', workingDirectory: URI.file('/work') }), {
+			alias: { url: 'https://api.githubcopilot.com/mcp/' },
+		});
+	});
+
+	test('clears GitHub MCP credentials when the GitHub endpoint changes', () => {
+		const proxyTokens: string[] = [];
+		let modelRefreshes = 0;
+		let reconciliations = 0;
+		const harness = Object.assign(Object.create(CodexAgent.prototype), {
+			_githubToken: 'token',
+			_gitHubMcpServerConfiguration: createGitHubMcpServerConfiguration('https://api.enterprise.githubcopilot.com'),
+			_connection: { kind: 'ready', proxyHandle: { setToken: (token: string) => proxyTokens.push(token) } },
+			_queueModelRefresh: () => { modelRefreshes++; },
+			_sessions: new Map([['session', {}]]),
+			_reconcileMaterializedCustomizations: async () => { reconciliations++; },
+		}) as ICodexGitHubEndpointChangeHarness & { _githubToken?: string; _gitHubMcpServerConfiguration?: object };
+
+		harness._handleGitHubEndpointChange();
+
+		assert.deepStrictEqual({
+			token: harness._githubToken,
+			configuration: harness._gitHubMcpServerConfiguration,
+			proxyTokens,
+			modelRefreshes,
+			reconciliations,
+		}, {
+			token: undefined,
+			configuration: undefined,
+			proxyTokens: [''],
+			modelRefreshes: 1,
+			reconciliations: 1,
+		});
+	});
+
+	test('does not commit stale GitHub authentication after an endpoint change', async () => {
+		const resolution = new DeferredPromise<ReturnType<typeof createGitHubMcpServerConfiguration>>();
+		const proxyTokens: string[] = [];
+		let reconciliations = 0;
+		const copilotResource = { resource: 'https://api.github.com/copilot_internal/user' };
+		const harness = Object.assign(Object.create(CodexAgent.prototype), {
+			_gitHubEndpointService: { getCopilotResource: () => copilotResource, getRepoResource: () => ({ resource: 'https://api.github.com' }) },
+			_githubAuthenticationGeneration: 0,
+			_githubToken: undefined,
+			_gitHubMcpServerConfiguration: undefined,
+			_resolveGitHubMcpServerConfiguration: async () => resolution.p,
+			_connection: { kind: 'ready', proxyHandle: { setToken: (token: string) => proxyTokens.push(token) } },
+			_queueModelRefresh: () => { },
+			_sessions: new Map([['session', {}]]),
+			_reconcileMaterializedCustomizations: async () => { reconciliations++; },
+			_logService: new NullLogService(),
+			_refreshProviderConfiguration: async () => { },
+		}) as ICodexAuthenticateHarness & ICodexGitHubEndpointChangeHarness & { _githubToken?: string; _gitHubMcpServerConfiguration?: object };
+
+		const authenticating = harness.authenticate(copilotResource.resource, 'old-token');
+		harness._handleGitHubEndpointChange();
+		resolution.complete(createGitHubMcpServerConfiguration('https://api.enterprise.githubcopilot.com'));
+		await authenticating;
+
+		assert.deepStrictEqual({
+			token: harness._githubToken,
+			configuration: harness._gitHubMcpServerConfiguration,
+			proxyTokens,
+			reconciliations,
+		}, {
+			token: undefined,
+			configuration: undefined,
+			proxyTokens: [''],
+			reconciliations: 1,
+		});
+	});
 
 	test('prefers transient host context over conversation URI shape', () => {
 		const session = AgentSession.uri('codex', 'session-1');
@@ -117,13 +270,15 @@ suite('CodexAgent', () => {
 		});
 	});
 
-	test('keeps fresh plugin MCP ownership after client customization resyncs, including disabled plugins', () => {
+	test('creates MCP customization state only after a concrete chat is bound', () => {
 		const store = new DisposableStore();
 		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
 		const customizations = new CodexClientCustomizationStore();
 		const session: ICodexMcpControllerSession = {
 			sessionId: 'session-1',
 			sessionUri: AgentSession.uri('codex', 'session-1'),
+			configurationResource: AgentSession.uri('codex', 'session-1'),
+			chatChannel: undefined,
 			clientCustomizations: customizations,
 			mcpController: undefined,
 		};
@@ -143,9 +298,14 @@ suite('CodexAgent', () => {
 					workingDirectory: { kind: 'workspaceless' },
 				}),
 			},
-			_fire: () => { },
+			_emitMcpCustomizationAction: () => { },
+			_preferredMcpPublisher: () => session,
+			_switchMcpPublisher: () => { },
 		};
+		const beforeChatBinding = getOrCreateMcpController(harness, session);
+		session.chatChannel = URI.parse(buildDefaultChatUri(session.sessionUri));
 		const controller = getOrCreateMcpController(harness, session);
+		assert.ok(controller);
 		const plugin = {
 			synced: { customization: { id: 'azure-plugin', uri: pluginUri } },
 			parsed: { mcpServers: [{ name: 'azure' }] },
@@ -171,17 +331,52 @@ suite('CodexAgent', () => {
 		const topLevelEnablement = controller.topLevelCustomizations()[0]?.enablement;
 
 		assert.deepStrictEqual({
+			beforeChatBinding,
 			owner,
 			topLevelKey: getCustomizationEnablementKey(targetForMcpServer(topLevel, owner, false), CustomizationEnablementKind.Global),
 			nestedKey: getCustomizationEnablementKey(targetForMcpServer(nested, pluginUri, false), CustomizationEnablementKind.Global),
 			topLevelEnablement,
 		}, {
+			beforeChatBinding: undefined,
 			owner: pluginUri,
 			topLevelKey: `${pluginUri}#mcp=azure`,
 			nestedKey: `${pluginUri}#mcp=azure`,
 			topLevelEnablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
 		});
+
 		store.dispose();
+	});
+
+	test('routes MCP requests only to the exact bound chat', async () => {
+		const session = AgentSession.uri('codex', 'session-1');
+		const boundChat = URI.parse(buildDefaultChatUri(session));
+		const staleChat = URI.parse(buildDefaultChatUri(AgentSession.uri('codex', 'stale')));
+		const harness: ICodexMcpRequestHarness = {
+			_sessionIdByChatUri: new Map([
+				[boundChat.toString(), 'session-1'],
+				[staleChat.toString(), 'session-1'],
+			]),
+			_sessions: new Map([['session-1', { chatChannel: boundChat }]]),
+			_mcpInventory: {
+				forThread: () => new Map([['server', {
+					state: { kind: McpServerStatus.Ready },
+					tools: [],
+					resources: [],
+					resourceTemplates: [],
+				}]]),
+			},
+		};
+
+		assert.deepStrictEqual({
+			result: await handleMcpRequest(harness, boundChat),
+			staleRejected: await handleMcpRequest(harness, staleChat).then(
+				() => false,
+				error => error instanceof Error && error.message.startsWith('Method not found: no active chat'),
+			),
+		}, {
+			result: { tools: [] },
+			staleRejected: true,
+		});
 	});
 
 	test('cold native discovery waits for the SDK and emits through one deterministic path', async () => {
@@ -237,7 +432,8 @@ suite('CodexAgent', () => {
 				_resolveSdkRoot(): Promise<string>;
 				_listCodexChats(): Promise<typeof chats>;
 				_isKnownCodexChat(chat: (typeof chats)[number]): Promise<boolean>;
-			}): Promise<typeof chats>;
+				_logService: NullLogService;
+			}): Promise<typeof chats | undefined>;
 		}).listChatsToMigrate;
 
 		const result = await listChatsToMigrate.call({
@@ -247,9 +443,22 @@ suite('CodexAgent', () => {
 				const id = AgentSession.id(URI.parse(parseRequiredSessionUriFromChatUri(chat.chat)));
 				return id !== 'unknown-external';
 			},
+			_logService: new NullLogService(),
 		});
 
 		assert.deepStrictEqual(result, chats.slice(0, 2));
+		assert.deepStrictEqual(await listChatsToMigrate.call({
+			_resolveSdkRoot: async () => '/sdk-root',
+			_listCodexChats: async () => [],
+			_isKnownCodexChat: async () => false,
+			_logService: new NullLogService(),
+		}), []);
+		assert.deepStrictEqual(await listChatsToMigrate.call({
+			_resolveSdkRoot: async () => { throw new Error('SDK unavailable'); },
+			_listCodexChats: async () => [],
+			_isKnownCodexChat: async () => false,
+			_logService: new NullLogService(),
+		}), undefined);
 	});
 
 	test('native discovery emits only unknown Codex chats as external', async () => {

@@ -50,27 +50,27 @@ export function bindWidgetToController(widget: AgentsVoiceWidget, services: IWid
 		const connected = controller.isConnected.read(reader);
 		const connecting = controller.isConnecting.read(reader);
 		const reconnecting = controller.isReconnecting.read(reader);
+		const muted = controller.isMuted.read(reader);
 		const toolConfirmations = controller.pendingToolConfirmations.read(reader);
 		const speakingSession = voicePlaybackService.speakingSession.read(reader);
 		const statusText = controller.statusText.read(reader);
 		const turns = controller.transcriptTurns.read(reader);
 		const targetSession = controller.targetSession.read(reader);
-		const omniInputOpen = controller.omniInputOpen.read(reader);
 
 		widget.setConnected(connected);
 		widget.setConnecting(connecting);
 		widget.setReconnecting(reconnecting);
-		widget.setVoiceControlsSuppressed(omniInputOpen);
-		widget.setVoiceState(omniInputOpen ? 'idle' : state);
+		widget.setMuted(muted);
+		widget.setVoiceState(state);
 		widget.setPendingToolConfirmations(toolConfirmations);
 		// Respect showTranscript setting — hide transcript when disabled
 		const showTranscript = configurationService?.getValue<boolean>('agents.voice.showTranscript') !== false;
-		widget.setTranscriptTurns(!omniInputOpen && showTranscript ? turns : []);
+		widget.setTranscriptTurns(showTranscript ? turns : []);
 		widget.setStatusText(statusText);
 		widget.setSelectedTargetSession(targetSession);
 
 		// Resolve speaking session label from the model
-		if (speakingSession && !omniInputOpen) {
+		if (speakingSession) {
 			const sessions = agentSessionsService.model.sessions;
 			const match = sessions.find(s => s.resource.toString() === speakingSession.toString());
 			widget.setSpeakingSession(speakingSession, match?.label);
@@ -147,7 +147,7 @@ function _updateSessionData(widget: AgentsVoiceWidget, services: IWidgetBindingS
 	// Show all non-archived sessions so the user can target any for transcription.
 	const sessions = agentSessionsService.model.sessions.filter(s => !s.isArchived());
 	const toolConfirmations = voiceSessionController.pendingToolConfirmations.get();
-	const speakingSession = voiceSessionController.omniInputOpen.get() ? undefined : voicePlaybackService.speakingSession.get();
+	const speakingSession = voicePlaybackService.speakingSession.get();
 
 	// Sort: NeedsInput first, then InProgress, then Completed; most recent first within
 	const statusOrder = (s: typeof sessions[0]) =>

@@ -5,10 +5,11 @@
 
 import './media/chatView.css';
 import './media/voiceChatView.css';
+import { $, isHTMLElement, size } from '../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -45,6 +46,7 @@ import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBa
 import { setupVoiceInputDecorations } from './voiceInputDecorations.js';
 import { INewChatVoiceTargetService } from './newChatVoice.js';
 import { ISessionsChatViewStateService } from './chatViewStateService.js';
+import { ExternalSessionBanner } from './externalSessionBanner.js';
 
 export function shouldShowSessionChatTip(sessionStatus: SessionStatus | undefined): boolean {
 	return sessionStatus === undefined || !isActiveSessionStatus(sessionStatus);
@@ -135,6 +137,8 @@ export class ChatView extends AbstractChatView {
 	override readonly kind: ChatViewKind = 'chat';
 
 	private readonly _widget: ChatWidget;
+	private readonly _widgetContainer: HTMLElement;
+	private readonly _externalSessionBanner: ExternalSessionBanner;
 
 	/** Session banners (CI failures, created comments) shown above the chat input. */
 	private readonly _banners: SessionInputBanners;
@@ -166,6 +170,7 @@ export class ChatView extends AbstractChatView {
 
 	/** Whether this view is currently visible. `undefined` so the first push always reaches the widget. */
 	private _isVisible: boolean | undefined;
+	private _lastLayout: { width: number; height: number } | undefined;
 
 	/**
 	 * Per-view mirror of `agentsVoiceInitiatedHere`, scoped above the chat widget.
@@ -193,6 +198,8 @@ export class ChatView extends AbstractChatView {
 		super();
 
 		this.element.classList.add('chat-view-chat');
+		this._widgetContainer = $('.chat-view-widget');
+		this.element.appendChild(this._widgetContainer);
 
 		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
 		const scopedInstantiationService = this._register(instantiationService.createChild(
@@ -224,7 +231,16 @@ export class ChatView extends AbstractChatView {
 			},
 			this._buildStyles(this._isActive)
 		));
-		this._widget.render(this.element);
+		this._widget.render(this._widgetContainer);
+		this._externalSessionBanner = this._register(scopedInstantiationService.createInstance(
+			ExternalSessionBanner,
+			this.element,
+			{
+				onDidChangeLayout: () => this._layoutChatWidget(),
+				onDidDismissWithFocus: () => this._widget.focusInput(),
+			}
+		));
+		this.element.insertBefore(this._externalSessionBanner.domNode, this._widgetContainer);
 		this._register(autorun(reader => {
 			const sessionStatus = this._currentSessionObs.read(reader)?.status.read(reader);
 			if (!shouldShowSessionChatTip(sessionStatus)) {
@@ -262,10 +278,9 @@ export class ChatView extends AbstractChatView {
 				|| this.voiceSessionController.isConnecting.read(reader);
 			const target = this.voiceSessionController.targetSession.read(reader);
 			const hasDraftTarget = this.voiceSessionController.hasDraftTarget.read(reader);
-			const omniInputOpen = this.voiceSessionController.omniInputOpen.read(reader);
 			const current = this._currentChatResourceObs.read(reader);
 			const ownsVoice = !hasDraftTarget && (!target || (!!current && isEqual(target, current)));
-			this._voiceInitiatedHereKey.set(!omniInputOpen && active && voiceActive && ownsVoice);
+			this._voiceInitiatedHereKey.set(active && voiceActive && ownsVoice);
 		}));
 	}
 
@@ -337,6 +352,7 @@ export class ChatView extends AbstractChatView {
 	override setChat(chat: IChat, historyKey?: string, session?: ISession): void {
 		this.chatPillsDebugService.clear(this._chatPills);
 		this._currentSessionObs.set(session, undefined);
+		this._externalSessionBanner.setSession(session);
 		const resource = chat.resource;
 		const previousChatResource = this._currentChatResource;
 		const chatChanged = !isEqual(previousChatResource, resource);
@@ -417,6 +433,7 @@ export class ChatView extends AbstractChatView {
 		// matching how each editor group shows progress independently. The short
 		// delay avoids flashing the bar for fast cached loads.
 		this.showProgressWhile(loadPromise, 800);
+		this._layoutChatWidget();
 	}
 
 	private _saveCurrentViewState(): void {
@@ -460,8 +477,24 @@ export class ChatView extends AbstractChatView {
 	}
 
 	protected override doLayout(width: number, height: number, _top: number, _left: number): void {
+		this._lastLayout = { width, height };
 		this._ensureBannersMounted();
-		this._widget.layout(height, width);
+		this._layoutChatWidget();
+	}
+
+	private _layoutChatWidget(): void {
+		if (!this._lastLayout) {
+			return;
+		}
+		const { width, height } = this._lastLayout;
+		const widgetTop = this._widgetContainer.offsetTop;
+		const widgetHeight = Math.max(0, height - widgetTop);
+		const progressContainer = Array.from(this.element.children).find(element => element.classList.contains('monaco-progress-container'));
+		if (isHTMLElement(progressContainer)) {
+			progressContainer.style.top = `${widgetTop}px`;
+		}
+		size(this._widgetContainer, width, widgetHeight);
+		this._widget.layout(widgetHeight, width);
 	}
 
 	/**
@@ -491,9 +524,6 @@ export class ChatView extends AbstractChatView {
 		if (!inputContainerEl) {
 			return;
 		}
-		const isVoiceSurfaceActive = derived(this, reader =>
-			this._isActiveObs.read(reader) && !this.voiceSessionController.omniInputOpen.read(reader)
-		);
 		this._register(setupVoiceInputDecorations({
 			voiceSessionController: this.voiceSessionController,
 			ttsPlaybackService: this.ttsPlaybackService,
@@ -504,7 +534,7 @@ export class ChatView extends AbstractChatView {
 			accessibilityService: this.accessibilityService,
 		}, {
 			inputContainer: inputContainerEl,
-			isActive: isVoiceSurfaceActive,
+			isActive: this._isActiveObs,
 			getCurrentResource: () => this._currentChatResource,
 			currentVoiceInputResource: this.newChatVoiceTargetService.currentVoiceInputResource,
 		}));

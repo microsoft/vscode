@@ -10,7 +10,7 @@ import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resour
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ActionType, type IIsArchivedChangedAction, type IIsReadChangedAction, type INotification, type SessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { readSessionMultiRootMetadata, SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { readSessionEhcliAdoptable, readSessionMultiRootMetadata, SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService, type IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 
 /**
@@ -101,6 +101,7 @@ export class AgentHostSessionListStore extends Disposable {
 		// doesn't know which workspace this VS Code window has open.
 		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(() => {
 			this._cacheValid = false;
+			this._filterEntriesToWorkspace();
 			void this.refresh(CancellationToken.None);
 		}));
 	}
@@ -117,6 +118,11 @@ export class AgentHostSessionListStore extends Disposable {
 	/** Whether a session was created locally and the backend has not surfaced it yet. */
 	isPendingNewSession(provider: string, rawId: string): boolean {
 		return this._pendingNewSessions.has(this._key(provider, rawId));
+	}
+
+	/** Stop treating a locally-created session as pending without adding it to the visible list. */
+	clearPendingNewSession(provider: string, rawId: string): void {
+		this._pendingNewSessions.delete(this._key(provider, rawId));
 	}
 
 	resetCache(): void {
@@ -217,16 +223,6 @@ export class AgentHostSessionListStore extends Disposable {
 		try {
 			sessions = await this._connection.listSessions();
 		} catch {
-			// If notifications mutated the list while we were fetching, the
-			// in-memory state is more up-to-date than our failed fetch.
-			if (startGeneration !== this._mutationGeneration) {
-				return;
-			}
-			if (this._entries.size === 0) {
-				return;
-			}
-			this._entries.clear();
-			this._onDidChangeSessions.fire({ removed: previousEntries.map(entry => this._toRemoval(entry)) });
 			return;
 		}
 
@@ -396,6 +392,22 @@ export class AgentHostSessionListStore extends Disposable {
 		return this._matchesAnyFolder(workingDirectories, folders);
 	}
 
+	private _filterEntriesToWorkspace(): void {
+		// The retained projection can only narrow; a successful refresh supplies newly eligible sessions.
+		const removed: IAgentHostSessionListRemoval[] = [];
+		for (const [key, entry] of this._entries) {
+			if (!this._isSessionInWorkspace(entry)) {
+				this._entries.delete(key);
+				this._pendingNewSessions.delete(key);
+				removed.push(this._toRemoval(entry));
+			}
+		}
+		if (removed.length > 0) {
+			this._mutationGeneration++;
+			this._onDidChangeSessions.fire({ removed });
+		}
+	}
+
 	private _matchesAnyFolder(workingDirectories: readonly URI[], folders: readonly IWorkspaceFolder[]): boolean {
 		return workingDirectories.some(directory =>
 			folders.some(folder => extUriBiasedIgnorePathCase.isEqualOrParent(directory, folder.uri))
@@ -404,16 +416,14 @@ export class AgentHostSessionListStore extends Disposable {
 
 	/**
 	 * The directories a session may be matched against a workspace folder by: its
-	 * working directories plus its server-owned project (repository) root. A
-	 * worktree-isolated session runs out of a directory outside the repository
-	 * (`<repo>.worktrees/<name>` for agent-host worktrees, `copilot-worktrees/`
-	 * for legacy extension-host ones), so working directories alone would hide it
-	 * from a window opened on that repository; its project root is the primary
-	 * repository root and restores the match.
+	 * working directories plus - for legacy Copilot CLI sessions only - its
+	 * server-owned project (repository) root. Those legacy sessions run out of a
+	 * `copilot-worktrees/` directory outside the repository, so working
+	 * directories alone would hide them from a window opened on that repository.
 	 */
 	private _containmentCandidates(summary: SessionSummary): readonly URI[] {
 		const candidates = summary.workingDirectories?.map(directory => URI.parse(directory)) ?? [];
-		if (summary.project?.uri) {
+		if (summary.project?.uri && readSessionEhcliAdoptable(summary._meta)) {
 			candidates.push(URI.parse(summary.project.uri));
 		}
 		return candidates;
