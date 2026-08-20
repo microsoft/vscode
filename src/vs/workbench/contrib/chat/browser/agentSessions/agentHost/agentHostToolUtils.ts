@@ -34,4 +34,3 @@ export function toClientToolReferenceName(toolName: string, semanticSearchOverri
 			return toolName;
 	}
 }
-
