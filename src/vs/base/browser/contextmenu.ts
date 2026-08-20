@@ -48,6 +48,11 @@ export interface IContextMenuDelegate {
 	anchorAxisAlignment?: AnchorAxisAlignment;
 	domForShadowRoot?: HTMLElement;
 	/**
+	 * Mount the shadow root in the window container instead of `domForShadowRoot`.
+	 * Use this when the provided element is inside a stacking context that cannot contain the menu.
+	 */
+	useWindowContainerForShadowRoot?: boolean;
+	/**
 	 * custom context menus with higher layers are rendered higher in z-index order
 	 */
 	layer?: number;
