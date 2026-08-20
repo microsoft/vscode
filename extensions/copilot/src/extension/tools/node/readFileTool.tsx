@@ -220,11 +220,11 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 			}
 
 			// Check if file is external (outside workspace, not open in editor, etc.)
-			const isExternal = await this.instantiationService.invokeFunction(
+			const { needsConfirmation, realPath } = await this.instantiationService.invokeFunction(
 				accessor => isFileExternalAndNeedsConfirmation(accessor, uri!, this._promptContext, { readOnly: true, workingDirectory: options.workingDirectory })
 			);
 
-			if (isExternal) {
+			if (needsConfirmation) {
 				// Still check content exclusion (copilot ignore)
 				await this.instantiationService.invokeFunction(
 					accessor => assertFileNotContentExcluded(accessor, uri!)
@@ -232,7 +232,13 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 
 				const folderUri = dirname(uri);
 
-				const message = this.workspaceService.getWorkspaceFolders().length === 1 ? new MarkdownString(l10n.t`${formatUriForFileWidget(uri)} is outside of the current folder in ${formatUriForFileWidget(folderUri)}.`) : new MarkdownString(l10n.t`${formatUriForFileWidget(uri)} is outside of the current workspace in ${formatUriForFileWidget(folderUri)}.`);
+				const message = realPath
+					? this.workspaceService.getWorkspaceFolders().length === 1
+						? new MarkdownString(l10n.t`${formatUriForFileWidget(uri)} links to ${formatUriForFileWidget(realPath)}, which is outside the current folder.`)
+						: new MarkdownString(l10n.t`${formatUriForFileWidget(uri)} links to ${formatUriForFileWidget(realPath)}, which is outside the current workspace.`)
+					: this.workspaceService.getWorkspaceFolders().length === 1
+						? new MarkdownString(l10n.t`${formatUriForFileWidget(uri)} is outside of the current folder in ${formatUriForFileWidget(folderUri)}.`)
+						: new MarkdownString(l10n.t`${formatUriForFileWidget(uri)} is outside of the current workspace in ${formatUriForFileWidget(folderUri)}.`);
 
 				// Return confirmation request for external file
 				// The folder-based "allow this session" option is provided by the core confirmation contribution
