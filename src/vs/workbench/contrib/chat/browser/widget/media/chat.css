@@ -4386,7 +4386,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			font-size: var(--vscode-codiconFontSize-compact);
 		}
 
-		.monaco-toolbar .action-label:has(> .chat-fork-action-icon) {
+		.monaco-toolbar .action-label.chat-fork-action-label {
 			width: fit-content;
 			padding: 2px 5px;
 		}
@@ -4395,13 +4395,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			margin-right: 0;
 		}
 
-		.monaco-toolbar .actions-container > .action-item:not(:first-child):has(.chat-fork-action-icon) {
+		.monaco-toolbar .actions-container > .action-item.chat-fork-action-item:not(:first-child) {
 			display: flex;
 			align-items: center;
 			gap: 4px;
 		}
 
-		.monaco-toolbar .actions-container > .action-item:not(:first-child):has(.chat-fork-action-icon)::before {
+		.monaco-toolbar .actions-container > .action-item.chat-fork-action-item:not(:first-child)::before {
 			content: '\00B7';
 			font-size: 12px;
 			line-height: 18px;

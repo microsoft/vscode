@@ -56,6 +56,8 @@ suite('ChatForkActionViewItem', () => {
 				iconSpinning: icon.classList.contains('codicon-modifier-spin'),
 				busy: label.getAttribute('aria-busy'),
 				label: label.getAttribute('aria-label'),
+				itemClass: container.classList.contains('chat-fork-action-item'),
+				labelClass: label.classList.contains('chat-fork-action-label'),
 			},
 		}, {
 			during: {
@@ -66,6 +68,8 @@ suite('ChatForkActionViewItem', () => {
 				iconSpinning: true,
 				busy: 'true',
 				label: 'Forking conversation',
+				itemClass: true,
+				labelClass: true,
 			},
 		});
 
@@ -80,6 +84,8 @@ suite('ChatForkActionViewItem', () => {
 			iconSpinning: icon.classList.contains('codicon-modifier-spin'),
 			busy: label.getAttribute('aria-busy'),
 			label: label.getAttribute('aria-label'),
+			itemClass: container.classList.contains('chat-fork-action-item'),
+			labelClass: label.classList.contains('chat-fork-action-label'),
 		}, {
 			buttonCodicon: true,
 			buttonSpinning: false,
@@ -88,6 +94,8 @@ suite('ChatForkActionViewItem', () => {
 			iconSpinning: false,
 			busy: 'false',
 			label: 'Fork conversation from this point',
+			itemClass: true,
+			labelClass: true,
 		});
 	});
 });

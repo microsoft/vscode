@@ -33,7 +33,12 @@ export class ChatForkActionViewItem extends CodiconActionViewItem {
 
 	override render(container: HTMLElement): void {
 		super.render(container);
+		// Stable classes so the stylesheet can target this item directly instead of
+		// with :has(), which would add descendant-dependent style invalidation to a
+		// workbench-wide stylesheet (microsoft/vscode#324985).
+		container.classList.add('chat-fork-action-item');
 		if (this.label) {
+			this.label.classList.add('chat-fork-action-label');
 			this.label.textContent = '';
 			this.icon = document.createElement('span');
 			this.icon.classList.add('chat-fork-action-icon');
