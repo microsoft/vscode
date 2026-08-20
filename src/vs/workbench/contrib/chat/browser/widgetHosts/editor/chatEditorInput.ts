@@ -249,6 +249,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 				this.agentHostConnectionsService.ambientConnection,
 				this._sessionResource,
 				this.logService,
+				this.configurationService,
 				LEGACY_MIGRATION_RESTORE_TIMEOUT_MS,
 			);
 			if (migrated) {

@@ -14,6 +14,12 @@ import { IAgentSubscription } from '../../../../../../platform/agentHost/common/
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { adoptLegacyCopilotCliResource } from '../../../browser/agentSessions/agentHost/agentHostLegacyMigration.js';
 import { COPILOT_CLI_AGENT_PROVIDER, COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME } from '../../../browser/copilotCliEventsUri.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ChatConfiguration } from '../../../common/constants.js';
+
+/** Migration enabled; the redirect is a no-op without it. */
+const migrationOn: IConfigurationService = new TestConfigurationService({ [ChatConfiguration.MigrateLegacyCopilotCliSessions]: true });
 
 suite('AgentHost legacy Copilot CLI migration', () => {
 
@@ -52,7 +58,7 @@ suite('AgentHost legacy Copilot CLI migration', () => {
 	test('redirects to the agent-host twin once the subscription carries state', async () => {
 		const { connection, subscribed } = createConnection('adopted');
 
-		const resolved = await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService());
+		const resolved = await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService(), migrationOn);
 
 		assert.deepStrictEqual(
 			{ resolved: resolved?.toString(), subscribed: subscribed.map(s => s.toString()) },
@@ -63,8 +69,8 @@ suite('AgentHost legacy Copilot CLI migration', () => {
 	test('retries after a refusal instead of pinning the session to the legacy path', async () => {
 		const { connection, subscribed } = createConnection('refused');
 
-		const first = await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService());
-		const second = await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService());
+		const first = await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService(), migrationOn);
+		const second = await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService(), migrationOn);
 
 		// The host reports every restore failure as SessionNotFound, so a refusal
 		// cannot be told apart from a transient one and must not be remembered.
@@ -77,12 +83,23 @@ suite('AgentHost legacy Copilot CLI migration', () => {
 	test('never probes a resource that is not a legacy Copilot CLI session', async () => {
 		const { connection, subscribed } = createConnection('adopted');
 
-		const resolved = await adoptLegacyCopilotCliResource(connection, twinResource, new NullLogService());
+		const resolved = await adoptLegacyCopilotCliResource(connection, twinResource, new NullLogService(), migrationOn);
 
 		assert.deepStrictEqual({ resolved, subscribed }, { resolved: undefined, subscribed: [] });
 	});
 
+	test('does nothing while the migration setting is off', async () => {
+		const { connection, subscribed } = createConnection('adopted');
+		const migrationOff: IConfigurationService = new TestConfigurationService();
+
+		const resolved = await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService(), migrationOff);
+
+		// The host restores a session whether or not it adopts it, so without this
+		// gate a user who never opted in would still be moved onto the agent host.
+		assert.deepStrictEqual({ resolved, subscribed }, { resolved: undefined, subscribed: [] });
+	});
+
 	test('declines without probing when there is no connection', async () => {
-		assert.strictEqual(await adoptLegacyCopilotCliResource(undefined, legacyResource, new NullLogService()), undefined);
+		assert.strictEqual(await adoptLegacyCopilotCliResource(undefined, legacyResource, new NullLogService(), migrationOn), undefined);
 	});
 });

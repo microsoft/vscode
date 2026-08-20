@@ -6594,6 +6594,27 @@ suite('AgentService (node dispatcher)', () => {
 			);
 		});
 
+		test('does not materialize state for an unregistered chat that is not adoptable', async () => {
+			// An external chat (e.g. created by the GitHub app) is hidden while
+			// `showExternalSessions` is `none`, so it is absent from the registered
+			// list. Restoring it would write `agentSessionData/<id>` and thereby claim
+			// it away from the extension host's own Copilot CLI list.
+			class NotAdoptableAgent extends MockAgent {
+				constructor() { super('copilot'); }
+				async ensureChatAdopted(_chat: URI, _context: URI | IAgentChatContext): Promise<IAgentChatAdoptionResult> {
+					return { adopted: false, eligible: false };
+				}
+			}
+
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.registerProvider(disposables.add(new NotAdoptableAgent()));
+			localService.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+
+			const session = AgentSession.uri('copilot', 'external-chat');
+			await assert.rejects(() => localService.restoreSession(session), /not an adoptable legacy chat/);
+			assert.strictEqual(localService.stateManager.getSessionState(session.toString()), undefined);
+		});
+
 		test('a passive read/archive action does not adopt a surfaced legacy session (listing must not migrate)', async () => {
 			// Regression for #330383: a passive read/archive toggle from the sessions list must not restore/adopt an un-opened legacy session.
 			for (const action of [{ type: ActionType.SessionIsReadChanged, isRead: true } as const, { type: ActionType.SessionIsArchivedChanged, isArchived: true } as const]) {

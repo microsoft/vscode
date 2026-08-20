@@ -21,6 +21,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { adoptLegacyCopilotCliResource } from './agentHost/agentHostLegacyMigration.js';
 
 //#region Session Opener Registry
@@ -68,6 +69,7 @@ export async function openSessionByResource(accessor: ServicesAccessor, resource
 		accessor.get(IAgentHostConnectionsService).ambientConnection,
 		resource,
 		logService,
+		accessor.get(IConfigurationService),
 	) ?? resource;
 
 	for (const participant of sessionOpenerRegistry.getParticipants()) {

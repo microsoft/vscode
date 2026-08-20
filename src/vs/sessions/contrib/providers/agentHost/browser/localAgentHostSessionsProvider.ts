@@ -95,7 +95,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		if (rawId && this._sessionCache.has(rawId)) {
 			return migratedCopilotCliResource(resource); // already adopted; no round-trip
 		}
-		return adoptLegacyCopilotCliResource(this.connection, resource, this._logService, timeoutMs);
+		return adoptLegacyCopilotCliResource(this.connection, resource, this._logService, this._configurationService, timeoutMs);
 	}
 
 	constructor(

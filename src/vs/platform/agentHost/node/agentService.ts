@@ -4413,6 +4413,15 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const adopted = adoption.adopted;
 
+		// A session the registry does not know is only restorable when it is an
+		// adoptable legacy chat: `external` defaults to false for unknown sessions,
+		// so without this an external chat (e.g. one the GitHub app created, hidden
+		// while `showExternalSessions` is `none`) would be materialized here and
+		// thereby claimed away from the extension host's own list.
+		if (!registeredSession && migrateLegacyEnabled && agent.ensureChatAdopted && !adoption.eligible) {
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session is not an adoptable legacy chat: ${sessionStr}`);
+		}
+
 		// From here the whole restore is wrapped so `migrated` is reported only
 		// after every required step succeeds, and any failure after a successful
 		// adoption is surfaced as a migration failure.

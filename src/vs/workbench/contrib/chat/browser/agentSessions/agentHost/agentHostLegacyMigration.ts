@@ -7,6 +7,8 @@ import { raceTimeout } from '../../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { AgentSession, IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -44,10 +46,18 @@ export async function adoptLegacyCopilotCliResource(
 	connection: IAgentConnection | undefined,
 	resource: URI,
 	logService: ILogService,
+	configurationService: IConfigurationService,
 	timeoutMs: number = LEGACY_MIGRATION_TIMEOUT_MS,
 ): Promise<URI | undefined> {
 	const twin = migratedCopilotCliResource(resource);
 	if (!twin || !connection) {
+		return undefined;
+	}
+	// The host restores a session whether or not it adopts it, so a successful
+	// probe does not by itself mean migration happened. Gate on the setting here:
+	// without it we would move sessions onto the agent host for users who never
+	// opted in — including external ones, which are never adopted at all.
+	if (configurationService.getValue<boolean>(ChatConfiguration.MigrateLegacyCopilotCliSessions) !== true) {
 		return undefined;
 	}
 	const rawId = getCopilotCliSessionRawId(twin);
