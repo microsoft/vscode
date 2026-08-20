@@ -692,8 +692,9 @@ suite('AsyncDataTree', function () {
 		resolve('root');
 		await pSetInput;
 
-		await tree.expand(a);
+		const pExpandA = tree.expand(a);
 		resolve('a');
+		await pExpandA;
 
 		// Start a refresh of `aa`; its getChildren is now pending.
 		const pRefreshAA = tree.updateChildren(aa, true);
