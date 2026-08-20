@@ -15,7 +15,6 @@
     "minimist": "^1.2.8"
   },
   "devDependencies": {
-    "@types/node": "24.x",
     "npm-run-all2": "^8.0.4"
   }
 }
