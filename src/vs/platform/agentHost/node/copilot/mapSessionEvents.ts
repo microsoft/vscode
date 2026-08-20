@@ -3,24 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AssistantMessageToolRequest, Attachment, SessionEvent, ToolExecutionCompleteContent, ToolExecutionCompleteData } from '@github/copilot-sdk';
+import type { AssistantMessageToolRequest, Attachment, SessionEvent, ToolExecutionCompleteContent, ToolExecutionCompleteContentShellExit, ToolExecutionCompleteData } from '@github/copilot-sdk';
 import { decodeBase64 } from '../../../../base/common/buffer.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { basename, isAbsolute, join } from '../../../../base/common/path.js';
 import { isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { AgentSession } from '../../common/agentService.js';
+import { AgentSession } from '../../common/agent.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { toToolCallMeta, type IToolCallUiMeta, type ToolKind } from '../../common/meta/agentToolCallMeta.js';
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
-import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type AgentSelection, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type TerminalCommandResult, type ToolCallCompletedState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, parseChatUri, type AgentSelection, type ErrorInfo, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type TerminalCommandResult, type ToolCallCompletedState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { buildNonPtyShellTerminalUri } from './copilotNonPtyShellTerminals.js';
 import { getInvocationMessage, getPastTenseMessage, getShellIntention, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall } from './copilotToolDisplay.js';
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
+import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js';
 import { buildMcpChannel, buildMcpTopLevelCustomizationId } from '../shared/mcpCustomizationController.js';
 import { readSimpleAttachmentDisplayKindFromMimeType } from './copilotAttachmentUtils.js';
 
@@ -55,8 +56,35 @@ function isSyntheticUserMessage(event: SessionEvent): boolean {
 }
 
 /**
- * Converts SDK `tool.execution_complete` content blocks into AHP tool result
- * content. A `shell_exit` block becomes {@link TerminalCommandResult} data on
+ * Recovers the text the user actually typed from a persisted `user.message`
+ * `content`. The chat client renders the raw prompt first, then appends
+ * `<reminder>` / `<attachments>` / `<context>` and (for some clients) a
+ * `<userRequest>` echo. Removing those blocks normally leaves the leading raw
+ * prompt (matching the extension-side `stripReminders` sanitizer). When removal
+ * leaves nothing — content that is only a `<userRequest>` wrapper — we fall
+ * back to the wrapper's inner text so the message is not lost.
+ */
+function stripPromptScaffolding(text: string): string {
+	const withoutAux = text
+		.replace(/<reminder>[\s\S]*?<\/reminder>\s*/g, '')
+		.replace(/<attachments>[\s\S]*?<\/attachments>\s*/g, '')
+		.replace(/<context>[\s\S]*?<\/context>\s*/g, '')
+		.replace(/<current_datetime>[\s\S]*?<\/current_datetime>\s*/g, '')
+		.replace(/<pr_metadata[^>]*\/?>\s*/g, '');
+	const withoutRequest = withoutAux
+		.replace(/<userRequest>[\s\S]*?<\/userRequest>\s*/g, '')
+		.replace(/<user_query>[\s\S]*?<\/user_query>\s*/g, '')
+		.trim();
+	if (withoutRequest) {
+		return withoutRequest;
+	}
+	const inner = withoutAux.match(/<userRequest>([\s\S]*?)<\/userRequest>/) ?? withoutAux.match(/<user_query>([\s\S]*?)<\/user_query>/);
+	return inner ? inner[1].trim() : withoutAux.trim();
+}
+
+/**
+ * Converts SDK `tool.execution_complete` image and shell result blocks into
+ * AHP tool result content. A `shell_exit` block becomes {@link TerminalCommandResult} data on
  * the tool call's terminal content block; when no terminal block exists yet
  * (e.g. history replay, where no live channel survives) and `terminal` is
  * provided, a non-pty terminal block is synthesized so the outcome still
@@ -68,14 +96,25 @@ export interface ISdkShellExit {
 	readonly result: TerminalCommandResult;
 }
 
-export function appendSdkToolResultContent(content: ToolResultContent[], sdkContents: readonly ToolExecutionCompleteContent[] | undefined, terminal?: { session: URI | string; toolCallId: string; title: string }): ISdkShellExit | undefined {
+type SdkToolExecutionCompleteContent = Exclude<ToolExecutionCompleteContent, ToolExecutionCompleteContentShellExit> | (Omit<ToolExecutionCompleteContentShellExit, 'outputPreview'> & {
+	readonly outputPreview?: string | null;
+});
+
+export function appendSdkToolResultContent(content: ToolResultContent[], sdkContents: readonly SdkToolExecutionCompleteContent[] | undefined, terminal?: { session: URI | string; toolCallId: string; title: string }): ISdkShellExit | undefined {
 	let shellExit: ISdkShellExit | undefined;
 	for (const sdkContent of sdkContents ?? []) {
 		switch (sdkContent.type) {
+			case 'image':
+				content.push({
+					type: ToolResultContentType.EmbeddedResource,
+					data: sdkContent.data,
+					contentType: sdkContent.mimeType,
+				});
+				break;
 			case 'shell_exit': {
 				const result: TerminalCommandResult = {
 					exitCode: sdkContent.exitCode,
-					...(sdkContent.outputPreview !== undefined ? { preview: sdkContent.outputPreview } : {}),
+					...(typeof sdkContent.outputPreview === 'string' ? { preview: sdkContent.outputPreview } : {}),
 					...(sdkContent.outputTruncated !== undefined ? { truncated: sdkContent.outputTruncated } : {}),
 				};
 				shellExit = { shellId: sdkContent.shellId, result };
@@ -143,6 +182,7 @@ interface ITurnBuilder {
 	lastEventAt: string | undefined;
 	readonly responseParts: ResponsePart[];
 	usage: UsageInfo | undefined;
+	error: ErrorInfo | undefined;
 	/** Tool starts seen but not yet completed in this turn, keyed by toolCallId. */
 	readonly pendingTools: Map<string, IToolStartInfo>;
 }
@@ -161,7 +201,7 @@ function newTurnBuilder(id: string, text: string, options?: { attachments?: Mess
 		...(options?.model ? { model: options.model } : {}),
 		...(options?.agent ? { agent: options.agent } : {}),
 	};
-	return { id, message, startedAt: options?.startedAt, lastEventAt: options?.startedAt, responseParts: [], usage: undefined, pendingTools: new Map() };
+	return { id, message, startedAt: options?.startedAt, lastEventAt: options?.startedAt, responseParts: [], usage: undefined, error: undefined, pendingTools: new Map() };
 }
 
 /** Reads the SDK envelope's ISO 8601 `timestamp`, or `undefined` when missing or unparseable. */
@@ -247,6 +287,7 @@ function finalizeTurn(builder: ITurnBuilder, state: TurnState): Turn {
 		responseParts: builder.responseParts,
 		usage: builder.usage,
 		state,
+		...(builder.error ? { error: builder.error } : {}),
 	};
 }
 
@@ -269,11 +310,16 @@ export async function mapSessionEvents(
 	session: URI,
 	db: ISessionDatabase | undefined,
 	events: readonly SessionEvent[],
-	options: URI | IMapSessionEventsOptions | undefined = undefined,
+	routingChatUri: URI,
+	options: IMapSessionEventsOptions | undefined = undefined,
 ): Promise<{ turns: Turn[]; subagentTurnsByToolCallId: ReadonlyMap<string, Turn[]> }> {
-	const workingDirectory = options instanceof URI ? options : options?.workingDirectory;
-	let currentModel = options instanceof URI ? undefined : options?.model;
-	let currentAgent = options instanceof URI ? undefined : options?.agent;
+	const routingChat = parseChatUri(routingChatUri);
+	if (!routingChat) {
+		throw new Error(`Malformed AHP chat URI: ${routingChatUri.toString()}`);
+	}
+	const workingDirectory = options?.workingDirectory;
+	let currentModel = options?.model;
+	let currentAgent = options?.agent;
 	// First pass: collect tool-arg info and identify edit tool calls so we
 	// can batch-load their stored file edits before the second pass needs
 	// them at `tool.execution_complete` time. We also build the
@@ -282,6 +328,7 @@ export async function mapSessionEvents(
 	const toolInfoByCallId = new Map<string, IToolStartInfo>();
 	const editToolCallIds: string[] = [];
 	const completionsByCallId = new Map<string, ToolExecutionCompleteData>();
+	const subagentInfoByToolCallId = new Map<string, ISubagentInfo>();
 
 	// The SDK tags events that originate from a sub-agent with an
 	// envelope-level `agentId` (the deprecated `data.parentToolCallId` is no
@@ -296,6 +343,11 @@ export async function mapSessionEvents(
 
 	for (const e of events) {
 		if (e.type === 'subagent.started') {
+			subagentInfoByToolCallId.set(e.data.toolCallId, {
+				agentName: e.data.agentName,
+				agentDisplayName: e.data.agentDisplayName,
+				agentDescription: e.data.agentDescription,
+			});
 			if (e.agentId) {
 				parentToolCallIdByAgentId.set(e.agentId, e.data.toolCallId);
 			}
@@ -340,8 +392,9 @@ export async function mapSessionEvents(
 	}
 
 	const sessionUriStr = session.toString();
-	const providerId = session.scheme;
-	const rawSessionId = AgentSession.id(session);
+	const routingSession = URI.parse(routingChat.session);
+	const providerId = routingSession.scheme;
+	const rawSessionId = AgentSession.id(routingSession);
 	const turns: Turn[] = [];
 
 	// Subagent state. Each subagent has its own active turn builder; only
@@ -349,12 +402,11 @@ export async function mapSessionEvents(
 	// at most one turn per invocation).
 	const subagentBuilders = new Map<string, ITurnBuilder>();
 	const subagentTurnStates = new Map<string, TurnState>();
+	const terminatedSubagentTurns = new Set<string>();
 	const subagentTurns = new Map<string, Turn[]>();
-	const subagentInfoByToolCallId = new Map<string, ISubagentInfo>();
-
 	let parentBuilder: ITurnBuilder | undefined;
 	let parentTurnState = TurnState.Cancelled;
-	let parentTurnAborted = false;
+	let parentTurnTerminated = false;
 	let rootAssistantTurnActive = false;
 	let pendingAutoModeResolved: Extract<SessionEvent, { type: 'session.auto_mode_resolved' }>['data'] | undefined;
 
@@ -375,7 +427,7 @@ export async function mapSessionEvents(
 		turns.push(finalizeTurn(parentBuilder, parentTurnState));
 		parentBuilder = undefined;
 		parentTurnState = TurnState.Cancelled;
-		parentTurnAborted = false;
+		parentTurnTerminated = false;
 	};
 
 	const flushSubagent = (parentToolCallId: string): void => {
@@ -387,7 +439,8 @@ export async function mapSessionEvents(
 		subagentBuilders.delete(parentToolCallId);
 		const state = subagentTurnStates.get(parentToolCallId) ?? TurnState.Complete;
 		subagentTurnStates.delete(parentToolCallId);
-		if (builder.responseParts.length === 0) {
+		terminatedSubagentTurns.delete(parentToolCallId);
+		if (builder.responseParts.length === 0 && !builder.error) {
 			return;
 		}
 		const list = subagentTurns.get(parentToolCallId) ?? [];
@@ -431,6 +484,13 @@ export async function mapSessionEvents(
 					touch(parentBuilder);
 				}
 				break;
+			case 'session.start': {
+				// Restore the initial model; later model-change events take precedence.
+				if (!e.agentId && e.data.selectedModel) {
+					currentModel = { id: e.data.selectedModel };
+				}
+				break;
+			}
 			case 'session.model_change': {
 				currentModel = { id: e.data.newModel };
 				break;
@@ -453,7 +513,7 @@ export async function mapSessionEvents(
 				}
 				const d = e.data;
 				const messageId = d.interactionId ?? '';
-				const content = d.content ?? '';
+				const content = stripPromptScaffolding(d.content ?? '');
 				const attachments = sdkAttachmentsToProtocol(d.attachments);
 				// User messages carry no deprecated `parentToolCallId`; route
 				// sub-agent user messages by the envelope `agentId` only.
@@ -495,7 +555,7 @@ export async function mapSessionEvents(
 				const hasToolRequests = !!d.toolRequests && d.toolRequests.length > 0;
 				const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId);
 				if (!content && !reasoningText && !hasToolRequests) {
-					if (!parentToolCallId && parentBuilder && !parentTurnAborted) {
+					if (!parentToolCallId && parentBuilder && !parentTurnTerminated) {
 						parentTurnState = TurnState.Complete;
 						touch(parentBuilder);
 					}
@@ -523,7 +583,7 @@ export async function mapSessionEvents(
 						content,
 					});
 				}
-				if (!parentToolCallId && builder === parentBuilder && !parentTurnAborted) {
+				if (!parentToolCallId && builder === parentBuilder && !parentTurnTerminated) {
 					parentTurnState = hasToolRequests ? TurnState.Cancelled : TurnState.Complete;
 				}
 				if (d.toolRequests?.length) {
@@ -536,30 +596,43 @@ export async function mapSessionEvents(
 				if (!notification) {
 					break;
 				}
-				if (rootAssistantTurnActive && parentBuilder) {
+				if (parentBuilder && (rootAssistantTurnActive || notification.startsTurn)) {
 					parentBuilder.responseParts.push({
 						kind: ResponsePartKind.SystemNotification,
 						content: notification.messageText,
 					});
 					touch(parentBuilder);
-				} else if (notification.startsTurn) {
-					flushParent();
-					parentBuilder = newTurnBuilder(e.id, notification.messageText, { origin: MessageKind.SystemNotification, startedAt: currentEventTimestamp });
+				}
+				break;
+			}
+			case 'session.error': {
+				const parentToolCallId = resolveParentToolCallId(e.agentId, undefined);
+				if (e.agentId) {
+					if (!parentToolCallId || terminatedSubagentTurns.has(parentToolCallId)) {
+						break;
+					}
+					const builder = ensureSubagentBuilder(parentToolCallId);
+					subagentTurnStates.set(parentToolCallId, TurnState.Error);
+					terminatedSubagentTurns.add(parentToolCallId);
+					builder.error = buildChatErrorInfoFromCopilotSdkFields(e.data);
+					touch(builder);
+					break;
+				}
+				if (parentBuilder && !parentTurnTerminated) {
+					rootAssistantTurnActive = false;
+					parentTurnState = TurnState.Error;
+					parentTurnTerminated = true;
+					parentBuilder.error = buildChatErrorInfoFromCopilotSdkFields(e.data);
+					touch(parentBuilder);
 				}
 				break;
 			}
 			case 'subagent.started': {
-				const d = e.data;
-				subagentInfoByToolCallId.set(d.toolCallId, {
-					agentName: d.agentName,
-					agentDisplayName: d.agentDisplayName,
-					agentDescription: d.agentDescription,
-				});
 				break;
 			}
 			case 'tool.execution_start': {
 				const parentToolCallId = resolveParentToolCallId(e.agentId, e.data.parentToolCallId);
-				if (!parentToolCallId && parentBuilder) {
+				if (!parentToolCallId && parentBuilder && !parentTurnTerminated) {
 					parentTurnState = TurnState.Cancelled;
 					touch(parentBuilder);
 				}
@@ -587,7 +660,7 @@ export async function mapSessionEvents(
 							content: summary,
 						});
 					}
-					if (!parentToolCallId && d.success && builder === parentBuilder && !parentTurnAborted) {
+					if (!parentToolCallId && d.success && builder === parentBuilder && !parentTurnTerminated) {
 						parentTurnState = TurnState.Complete;
 					}
 					continue;
@@ -597,7 +670,7 @@ export async function mapSessionEvents(
 					// No active turn to attach this completion to.
 					continue;
 				}
-				const completedPart = makeCompletedToolCallPart(d, info, sessionUriStr, providerId, rawSessionId, storedEdits, subagentInfoByToolCallId.get(d.toolCallId), workingDirectory);
+				const completedPart = makeCompletedToolCallPart(d, info, sessionUriStr, providerId, rawSessionId, routingChatUri, storedEdits, subagentInfoByToolCallId.get(d.toolCallId), workingDirectory);
 				builder.responseParts.push(completedPart);
 				// When a parent tool call that spawned a subagent completes,
 				// flush the subagent's accumulated turn.
@@ -632,12 +705,14 @@ export async function mapSessionEvents(
 			case 'abort': {
 				const parentToolCallId = resolveParentToolCallId(e.agentId, undefined);
 				if (parentToolCallId) {
-					subagentTurnStates.set(parentToolCallId, TurnState.Cancelled);
+					if (!terminatedSubagentTurns.has(parentToolCallId)) {
+						subagentTurnStates.set(parentToolCallId, TurnState.Cancelled);
+					}
 				} else {
 					rootAssistantTurnActive = false;
-					if (parentBuilder) {
+					if (parentBuilder && !parentTurnTerminated) {
 						parentTurnState = TurnState.Cancelled;
-						parentTurnAborted = true;
+						parentTurnTerminated = true;
 						touch(parentBuilder);
 					}
 				}
@@ -675,7 +750,7 @@ export async function mapSessionEvents(
 						content: summary,
 					});
 				}
-				if (!parentToolCallId && completion?.success && builder === parentBuilder && !parentTurnAborted) {
+				if (!parentToolCallId && completion?.success && builder === parentBuilder && !parentTurnTerminated) {
 					parentTurnState = TurnState.Complete;
 				}
 				continue;
@@ -686,6 +761,7 @@ export async function mapSessionEvents(
 				sessionUriStr,
 				providerId,
 				rawSessionId,
+				routingChatUri,
 				storedEdits,
 				subagentInfoByToolCallId.get(request.toolCallId),
 				workingDirectory,
@@ -789,6 +865,7 @@ function makeCompletedToolCallPart(
 	sessionUriStr: string,
 	providerId: string,
 	rawSessionId: string,
+	chatURI: URI,
 	storedEdits: Map<string, IFileEditRecord[]> | undefined,
 	subagent: ISubagentInfo | undefined,
 	workingDirectory: URI | undefined,
@@ -798,7 +875,11 @@ function makeCompletedToolCallPart(
 	if (toolOutput !== undefined) {
 		content.push({ type: ToolResultContentType.Text, text: toolOutput });
 	}
-	appendSdkToolResultContent(content, d.result?.contents, { session: sessionUriStr, toolCallId: d.toolCallId, title: info.displayName });
+	appendSdkToolResultContent(
+		content,
+		d.result?.contents,
+		info.toolKind === 'terminal' ? { session: sessionUriStr, toolCallId: d.toolCallId, title: info.displayName } : undefined,
+	);
 
 	// Restore file edit content references from the database.
 	const edits = storedEdits?.get(d.toolCallId);
@@ -843,7 +924,7 @@ function makeCompletedToolCallPart(
 	const mcpUi: IToolCallUiMeta | undefined = mcpUiResourceUri
 		? {
 			resourceUri: mcpUiResourceUri,
-			...(mcpServerName ? { channel: buildMcpChannel(providerId, rawSessionId, mcpServerName) } : {}),
+			...(mcpServerName ? { channel: buildMcpChannel(chatURI, mcpServerName) } : {}),
 		}
 		: undefined;
 

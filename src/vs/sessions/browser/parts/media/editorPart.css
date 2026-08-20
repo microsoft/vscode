@@ -5,13 +5,13 @@
 
 /* Border for editor part in aux window */
 .agent-sessions-workbench > .part.editor:not(.modal-editor-part) {
-	border-top: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border, transparent));
+	border-top: 1px solid var(--vscode-agentsPanel-border, var(--vscode-widget-border, transparent));
 }
 
 .agent-sessions-workbench .monaco-grid-view .part.editor:not(.modal-editor-part) {
 	margin: 0 0 0 0;
 	background: var(--vscode-editor-background);
-	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border, transparent));
+	border: 1px solid var(--vscode-agentsPanel-border, var(--vscode-widget-border, transparent));
 	border-right-width: 0;
 	border-top-right-radius: 0;
 	border-bottom-right-radius: 0;
@@ -25,6 +25,42 @@
 
 .agent-sessions-workbench .part.editor > .content .editor-group-container > .title .editor-actions {
 	padding-right: 0;
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor > .content .editor-group-container > .title:not(.tabs) > .label-container > .single-tab.title-label {
+	padding-left: var(--vscode-spacing-size80);
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor > .content .editor-group-container > .title:not(.tabs) > .label-container > .single-tab.title-label::before {
+	display: none;
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor > .content .editor-group-container > .title:not(.tabs) > .tabs-bar-add-tab {
+	display: flex;
+	align-items: center;
+	flex: 0 0 auto;
+	height: var(--editor-group-tab-height);
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor > .content .editor-group-container > .title:not(.tabs) > .tabs-bar-add-tab .action-label:not(.separator) {
+	width: 22px;
+	height: 22px;
+	margin: 0 var(--vscode-spacing-size40);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--chat-tab-inactive-foreground, currentColor);
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor > .content .editor-group-container > .title:not(.tabs) > .tabs-bar-add-tab .action-label:not(.separator):not(.disabled):hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--chat-tab-active-foreground, currentColor);
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor > .content .editor-group-container > .title:not(.tabs) > .tabs-bar-add-tab .action-label:not(.separator):focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
 .agent-sessions-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.tabs-border-bottom > .monaco-scrollable-element {

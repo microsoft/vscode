@@ -17,16 +17,20 @@ import { defineSessionPersistenceTests } from './sessionPersistenceSuite.js';
 import { defineFileOperationsTests } from './fileOperationsSuite.js';
 import { defineHostFeaturesTests } from './hostFeaturesSuite.js';
 import { defineMultiChatTests } from './multiChatSuite.js';
+import { defineMcpPluginTests } from './mcpPluginSuite.js';
 import { defineStateOperationsTests } from './stateOperationsSuite.js';
 import { defineSubagentTests } from './subagentSuite.js';
 import { defineTurnLifecycleTests } from './turnLifecycleSuite.js';
 import { defineWorkspaceTests } from './workspaceSuite.js';
+import { defineCopilotCoverageTests } from './copilotCoverageSuite.js';
 import type { AgentHostE2ETier, IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 const isLinux = process.platform === 'linux';
 
 const RECORD = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
 const RUN_RECORD_ONLY_TESTS = process.env['AGENT_HOST_REPLAY_RECORD'] === '1';
+const RUN_KNOWN_ISSUE_TESTS = RECORD && process.env['AGENT_HOST_RUN_KNOWN_ISSUES'] === '1';
+const RUN_HOST_ONLY_KNOWN_ISSUE_TESTS = process.env['AGENT_HOST_RUN_KNOWN_ISSUES'] === '1';
 const isWindows = process.platform === 'win32';
 
 interface IDefineOptions {
@@ -50,8 +54,11 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			createdSessions,
 			tempDirs,
 			portableShellToolReplayEnabled,
+			isLinux,
 			isWindows,
 			runRecordOnlyTests: RUN_RECORD_ONLY_TESTS,
+			runKnownIssueTests: RUN_KNOWN_ISSUE_TESTS,
+			runHostOnlyKnownIssueTests: RUN_HOST_ONLY_KNOWN_ISSUE_TESTS,
 			registerNoModelTrafficTest: title => noModelTrafficTestTitles.add(title),
 			get observedModelRequestBodies() { return lease?.observedModelRequestBodies ?? []; },
 			restartServer: async () => {
@@ -141,12 +148,12 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			defineClientFilesystemTests(context);
 			defineAnnotationsTests(context);
 			defineProtocolContractTests(context);
-			defineChangesetTests(context);
 		}
 
 		// Suites that contain only parity-tier scenarios.
 		if (options.tier === 'parity') {
 			defineCoreTests(context);
+			defineCopilotCoverageTests(context);
 			defineFileOperationsTests(context);
 			defineTurnLifecycleTests(context);
 			defineWorkspaceTests(context);
@@ -157,6 +164,8 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 		// peer turns and capability advertisement are provider-dependent
 		// (parity). The registrars self-select on `context.tier`.
 		defineMultiChatTests(context);
+		defineChangesetTests(context);
+		defineMcpPluginTests(context);
 		defineServerToolsTests(context);
 		defineCustomizationDiscoveryTests(context);
 		defineSessionPersistenceTests(context);

@@ -7,12 +7,12 @@ import assert from 'assert';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
+import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { TestStorageService } from '../../../common/workbenchTestServices.js';
-import { TestLayoutService } from '../../workbenchTestServices.js';
+import { TestHostService, TestLayoutService } from '../../workbenchTestServices.js';
 import { ActivitybarPart } from '../../../../browser/parts/activitybar/activitybarPart.js';
 import { IViewSize } from '../../../../../base/browser/ui/grid/grid.js';
-import { LayoutSettings, Parts } from '../../../../services/layout/browser/layoutService.js';
+import { LayoutSettings, Parts, Position } from '../../../../services/layout/browser/layoutService.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { IPaneCompositePart } from '../../../../browser/parts/paneCompositePart.js';
@@ -21,6 +21,7 @@ import { IPaneComposite } from '../../../../common/panecomposite.js';
 import { Extensions, PaneCompositeDescriptor } from '../../../../browser/panecomposite.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ViewContainerLocation } from '../../../../common/views.js';
+import { ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND } from '../../../../common/theme.js';
 
 class StubPaneCompositePart implements IPaneCompositePart {
 	declare readonly _serviceBrand: undefined;
@@ -50,7 +51,9 @@ class StubPaneCompositePart implements IPaneCompositePart {
 
 class TestFloatingPanelsLayoutService extends TestLayoutService {
 	floatingPanelsEnabled = false;
+	sideBarPosition = Position.LEFT;
 	override isFloatingPanelsEnabled(): boolean { return this.floatingPanelsEnabled; }
+	override getSideBarPosition(): Position { return this.sideBarPosition; }
 }
 
 suite('ActivitybarPart', () => {
@@ -71,15 +74,17 @@ suite('ActivitybarPart', () => {
 		disposables.clear();
 	});
 
-	function createActivitybarPart(compact: boolean, floatingPanelsEnabled = false): { part: ActivitybarPart; configService: TestConfigurationService; layoutService: TestFloatingPanelsLayoutService } {
+	function createActivitybarPart(compact: boolean, floatingPanelsEnabled = false, sideBarPosition = Position.LEFT, colors: { [id: string]: string | undefined } = {}): { part: ActivitybarPart; configService: TestConfigurationService; layoutService: TestFloatingPanelsLayoutService; hostService: TestHostService } {
 		const configService = new TestConfigurationService({
 			[LayoutSettings.ACTIVITY_BAR_COMPACT]: compact,
 			[LayoutSettings.MODERN_UI]: floatingPanelsEnabled,
 		});
 		const storageService = disposables.add(new TestStorageService());
-		const themeService = new TestThemeService();
+		const themeService = new TestThemeService(new TestColorTheme(colors));
 		const layoutService = new TestFloatingPanelsLayoutService();
+		const hostService = new TestHostService();
 		layoutService.floatingPanelsEnabled = floatingPanelsEnabled;
+		layoutService.sideBarPosition = sideBarPosition;
 
 		// Override isVisible to return false so that create() does not call show()
 		// and attempt to instantiate the composite bar (which requires a full DI setup).
@@ -97,9 +102,10 @@ suite('ActivitybarPart', () => {
 			themeService,
 			storageService,
 			configService,
+			hostService,
 		));
 
-		return { part, configService, layoutService };
+		return { part, configService, layoutService, hostService };
 	}
 
 	function fireConfigChange(configService: TestConfigurationService, key: string): void {
@@ -179,14 +185,26 @@ suite('ActivitybarPart', () => {
 		assert.strictEqual(part.maximumHeight, Number.POSITIVE_INFINITY);
 	});
 
-	test('floating panels reserves additional width gutter', () => {
+	test('floating panels reserves outer padding on the left', () => {
 		const { part } = createActivitybarPart(false, true);
 
 		assert.deepStrictEqual(
 			{ min: part.minimumWidth, max: part.maximumWidth },
 			{
-				min: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN,
-				max: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN,
+				min: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 2,
+				max: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 2,
+			}
+		);
+	});
+
+	test('floating panels reserves a 4px inner gap and both gutters on the right', () => {
+		const { part } = createActivitybarPart(false, true, Position.RIGHT);
+
+		assert.deepStrictEqual(
+			{ min: part.minimumWidth, max: part.maximumWidth },
+			{
+				min: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 3,
+				max: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 3,
 			}
 		);
 	});
@@ -263,7 +281,7 @@ suite('ActivitybarPart', () => {
 		fireConfigChange(configService, LayoutSettings.MODERN_UI);
 
 		assert.deepStrictEqual(events, [undefined]);
-		assert.strictEqual(part.minimumWidth, ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN);
+		assert.strictEqual(part.minimumWidth, ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 2);
 	});
 
 	// --- CSS custom properties on element -----------------------------------
@@ -335,6 +353,33 @@ suite('ActivitybarPart', () => {
 		assert.strictEqual(el.style.getPropertyValue('--activity-bar-action-height'), `${ActivitybarPart.ACTION_HEIGHT}px`);
 		assert.strictEqual(el.style.getPropertyValue('--activity-bar-icon-size'), `${ActivitybarPart.ICON_SIZE}px`);
 		assert.strictEqual(el.classList.contains('compact'), false);
+	});
+
+	test('uses the inactive background only for inactive Modern UI windows', () => {
+		const { part, configService, hostService } = createActivitybarPart(false, true, Position.LEFT, {
+			[ACTIVITY_BAR_BACKGROUND]: '#123456',
+			[MODERN_ACTIVITY_BAR_BACKGROUND]: '#abcdef',
+			[MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND]: '#654321',
+		});
+		const el = document.createElement('div');
+		fixture.appendChild(el);
+		part.create(el);
+
+		const activeModernBackground = el.style.backgroundColor;
+		hostService.setFocus(false);
+		const inactiveModernBackground = el.style.backgroundColor;
+		configService.setUserConfiguration(LayoutSettings.MODERN_UI, false);
+		fireConfigChange(configService, LayoutSettings.MODERN_UI);
+
+		assert.deepStrictEqual({
+			activeModernBackground,
+			inactiveModernBackground,
+			inactiveClassicBackground: el.style.backgroundColor,
+		}, {
+			activeModernBackground: 'rgb(171, 205, 239)',
+			inactiveModernBackground: 'rgb(101, 67, 33)',
+			inactiveClassicBackground: 'rgb(18, 52, 86)',
+		});
 	});
 
 	// --- toJSON ------------------------------------------------------------

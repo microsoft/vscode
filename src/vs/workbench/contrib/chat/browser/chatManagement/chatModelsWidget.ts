@@ -49,6 +49,8 @@ import { IWorkbenchEnvironmentService } from '../../../../services/environment/c
 import Severity from '../../../../../base/common/severity.js';
 import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import { formatTokenCount } from '../../../../../base/common/numbers.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { CHAT_SETUP_ACTION_ID } from '../actions/chatActions.js';
 
 const $ = DOM.$;
 
@@ -168,16 +170,16 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 /**
  * Pure helper for building the dropdown actions shown by the **Add Models** button.
  *
- * Exposed for unit testing. When `supportsAddingModels` is false, no actions are returned
- * regardless of the other inputs so that the existing entitlement/managed-by-organization
- * restriction is preserved.
+ * Exposed for unit testing. The Copilot sign-in action is independent of whether adding
+ * configurable BYOK vendors is supported.
  */
 export function buildAddModelsDropdownActions(
 	configurableVendors: ILanguageModelProviderDescriptor[],
 	supportsAddingModels: boolean,
 	runVendorAction: (vendor: ILanguageModelProviderDescriptor) => void | Promise<void>,
+	runCopilotSignInAction?: () => void | Promise<void>,
 ): IAction[] {
-	if (!supportsAddingModels) {
+	if (!supportsAddingModels && !runCopilotSignInAction) {
 		return [];
 	}
 
@@ -208,13 +210,28 @@ export function buildAddModelsDropdownActions(
 		}
 	});
 
-	const actions: IAction[] = sortedVendors.map(toVendorAction);
-	if (customEndpointVendor) {
-		if (actions.length > 0) {
-			actions.push(new Separator());
+	const vendorActions: IAction[] = supportsAddingModels ? sortedVendors.map(toVendorAction) : [];
+	if (supportsAddingModels && customEndpointVendor) {
+		if (vendorActions.length > 0) {
+			vendorActions.push(new Separator());
 		}
-		actions.push(toVendorAction(customEndpointVendor));
+		vendorActions.push(toVendorAction(customEndpointVendor));
 	}
+
+	const actions: IAction[] = [];
+	if (runCopilotSignInAction) {
+		actions.push(toAction({
+			id: 'signIn-github-copilot',
+			label: localize('models.signInGitHubCopilot', "GitHub Copilot"),
+			run: async () => {
+				await runCopilotSignInAction();
+			},
+		}));
+	}
+	if (actions.length > 0 && vendorActions.length > 0) {
+		actions.push(new Separator());
+	}
+	actions.push(...vendorActions);
 
 	return actions;
 }
@@ -517,7 +534,8 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 	constructor(
 		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 	}
@@ -573,7 +591,7 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 		}
 
 		const deprecationLink = entry.vendorEntry.vendor.deprecation?.link;
-		if (deprecationLink) {
+		if (deprecationLink && !this.environmentService.isSessionsWindow) {
 			const icon = $('span');
 			icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.linkExternal));
 			icon.setAttribute('aria-hidden', 'true');
@@ -1128,6 +1146,7 @@ export class ChatModelsWidget extends Disposable {
 	private addButtonContainer!: HTMLElement;
 	private addButton!: Button;
 	private dropdownActions: IAction[] = [];
+	private defaultAccountResolved = false;
 	private viewModel: ChatModelsViewModel;
 	private delayedFiltering: Delayer<void>;
 
@@ -1148,6 +1167,7 @@ export class ChatModelsWidget extends Disposable {
 		@IDialogService private readonly dialogService: IDialogService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 	) {
 		super();
 
@@ -1156,6 +1176,16 @@ export class ChatModelsWidget extends Disposable {
 		this.viewModel = this._register(this.instantiationService.createInstance(ChatModelsViewModel));
 		this.element = DOM.$('.models-widget');
 		this.create(this.element);
+		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => {
+			this.defaultAccountResolved = true;
+			this.updateAddModelsButton();
+		}));
+		this.defaultAccountService.getDefaultAccount().then(() => {
+			if (!this._store.isDisposed) {
+				this.defaultAccountResolved = true;
+				this.updateAddModelsButton();
+			}
+		});
 
 		const loadingPromise = this.extensionService.whenInstalledExtensionsRegistered().then(() => this.viewModel.refresh());
 		this.editorProgressService.showWhile(loadingPromise, 300);
@@ -1629,9 +1659,12 @@ export class ChatModelsWidget extends Disposable {
 			configurableVendors,
 			supportsAddingModels,
 			vendor => this.addModelsForVendor(vendor),
+			this.defaultAccountResolved && this.defaultAccountService.currentDefaultAccount === null
+				? () => this.commandService.executeCommand(CHAT_SETUP_ACTION_ID)
+				: undefined,
 		);
 
-		this.addButton.enabled = supportsAddingModels && this.dropdownActions.length > 0;
+		this.addButton.enabled = this.dropdownActions.length > 0;
 		this.addButton.setTitle(!supportsAddingModels && isManagedEntitlement ? localize('models.managedByOrganization', "Adding models is managed by your organization") : '');
 	}
 

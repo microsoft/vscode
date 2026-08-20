@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { TelemetryConfiguration } from '../../../telemetry/common/telemetry.js';
 import { AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION, type IAgentHostEndpointMetadata } from '../../common/agentHostEndpointRegistry.js';
 import {
 	buildAgentEndpointsCommand,
@@ -26,6 +27,7 @@ import {
 	resolveRemotePlatform,
 	runAgentEndpoints,
 	shellEscape,
+	validateAgentHostTelemetryLevel,
 	validateCommit,
 	validateShellToken,
 	waitForNewStandaloneEndpoint,
@@ -157,9 +159,18 @@ suite('SSH Remote Agent Host Helpers', () => {
 	});
 
 	suite('buildAgentHostBaseCommand', () => {
-		test('includes --cli-data-dir before the agent host subcommand', () => {
-			const cmd = buildAgentHostBaseCommand('~/.vscode-server/code-insiders-abc', '~/.vscode-server/cli');
-			assert.strictEqual(cmd, '~/.vscode-server/code-insiders-abc --cli-data-dir ~/.vscode-server/cli agent host --port 0');
+		test('includes --cli-data-dir and the default telemetry level before the agent host subcommand', () => {
+			const cmd = buildAgentHostBaseCommand('~/.vscode-server/code-insiders-abc', '~/.vscode-server/cli', TelemetryConfiguration.ON);
+			assert.strictEqual(cmd, '~/.vscode-server/code-insiders-abc --cli-data-dir ~/.vscode-server/cli --telemetry-level all agent host --port 0');
+		});
+
+		test('includes telemetry disablement before the agent host subcommand', () => {
+			const cmd = buildAgentHostBaseCommand('~/.vscode-server/code-insiders-abc', '~/.vscode-server/cli', TelemetryConfiguration.OFF);
+			assert.strictEqual(cmd, '~/.vscode-server/code-insiders-abc --cli-data-dir ~/.vscode-server/cli --telemetry-level off agent host --port 0');
+		});
+
+		test('rejects unsafe telemetry levels', () => {
+			assert.throws(() => validateAgentHostTelemetryLevel('off; touch /tmp/unsafe'), /Unsafe telemetry level/);
 		});
 	});
 
@@ -456,26 +467,33 @@ suite('SSH Remote Agent Host Helpers', () => {
 	suite('buildAgentHostSpawnCommand', () => {
 		test('includes --new-instance, --user-data-dir and default --idle-timeout', () => {
 			assert.strictEqual(
-				buildAgentHostSpawnCommand('~/.vscode-server/code', '~/.vscode-server/cli', '/home/user/.vscode-remote'),
-				'~/.vscode-server/code --cli-data-dir ~/.vscode-server/cli agent host --port 0 --new-instance --user-data-dir \'/home/user/.vscode-remote\' --idle-timeout 300',
+				buildAgentHostSpawnCommand('~/.vscode-server/code', '~/.vscode-server/cli', '/home/user/.vscode-remote', TelemetryConfiguration.ON),
+				'~/.vscode-server/code --cli-data-dir ~/.vscode-server/cli --telemetry-level all agent host --port 0 --new-instance --user-data-dir \'/home/user/.vscode-remote\' --idle-timeout 300',
 			);
 		});
 
 		test('honors a custom idle timeout', () => {
 			assert.strictEqual(
-				buildAgentHostSpawnCommand('~/.vscode-server/code', '~/.vscode-server/cli', '/home/user/.vscode-remote', 60),
-				'~/.vscode-server/code --cli-data-dir ~/.vscode-server/cli agent host --port 0 --new-instance --user-data-dir \'/home/user/.vscode-remote\' --idle-timeout 60',
+				buildAgentHostSpawnCommand('~/.vscode-server/code', '~/.vscode-server/cli', '/home/user/.vscode-remote', TelemetryConfiguration.ON, 60),
+				'~/.vscode-server/code --cli-data-dir ~/.vscode-server/cli --telemetry-level all agent host --port 0 --new-instance --user-data-dir \'/home/user/.vscode-remote\' --idle-timeout 60',
+			);
+		});
+
+		test('propagates telemetry disablement to a new dedicated agent host', () => {
+			assert.strictEqual(
+				buildAgentHostSpawnCommand('~/.vscode-server/code', '~/.vscode-server/cli', '/home/user/.vscode-remote', TelemetryConfiguration.OFF),
+				'~/.vscode-server/code --cli-data-dir ~/.vscode-server/cli --telemetry-level off agent host --port 0 --new-instance --user-data-dir \'/home/user/.vscode-remote\' --idle-timeout 300',
 			);
 		});
 
 		test('rejects unsafe idle timeout values', () => {
-			assert.throws(() => buildAgentHostSpawnCommand('~/.vscode-server/code', '~/.vscode-server/cli', '/x', 0), /Unsafe idle timeout/);
-			assert.throws(() => buildAgentHostSpawnCommand('~/.vscode-server/code', '~/.vscode-server/cli', '/x', -1), /Unsafe idle timeout/);
-			assert.throws(() => buildAgentHostSpawnCommand('~/.vscode-server/code', '~/.vscode-server/cli', '/x', 1.5), /Unsafe idle timeout/);
+			assert.throws(() => buildAgentHostSpawnCommand('~/.vscode-server/code', '~/.vscode-server/cli', '/x', TelemetryConfiguration.ON, 0), /Unsafe idle timeout/);
+			assert.throws(() => buildAgentHostSpawnCommand('~/.vscode-server/code', '~/.vscode-server/cli', '/x', TelemetryConfiguration.ON, -1), /Unsafe idle timeout/);
+			assert.throws(() => buildAgentHostSpawnCommand('~/.vscode-server/code', '~/.vscode-server/cli', '/x', TelemetryConfiguration.ON, 1.5), /Unsafe idle timeout/);
 		});
 
 		test('always includes --new-instance so an existing standalone is never silently reused', () => {
-			const cmd = buildAgentHostSpawnCommand('~/.vscode-server/code', '~/.vscode-server/cli', '/x');
+			const cmd = buildAgentHostSpawnCommand('~/.vscode-server/code', '~/.vscode-server/cli', '/x', TelemetryConfiguration.ON);
 			assert.ok(cmd.includes(' --new-instance '), 'spawn command must request a genuinely new instance, not reuse an existing standalone');
 		});
 	});
@@ -555,8 +573,20 @@ suite('SSH Remote Agent Host Helpers', () => {
 			const exec: ISshExec = async () => ({ stdout: 'not json', stderr: '', code: 0 });
 			await assert.rejects(
 				() => runAgentEndpoints(exec, '~/.vscode-server/code', '~/.vscode-server/cli'),
-				/unparsable output/,
+				/unparsable output \(8 characters\)$/,
 			);
+		});
+
+		test('parses JSON after legacy CLI log output', async () => {
+			const output = `[2026-08-06 15:31:19] info Pruning stale local endpoint registry entry\n${JSON.stringify({ userDataPath: '/tmp/user-data', endpoints: [] })}`;
+			const exec: ISshExec = async () => ({ stdout: output, stderr: '', code: 0 });
+
+			const result = await runAgentEndpoints(exec, '~/.vscode-server/code', '~/.vscode-server/cli');
+
+			assert.deepStrictEqual(result, {
+				userDataPath: '/tmp/user-data',
+				endpoints: [],
+			});
 		});
 	});
 

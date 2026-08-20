@@ -38,7 +38,13 @@ export interface IToastResult {
  */
 export type INativeZipFile =
 	| { readonly path: string; readonly contents: string }
-	| { readonly path: string; readonly source: URI; readonly size: number };
+	| { readonly path: string; readonly source: URI; readonly size: number }
+	| { readonly sourceArchive: URI };
+
+export interface INativeZipOptions {
+	readonly maxSize: number;
+	readonly maxEntries: number;
+}
 
 export interface IOpenAgentsWindowOptions {
 	readonly folderUri?: UriComponents;
@@ -386,7 +392,7 @@ export interface ICommonNativeHostService {
 	 * file `source` URI together with the number of leading bytes (`size`) to
 	 * stream from it.
 	 */
-	createZipFile(zipPath: URI, files: INativeZipFile[]): Promise<void>;
+	createZipFile(zipPath: URI, files: INativeZipFile[], options?: INativeZipOptions): Promise<void>;
 
 	// Power
 	getSystemIdleState(idleThreshold: number): Promise<SystemIdleState>;

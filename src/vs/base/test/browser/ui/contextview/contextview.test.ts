@@ -47,7 +47,7 @@ suite('ContextView', () => {
 	test('hide() delays render disposal for close animations', () => {
 		const clock = sinon.useFakeTimers();
 		const container = $('.container');
-		container.classList.add('style-override', 'monaco-enable-motion');
+		container.classList.add('modern-ui', 'monaco-enable-motion');
 		const contextView = new ContextView(container, ContextViewDOMPosition.ABSOLUTE);
 
 		let disposeCount = 0;
@@ -61,7 +61,7 @@ suite('ContextView', () => {
 			closeAnimation: {
 				className: 'closing',
 				duration: 100,
-				requiredAncestorClasses: ['style-override', 'monaco-enable-motion']
+				requiredAncestorClasses: ['modern-ui', 'monaco-enable-motion']
 			}
 		};
 
@@ -72,11 +72,13 @@ suite('ContextView', () => {
 		assert.deepStrictEqual({
 			disposeCount,
 			hasClosingClass: contextView.getViewElement().classList.contains('closing'),
-			animationDuration: contextView.getViewElement().style.getPropertyValue(CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE)
+			animationDuration: contextView.getViewElement().style.getPropertyValue(CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE),
+			inert: contextView.getViewElement().inert
 		}, {
 			disposeCount: 0,
 			hasClosingClass: true,
-			animationDuration: '100ms'
+			animationDuration: '100ms',
+			inert: true
 		});
 
 		clock.tick(100);
@@ -84,11 +86,13 @@ suite('ContextView', () => {
 		assert.deepStrictEqual({
 			disposeCount,
 			hasClosingClass: contextView.getViewElement().classList.contains('closing'),
-			animationDuration: contextView.getViewElement().style.getPropertyValue(CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE)
+			animationDuration: contextView.getViewElement().style.getPropertyValue(CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE),
+			inert: contextView.getViewElement().inert
 		}, {
 			disposeCount: 1,
 			hasClosingClass: false,
-			animationDuration: ''
+			animationDuration: '',
+			inert: false
 		});
 
 		contextView.dispose();
@@ -211,7 +215,7 @@ suite('ContextView', () => {
 
 	test('menu motion does not retain a containing block for submenus (#326248)', () => {
 		const container = $('.container');
-		container.classList.add('style-override', 'monaco-enable-motion');
+		container.classList.add('modern-ui', 'monaco-enable-motion');
 		document.body.appendChild(container);
 
 		const surface = $('.monaco-scrollable-element');

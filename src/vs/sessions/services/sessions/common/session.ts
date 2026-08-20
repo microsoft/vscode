@@ -14,7 +14,7 @@ import { localize } from '../../../../nls.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 
 export interface ISessionType {
-	/** Unique identifier (e.g., 'copilot-cli', 'copilot-cloud', 'claude-code'). */
+	/** Unique identifier (e.g., 'copilot-cli', 'copilot-cloud', 'agent-host-claude'). */
 	readonly id: string;
 	/** Display label (e.g., 'Copilot CLI', 'Cloud'). */
 	readonly label: string;
@@ -41,10 +41,13 @@ export interface ISessionType {
 }
 
 /**
- * What a session type needs before it can serve a request. The three values are
- * mutually exclusive: {@link Unusable} is deliberately distinct from
- * {@link GitHub}, because a type that cannot run at all must not be presented as
- * a reason to demand GitHub sign-in (see `src/vs/sessions/CONTEXT.md`).
+ * What a session type needs before it can serve a request.
+ *
+ * Deliberately three states rather than a boolean. A boolean collapses
+ * {@link Unusable} into {@link GitHub}, which turns "this agent cannot run" into
+ * a sign-in prompt that would not fix anything — the user signs in, and the type
+ * is still broken. Providers resolve the value from what their agent advertises,
+ * so it moves as credentials come and go rather than being a fixed trait.
  */
 export const enum SessionTypeAuthRequirement {
 	/** Runs on the user's own credentials — usable while signed out of GitHub. */
@@ -53,9 +56,8 @@ export const enum SessionTypeAuthRequirement {
 	GitHub = 'github',
 	/**
 	 * Cannot run at all right now, and signing in to GitHub would not help — e.g.
-	 * Claude pinned to native mode by an explicit `claudeUseCopilotProxy: false`
-	 * with no local Claude credentials. Surfaces as "no models", not a sign-in
-	 * prompt.
+	 * Claude advertising the Copilot resource as optional but publishing an empty
+	 * model catalog. Surfaces as "no models", not a sign-in prompt.
 	 */
 	Unusable = 'unusable',
 }
@@ -81,6 +83,19 @@ export const enum SessionStatus {
 /** Whether a session still has active work, including work blocked on user input. */
 export function isActiveSessionStatus(status: SessionStatus): boolean {
 	return status === SessionStatus.InProgress || status === SessionStatus.NeedsInput;
+}
+
+export function getSessionStatusMessage(status: SessionStatus, description: IMarkdownString | undefined): IMarkdownString | string | undefined {
+	switch (status) {
+		case SessionStatus.InProgress:
+			return description ?? localize('working', "Working...");
+		case SessionStatus.NeedsInput:
+			return description ?? localize('needsInput', "Input needed");
+		case SessionStatus.Error:
+			return description ?? localize('failed', "Failed");
+		default:
+			return undefined;
+	}
 }
 
 /**
@@ -186,6 +201,12 @@ export interface ISessionWorkspace {
 	 * Whether this workspace is a virtual
 	 */
 	readonly isVirtualWorkspace: boolean;
+	/**
+	 * Overrides the type icon that would otherwise be inferred from the workspace's shape, for
+	 * providers whose workspaces are not structurally distinguishable. Unlike {@link icon}, which
+	 * identifies the workspace in pickers, this is drawn inline in dense rows.
+	 */
+	readonly typeIcon?: ThemeIcon;
 }
 
 /**
@@ -210,6 +231,53 @@ export function getSessionWorkspaceKind(workspace: ISessionWorkspace | undefined
 		return SessionWorkspaceKind.Folder;
 	}
 	return SessionWorkspaceKind.Worktree;
+}
+
+/**
+ * The kinds of artifact an agent can record on a session.
+ */
+export const enum SessionArtifactKind {
+	PullRequest = 'pullRequest',
+	Issue = 'issue',
+	Commit = 'commit',
+	Website = 'website',
+	File = 'file',
+	Resource = 'resource',
+}
+
+/** Something the agent recorded for the user to open. Provider-neutral. */
+export interface ISessionArtifact {
+	readonly id: string;
+	readonly kind: SessionArtifactKind;
+	readonly label: string;
+	/** Link opened when activating a pull request, issue, commit or website. */
+	readonly link?: URI;
+	/** Resource opened when activating a file or resource artifact. */
+	readonly uri?: URI;
+	/** Commit hash, for commit artifacts. */
+	readonly commitHash?: string;
+	/** Whether a pull request or issue lives on GitHub. */
+	readonly isGitHub?: boolean;
+}
+
+/** The kinds of customization a chat can use. */
+export const enum SessionCustomizationKind {
+	Agent = 'agent',
+	Skill = 'skill',
+	Instruction = 'instruction',
+	Hook = 'hook',
+	Prompt = 'prompt',
+	McpServer = 'mcpServer',
+	Plugin = 'plugin',
+}
+
+/** A customization the agent used or read during a chat. Provider-neutral. */
+export interface ISessionChatCustomization {
+	readonly id: string;
+	readonly kind: SessionCustomizationKind;
+	readonly name: string;
+	/** Source file or directory, used to reveal the customization. */
+	readonly uri?: URI;
 }
 
 /**
@@ -476,6 +544,12 @@ export interface IChatOrigin {
 	 * resource of the chat that spawned it. Undefined for user-originated chats.
 	 */
 	readonly parentChat?: URI;
+	/**
+	 * For a {@link ChatOriginKind.Fork} or {@link ChatOriginKind.SideChat}, the
+	 * id of the turn in {@link parentChat} the chat branched from. Undefined for
+	 * other origins.
+	 */
+	readonly turnId?: string;
 	readonly selection?: ISideChatSelection;
 }
 
@@ -494,6 +568,20 @@ export interface IChatCapabilities {
 
 /** Capabilities assumed for a chat that does not advertise its own. */
 export const DEFAULT_CHAT_CAPABILITIES: IChatCapabilities = { canRename: true, canDelete: true };
+
+/**
+ * Whether a chat's model is the chat's own or one put there on its behalf. This is the only
+ * question model selection asks of it: `chat.defaultModel` seeds a chat that has no model of its
+ * own, and the model id alone cannot say which case this is.
+ *
+ * Client-local: not persisted, and it does not cross the agent-host wire.
+ */
+export const enum ChatModelSource {
+	/** The chat's own: the user picked it, or it was restored from where the chat left off. */
+	Chosen = 'chosen',
+	/** Put there for the chat: inherited from the chat it was created from, or picked for it. */
+	CarriedOver = 'carriedOver',
+}
 
 /**
  * A single chat within a session, produced by the sessions management layer.
@@ -522,10 +610,23 @@ export interface IChat {
 	 * this session's workspace. Providers that cannot determine this omit the observable.
 	 */
 	readonly lastTurnChanges?: IObservable<readonly ISessionTurnFileChange[]>;
+	/**
+	 * The customizations the agent used or read during this chat, in the order
+	 * they were first referenced and de-duplicated. Derived from the chat's live
+	 * output stream. Providers that cannot determine this omit the observable.
+	 */
+	readonly customizations?: IObservable<readonly ISessionChatCustomization[]>;
 	/** Checkpoints associated with the chat. */
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
+	/**
+	 * Whether {@link modelId} is this chat's own model. Required rather than optional: an absent
+	 * value is read as {@link ChatModelSource.Chosen}, which is what stops `chat.defaultModel`
+	 * overwriting it, and a provider should not be able to claim that by saying nothing. A
+	 * provider with no model, or one it cannot account for, states `undefined` deliberately.
+	 */
+	readonly modelSource: IObservable<ChatModelSource | undefined>;
 	/** Currently selected mode identifier and kind. */
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	/** Whether the chat is archived. */
@@ -601,6 +702,10 @@ export interface ISession {
 	readonly worktreePending?: IObservable<boolean>;
 	/** Whether this is a workspace-less "quick chat". Only quick-chat-capable providers set this; absent means `false`. */
 	readonly isQuickChat?: IObservable<boolean>;
+	/** Whether this session is associated with an automation run. Absent means `false`. */
+	readonly isAutomation?: IObservable<boolean>;
+	/** Whether this session was discovered in an application other than the current host. Absent means `false`. */
+	readonly isExternal?: IObservable<boolean>;
 
 	// Reactive properties
 
@@ -610,6 +715,8 @@ export interface ISession {
 	readonly updatedAt: IObservable<Date>;
 	/** Current session status. */
 	readonly status: IObservable<SessionStatus>;
+	/** Provider-owned icon for the latest completed source-control workflow outcome. */
+	readonly completedStateIcon?: IObservable<ThemeIcon | undefined>;
 	/** Summary of file changes produced by the session. */
 	readonly changesSummary?: IObservable<ISessionChangesSummary | undefined>;
 	/** File changes produced by the session. */
@@ -623,6 +730,8 @@ export interface ISession {
 	 * cannot determine this report an empty array (or omit the observable).
 	 */
 	readonly externalChanges?: IObservable<readonly ISessionFile[]>;
+	/** Artifacts the agent recorded for this session (pull requests, issues, files, …). */
+	readonly artifacts?: IObservable<readonly ISessionArtifact[]>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
@@ -732,6 +841,7 @@ export interface ISessionCapabilities {
  * of contributed values.
  */
 export const SESSION_WORKSPACE_GROUP_LOCAL = localize('sessionWorkspaceGroup.local', "Local");
+export const SESSION_WORKSPACE_GROUP_GITHUB = localize('sessionWorkspaceGroup.github', "GitHub");
 export const SESSION_WORKSPACE_GROUP_REMOTE = localize('sessionWorkspaceGroup.remote', "Remote");
 
 /**
@@ -881,6 +991,8 @@ export function sessionWorkspaceEqual(a: ISessionWorkspace | undefined, b: ISess
 		|| a.description !== b.description
 		|| a.group !== b.group
 		|| !ThemeIcon.isEqual(a.icon, b.icon)
+		|| !!a.typeIcon !== !!b.typeIcon
+		|| (!!a.typeIcon && !!b.typeIcon && !ThemeIcon.isEqual(a.typeIcon, b.typeIcon))
 		|| a.requiresWorkspaceTrust !== b.requiresWorkspaceTrust
 		|| a.isVirtualWorkspace !== b.isVirtualWorkspace
 		|| a.folders.length !== b.folders.length) {

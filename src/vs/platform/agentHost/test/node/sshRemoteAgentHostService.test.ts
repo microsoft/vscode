@@ -12,6 +12,8 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
+import { TelemetryConfiguration } from '../../../telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION, type AgentHostEndpointAddress, type IAgentHostEndpointMetadata } from '../../common/agentHostEndpointRegistry.js';
 import { SSHAuthMethod, type ISSHAgentHostConfig, type ISSHConnectProgress, type ISSHEndpointSelection, type ISSHEndpointSelectionRequest, type ISSHKeyboardInteractivePrompt, type ISSHKeyboardInteractiveRequest } from '../../common/sshRemoteAgentHost.js';
 import { SSHRemoteAgentHostMainService, makeAuthHandler, type SSHAuthAttempt } from '../../node/sshRemoteAgentHostService.js';
@@ -19,6 +21,19 @@ import type { AnyAuthMethod, AuthenticationType, ConnectConfig } from 'ssh2';
 
 const dataFolderName = '.vscode-insiders';
 const quality = 'insider';
+
+class RecordingLogService extends NullLogService {
+	readonly errors: string[] = [];
+	readonly warnings: string[] = [];
+
+	override error(message: string | Error, ...args: unknown[]): void {
+		this.errors.push([message, ...args].map(value => value instanceof Error ? value.message : String(value)).join(' '));
+	}
+
+	override warn(message: string, ...args: unknown[]): void {
+		this.warnings.push([message, ...args].map(String).join(' '));
+	}
+}
 
 /** Fixture builder for a shared-registry endpoint entry (`code agent endpoints` result). */
 function makeEndpoint(overrides: Partial<IAgentHostEndpointMetadata> & Pick<IAgentHostEndpointMetadata, 'type' | 'pid' | 'instanceId'>): IAgentHostEndpointMetadata {
@@ -38,8 +53,8 @@ function agentEndpointsStdout(endpoints: readonly IAgentHostEndpointMetadata[], 
 
 /**
  * Build the exec-response queue for the common "CLI already installed"
- * registry-discovery path: `uname -s`, `uname -m`, `<cliBin> --version`
- * (reuse), `agent endpoints`, then one `kill -0 <pid>` per distinct live
+ * registry-discovery path: `uname -s`, `uname -m`, `<cliBin> --version &&
+ * <cliBin> update` (reuse), `agent endpoints`, then one `kill -0 <pid>` per distinct live
  * pid (all reported alive). Tests that need a dead PID, a missing CLI, or
  * additional responses (e.g. for a subsequent spawn) build their queues
  * manually or append to this one.
@@ -48,7 +63,7 @@ function discoveryResponses(entries: readonly IAgentHostEndpointMetadata[], user
 	const responses: Array<{ stdout: string; code: number }> = [
 		{ stdout: 'Linux\n', code: 0 },
 		{ stdout: 'x86_64\n', code: 0 },
-		{ stdout: '1.0.0\n', code: 0 },
+		{ stdout: '1.0.0\n__vscode_cli_update_exit_code__:0\n', code: 0 },
 		{ stdout: agentEndpointsStdout(entries, userDataPath), code: 0 },
 	];
 	for (const _pid of new Set(entries.map(e => e.pid))) {
@@ -288,7 +303,7 @@ class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainServic
 	}
 
 	protected override async _startRemoteAgentHost(
-		_client: unknown, _cliBin: string | undefined, _cliDataDir: string | undefined, _commandOverride?: string,
+		_client: unknown, _cliBin: string | undefined, _cliDataDir: string | undefined, _commandOverride?: string, _telemetryLevel?: TelemetryConfiguration,
 	) {
 		this.startCalled++;
 		return { ...this.startResult, stream: new MockSSHChannel() as never };
@@ -339,6 +354,9 @@ class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainServic
 			identityFile: [],
 			identityAgent: undefined,
 			forwardAgent: false,
+			userKnownHostsFiles: [],
+			globalKnownHostsFiles: [],
+			strictHostKeyChecking: undefined,
 		};
 	}
 
@@ -447,6 +465,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		service = new TestableSSHRemoteAgentHostMainService(
 			logService,
 			productService as IProductService,
+			NullTelemetryService,
 		);
 		disposables.add(service);
 	});
@@ -572,6 +591,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		const execCalls = service.mockClients[0].execCalls;
 		assert.ok(execCalls.some(c => c.includes('--idle-timeout 300')), `should spawn with idle timeout; saw: ${JSON.stringify(execCalls)}`);
 		assert.ok(execCalls.some(c => c.includes('--new-instance')), `spawn must request a genuinely new instance; saw: ${JSON.stringify(execCalls)}`);
+		assert.ok(execCalls.some(c => c.includes('--telemetry-level off')), `spawn must apply telemetry disablement; saw: ${JSON.stringify(execCalls)}`);
 	});
 
 	test('reuses the single live standalone deterministically without a picker', async () => {
@@ -1172,6 +1192,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 				quality,
 				dataFolderName,
 			} as IProductService,
+			NullTelemetryService,
 		));
 		const request = new DeferredPromise<ISSHKeyboardInteractiveRequest>();
 		disposables.add(kbiService.onDidRequestKeyboardInteractive(kbiRequest => request.complete(kbiRequest)));
@@ -1224,15 +1245,19 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 	// --- CLI install flow ---
 
-	test('skips CLI download when CLI is already installed', async () => {
+	test('refreshes an installed CLI instead of downloading it directly', async () => {
 		service.execResponses = discoveryResponses([makeEndpoint({ type: 'standalone', pid: 1234, instanceId: 'inst-1' })]);
 
 		await service.connect(makeConfig({ sshConfigHost: 'myhost' }));
 
-		// The exec calls should NOT include any curl/tar/install commands
 		const execCalls = service.mockClients[0].execCalls;
-		assert.ok(!execCalls.some(c => c.includes('curl') || c.includes('tar')),
-			'should not download CLI when already installed');
+		assert.deepStrictEqual({
+			refreshAttempted: execCalls.some(c => c.includes('code-insiders update')),
+			downloadAttempted: execCalls.some(c => c.includes('curl') || c.includes('tar')),
+		}, {
+			refreshAttempted: true,
+			downloadAttempted: false,
+		});
 	});
 
 	test('downloads CLI when version check fails', async () => {
@@ -1250,6 +1275,60 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		const execCalls = service.mockClients[0].execCalls;
 		assert.ok(execCalls.some(c => c.includes('curl')),
 			'should download CLI when not installed');
+	});
+
+	test('warns and reuses the installed CLI when refresh fails', async () => {
+		const logService = new RecordingLogService();
+		const productService: Pick<IProductService, '_serviceBrand' | 'quality' | 'dataFolderName'> = {
+			_serviceBrand: undefined,
+			quality,
+			dataFolderName,
+		};
+		const loggingService = disposables.add(new TestableSSHRemoteAgentHostMainService(
+			logService,
+			productService as IProductService,
+			NullTelemetryService,
+		));
+		loggingService.execResponses = [
+			{ stdout: 'Linux\n', code: 0 },
+			{ stdout: 'x86_64\n', code: 0 },
+			{ stdout: '1.0.0\nupdate failed\n__vscode_cli_update_exit_code__:1\n', code: 0 },
+			{ stdout: agentEndpointsStdout([makeEndpoint({ type: 'standalone', pid: 1234, instanceId: 'inst-1' })]), code: 0 },
+			{ stdout: '', code: 0 },
+		];
+
+		await loggingService.connect(makeConfig({ sshConfigHost: 'myhost' }));
+
+		assert.deepStrictEqual(logService.warnings, [
+			'[SSHRemoteAgentHost] Desktop has no product commit; falling back to non-pinned CLI install at ~/.vscode-server-oss/code-insiders.',
+			'[SSHRemoteAgentHost] Could not refresh the dev-build remote CLI at ~/.vscode-server-oss/code-insiders; reusing the existing executable: update exited 1',
+		]);
+	});
+
+	test('logs connection failures in the shared service', async () => {
+		const logService = new RecordingLogService();
+		const productService: Pick<IProductService, '_serviceBrand' | 'quality' | 'dataFolderName'> = {
+			_serviceBrand: undefined,
+			quality,
+			dataFolderName,
+		};
+		const loggingService = disposables.add(new TestableSSHRemoteAgentHostMainService(
+			logService,
+			productService as IProductService,
+			NullTelemetryService,
+		));
+		loggingService.execResponses = [
+			{ stdout: 'Linux\n', code: 0 },
+			{ stdout: 'x86_64\n', code: 0 },
+			{ stdout: '1.0.0\n', code: 0 },
+			{ stdout: 'not json', code: 0 },
+		];
+
+		await assert.rejects(loggingService.connect(makeConfig({ sshConfigHost: 'myhost' })));
+
+		assert.deepStrictEqual(logService.errors, [
+			`[SSHRemoteAgentHost] Failed to connect to myhost 'agent endpoints' produced unparsable output (8 characters)`,
+		]);
 	});
 
 	// --- Commit-pinned install flow (release builds with productService.commit) ---
@@ -1271,6 +1350,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 			pinnedService = new TestableSSHRemoteAgentHostMainService(
 				logService,
 				productService as IProductService,
+				NullTelemetryService,
 			);
 			disposables.add(pinnedService);
 		});
@@ -1560,6 +1640,7 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 		service = new AuthAttemptsTestService(
 			logService,
 			productService as IProductService,
+			NullTelemetryService,
 		);
 		disposables.add(service);
 	});

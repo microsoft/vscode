@@ -19,13 +19,13 @@
 }
 
 .monaco-workbench.agent-sessions-workbench > .monaco-grid-view {
-	margin: 0 var(--vscode-spacing-size100) var(--vscode-spacing-size100) 4px;
+	margin: 0 var(--vscode-agents-layout-floatingPanelGap) var(--vscode-agents-layout-floatingPanelGap) 0;
 	width: auto;
-	height: calc(100% - var(--vscode-spacing-size100));
+	height: calc(100% - var(--vscode-agents-layout-floatingPanelGap));
 }
 
 .monaco-workbench.agent-sessions-workbench.nosidebar > .monaco-grid-view {
-	margin-left: var(--vscode-spacing-size100);
+	margin-left: var(--vscode-agents-layout-floatingPanelGap);
 }
 
 .monaco-workbench.agent-sessions-workbench.shell-gradient-background {
@@ -88,6 +88,15 @@
 .monaco-workbench.agent-sessions-workbench > .notifications-toasts {
 	right: 15px;
 	bottom: 15px;
+}
+
+.monaco-workbench.agent-sessions-workbench .monaco-dialog-modal-block.sessions-signing-in-dialog-modal-block {
+	z-index: 2570; /* below sign-in notifications and Quick Input (2571), and normal dialogs (2575) */
+}
+
+.monaco-workbench.agent-sessions-workbench.sessions-signing-in-dialog-visible > .notifications-toasts,
+.monaco-workbench.agent-sessions-workbench.sessions-signing-in-dialog-visible .quick-input-widget {
+	z-index: 2571; /* above the sign-in dialog (2570), below normal dialogs (2575) */
 }
 
 .monaco-workbench.agent-sessions-workbench.nostatusbar > .notifications-center,
@@ -185,10 +194,16 @@
 	box-sizing: border-box;
 }
 
-.monaco-workbench.vs.agent-sessions-workbench .agents-part-card,
-.monaco-workbench.vs.agent-sessions-workbench .part.auxiliarybar,
+.monaco-workbench.vs.agent-sessions-workbench .agents-part-card {
+	border-color: var(--vscode-agentsCard-border, var(--vscode-agentsPanel-border, var(--vscode-widget-border, transparent)));
+}
+
 .monaco-workbench.vs.agent-sessions-workbench .part.panel {
-	border-color: var(--vscode-editorWidget-border, var(--vscode-widget-border, transparent));
+	border-color: var(--vscode-agentsBottomPanel-border, var(--vscode-agentsPanel-border, var(--vscode-widget-border, transparent)));
+}
+
+.monaco-workbench.vs.agent-sessions-workbench .part.auxiliarybar {
+	border-color: var(--vscode-agentsPanel-border, var(--vscode-widget-border, transparent));
 }
 
 .agent-sessions-workbench .monaco-sash:before {

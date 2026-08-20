@@ -1,0 +1,45 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call ask_user exactly once to ask "Which fruit?" with choices "Apple" and "Banana". After the answer, reply with only the selected fruit.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: ask_user
+          input:
+            question: Which fruit?
+            choices:
+              - Apple
+              - Banana
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call ask_user exactly once to ask "Which fruit?" with choices "Apple" and "Banana". After the answer, reply with only the selected fruit.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: ask_user
+              input:
+                question: Which fruit?
+                choices:
+                  - Apple
+                  - Banana
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: The execution of this tool, or a previous tool was interrupted.
+        - role: user
+          content: Reply exactly "replacement".
+    response:
+      content: replacement
+      stopReason: end_turn

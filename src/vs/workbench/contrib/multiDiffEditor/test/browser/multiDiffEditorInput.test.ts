@@ -4,19 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert, { strictEqual } from 'assert';
-import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
+import { CancellationError, errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 import { Emitter, Event, ValueWithChangeEvent } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
 import { observableValue, ValueWithChangeEventFromObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { ITextResourceConfigurationChangeEvent, ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ITextFileEditorModelManager, ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { MultiDiffEditorInput, ResourceConfigurationEventDispatcher } from '../../browser/multiDiffEditorInput.js';
-import { IMultiDiffSourceResolverService } from '../../browser/multiDiffSourceResolverService.js';
+import { IMultiDiffSourceResolverService, MultiDiffEditorItem } from '../../browser/multiDiffSourceResolverService.js';
 
 suite('MultiDiffEditorInput', () => {
 
@@ -146,5 +147,44 @@ suite('MultiDiffEditorInput', () => {
 			'Current Turn Changes (0 files)',
 			'Last Turn Changes (0 files)',
 		]);
+	});
+
+	test('disposes models that finish resolving after input disposal', async () => {
+		const referenceRequested = new DeferredPromise<void>();
+		const referenceResult = new DeferredPromise<IReference<IResolvedTextEditorModel>>();
+		let referenceDisposed = false;
+		const textModelService = new class extends mock<ITextModelService>() {
+			override createModelReference() {
+				void referenceRequested.complete();
+				return referenceResult.p;
+			}
+		}();
+		const textFileService = new class extends mock<ITextFileService>() {
+			override readonly files = new class extends mock<ITextFileEditorModelManager>() {
+				override readonly onDidChangeDirty = Event.None;
+			}();
+		}();
+		const input = disposables.add(new MultiDiffEditorInput(
+			URI.parse('multi-diff-editor:test'),
+			'Test',
+			[new MultiDiffEditorItem(undefined, URI.parse('file:///modified.ts'), undefined)],
+			false,
+			textModelService,
+			new class extends mock<ITextResourceConfigurationService>() { }(),
+			new class extends mock<IInstantiationService>() { }(),
+			new class extends mock<IMultiDiffSourceResolverService>() { }(),
+			textFileService,
+		));
+
+		const viewModelPromise = input.getViewModel();
+		await referenceRequested.p;
+		input.dispose();
+		await referenceResult.complete({
+			object: new class extends mock<IResolvedTextEditorModel>() { }(),
+			dispose: () => referenceDisposed = true,
+		});
+
+		await assert.rejects(viewModelPromise, CancellationError);
+		assert.strictEqual(referenceDisposed, true);
 	});
 });

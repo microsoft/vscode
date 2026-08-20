@@ -29,7 +29,7 @@ import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../
 import { ChatSessionStatus as AgentSessionStatus, IChatSessionFileChange, IChatSessionFileChange2, IChatSessionItem, IChatSessionsService, isSessionInProgressStatus, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IChatWidgetService } from '../chat.js';
-import { COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME, getCopilotCliSessionRawId } from '../copilotCliEventsUri.js';
+import { dedupeMigratedCopilotCliSessions } from '../copilotCliEventsUri.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName, isAgentHostTarget, isBuiltInAgentSessionProvider } from './agentSessions.js';
 
 //#region Interfaces, Types
@@ -595,32 +595,15 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	/**
 	 * Hide the extension-host `copilotcli:` row when its agent-host
 	 * `agent-host-copilotcli:` twin is present, so the list shows a single entry
-	 * per legacy Copilot CLI session — the agent-host one, which migrates on open.
-	 * Only display is deduped; {@link getSession} and the cache use the full map so
-	 * a hidden row can still resolve.
+	 * per legacy Copilot CLI session — the agent-host one.
+	 *
+	 * A legacy row with no twin yet stays visible: opening it redirects through the
+	 * agent host and adopts it, so it is never a dead end.
+	 *
+	 * Only display is deduped; {@link getSession} and the cache use the full map.
 	 */
 	private _dedupeMigratedCopilotCliSessions(sessions: IAgentSession[]): IAgentSession[] {
-		let migratedRawIds: Set<string> | undefined;
-		for (const session of sessions) {
-			if (session.resource.scheme === COPILOT_CLI_LOCAL_AH_SCHEME) {
-				const rawId = getCopilotCliSessionRawId(session.resource);
-				if (rawId) {
-					(migratedRawIds ??= new Set<string>()).add(rawId);
-				}
-			}
-		}
-		if (!migratedRawIds) {
-			return sessions;
-		}
-		return sessions.filter(session => {
-			if (session.resource.scheme === COPILOT_CLI_EH_SCHEME) {
-				const rawId = getCopilotCliSessionRawId(session.resource);
-				if (rawId && migratedRawIds!.has(rawId)) {
-					return false;
-				}
-			}
-			return true;
-		});
+		return dedupeMigratedCopilotCliSessions(sessions, session => session.resource);
 	}
 
 	private _changedSignal: IObservable<void> | undefined;
@@ -735,7 +718,9 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					icon = session.iconPath ?? Codicon.terminal;
 				}
 
-				const changes = session.changes;
+				// A lazy provider refresh omits changes. Keep only the previous aggregate
+				// summary so cached counts survive without retaining hydrated file arrays.
+				const changes = session.changes ?? getAgentChangesSummary(this._sessions.get(session.resource)?.changes);
 				const normalizedChanges = changes && !(changes instanceof Array)
 					? { files: changes.files, insertions: changes.insertions, deletions: changes.deletions }
 					: changes;
@@ -1139,7 +1124,7 @@ interface ISerializedAgentSessionState extends IAgentSessionState {
 	readonly resource: UriComponents /* old shape */ | string /* new shape that is more compact */;
 }
 
-class AgentSessionsCache {
+export class AgentSessionsCache {
 
 	private static readonly SESSIONS_STORAGE_KEY = 'agentSessions.model.cache';
 	private static readonly STATE_STORAGE_KEY = 'agentSessions.state.cache';
@@ -1169,7 +1154,7 @@ class AgentSessionsCache {
 
 			timing: session.timing,
 
-			changes: session.changes,
+			changes: getAgentChangesSummary(session.changes),
 			metadata: session.metadata,
 			legacyResource: session.legacyResource?.toString()
 		} satisfies ISerializedAgentSession));
@@ -1207,12 +1192,7 @@ class AgentSessionsCache {
 					lastRequestEnded: session.timing.lastRequestEnded,
 				},
 
-				changes: Array.isArray(session.changes) ? session.changes.map((change: IChatSessionFileChange) => ({
-					modifiedUri: URI.revive(change.modifiedUri),
-					originalUri: change.originalUri ? URI.revive(change.originalUri) : undefined,
-					insertions: change.insertions,
-					deletions: change.deletions,
-				})) : session.changes,
+				changes: getAgentChangesSummary(session.changes),
 				metadata: session.metadata,
 				legacyResource: session.legacyResource ? URI.parse(session.legacyResource) : undefined,
 			}));

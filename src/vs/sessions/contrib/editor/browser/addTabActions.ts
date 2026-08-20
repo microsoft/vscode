@@ -16,15 +16,15 @@ import { IBrowserViewWorkbenchService } from '../../../../workbench/contrib/brow
 import { openNewSearchEditor } from '../../../../workbench/contrib/searchEditor/browser/searchEditorActions.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
-import { SinglePaneChangesTabMissingContext, SinglePaneFilesTabMissingContext } from '../../../common/contextkeys.js';
+import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
+import { IsQuickChatSessionContext, SessionIsCreatedContext, SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../common/contextkeys.js';
 import { SessionsCategories } from '../../../common/categories.js';
+import { NEW_FILE_TAB_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { EmptyFileEditorInput } from './emptyFileEditorInput.js';
 import { Menus } from '../../../browser/menus.js';
 
-export const NEW_FILE_TAB_COMMAND_ID = 'workbench.action.agentSessions.newFileTab';
 export const NEW_BROWSER_TAB_COMMAND_ID = 'workbench.action.agentSessions.newBrowserTab';
 export const NEW_SEARCH_TAB_COMMAND_ID = 'workbench.action.agentSessions.newSearchTab';
 export const NEW_CHANGES_TAB_COMMAND_ID = 'workbench.action.agentSessions.newChangesTab';
@@ -37,8 +37,22 @@ const addTabActionWhen = ContextKeyExpr.and(
 
 const addTabLayoutWhen = ContextKeyExpr.and(
 	addTabActionWhen,
-	IsTopRightEditorGroupContext,
-	MainEditorAreaVisibleContext);
+	IsTopRightEditorGroupContext);
+
+const singleEditorTitleWhen = EditorTabsVisibleContext.negate();
+
+const changesTabActionWhen = ContextKeyExpr.and(
+	addTabActionWhen,
+	SessionIsCreatedContext,
+	SinglePaneChangesTabAvailableContext);
+
+const filesTabActionWhen = ContextKeyExpr.and(
+	addTabActionWhen,
+	SinglePaneFilesTabAvailableContext);
+
+const searchTabActionWhen = ContextKeyExpr.and(
+	addTabActionWhen,
+	IsQuickChatSessionContext.negate());
 
 export class NewFileTabAction extends Action2 {
 
@@ -49,10 +63,10 @@ export class NewFileTabAction extends Action2 {
 			category: SessionsCategories.Sessions,
 			icon: Codicon.newFile,
 			f1: true,
-			precondition: addTabActionWhen,
+			precondition: filesTabActionWhen,
 			keybinding: {
 				weight: KeybindingWeight.SessionsContrib,
-				when: addTabActionWhen,
+				when: filesTabActionWhen,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE,
 			},
 			menu: {
@@ -60,7 +74,10 @@ export class NewFileTabAction extends Action2 {
 				group: 'navigation',
 				order: 1,
 				// Only offer when the Files tab is not already shown.
-				when: ContextKeyExpr.and(addTabLayoutWhen, SinglePaneFilesTabMissingContext)
+				when: ContextKeyExpr.and(
+					addTabLayoutWhen,
+					SinglePaneFilesTabAvailableContext,
+					ContextKeyExpr.or(singleEditorTitleWhen, SinglePaneFilesTabMissingContext))
 			}
 		});
 	}
@@ -119,17 +136,17 @@ export class NewSearchTabAction extends Action2 {
 			category: SessionsCategories.Sessions,
 			icon: Codicon.search,
 			f1: true,
-			precondition: addTabActionWhen,
+			precondition: searchTabActionWhen,
 			keybinding: {
 				weight: KeybindingWeight.SessionsContrib,
-				when: addTabActionWhen,
+				when: searchTabActionWhen,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyF,
 			},
 			menu: {
 				id: Menus.SessionsEditorTabsBarAddTab,
 				group: 'navigation',
 				order: 3,
-				when: addTabLayoutWhen
+				when: ContextKeyExpr.and(addTabLayoutWhen, IsQuickChatSessionContext.negate())
 			}
 		});
 	}
@@ -149,10 +166,10 @@ export class NewChangesTabAction extends Action2 {
 			category: SessionsCategories.Sessions,
 			icon: Codicon.gitCompare,
 			f1: false,
-			precondition: addTabActionWhen,
+			precondition: changesTabActionWhen,
 			keybinding: {
 				weight: KeybindingWeight.SessionsContrib,
-				when: addTabActionWhen,
+				when: changesTabActionWhen,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG,
 				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyG },
 			},
@@ -161,7 +178,10 @@ export class NewChangesTabAction extends Action2 {
 				group: 'navigation',
 				order: 0,
 				// Only offer when the session has a Changes editor but its tab is closed.
-				when: ContextKeyExpr.and(addTabLayoutWhen, SinglePaneChangesTabMissingContext)
+				when: ContextKeyExpr.and(
+					addTabLayoutWhen,
+					SinglePaneChangesTabAvailableContext,
+					ContextKeyExpr.or(singleEditorTitleWhen, SinglePaneChangesTabMissingContext))
 			}
 		});
 	}
@@ -171,10 +191,10 @@ export class NewChangesTabAction extends Action2 {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionChangesService = accessor.get(ISessionChangesService);
 
-		const sessionResource = sessionsService.activeSession.get()?.resource;
-		if (sessionResource) {
+		const session = sessionsService.activeSession.get();
+		if (session?.isCreated.get()) {
 			const group = editorGroupsService.mainPart.activeGroup;
-			await sessionChangesService.openChangesEditor(sessionResource, { index: group.count }, group);
+			await sessionChangesService.openChangesEditor(session.resource, { index: group.count }, group);
 		}
 	}
 }
