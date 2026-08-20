@@ -380,6 +380,56 @@ suite('ByokLmProxyService', () => {
 		});
 	});
 
+	test('bounds abandoned tool continuations while preserving recent state', async () => {
+		const captured: IByokLmChatRequest[] = [];
+		const maximumPendingContinuations = 256;
+
+		await withProxy(
+			async request => {
+				const index = captured.length;
+				captured.push(request);
+				if (index <= maximumPendingContinuations + 1) {
+					return {
+						responseId: `resp_${index}`,
+						output: [{ type: 'function_call', callId: `call_${index}`, name: 'tool', argumentsJson: '{}' }],
+					};
+				}
+				return { output: [{ type: 'message', content: [{ type: 'text', text: 'done' }] }] };
+			},
+			async handle => {
+				const post = async (index: number, input: unknown) => {
+					const response = await fetch(responsesUrl(handle, 'acme'), {
+						method: 'POST',
+						headers: authHeaders(handle, `sess-${index}`),
+						body: JSON.stringify({ model: 'm', input }),
+					});
+					assert.strictEqual(response.status, 200);
+					await response.text();
+				};
+
+				// Sessions can disappear after receiving a tool call. Fill the proxy,
+				// refresh its oldest entry, then overflow it with one abandoned session.
+				for (let index = 0; index < maximumPendingContinuations; index++) {
+					await post(index, []);
+				}
+				await post(0, []);
+				await post(maximumPendingContinuations, []);
+
+				for (const [session, call] of [[1, 1], [0, maximumPendingContinuations]]) {
+					await post(session, [
+						{ type: 'function_call', call_id: `call_${call}`, name: 'tool', arguments: '{}' },
+						{ type: 'function_call_output', call_id: `call_${call}`, output: 'done' },
+					]);
+				}
+			},
+		);
+
+		assert.deepStrictEqual(captured.slice(-2).map(request => request.previousResponseId), [
+			undefined,
+			`resp_${maximumPendingContinuations}`,
+		]);
+	});
+
 	test('decodes a url-encoded vendor path segment', async () => {
 		let captured: IByokLmChatRequest | undefined;
 		await withProxy(
