@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Page } from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
-import { z } from 'zod';
 import { ApplicationService, getProductVersion, JSONValue } from './application';
 
 const rootPath = path.join(__dirname, '..', '..', '..');
@@ -16,16 +14,8 @@ const evidenceRootPath = path.join(artifactRootPath, 'evidence');
 const logsRootPath = path.join(artifactRootPath, 'logs');
 const qualityNames = ['Dev', 'Insiders', 'Stable', 'Exploration', 'OSS'];
 
-type StepStatus = 'started' | 'passed' | 'failed' | 'skipped';
-type RunOutcome = 'passed' | 'failed' | 'aborted';
-const jsonValueSchema: z.ZodType<JSONValue> = z.lazy(() => z.union([
-	z.string(),
-	z.number(),
-	z.boolean(),
-	z.null(),
-	z.array(jsonValueSchema),
-	z.record(z.string(), jsonValueSchema)
-]));
+export type StepStatus = 'started' | 'passed' | 'failed' | 'skipped';
+export type RunOutcome = 'passed' | 'failed' | 'aborted';
 
 interface EvidenceCapture {
 	status: StepStatus;
@@ -162,7 +152,6 @@ export class EvidenceService {
 			app.code.driver.browserContext.on('page', run.pageListener);
 
 			await app.startTracing();
-			await this.showOverlay('Scenario', title, 'started');
 			await wait(500);
 			await this.capture('00-scenario-started.png');
 			this.writeManifest();
@@ -233,7 +222,6 @@ export class EvidenceService {
 			let screenshot: Buffer | undefined;
 			for (let attempt = 0; attempt < 2; attempt++) {
 				try {
-					await this.showOverlay(id, title, status);
 					await wait(status === 'started' ? 500 : 250);
 					const sequence = String(run.steps.indexOf(step) + 1).padStart(2, '0');
 					screenshotName = `${sequence}-${sanitizePathSegment(id)}-${status}.png`;
@@ -307,7 +295,6 @@ export class EvidenceService {
 			if (app) {
 				for (let attempt = 0; attempt < 2; attempt++) {
 					try {
-						await this.showOverlay('Result', run.title, outcome);
 						await wait(500);
 						await this.capture(`99-result-${outcome}.png`);
 						break;
@@ -389,36 +376,9 @@ export class EvidenceService {
 
 	private requireRun(): EvidenceRun {
 		if (!this.currentRun) {
-			throw new Error('No evidence run is active. Start one with vscode_automation_evidence_start.');
+			throw new Error('No evidence run is active. Start one before recording steps.');
 		}
 		return this.currentRun;
-	}
-
-	private async showOverlay(id: string, title: string, status: string): Promise<void> {
-		if (process.env.VSCODE_EVIDENCE_CLEAN_CAPTURE === '1') {
-			// The overlay is appended to the DOM of the product under test, so it can
-			// shift layout and influence focus or selectors. Callers that annotate the
-			// recording afterwards opt out to keep the capture faithful.
-			return;
-		}
-		const app = this.appService.application;
-		if (!app) {
-			throw new Error('VS Code is not running.');
-		}
-		const values = JSON.stringify({ id, title, status });
-		await app.code.driver.evaluateExpression(`(() => {
-			const values = ${values};
-			let overlay = document.getElementById('vscode-ui-evidence-overlay');
-			if (!overlay) {
-				overlay = document.createElement('div');
-				overlay.id = 'vscode-ui-evidence-overlay';
-				overlay.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:2147483647;max-width:70vw;padding:10px 16px;border-radius:6px;background:rgba(0,0,0,.88);color:#fff;font:600 14px/1.4 system-ui;box-shadow:0 4px 18px rgba(0,0,0,.35);pointer-events:none;text-align:center';
-				document.documentElement.appendChild(overlay);
-			}
-			overlay.textContent = values.id + ': ' + values.title + ' [' + values.status.toUpperCase() + ']';
-			overlay.dataset.status = values.status;
-			return overlay.textContent;
-		})()`);
 	}
 
 	private async capture(name: string): Promise<Buffer> {
@@ -511,66 +471,6 @@ export class EvidenceService {
 		return reportPath;
 	}
 
-}
-
-export function applyEvidenceStartTool(server: McpServer, evidenceService: EvidenceService): RegisteredTool {
-	return server.tool(
-		'vscode_automation_evidence_start',
-		'Start VS Code with video and trace recording for a UI validation scenario',
-		{
-			scenarioId: z.string().describe('Stable scenario identifier'),
-			title: z.string().describe('Human-readable scenario title'),
-			source: z.string().url().refine(isHttpUrl, 'Source must use HTTP or HTTPS').optional().describe('Source test-plan issue URL'),
-			scenarioPath: z.string().optional().describe('Path to the Markdown scenario definition'),
-			workspacePath: z.string().optional().describe('Workspace or folder to open'),
-			userSettings: z.record(z.string(), jsonValueSchema).optional().describe('User settings to seed before VS Code starts'),
-			extraArgs: z.array(z.string()).optional().describe('Additional VS Code command-line arguments')
-		},
-		async ({ scenarioId, title, source, scenarioPath, workspacePath, userSettings, extraArgs }) => {
-			const runPath = await evidenceService.start(scenarioId, title, source, scenarioPath, workspacePath, userSettings, extraArgs);
-			return {
-				content: [{ type: 'text' as const, text: `Evidence capture started: ${runPath}` }]
-			};
-		}
-	);
-}
-
-export function applyEvidenceTools(server: McpServer, evidenceService: EvidenceService): RegisteredTool[] {
-	return [
-		server.tool(
-			'vscode_automation_evidence_step',
-			'Mark a scenario step in the video and save a screenshot of the current VS Code window',
-			{
-				id: z.string().describe('Stable step identifier from the scenario'),
-				title: z.string().describe('Human-readable step title'),
-				status: z.enum(['started', 'passed', 'failed', 'skipped']).describe('Step lifecycle status'),
-				details: z.string().optional().describe('Validation result or failure details')
-			},
-			async ({ id, title, status, details }) => {
-				const result = await evidenceService.step(id, title, status, details);
-				return {
-					content: [
-						{ type: 'text' as const, text: `Evidence saved: ${result.screenshotPath}` },
-						{ type: 'image' as const, data: result.screenshot.toString('base64'), mimeType: 'image/png' }
-					]
-				};
-			}
-		),
-		server.tool(
-			'vscode_automation_evidence_finish',
-			'Finish a UI validation scenario, stop VS Code, and write the evidence report',
-			{
-				outcome: z.enum(['passed', 'failed', 'aborted']).describe('Overall scenario outcome'),
-				notes: z.string().optional().describe('Run summary or blocking condition')
-			},
-			async ({ outcome, notes }) => {
-				const reportPath = await evidenceService.finish(outcome, notes);
-				return {
-					content: [{ type: 'text' as const, text: `Evidence report written: ${reportPath}` }]
-				};
-			}
-		)
-	];
 }
 
 function sanitizePathSegment(value: string): string {

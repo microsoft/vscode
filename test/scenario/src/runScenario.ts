@@ -13,12 +13,8 @@ import { renderChapters } from './renderEvidenceChapters';
 /**
  * Runs a UI validation scenario end to end and writes an evidence bundle.
  *
- * This is the same capture pipeline the `vscode_automation_evidence_*` MCP tools
- * drive, exposed as a single command so a scenario can be recorded without
- * configuring an MCP server:
- *
  * ```
- * node test/mcp/out/runScenario.js <scenario.cjs> [--build <app-root>]
+ * node test/scenario/out/runScenario.js <scenario.cjs> [--build <app-root>]
  * ```
  *
  * The scenario file is not part of this repository, so it can be written next to
@@ -99,11 +95,6 @@ function loadScenario(scenarioPath: string): Scenario {
 }
 
 export async function runScenario(scenario: Scenario): Promise<{ runPath: string; outcome: 'passed' | 'failed' | 'aborted' }> {
-	// The step banner is drawn into the DOM of the product under test, so it can
-	// shift layout and influence focus. Chapters are rendered onto the finished
-	// recording instead, which keeps the capture faithful.
-	process.env.VSCODE_EVIDENCE_CLEAN_CAPTURE ??= '1';
-
 	const appService = new ApplicationService();
 	const evidence = new EvidenceService(appService);
 	const runPath = await evidence.start(
@@ -167,7 +158,7 @@ export async function runScenario(scenario: Scenario): Promise<{ runPath: string
 if (require.main === module) {
 	const scenarioArgument = process.argv.slice(2).find(argument => !argument.startsWith('--'));
 	if (!scenarioArgument) {
-		console.error('Usage: node test/mcp/out/runScenario.js <scenario.cjs> [--build <app-root>]');
+		console.error('Usage: node test/scenario/out/runScenario.js <scenario.cjs> [--build <app-root>]');
 		process.exit(2);
 	}
 	const scenarioPath = path.resolve(scenarioArgument);

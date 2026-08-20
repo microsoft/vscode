@@ -123,7 +123,23 @@ suite('Sessions - SessionHeader', () => {
 		assert.strictEqual(dragEvent.defaultPrevented, false);
 	});
 
-	test('shows read-only workspace metadata beside the title and hides the second row when configured', () => {
+	test('hides the header while it is replaced by the single-group tabs row', () => {
+		const { header } = createHarness(disposables);
+
+		header.setVisible(false);
+		const hiddenDisplay = header.element.style.display;
+		header.setVisible(true);
+
+		assert.deepStrictEqual({
+			hiddenDisplay,
+			restoredDisplay: header.element.style.display,
+		}, {
+			hiddenDisplay: 'none',
+			restoredDisplay: '',
+		});
+	});
+
+	test('does not show workspace metadata beside the title and hides the second row when configured', () => {
 		const root = URI.file('C:\\Code\\vscode');
 		const workspace: ISessionWorkspace = {
 			uri: root,
@@ -144,14 +160,10 @@ suite('Sessions - SessionHeader', () => {
 		const metaRow = header.element.querySelector<HTMLElement>('.chat-composite-bar-meta-row');
 
 		assert.deepStrictEqual({
-			workspaceText: workspaceMeta?.textContent,
-			workspaceHidden: workspaceMeta?.classList.contains('hidden'),
-			workspaceFocusable: workspaceMeta?.tabIndex,
+			workspaceMeta,
 			metaRowDisplay: metaRow?.style.display,
 		}, {
-			workspaceText: '·vscode',
-			workspaceHidden: false,
-			workspaceFocusable: -1,
+			workspaceMeta: null,
 			metaRowDisplay: 'none',
 		});
 	});

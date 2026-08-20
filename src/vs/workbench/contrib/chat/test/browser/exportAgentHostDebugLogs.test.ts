@@ -68,10 +68,10 @@ suite('createHostArtifactStream', () => {
 suite('collectRotatedLogFiles', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('collects the current and numbered rotated logs', async () => {
+	test('collects local rotated logs as resources', async () => {
 		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
-		const logs = URI.from({ scheme: Schemas.inMemory, path: '/logs' });
+		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+		const logs = URI.file('/logs');
 		await fileService.createFolder(logs);
 		await Promise.all([
 			fileService.writeFile(URI.joinPath(logs, 'renderer.log'), VSBuffer.fromString('current')),
@@ -85,11 +85,53 @@ suite('collectRotatedLogFiles', () => {
 
 		assert.deepStrictEqual(files.map(file => ({
 			path: file.path,
-			contents: hasKey(file, { contents: true }) ? file.contents : undefined,
+			resource: hasKey(file, { resource: true }) ? file.resource.toString() : undefined,
+			size: file.size,
 		})).sort((a, b) => a.path.localeCompare(b.path)), [
-			{ path: 'vscode-logs/Window/renderer.1.log', contents: 'previous' },
-			{ path: 'vscode-logs/Window/renderer.5.log', contents: 'oldest' },
-			{ path: 'vscode-logs/Window/renderer.log', contents: 'current' },
+			{ path: 'vscode-logs/Window/renderer.1.log', resource: 'file:///logs/renderer.1.log', size: 8 },
+			{ path: 'vscode-logs/Window/renderer.5.log', resource: 'file:///logs/renderer.5.log', size: 6 },
+			{ path: 'vscode-logs/Window/renderer.log', resource: 'file:///logs/renderer.log', size: 7 },
+		]);
+	});
+
+	test('bounds inline content for non-local rotated logs', async () => {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		const logs = URI.from({ scheme: Schemas.inMemory, path: '/logs' });
+		await fileService.createFolder(logs);
+		await Promise.all([
+			fileService.writeFile(URI.joinPath(logs, 'renderer.log'), VSBuffer.fromString('abcd')),
+			fileService.writeFile(URI.joinPath(logs, 'renderer.1.log'), VSBuffer.fromString('efgh')),
+		]);
+
+		const files = await collectRotatedLogFiles('vscode-logs/Window', URI.joinPath(logs, 'renderer.log'), fileService, 6);
+
+		assert.deepStrictEqual({
+			count: files.length,
+			allInline: files.every(file => hasKey(file, { contents: true })),
+			totalSize: files.reduce((total, file) => total + file.size, 0),
+		}, {
+			count: 2,
+			allInline: true,
+			totalSize: 6,
+		});
+	});
+
+	test('collects local user data logs as resources', async () => {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new InMemoryFileSystemProvider())));
+		const logs = URI.from({ scheme: Schemas.vscodeUserData, path: '/logs' });
+		await fileService.createFolder(logs);
+		await fileService.writeFile(URI.joinPath(logs, 'usage.jsonl'), VSBuffer.fromString('usage'));
+
+		const files = await collectRotatedLogFiles('sidecars', URI.joinPath(logs, 'usage.jsonl'), fileService);
+
+		assert.deepStrictEqual(files.map(file => ({
+			path: file.path,
+			resource: hasKey(file, { resource: true }) ? file.resource.toString() : undefined,
+			size: file.size,
+		})), [
+			{ path: 'sidecars/usage.jsonl', resource: 'vscode-userdata:/logs/usage.jsonl', size: 5 },
 		]);
 	});
 });

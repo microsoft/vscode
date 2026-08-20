@@ -280,6 +280,7 @@ export class ChatGroupsView extends Themable {
 			}
 			return session.shouldShowChatTabs.read(reader);
 		});
+		const showSessionActions = derived(reader => this._groupCount.read(reader) === 1 && tabsVisible.read(reader));
 
 		const view = store.add(this._instantiationService.createInstance(ChatGroupView));
 		const entry: IGroupEntry = { id, view, resourceIds, activeResourceId, chats, tabsVisible };
@@ -295,6 +296,7 @@ export class ChatGroupsView extends Themable {
 			activeChatResource: activeResourceId,
 			mainChatResource: this._mainChatResource!,
 			tabsVisible,
+			showSessionActions,
 			openChat: resource => this._openChat(entry, resource),
 			newChat: () => this._newChat(entry).catch(onUnexpectedError),
 			onTabDragStart: () => { },
