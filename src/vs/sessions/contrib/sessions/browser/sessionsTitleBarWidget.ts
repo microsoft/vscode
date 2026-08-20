@@ -383,8 +383,11 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			centerGroup.appendChild(workspaceEl);
 			this._dynamicDisposables.add(this.hoverService.setupDelayedHover(workspaceEl, { content: workspaceInfo.label }));
 		} else if (this._isQuickChat) {
+			const workspaceIconEl = $(`div.agent-sessions-titlebar-workspace-icon${ThemeIcon.asCSSSelector(Codicon.commentDiscussion)}`, { 'aria-hidden': 'true' });
+			centerGroup.appendChild(workspaceIconEl);
+
 			const workspaceEl = $('div.agent-sessions-titlebar-workspace');
-			workspaceEl.textContent = localize('quickChat', "Quick Chat");
+			workspaceEl.textContent = localize('workspaceless', "Workspaceless");
 			centerGroup.appendChild(workspaceEl);
 		}
 

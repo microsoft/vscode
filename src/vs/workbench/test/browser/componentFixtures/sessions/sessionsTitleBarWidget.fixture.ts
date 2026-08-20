@@ -36,15 +36,19 @@ import { ComponentFixtureContext, createEditorServices, defineComponentFixture, 
 // Mock helpers
 // ============================================================================
 
-function createMockActiveSession(title: string, workspaceLabel: string): IActiveSession {
-	const workspace = new class extends mock<ISessionWorkspace>() {
-		override readonly label = workspaceLabel;
-	}();
+function createMockActiveSession(title: string, workspaceLabel?: string): IActiveSession {
+	let workspace: ISessionWorkspace | undefined;
+	if (workspaceLabel) {
+		const label = workspaceLabel;
+		workspace = new class extends mock<ISessionWorkspace>() {
+			override readonly label = label;
+		}();
+	}
 	return new class extends mock<IActiveSession>() {
 		override readonly icon = Codicon.copilot;
 		override readonly title: IObservable<string> = constObservable(title);
 		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(workspace);
-		override readonly isQuickChat: IObservable<boolean> = constObservable<boolean>(false);
+		override readonly isQuickChat: IObservable<boolean> = constObservable<boolean>(workspace === undefined);
 	}();
 }
 
@@ -185,10 +189,16 @@ function renderTitleBar(ctx: ComponentFixtureContext, state: ITitleBarState): vo
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
-	// Default: shows the active session pill (icon + title + workspace).
+	// Default: shows the active session workspace.
 	SessionsTitleBar_ActiveSession: defineComponentFixture({
 		render: (ctx) => renderTitleBar(ctx, {
 			activeSession: createMockActiveSession('Fix authentication redirect loop', 'vscode'),
+		}),
+	}),
+
+	SessionsTitleBar_Workspaceless: defineComponentFixture({
+		render: (ctx) => renderTitleBar(ctx, {
+			activeSession: createMockActiveSession('Quick chat'),
 		}),
 	}),
 
