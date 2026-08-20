@@ -3101,6 +3101,42 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('a mode that hides every external session skips the catalog work for them', async () => {
+			const now = Date.now();
+			const perSession = createPerSessionDataService();
+			const svc = createExternalSessionService(() => now, perSession.service);
+			const agent = disposables.add(new TimedExternalAgent('copilot'));
+			agent.addSession('external-one', now);
+			agent.addSession('external-two', now);
+			svc.registerProvider(agent);
+			await svc.listSessions(AgentHostExternalSessionsMode.All);
+
+			// A catalog pass otherwise opens every registered session's database,
+			// so a mode that discards the row regardless must not pay for it.
+			const opened: string[] = [];
+			const dataService = perSession.service as { tryOpenDatabase(session: URI): Promise<unknown> };
+			const originalTryOpen = dataService.tryOpenDatabase;
+			dataService.tryOpenDatabase = async (session: URI) => {
+				opened.push(AgentSession.id(session));
+				return originalTryOpen.call(perSession.service, session);
+			};
+			try {
+				const hidden = (await svc.listSessions(AgentHostExternalSessionsMode.None)).map(session => AgentSession.id(session.session));
+				const openedWhileHidden = [...new Set(opened)].sort();
+				opened.length = 0;
+				const visible = (await svc.listSessions(AgentHostExternalSessionsMode.All)).map(session => AgentSession.id(session.session)).sort();
+
+				assert.deepStrictEqual({ hidden, openedWhileHidden, visible, openedWhileVisible: [...new Set(opened)].sort() }, {
+					hidden: [],
+					openedWhileHidden: [],
+					visible: ['external-one', 'external-two'],
+					openedWhileVisible: ['external-one', 'external-two'],
+				});
+			} finally {
+				dataService.tryOpenDatabase = originalTryOpen;
+			}
+		});
+
 		test('a mode change reconciles with a single catalog pass', async () => {
 			const day = 24 * 60 * 60 * 1000;
 			const now = Date.now();
