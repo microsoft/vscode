@@ -3257,6 +3257,9 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _syncPermissionModeAfterConfigChange(): Promise<void> {
+		if (!this.hasActiveTurn) {
+			return;
+		}
 		try {
 			await this.syncPermissionMode('config-change');
 			await this._applyEffectiveSandboxConfig(true);
