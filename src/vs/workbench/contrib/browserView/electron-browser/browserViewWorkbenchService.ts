@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BrowserViewCommandId, BrowserViewStorageScope, IBrowserViewInfo, IBrowserViewOpenOptions, IBrowserViewOwner, IBrowserViewService, IBrowserViewTheme, ipcBrowserViewChannelName } from '../../../../platform/browserView/common/browserView.js';
+import type { BrowserCookieImportResult, IBrowserCookieImportDetectedBrowser, IBrowserCookieImportFromBrowserParams, IBrowserCookieImportFromFileParams } from '../../../../platform/browserView/common/browserCookieImport.js';
 import { IBrowserViewWorkbenchService, IBrowserViewModel, BrowserViewModel, IBrowserEditorViewState, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewOpenHandler } from '../common/browserView.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
@@ -365,6 +366,18 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	async clearWorkspaceStorage(): Promise<void> {
 		const workspaceId = this.workspaceContextService.getWorkspace().id;
 		return this._browserViewService.clearWorkspaceStorage(workspaceId);
+	}
+
+	async detectBrowsersForImport(): Promise<IBrowserCookieImportDetectedBrowser[]> {
+		return this._browserViewService.detectBrowsersForImport();
+	}
+
+	async importCookiesFromBrowser(params: IBrowserCookieImportFromBrowserParams): Promise<BrowserCookieImportResult> {
+		return this._browserViewService.importCookiesFromBrowser(params);
+	}
+
+	async importCookiesFromFile(params: IBrowserCookieImportFromFileParams): Promise<BrowserCookieImportResult> {
+		return this._browserViewService.importCookiesFromFile(params);
 	}
 
 	private _getDefaultOwner(): IBrowserViewOwner {

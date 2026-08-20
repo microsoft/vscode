@@ -7,6 +7,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { IBrowserElementCommentsUpdate, IBrowserElementSelectionOptions, IBrowserViewAudience, IBrowserViewBounds, IBrowserViewState, IBrowserViewService, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, BrowserViewCommandId, IBrowserViewOwner, IBrowserViewInfo, IBrowserViewCreatedEvent, IBrowserViewOpenOptions, IBrowserViewCreateOptions, IBrowserViewWindowConfiguration, IBrowserDeviceProfile } from '../common/browserView.js';
+import type { BrowserCookieImportResult, IBrowserCookieImportDetectedBrowser, IBrowserCookieImportFromFileParams, IBrowserCookieImportFromBrowserParams } from '../common/browserCookieImport.js';
 import { clipboard, Menu, MenuItem } from 'electron';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
@@ -24,6 +25,7 @@ import { htmlAttributeEncodeValue } from '../../../base/common/strings.js';
 import { BrowserViewInspectElementId } from './browserViewInspector.js';
 import { equals } from '../../../base/common/objects.js';
 import { URI } from '../../../base/common/uri.js';
+import { detectBrowsersForImport, importCookiesFromBrowser, importCookiesFromFile } from './browserCookieImport.js';
 
 export const IBrowserViewMainService = createDecorator<IBrowserViewMainService>('browserViewMainService');
 
@@ -34,6 +36,17 @@ export interface IBrowserViewMainService extends IBrowserViewService {
 
 	/** Create a new target and return it. */
 	createTarget(url: string, owner: IBrowserViewOwner, browserContextId?: string, audience?: IBrowserViewAudience): Promise<BrowserView>;
+
+	// --- Cookie import API ---
+
+	/** Returns the list of browsers detected on this machine. */
+	detectBrowsersForImport(): Promise<IBrowserCookieImportDetectedBrowser[]>;
+
+	/** Imports cookies from a detected browser profile. */
+	importCookiesFromBrowser(params: IBrowserCookieImportFromBrowserParams): Promise<BrowserCookieImportResult>;
+
+	/** Imports cookies from a JSON file. */
+	importCookiesFromFile(params: IBrowserCookieImportFromFileParams): Promise<BrowserCookieImportResult>;
 }
 
 export class BrowserViewMainService extends Disposable implements IBrowserViewMainService {
@@ -650,5 +663,19 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			y: viewBounds.y + params.y,
 			sourceType: params.menuSourceType
 		});
+	}
+
+	// --- Cookie import API ---
+
+	async detectBrowsersForImport(): Promise<IBrowserCookieImportDetectedBrowser[]> {
+		return detectBrowsersForImport();
+	}
+
+	async importCookiesFromBrowser(params: IBrowserCookieImportFromBrowserParams): Promise<BrowserCookieImportResult> {
+		return importCookiesFromBrowser(params);
+	}
+
+	async importCookiesFromFile(params: IBrowserCookieImportFromFileParams): Promise<BrowserCookieImportResult> {
+		return importCookiesFromFile(params);
 	}
 }

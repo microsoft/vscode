@@ -54,3 +54,14 @@ dist
 .v[0-9]*/
 # Local agent validation evidence
 .agent-validation/
+/.github/skills
+/promptsANDplans
+
+# Feeder agent task database
+.feeder/
+/.vscode
+AGENTS.md
+package-lock.json
+AGENTS.md
+package-lock.json
+.vscode/settings.json

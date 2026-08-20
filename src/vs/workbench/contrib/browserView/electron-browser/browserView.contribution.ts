@@ -40,6 +40,7 @@ import './features/browserEditorFindFeature.js';
 import './features/browserSearchFeatures.js';
 import './features/browserTabManagementFeatures.js';
 import './features/browserRemoteFeatures.js';
+import './features/browserCookieImportFeatures.js';
 
 function getBrowserViewStateUrl(viewState: object | undefined): string | undefined {
 	const url = Object.entries(viewState ?? {}).find(([key]) => key === 'url')?.[1];

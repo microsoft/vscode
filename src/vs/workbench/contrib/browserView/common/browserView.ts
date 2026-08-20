@@ -55,6 +55,12 @@ import {
 	IBrowserViewPermissionRequestEvent,
 	IBrowserElementSelectionState,
 } from '../../../../platform/browserView/common/browserView.js';
+import type {
+	BrowserCookieImportResult,
+	IBrowserCookieImportDetectedBrowser,
+	IBrowserCookieImportFromBrowserParams,
+	IBrowserCookieImportFromFileParams,
+} from '../../../../platform/browserView/common/browserCookieImport.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDomains.js';
 import { IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
@@ -315,6 +321,26 @@ export interface IBrowserViewWorkbenchService {
 	 * Clear all storage data for the current workspace browser session
 	 */
 	clearWorkspaceStorage(): Promise<void>;
+
+	// --- Cookie import API ---
+
+	/**
+	 * Returns the list of browsers detected on this machine that have at
+	 * least one profile with a cookies database. The renderer uses this to
+	 * populate the import picker.
+	 */
+	detectBrowsersForImport(): Promise<IBrowserCookieImportDetectedBrowser[]>;
+
+	/**
+	 * Imports cookies from a detected browser profile into the integrated
+	 * browser's session.
+	 */
+	importCookiesFromBrowser(params: IBrowserCookieImportFromBrowserParams): Promise<BrowserCookieImportResult>;
+
+	/**
+	 * Imports cookies from a user-picked JSON file (manual export).
+	 */
+	importCookiesFromFile(params: IBrowserCookieImportFromFileParams): Promise<BrowserCookieImportResult>;
 }
 
 export const IBrowserViewCDPService = createDecorator<IBrowserViewCDPService>('browserViewCDPService');

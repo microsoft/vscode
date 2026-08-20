@@ -10,6 +10,12 @@ import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ITunnelProxyInfo } from '../../tunnel/common/tunnelProxy.js';
 import { IPermissionCategoryState, ISerializedBrowserPermissionsSnapshot, IBrowserDeviceCandidate, BrowserDeviceType, PermissionCategory } from './browserPermissions.js';
+import type {
+	BrowserCookieImportResult,
+	IBrowserCookieImportDetectedBrowser,
+	IBrowserCookieImportFromBrowserParams,
+	IBrowserCookieImportFromFileParams,
+} from './browserCookieImport.js';
 
 const commandPrefix = 'workbench.action.browser';
 export enum BrowserViewCommandId {
@@ -57,6 +63,11 @@ export enum BrowserViewCommandId {
 	ClearGlobalStorage = `${commandPrefix}.clearGlobalStorage`,
 	ClearWorkspaceStorage = `${commandPrefix}.clearWorkspaceStorage`,
 	ClearEphemeralStorage = `${commandPrefix}.clearEphemeralStorage`,
+
+	// Cookie Import
+	ImportCookiesFromBrowser = `${commandPrefix}.importCookiesFromBrowser`,
+	ImportCookiesFromFile = `${commandPrefix}.importCookiesFromFile`,
+	ImportCookiesShowDetected = `${commandPrefix}.importCookiesShowDetected`,
 
 	// Find in page
 	ShowFind = `${commandPrefix}.showFind`,
@@ -750,4 +761,23 @@ export interface IBrowserViewService {
 	 * @param config The configuration to apply.
 	 */
 	updateWindowConfiguration(windowId: number, config: IBrowserViewWindowConfiguration): Promise<void>;
+
+	// --- Cookie import API (ORCA-equivalent) ---
+
+	/**
+	 * Returns the list of browsers detected on this machine that have at
+	 * least one profile with a cookies database.
+	 */
+	detectBrowsersForImport(): Promise<IBrowserCookieImportDetectedBrowser[]>;
+
+	/**
+	 * Imports cookies from a detected browser profile into the integrated
+	 * browser's session.
+	 */
+	importCookiesFromBrowser(params: IBrowserCookieImportFromBrowserParams): Promise<BrowserCookieImportResult>;
+
+	/**
+	 * Imports cookies from a user-picked JSON file (manual export).
+	 */
+	importCookiesFromFile(params: IBrowserCookieImportFromFileParams): Promise<BrowserCookieImportResult>;
 }
