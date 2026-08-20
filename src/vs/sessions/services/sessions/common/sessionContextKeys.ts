@@ -33,6 +33,7 @@ import {
 	SessionActiveChatIsClosableContext,
 	SessionActiveChatIsDeletableContext,
 	SessionActiveChatHasSubagentsContext,
+	SessionHasSideChatsContext,
 	SessionHasGitRepositoryContext,
 } from '../../../common/contextkeys.js';
 import { ChatOriginKind, getChatCapabilities, isActiveSessionStatus, ISession, SessionStatus } from './session.js';
@@ -70,6 +71,7 @@ interface ISessionContextKeys {
 	readonly activeChatIsClosable: IContextKey<boolean>;
 	readonly activeChatIsDeletable: IContextKey<boolean>;
 	readonly activeChatHasSubagents: IContextKey<boolean>;
+	readonly hasSideChats: IContextKey<boolean>;
 }
 
 /**
@@ -113,6 +115,7 @@ function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKey
 			activeChatIsClosable: SessionActiveChatIsClosableContext.bindTo(contextKeyService),
 			activeChatIsDeletable: SessionActiveChatIsDeletableContext.bindTo(contextKeyService),
 			activeChatHasSubagents: SessionActiveChatHasSubagentsContext.bindTo(contextKeyService),
+			hasSideChats: SessionHasSideChatsContext.bindTo(contextKeyService),
 		};
 		boundKeysByService.set(contextKeyService, keys);
 	}
@@ -231,6 +234,7 @@ export function setActiveSessionContextKeys(session: IActiveSession | undefined,
 	keys.activeChatIsDeletable.set(!!activeChat && getChatCapabilities(activeChat, session, reader).canDelete);
 
 	const allChats = session?.chats.read(reader) ?? [];
+	keys.hasSideChats.set(allChats.some(chat => chat.origin?.kind === ChatOriginKind.SideChat));
 	const subagentScopeResource = activeChat?.origin?.kind === ChatOriginKind.Tool && activeChat.origin.parentChat
 		? activeChat.origin.parentChat
 		: activeChat?.resource;
