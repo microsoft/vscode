@@ -16,7 +16,7 @@ import type { ServerNotificationMap } from '../messages.js';
  *
  * Formatted as a [SemVer](https://semver.org) `MAJOR.MINOR.PATCH` string.
  */
-export const PROTOCOL_VERSION = '0.8.0';
+export const PROTOCOL_VERSION = '1.0.0';
 
 /**
  * Every protocol version a client built from this source tree is willing
@@ -35,6 +35,7 @@ export const PROTOCOL_VERSION = '0.8.0';
  * `scripts/verify-release-metadata.ts`.
  */
 export const SUPPORTED_PROTOCOL_VERSIONS: readonly string[] = Object.freeze([
+	'1.0.0',
 	'0.8.0',
 	'0.7.0',
 	'0.6.0',
@@ -94,6 +95,7 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
 	[ActionType.SessionActiveClientRemoved]: '0.5.0',
 	[ActionType.SessionWorkingDirectorySet]: '0.7.0',
 	[ActionType.SessionWorkingDirectoryRemoved]: '0.7.0',
+	[ActionType.SessionWorkingDirectoryReplaced]: '0.8.0',
 	[ActionType.SessionInputNeededSet]: '0.5.1',
 	[ActionType.SessionInputNeededRemoved]: '0.5.1',
 	[ActionType.SessionCustomizationsChanged]: '0.1.0',
@@ -165,6 +167,15 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
 	[ActionType.TerminalCommandExecuted]: '0.1.0',
 	[ActionType.TerminalCommandFinished]: '0.1.0',
 	[ActionType.ResourceWatchChanged]: '0.2.0',
+	[ActionType.AutomationCreateRequested]: '0.8.0',
+	[ActionType.AutomationUpdateRequested]: '0.8.0',
+	[ActionType.AutomationSet]: '0.8.0',
+	[ActionType.AutomationRemoved]: '0.8.0',
+	[ActionType.AutomationRunLifecycleChanged]: '0.8.0',
+	[ActionType.AutomationRunSessionSet]: '0.8.0',
+	[ActionType.AutomationRunSessionRemoved]: '0.8.0',
+	[ActionType.AutomationRunPrimarySessionChanged]: '0.8.0',
+	[ActionType.AutomationRunCancelRequested]: '0.8.0',
 };
 
 /**

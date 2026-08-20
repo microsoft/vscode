@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { sortCustomizationEnablement, withCustomizationEnablement } from '../../common/customizationEnablement.js';
 import { changesetReducer, chatReducer, sessionReducer } from '../../common/state/protocol/reducers.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, ChangesetOperationStatus, CustomizationLoadStatus, MessageKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ResponsePartKind, ToolCallStatus, TurnState, type AgentCustomization, type ChangesetState, type Customization, type PluginCustomization, type ChatState, type SessionState } from '../../common/state/sessionState.js';
+import { ChangesetStatus, ChangesetOperationStatus, CustomizationLoadStatus, MessageKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ResponsePartKind, ToolCallStatus, TurnState, type AgentCustomization, type ChangesetState, type Customization, type PluginCustomization, type ChatState, type SessionState } from '../../common/state/sessionState.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, ToolCallContributorKind, type ToolCallContributor } from '../../common/state/protocol/state.js';
 
 function makeSession(): SessionState {
@@ -182,7 +182,6 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 			type: ActionType.ChatInputRequested,
 			request: {
 				id: 'req-1',
-				purpose: ChatInputRequestPurpose.AskUser,
 				message: 'What is your name?',
 				questions: [{
 					kind: ChatInputQuestionKind.Text,
@@ -202,7 +201,6 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 				kind: ResponsePartKind.InputRequest,
 				request: {
 					id: 'req-1',
-					purpose: ChatInputRequestPurpose.AskUser,
 					message: 'What is your name?',
 					questions: [{
 						kind: ChatInputQuestionKind.Text,
@@ -215,13 +213,12 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 		});
 	});
 
-	test('ChatInputRequested replacement preserves purpose and synchronized answers through completion', () => {
+	test('ChatInputRequested replacement preserves synchronized answers through completion', () => {
 		let state = withActiveTurnAndToolCall(makeChat());
 		state = chatReducer(state, {
 			type: ActionType.ChatInputRequested,
 			request: {
 				id: 'req-1',
-				purpose: ChatInputRequestPurpose.AskUser,
 				questions: [{ kind: ChatInputQuestionKind.Text, id: 'q-1', message: 'First?' }],
 			},
 		});
@@ -235,7 +232,6 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 			type: ActionType.ChatInputRequested,
 			request: {
 				id: 'req-1',
-				purpose: ChatInputRequestPurpose.AskUser,
 				questions: [{ kind: ChatInputQuestionKind.Text, id: 'q-1', message: 'Updated?' }],
 			},
 		});
@@ -249,7 +245,6 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 			kind: ResponsePartKind.InputRequest,
 			request: {
 				id: 'req-1',
-				purpose: ChatInputRequestPurpose.AskUser,
 				questions: [{ kind: ChatInputQuestionKind.Text, id: 'q-1', message: 'Updated?' }],
 				answers: {
 					'q-1': { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'answer' } },
@@ -282,7 +277,6 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 			type: ActionType.ChatInputRequested,
 			request: {
 				id: 'req-1',
-				purpose: ChatInputRequestPurpose.AskUser,
 				message: 'What is your name?',
 				questions: [{
 					kind: ChatInputQuestionKind.Text,
@@ -311,7 +305,6 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 				kind: ResponsePartKind.InputRequest,
 				request: {
 					id: 'req-1',
-					purpose: ChatInputRequestPurpose.AskUser,
 					message: 'What is your name?',
 					questions: [{
 						kind: ChatInputQuestionKind.Text,

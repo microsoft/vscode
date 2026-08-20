@@ -66,16 +66,17 @@ export interface CreateSessionParams extends BaseParams {
 	/**
 	 * The working directories the session's agent is granted tool access to.
 	 * A session may span multiple directories; they are equal peers except when
-	 * the agent advertises
-	 * {@link MultipleWorkingDirectoriesCapability.immutablePrimary} (in which case
-	 * the first entry is a fixed process root).
+	 * the agent advertises a protected-primary capability. An
+	 * {@link MultipleWorkingDirectoriesCapability.immutablePrimary | immutable
+	 * primary} is fixed, while a
+	 * {@link MultipleWorkingDirectoriesCapability.primaryReplacement | replaceable
+	 * primary} is changed only with `session/workingDirectoryReplaced`.
 	 *
 	 * A client MUST NOT supply more than one entry unless the agent advertises
 	 * {@link AgentCapabilities.multipleWorkingDirectories}; a server without that
 	 * capability treats only the first entry as the session's working directory
-	 * and ignores the rest. Dispatch `session/workingDirectorySet` /
-	 * `session/workingDirectoryRemoved` to change the set after the session has
-	 * started.
+	 * and ignores the rest. Dispatch working-directory actions to change the set
+	 * after the session has started.
 	 *
 	 * Ignored for forked sessions — a fork inherits its working directories
 	 * from the source session identified by `fork`.

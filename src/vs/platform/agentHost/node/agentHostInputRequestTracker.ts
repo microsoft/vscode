@@ -6,8 +6,15 @@
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import type { ChatInputCompletedAction } from '../common/state/sessionActions.js';
-import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, ResponsePartKind, isAhpChatChannel, parseRequiredSessionUriFromChatUri, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ChatState } from '../common/state/sessionState.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ResponsePartKind, isAhpChatChannel, parseRequiredSessionUriFromChatUri, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ChatState } from '../common/state/sessionState.js';
 import type { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
+
+const askQuestionsRequests = new WeakSet<ChatInputRequest>();
+
+export function markAskQuestionsInputRequest<T extends ChatInputRequest>(request: T): T {
+	askQuestionsRequests.add(request);
+	return request;
+}
 
 interface IInputRequestTiming {
 	readonly stopWatch: Pick<StopWatch, 'elapsed'>;
@@ -32,7 +39,7 @@ export class AgentHostInputRequestTracker {
 
 	inputRequested(provider: string, session: string, turnId: string, request: ChatInputRequest): void {
 		const key = this._key(session, request.id);
-		if (request.purpose !== ChatInputRequestPurpose.AskUser) {
+		if (!askQuestionsRequests.has(request)) {
 			this._pending.delete(key);
 			return;
 		}
@@ -69,7 +76,7 @@ export class AgentHostInputRequestTracker {
 			&& part.request.id === action.requestId
 			&& part.response === ChatInputResponseKind.Accept
 		);
-		if (!part || part.kind !== ResponsePartKind.InputRequest || part.request.purpose !== ChatInputRequestPurpose.AskUser) {
+		if (!part || part.kind !== ResponsePartKind.InputRequest) {
 			return;
 		}
 
