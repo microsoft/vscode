@@ -281,8 +281,9 @@ export class ChatCompositeBar extends Disposable {
 			const mainChatUri = delegate.mainChatResource.read(reader);
 			this._rebuildTabs(chats, activeChatUri, mainChatUri);
 			const supportsMultipleChats = delegate.session.capabilities.read(reader).supportsMultipleChats;
-			this._newChatContainer.classList.toggle('hidden', !supportsMultipleChats);
-			this._newChatAction.enabled = supportsMultipleChats && !delegate.session.isArchived.read(reader);
+			const isQuickChat = delegate.session.isQuickChat?.read(reader) ?? false;
+			this._newChatContainer.classList.toggle('hidden', !supportsMultipleChats || isQuickChat);
+			this._newChatAction.enabled = supportsMultipleChats && !isQuickChat && !delegate.session.isArchived.read(reader);
 			this._showSessionActions = delegate.showSessionActions.read(reader);
 			this._sessionActionsContainer.classList.toggle('hidden', !this._showSessionActions);
 			this._updateMetaRowVisibility();

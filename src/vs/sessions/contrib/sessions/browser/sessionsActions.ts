@@ -26,7 +26,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/l
 import { getQuickNavigateHandler, inQuickPickContext } from '../../../../workbench/browser/quickaccess.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSubagentsContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSubagentsContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsQuickChatSessionContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { CLOSE_CHAT_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -544,19 +544,19 @@ registerAction2(class AddChatToSessionAction extends Action2 {
 				// Like Cmd/Ctrl+T in a browser — opens a new chat tab within the
 				// active session. Scoped so it does not steal the shortcut outside
 				// the agents window or when the session does not support multiple chats.
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate()),
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionIsCreatedContext, SessionSupportsMultipleChatsContext, IsQuickChatSessionContext.negate(), SessionIsArchivedContext.negate()),
 				primary: KeyMod.CtrlCmd | KeyCode.KeyT,
 			},
 			menu: [{
 				id: Menus.SessionBarToolbar,
 				group: 'secondary/2_chats',
 				order: 20,
-				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate()),
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, IsQuickChatSessionContext.negate(), SessionIsArchivedContext.negate()),
 			}, {
 				id: Menus.SessionItemContextMenu,
 				group: '1_newChat',
 				order: 0,
-				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate()),
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, IsQuickChatSessionContext.negate(), SessionIsArchivedContext.negate()),
 			}],
 		});
 	}
@@ -566,6 +566,9 @@ registerAction2(class AddChatToSessionAction extends Action2 {
 		const sessionsPartService = accessor.get(ISessionsPartService);
 		const target = Array.isArray(context) ? context[0] : context ?? sessionsService.activeSession.get();
 		if (!target) {
+			return;
+		}
+		if (target.isQuickChat?.get()) {
 			return;
 		}
 		await sessionsService.openNewChatInSession(target);

@@ -29,7 +29,7 @@ suite('Sessions - Actions', () => {
 			title: 'New Chat in This Session',
 			group: 'secondary/2_chats',
 			order: 20,
-			when: 'sessionIsCreated && sessionSupportsMultipleChats && !sessionIsArchived',
+			when: 'sessionIsCreated && sessionSupportsMultipleChats && !isQuickChatSession && !sessionIsArchived',
 		});
 	});
 
@@ -47,7 +47,7 @@ suite('Sessions - Actions', () => {
 			title: 'New Chat in This Session',
 			group: '1_newChat',
 			order: 0,
-			when: 'sessionIsCreated && sessionSupportsMultipleChats && !sessionIsArchived',
+			when: 'sessionIsCreated && sessionSupportsMultipleChats && !isQuickChatSession && !sessionIsArchived',
 		});
 	});
 

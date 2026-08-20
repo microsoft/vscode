@@ -53,7 +53,7 @@ function createChat(id: string, title: string, status: SessionStatus = SessionSt
 	}();
 }
 
-function createSession(chats: readonly IChat[], activeChat: IChat): IActiveSession {
+function createSession(chats: readonly IChat[], activeChat: IChat, isQuickChat = false): IActiveSession {
 	const resource = URI.parse('test-session://session');
 	return new class extends mock<IActiveSession>() {
 		override readonly sessionId = 'session';
@@ -69,6 +69,7 @@ function createSession(chats: readonly IChat[], activeChat: IChat): IActiveSessi
 		override readonly capabilities: IObservable<ISessionCapabilities> = constObservable({ supportsMultipleChats: true });
 		override readonly isCreated: IObservable<boolean> = constObservable(true);
 		override readonly isArchived: IObservable<boolean> = constObservable(false);
+		override readonly isQuickChat: IObservable<boolean> = constObservable(isQuickChat);
 	}();
 }
 
@@ -82,14 +83,14 @@ interface IChatCompositeBarHarness {
 	readonly tabs: readonly HTMLElement[];
 }
 
-function createHarness(disposables: Pick<DisposableStore, 'add'>): IChatCompositeBarHarness {
+function createHarness(disposables: Pick<DisposableStore, 'add'>, isQuickChat = false): IChatCompositeBarHarness {
 	const store = disposables.add(new DisposableStore());
 	const instantiationService = workbenchInstantiationService(undefined, store);
 	const commandService = new TestCommandService();
 	const sessionsService = new TestSessionsService();
 	const mainChat = createChat('main', 'Main Chat');
 	const secondaryChat = createChat('secondary', 'Secondary Chat');
-	const session = createSession([mainChat, secondaryChat], mainChat);
+	const session = createSession([mainChat, secondaryChat], mainChat, isQuickChat);
 
 	instantiationService.stub(ICommandService, commandService);
 	instantiationService.stub(ISessionsService, sessionsService);
@@ -141,6 +142,12 @@ suite('Sessions - ChatCompositeBar', () => {
 				{ hasSharedPresentation: true, hasFill: true, hasLabel: true, hasActions: true, ariaLabel: 'Secondary Chat, State: Completed' },
 			],
 		});
+	});
+
+	test('hides New Chat for workspace-less sessions', () => {
+		const { bar } = createHarness(disposables, true);
+
+		assert.strictEqual(bar.element.querySelector('.chat-composite-bar-new-chat')?.classList.contains('hidden'), true);
 	});
 
 	test('middle-click closes the targeted inactive non-main chat', () => {
