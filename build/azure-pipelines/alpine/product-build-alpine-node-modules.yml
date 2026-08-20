@@ -64,6 +64,7 @@ jobs:
       - template: ../common/foundry-local.yml@self
         parameters:
           phase: prepare
+          onlyOnNodeModulesCacheMiss: true
 
       - task: Docker@1
         inputs:
@@ -135,6 +136,7 @@ jobs:
       - template: ../common/foundry-local.yml@self
         parameters:
           phase: install
+          onlyOnNodeModulesCacheMiss: true
 
       - script: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))

@@ -74,6 +74,7 @@ jobs:
       - template: ../common/foundry-local.yml@self
         parameters:
           phase: prepare
+          onlyOnNodeModulesCacheMiss: true
 
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
@@ -92,6 +93,7 @@ jobs:
       - template: ../common/foundry-local.yml@self
         parameters:
           phase: install
+          onlyOnNodeModulesCacheMiss: true
 
       - powershell: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
