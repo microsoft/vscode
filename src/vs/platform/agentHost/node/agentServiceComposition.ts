@@ -203,7 +203,7 @@ export function createAgentService(
 		);
 		const serverToolHost = new AgentServerToolHost(
 			context.stateManager,
-			buildServerToolGroups(context.createSessionServerToolAccessor(), agentMergeTools),
+			buildServerToolGroups(context.createSessionServerToolAccessor(), agentMergeTools, context.createArtifactServerToolAccessor()),
 		);
 
 		agentService.initialize({

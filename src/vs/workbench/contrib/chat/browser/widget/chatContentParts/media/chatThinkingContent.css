@@ -76,7 +76,7 @@
 		background: transparent;
 		color: inherit;
 		line-height: 1.5em;
-		vertical-align: middle;
+		cursor: pointer;
 
 		> .label-added {
 			color: var(--vscode-chat-linesAddedForeground);
