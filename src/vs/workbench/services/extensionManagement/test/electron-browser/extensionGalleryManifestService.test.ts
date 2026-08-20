@@ -413,6 +413,28 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.AccessDenied);
 	});
 
+	test('GitHub provider — eligible account, 200 with a non-manifest body → AccessDenied', async () => {
+		// A captive portal / proxy can answer 200 with an unrelated JSON body; it must not be
+		// accepted as a service index and published as Available.
+		defaultAccount = createDefaultAccount({ enterprise: true });
+		requestHandler = () => mockResponse(200, { foo: 'bar' });
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.AccessDenied);
+	});
+
+	test('GitHub provider — eligible account, 200 with malformed resources → AccessDenied', async () => {
+		defaultAccount = createDefaultAccount({ enterprise: true });
+		requestHandler = () => mockResponse(200, { ...createGalleryManifest(), resources: [{}] });
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.AccessDenied);
+	});
+
 	test('Microsoft provider — manifest fetch fails → AccessDenied', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
 		microsoftSessions = [createMicrosoftSession()];
