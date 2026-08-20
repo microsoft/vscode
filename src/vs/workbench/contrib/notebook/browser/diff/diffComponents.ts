@@ -2003,9 +2003,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 		await vm.waitForDiff();
 
 		if (this._isDisposed) {
-			// The component was disposed while awaiting the diff computation.
-			// The registered model references have already been disposed, so
-			// attaching them to the editor would throw "Model is disposed!".
+			// Disposed during the await; model refs are gone, so skip setModel.
 			return;
 		}
 
