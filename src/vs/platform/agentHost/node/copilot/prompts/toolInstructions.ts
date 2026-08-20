@@ -6,7 +6,6 @@
 import type { SectionOverride } from '@github/copilot-sdk';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { BrowserChatToolReferenceName, browserChatToolReferenceNames } from '../../../../browserView/common/browserChatToolReferenceNames.js';
-import { SEMANTIC_SEARCH_TOOL_NAME } from '../../../common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME } from '../../../common/toolSearchConstants.js';
 
 /**
@@ -27,9 +26,8 @@ import { CLIENT_TOOL_SEARCH_REFERENCE_NAME } from '../../../common/toolSearchCon
  */
 
 /**
- * A single tool-instructions entry. Returns its content (one or more
- * newline-separated sentences, with no leading or trailing newline) when it
- * applies, or `undefined` to contribute nothing.
+ * A single tool-instructions line. Returns its content (a single sentence, no
+ * surrounding newlines) when it applies, or `undefined` to contribute nothing.
  * Mirrors one `<>…</>` fragment in the extension's `toolUseInstructions` block.
  *
  * @param hasTool predicate for whether a tool name is available in the session.
@@ -64,18 +62,10 @@ const browserToolInstructions: ToolInstructionLine = hasTool => {
 	return `Use the browser tools (${BrowserChatToolReferenceName.OpenBrowserPage}, ${companion}, etc.) when beneficial for front-end tasks, such as when visualizing or validating UI changes.`;
 };
 
-/** Scope guidance, then what to do when the workspace index cannot answer. */
-export const COPILOT_AGENT_HOST_SEMANTIC_SEARCH_INSTRUCTION = [
-	`Use \`${SEMANTIC_SEARCH_TOOL_NAME}\` only for focused natural-language codebase queries when the exact text or symbol is unknown; prefer \`grep\` or \`glob\` when you know what to look for, run it alone rather than in parallel with other searches, and keep queries narrow because broad queries can return oversized results.`,
-	`If \`${SEMANTIC_SEARCH_TOOL_NAME}\` reports that the index is unavailable or updating, or returns no results, treat the outcome as inconclusive rather than as proof the code does not exist: do not retry or rephrase the query; switch to \`grep\` or \`glob\` instead.`,
-].join('\n');
-const semanticSearchToolInstructions: ToolInstructionLine = hasTool =>
-	hasTool(SEMANTIC_SEARCH_TOOL_NAME) ? COPILOT_AGENT_HOST_SEMANTIC_SEARCH_INSTRUCTION : undefined;
-
 /**
  * The registered tool-instruction lines, in render order.
  */
-const TOOL_INSTRUCTION_LINES: readonly ToolInstructionLine[] = [largeOutputToolInstructions, browserToolInstructions, semanticSearchToolInstructions];
+const TOOL_INSTRUCTION_LINES: readonly ToolInstructionLine[] = [largeOutputToolInstructions, browserToolInstructions];
 
 /** Tool-search guidance mirrored from the Copilot extension prompt. */
 const toolSearchToolInstructions: ToolInstructionLine = hasTool =>

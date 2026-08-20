@@ -40,11 +40,10 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
-import { AgentHostSessionHandler, toolResultToProtocol, UNOBSERVED_CLIENT_TOOL_GRACE_MS } from '../../../browser/agentSessions/agentHost/agentHostSessionHandler.js';
+import { AgentHostSessionHandler, toolDataToDefinition, toolResultToProtocol, UNOBSERVED_CLIENT_TOOL_GRACE_MS } from '../../../browser/agentSessions/agentHost/agentHostSessionHandler.js';
 import { AgentHostActiveClientService, IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostCustomizationService, NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, IAgentHostToolSetEnablementService, IToolEnablementState } from '../../../browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
-import { toolDataToDefinition, toClientToolReferenceName } from '../../../browser/agentSessions/agentHost/agentHostToolUtils.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestFileService } from '../../../../../test/common/workbenchTestServices.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -182,165 +181,62 @@ suite('AgentHostClientTools', () => {
 		});
 	});
 
-	test('gates semantic search for Copilot sessions', async () => {
-		const semanticSearchTool: IToolData = {
-			id: CLIENT_SEMANTIC_SEARCH_TOOL_ID,
-			toolReferenceName: CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME,
-			displayName: 'Search Codebase',
-			modelDescription: 'Semantically searches the workspace',
-			source: ToolDataSource.Internal,
-		};
-		const readFileTool: IToolData = {
-			id: 'vscode.readFile',
-			toolReferenceName: 'readFile',
-			displayName: 'Read File',
-			modelDescription: 'Reads a file',
-			source: ToolDataSource.Internal,
-		};
-		const searchToolSet = new class extends mock<IToolSet>() {
-			override readonly id = 'search';
-			override readonly deprecated = false;
-			override getTools(): Iterable<IToolData> {
-				return [semanticSearchTool, readFileTool];
-			}
-		};
-		const { service, setSemanticSearchEnabled } = createActiveClientService(
-			constObservable([semanticSearchTool, readFileTool]),
-			constObservable([searchToolSet]),
-		);
-		const registration = disposables.add(service.registerForAgent(AGENT_HOST_COPILOT_CLI_SESSION_TYPE));
-		const scope = disposables.add(registration.acquireScope([]));
-		const remoteRegistration = disposables.add(service.registerForAgent(REMOTE_COPILOT_CLI_SESSION_TYPE));
-		const remoteScope = disposables.add(remoteRegistration.acquireScope([]));
-		const otherRegistration = disposables.add(service.registerForAgent('agent-host-claude'));
-		const otherScope = disposables.add(otherRegistration.acquireScope([]));
-		await scope.whenResolved();
-		await remoteScope.whenResolved();
-		await otherScope.whenResolved();
-		const observedNames: string[][] = [];
-		disposables.add(autorun(reader => observedNames.push(scope.tools.read(reader).map(tool => tool.name))));
+	const semanticSearchTool: IToolData = {
+		id: CLIENT_SEMANTIC_SEARCH_TOOL_ID,
+		toolReferenceName: CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME,
+		displayName: 'Search Codebase',
+		modelDescription: 'Semantically searches the workspace',
+		source: ToolDataSource.Internal,
+		inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
+	};
+	const collidingCodebaseTool: IToolData = {
+		...semanticSearchTool,
+		id: 'other.codebase',
+		displayName: 'Other Codebase',
+		canRequestPreApproval: true,
+	};
+	const collidingSemanticSearchTool: IToolData = {
+		...semanticSearchTool,
+		id: 'other.semanticSearch',
+		toolReferenceName: SEMANTIC_SEARCH_TOOL_NAME,
+		displayName: 'Other Semantic Search',
+	};
+	const readFileTool: IToolData = {
+		id: 'vscode.readFile',
+		toolReferenceName: 'readFile',
+		displayName: 'Read File',
+		modelDescription: 'Reads a file',
+		source: ToolDataSource.Internal,
+	};
 
-		setSemanticSearchEnabled(true);
-		const remoteEnabledNames = remoteScope.tools.get().map(tool => tool.name);
-		setSemanticSearchEnabled(false);
-
-		assert.deepStrictEqual({
-			copilotNames: observedNames,
-			remoteEnabledNames,
-			remoteDisabledNames: remoteScope.tools.get().map(tool => tool.name),
-			otherNames: otherScope.tools.get().map(tool => tool.name),
-		}, {
-			copilotNames: [
-				['readFile'],
-				[SEMANTIC_SEARCH_TOOL_NAME, 'readFile'],
-				['readFile'],
-			],
-			remoteEnabledNames: [SEMANTIC_SEARCH_TOOL_NAME, 'readFile'],
-			remoteDisabledNames: ['readFile'],
-			otherNames: [CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, 'readFile'],
-		});
-	});
-
-	test('reserves semantic-search names for the Copilot contribution', async () => {
-		const semanticSearchTool: IToolData = {
-			id: CLIENT_SEMANTIC_SEARCH_TOOL_ID,
-			toolReferenceName: CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME,
-			displayName: 'Search Codebase',
-			modelDescription: 'Semantically searches the workspace',
-			source: ToolDataSource.Internal,
-		};
-		const collidingCodebaseTool: IToolData = {
-			...semanticSearchTool,
-			id: 'other.codebase',
-			displayName: 'Other Codebase',
-		};
-		const collidingSemanticSearchTool: IToolData = {
-			...semanticSearchTool,
-			id: 'other.semanticSearch',
-			toolReferenceName: SEMANTIC_SEARCH_TOOL_NAME,
-			displayName: 'Other Semantic Search',
-		};
-		const readFileTool: IToolData = {
-			id: 'vscode.readFile',
-			toolReferenceName: 'readFile',
-			displayName: 'Read File',
-			modelDescription: 'Reads a file',
-			source: ToolDataSource.Internal,
-		};
-		const tools = [collidingCodebaseTool, collidingSemanticSearchTool, semanticSearchTool, readFileTool];
+	async function publishedTools(tools: readonly IToolData[], sessionType: string, enabled: boolean) {
 		const toolSet = new class extends mock<IToolSet>() {
 			override readonly id = 'search';
 			override readonly deprecated = false;
-			override getTools(): Iterable<IToolData> {
-				return tools;
-			}
+			override getTools(): Iterable<IToolData> { return tools; }
 		};
-		const { service, setSemanticSearchEnabled } = createActiveClientService(
-			constObservable(tools),
-			constObservable([toolSet]),
-		);
-		const localRegistration = disposables.add(service.registerForAgent(AGENT_HOST_COPILOT_CLI_SESSION_TYPE));
-		const localScope = disposables.add(localRegistration.acquireScope([]));
-		const remoteRegistration = disposables.add(service.registerForAgent(REMOTE_COPILOT_CLI_SESSION_TYPE));
-		const remoteScope = disposables.add(remoteRegistration.acquireScope([]));
-		await localScope.whenResolved();
-		await remoteScope.whenResolved();
+		const client = createActiveClientService(constObservable(tools), constObservable([toolSet]));
+		const registration = disposables.add(client.service.registerForAgent(sessionType));
+		const scope = disposables.add(registration.acquireScope([]));
+		await scope.whenResolved();
+		client.setSemanticSearchEnabled(enabled);
+		return scope.tools.get().map(tool => [tool.name, tool.title]);
+	}
 
-		const disabled = localScope.tools.get().map(tool => tool.name);
-		setSemanticSearchEnabled(true);
-
+	test('gates and reserves semantic search for Copilot sessions', async () => {
+		const tools = [collidingCodebaseTool, collidingSemanticSearchTool, semanticSearchTool, readFileTool];
 		assert.deepStrictEqual({
-			disabled,
-			localEnabled: localScope.tools.get().map(tool => [tool.name, tool.title]),
-			remoteEnabled: remoteScope.tools.get().map(tool => [tool.name, tool.title]),
+			localDisabled: await publishedTools(tools, AGENT_HOST_COPILOT_CLI_SESSION_TYPE, false),
+			localEnabled: await publishedTools(tools, AGENT_HOST_COPILOT_CLI_SESSION_TYPE, true),
+			remoteEnabled: await publishedTools(tools, REMOTE_COPILOT_CLI_SESSION_TYPE, true),
+			otherEnabled: await publishedTools(tools, 'agent-host-claude', true),
+			withoutCanonical: await publishedTools([collidingCodebaseTool, collidingSemanticSearchTool, readFileTool], AGENT_HOST_COPILOT_CLI_SESSION_TYPE, true),
 		}, {
-			disabled: ['readFile'],
+			localDisabled: [['readFile', 'Read File']],
 			localEnabled: [[SEMANTIC_SEARCH_TOOL_NAME, 'Search Codebase'], ['readFile', 'Read File']],
 			remoteEnabled: [[SEMANTIC_SEARCH_TOOL_NAME, 'Search Codebase'], ['readFile', 'Read File']],
-		});
-	});
-
-	test('does not substitute colliding tools when the Copilot contribution is absent', async () => {
-		const collidingTools: IToolData[] = [{
-			id: 'other.codebase',
-			toolReferenceName: CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME,
-			displayName: 'Other Codebase',
-			modelDescription: 'Runs another codebase search',
-			source: ToolDataSource.Internal,
-		}, {
-			id: 'other.semanticSearch',
-			toolReferenceName: SEMANTIC_SEARCH_TOOL_NAME,
-			displayName: 'Other Semantic Search',
-			modelDescription: 'Runs another semantic search',
-			source: ToolDataSource.Internal,
-		}, {
-			id: 'vscode.readFile',
-			toolReferenceName: 'readFile',
-			displayName: 'Read File',
-			modelDescription: 'Reads a file',
-			source: ToolDataSource.Internal,
-		}];
-		const toolSet = new class extends mock<IToolSet>() {
-			override readonly id = 'search';
-			override readonly deprecated = false;
-			override getTools(): Iterable<IToolData> {
-				return collidingTools;
-			}
-		};
-		const { service, setSemanticSearchEnabled } = createActiveClientService(
-			constObservable(collidingTools),
-			constObservable([toolSet]),
-		);
-		const registration = disposables.add(service.registerForAgent(AGENT_HOST_COPILOT_CLI_SESSION_TYPE));
-		const scope = disposables.add(registration.acquireScope([]));
-		await scope.whenResolved();
-
-		const disabled = scope.tools.get().map(tool => tool.name);
-		setSemanticSearchEnabled(true);
-
-		assert.deepStrictEqual({ disabled, enabled: scope.tools.get().map(tool => tool.name) }, {
-			disabled: ['readFile'],
-			enabled: ['readFile'],
+			otherEnabled: [[CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, 'Other Codebase'], [SEMANTIC_SEARCH_TOOL_NAME, 'Other Semantic Search'], [CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, 'Search Codebase'], ['readFile', 'Read File']],
+			withoutCanonical: [['readFile', 'Read File']],
 		});
 	});
 
@@ -389,38 +285,6 @@ suite('AgentHostClientTools', () => {
 
 			const def = toolDataToDefinition(tool);
 			assert.strictEqual(def.name, 'vscode.runTests');
-		});
-
-		test('maps runtime override names back to their workbench references', () => {
-			const tool: IToolData = {
-				id: CLIENT_SEMANTIC_SEARCH_TOOL_ID,
-				toolReferenceName: CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME,
-				displayName: 'Search Codebase',
-				modelDescription: 'Semantically searches the workspace',
-				source: ToolDataSource.Internal,
-			};
-
-			assert.deepStrictEqual({
-				definition: toolDataToDefinition(tool),
-				clientNames: [
-					toClientToolReferenceName(RUNTIME_TOOL_SEARCH_TOOL_NAME, true),
-					toClientToolReferenceName(SEMANTIC_SEARCH_TOOL_NAME, true),
-					toClientToolReferenceName(SEMANTIC_SEARCH_TOOL_NAME, false),
-					toClientToolReferenceName('readFile', true),
-				],
-			}, {
-				definition: {
-					name: CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME,
-					title: 'Search Codebase',
-					description: 'Semantically searches the workspace',
-				},
-				clientNames: [
-					CLIENT_TOOL_SEARCH_REFERENCE_NAME,
-					CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME,
-					SEMANTIC_SEARCH_TOOL_NAME,
-					'readFile',
-				],
-			});
 		});
 
 		test('omits inputSchema when schema type is not object', () => {
@@ -1022,30 +886,6 @@ suite('AgentHostClientTools', () => {
 			modelDescription: 'Searches for tools',
 			source: ToolDataSource.Internal,
 			inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
-		};
-
-		const testCodebaseTool: IToolData = {
-			id: CLIENT_SEMANTIC_SEARCH_TOOL_ID,
-			toolReferenceName: CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME,
-			displayName: 'Search Codebase',
-			modelDescription: 'Semantically searches the workspace',
-			source: ToolDataSource.Internal,
-			inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
-		};
-
-		const testSemanticSearchTool: IToolData = {
-			id: 'other.semanticSearch',
-			toolReferenceName: SEMANTIC_SEARCH_TOOL_NAME,
-			displayName: 'Other Semantic Search',
-			modelDescription: 'Runs another semantic search',
-			source: ToolDataSource.Internal,
-			inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
-		};
-
-		const testCollidingCodebaseTool: IToolData = {
-			...testCodebaseTool,
-			id: 'other.codebase',
-			displayName: 'Other Codebase',
 		};
 
 		// A tool that might ask for pre-approval: the handler treats it as
@@ -2620,11 +2460,11 @@ suite('AgentHostClientTools', () => {
 			const invoke = async (sessionType: string, toolCallId: string) => {
 				const isCopilot = sessionType === AGENT_HOST_COPILOT_CLI_SESSION_TYPE || sessionType === REMOTE_COPILOT_CLI_SESSION_TYPE;
 				const codebaseTool = isCopilot
-					? testCodebaseTool
-					: { ...testCodebaseTool, canRequestPreApproval: true };
+					? semanticSearchTool
+					: { ...semanticSearchTool, canRequestPreApproval: true };
 				const { handler, connection, toolsService } = createHandlerWithMocks(
 					disposables,
-					[testCollidingCodebaseTool, codebaseTool, testSemanticSearchTool],
+					[collidingCodebaseTool, codebaseTool, collidingSemanticSearchTool],
 					undefined,
 					sessionType,
 				);
@@ -2663,7 +2503,7 @@ suite('AgentHostClientTools', () => {
 					await invoke(REMOTE_COPILOT_CLI_SESSION_TYPE, 'remote-copilot-semantic'),
 					await invoke('agent-host-claude', 'claude-semantic'),
 				],
-				[testCodebaseTool.id, testCodebaseTool.id, testSemanticSearchTool.id],
+				[semanticSearchTool.id, semanticSearchTool.id, collidingSemanticSearchTool.id],
 			);
 		}));
 
@@ -2671,7 +2511,7 @@ suite('AgentHostClientTools', () => {
 			const sessionType = 'agent-host-claude';
 			const { handler, connection, toolsService } = createHandlerWithMocks(
 				disposables,
-				[testCodebaseTool, testSemanticSearchTool],
+				[semanticSearchTool, collidingSemanticSearchTool],
 				undefined,
 				sessionType,
 			);
@@ -2717,8 +2557,8 @@ suite('AgentHostClientTools', () => {
 				begun: toolsService.begunToolCalls[0]?.toolId,
 				invoked: toolsService.invokedToolCalls[0]?.toolId,
 			}, {
-				begun: testSemanticSearchTool.id,
-				invoked: testSemanticSearchTool.id,
+				begun: collidingSemanticSearchTool.id,
+				invoked: collidingSemanticSearchTool.id,
 			});
 		});
 

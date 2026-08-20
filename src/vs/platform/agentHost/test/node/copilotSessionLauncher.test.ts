@@ -19,9 +19,9 @@ import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IB
 import { AgentHostByokModelsEnabledConfigKey, type SchemaValues } from '../../common/agentHostSchema.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
-import { CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import type { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels } from '../../common/reasoningEffort.js';
+import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { CustomizationType, McpServerStatus, type ModelSelection } from '../../common/state/protocol/state.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
@@ -519,7 +519,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeManagedSettings: { permissions: managedSettingsPermissions },
 				ephemeralMcpServers: {},
 				ephemeralDisabledMcpServers: ['azure', 'disabled-workspace-server', 'github', 'native-plugin-server', 'synced-server'],
-				ephemeralExcludedTools: ['task'],
+				ephemeralExcludedTools: ['task', `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 			});
 		} finally {
 			sessions.dispose();
@@ -932,22 +932,6 @@ suite('filterClientToolNames', () => {
 			]
 		);
 	});
-
-	test('keeps workbench and SDK semantic-search names consistent', () => {
-		const names = new Set([SEMANTIC_SEARCH_TOOL_NAME]);
-		assert.deepStrictEqual(
-			[
-				[...filterClientToolNames(names, [CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME], undefined)],
-				[...filterClientToolNames(names, undefined, [`custom:${CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME}`])],
-				toSdkToolFilterPatterns([CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, `custom:${CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME}`, 'builtin:*']),
-			],
-			[
-				[SEMANTIC_SEARCH_TOOL_NAME],
-				[],
-				[SEMANTIC_SEARCH_TOOL_NAME, `custom:${SEMANTIC_SEARCH_TOOL_NAME}`, 'builtin:*'],
-			]
-		);
-	});
 });
 
 /**
@@ -1030,51 +1014,20 @@ suite('CopilotSessionLauncher resume config', () => {
 		return (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean } }> })._buildSessionConfig(plan, runtime);
 	}
 
-	test('excludes the built-in semantic search unless the client override is enabled', async () => {
-		const store = new DisposableStore();
-		// Same configured filters on both arms, so the snapshot is the only variable.
-		const overrides = { modelCapabilityOverrides: { '*': { excludedTools: ['mcp:*'] } } };
-		const disabled = await buildResumeConfig(
-			createLauncher(store, overrides),
-			undefined,
-			{ tools: [], plugins: [], mcpServers: {} },
-		);
-		const enabled = await buildResumeConfig(
-			createLauncher(store, overrides),
-			undefined,
-			{ tools: [{ name: SEMANTIC_SEARCH_TOOL_NAME }], plugins: [], mcpServers: {} },
-		);
-
-		assert.deepStrictEqual(
-			[disabled.excludedTools, enabled.excludedTools],
-			[['mcp:*', `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`], ['mcp:*']],
-		);
-		store.dispose();
-	});
-
-	test('does not fall back to built-in semantic search when filters remove the client override', async () => {
+	test('exposes only the client semantic-search override', async () => {
 		const store = new DisposableStore();
 		const snapshot = { tools: [{ name: SEMANTIC_SEARCH_TOOL_NAME }], plugins: [], mcpServers: {} };
-		const builtinOnly = await buildResumeConfig(
-			createLauncher(store, { modelCapabilityOverrides: { '*': { availableTools: [`builtin:${SEMANTIC_SEARCH_TOOL_NAME}`] } } }),
-			undefined,
-			snapshot,
-		);
-		const customExcluded = await buildResumeConfig(
+		const disabled = await buildResumeConfig(createLauncher(store, {}), undefined, { tools: [], plugins: [], mcpServers: {} });
+		const enabled = await buildResumeConfig(createLauncher(store, {}), undefined, snapshot);
+		const filtered = await buildResumeConfig(
 			createLauncher(store, { modelCapabilityOverrides: { '*': { excludedTools: [`custom:${SEMANTIC_SEARCH_TOOL_NAME}`] } } }),
 			undefined,
 			snapshot,
 		);
 
 		assert.deepStrictEqual(
-			[
-				[builtinOnly.availableTools, builtinOnly.excludedTools],
-				[customExcluded.availableTools, customExcluded.excludedTools],
-			],
-			[
-				[[`builtin:${SEMANTIC_SEARCH_TOOL_NAME}`], [`builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]],
-				[undefined, [`custom:${SEMANTIC_SEARCH_TOOL_NAME}`, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]],
-			]
+			[disabled.excludedTools, enabled.excludedTools, filtered.excludedTools],
+			[[`builtin:${SEMANTIC_SEARCH_TOOL_NAME}`], undefined, [`custom:${SEMANTIC_SEARCH_TOOL_NAME}`, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]],
 		);
 		store.dispose();
 	});

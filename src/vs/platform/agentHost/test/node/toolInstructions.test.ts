@@ -5,8 +5,7 @@
 
 import assert from 'assert';
 import type { SectionOverride } from '@github/copilot-sdk';
-import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION, COPILOT_AGENT_HOST_SEMANTIC_SEARCH_INSTRUCTION, resolveToolInstructionsOverride, toolSearchInstructionLines, universalToolInstructions } from '../../node/copilot/prompts/toolInstructions.js';
-import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
+import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION, resolveToolInstructionsOverride, toolSearchInstructionLines, universalToolInstructions } from '../../node/copilot/prompts/toolInstructions.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME } from '../../common/toolSearchConstants.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
@@ -59,16 +58,6 @@ suite('toolInstructions', () => {
 					LARGE_OUTPUT_LINE,
 				]
 			);
-		});
-
-		test('adds focused-query and fallback reminders only when semantic search is available', () => {
-			assert.deepStrictEqual([
-				universalToolInstructions(hasTools(SEMANTIC_SEARCH_TOOL_NAME)),
-				universalToolInstructions(hasTools()),
-			], [
-				`${LARGE_OUTPUT_LINE}\n${COPILOT_AGENT_HOST_SEMANTIC_SEARCH_INSTRUCTION}`,
-				LARGE_OUTPUT_LINE,
-			]);
 		});
 	});
 

@@ -19,7 +19,7 @@ import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeModelFamilyAlias,
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels, type ReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
-import { CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
+import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import type { ModelSelection, ToolDefinition } from '../../common/state/protocol/state.js';
 import { RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import type { ActiveClientToolSet } from '../activeClientState.js';
@@ -133,15 +133,13 @@ export function clientToolNamesFromSnapshot(snapshot: IActiveClientSnapshot): Re
  * Narrows the names that gate prompt content so the system message never
  * advertises a tool the filters disabled. Client tools are `custom:`-source even
  * when they override a built-in, so bare-name and `custom:` forms match (the
- * aliased tools under either of their names). Routing keeps the unfiltered
+ * tool-search tool under either of its names). Routing keeps the unfiltered
  * set — the runtime is the enforcement point.
  */
 export function filterClientToolNames(names: ReadonlySet<string>, availableTools: readonly string[] | undefined, excludedTools: readonly string[] | undefined): ReadonlySet<string> {
 	if (!availableTools && !excludedTools) {
 		return names;
 	}
-	const sdkAvailableTools = toSdkToolFilterPatterns(availableTools);
-	const sdkExcludedTools = toSdkToolFilterPatterns(excludedTools);
 	const matches = (patterns: readonly string[], name: string) => {
 		const sdkName = toSdkClientToolName(name);
 		return patterns.some(pattern =>
@@ -154,27 +152,17 @@ export function filterClientToolNames(names: ReadonlySet<string>, availableTools
 	};
 	const result = new Set<string>();
 	for (const name of names) {
-		const allowed = !sdkAvailableTools || matches(sdkAvailableTools, name);
-		if (allowed && !(sdkExcludedTools && matches(sdkExcludedTools, name))) {
+		const allowed = !availableTools || matches(availableTools, name);
+		if (allowed && !(excludedTools && matches(excludedTools, name))) {
 			result.add(name);
 		}
 	}
 	return result;
 }
 
-/** Source qualifier the SDK uses for client-contributed tools. */
-const CUSTOM_TOOL_PATTERN_PREFIX = 'custom:';
-
-/** Maps workbench client-tool names to their SDK-registered names. */
+/** The SDK-registered name for a client tool; only the tool-search tool differs. */
 function toSdkClientToolName(name: string): string {
-	switch (name) {
-		case CLIENT_TOOL_SEARCH_REFERENCE_NAME:
-			return RUNTIME_TOOL_SEARCH_TOOL_NAME;
-		case CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME:
-			return SEMANTIC_SEARCH_TOOL_NAME;
-		default:
-			return name;
-	}
+	return name === CLIENT_TOOL_SEARCH_REFERENCE_NAME ? RUNTIME_TOOL_SEARCH_TOOL_NAME : name;
 }
 
 /** Maps Agent Host reference names to the names registered with the SDK. */
@@ -182,9 +170,15 @@ export function toSdkToolFilterPatterns(patterns: readonly string[] | undefined)
 	if (!patterns) {
 		return undefined;
 	}
-	return [...new Set(patterns.map(pattern => pattern.startsWith(CUSTOM_TOOL_PATTERN_PREFIX)
-		? `${CUSTOM_TOOL_PATTERN_PREFIX}${toSdkClientToolName(pattern.slice(CUSTOM_TOOL_PATTERN_PREFIX.length))}`
-		: toSdkClientToolName(pattern)))];
+	return [...new Set(patterns.map(pattern => {
+		if (pattern === CLIENT_TOOL_SEARCH_REFERENCE_NAME) {
+			return toSdkClientToolName(pattern);
+		}
+		if (pattern === `custom:${CLIENT_TOOL_SEARCH_REFERENCE_NAME}`) {
+			return `custom:${toSdkClientToolName(CLIENT_TOOL_SEARCH_REFERENCE_NAME)}`;
+		}
+		return pattern;
+	}))];
 }
 
 export interface ICopilotSessionRuntime {
