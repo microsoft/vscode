@@ -38,10 +38,12 @@ class PendingRequestInfo {
 type ComputeContextResult =
 	| { readonly kind: 'ok'; readonly body: protocol.ComputeContextResponse.OK }
 	| { readonly kind: 'cancelled' }
+	| { readonly kind: 'unavailable' }
 	| { readonly kind: 'failed'; readonly error: protocol.CustomResponse.Failed };
 
 namespace ComputeContextResult {
 	export const cancelled: ComputeContextResult = { kind: 'cancelled' };
+	export const unavailable: ComputeContextResult = { kind: 'unavailable' };
 
 	export function ok(body: protocol.ComputeContextResponse.OK): ComputeContextResult {
 		return { kind: 'ok', body };
@@ -164,10 +166,6 @@ export class TS7LanguageContextService extends AbstractTSLanguageContextService 
 		if (contextRequestState !== undefined && contextRequestState.server.length === 0) {
 			return;
 		}
-		const api = await this.getApi();
-		if (api === undefined) {
-			return;
-		}
 		const neighborFiles = this.neighborFileModel.getNeighborFiles(document);
 		const timeBudget = this.cachePopulationTimeout;
 		try {
@@ -178,17 +176,19 @@ export class TS7LanguageContextService extends AbstractTSLanguageContextService 
 			const documentVersion = document.version;
 			const cacheState = this.runnableResultManager.getCacheState();
 			let result: ComputeContextResult;
-			let inflightRequest: InflightRequestInfo | undefined;
+			const promise = this.computeContext(document, position, context, startTime, timeBudget, neighborFiles, contextRequestState?.server, token);
+			const inflightRequest = new InflightRequestInfo(document, position, context, tokenSource, promise);
+			this.inflightCachePopulationRequest = inflightRequest;
 			try {
-				const promise = this.computeContext(api, document, position, context, startTime, timeBudget, neighborFiles, contextRequestState?.server, token);
-				inflightRequest = new InflightRequestInfo(document, position, context, tokenSource, promise);
-				this.inflightCachePopulationRequest = inflightRequest;
 				result = await promise;
 			} finally {
 				if (this.inflightCachePopulationRequest === inflightRequest) {
 					this.inflightCachePopulationRequest = undefined;
 				}
 				tokenSource.dispose();
+			}
+			if (result.kind === 'unavailable') {
+				return;
 			}
 			const timeTaken = Date.now() - startTime;
 			if (result.kind === 'cancelled') {
@@ -222,8 +222,12 @@ export class TS7LanguageContextService extends AbstractTSLanguageContextService 
 		}
 	}
 
-	private async computeContext(api: API<true>, document: vscode.TextDocument, position: vscode.Position, context: RequestContext, startTime: number, timeBudget: number, neighborFiles: readonly string[], clientSideRunnableResults: readonly protocol.CachedContextRunnableResult[] | undefined, token: vscode.CancellationToken): Promise<ComputeContextResult> {
+	private async computeContext(document: vscode.TextDocument, position: vscode.Position, context: RequestContext, startTime: number, timeBudget: number, neighborFiles: readonly string[], clientSideRunnableResults: readonly protocol.CachedContextRunnableResult[] | undefined, token: vscode.CancellationToken): Promise<ComputeContextResult> {
 		try {
+			const api = await this.getApi();
+			if (api === undefined) {
+				return ComputeContextResult.unavailable;
+			}
 			// Workaround for https://github.com/microsoft/typescript-go/issues/4916
 			api.clearSourceFileCache();
 			const snapshot = await api.updateSnapshot({ openFiles: [ { uri: document.uri.toString() } ] });
@@ -346,15 +350,15 @@ export class TS7LanguageContextService extends AbstractTSLanguageContextService 
 				yield item;
 			}
 
-			if (this.inflightCachePopulationRequest !== undefined && this.inflightCachePopulationRequest.matchesDocument(document)) {
+			const inflightRequest = this.inflightCachePopulationRequest;
+			if (inflightRequest !== undefined && inflightRequest.matchesDocument(document)) {
 				cacheRequest = 'inflight';
 				const timeout = Math.max(0, Math.min(context.timeBudget ?? TS7LanguageContextService.defaultCachePopulationRaceTimeout, TS7LanguageContextService.defaultCachePopulationRaceTimeout));
 				const response = await Promise.race([
-					this.inflightCachePopulationRequest.serverPromise,
+					inflightRequest.serverPromise,
 					new Promise<'timedOut'>(resolve => setTimeout(() => resolve('timedOut'), timeout)),
 				]);
 				if (response !== 'timedOut') {
-					this.inflightCachePopulationRequest = undefined;
 					if (this.onTimeoutData !== undefined) {
 						this.onTimeoutData = undefined;
 						for (const runnableResult of this.runnableResultManager.getCachedRunnableResults(document, position, protocol.EmitMode.ClientBasedOnTimeout)) {
