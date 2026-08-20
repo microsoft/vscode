@@ -3,6 +3,11 @@ parameters:
     type: string # linux, darwin, win32
 
 steps:
+  - script: |
+      git lfs install --local
+      git lfs pull --include="extensions/copilot/test/simulation/cache/**"
+    displayName: Pull Copilot test cache
+
   # Setup copilot test environment (tokens, env vars)
   - task: AzureCLI@2
     inputs:
