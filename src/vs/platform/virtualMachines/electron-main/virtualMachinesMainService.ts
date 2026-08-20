@@ -68,6 +68,10 @@ export class VirtualMachinesMainService extends Disposable implements IVirtualMa
 			dataRoot: get<string>(VirtualMachinesConfig.DataRoot) || undefined,
 			networkMode: get<'user' | 'restricted' | 'none'>(VirtualMachinesConfig.NetworkMode) ?? 'user',
 			agentControl: get<boolean>(VirtualMachinesConfig.AgentControl) ?? false,
+			installIsoPaths: {
+				[WellKnownVirtualMachine.UbuntuDeveloper]: get<string>(VirtualMachinesConfig.DeveloperInstallIso) || undefined,
+				[WellKnownVirtualMachine.UbuntuSandbox]: get<string>(VirtualMachinesConfig.SandboxInstallIso) || undefined,
+			},
 			resources: {
 				[WellKnownVirtualMachine.UbuntuDeveloper]: {
 					cpus: get<number>(VirtualMachinesConfig.DeveloperCpus) ?? DEFAULT_VM_RESOURCES[WellKnownVirtualMachine.UbuntuDeveloper].cpus,
@@ -113,6 +117,10 @@ export class VirtualMachinesMainService extends Disposable implements IVirtualMa
 				'--user-data-dir', this.environmentMainService.userDataPath,
 			],
 			env: {
+				// UtilityProcess replaces the whole environment when `env` is
+				// provided; without the inherited variables (PATH, HOME, ...) the
+				// daemon could never locate the QEMU binary.
+				...process.env,
 				GITCORTEX_VM_SETTINGS: JSON.stringify(this.readSettings()),
 				GITCORTEX_VM_DATA_ROOT: dataRoot,
 			}

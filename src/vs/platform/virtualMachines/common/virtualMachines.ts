@@ -115,9 +115,11 @@ export const enum VirtualMachinesConfig {
 	DeveloperCpus = 'virtualMachines.ubuntuDeveloper.cpus',
 	DeveloperMemoryMB = 'virtualMachines.ubuntuDeveloper.memoryMB',
 	DeveloperDiskGB = 'virtualMachines.ubuntuDeveloper.diskGB',
+	DeveloperInstallIso = 'virtualMachines.ubuntuDeveloper.installIso',
 	SandboxCpus = 'virtualMachines.ubuntuSandbox.cpus',
 	SandboxMemoryMB = 'virtualMachines.ubuntuSandbox.memoryMB',
 	SandboxDiskGB = 'virtualMachines.ubuntuSandbox.diskGB',
+	SandboxInstallIso = 'virtualMachines.ubuntuSandbox.installIso',
 }
 
 export interface IVirtualMachinesSettings {

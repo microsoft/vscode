@@ -113,6 +113,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				description: localize('virtualMachines.developerDiskGB', "Virtual disk size (in GB) for the Ubuntu Developer machine."),
 				scope: ConfigurationScope.MACHINE,
 			},
+			[VirtualMachinesConfig.DeveloperInstallIso]: {
+				type: 'string', default: '',
+				description: localize('virtualMachines.developerInstallIso', "Absolute path to a bootable installer ISO attached when the Ubuntu Developer disk is empty. Leave empty to boot from the virtual disk only."),
+				scope: ConfigurationScope.MACHINE,
+			},
 			[VirtualMachinesConfig.SandboxCpus]: {
 				type: 'number', default: 2, minimum: 1, maximum: 16,
 				description: localize('virtualMachines.sandboxCpus', "Number of virtual CPUs for the Ubuntu Sandbox machine."),
@@ -126,6 +131,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			[VirtualMachinesConfig.SandboxDiskGB]: {
 				type: 'number', default: 16, minimum: 4, maximum: 512,
 				description: localize('virtualMachines.sandboxDiskGB', "Virtual disk size (in GB) for the Ubuntu Sandbox machine."),
+				scope: ConfigurationScope.MACHINE,
+			},
+			[VirtualMachinesConfig.SandboxInstallIso]: {
+				type: 'string', default: '',
+				description: localize('virtualMachines.sandboxInstallIso', "Absolute path to a bootable installer ISO attached when the Ubuntu Sandbox disk is empty. Leave empty to boot from the virtual disk only."),
 				scope: ConfigurationScope.MACHINE,
 			},
 		}
