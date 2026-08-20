@@ -818,6 +818,19 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(provider.sessionTypes.map(t => t.id), ['copilotcli', 'claude']);
 	});
 
+	test('always promotes Copilot to the first session type while preserving relative order of other agents', () => {
+		agentHost.setAgents([
+			{ provider: 'claude', displayName: 'Claude', description: '', models: [] } as AgentInfo,
+			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
+			{ provider: 'codex', displayName: 'Codex', description: '', models: [] } as AgentInfo,
+		]);
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration(AgentHostCodexAgentEnabledSettingId, true);
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService, isSessionsWindow: true });
+
+		assert.deepStrictEqual(provider.sessionTypes.map(t => t.id), ['copilotcli', 'claude', 'codex']);
+	});
+
 	test('gates agent-host Codex in the Agents window on the provider enablement setting', () => {
 		agentHost.setAgents([
 			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,

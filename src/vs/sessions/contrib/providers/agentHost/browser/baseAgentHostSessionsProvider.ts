@@ -2848,6 +2848,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				icon: this.iconForAgentProvider(agent.provider) ?? this.icon,
 			}));
 
+		// Ensure Copilot is the default by placing it first, regardless of the
+		// order the agent host reports its agents. The session-type picker uses
+		// the first entry as the fallback when the user has no stored preference.
+		next.sort((a, b) => (a.id === CopilotCLISessionType.id ? -1 : b.id === CopilotCLISessionType.id ? 1 : 0));
+
 		const prev = this._sessionTypes;
 		if (prev.length === next.length && prev.every((t, i) => t.id === next[i].id && t.label === next[i].label && t.authRequirement === next[i].authRequirement)) {
 			return;
