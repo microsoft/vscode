@@ -1308,6 +1308,7 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 	public readonly setModelId: ((modelId: string) => Promise<void>) | undefined;
 	public readonly _onDidChangeEmitter = this._register(new Emitter<languages.IInlineCompletionChangeHint | void>());
 	public readonly onDidChangeInlineCompletions: Event<languages.IInlineCompletionChangeHint | void> | undefined;
+	public readonly onDidChangeAvailability: Event<void> | undefined;
 
 	public readonly _onDidChangeModelInfoEmitter = this._register(new Emitter<void>());
 	public readonly onDidChangeModelInfo: Event<void> | undefined;
@@ -1351,13 +1352,12 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 		} : undefined;
 
 		this.onDidChangeInlineCompletions = this._supportsOnDidChange ? this._onDidChangeEmitter.event : undefined;
+		this.onDidChangeAvailability = this._meteredNetworkAware ? undefined : Event.signal(this._meteredConnectionService.onDidChangeIsConnectionMetered);
 		this.onDidChangeModelInfo = this._supportsOnDidChangeModelInfo ? this._onDidChangeModelInfoEmitter.event : undefined;
 		this.onDidProviderOptionsChange = this._supportsOnDidChangeProviderOptions ? this._onDidProviderOptionsChangeEmitter.event : undefined;
 
 		this._register(this._languageFeaturesService.inlineCompletionsProvider.register(this._selector, this));
 	}
-
-	public readonly onDidChangeAvailability = this._meteredNetworkAware ? undefined : Event.signal(this._meteredConnectionService.onDidChangeIsConnectionMetered);
 
 	public _setModelInfo(newModelInfo: languages.IInlineCompletionModelInfo | undefined) {
 		this.modelInfo = newModelInfo;
