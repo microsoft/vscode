@@ -35,11 +35,6 @@ export interface FetchedValueOptions<T> {
 	 * {@link FetchBlockedError.retryAfterMs} always takes precedence.
 	 */
 	getRetryAfterMs?: (error: unknown) => number | undefined;
-
-	/**
-	 * Injectable clock, primarily for tests.
-	 */
-	now?: () => number;
 }
 
 /**
@@ -79,13 +74,11 @@ export class FetchedValue<T> {
 	private _fetch: (() => Promise<T>) | undefined;
 	private readonly _isStale: (value: T) => boolean;
 	private readonly _getRetryAfterMs: ((error: unknown) => number | undefined) | undefined;
-	private readonly _now: () => number;
 
 	constructor(options: FetchedValueOptions<T>) {
 		this._fetch = options.fetch;
 		this._isStale = options.isStale;
 		this._getRetryAfterMs = options.getRetryAfterMs;
-		this._now = options.now ?? Date.now;
 		if (options.keepCacheHot) {
 			this._keepCacheHotTimer = setInterval(() => {
 				this.resolve().catch(() => { /* swallow — next interval will retry */ });
@@ -116,7 +109,7 @@ export class FetchedValue<T> {
 			return this._value as T;
 		}
 		if (!force && this._blockedFailure) {
-			if (this._now() < this._blockedFailure.until) {
+			if (Date.now() < this._blockedFailure.until) {
 				if (this._blockedFailure.returnCachedValue && this._hasFetched) {
 					return this._value as T;
 				}
@@ -180,7 +173,7 @@ export class FetchedValue<T> {
 			const retryAfterMs = err instanceof FetchBlockedError ? err.retryAfterMs : this._getRetryAfterMs?.(err);
 			if (generation === this._generation && retryAfterMs !== undefined && retryAfterMs > 0) {
 				const returnCachedValue = err instanceof FetchBlockedError;
-				this._blockedFailure = { error: err, until: this._now() + retryAfterMs, returnCachedValue };
+				this._blockedFailure = { error: err, until: Date.now() + retryAfterMs, returnCachedValue };
 				if (returnCachedValue && this._hasFetched) {
 					return this._value as T;
 				}

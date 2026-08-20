@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FetchedValue, FetchedValueOptions } from '../fetchedValue';
 import { FetchBlockedError } from '../fetchTypes';
 
@@ -32,6 +32,10 @@ describe('FetchedValue', () => {
 		fetchCount = 0;
 		nextToken = { value: 'token-1', expiresAt: Date.now() + 60_000 };
 		fetchedValue = createFetchedValue();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
 	});
 
 	it('value is undefined before first resolve', () => {
@@ -113,7 +117,8 @@ describe('FetchedValue', () => {
 	});
 
 	it('FetchBlockedError propagates when no cached value exists', async () => {
-		let now = 100;
+		vi.useFakeTimers();
+		vi.setSystemTime(100);
 		let blockedFetchCount = 0;
 		const fv = new FetchedValue<TestToken>({
 			fetch: async () => {
@@ -121,22 +126,22 @@ describe('FetchedValue', () => {
 				throw new FetchBlockedError('blocked', 5000);
 			},
 			isStale: () => true,
-			now: () => now,
 		});
 
 		await expect(fv.resolve()).rejects.toThrow('blocked');
-		now += 4999;
+		vi.advanceTimersByTime(4999);
 		await expect(fv.resolve()).rejects.toThrow('blocked');
 		expect(blockedFetchCount).toBe(1);
 
-		now++;
+		vi.advanceTimersByTime(1);
 		await expect(fv.resolve()).rejects.toThrow('blocked');
 		expect(blockedFetchCount).toBe(2);
 		expect(fv.value).toBeUndefined();
 	});
 
 	it('uses the configured retry delay for other errors', async () => {
-		let now = 100;
+		vi.useFakeTimers();
+		vi.setSystemTime(100);
 		let failedFetchCount = 0;
 		const fv = new FetchedValue<TestToken>({
 			fetch: async () => {
@@ -145,21 +150,21 @@ describe('FetchedValue', () => {
 			},
 			isStale: () => true,
 			getRetryAfterMs: () => 5000,
-			now: () => now,
 		});
 
 		await expect(fv.resolve()).rejects.toThrow('network failure');
-		now += 4999;
+		vi.advanceTimersByTime(4999);
 		await expect(fv.resolve()).rejects.toThrow('network failure');
 		expect(failedFetchCount).toBe(1);
 
-		now++;
+		vi.advanceTimersByTime(1);
 		await expect(fv.resolve()).rejects.toThrow('network failure');
 		expect(failedFetchCount).toBe(2);
 	});
 
 	it('configured retry delays suppress retries without hiding failures behind a cached value', async () => {
-		let now = 100;
+		vi.useFakeTimers();
+		vi.setSystemTime(100);
 		let shouldFail = false;
 		let fetchCount = 0;
 		const fv = new FetchedValue<TestToken>({
@@ -172,7 +177,6 @@ describe('FetchedValue', () => {
 			},
 			isStale: () => true,
 			getRetryAfterMs: () => 5000,
-			now: () => now,
 		});
 
 		await expect(fv.resolve()).resolves.toBe(nextToken);
@@ -181,7 +185,7 @@ describe('FetchedValue', () => {
 		await expect(fv.resolve()).rejects.toThrow('signed out');
 		expect(fetchCount).toBe(2);
 
-		now += 5000;
+		vi.advanceTimersByTime(5000);
 		await expect(fv.resolve()).rejects.toThrow('signed out');
 		expect(fetchCount).toBe(3);
 	});
