@@ -4982,6 +4982,87 @@ suite('AgentSideEffects', () => {
 			});
 		});
 
+		test('first peer persists the inherited default chat title', async () => {
+			await sessionDb.setMetadata(SESSION_CUSTOM_TITLE_KEY, 'Initial');
+			const sessionDataService = createSessionDataService(sessionDb);
+			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const localAgent = new MockAgent();
+			disposables.add(toDisposable(() => localAgent.dispose()));
+			createTestSideEffects(disposables, localStateManager, {
+				getAgent: () => localAgent,
+				agents: observableValue<readonly IAgent[]>('agents', [localAgent]),
+				sessionDataService,
+				onTurnComplete: () => { },
+			});
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			localStateManager.createSession({
+				resource: sessionUri.toString(),
+				provider: 'mock',
+				title: 'Initial',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			});
+
+			localStateManager.addChat(sessionUri.toString(), buildChatUri(sessionUri.toString(), 'peer'), { title: 'Peer' });
+
+			assert.strictEqual(await waitForMetadata(customChatTitleMetadataKey(defaultChat)), 'Initial');
+		});
+
+		test('default chat title snapshot does not overwrite an existing persisted title', async () => {
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			await sessionDb.setMetadata(customChatTitleMetadataKey(defaultChat), 'Existing');
+			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const localAgent = new MockAgent();
+			disposables.add(toDisposable(() => localAgent.dispose()));
+			createTestSideEffects(disposables, localStateManager, {
+				getAgent: () => localAgent,
+				agents: observableValue<readonly IAgent[]>('agents', [localAgent]),
+				sessionDataService: createSessionDataService(sessionDb),
+				onTurnComplete: () => { },
+			});
+			localStateManager.createSession({
+				resource: sessionUri.toString(),
+				provider: 'mock',
+				title: 'Initial',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			});
+
+			localStateManager.addChat(sessionUri.toString(), buildChatUri(sessionUri.toString(), 'peer'), { title: 'Peer' });
+			await timeout(10);
+
+			assert.strictEqual(await sessionDb.getMetadata(customChatTitleMetadataKey(defaultChat)), 'Existing');
+		});
+
+		test('default chat title snapshot does not overwrite a newer in-memory title', async () => {
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const localAgent = new MockAgent();
+			disposables.add(toDisposable(() => localAgent.dispose()));
+			createTestSideEffects(disposables, localStateManager, {
+				getAgent: () => localAgent,
+				agents: observableValue<readonly IAgent[]>('agents', [localAgent]),
+				sessionDataService: createSessionDataService(sessionDb),
+				onTurnComplete: () => { },
+			});
+			localStateManager.createSession({
+				resource: sessionUri.toString(),
+				provider: 'mock',
+				title: 'Initial',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			});
+
+			localStateManager.addChat(sessionUri.toString(), buildChatUri(sessionUri.toString(), 'peer'), { title: 'Peer' });
+			localStateManager.updateChatTitle(sessionUri.toString(), defaultChat, 'Newer');
+			await timeout(10);
+
+			assert.strictEqual(await sessionDb.getMetadata(customChatTitleMetadataKey(defaultChat)), undefined);
+		});
+
 		test('handleListSessions returns persisted custom title', async () => {
 			const sessionDataService = createSessionDataService(sessionDb);
 			const localAgent = new MockAgent();

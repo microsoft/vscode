@@ -303,6 +303,7 @@ export class AgentSideEffects extends Disposable {
 			copilotApiService: this._options.copilotApiService,
 			isActiveAgentTitleGenerationEnabled: () => this._agentConfigService.getRootValue(platformRootSchema, AgentHostActiveAgentTitleGenerationConfigKey) === true,
 		}));
+		this._register(this._stateManager.onDidSnapshotDefaultChatTitle(event => this._persistDefaultChatTitleSnapshot(event.session, event.chat, event.title)));
 		this._localCommands = this._register(instantiationService.createInstance(
 			AgentHostLocalCommands,
 			this._stateManager,
@@ -1911,6 +1912,32 @@ export class AgentSideEffects extends Disposable {
 	 */
 	private _persistSessionFlag(session: ProtocolURI, key: string, value: string): void {
 		persistSessionMetadata(this._options.sessionDataService, this._logService, session, key, value);
+	}
+
+	private _persistDefaultChatTitleSnapshot(session: ProtocolURI, chat: ProtocolURI, title: string): void {
+		const ref = (() => {
+			try {
+				return this._options.sessionDataService.openDatabase(URI.parse(session));
+			} catch (error) {
+				this._logService.warn('[AgentSideEffects] Failed to open session database for default chat title snapshot', error);
+				return undefined;
+			}
+		})();
+		if (!ref) {
+			return;
+		}
+		const persist = async () => {
+			if (await ref.object.getMetadata(customChatTitleMetadataKey(chat)) !== undefined) {
+				return;
+			}
+			if (this._stateManager.getChatState(chat)?.title !== title) {
+				return;
+			}
+			await ref.object.setMetadata(customChatTitleMetadataKey(chat), title);
+		};
+		void persist().catch(error => {
+			this._logService.warn('[AgentSideEffects] Failed to persist default chat title snapshot', error);
+		}).finally(() => ref.dispose());
 	}
 
 	/**

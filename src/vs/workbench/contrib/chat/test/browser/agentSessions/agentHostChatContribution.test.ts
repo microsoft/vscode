@@ -10207,6 +10207,48 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(chatSession.title, undefined);
 		});
 
+		test('routes editor renames through the addressed default and peer chat channels', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const backendSession = AgentSession.uri('copilot', 'editor-rename-routing');
+			const defaultChat = buildDefaultChatUri(backendSession.toString());
+			const peerChat = buildChatUri(backendSession.toString(), 'peer');
+			const summary: SessionSummary = {
+				resource: backendSession.toString(),
+				provider: 'copilot',
+				title: 'Session title',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			};
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState(summary),
+				lifecycle: SessionLifecycle.Ready,
+				defaultChat,
+				chats: [
+					{ ...createDefaultChatSummary(summary, defaultChat), title: 'Default title' },
+					{ ...createDefaultChatSummary(summary, peerChat), title: 'Peer title' },
+				],
+			});
+			const defaultResource = URI.from({ scheme: 'agent-host-copilot', path: '/editor-rename-routing' });
+			const peerResource = defaultResource.with({ fragment: 'peer' });
+			const defaultSession = await sessionHandler.provideChatSessionContent(defaultResource, CancellationToken.None);
+			const peerSession = await sessionHandler.provideChatSessionContent(peerResource, CancellationToken.None);
+			disposables.add(toDisposable(() => defaultSession.dispose()));
+			disposables.add(toDisposable(() => peerSession.dispose()));
+			agentHostService.dispatchedActions.length = 0;
+
+			await defaultSession.renameSession?.('Renamed default', CancellationToken.None);
+			await peerSession.renameSession?.('Renamed peer', CancellationToken.None);
+
+			assert.deepStrictEqual(agentHostService.dispatchedActions.map(({ channel, action }) => ({ channel, action })), [{
+				channel: defaultChat,
+				action: { type: ActionType.SessionTitleChanged, title: 'Renamed default' },
+			}, {
+				channel: peerChat,
+				action: { type: ActionType.SessionTitleChanged, title: 'Renamed peer' },
+			}]);
+		});
+
 		test('uses the session title for a sole default chat', async () => {
 			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
 			const backendSession = AgentSession.uri('copilot', 'sole-chat-title');

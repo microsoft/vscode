@@ -280,6 +280,8 @@ export class AgentHostStateManager extends Disposable {
 
 	private readonly _onDidChangeSessionTitle = this._register(new Emitter<{ session: string; title: string }>());
 	readonly onDidChangeSessionTitle: Event<{ session: string; title: string }> = this._onDidChangeSessionTitle.event;
+	private readonly _onDidSnapshotDefaultChatTitle = this._register(new Emitter<{ session: string; chat: string; title: string }>());
+	readonly onDidSnapshotDefaultChatTitle: Event<{ session: string; chat: string; title: string }> = this._onDidSnapshotDefaultChatTitle.event;
 
 	private readonly _onDidChangeSessionConfig = this._register(new Emitter<{ session: URI; previous: SessionConfigState | undefined; current: SessionConfigState | undefined; clientContext?: IAgentHostClientTelemetryContext }>());
 	readonly onDidChangeSessionConfig: Event<{ session: URI; previous: SessionConfigState | undefined; current: SessionConfigState | undefined; clientContext?: IAgentHostClientTelemetryContext }> = this._onDidChangeSessionConfig.event;
@@ -1087,10 +1089,11 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	private _snapshotDefaultChatTitle(session: URI, state: SessionState): void {
-		const defaultChat = state.defaultChat ?? buildDefaultChatUri(session);
+		const defaultChat = buildDefaultChatUri(session);
 		const summary = state.chats.find(chat => chat.resource === defaultChat);
 		if (summary && !summary.title && state.title) {
 			this.updateChatTitle(session, defaultChat, state.title);
+			this._onDidSnapshotDefaultChatTitle.fire({ session, chat: defaultChat, title: state.title });
 		}
 	}
 

@@ -1152,6 +1152,27 @@ suite('AgentHostStateManager', () => {
 			});
 		});
 
+		test('adding a chat snapshots the canonical default when routing defaults to a peer', () => {
+			manager.createSession(makeSessionSummary());
+			const canonicalDefault = buildDefaultChatUri(sessionUri);
+			const peer2 = buildChatUri(sessionUri, 'peer-2');
+			manager.addChat(sessionUri, peerChat, { title: 'Peer' });
+			manager.updateChatTitle(sessionUri, canonicalDefault, '');
+			manager.updateChatTitle(sessionUri, peerChat, '');
+			manager.dispatchServerAction(sessionUri, { type: ActionType.SessionDefaultChatChanged, defaultChat: peerChat });
+
+			manager.addChat(sessionUri, peer2, { title: 'Peer 2' });
+
+			const state = manager.getSessionState(sessionUri);
+			assert.deepStrictEqual({
+				canonicalDefaultTitle: state?.chats.find(chat => chat.resource === canonicalDefault)?.title,
+				routingDefaultTitle: state?.chats.find(chat => chat.resource === peerChat)?.title,
+			}, {
+				canonicalDefaultTitle: 'Test',
+				routingDefaultTitle: '',
+			});
+		});
+
 		test('addChat is idempotent for an existing chat URI', () => {
 			manager.createSession(makeSessionSummary());
 			const first = manager.addChat(sessionUri, peerChat, { title: 'Peer' });

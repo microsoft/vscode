@@ -9345,6 +9345,16 @@ suite('AgentService (node dispatcher)', () => {
 			return [];
 		}
 
+		async function waitForMetadata(db: TestSessionDatabase, key: string, expected: string): Promise<void> {
+			for (let i = 0; i < 50; i++) {
+				if (await db.getMetadata(key) === expected) {
+					return;
+				}
+				await timeout(0);
+			}
+			assert.fail(`Metadata '${key}' did not become '${expected}'`);
+		}
+
 		test('rolls back a new peer chat when its catalog entry cannot be persisted', async () => {
 			class FailingPeerCatalogDatabase extends TestSessionDatabase {
 				failPeerCatalogWrites = false;
@@ -9425,6 +9435,39 @@ suite('AgentService (node dispatcher)', () => {
 
 			const registered = (await localService.listSessions()).map(s => s.session.toString());
 			assert.ok(!registered.includes(AgentSession.uri('copilot', 'restored-peer-backing-sdk-id').toString()), 'the backing session must not leak into the registered session list');
+		});
+
+		test('restores the snapshotted default chat title after the session is renamed', async () => {
+			class MultiChatAgent extends MockAgent {
+				override async createChat(): Promise<void> { }
+			}
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const sessionUri = session.toString();
+			const defaultChat = buildDefaultChatUri(session);
+			const peerChat = URI.parse(buildChatUri(session, 'peer'));
+			localService.dispatchAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Default A' }, 'test-client', 1);
+			await waitForMetadata(db, 'customTitle', 'Default A');
+
+			await localService.createChat(session, peerChat);
+			await waitForMetadata(db, `customChatTitle:${defaultChat}`, 'Default A');
+			localService.dispatchAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Session B' }, 'test-client', 2);
+			await waitForMetadata(db, 'customTitle', 'Session B');
+
+			localService.stateManager.deleteSession(sessionUri);
+			await localService.restoreSession(session);
+
+			const restored = localService.stateManager.getSessionState(sessionUri);
+			assert.deepStrictEqual({
+				sessionTitle: restored?.title,
+				defaultChatTitle: restored?.chats.find(chat => chat.resource === defaultChat)?.title,
+			}, {
+				sessionTitle: 'Session B',
+				defaultChatTitle: 'Default A',
+			});
 		});
 
 		test('restore registers peer-chat metadata in catalog order and loads history on first access', async () => {
