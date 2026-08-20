@@ -7,7 +7,7 @@ import assert from 'assert';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import type { IAgentSdkSetupInfo } from '../../../../../../platform/agentHost/common/agentSdkSetup.js';
-import { AGENT_SDK_SETUP_DOWNLOAD_COMMAND_ID, AGENT_SDK_SETUP_GITHUB_SIGN_IN_COMMAND_ID, AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID, AGENT_SDK_SETUP_SIGN_IN_COMMAND_ID, agentSdkSetupNotificationId, createAgentSdkSetupNotification, getAgentDisplayNames, getAgentSdkSetupState, getAgentSdkSetupStateToReport, hasAgentSdkSetupNotification, type IAgentSdkSetupStateInputs } from '../../../browser/agentSessions/agentHost/agentHostSdkSetupNotification.js';
+import { AGENT_SDK_SETUP_DOWNLOAD_COMMAND_ID, AGENT_SDK_SETUP_GITHUB_SIGN_IN_COMMAND_ID, AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID, AGENT_SDK_SETUP_RELOAD_COMMAND_ID, AGENT_SDK_SETUP_SIGN_IN_COMMAND_ID, agentSdkSetupNotificationId, createAgentSdkSetupNotification, getAgentDisplayNames, getAgentSdkSetupState, getAgentSdkSetupStateToReport, hasAgentSdkSetupNotification, type IAgentSdkSetupStateInputs } from '../../../browser/agentSessions/agentHost/agentHostSdkSetupNotification.js';
 import type { AgentSdkSetupState } from '../../../../../services/agentHost/browser/agentSdkSetupService.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, type IChatInputNotification, type IChatInputNotificationAction, type IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
@@ -97,9 +97,11 @@ suite('Agent SDK setup banner', () => {
 				both: buttons(codex, 'Codex'),
 				neither: buttons({ agent: 'some-future-agent', download: 'ready' }, 'Future'),
 			}, {
-				docsOnly: [AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID, AGENT_SDK_SETUP_GITHUB_SIGN_IN_COMMAND_ID],
+				// Docs are a link in the description, never a button — so declaring a
+				// docs URL and declaring nothing produce the same row of buttons.
+				docsOnly: [AGENT_SDK_SETUP_GITHUB_SIGN_IN_COMMAND_ID],
 				signInOnly: [AGENT_SDK_SETUP_SIGN_IN_COMMAND_ID, AGENT_SDK_SETUP_GITHUB_SIGN_IN_COMMAND_ID],
-				both: [AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID, AGENT_SDK_SETUP_SIGN_IN_COMMAND_ID, AGENT_SDK_SETUP_GITHUB_SIGN_IN_COMMAND_ID],
+				both: [AGENT_SDK_SETUP_SIGN_IN_COMMAND_ID, AGENT_SDK_SETUP_GITHUB_SIGN_IN_COMMAND_ID],
 				neither: [AGENT_SDK_SETUP_GITHUB_SIGN_IN_COMMAND_ID],
 			});
 		});
@@ -114,12 +116,20 @@ suite('Agent SDK setup banner', () => {
 			assert.deepStrictEqual(notification.actions.map(action => action.label), ['Sign in to ChatGPT', 'Sign in to GitHub']);
 		});
 
-		test('the routes named in the copy are the ones the agent declared', () => {
+		test('the routes named in the copy are the ones the agent declared, and reload leads all four', () => {
 			// One whole sentence per combination rather than joined clauses, since a
 			// translator reorders them freely. GitHub appears in all four: every agent
 			// behind this banner reaches models through our proxy once signed in.
-			const noAccount = (setup: Omit<IAgentSdkSetupInfo, 'agent' | 'download'>) =>
-				createAgentSdkSetupNotification({ agent: 'claude', download: 'ready', ...setup }, 'Claude', 'noAccount')?.description;
+			const noAccount = (setup: Omit<IAgentSdkSetupInfo, 'agent' | 'download'>) => {
+				const description = createAgentSdkSetupNotification({ agent: 'claude', download: 'ready', ...setup }, 'Claude', 'noAccount')?.description;
+				return typeof description === 'string' ? description : description?.value;
+			};
+			// The agent id, like every button carries — the command resolves the URL
+			// from the agent's own declaration rather than trusting the banner's copy.
+			const docs = `command:${AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID}?%22claude%22`;
+			// Unconditional: setup finished in a terminal has no completion signal, so
+			// every agent needs the "look again" route whatever else it declares.
+			const reload = `If you already set up Claude elsewhere, [reload Claude configuration](command:${AGENT_SDK_SETUP_RELOAD_COMMAND_ID}?%22claude%22).`;
 
 			assert.deepStrictEqual({
 				gitHubOnly: noAccount({}),
@@ -127,11 +137,20 @@ suite('Agent SDK setup banner', () => {
 				signIn: noAccount({ signInProviderName: 'ChatGPT' }),
 				both: noAccount({ setupDocsUrl: 'https://example.test/claude', signInProviderName: 'ChatGPT' }),
 			}, {
-				gitHubOnly: 'Sign in to GitHub to use GitHub Copilot models.',
-				docs: 'Sign in to GitHub to use GitHub Copilot models, or read the instructions for other ways to set up Claude.',
-				signIn: 'Sign in to GitHub to use GitHub Copilot models, or sign in to ChatGPT to use your ChatGPT subscription.',
-				both: 'Sign in to GitHub to use GitHub Copilot models, sign in to ChatGPT to use your ChatGPT subscription, or read the instructions for other ways to set up Claude.',
+				gitHubOnly: `${reload} Sign in to GitHub to use GitHub Copilot models.`,
+				docs: `${reload} Sign in to GitHub to use GitHub Copilot models, or [learn more](${docs}) for other ways to set up Claude.`,
+				signIn: `${reload} Sign in to GitHub to use GitHub Copilot models, or sign in to ChatGPT to use your ChatGPT subscription.`,
+				both: `${reload} Sign in to GitHub to use GitHub Copilot models, sign in to ChatGPT to use your ChatGPT subscription, or [learn more](${docs}) for other ways to set up Claude.`,
 			});
+		});
+
+		test('the copy is trusted for its own two commands alone, so its links render and reach nothing else', () => {
+			// Untrusted markdown renders a `command:` link as inert text, which would
+			// leave both routes with no affordance at all now that neither has a button.
+			const description = createAgentSdkSetupNotification({ agent: 'claude', download: 'ready', setupDocsUrl: 'https://example.test/claude' }, 'Claude', 'noAccount')?.description;
+
+			assert.ok(description !== undefined && typeof description !== 'string');
+			assert.deepStrictEqual(description.isTrusted, { enabledCommands: [AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID, AGENT_SDK_SETUP_RELOAD_COMMAND_ID] });
 		});
 
 		test('the banner cannot be dismissed, since it is the only route to a working agent', () => {
