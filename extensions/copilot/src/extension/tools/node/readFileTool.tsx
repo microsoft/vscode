@@ -35,7 +35,7 @@ import { ToolName } from '../common/toolNames';
 import { ICopilotTool, ToolRegistry } from '../common/toolsRegistry';
 import { formatUriForFileWidget } from '../common/toolUtils';
 import { getImageMimeType } from './imageToolUtils';
-import { assertFileNotContentExcluded, assertFileOkForTool, isFileExternalAndNeedsConfirmation, resolveToolInputPath } from './toolUtils';
+import { assertFileNotContentExcluded, isFileExternalAndNeedsConfirmation, resolveToolInputPath } from './toolUtils';
 
 export const getReadFileV2Description = (orig: vscode.LanguageModelToolInformation): vscode.LanguageModelToolInformation => ({
 	name: ToolName.ReadFile,
@@ -219,17 +219,21 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 				throw new Error(`Cannot read image files with ${ToolName.ReadFile}. Use ${ToolName.ViewImage} instead.`);
 			}
 
+			await this.instantiationService.invokeFunction(
+				accessor => assertFileNotContentExcluded(accessor, uri!)
+			);
+
 			// Check if file is external (outside workspace, not open in editor, etc.)
 			const { needsConfirmation, realPath } = await this.instantiationService.invokeFunction(
 				accessor => isFileExternalAndNeedsConfirmation(accessor, uri!, this._promptContext, { readOnly: true, workingDirectory: options.workingDirectory })
 			);
+			if (realPath) {
+				await this.instantiationService.invokeFunction(
+					accessor => assertFileNotContentExcluded(accessor, realPath)
+				);
+			}
 
 			if (needsConfirmation) {
-				// Still check content exclusion (copilot ignore)
-				await this.instantiationService.invokeFunction(
-					accessor => assertFileNotContentExcluded(accessor, uri!)
-				);
-
 				const folderUri = dirname(uri);
 
 				const message = realPath
@@ -251,8 +255,6 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 					}
 				};
 			}
-
-			await this.instantiationService.invokeFunction(accessor => assertFileOkForTool(accessor, uri!, this._promptContext, { readOnly: true, workingDirectory: options.workingDirectory }));
 
 			try {
 				documentSnapshot = await this.getSnapshot(uri);
