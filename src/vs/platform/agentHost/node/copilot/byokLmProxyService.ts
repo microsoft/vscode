@@ -77,12 +77,13 @@ const MAX_PENDING_TOOL_CONTINUATIONS = 256;
 type PendingToolCallKind = 'function_call' | 'custom_tool_call';
 
 interface IPendingToolContinuation {
+	readonly scope: string;
 	readonly responseId: string;
 	readonly calls: ReadonlyMap<string, PendingToolCallKind>;
 }
 
 /** Provider state awaiting the SDK's immediate tool-result request. */
-type ByokLmProxyState = Map<string, IPendingToolContinuation>;
+type ByokLmProxyState = Set<IPendingToolContinuation>;
 
 /**
  * Local OpenAI-compatible HTTP proxy that lets the Copilot SDK runtime run
@@ -109,7 +110,7 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 	}
 
 	protected createState(): ByokLmProxyState {
-		return new Map();
+		return new Set();
 	}
 
 	async start(): Promise<IByokLmProxyHandle> {
@@ -200,15 +201,13 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 			return;
 		}
 
-		const continuationKey = typeof body?.model === 'string' ? this._continuationKey(sessionId, vendor, body.model) : undefined;
-		let bridgeBody = body;
-		if (continuationKey && body.previous_response_id === undefined) {
-			const pending = runtime.state.get(continuationKey);
-			const input = pending && this._recoverToolContinuation(body.input, pending);
-			if (input) {
-				bridgeBody = { ...body, input, previous_response_id: pending.responseId };
-			}
-		}
+		const continuationScope = typeof body?.model === 'string' ? this._continuationScope(sessionId, vendor, body.model) : undefined;
+		const recovered = continuationScope && body.previous_response_id === undefined
+			? this._findToolContinuation(runtime.state, continuationScope, body.input)
+			: undefined;
+		const bridgeBody = recovered
+			? { ...body, input: recovered.input, previous_response_id: recovered.pending.responseId }
+			: body;
 
 		let bridgeRequest;
 		try {
@@ -246,8 +245,11 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 				this._writeJsonError(res, 502, result.error, 'api_error');
 				return;
 			}
-			if (continuationKey) {
-				this._updateToolContinuation(runtime.state, continuationKey, result);
+			if (recovered) {
+				runtime.state.delete(recovered.pending);
+			}
+			if (continuationScope) {
+				this._addToolContinuation(runtime.state, continuationScope, result);
 			}
 			if (body.stream === true) {
 				res.writeHead(200, {
@@ -279,8 +281,26 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 		}
 	}
 
-	private _continuationKey(sessionId: string, vendor: string, modelId: string): string {
+	private _continuationScope(sessionId: string, vendor: string, modelId: string): string {
 		return JSON.stringify([sessionId, vendor, modelId]);
+	}
+
+	private _findToolContinuation(state: ByokLmProxyState, scope: string, input: IResponsesRequest['input']): { readonly pending: IPendingToolContinuation; readonly input: IResponsesRequest['input'] } | undefined {
+		let match: { readonly pending: IPendingToolContinuation; readonly input: IResponsesRequest['input'] } | undefined;
+		for (const pending of state) {
+			if (pending.scope !== scope) {
+				continue;
+			}
+			const recoveredInput = this._recoverToolContinuation(input, pending);
+			if (!recoveredInput) {
+				continue;
+			}
+			if (match) {
+				return undefined;
+			}
+			match = { pending, input: recoveredInput };
+		}
+		return match;
 	}
 
 	private _recoverToolContinuation(input: IResponsesRequest['input'], pending: IPendingToolContinuation): IResponsesRequest['input'] | undefined {
@@ -332,34 +352,28 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 		}
 	}
 
-	private _updateToolContinuation(state: ByokLmProxyState, key: string, result: IByokLmChatResult): void {
+	private _addToolContinuation(state: ByokLmProxyState, scope: string, result: IByokLmChatResult): void {
 		if (!result.responseId) {
-			state.delete(key);
 			return;
 		}
 		const calls = new Map<string, PendingToolCallKind>();
 		for (const item of result.output) {
 			if (item.type === 'function_call' || item.type === 'custom_tool_call') {
 				if (!item.callId || calls.has(item.callId)) {
-					state.delete(key);
 					return;
 				}
 				calls.set(item.callId, item.type);
 			}
 		}
-		if (calls.size) {
-			// A session can disappear after receiving a tool call, so keep abandoned
-			// continuations from growing for the lifetime of the shared proxy.
-			state.delete(key);
-			state.set(key, { responseId: result.responseId, calls });
-			if (state.size > MAX_PENDING_TOOL_CONTINUATIONS) {
-				const oldestKey = state.keys().next().value;
-				if (oldestKey !== undefined) {
-					state.delete(oldestKey);
-				}
+		if (!calls.size) {
+			return;
+		}
+		state.add({ scope, responseId: result.responseId, calls });
+		if (state.size > MAX_PENDING_TOOL_CONTINUATIONS) {
+			const oldest = state.values().next().value;
+			if (oldest) {
+				state.delete(oldest);
 			}
-		} else {
-			state.delete(key);
 		}
 	}
 
