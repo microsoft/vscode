@@ -397,6 +397,12 @@ export async function resolveRealPathForNonexistent(resource: URI, stopAt?: URI)
 			return URI.file(path.join(await realpath(stopAt.fsPath), ...tail));
 		}
 
+		const parent = path.dirname(current);
+		if (parent === current) {
+			// On Windows, resolving `\` adds the current drive and can make an unchanged path appear redirected.
+			return resource;
+		}
+
 		try {
 			return URI.file(path.join(await realpath(current), ...tail));
 		} catch (error) {
@@ -406,10 +412,6 @@ export async function resolveRealPathForNonexistent(resource: URI, stopAt?: URI)
 			}
 		}
 
-		const parent = path.dirname(current);
-		if (parent === current) {
-			return resource;
-		}
 		tail.unshift(path.basename(current));
 		current = parent;
 	}
