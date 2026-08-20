@@ -200,7 +200,7 @@
     "@types/yauzl": "^2.10.0",
     "@types/yazl": "^2.4.2",
     "@typescript-eslint/utils": "8.66.0",
-    "@typescript/native": "npm:typescript@^7.0.2",
+    "@typescript/native": "npm:typescript@next",
     "@vscode/component-explorer": "^0.2.1-94",
     "@vscode/component-explorer-cli": "^0.2.1-95",
     "@vscode/gulp-electron": "^1.43.0",
