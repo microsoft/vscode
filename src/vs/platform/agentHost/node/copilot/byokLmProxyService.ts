@@ -72,6 +72,7 @@ export interface IByokLmProxyService {
 const PROXY_USER_FACING_NAME = 'ByokLmProxyService';
 const VENDOR_PATH_PREFIX = '/v/';
 const RESPONSES_SUFFIX = '/responses';
+const MAX_PENDING_TOOL_CONTINUATIONS = 256;
 
 type PendingToolCallKind = 'function_call' | 'custom_tool_call';
 
@@ -347,7 +348,16 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 			}
 		}
 		if (calls.size) {
+			// A session can disappear after receiving a tool call, so keep abandoned
+			// continuations from growing for the lifetime of the shared proxy.
+			state.delete(key);
 			state.set(key, { responseId: result.responseId, calls });
+			if (state.size > MAX_PENDING_TOOL_CONTINUATIONS) {
+				const oldestKey = state.keys().next().value;
+				if (oldestKey !== undefined) {
+					state.delete(oldestKey);
+				}
+			}
 		} else {
 			state.delete(key);
 		}
