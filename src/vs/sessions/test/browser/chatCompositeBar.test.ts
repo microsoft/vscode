@@ -109,6 +109,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>): IChatComposit
 		activeChatResource: constObservable(session.activeChat.get().resource.toString()),
 		mainChatResource: constObservable(session.mainChat.get().resource.toString()),
 		visible: session.shouldShowChatTabs,
+		showSessionActions: session.shouldShowChatTabs,
 		openChat: resource => { sessionsService.openChat(session, resource); },
 		newChat: () => { },
 	};

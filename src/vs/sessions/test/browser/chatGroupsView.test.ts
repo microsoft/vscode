@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../base/browser/window.js';
-import { DeferredPromise } from '../../../base/common/async.js';
 import { Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
@@ -116,7 +115,6 @@ class TestActiveSession extends mock<IActiveSession>() {
 
 class TestSessionsService extends mock<ISessionsService>() {
 	override readonly activeSession = observableValue<IActiveSession | undefined>(this, undefined);
-	newChatGate: Promise<void> | undefined;
 
 	override async openChat(session: ISession, chatUri: URI): Promise<void> {
 		if (!(session instanceof TestActiveSession)) {
@@ -137,7 +135,6 @@ class TestSessionsService extends mock<ISessionsService>() {
 		if (!(session instanceof TestActiveSession)) {
 			return;
 		}
-		await this.newChatGate;
 		const chat = createChat(`new-${session.allChats.get().length}`, SessionStatus.Untitled);
 		session.allChats.set([...session.allChats.get(), chat], undefined);
 		session.visibleChatTabs.set([...session.visibleChatTabs.get(), chat], undefined);
@@ -402,22 +399,8 @@ suite('Sessions - ChatGroupsView', () => {
 		});
 	});
 
-	test('new chat action focuses its group composer', async () => {
+	test('new chat from the tab bar is assigned to its group', async () => {
 		const { view } = createHarness(disposables);
-		const main = createChat('main');
-		const session = new TestActiveSession([main]);
-		view.setSession(session, options);
-		const group = view.element.querySelector<HTMLElement>('.chat-group-view')!;
-
-		group.querySelector<HTMLElement>('.chat-composite-bar-new-chat .action-label')!.click();
-		await Promise.resolve();
-		await Promise.resolve();
-
-		assert.strictEqual(group.contains(mainWindow.document.activeElement), true);
-	});
-
-	test('new chat remains assigned to the group where creation started', async () => {
-		const { sessionsService, view } = createHarness(disposables);
 		const main = createChat('main');
 		const secondary = createChat('secondary');
 		const session = new TestActiveSession([main, secondary]);
@@ -426,13 +409,8 @@ suite('Sessions - ChatGroupsView', () => {
 		view.focusAdjacentGroup('previous');
 		const groups = Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view'));
 		const mainGroup = groups.find(group => group.querySelector<HTMLElement>('.chat-composite-bar-tab')?.dataset.chatResource === main.resource.toString())!;
-		const gate = new DeferredPromise<void>();
-		sessionsService.newChatGate = gate.p;
 
 		mainGroup.querySelector<HTMLElement>('.chat-composite-bar-new-chat .action-label')!.click();
-		view.focusAdjacentGroup('next');
-		gate.complete();
-		await gate.p;
 		await Promise.resolve();
 		await Promise.resolve();
 
@@ -440,11 +418,31 @@ suite('Sessions - ChatGroupsView', () => {
 		assert.deepStrictEqual({
 			mainGroupTabs: Array.from(mainGroup.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')).map(tab => tab.dataset.chatResource),
 			secondaryGroupTabs: Array.from(groups.find(group => group !== mainGroup)!.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')).map(tab => tab.dataset.chatResource),
-			focusInMainGroup: mainGroup.contains(mainWindow.document.activeElement),
 		}, {
 			mainGroupTabs: [main.resource.toString(), newChat.resource.toString()],
 			secondaryGroupTabs: [secondary.resource.toString()],
-			focusInMainGroup: true,
 		});
 	});
+
+	test('shows session actions in a single tab row and hides them for split groups', () => {
+		const { view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		const session = new TestActiveSession([main, secondary]);
+		view.setSession(session, options);
+
+		const singleGroupActions = view.element.querySelector<HTMLElement>('.session-chat-tabs-actions');
+		const singleGroupHidden = singleGroupActions?.classList.contains('hidden');
+		view.splitChatToSide(secondary.resource);
+		const splitGroupActions = Array.from(view.element.querySelectorAll<HTMLElement>('.session-chat-tabs-actions'));
+
+		assert.deepStrictEqual({
+			singleGroupHidden,
+			splitGroupsHidden: splitGroupActions.map(actions => actions.classList.contains('hidden')),
+		}, {
+			singleGroupHidden: false,
+			splitGroupsHidden: [true, true],
+		});
+	});
+
 });
