@@ -243,6 +243,10 @@ import './contrib/providers/remoteAgentHost/browser/cloudSandboxAgentHost.contri
 import './contrib/agentFeedback/browser/agentFeedback.contribution.js';
 import './contrib/chat/electron-browser/chat.contribution.js';
 
+// Read chat responses aloud (on-device speech synthesis)
+import { registerReadAloudActions } from '../workbench/contrib/chat/electron-browser/actions/readAloudActions.contribution.js';
+registerReadAloudActions();
+
 // Local Agent Host
 import './contrib/providers/agentHost/browser/localAgentHost.contribution.js';
 import './contrib/providers/agentHost/browser/agentSessionSettings.contribution.js';

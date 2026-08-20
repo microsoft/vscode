@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
-import { ISpeechProvider, ISpeechService, ISpeechToTextEvent, ISpeechToTextSession, ITextToSpeechSession, KeywordRecognitionStatus, SpeechToTextStatus } from '../../../speech/common/speechService.js';
+import { IBuiltinTextToSpeechEngine, ISpeechProvider, ISpeechService, ISpeechToTextEvent, ISpeechToTextSession, ITextToSpeechSession, KeywordRecognitionStatus, SpeechToTextStatus } from '../../../speech/common/speechService.js';
 import { IChatAgent, IChatAgentCommand, IChatAgentCompletionItem, IChatAgentData, IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentMetadata, IChatAgentRequest, IChatAgentResult, IChatAgentService, IChatParticipantDetectionProvider, UserSelectedTools } from '../../common/participants/chatAgents.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { IChatFollowup, IChatProgress } from '../../common/chatService/chatService.js';
@@ -107,11 +107,13 @@ suite('VoiceChat', () => {
 		onDidChangeHasSpeechProvider = Event.None;
 
 		readonly hasSpeechProvider = true;
+		readonly hasTextToSpeechProvider = true;
 		readonly hasActiveSpeechToTextSession = false;
 		readonly hasActiveTextToSpeechSession = false;
 		readonly hasActiveKeywordRecognition = false;
 
 		registerSpeechProvider(identifier: string, provider: ISpeechProvider): IDisposable { throw new Error('Method not implemented.'); }
+		registerBuiltinTextToSpeechEngine(engine: IBuiltinTextToSpeechEngine): IDisposable { throw new Error('Method not implemented.'); }
 		onDidStartSpeechToTextSession = Event.None;
 		onDidEndSpeechToTextSession = Event.None;
 

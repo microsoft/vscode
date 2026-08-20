@@ -741,7 +741,9 @@ function createPlainTextRenderer(): marked.Renderer {
 	const renderer = new marked.Renderer();
 
 	renderer.code = ({ text }: marked.Tokens.Code): string => {
-		return escape(text);
+		// Ends with a line break like every other block, so that the content
+		// following a code block does not run into its last line.
+		return escape(text) + '\n';
 	};
 	renderer.blockquote = function ({ tokens }: marked.Tokens.Blockquote): string {
 		return this.parser.parse(tokens).trim() + '\n';

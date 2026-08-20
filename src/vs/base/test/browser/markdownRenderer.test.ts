@@ -461,6 +461,18 @@ suite('MarkdownRenderer', () => {
 			assert.strictEqual(renderAsPlaintext({ value: 'Use `<form>` tag' }), 'Use <form> tag');
 		});
 
+		test('separates a code block from the text that follows it', () => {
+			// Every other block renderer ends with a line break; without one the
+			// last line of a code block runs into the next sentence.
+			assert.deepStrictEqual({
+				followedByText: renderAsPlaintext({ value: '```ts\nconst x = 1;\n```\n\nAll tests passed.' }),
+				alone: renderAsPlaintext({ value: '```ts\nconst x = 1;\n```' })
+			}, {
+				followedByText: 'const x = 1;\nAll tests passed.',
+				alone: 'const x = 1;'
+			});
+		});
+
 		test('strips markdown syntax of formatted content inside list items and quotes', () => {
 			// Items are separated by a blank line, which is how lists were already
 			// rendered; what matters here is that no markdown syntax survives.
