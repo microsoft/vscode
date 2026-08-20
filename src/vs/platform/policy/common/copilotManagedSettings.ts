@@ -151,15 +151,38 @@ export function managedSettingValue(key: string): (policyData: IPolicyData) => M
 }
 
 /**
- * Resolves the startup refresh control with native MDM taking precedence over the cached server
- * response. A malformed native value is treated as absent, matching the managed-settings schema.
+ * How the `forceRemoteSettingsRefresh` control resolved across the delivery channels.
+ *
+ * `effective` and `source` are reported separately because an explicit managed `false` is not the
+ * same as an absent value: an administrator who sets `false` at a higher-precedence channel is
+ * actively lifting the requirement, whereas an absent value simply leaves it unset. Consumers that
+ * persist the requirement need that distinction to know when they may clear it.
  */
-export function shouldForceRemoteSettingsRefresh(nativeMdm: ManagedSettingsData | undefined, server: ManagedSettingsData | undefined): boolean {
-	const nativeValue = nativeMdm?.[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY];
-	if (typeof nativeValue === 'boolean') {
-		return nativeValue;
+export interface IForceRemoteSettingsRefreshResolution {
+	/** Whether a fresh managed-settings response is required before enabling agent functionality. */
+	readonly effective: boolean;
+	/** Channel that supplied the winning value, or `'none'` when no channel supplies a usable one. */
+	readonly source: ManagedSettingsSource;
+}
+
+/**
+ * Resolve the fail-closed startup refresh control across every delivery channel.
+ *
+ * Resolution reuses {@link pickManagedSettings} rather than re-implementing precedence, so the
+ * control cannot drift from the ordering applied to every other managed setting — and so the file
+ * channel participates, which a native-plus-server-only resolver silently ignored.
+ *
+ * A value that is not a boolean is treated as absent (matching the managed-settings schema) and the
+ * next channel in precedence order is consulted, so a malformed high-precedence value cannot mask a
+ * well-formed lower-precedence one.
+ */
+export function resolveForceRemoteSettingsRefresh(nativeMdm: ManagedSettingsData | undefined, server: ManagedSettingsData | undefined, file: ManagedSettingsData | undefined): IForceRemoteSettingsRefreshResolution {
+	const resolution = pickManagedSettings(nativeMdm, server, file).resolutions.get(COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY);
+	const contribution = resolution?.contributions.find(candidate => typeof candidate.value === 'boolean');
+	if (!contribution) {
+		return { effective: false, source: 'none' };
 	}
-	return server?.[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY] === true;
+	return { effective: contribution.value === true, source: contribution.channel };
 }
 
 export const IManagedSettingsService = createDecorator<IManagedSettingsService>('managedSettingsService');
