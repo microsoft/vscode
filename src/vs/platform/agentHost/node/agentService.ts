@@ -1482,6 +1482,13 @@ export class AgentService extends Disposable implements IAgentService {
 		await Promise.all([...this._providers.values()].map(provider => this._awaitInitialProviderMigrationForProvider(provider)));
 	}
 
+	/**
+	 * Awaits the registration-time legacy migration for a single provider,
+	 * retrying once if that initial catalog pass was unavailable. Rejects only if
+	 * the retry also fails. Restore uses this to wait for its own provider's
+	 * catalog before reading per-session metadata, mirroring what
+	 * {@link _awaitInitialProviderMigration} does for `listSessions`.
+	 */
 	private async _awaitInitialProviderMigrationForProvider(provider: IAgent): Promise<void> {
 		const migration = this._initialProviderMigrations.get(provider.id);
 		if (!migration) {
@@ -4629,7 +4636,22 @@ export class AgentService extends Disposable implements IAgentService {
 		if (await this._sessionRegistry.isTombstoned(session)) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session was explicitly deleted: ${sessionStr}`);
 		}
-		await this._awaitInitialProviderMigrationForProvider(agent);
+		// Wait for the provider's one-time catalog migration before reading
+		// metadata, mirroring `listSessions`, so restore does not misread an
+		// unwarmed catalog as a missing session (#331648). A catalog that stays
+		// unavailable is non-fatal: fall through, but remember it so a resulting
+		// miss is classified as unavailable rather than absent.
+		let catalogReadable = true;
+		try {
+			await this._awaitInitialProviderMigrationForProvider(agent);
+		} catch (err) {
+			catalogReadable = false;
+			this._logService.warn(`[AgentService] restore: initial catalog migration for provider ${agent.id} failed; a metadata miss will be reported as unavailable, not missing`, err);
+		}
+		// Re-check after the (possibly lengthy) wait so a delete that landed meanwhile is not resurrected.
+		if (await this._sessionRegistry.isTombstoned(session)) {
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session was explicitly deleted: ${sessionStr}`);
+		}
 		const registeredSession = (await this._listRegisteredSessions()).find(entry => entry.session.toString() === sessionStr);
 		const external = registeredSession?.external ?? false;
 
@@ -4653,7 +4675,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// after every required step succeeds, and any failure after a successful
 		// adoption is surfaced as a migration failure.
 		try {
-			const facts = await this._restoreSessionState(agent, session, sessionStr, adopted, external, registeredSession?.source ?? 'restore');
+			const facts = await this._restoreSessionState(agent, session, sessionStr, adopted, external, registeredSession?.source ?? 'restore', catalogReadable, !!registeredSession);
 			await this._restoreAnnotations(session);
 			if (adopted) {
 				this._reportLegacyMigration(agent.id, 'migrated', migrationStartTime, facts);
@@ -4750,10 +4772,16 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Returns the facts used for migration telemetry; throws if any required step
 	 * fails so the caller can report the outcome accurately.
 	 */
-	private async _restoreSessionState(agent: IAgent, session: URI, sessionStr: string, adopted: boolean, external: boolean, registrationSource: IRegisteredSession['source']): Promise<{ turnCount: number; hasProject: boolean; hasWorktree: boolean; workingDirectoryCount: number }> {
+	private async _restoreSessionState(agent: IAgent, session: URI, sessionStr: string, adopted: boolean, external: boolean, registrationSource: IRegisteredSession['source'], catalogReadable: boolean, sessionKnownToRegistry: boolean): Promise<{ turnCount: number; hasProject: boolean; hasWorktree: boolean; workingDirectoryCount: number }> {
 		let meta = await this._getSessionMetadataForRestore(agent, session, external);
 		if (!meta) {
-			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found on backend: ${sessionStr}`);
+			// Authoritative absence only when the catalog was readable this run and
+			// the registry has no record of the session; a miss for a known
+			// (registered) session, or while the catalog was unavailable, is
+			// transient — e.g. a provider whose SDK is not downloaded yet (#331648).
+			throw catalogReadable && !sessionKnownToRegistry
+				? new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found on backend: ${sessionStr}`)
+				: new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Provider ${agent.id} could not describe ${sessionStr} yet`);
 		}
 
 		// A freshly-adopted legacy session whose working directory is a
