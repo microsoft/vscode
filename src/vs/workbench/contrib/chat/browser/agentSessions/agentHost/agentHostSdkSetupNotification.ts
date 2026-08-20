@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { createCommandUri, escapeMarkdownSyntaxTokens, IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentHostAllowSignedOutWhenUsableSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -85,14 +85,6 @@ export function getAgentSdkSetupStateToReport(previous: AgentSdkSetupState | und
 
 // #region Banner
 
-/**
- * A `command:` href carrying the agent id, so a link in the copy takes the same
- * route a button would — funnel step and URL validation included.
- */
-function setupCommandLink(commandId: string, agent: string): string {
-	return `command:${commandId}?${encodeURIComponent(JSON.stringify(agent))}`;
-}
-
 /** Trusted for the commands its links address, and nothing else. */
 function setupMarkdown(value: string): MarkdownString {
 	return new MarkdownString(value, { isTrusted: { enabledCommands: [AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID, AGENT_SDK_SETUP_RELOAD_COMMAND_ID] } });
@@ -101,29 +93,32 @@ function setupMarkdown(value: string): MarkdownString {
 /**
  * The "no account" second line: one whole sentence per combination of routes,
  * never assembled from localized fragments, because clause order is not stable
- * across languages. The GitHub clause is unconditional — every agent behind this
- * banner reaches models through our Copilot proxy once signed in, which is
- * workbench knowledge rather than something an agent could declare.
- *
- * Reload leads every variant: setup finished in a terminal has no completion
- * signal, so the user who has already done it should not read the routes at all.
- * Docs are a link inside the sentence that already explains them rather than a
- * third button competing with the two routes that actually sign you in.
+ * across languages. The GitHub clause is unconditional and leads: it is the
+ * primary button, and reaching models through our Copilot proxy is workbench
+ * knowledge rather than something an agent could declare. Reload and docs trail
+ * the sign-in routes, ranked as the copy's only links rather than buttons.
  */
 function noAccountDescription(setup: IAgentSdkSetupInfo, displayName: string): IMarkdownString {
-	const provider = setup.signInProviderName;
-	const reload = setupCommandLink(AGENT_SDK_SETUP_RELOAD_COMMAND_ID, setup.agent);
-	const docs = setup.setupDocsUrl ? setupCommandLink(AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID, setup.agent) : undefined;
+	// Both nouns are the host's, and this string is trusted for two commands, so
+	// they are escaped rather than interpolated raw: `[]()` in a name would
+	// otherwise synthesize a link to either one.
+	const name = escapeMarkdownSyntaxTokens(displayName);
+	const provider = setup.signInProviderName && escapeMarkdownSyntaxTokens(setup.signInProviderName);
+	// `command:` hrefs, so a link in the copy takes the same route a button would —
+	// funnel step and URL validation included. Both carry the agent id and nothing
+	// else: the docs command resolves the URL from the agent's own declaration.
+	const reload = createCommandUri(AGENT_SDK_SETUP_RELOAD_COMMAND_ID, setup.agent).toString();
+	const docs = setup.setupDocsUrl ? createCommandUri(AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID, setup.agent).toString() : undefined;
 	if (provider && docs) {
-		return setupMarkdown(localize('agentHost.sdkSetup.noAccountDescription.all', "If you already set up {0} elsewhere, [reload {0} configuration]({1}). Sign in to GitHub to use GitHub Copilot models, sign in to {2} to use your {2} subscription, or [learn more]({3}) for other ways to set up {0}.", displayName, reload, provider, docs));
+		return setupMarkdown(localize('agentHost.sdkSetup.noAccountDescription.all', "Sign in to GitHub to use GitHub Copilot models, or sign in to {2} to use your {2} subscription. If you already set up {0} elsewhere, [reload {0} configuration]({1}). [Learn more]({3}) about other ways to set up {0}.", name, reload, provider, docs));
 	}
 	if (provider) {
-		return setupMarkdown(localize('agentHost.sdkSetup.noAccountDescription.signIn', "If you already set up {0} elsewhere, [reload {0} configuration]({1}). Sign in to GitHub to use GitHub Copilot models, or sign in to {2} to use your {2} subscription.", displayName, reload, provider));
+		return setupMarkdown(localize('agentHost.sdkSetup.noAccountDescription.signIn', "Sign in to GitHub to use GitHub Copilot models, or sign in to {2} to use your {2} subscription. If you already set up {0} elsewhere, [reload {0} configuration]({1}).", name, reload, provider));
 	}
 	if (docs) {
-		return setupMarkdown(localize('agentHost.sdkSetup.noAccountDescription.docs', "If you already set up {0} elsewhere, [reload {0} configuration]({1}). Sign in to GitHub to use GitHub Copilot models, or [learn more]({2}) for other ways to set up {0}.", displayName, reload, docs));
+		return setupMarkdown(localize('agentHost.sdkSetup.noAccountDescription.docs', "Sign in to GitHub to use GitHub Copilot models. If you already set up {0} elsewhere, [reload {0} configuration]({1}). [Learn more]({2}) about other ways to set up {0}.", name, reload, docs));
 	}
-	return setupMarkdown(localize('agentHost.sdkSetup.noAccountDescription', "If you already set up {0} elsewhere, [reload {0} configuration]({1}). Sign in to GitHub to use GitHub Copilot models.", displayName, reload));
+	return setupMarkdown(localize('agentHost.sdkSetup.noAccountDescription', "Sign in to GitHub to use GitHub Copilot models. If you already set up {0} elsewhere, [reload {0} configuration]({1}).", name, reload));
 }
 
 /**

@@ -116,7 +116,7 @@ suite('Agent SDK setup banner', () => {
 			assert.deepStrictEqual(notification.actions.map(action => action.label), ['Sign in to ChatGPT', 'Sign in to GitHub']);
 		});
 
-		test('the routes named in the copy are the ones the agent declared, and reload leads all four', () => {
+		test('the routes named in the copy are the ones the agent declared, ranked as the buttons rank them', () => {
 			// One whole sentence per combination rather than joined clauses, since a
 			// translator reorders them freely. GitHub appears in all four: every agent
 			// behind this banner reaches models through our proxy once signed in.
@@ -124,12 +124,14 @@ suite('Agent SDK setup banner', () => {
 				const description = createAgentSdkSetupNotification({ agent: 'claude', download: 'ready', ...setup }, 'Claude', 'noAccount')?.description;
 				return typeof description === 'string' ? description : description?.value;
 			};
-			// The agent id, like every button carries — the command resolves the URL
-			// from the agent's own declaration rather than trusting the banner's copy.
-			const docs = `command:${AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID}?%22claude%22`;
+			// Leads every variant, as the primary button does.
+			const gitHub = 'Sign in to GitHub to use GitHub Copilot models';
 			// Unconditional: setup finished in a terminal has no completion signal, so
 			// every agent needs the "look again" route whatever else it declares.
-			const reload = `If you already set up Claude elsewhere, [reload Claude configuration](command:${AGENT_SDK_SETUP_RELOAD_COMMAND_ID}?%22claude%22).`;
+			const reload = `If you already set up Claude elsewhere, [reload Claude configuration](command:${AGENT_SDK_SETUP_RELOAD_COMMAND_ID}?%255B%2522claude%2522%255D).`;
+			// The agent id, like every button carries — the command resolves the URL
+			// from the agent's own declaration rather than trusting the banner's copy.
+			const docs = `[Learn more](command:${AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID}?%255B%2522claude%2522%255D) about other ways to set up Claude.`;
 
 			assert.deepStrictEqual({
 				gitHubOnly: noAccount({}),
@@ -137,11 +139,26 @@ suite('Agent SDK setup banner', () => {
 				signIn: noAccount({ signInProviderName: 'ChatGPT' }),
 				both: noAccount({ setupDocsUrl: 'https://example.test/claude', signInProviderName: 'ChatGPT' }),
 			}, {
-				gitHubOnly: `${reload} Sign in to GitHub to use GitHub Copilot models.`,
-				docs: `${reload} Sign in to GitHub to use GitHub Copilot models, or [learn more](${docs}) for other ways to set up Claude.`,
-				signIn: `${reload} Sign in to GitHub to use GitHub Copilot models, or sign in to ChatGPT to use your ChatGPT subscription.`,
-				both: `${reload} Sign in to GitHub to use GitHub Copilot models, sign in to ChatGPT to use your ChatGPT subscription, or [learn more](${docs}) for other ways to set up Claude.`,
+				gitHubOnly: `${gitHub}. ${reload}`,
+				docs: `${gitHub}. ${reload} ${docs}`,
+				signIn: `${gitHub}, or sign in to ChatGPT to use your ChatGPT subscription. ${reload}`,
+				both: `${gitHub}, or sign in to ChatGPT to use your ChatGPT subscription. ${reload} ${docs}`,
 			});
+		});
+
+		test('a name carrying markdown is escaped, so the host cannot forge a third link', () => {
+			// Both nouns arrive from the host, and this description is trusted for two
+			// commands — an unescaped `[]()` in either would render as a link to one of
+			// them instead of as the name.
+			const description = createAgentSdkSetupNotification(
+				{ agent: 'claude', download: 'ready', setupDocsUrl: 'https://example.test/claude', signInProviderName: 'Chat[G]PT' },
+				'Claude [x](command:evil)',
+				'noAccount',
+			)?.description;
+			const name = 'Claude \\[x\\]\\(command:evil\\)';
+
+			assert.strictEqual(typeof description === 'string' ? description : description?.value,
+				`Sign in to GitHub to use GitHub Copilot models, or sign in to Chat\\[G\\]PT to use your Chat\\[G\\]PT subscription. If you already set up ${name} elsewhere, [reload ${name} configuration](command:${AGENT_SDK_SETUP_RELOAD_COMMAND_ID}?%255B%2522claude%2522%255D). [Learn more](command:${AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID}?%255B%2522claude%2522%255D) about other ways to set up ${name}.`);
 		});
 
 		test('the copy is trusted for its own two commands alone, so its links render and reach nothing else', () => {
