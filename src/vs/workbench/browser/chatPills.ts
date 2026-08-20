@@ -44,6 +44,10 @@ export interface IChatPillEntry {
 	readonly resource?: URI;
 	/** Actions shown at the trailing edge of the entry's dropdown row. */
 	readonly toolbarActions?: readonly IAction[];
+	/** Accessible name used when this entry is rendered as the pill itself. */
+	readonly ariaLabel?: string;
+	/** Plain-text description of the content shown beside the dropdown entry. */
+	readonly ariaDescription?: string;
 	/** Content shown beside the entry while it is focused or hovered. */
 	readonly hover?: IActionListItemHover;
 	/** Tooltip for the pill when this is the only entry. */

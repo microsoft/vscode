@@ -35,14 +35,16 @@ suite('Session Artifacts', () => {
 			const content = entry.hover?.content;
 			return {
 				label: entry.label,
+				ariaLabel: entry.ariaLabel,
+				ariaDescription: entry.ariaDescription,
 				hover: isMarkdownString(content) ? content.value : undefined,
 				tooltip: entry.tooltip,
 			};
 		}), [
-			{ label: 'PR #12', hover: pullRequestLink.toString(true), tooltip: pullRequestLink.toString(true) },
-			{ label: 'report.md', hover: fileUri.toString(true), tooltip: fileUri.toString(true) },
-			{ label: 'plan.md', hover: externalFileUri.toString(true), tooltip: externalFileUri.toString(true) },
-			{ label: 'Resource', hover: resourceUri.toString(true), tooltip: resourceUri.toString(true) },
+			{ label: 'PR #12', ariaLabel: 'Open PR #12', ariaDescription: pullRequestLink.toString(true), hover: pullRequestLink.toString(true), tooltip: pullRequestLink.toString(true) },
+			{ label: 'report.md', ariaLabel: 'Open report.md', ariaDescription: fileUri.toString(true), hover: fileUri.toString(true), tooltip: fileUri.toString(true) },
+			{ label: 'plan.md', ariaLabel: 'Open plan.md', ariaDescription: externalFileUri.toString(true), hover: externalFileUri.toString(true), tooltip: externalFileUri.toString(true) },
+			{ label: 'Resource', ariaLabel: 'Open Resource', ariaDescription: resourceUri.toString(true), hover: resourceUri.toString(true), tooltip: resourceUri.toString(true) },
 		]);
 	});
 });

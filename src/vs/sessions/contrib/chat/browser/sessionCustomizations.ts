@@ -77,11 +77,13 @@ export function buildSessionCustomizationSections(
 	const entriesByKind = new Map<SessionCustomizationKind, IChatPillEntry[]>();
 	for (const customization of customizations) {
 		const entries = entriesByKind.get(customization.kind) ?? [];
+		const path = customization.uri ? getCustomizationPath(customization.uri, sessionFolders) : undefined;
 		entries.push({
 			id: customization.id,
 			label: customization.name,
 			icon: customizationIcons.get(customization.kind) ?? Codicon.bookmark,
-			hover: customization.uri ? { content: new MarkdownString().appendText(getCustomizationPath(customization.uri, sessionFolders)) } : undefined,
+			ariaDescription: path,
+			hover: path ? { content: new MarkdownString().appendText(path) } : undefined,
 			open: () => reveal(customization),
 		});
 		entriesByKind.set(customization.kind, entries);

@@ -67,6 +67,8 @@ function buildDebugArtifactSections(debugData: ISessionChatPillsDebugData): read
 			id: name,
 			label: name,
 			resource,
+			ariaDescription: location,
+			ariaLabel: localize('sessionArtifacts.open', "Open {0}", name),
 			hover: { content: new MarkdownString().appendText(location) },
 			tooltip: location,
 			open: () => { },

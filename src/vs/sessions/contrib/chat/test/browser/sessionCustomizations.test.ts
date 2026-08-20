@@ -58,19 +58,23 @@ suite('Session Customizations', () => {
 			sessionFolder('server', URI.file('/work/server')),
 		];
 		const outside = URI.file('/global/customizations/global.md');
-		const hoverText = (customization: ISessionChatCustomization, folders: readonly ISessionFolder[]): string | undefined => {
-			const content = buildSessionCustomizationSections([customization], folders, () => { })[0].entries[0].hover?.content;
-			return isMarkdownString(content) ? content.value : undefined;
+		const hover = (customization: ISessionChatCustomization, folders: readonly ISessionFolder[]) => {
+			const entry = buildSessionCustomizationSections([customization], folders, () => { })[0].entries[0];
+			const content = entry.hover?.content;
+			return {
+				ariaDescription: entry.ariaDescription,
+				content: isMarkdownString(content) ? content.value : undefined,
+			};
 		};
 
 		assert.deepStrictEqual({
-			singleFolder: hoverText(customization('c1', SessionCustomizationKind.Skill, 'sessions'), singleFolder),
-			multipleFolders: hoverText({ ...customization('c2', SessionCustomizationKind.Instruction, 'instructions'), uri: URI.file('/work/server/.github/instructions/review.md') }, multipleFolders),
-			outside: hoverText({ ...customization('c3', SessionCustomizationKind.Prompt, 'global'), uri: outside }, singleFolder),
+			singleFolder: hover(customization('c1', SessionCustomizationKind.Skill, 'sessions'), singleFolder),
+			multipleFolders: hover({ ...customization('c2', SessionCustomizationKind.Instruction, 'instructions'), uri: URI.file('/work/server/.github/instructions/review.md') }, multipleFolders),
+			outside: hover({ ...customization('c3', SessionCustomizationKind.Prompt, 'global'), uri: outside }, singleFolder),
 		}, {
-			singleFolder: 'c1.md',
-			multipleFolders: 'server/.github/instructions/review.md',
-			outside: new MarkdownString().appendText(outside.fsPath).value,
+			singleFolder: { ariaDescription: 'c1.md', content: 'c1.md' },
+			multipleFolders: { ariaDescription: 'server/.github/instructions/review.md', content: 'server/.github/instructions/review.md' },
+			outside: { ariaDescription: outside.fsPath, content: new MarkdownString().appendText(outside.fsPath).value },
 		});
 	});
 
