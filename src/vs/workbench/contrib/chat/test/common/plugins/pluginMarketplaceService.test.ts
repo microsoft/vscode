@@ -10,6 +10,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
+import { isWeb } from '../../../../../../base/common/platform.js';
 import { joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -814,6 +815,39 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 		await timeout(0);
 		await timeout(0);
 		assert.strictEqual(fetchCount, 1);
+	});
+
+	test('cancelling a scheduled update check does not cause an unhandled rejection', async () => {
+		let runIdle: ((idle: IdleDeadline) => void) | undefined;
+		store.add(installFakeRunWhenIdle((_target, runner) => {
+			runIdle = runner;
+			return Disposable.None;
+		}));
+		const meteredConnectionService = store.add(new TestMeteredConnectionService(false));
+		createService({ meteredConnectionService });
+		const unhandledRejections: unknown[] = [];
+		const onUnhandledRejection = (reason: unknown) => unhandledRejections.push(reason);
+		const onBrowserUnhandledRejection = (event: PromiseRejectionEvent) => onUnhandledRejection(event.reason);
+		if (isWeb) {
+			globalThis.addEventListener('unhandledrejection', onBrowserUnhandledRejection);
+		} else {
+			process.on('unhandledRejection', onUnhandledRejection);
+		}
+
+		try {
+			assert.ok(runIdle);
+			runIdle({ didTimeout: false, timeRemaining: () => 50 });
+			meteredConnectionService.setIsConnectionMetered(true);
+			await timeout(0);
+
+			assert.deepStrictEqual(unhandledRejections, []);
+		} finally {
+			if (isWeb) {
+				globalThis.removeEventListener('unhandledrejection', onBrowserUnhandledRejection);
+			} else {
+				process.off('unhandledRejection', onUnhandledRejection);
+			}
+		}
 	});
 
 	test('unmetering while a check is in flight does not start a concurrent check', async () => {
