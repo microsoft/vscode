@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentCreateSessionConfig, IAgentModelInfo, IAgentSessionMetadata } from '../../common/agent.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
-import { buildChatUri, buildDefaultChatUri, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, type ModelSelection, type ResponsePart, type ToolCallState, type Turn } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, withSessionOrchestration, type ISessionOrchestration, type ModelSelection, type ResponsePart, type ToolCallState, type Turn } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
@@ -49,21 +50,29 @@ suite('SessionServerTools', () => {
 		return { session: URI.parse(`copilot:/${id}`), startTime: 0, modifiedTime: 0, status: status | SessionStatus.IsRead, workingDirectories: dir ? [dir] : undefined, summary: `title-${id}` };
 	}
 
-	function createAccessor(overrides?: Partial<ISessionServerToolAccessor> & { onCreate?: (config: IAgentCreateSessionConfig) => void; onPrompt?: (session: URI, chat: URI, prompt: string) => void; onCreateChat?: (session: URI, chat: URI, options?: { title?: string; model?: ModelSelection }) => void; onRenameChat?: (session: URI, chat: URI, title: string) => void; onDelete?: (session: URI) => void; depths?: Map<string, number> }): ISessionServerToolAccessor {
+	function executionContext(sessionUri: string) {
+		return { sessionUri, chatUri: buildDefaultChatUri(sessionUri) };
+	}
+
+	function createAccessor(overrides?: Partial<ISessionServerToolAccessor> & { onCreate?: (config: IAgentCreateSessionConfig) => void; onPrompt?: (session: URI, chat: URI, prompt: string) => void; onCreateChat?: (session: URI, chat: URI, options?: { title?: string; model?: ModelSelection }) => void; onRenameChat?: (session: URI, chat: URI, title: string) => void; onDelete?: (session: URI) => void; depths?: Map<string, number>; orchestrations?: Map<string, ISessionOrchestration> }): ISessionServerToolAccessor {
 		const depths = overrides?.depths ?? new Map<string, number>();
+		const orchestrations = overrides?.orchestrations ?? new Map<string, ISessionOrchestration>();
 		return {
 			isActiveAgentTitleGenerationEnabled: overrides?.isActiveAgentTitleGenerationEnabled ?? (() => true),
 			listSessions: overrides?.listSessions ?? (async () => [sessionMeta('s1', SessionStatus.InProgress, workspace)]),
+			getSession: overrides?.getSession ?? (async session => session.toString() === 'copilot:/s1' ? sessionMeta('s1', SessionStatus.InProgress, workspace) : undefined),
 			createSession: overrides?.createSession ?? (async config => { overrides?.onCreate?.(config); return URI.parse('copilot:/new'); }),
 			getModels: overrides?.getModels ?? (() => [model]),
 			getCreationDefaults: overrides?.getCreationDefaults ?? (() => undefined),
 			startPrompt: overrides?.startPrompt ?? (async (session, chat, prompt) => { overrides?.onPrompt?.(session, chat, prompt); }),
 			createChat: overrides?.createChat ?? (async (session, chat, options) => { overrides?.onCreateChat?.(session, chat, options); }),
 			renameChat: overrides?.renameChat ?? (async (session, chat, title) => { overrides?.onRenameChat?.(session, chat, title); return { title }; }),
+			reportToolError: overrides?.reportToolError ?? (() => { }),
 			deleteSession: overrides?.deleteSession ?? (async session => { overrides?.onDelete?.(session); }),
 			getChatContext: overrides?.getChatContext ?? (async () => undefined),
 			getSessionSpawnDepth: overrides?.getSessionSpawnDepth ?? (session => depths.get(session.toString()) ?? 0),
 			setSessionSpawnDepth: overrides?.setSessionSpawnDepth ?? ((session, depth) => { depths.set(session.toString(), depth); }),
+			setSessionOrchestration: overrides?.setSessionOrchestration ?? (async (session, orchestration) => { orchestrations.set(session.toString(), orchestration); }),
 		};
 	}
 
@@ -77,6 +86,7 @@ suite('SessionServerTools', () => {
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.ListSessions), false);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.GetCurrentSession), false);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.GetSessionContext), false);
+		assert.strictEqual(sessionServerToolDefinitions.find(def => def.name === SessionServerToolName.CreateSession)?.inputSchema?.properties?.parentSession, undefined);
 		assert.deepStrictEqual(sessionServerToolDefinitions.slice(4, 5).map(def => ({ name: def.name, required: def.inputSchema?.required })), [
 			{ name: SessionServerToolName.RenameChat, required: ['title'] },
 		]);
@@ -202,12 +212,105 @@ suite('SessionServerTools', () => {
 				activity: 'Running tests',
 				workingDirectory: workspace.toString(),
 				project: 'app',
+				projectUri: workspace.toString(),
 				unread: true,
 				modifiedAt: new Date(1700000000000).toISOString(),
 				changes: { files: 1, additions: 2, deletions: 0 },
 				git: { branch: 'feature/x', baseBranch: 'main', ahead: 2, behind: 1, uncommittedChanges: 3 },
 				github: { owner: 'microsoft', repo: 'vscode', pullRequestUrl: 'https://github.com/microsoft/vscode/pull/1' },
 			}],
+		});
+	});
+
+	suite('orchestration metadata', () => {
+		test('serializeSessions and filters expose orchestration relationships', () => {
+			const child = {
+				...sessionMeta('child', SessionStatus.Idle, workspace),
+				_meta: withSessionOrchestration(undefined, {
+					parentSession: 'copilot:/parent',
+					creatorSession: 'copilot:/creator',
+					coordinateWithCreator: true,
+					notifyOnIdle: 'once',
+					label: 'research',
+				}),
+			};
+
+			assert.deepStrictEqual({
+				serialized: JSON.parse(serializeSessions([child])).sessions[0],
+				byParent: filterSessions([child], getListSessionsArgs({ parentSession: 'agent-host-session://copilot/parent' })).map(session => session.session.toString()),
+				byLabel: filterSessions([child], getListSessionsArgs({ label: 'research' })).map(session => session.session.toString()),
+			}, {
+				serialized: {
+					session: 'copilot:/child',
+					title: 'title-child',
+					status: 'idle',
+					workingDirectory: workspace.toString(),
+					parentSession: 'copilot:/parent',
+					creator: 'copilot:/creator',
+					label: 'research',
+					notifyOnIdle: 'once',
+				},
+				byParent: ['copilot:/child'],
+				byLabel: ['copilot:/child'],
+			});
+		});
+
+		test('serializeSessions hides a disabled creator relationship from the child', () => {
+			const child = {
+				...sessionMeta('child', SessionStatus.Idle, workspace),
+				_meta: withSessionOrchestration(undefined, {
+					parentSession: 'copilot:/parent',
+					creatorSession: 'copilot:/parent',
+					coordinateWithCreator: false,
+					label: 'private-child',
+				}),
+			};
+
+			assert.deepStrictEqual({
+				child: JSON.parse(serializeSessions([child], 'copilot:/child')).sessions[0],
+				parent: JSON.parse(serializeSessions([child], 'copilot:/parent')).sessions[0],
+				childFilter: filterSessions([child], getListSessionsArgs({ parentSession: 'copilot:/parent' }), 'copilot:/child'),
+				parentFilter: filterSessions([child], getListSessionsArgs({ parentSession: 'copilot:/parent' }), 'copilot:/parent').map(session => session.session.toString()),
+			}, {
+				child: {
+					session: 'copilot:/child',
+					title: 'title-child',
+					status: 'idle',
+					workingDirectory: workspace.toString(),
+					label: 'private-child',
+				},
+				parent: {
+					session: 'copilot:/child',
+					title: 'title-child',
+					status: 'idle',
+					workingDirectory: workspace.toString(),
+					parentSession: 'copilot:/parent',
+					label: 'private-child',
+				},
+				childFilter: [],
+				parentFilter: ['copilot:/child'],
+			});
+		});
+	});
+
+	test('serializeSessions preserves remote project roots and multiple working directories', () => {
+		const project = URI.parse('vscode-remote://ssh-remote+example/home/me/app');
+		const primary = URI.parse('vscode-remote://ssh-remote+example/home/me/app-worktree');
+		const secondary = URI.parse('vscode-remote://ssh-remote+example/home/me/shared');
+		const remote: IAgentSessionMetadata = {
+			...sessionMeta('remote', SessionStatus.Idle, primary),
+			workingDirectories: [primary, secondary],
+			project: { uri: project, displayName: 'Remote App' },
+		};
+
+		assert.deepStrictEqual(JSON.parse(serializeSessions([remote])).sessions[0], {
+			session: 'copilot:/remote',
+			title: 'title-remote',
+			status: 'idle',
+			workingDirectory: primary.toString(),
+			workingDirectories: [primary.toString(), secondary.toString()],
+			project: 'Remote App',
+			projectUri: project.toString(),
 		});
 	});
 
@@ -250,6 +353,36 @@ suite('SessionServerTools', () => {
 		assert.strictEqual(byId.model?.id, 'gpt-4o');
 		const byName = getCreateSessionArgs({ workspace: workspace.toString(), prompt: 'hi', model: 'GPT-4o' }, sessions, [model]);
 		assert.strictEqual(byName.model?.name, 'GPT-4o');
+		assert.strictEqual(byName.coordinateWithCreator, true);
+	});
+
+	test('getCreateSessionArgs resolves a unique project name to its configured root', () => {
+		const project = URI.parse('file:///workspace/vscode');
+		const worktree = URI.parse('file:///worktrees/pr-331525');
+		const sessions = [{
+			...sessionMeta('worktree', SessionStatus.Idle, worktree),
+			project: { uri: project, displayName: 'Visual Studio Code' },
+		}];
+
+		assert.deepStrictEqual({
+			byName: getCreateSessionArgs({ workspace: 'visual studio code', prompt: 'hi' }, sessions, []).workspace.toString(),
+			byProjectUri: getCreateSessionArgs({ workspace: project.toString(), prompt: 'hi' }, sessions, []).workspace.toString(),
+		}, {
+			byName: project.toString(),
+			byProjectUri: project.toString(),
+		});
+	});
+
+	test('getCreateSessionArgs reports ambiguous project names', () => {
+		const sessions = [
+			{ ...sessionMeta('one', SessionStatus.Idle, URI.parse('file:///worktrees/one')), project: { uri: URI.parse('file:///projects/one'), displayName: 'App' } },
+			{ ...sessionMeta('two', SessionStatus.Idle, URI.parse('file:///worktrees/two')), project: { uri: URI.parse('file:///projects/two'), displayName: 'App' } },
+		];
+
+		assert.throws(
+			() => getCreateSessionArgs({ workspace: 'app', prompt: 'hi' }, sessions, []),
+			/ambiguous; use one of these project URIs: file:\/\/\/projects\/one, file:\/\/\/projects\/two/i,
+		);
 	});
 
 	test('getCreateSessionArgs accepts an absolute filesystem path as workspace', () => {
@@ -271,17 +404,45 @@ suite('SessionServerTools', () => {
 		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
 		let created: IAgentCreateSessionConfig | undefined;
 		let prompted: { chat: URI; prompt: string } | undefined;
-		const accessor = createAccessor({ onCreate: c => { created = c; }, onPrompt: (_s, chat, prompt) => { prompted = { chat, prompt }; } });
+		const orchestrations = new Map<string, ISessionOrchestration>();
+		const accessor = createAccessor({ orchestrations, onCreate: c => { created = c; }, onPrompt: (_s, chat, prompt) => { prompted = { chat, prompt }; } });
 		const group = createSessionServerToolGroup(accessor);
 
-		const text = await group.execute(stateManager, 'copilot:/caller', SessionServerToolName.CreateSession, { workspace: workspace.toString(), prompt: 'do it', model: 'gpt-4o' });
+		const text = await group.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.CreateSession, { workspace: workspace.toString(), prompt: 'do it', model: 'gpt-4o' });
 
 		assert.deepStrictEqual(created, { workingDirectories: [workspace], provider: 'copilot', model: { id: 'gpt-4o' } });
 		assert.strictEqual(prompted?.prompt, 'do it');
 		assert.strictEqual(prompted?.chat.toString(), buildDefaultChatUri(URI.parse('copilot:/new')));
 		assert.ok(text.includes('agent-host-session://copilot/new'), 'result carries the open-session link for the pill');
 		assert.ok(!text.includes('copilot:/new'), 'result does not echo the raw backend session URI');
+		assert.deepStrictEqual(orchestrations.get('copilot:/new'), {
+			parentSession: 'copilot:/caller',
+			creatorSession: 'copilot:/caller',
+			coordinateWithCreator: true,
+		});
 		store.dispose();
+	});
+
+	test('create_session records explicit orchestration options', async () => {
+		const orchestrations = new Map<string, ISessionOrchestration>();
+		const sessions = [sessionMeta('caller', SessionStatus.InProgress, workspace)];
+		const accessor = createAccessor({ orchestrations, listSessions: async () => sessions });
+
+		await applyCreateSessionTool(accessor, {
+			workspace: workspace.toString(),
+			prompt: 'do it',
+			coordinateWithCreator: false,
+			notifyOnIdle: 'always',
+			label: 'research',
+		}, URI.parse('copilot:/caller'));
+
+		assert.deepStrictEqual(orchestrations.get('copilot:/new'), {
+			parentSession: 'copilot:/caller',
+			creatorSession: 'copilot:/caller',
+			coordinateWithCreator: false,
+			notifyOnIdle: 'always',
+			label: 'research',
+		});
 	});
 
 	test('create_session inherits the calling chat model and permission config', async () => {
@@ -306,7 +467,7 @@ suite('SessionServerTools', () => {
 		const group = createSessionServerToolGroup(accessor);
 		const store = new DisposableStore();
 		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
-		await group.execute(stateManager, source.toString(), SessionServerToolName.CreateSession, { workspace: workspace.toString(), prompt: 'do it' });
+		await group.execute(stateManager, { sessionUri: 'copilot:/caller', chatUri: source.toString() }, SessionServerToolName.CreateSession, { workspace: workspace.toString(), prompt: 'do it' });
 
 		assert.deepStrictEqual({
 			creationSource: creationSource?.toString(),
@@ -345,11 +506,39 @@ suite('SessionServerTools', () => {
 		});
 	});
 
+	test('create_session uses a remote project root with a model from another provider', async () => {
+		const remoteProject = URI.parse('vscode-remote://ssh-remote+example/home/me/app');
+		const remoteWorktree = URI.parse('vscode-remote://ssh-remote+example/home/me/app-worktree');
+		const claudeModel: IAgentModelInfo = { provider: 'claude', id: 'claude-sonnet', name: 'Claude Sonnet', supportsVision: false };
+		let created: IAgentCreateSessionConfig | undefined;
+		const accessor = createAccessor({
+			listSessions: async () => [{
+				...sessionMeta('remote', SessionStatus.Idle, remoteWorktree),
+				project: { uri: remoteProject, displayName: 'Remote App' },
+			}],
+			getModels: () => [claudeModel],
+			getCreationDefaults: () => ({ provider: 'copilot', model: { id: 'gpt-4o' } }),
+			onCreate: config => { created = config; },
+		});
+
+		await applyCreateSessionTool(accessor, {
+			workspace: 'Remote App',
+			prompt: 'do it',
+			model: 'claude-sonnet',
+		}, URI.parse('copilot:/source'));
+
+		assert.deepStrictEqual(created, {
+			workingDirectories: [remoteProject],
+			provider: 'claude',
+			model: { id: 'claude-sonnet' },
+		});
+	});
+
 	test('list_sessions execute returns serialized sessions', async () => {
 		const store = new DisposableStore();
 		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
 		const group = createSessionServerToolGroup(createAccessor());
-		const text = await group.execute(stateManager, 'copilot:/caller', SessionServerToolName.ListSessions, {});
+		const text = await group.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.ListSessions, {});
 		assert.deepStrictEqual(JSON.parse(text).sessions.map((s: { session: string }) => s.session), ['copilot:/s1']);
 		store.dispose();
 	});
@@ -367,7 +556,7 @@ suite('SessionServerTools', () => {
 		const sessions = [idle, needsInput, elsewhere, archived, withPr, inheritedPr];
 		const group = createSessionServerToolGroup(createAccessor({ listSessions: async () => sessions }));
 
-		const ids = async (args: object) => JSON.parse(await group.execute(stateManager, 'copilot:/caller', SessionServerToolName.ListSessions, args)).sessions.map((s: { session: string }) => s.session);
+		const ids = async (args: object) => JSON.parse(await group.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.ListSessions, args)).sessions.map((s: { session: string }) => s.session);
 
 		assert.deepStrictEqual({
 			byStatus: await ids({ status: ['inputNeeded'] }),
@@ -397,8 +586,30 @@ suite('SessionServerTools', () => {
 		store.dispose();
 	});
 
+	test('list_sessions filters by project name, project URI, and secondary working directory', () => {
+		const project = URI.parse('vscode-remote://ssh-remote+example/home/me/app');
+		const primary = URI.parse('vscode-remote://ssh-remote+example/home/me/app-worktree');
+		const secondary = URI.parse('vscode-remote://ssh-remote+example/home/me/shared');
+		const remote = {
+			...sessionMeta('remote', SessionStatus.Idle, primary),
+			workingDirectories: [primary, secondary],
+			project: { uri: project, displayName: 'Remote App' },
+		};
+		const sessions = [remote, sessionMeta('local', SessionStatus.Idle, workspace)];
+
+		assert.deepStrictEqual({
+			byProjectName: filterSessions(sessions, getListSessionsArgs({ workspace: 'remote app' })),
+			byProjectUri: filterSessions(sessions, getListSessionsArgs({ workspace: project.toString() })),
+			bySecondaryDirectory: filterSessions(sessions, getListSessionsArgs({ workspace: secondary.toString() })),
+		}, {
+			byProjectName: [remote],
+			byProjectUri: [remote],
+			bySecondaryDirectory: [remote],
+		});
+	});
+
 	test('getListSessionsArgs validates filter input', () => {
-		assert.deepStrictEqual(getListSessionsArgs({}), { session: undefined, status: undefined, workspace: undefined, withChanges: undefined, unread: undefined, withPullRequest: undefined, includeArchived: undefined, createdAfter: undefined, createdBefore: undefined });
+		assert.deepStrictEqual(getListSessionsArgs({}), { session: undefined, status: undefined, workspace: undefined, withChanges: undefined, unread: undefined, withPullRequest: undefined, includeArchived: undefined, createdAfter: undefined, createdBefore: undefined, parentSession: undefined, label: undefined });
 		assert.throws(() => getListSessionsArgs({ status: ['bogus'] }), /status/);
 		assert.throws(() => getListSessionsArgs({ withChanges: 'yes' }), /withChanges/);
 		assert.throws(() => getListSessionsArgs({ includeArchived: 'no' }), /includeArchived/);
@@ -432,13 +643,13 @@ suite('SessionServerTools', () => {
 		const args = { workspace: workspace.toString(), prompt: 'go' };
 
 		// From a top-level (depth 0) session, the created session is stamped depth 1.
-		await group.execute(stateManager, 'copilot:/caller', SessionServerToolName.CreateSession, args);
+		await group.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.CreateSession, args);
 		assert.strictEqual(depths.get('copilot:/new'), 1);
 
 		// A session already at the max spawn depth may not create further sessions.
 		depths.set('copilot:/deep', 3);
 		await assert.rejects(
-			async () => { await group.execute(stateManager, 'copilot:/deep', SessionServerToolName.CreateSession, args); },
+			async () => { await group.execute(stateManager, executionContext('copilot:/deep'), SessionServerToolName.CreateSession, args); },
 			/recursion limit/,
 		);
 		store.dispose();
@@ -452,9 +663,9 @@ suite('SessionServerTools', () => {
 		const group = createSessionServerToolGroup(createAccessor({ createSession: async () => URI.parse(`copilot:/s${n++}`) }));
 		const args = { workspace: workspace.toString(), prompt: 'go' };
 		for (let i = 0; i < 25; i++) {
-			await group.execute(stateManager, 'copilot:/caller', SessionServerToolName.CreateSession, args);
+			await group.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.CreateSession, args);
 		}
-		await assert.rejects(async () => { await group.execute(stateManager, 'copilot:/caller', SessionServerToolName.CreateSession, args); }, /more than 25 sessions/);
+		await assert.rejects(async () => { await group.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.CreateSession, args); }, /more than 25 sessions/);
 		store.dispose();
 	});
 
@@ -532,41 +743,148 @@ suite('SessionServerTools', () => {
 		assert.throws(() => getRenameChatArgs({ chat: 'agent-host-session://copilot/s2?chat=c9', session: 'copilot:/s1', title: 'Mismatch' }, sessions), /must match/);
 	});
 
-	test('rename_chat always forwards the addressed default or peer chat', async () => {
-		let renamed: { session: URI; chat: URI; title: string } | undefined;
+	test('rename_chat returns before resolving the target session', async () => {
+		const getSessionStarted = new DeferredPromise<URI>();
+		const releaseGetSession = new DeferredPromise<void>();
+		const renameCompleted = new DeferredPromise<void>();
 		const accessor = createAccessor({
-			listSessions: async () => [sessionMeta('s1', SessionStatus.Idle, workspace)],
-			onRenameChat: (session, chat, title) => { renamed = { session, chat, title }; },
+			getSession: async session => {
+				await getSessionStarted.complete(session);
+				await releaseGetSession.p;
+				return sessionMeta('s1', SessionStatus.Idle, workspace);
+			},
+			renameChat: async (_session, _chat, _title) => {
+				await renameCompleted.complete();
+				return { title: 'Peer Focus' };
+			},
 		});
 		const peer = buildChatUri('copilot:/s1', 'peer');
-		const defaultChat = buildDefaultChatUri('copilot:/s1');
-		assert.strictEqual(await applyRenameChatTool(accessor, { title: 'Default Focus' }, defaultChat), 'Renamed chat to "Default Focus".');
-		assert.deepStrictEqual({ session: renamed?.session.toString(), chat: renamed?.chat.toString(), title: renamed?.title }, { session: 'copilot:/s1', chat: defaultChat, title: 'Default Focus' });
-		assert.strictEqual(await applyRenameChatTool(accessor, { title: 'Peer Focus' }, peer), 'Renamed chat to "Peer Focus".');
-		assert.deepStrictEqual({ session: renamed?.session.toString(), chat: renamed?.chat.toString(), title: renamed?.title }, { session: 'copilot:/s1', chat: peer, title: 'Peer Focus' });
-		assert.strictEqual(await applyRenameChatTool(accessor, { chat: 'agent-host-session://copilot/s1?chat=peer', title: 'Updated Focus' }), 'Renamed chat to "Updated Focus".');
-		assert.deepStrictEqual({ session: renamed?.session.toString(), chat: renamed?.chat.toString(), title: renamed?.title }, { session: 'copilot:/s1', chat: peer, title: 'Updated Focus' });
-		await assert.rejects(() => applyRenameChatTool(createAccessor({
-			listSessions: async () => [sessionMeta('s1', SessionStatus.Idle, workspace)],
-			renameChat: async () => { throw new Error('Invalid rename_chat input: chat must match a known non-default chat.'); },
-		}), { chat: 'agent-host-session://copilot/s1?chat=missing', title: 'Ignored' }), /known non-default chat/);
+		const result = await applyRenameChatTool(accessor, { title: 'Peer Focus', automatic: true }, peer);
+		const targetSession = await getSessionStarted.p;
+		assert.deepStrictEqual({
+			result,
+			targetSession: targetSession.toString(),
+			renameCompletedBeforeRelease: renameCompleted.isSettled,
+		}, {
+			result: 'Renaming chat.',
+			targetSession: 'copilot:/s1',
+			renameCompletedBeforeRelease: false,
+		});
+		await releaseGetSession.complete();
+		await renameCompleted.p;
 	});
 
-	test('repeated rename tool calls each apply their requested title', async () => {
-		let renameCalls = 0;
+	test('rename_chat gets only target sessions and forwards addressed default or peer chats', async () => {
+		let listSessionsCalls = 0;
+		const renames: { session: string; chat: string; title: string }[] = [];
+		const allRenamesCompleted = new DeferredPromise<void>();
 		const accessor = createAccessor({
-			listSessions: async () => [sessionMeta('s1', SessionStatus.Idle, workspace)],
-			renameChat: async (_session, _chat, title) => {
-				renameCalls++;
+			listSessions: async () => {
+				listSessionsCalls++;
+				return [];
+			},
+			getSession: async session => session.toString() === 'copilot:/s1' ? sessionMeta('s1', SessionStatus.Idle, workspace) : undefined,
+			renameChat: async (session, chat, title) => {
+				renames.push({ session: session.toString(), chat: chat.toString(), title });
+				if (renames.length === 3) {
+					await allRenamesCompleted.complete();
+				}
 				return { title };
 			},
 		});
-		const first = await applyRenameChatTool(accessor, { chat: 'agent-host-session://copilot/s1', title: 'Named Once' });
-		const second = await applyRenameChatTool(accessor, { chat: 'agent-host-session://copilot/s1', title: 'Renamed Again' });
-		assert.deepStrictEqual({ first, second, renameCalls }, {
-			first: 'Renamed chat to "Named Once".',
+
+		const peer = buildChatUri('copilot:/s1', 'peer');
+		const defaultChat = buildDefaultChatUri('copilot:/s1');
+		const results = await Promise.all([
+			applyRenameChatTool(accessor, { title: 'Default Focus' }, defaultChat),
+			applyRenameChatTool(accessor, { title: 'Peer Focus' }, peer),
+			applyRenameChatTool(accessor, { chat: 'agent-host-session://copilot/s1?chat=peer', title: 'Updated Focus' }),
+		]);
+		await allRenamesCompleted.p;
+		assert.deepStrictEqual({ results, renames, listSessionsCalls }, {
+			results: ['Renamed chat to "Default Focus".', 'Renamed chat to "Peer Focus".', 'Renamed chat to "Updated Focus".'],
+			renames: [
+				{ session: 'copilot:/s1', chat: defaultChat, title: 'Default Focus' },
+				{ session: 'copilot:/s1', chat: peer, title: 'Peer Focus' },
+				{ session: 'copilot:/s1', chat: peer, title: 'Updated Focus' },
+			],
+			listSessionsCalls: 0,
+		});
+	});
+
+	test('rename_chat reports background failures', async () => {
+		const reportedError = new DeferredPromise<{ toolName: SessionServerToolName; error: unknown }>();
+		const result = await applyRenameChatTool(createAccessor({
+			getSession: async () => sessionMeta('s1', SessionStatus.Idle, workspace),
+			renameChat: async () => { throw new Error('Invalid rename_chat input: chat must match a known non-default chat.'); },
+			reportToolError: (toolName, error) => { void reportedError.complete({ toolName, error }); },
+		}), { title: 'Ignored', automatic: true }, buildDefaultChatUri('copilot:/s1'));
+		const failure = await reportedError.p;
+		assert.deepStrictEqual({
+			result,
+			toolName: failure.toolName,
+			error: failure.error instanceof Error ? failure.error.message : failure.error,
+		}, {
+			result: 'Renaming chat.',
+			toolName: SessionServerToolName.RenameChat,
+			error: 'Invalid rename_chat input: chat must match a known non-default chat.',
+		});
+	});
+
+	test('rename_chat uses the invoking chat while server-tool state remains session-scoped', async () => {
+		const stateManager = new AgentHostStateManager(new NullLogService());
+		const session = 'copilot:/s1';
+		const peer = buildChatUri(session, 'peer');
+		stateManager.createSession({
+			resource: session,
+			provider: 'copilot',
+			title: 'Session',
+			status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(),
+			modifiedAt: new Date(0).toISOString(),
+		});
+		const renamedChat = new DeferredPromise<string>();
+		const host = new AgentServerToolHost(stateManager, [
+			createSessionServerToolGroup(createAccessor({
+				onRenameChat: (_session, chat) => { void renamedChat.complete(chat.toString()); },
+			})),
+		]);
+		host.advertise(session);
+
+		const result = await host.executeTool(peer, SessionServerToolName.RenameChat, { title: 'Peer Focus' });
+
+		assert.deepStrictEqual({ result, renamedChat: await renamedChat.p }, {
+			result: 'Renamed chat to "Peer Focus".',
+			renamedChat: peer,
+		});
+		stateManager.dispose();
+	});
+
+	test('repeated rename tool calls each apply their requested title', async () => {
+		const bothRenamesStarted = new DeferredPromise<void>();
+		const releaseFirstRename = new DeferredPromise<void>();
+		const titles: string[] = [];
+		const accessor = createAccessor({
+			renameChat: async (_session, _chat, title) => {
+				titles.push(title);
+				if (titles.length === 1) {
+					await releaseFirstRename.p;
+				} else {
+					await bothRenamesStarted.complete();
+				}
+				return { title };
+			},
+		});
+		const defaultChat = buildDefaultChatUri('copilot:/s1');
+		const first = await applyRenameChatTool(accessor, { title: 'Named Once', automatic: true }, defaultChat);
+		const second = applyRenameChatTool(accessor, { title: 'Renamed Again' }, defaultChat);
+		await bothRenamesStarted.p;
+		await releaseFirstRename.complete();
+		const secondResult = await second;
+		assert.deepStrictEqual({ first, second: secondResult, titles }, {
+			first: 'Renaming chat.',
 			second: 'Renamed chat to "Renamed Again".',
-			renameCalls: 2,
+			titles: ['Named Once', 'Renamed Again'],
 		});
 	});
 
@@ -626,6 +944,25 @@ suite('SessionServerTools', () => {
 
 		// Refuses messaging the exact current chat channel (self-loop guard).
 		await assert.rejects(() => applySendMessageTool(accessor, { session: 'copilot:/s1', message: 'loop' }, currentChannel), /current chat/);
+		const privateChild = {
+			...sessionMeta('child', SessionStatus.Idle, workspace),
+			_meta: withSessionOrchestration(undefined, {
+				parentSession: 'copilot:/s2',
+				creatorSession: 'copilot:/s2',
+				coordinateWithCreator: false,
+			}),
+		};
+		const privateAccessor = createAccessor({
+			listSessions: async () => [privateChild, sessionMeta('s2', SessionStatus.Idle, workspace)],
+		});
+		await assert.rejects(
+			() => applySendMessageTool(privateAccessor, { session: 'copilot:/s2', message: 'blocked' }, buildDefaultChatUri('copilot:/child')),
+			/not allowed to coordinate with its creator/,
+		);
+		await assert.rejects(
+			() => applyCreateChatTool(privateAccessor, { session: 'copilot:/s2', prompt: 'blocked' }, URI.parse(buildDefaultChatUri('copilot:/child'))),
+			/not allowed to coordinate with its creator/,
+		);
 		// Unknown session and missing session/message are rejected.
 		await assert.rejects(() => applySendMessageTool(accessor, { session: 'copilot:/nope', message: 'x' }, currentChannel), /known session/);
 		assert.throws(() => getSendMessageArgs({ message: 'x' }, []), /session/);
@@ -687,11 +1024,11 @@ suite('SessionServerTools', () => {
 			const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
 			const sessions = [sessionMeta('s1', SessionStatus.Idle, workspace)];
 			const withCtx = createSessionServerToolGroup(createAccessor({ listSessions: async () => sessions, getChatContext: async () => snapshot }));
-			const live = JSON.parse(await withCtx.execute(stateManager, 'copilot:/caller', SessionServerToolName.GetSessionContext, { session: 'copilot:/s1' }));
+			const live = JSON.parse(await withCtx.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.GetSessionContext, { session: 'copilot:/s1' }));
 			assert.strictEqual(live.transcript.length, 2);
 
 			const cold = createSessionServerToolGroup(createAccessor({ listSessions: async () => sessions, getChatContext: async () => undefined }));
-			assert.deepStrictEqual(JSON.parse(await cold.execute(stateManager, 'copilot:/caller', SessionServerToolName.GetSessionContext, { session: 'copilot:/s1' })), {
+			assert.deepStrictEqual(JSON.parse(await cold.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.GetSessionContext, { session: 'copilot:/s1' })), {
 				session: 'copilot:/s1', openLink: 'agent-host-session://copilot/s1', detail: 'summary', transcript: [], hasMoreHistory: false, truncated: false,
 			});
 			store.dispose();
@@ -711,7 +1048,7 @@ suite('SessionServerTools', () => {
 		const group = createSessionServerToolGroup(createAccessor({ listSessions: async () => [sessionMeta('s1', SessionStatus.Idle, workspace)] }));
 		// Tool call runs on the session's default chat channel; the tool resolves the owning session.
 		const chatChannel = buildDefaultChatUri('copilot:/s1');
-		const text = await group.execute(stateManager, chatChannel, SessionServerToolName.GetCurrentSession, {});
+		const text = await group.execute(stateManager, { sessionUri: 'copilot:/s1', chatUri: chatChannel }, SessionServerToolName.GetCurrentSession, {});
 		const parsed = JSON.parse(text);
 		assert.strictEqual(parsed.session, 'copilot:/s1');
 		assert.strictEqual(parsed.openLink, 'agent-host-session://copilot/s1');

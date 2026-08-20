@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { disposableTimeout } from '../../../base/common/async.js';
+import { encodeBase64 } from '../../../base/common/buffer.js';
 import { Emitter } from '../../../base/common/event.js';
 import { isJsonRpcResponse } from '../../../base/common/jsonRpcProtocol.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
@@ -19,6 +20,7 @@ import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportK
 import { AgentSession, type IAgentCreateChatOptions, type IMcpNotification } from '../common/agent.js';
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { type IAgentService } from '../common/agentService.js';
+import { CollectAgentHostDebugLogsExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod } from '../common/agentHostExtensionProtocol.js';
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
@@ -1462,7 +1464,7 @@ export class ProtocolServerHandler extends Disposable {
 					...(s._meta !== undefined ? { _meta: s._meta } : {}),
 				} satisfies ListSessionsResult['items'][number];
 			});
-			return { items };
+			return { items: this._stateManager.prepareSessionSummariesForListing(items) };
 		},
 		resolveSessionConfig: async (_client, params) => {
 			return this._agentService.resolveSessionConfig({
@@ -1501,7 +1503,7 @@ export class ProtocolServerHandler extends Disposable {
 			return this._agentService.resourceList(URI.parse(params.uri));
 		},
 		resourceRead: async (_client, params) => {
-			return this._agentService.resourceRead(URI.parse(params.uri));
+			return this._agentService.resourceRead(URI.parse(params.uri), params.encoding);
 		},
 		resourceCopy: async (_client, params) => {
 			return this._agentService.resourceCopy(params);
@@ -1668,6 +1670,89 @@ export class ProtocolServerHandler extends Disposable {
 				return this._agentService.getManagedSettingsDiagnostics();
 			case 'diagnosticsFetch':
 				return this._agentService.diagnosticsFetch((params as { url: string }).url);
+			case GetAgentHostSessionStateFileExtensionMethod: {
+				if (!this._agentService.getSessionStateFile) {
+					return undefined;
+				}
+				if (!isParamsObject(params)) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'params must be an object'));
+				}
+				const sessionParam = params['session'];
+				if (typeof sessionParam !== 'string') {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a URI string'));
+				}
+				let session: URI;
+				try {
+					session = URI.parse(sessionParam, true);
+				} catch {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a valid URI string'));
+				}
+				if (!AgentSession.provider(session)) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be an Agent Session URI'));
+				}
+				return this._agentService.getSessionStateFile(session).then(resource => ({ resource: resource?.toString() }));
+			}
+			case CollectAgentHostDebugLogsExtensionMethod: {
+				if (!this._agentService.collectDebugLogs) {
+					return undefined;
+				}
+				if (!isParamsObject(params)) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'params must be an object'));
+				}
+				const sessionParam = params['session'];
+				if (sessionParam !== undefined && typeof sessionParam !== 'string') {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a URI string'));
+				}
+				let session: URI | undefined;
+				if (sessionParam !== undefined) {
+					try {
+						session = URI.parse(sessionParam, true);
+					} catch {
+						return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a valid URI string'));
+					}
+					if (!AgentSession.provider(session)) {
+						return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be an Agent Session URI'));
+					}
+				}
+				const kind = params['kind'];
+				if (kind !== 'archive' && kind !== 'directory') {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'kind must be archive or directory'));
+				}
+				return this._agentService.collectDebugLogs(session, kind).then(result => ({
+					kind: result.kind,
+					resource: result.resource.toString(),
+					providerLogsIncluded: result.providerLogsIncluded,
+					size: result.size,
+					uncompressedSize: result.uncompressedSize,
+					entries: result.entries,
+				}));
+			}
+			case ReadAgentHostDebugLogsChunkExtensionMethod: {
+				if (!this._agentService.readDebugLogsChunk) {
+					return undefined;
+				}
+				if (!isParamsObject(params)) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'params must be an object'));
+				}
+				const resourceParam = params['resource'];
+				if (typeof resourceParam !== 'string') {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'resource must be a URI string'));
+				}
+				let resource: URI;
+				try {
+					resource = URI.parse(resourceParam, true);
+				} catch {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'resource must be a valid URI string'));
+				}
+				const position = params['position'];
+				if (typeof position !== 'number' || !Number.isSafeInteger(position) || position < 0) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'position must be a non-negative integer'));
+				}
+				return this._agentService.readDebugLogsChunk(resource, position).then(chunk => ({
+					data: encodeBase64(chunk.data),
+					eof: chunk.eof,
+				}));
+			}
 			default:
 				return undefined;
 		}

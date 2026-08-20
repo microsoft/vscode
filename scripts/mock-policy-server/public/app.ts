@@ -631,11 +631,18 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 
 		const table = document.createElement('table');
 		table.className = 'validation-table';
+		const columns = document.createElement('colgroup');
+		for (const columnName of ['key', 'status', 'description']) {
+			const column = document.createElement('col');
+			column.className = `validation-column-${columnName}`;
+			columns.appendChild(column);
+		}
 		const head = document.createElement('thead');
 		const headRow = document.createElement('tr');
 		for (const heading of ['Key', 'Status', 'Description']) {
 			const th = document.createElement('th');
 			th.textContent = heading;
+			th.scope = 'col';
 			headRow.appendChild(th);
 		}
 		head.appendChild(headRow);
@@ -669,15 +676,22 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			}
 			keyCell.appendChild(keyCode);
 			const statusCell = document.createElement('td');
-			statusCell.className = cls;
+			statusCell.classList.add('validation-status');
+			if (cls) {
+				statusCell.classList.add(cls);
+			}
 			statusCell.textContent = statusText;
 			const descCell = document.createElement('td');
+			descCell.className = 'validation-description';
 			descCell.textContent = (validation.schema?.description || '').split('.')[0];
 			row.append(keyCell, statusCell, descCell);
 			tbody.appendChild(row);
 		}
 
-		table.append(head, tbody);
+		table.append(columns, head, tbody);
+		const tableContainer = document.createElement('div');
+		tableContainer.className = 'validation-table-container';
+		tableContainer.appendChild(table);
 
 		const schemaRows = rows.filter(row => row.inSchema && !row.dynamic);
 		const presentCount = schemaRows.filter(row => row.inBody).length;
@@ -690,7 +704,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			summary.classList.add('validation-warn');
 		}
 
-		container.replaceChildren(table, summary);
+		container.replaceChildren(tableContainer, summary);
 		container.hidden = false;
 		setStatus(unknownCount ? `${unknownCount} key${unknownCount > 1 ? 's' : ''} not in schema.` : '', unknownCount ? 'warn' : '');
 	}

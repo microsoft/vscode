@@ -12,8 +12,8 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IChatWidget } from '../chat.js';
 import { IChatWidgetContrib, ChatWidget } from '../widget/chatWidget.js';
-import { ChatAgentLocation } from '../../common/constants.js';
-import { MIN_PROMPTS, PromptTimelineRailStyle, PROMPT_TIMELINE_CONTRIB_ID, PROMPT_TIMELINE_DISPLAY_SETTING, PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../common/promptTimeline.js';
+import { ChatAgentLocation, ChatConfiguration } from '../../common/constants.js';
+import { MIN_RAIL_PROMPTS, PromptTimelineRailStyle, PROMPT_TIMELINE_CONTRIB_ID, PROMPT_TIMELINE_DISPLAY_SETTING, PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../common/promptTimeline.js';
 import { PromptTimelineModel } from './promptTimelineModel.js';
 import { PromptTimelineGutterRail } from './promptTimelineGutterRail.js';
 import { IPromptTimelineRail } from './promptTimelineRail.js';
@@ -49,13 +49,14 @@ export function observePromptTimelineHostWidth(
  */
 export function isStickyPromptHeaderShown(widget: IChatWidget, configurationService: IConfigurationService): boolean {
 	return supportsPromptTimeline(widget)
-		&& configurationService.getValue<boolean>(PROMPT_TIMELINE_STICKY_SCROLL_SETTING) === true;
+		&& configurationService.getValue<boolean>(PROMPT_TIMELINE_STICKY_SCROLL_SETTING) === true
+		&& configurationService.getValue<boolean>(ChatConfiguration.ExperimentalStickyScrollEnabled) !== true;
 }
 
 /**
  * Per-widget contribution that overlays the prompt timeline on the chat transcript. It shows the sticky
  * header (`chat.stickyScroll.enabled`, both windows) and/or the rail
- * (`sessions.chatTimeline.display`, Agents window only), and is torn down and re-created when either
+ * (`sessions.chatTimeline.display`, Agents window only), and is torn down and re-created when a relevant
  * setting changes.
  */
 export class PromptTimelineWidgetContrib extends Disposable implements IChatWidgetContrib {
@@ -80,7 +81,8 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(PROMPT_TIMELINE_DISPLAY_SETTING)
-				|| e.affectsConfiguration(PROMPT_TIMELINE_STICKY_SCROLL_SETTING)) {
+				|| e.affectsConfiguration(PROMPT_TIMELINE_STICKY_SCROLL_SETTING)
+				|| e.affectsConfiguration(ChatConfiguration.ExperimentalStickyScrollEnabled)) {
 				this._update();
 			}
 		}));
@@ -95,7 +97,7 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 		const railStyle = this.environmentService.isSessionsWindow
 			? this.configurationService.getValue<PromptTimelineRailStyle>(PROMPT_TIMELINE_DISPLAY_SETTING)
 			: 'off';
-		const stickyEnabled = this.configurationService.getValue<boolean>(PROMPT_TIMELINE_STICKY_SCROLL_SETTING) === true;
+		const stickyEnabled = isStickyPromptHeaderShown(this.widget, this.configurationService);
 		if (railStyle !== 'off' || stickyEnabled) {
 			this._createFeature(railStyle, stickyEnabled);
 		}
@@ -165,7 +167,7 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 			const ticks = ticksObs.read(reader);
 			// Toggle visibility before rendering so the rail's fit measurement in
 			// setTicks runs against the displayed (non-zero height) element.
-			rail.domNode.classList.toggle('hidden', ticks.length < MIN_PROMPTS);
+			rail.domNode.classList.toggle('hidden', ticks.length < MIN_RAIL_PROMPTS);
 			rail.setTicks(ticks);
 		}));
 
@@ -195,12 +197,10 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 			// the real prompt list (the rail's ticks are bucketed/capped and would misreport long chats).
 			const active = model.activePrompt.read(reader);
 			const pinned = model.activePinned.read(reader);
-			if (active) {
+			if (active && pinned) {
 				sticky.update(active.text, active.index, active.total);
 			}
-			// The header reveals once its prompt is pinned above the viewport; it is independent of the
-			// rail, so a narrow transcript (where the rail hides) still gets the header.
-			sticky.setVisible(pinned && !!active && active.total >= MIN_PROMPTS);
+			sticky.setVisible(!!active && pinned);
 		}));
 	}
 

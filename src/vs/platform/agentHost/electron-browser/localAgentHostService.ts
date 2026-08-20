@@ -15,14 +15,16 @@ import { getDelayedChannel, IChannelClient, IChannelServer, ProxyChannel } from 
 import { Client as MessagePortClient } from '../../../base/parts/ipc/common/ipc.mp.js';
 import { acquirePort, MessagePortAcquisitionError } from '../../../base/parts/ipc/electron-browser/ipc.mp.js';
 import { ipcRenderer } from '../../../base/parts/sandbox/electron-browser/globals.js';
+import { localize } from '../../../nls.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
+import { INotificationService } from '../../notification/common/notification.js';
 import { AgentHostIpcChannelTransport } from '../browser/agentHostIpcChannelTransport.js';
 import { AgentHostClientState, RemoteAgentHostProtocolClient } from '../browser/remoteAgentHostProtocolClient.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
-import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, AgentHostClientByokLmChannel } from '../common/agentHostClientByokLmChannel.js';
+import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, AgentHostClientByokLmChannel, NullAgentHostClientByokLmChannel } from '../common/agentHostClientByokLmChannel.js';
 import { getAgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AGENT_HOST_CLIENT_PROXY_CHANNEL, AgentHostClientProxyChannel } from '../common/agentHostClientProxyChannel.js';
 import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
@@ -30,7 +32,7 @@ import { AgentHostStartupTelemetry } from '../common/agentHostStartupTelemetry.j
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import {
 	AgentHostAhpJsonlLoggingSettingId,
-	AgentHostByokModelsEnabledSettingId,
+	type AgentHostDebugLogsArtifactKind,
 	AgentHostIpcChannels,
 	AgentHostOTelPolicyIpcChannel,
 	AgentHostRestartIpcChannel,
@@ -39,6 +41,7 @@ import {
 	IAgentCreateChatOptions,
 	IAgentCreateSessionConfig,
 	IAgentHostInspectInfo,
+	type IAgentHostDebugLogsArtifact,
 	IAgentHostManagementService,
 	IAgentHostManagedSettingsDiagnostics,
 	IAgentHostNetworkDiagnosticsInfo,
@@ -52,10 +55,11 @@ import {
 	AuthenticateResult,
 	IMcpNotification,
 	readAgentHostOTelPolicySettings,
+	type IAgentHostDebugLogsChunk,
 } from '../common/agentService.js';
 import type { IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../common/state/agentSubscription.js';
-import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
+import type { CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { Implementation, InitializeResult } from '../common/state/protocol/common/commands.js';
 import { NonReconnectableTransportError } from '../common/state/sessionTransport.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
@@ -64,6 +68,13 @@ import type { ActionEnvelope, ChatAction, ClientAnnotationsAction, ClientChanges
 import type { ComponentToState, RootState, StateComponents } from '../common/state/sessionState.js';
 
 const LOG_PREFIX = '[AgentHost:renderer]';
+
+function notifyOnFatalAgentHostStartError(notificationService: INotificationService): void {
+	notificationService.error(localize(
+		'agentHost.startFailed',
+		"The Agent Host failed to start. Restart the application to try again. See the logs for details."
+	));
+}
 
 /**
  * Keeps management-channel calls on the same MessagePort generation as the
@@ -166,6 +177,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		super();
 		this._ahpLogger = this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId)
@@ -207,6 +219,11 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 				this._clientInfo,
 			));
 			this._register(this._protocolClient.onDidChangeConnectionState(state => this._handleConnectionState(state)));
+			this._register(this._protocolClient.onDidFatalClose(() => {
+				if (!this._didConnectInitially) {
+					notifyOnFatalAgentHostStartError(this._notificationService);
+				}
+			}));
 		}
 
 		void this._connect().catch(error => {
@@ -265,7 +282,6 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 				client,
 				this._instantiationService,
 				this._logService,
-				this._configurationService.getValue<boolean>(AgentHostByokModelsEnabledSettingId) === true,
 			);
 			this._clientStore.value = store;
 			return client;
@@ -454,8 +470,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().resourceList(uri);
 	}
 
-	resourceRead(uri: URI): Promise<ResourceReadResult> {
-		return this._requireClient().resourceRead(uri);
+	resourceRead(uri: URI, encoding?: ContentEncoding): Promise<ResourceReadResult> {
+		return this._requireClient().resourceRead(uri, encoding);
 	}
 
 	resourceWrite(params: ResourceWriteParams): Promise<ResourceWriteResult> {
@@ -502,6 +518,18 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().diagnosticsFetch(url);
 	}
 
+	getSessionStateFile(session: URI): Promise<URI | undefined> {
+		return this._getManagementService().getSessionStateFile(session);
+	}
+
+	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> {
+		return this._getManagementService().collectDebugLogs(session, kind);
+	}
+
+	readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk> {
+		return this._getManagementService().readDebugLogsChunk(resource, position);
+	}
+
 	async restartAgentHost(): Promise<void> {
 		this._forwardOTelPolicy();
 		ipcRenderer.send(AgentHostRestartIpcChannel);
@@ -537,15 +565,13 @@ export function registerAgentHostClientChannels(
 	client: IChannelServer,
 	instantiationService: IInstantiationService,
 	logService: ILogService,
-	byokEnabled: boolean,
 ): void {
 	client.registerChannel(AGENT_HOST_CLIENT_PROXY_CHANNEL, instantiationService.createInstance(AgentHostClientProxyChannel));
 
-	if (byokEnabled) {
-		try {
-			client.registerChannel(AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, instantiationService.createInstance(AgentHostClientByokLmChannel));
-		} catch (error) {
-			logService.warn(`${LOG_PREFIX} BYOK language-model bridge not registered for this window. ${error instanceof Error ? error.message : String(error)}`);
-		}
+	try {
+		client.registerChannel(AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, instantiationService.createInstance(AgentHostClientByokLmChannel));
+	} catch (error) {
+		logService.warn(`${LOG_PREFIX} BYOK language-model bridge not registered for this window. ${error instanceof Error ? error.message : String(error)}`);
+		client.registerChannel(AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, new NullAgentHostClientByokLmChannel());
 	}
 }

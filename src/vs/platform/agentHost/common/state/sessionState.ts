@@ -1274,6 +1274,83 @@ export function withSessionPromptCacheState(meta: SessionMeta | undefined, promp
 	return Object.keys(next).length > 0 ? next : undefined;
 }
 
+/** Reserved key for the harness-owned new-session folder-picker decision. */
+export const SESSION_META_FOLDER_PICKER_KEY = 'vscode.folderPicker';
+
+/**
+ * Harness-owned decision about the multi-root new-session Folder picker for an
+ * agent-host session, carried under {@link SessionMeta} at
+ * {@link SESSION_META_FOLDER_PICKER_KEY}.
+ *
+ * The provider (harness) owns this because the signal differs per backend — for
+ * example Copilot hides the picker when at most one workspace folder carries
+ * hooks under `.github/hooks/` (pinning that folder as {@link primary} when
+ * exactly one does), since the Copilot agent only applies hooks from the primary
+ * working directory, and shows the picker when several folders carry hooks so
+ * the user resolves the ambiguity. When {@link primary} is set, it names the
+ * working directory the client should auto-select before the session starts.
+ */
+export interface ISessionFolderPickerDecision {
+	/** Whether the client should hide the multi-root Folder picker. */
+	readonly hidden: boolean;
+	/**
+	 * The working directory the client should auto-select as the primary, as a
+	 * URI string. Present only when the harness pins a specific folder (it
+	 * always accompanies `hidden: true`, but a `hidden` decision need not pin
+	 * one — e.g. when no folder carries hooks the current selection is kept).
+	 */
+	readonly primary?: string;
+}
+
+/** Reads the validated folder-picker decision from session metadata. */
+export function readSessionFolderPickerDecision(meta: SessionMeta | undefined): ISessionFolderPickerDecision | undefined {
+	return validateSessionFolderPickerDecision(meta?.[SESSION_META_FOLDER_PICKER_KEY]);
+}
+
+/** Parses the validated folder-picker decision from its persisted JSON representation. */
+export function parseSessionFolderPickerDecision(value: string | undefined): ISessionFolderPickerDecision | undefined {
+	if (!value) {
+		return undefined;
+	}
+	try {
+		return validateSessionFolderPickerDecision(JSON.parse(value));
+	} catch {
+		return undefined;
+	}
+}
+
+function validateSessionFolderPickerDecision(value: unknown): ISessionFolderPickerDecision | undefined {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const raw = value as Record<string, unknown>;
+	if (typeof raw['hidden'] !== 'boolean') {
+		return undefined;
+	}
+	const primary = raw['primary'];
+	// `primary` is only valid on a hidden, pinned decision (see
+	// ISessionFolderPickerDecision); reject the contradictory `{ hidden: false,
+	// primary }` so malformed persisted/remote metadata can't make the client
+	// both reveal the picker and auto-select/recreate the session.
+	if (primary !== undefined && (typeof primary !== 'string' || primary.length === 0 || raw['hidden'] !== true)) {
+		return undefined;
+	}
+	return primary !== undefined ? { hidden: true, primary } : { hidden: raw['hidden'] };
+}
+
+/** Returns session metadata with the folder-picker decision updated or removed. */
+export function withSessionFolderPickerDecision(meta: SessionMeta | undefined, decision: ISessionFolderPickerDecision | undefined): SessionMeta | undefined {
+	const next: SessionMeta = { ...meta };
+	if (decision) {
+		next[SESSION_META_FOLDER_PICKER_KEY] = decision.primary !== undefined
+			? { hidden: decision.hidden, primary: decision.primary }
+			: { hidden: decision.hidden };
+	} else {
+		delete next[SESSION_META_FOLDER_PICKER_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
 /**
  * Git state of a session's working directory, carried under
  * {@link SessionMeta} at {@link SESSION_META_GIT_KEY}. Used by clients to
@@ -1632,6 +1709,62 @@ export function readSessionSpawnDepth(meta: SessionSummaryMeta | undefined): num
  */
 export function withSessionSpawnDepth(meta: SessionSummaryMeta | undefined, depth: number): SessionSummaryMeta {
 	return { ...meta, [SESSION_META_SPAWN_DEPTH_KEY]: depth };
+}
+
+export type SessionIdleNotification = 'once' | 'always';
+export type SessionCreatorNotificationState = 'waitingForCompletion' | 'notified';
+
+export interface ISessionOrchestration {
+	readonly parentSession: string;
+	readonly creatorSession: string;
+	readonly label?: string;
+	readonly coordinateWithCreator: boolean;
+	readonly notifyOnIdle?: SessionIdleNotification;
+	/** Durable delivery state used to wait for a work outcome and deduplicate replayed statuses. */
+	readonly creatorNotificationState?: SessionCreatorNotificationState;
+}
+
+export const SESSION_META_ORCHESTRATION_KEY = 'agentHost/orchestration';
+export const AH_META_ORCHESTRATION_DB_KEY = 'agentHost.orchestration';
+
+export function readSessionOrchestration(meta: SessionSummaryMeta | undefined): ISessionOrchestration | undefined {
+	const value = meta?.[SESSION_META_ORCHESTRATION_KEY];
+	if (!value || typeof value !== 'object') {
+		return undefined;
+	}
+	const candidate = value as { [key: string]: unknown };
+	if (typeof candidate.parentSession !== 'string' || typeof candidate.coordinateWithCreator !== 'boolean') {
+		return undefined;
+	}
+	const creatorSession = typeof candidate.creatorSession === 'string' ? candidate.creatorSession : candidate.parentSession;
+	const label = typeof candidate.label === 'string' ? candidate.label : undefined;
+	const notifyOnIdle = candidate.notifyOnIdle === 'once' || candidate.notifyOnIdle === 'always' ? candidate.notifyOnIdle : undefined;
+	const creatorNotificationState = candidate.creatorNotificationState === 'waitingForCompletion' || candidate.creatorNotificationState === 'notified'
+		? candidate.creatorNotificationState
+		: undefined;
+	return {
+		parentSession: candidate.parentSession,
+		creatorSession,
+		coordinateWithCreator: candidate.coordinateWithCreator,
+		...(label !== undefined ? { label } : {}),
+		...(notifyOnIdle !== undefined ? { notifyOnIdle } : {}),
+		...(creatorNotificationState !== undefined ? { creatorNotificationState } : {}),
+	};
+}
+
+export function parseSessionOrchestration(value: string | undefined): ISessionOrchestration | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+	try {
+		return readSessionOrchestration({ [SESSION_META_ORCHESTRATION_KEY]: JSON.parse(value) });
+	} catch {
+		return undefined;
+	}
+}
+
+export function withSessionOrchestration(meta: SessionSummaryMeta | undefined, orchestration: ISessionOrchestration): SessionSummaryMeta {
+	return { ...meta, [SESSION_META_ORCHESTRATION_KEY]: orchestration };
 }
 
 /**
