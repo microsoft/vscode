@@ -91,10 +91,25 @@ function enableASARSupport(): void {
 	const asarRequire = resourcesPath ? createRequire(join(appRoot, 'node_modules.asar', 'x.js')) : undefined;
 	trace?.(`tracing enabled (node ${process.versions.node}); resourcesPath=${resourcesPath}`);
 
+	let commonJSConditions: readonly string[] | undefined;
+	let captureCommonJSConditions = true;
+
 	registerHooks({
 		resolve(specifier, context, nextResolve) {
-			// Unlike asynchronous hooks, synchronous hooks also apply to CommonJS.
-			if (context.conditions.includes('require')) {
+			if (captureCommonJSConditions) {
+				captureCommonJSConditions = false;
+				commonJSConditions = [...context.conditions];
+				return nextResolve(specifier, context);
+			}
+
+			// Node 24 omits CJS import attributes; calibrated conditions avoid user-spoofable "require" membership.
+			const cjsConditions = commonJSConditions;
+			const isCommonJS = context.importAttributes === undefined || (
+				cjsConditions !== undefined &&
+				context.conditions.length === cjsConditions.length &&
+				context.conditions.every((condition, index) => condition === cjsConditions[index])
+			);
+			if (isCommonJS) {
 				return nextResolve(specifier, context);
 			}
 			if (specifier === 'fs') {
@@ -168,6 +183,15 @@ function enableASARSupport(): void {
 			return nextResolve(specifier, context);
 		}
 	});
+
+	try {
+		createRequire(import.meta.url).resolve('node:fs');
+	} finally {
+		captureCommonJSConditions = false;
+	}
+	if (!commonJSConditions) {
+		throw new Error('Failed to identify CommonJS module resolution conditions');
+	}
 }
 
 enableASARSupport();
