@@ -605,6 +605,8 @@ suite('ChatPetWidget', () => {
 		service.toggle();
 		service.unlockAchievement(ChatPetAchievementIds.FirstChatMessage);
 		service.setAccessory(ChatPetAccessoryIds.CowboyHat);
+		service.setScale(1.4);
+		service.setHorizontalPosition(0.3);
 		const disabledUnlock = service.unlockAchievement(ChatPetAchievementIds.ModelSwitch);
 		service.resetAchievements();
 
@@ -614,6 +616,8 @@ suite('ChatPetWidget', () => {
 			unlocked: service.unlockedAchievements.get(),
 			unseen: service.unseenAchievements.get(),
 			accessory: service.selectedAccessory.get(),
+			scale: service.scale.get(),
+			horizontalPosition: service.horizontalPosition.get(),
 			storedFirstMessage: storageService.getBoolean('chat.vscodePet.achievement.firstChatMessage', StorageScope.APPLICATION_SHARED, false),
 			storedDisabled: storageService.getBoolean('chat.vscodePet.achievement.modelSwitch', StorageScope.APPLICATION_SHARED, false),
 		}, {
@@ -622,6 +626,8 @@ suite('ChatPetWidget', () => {
 			unlocked: [],
 			unseen: [],
 			accessory: undefined,
+			scale: 1.4,
+			horizontalPosition: 0.3,
 			storedFirstMessage: false,
 			storedDisabled: false,
 		});
