@@ -109,9 +109,9 @@ const enabledChatPetAchievements: readonly IChatPetAchievement[] = [
 		],
 	},
 	{
-		id: ChatPetAchievementIds.CustomSkillPresent,
-		title: localize('chatPet.achievement.customSkillPresent.title', "Skilled Builder"),
-		description: localize('chatPet.achievement.customSkillPresent.description', "You added a custom skill."),
+		id: ChatPetAchievementIds.ModelSwitch,
+		title: localize('chatPet.achievement.modelSwitch.title', "Model Citizen"),
+		description: localize('chatPet.achievement.modelSwitch.description', "You selected a different model from the model picker."),
 		enabled: true,
 		accessories: [
 			{
@@ -139,9 +139,9 @@ const enabledChatPetAchievements: readonly IChatPetAchievement[] = [
 		],
 	},
 	{
-		id: ChatPetAchievementIds.InstructionPresent,
-		title: localize('chatPet.achievement.instructionPresent.title', "Well Instructed"),
-		description: localize('chatPet.achievement.instructionPresent.description', "You added custom instructions."),
+		id: ChatPetAchievementIds.CustomSkillPresent,
+		title: localize('chatPet.achievement.customSkillPresent.title', "Skilled Builder"),
+		description: localize('chatPet.achievement.customSkillPresent.description', "You added a custom skill."),
 		enabled: true,
 		accessories: [
 			{
@@ -157,9 +157,9 @@ const enabledChatPetAchievements: readonly IChatPetAchievement[] = [
 
 export const disabledChatPetAchievements: readonly IChatPetAchievement[] = [
 	{
-		id: ChatPetAchievementIds.ModelSwitch,
-		title: localize('chatPet.achievement.modelSwitch.title', "Model Citizen"),
-		description: localize('chatPet.achievement.modelSwitch.description', "You selected a different model from the model picker."),
+		id: ChatPetAchievementIds.InstructionPresent,
+		title: localize('chatPet.achievement.instructionPresent.title', "Well Instructed"),
+		description: localize('chatPet.achievement.instructionPresent.description', "You added custom instructions."),
 		enabled: false,
 		accessories: [{
 			id: ChatPetAccessoryIds.SailorHat,

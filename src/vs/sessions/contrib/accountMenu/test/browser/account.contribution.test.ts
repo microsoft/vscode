@@ -70,17 +70,17 @@ suite('Sessions - Account Menu', () => {
 				{ id: ChatPetAchievementIds.RequestRevision, unlocked: false },
 				{ id: ChatPetAchievementIds.FirstChatMessage, unlocked: false },
 				{ id: ChatPetAchievementIds.IntegratedBrowserShared, unlocked: false },
-				{ id: ChatPetAchievementIds.CustomSkillPresent, unlocked: false },
+				{ id: ChatPetAchievementIds.ModelSwitch, unlocked: false },
 				{ id: ChatPetAchievementIds.McpServerPresent, unlocked: false },
-				{ id: ChatPetAchievementIds.InstructionPresent, unlocked: false },
+				{ id: ChatPetAchievementIds.CustomSkillPresent, unlocked: false },
 			],
 			partial: [
 				{ id: ChatPetAchievementIds.FirstChatMessage, unlocked: true },
 				{ id: ChatPetAchievementIds.IntegratedBrowserShared, unlocked: true },
 				{ id: ChatPetAchievementIds.RequestRevision, unlocked: false },
-				{ id: ChatPetAchievementIds.CustomSkillPresent, unlocked: false },
+				{ id: ChatPetAchievementIds.ModelSwitch, unlocked: false },
 				{ id: ChatPetAchievementIds.McpServerPresent, unlocked: false },
-				{ id: ChatPetAchievementIds.InstructionPresent, unlocked: false },
+				{ id: ChatPetAchievementIds.CustomSkillPresent, unlocked: false },
 			],
 		});
 	});

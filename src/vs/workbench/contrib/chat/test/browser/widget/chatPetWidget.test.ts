@@ -19,7 +19,7 @@ import { StorageScope, StorageTarget } from '../../../../../../platform/storage/
 import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
-import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, chatPetAchievements, ChatPetAccessoryIds, ChatPetAchievementIds, disabledChatPetAchievements, getChatPetAchievementPresentation, getChatPetCustomizationAchievementIds, getUnlockedChatPetAccessories, isUserAuthoredChatPetCustomization, shouldUnlockChatPetIntegratedBrowserShare } from '../../../browser/chatPetAchievements.js';
+import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, chatPetAchievements, ChatPetAccessoryIds, ChatPetAchievementIds, disabledChatPetAchievements, getChatPetAchievement, getChatPetAchievementPresentation, getChatPetCustomizationAchievementIds, getUnlockedChatPetAccessories, isUserAuthoredChatPetCustomization, shouldUnlockChatPetIntegratedBrowserShare } from '../../../browser/chatPetAchievements.js';
 import { ChatPetService, getChatPetVariant } from '../../../browser/chatPetService.js';
 import { getChatPetAccessoryImageSource, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions } from '../../../browser/widget/chatPetAccessoryRenderer.js';
 import { getChatPetAccessoryRigFrame, getChatPetAccessoryRigPose, getChatPetAccessoryTrack, getChatPetAntennaeOcclusionBounds, getChatPetEyeAccessoryAnchor, getChatPetReducedMotionRigFrame } from '../../../browser/widget/chatPetAccessoryRig.js';
@@ -609,7 +609,7 @@ suite('ChatPetWidget', () => {
 		service.setHorizontalPosition(0.3);
 		storageService.store('chat.vscodePet.achievement.chatFork', true, StorageScope.APPLICATION_SHARED, StorageTarget.USER);
 		storageService.store('chat.vscodePet.achievement.chatFork', true, StorageScope.APPLICATION, StorageTarget.USER);
-		const disabledUnlock = service.unlockAchievement(ChatPetAchievementIds.ModelSwitch);
+		const disabledUnlock = service.unlockAchievement(ChatPetAchievementIds.InstructionPresent);
 		service.resetAchievements();
 		storageService.store('chat.vscodePet.achievementCatalogVersion', 3, StorageScope.APPLICATION_SHARED, StorageTarget.USER);
 		const migratedService = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
@@ -684,6 +684,7 @@ suite('ChatPetWidget', () => {
 			unlocked: [
 				ChatPetAchievementIds.RequestRevision,
 				ChatPetAchievementIds.FirstChatMessage,
+				ChatPetAchievementIds.ModelSwitch,
 			],
 			accessory: undefined,
 			sharedRequestRevision: true,
@@ -712,6 +713,7 @@ suite('ChatPetWidget', () => {
 		}, {
 			unlocked: [
 				ChatPetAchievementIds.RequestRevision,
+				ChatPetAchievementIds.ModelSwitch,
 			],
 			accessory: undefined,
 			sharedRequestRevision: true,
@@ -736,6 +738,7 @@ suite('ChatPetWidget', () => {
 		}, {
 			unlocked: [
 				ChatPetAchievementIds.RequestRevision,
+				ChatPetAchievementIds.ModelSwitch,
 			],
 			catalogVersion: 4,
 		});
@@ -806,6 +809,7 @@ suite('ChatPetWidget', () => {
 			rewardCounts: chatPetAchievements.map(achievement => achievement.accessories.length),
 			coversAntennae: chatPetAchievements.every(achievement => achievement.accessories.every(accessory => accessory.coversAntennae)),
 			crownAccessoryId: ChatPetAccessoryIds.Crown,
+			disabledAchievementIds: disabledChatPetAchievements.map(achievement => achievement.id),
 			disabledAccessoryIds: disabledChatPetAchievements.flatMap(achievement => achievement.accessories.map(accessory => accessory.id)),
 		}, {
 			count: 6,
@@ -813,9 +817,9 @@ suite('ChatPetWidget', () => {
 				ChatPetAchievementIds.RequestRevision,
 				ChatPetAchievementIds.FirstChatMessage,
 				ChatPetAchievementIds.IntegratedBrowserShared,
-				ChatPetAchievementIds.CustomSkillPresent,
+				ChatPetAchievementIds.ModelSwitch,
 				ChatPetAchievementIds.McpServerPresent,
-				ChatPetAchievementIds.InstructionPresent,
+				ChatPetAchievementIds.CustomSkillPresent,
 			],
 			accessoryIds: [
 				ChatPetAccessoryIds.TopHatMonocle,
@@ -837,6 +841,13 @@ suite('ChatPetWidget', () => {
 			rewardCounts: Array(6).fill(1),
 			coversAntennae: true,
 			crownAccessoryId: 'crown',
+			disabledAchievementIds: [
+				ChatPetAchievementIds.InstructionPresent,
+				ChatPetAchievementIds.QueueOrSteeringMessage,
+				ChatPetAchievementIds.AgentsWindowOpened,
+				ChatPetAchievementIds.ChatOutputCopied,
+				ChatPetAchievementIds.ImageRequest,
+			],
 			disabledAccessoryIds: [
 				ChatPetAccessoryIds.SailorHat,
 				ChatPetAccessoryIds.SpinnerHat,
@@ -844,6 +855,35 @@ suite('ChatPetWidget', () => {
 				ChatPetAccessoryIds.PartyHat,
 				ChatPetAccessoryIds.ArtistBeret,
 			],
+		});
+	});
+
+	test('rewards model changes with the hard hat and custom skills with the crown', () => {
+		const modelSwitch = getChatPetAchievement(ChatPetAchievementIds.ModelSwitch);
+		const customSkill = getChatPetAchievement(ChatPetAchievementIds.CustomSkillPresent);
+
+		assert.deepStrictEqual({
+			modelSwitch: {
+				title: modelSwitch.title,
+				description: modelSwitch.description,
+				accessoryId: modelSwitch.accessories[0].id,
+			},
+			customSkill: {
+				title: customSkill.title,
+				description: customSkill.description,
+				accessoryId: customSkill.accessories[0].id,
+			},
+		}, {
+			modelSwitch: {
+				title: 'Model Citizen',
+				description: 'You selected a different model from the model picker.',
+				accessoryId: ChatPetAccessoryIds.ConstructionHardHat,
+			},
+			customSkill: {
+				title: 'Skilled Builder',
+				description: 'You added a custom skill.',
+				accessoryId: ChatPetAccessoryIds.Crown,
+			},
 		});
 	});
 
