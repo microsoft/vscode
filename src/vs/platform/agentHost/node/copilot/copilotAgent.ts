@@ -757,7 +757,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._serverToolHost = host;
 	}
 
-	/** Reflects the `rt=1` field on the GitHub Copilot bearer token; gates enhanced GH telemetry. */
+	/** Reflects the restricted-telemetry entitlement from `/copilot_internal/user`. */
 	private _restrictedTelemetryEnabled = false;
 	private readonly _onDidChangeRestrictedTelemetry = this._register(new Emitter<void>());
 	readonly onDidChangeRestrictedTelemetry = this._onDidChangeRestrictedTelemetry.event;
@@ -1544,11 +1544,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _updateRestrictedTelemetry(githubToken: string | undefined): void {
-		// Safe default synchronously: keep restricted/enhanced telemetry disabled until the minted
-		// CAPI Copilot session token confirms the `rt=1` opt-in. The GitHub token here carries no
-		// `rt`/`tid` claims — those live in the Copilot session token, which the API service mints —
-		// so the real values are resolved asynchronously below. Mirrors how the Copilot extension
-		// reads `rt`/`tid` off its `CopilotToken` rather than the GitHub token.
+		// Keep restricted telemetry disabled until `/copilot_internal/user` confirms the opt-in.
 		this._applyRestrictedTelemetry(undefined);
 		if (githubToken) {
 			void this._resolveRestrictedTelemetry(githubToken);

@@ -347,7 +347,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 	 * markdown text of user requests and agent responses — tool calls,
 	 * subagents, and reasoning are excluded and the text is character-bounded)
 	 * along with a summary of the changed files. Returns `undefined` when no
-	 * Copilot token is available or generation fails, so the caller can fall
+	 * Copilot OAuth credential is available or generation fails, so the caller can fall
 	 * back to the branch-name based title/description. PR creation must never
 	 * fail just because the model is unavailable.
 	 */
@@ -360,11 +360,11 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		token: CancellationToken,
 	): Promise<{ title: string; description: string } | undefined> {
 		const copilotResource = this._gitHubEndpointService.getCopilotResource();
-		const copilotToken = this._agentService.getAuthToken({
+		const authToken = this._agentService.getAuthToken({
 			resource: copilotResource.resource,
 			scopes: copilotResource.scopes_supported,
 		});
-		if (!copilotToken) {
+		if (!authToken) {
 			return undefined;
 		}
 
@@ -375,7 +375,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		}
 
 		try {
-			const raw = await this._copilotApiService.utilityChatCompletion(copilotToken, {
+			const raw = await this._copilotApiService.utilityChatCompletion(authToken, {
 				messages: this._buildTitleAndDescriptionPrompt(branchName, base, conversation, changeSummary),
 			}, { signal });
 			this._throwIfCancelled(token);
