@@ -36,6 +36,8 @@ import { ChatCopyKind, IChatService } from '../../common/chatService/chatService
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatCodeBlockContextProviderService, IChatWidgetService } from '../chat.js';
+import { ChatPetAchievementIds } from '../chatPetAchievements.js';
+import { IChatPetService } from '../chatPetService.js';
 import { ChatCopyActionViewItem } from './chatCopyActions.js';
 import { DefaultChatTextEditor, ICodeBlockActionContext, ICodeCompareBlockActionContext } from '../widget/chatContentParts/codeBlockPart.js';
 import { CHAT_CATEGORY } from './chatActions.js';
@@ -154,7 +156,7 @@ export function registerChatCodeBlockActions() {
 			});
 		}
 
-		run(accessor: ServicesAccessor, ...args: unknown[]) {
+		async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 			const context = args[0];
 			if (!isCodeBlockActionContext(context) || isResponseFiltered(context)) {
 				return;
@@ -162,10 +164,12 @@ export function registerChatCodeBlockActions() {
 
 			const clipboardService = accessor.get(IClipboardService);
 			const aiEditTelemetryService = accessor.get(IAiEditTelemetryService);
-			clipboardService.writeText(context.code);
+			const chatService = accessor.get(IChatService);
+			const chatPetService = accessor.get(IChatPetService);
+			await clipboardService.writeText(context.code);
 
 			if (isResponseVM(context.element)) {
-				const chatService = accessor.get(IChatService);
+				chatPetService.unlockAchievement(ChatPetAchievementIds.ChatOutputCopied);
 				const requestId = context.element.requestId;
 				const request = context.element.session.getItems().find(item => item.id === requestId && isRequestVM(item)) as IChatRequestViewModel | undefined;
 				chatService.notifyUserAction({
@@ -206,10 +210,10 @@ export function registerChatCodeBlockActions() {
 		}
 	});
 
-	CopyAction?.addImplementation(50000, 'chat-codeblock', (accessor) => {
+	CopyAction?.addImplementation(50000, 'chat-codeblock', accessor => {
 		// get active code editor
 		const editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
-		if (!editor) {
+		if (!editor?.hasTextFocus() || !editor.hasModel()) {
 			return false;
 		}
 
@@ -232,6 +236,7 @@ export function registerChatCodeBlockActions() {
 		// Report copy to extensions
 		const chatService = accessor.get(IChatService);
 		const aiEditTelemetryService = accessor.get(IAiEditTelemetryService);
+		const chatPetService = accessor.get(IChatPetService);
 		const element = context.element as IChatResponseViewModel | undefined;
 		if (isResponseVM(element)) {
 			const requestId = element.requestId;
@@ -274,8 +279,15 @@ export function registerChatCodeBlockActions() {
 
 		// Copy full cell if no selection, otherwise fall back on normal editor implementation
 		if (noSelection) {
-			accessor.get(IClipboardService).writeText(context.code);
-			return true;
+			const clipboardService = accessor.get(IClipboardService);
+			return clipboardService.writeText(context.code).then(() => {
+				if (isResponseVM(element)) {
+					queueMicrotask(() => chatPetService.unlockAchievement(ChatPetAchievementIds.ChatOutputCopied));
+				}
+			});
+		}
+		if (isResponseVM(element) && copiedText.length > 0) {
+			queueMicrotask(() => chatPetService.unlockAchievement(ChatPetAchievementIds.ChatOutputCopied));
 		}
 
 		return false;

@@ -34,6 +34,8 @@ import { IChatRequestModeInfo } from '../../common/model/chatModel.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatAccessibilityProvider } from '../accessibility/chatAccessibilityProvider.js';
 import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions } from '../chat.js';
+import { ChatPetAchievementIds } from '../chatPetAchievements.js';
+import { IChatPetService } from '../chatPetService.js';
 import { CodeBlockPart } from './chatContentParts/codeBlockPart.js';
 import { ChatCollapsibleContentPart } from './chatContentParts/chatCollapsibleContentPart.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatListItemTemplate, IChatRendererDelegate } from './chatListRenderer.js';
@@ -407,6 +409,7 @@ export class ChatListWidget extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IChatAccessibilityService private readonly chatAccessibilityService: IChatAccessibilityService,
+		@IChatPetService private readonly chatPetService: IChatPetService,
 	) {
 		super();
 
@@ -657,6 +660,23 @@ export class ChatListWidget extends Disposable {
 			return;
 		}
 
+		const ranges: Range[] = [];
+		for (let i = 0; i < selection.rangeCount; i++) {
+			const range = selection.getRangeAt(i);
+			if (!dom.isAncestor(range.commonAncestorContainer, this._container)) {
+				return;
+			}
+			ranges.push(range);
+		}
+
+		const isResponseNode = (node: Node | null) => {
+			const element = dom.isHTMLElement(node) ? node : node?.parentElement;
+			return !!element && isResponseVM(this._renderer.getElementFromNode(element));
+		};
+		if (ranges.some(range => isResponseNode(range.startContainer) || isResponseNode(range.endContainer))) {
+			queueMicrotask(() => this.chatPetService.unlockAchievement(ChatPetAchievementIds.ChatOutputCopied));
+		}
+
 		// Cloning a range never yields the anchors around it, so ask the selection what it
 		// touches: otherwise a selection inside a link looks clean while the browser still
 		// copies the enclosing anchor.
@@ -665,15 +685,6 @@ export class ChatListWidget extends Disposable {
 			.filter(element => selection.containsNode(element, true));
 		if (!touched.length) {
 			return;
-		}
-
-		const ranges: Range[] = [];
-		for (let i = 0; i < selection.rangeCount; i++) {
-			const range = selection.getRangeAt(i);
-			if (!dom.isAncestor(range.commonAncestorContainer, this._container)) {
-				return;
-			}
-			ranges.push(range);
 		}
 
 		const fragments = ranges.map(range => this.cloneSelectedContents(range));

@@ -173,6 +173,8 @@ export interface IChatSessionRoutingHost extends IChatSessionRoutingFolderPicker
 	onDidRejectRoute?(resource: URI): void;
 	/** Notify the host when a single-target route resolves, or clear it for fan-out. */
 	onDidResolveRoute?(resource: URI | undefined, kind?: 'existing_session' | 'new_session', isVoiceModeInput?: boolean, requestId?: string): void;
+	/** Notify the host after a routed request is accepted for sending or queuing. */
+	onDidAcceptRoute?(targetKind: 'existing_session' | 'new_session', attachedContext: readonly IChatRequestVariableEntry[]): void;
 	/** Notify the host when the user dismisses a routed request's delivery and pending-input UI. */
 	onDidDismissRoute?(resource: URI, requestId?: string): void;
 }
@@ -1301,10 +1303,13 @@ export class ChatSessionRoutingController extends Disposable {
 
 	/** Dispatch a resolved pending target. */
 	private async _dispatchTo(target: PendingTarget, submittedInput: string, submittedAttachmentIds: readonly string[], utterance: string, requestOptions: IChatSendRequestOptions, token: CancellationToken, notifyRoute = true): Promise<IChatSessionRoutingDispatchResult> {
-		if (target.kind === 'new') {
-			return this._dispatchToNewSession(submittedInput, submittedAttachmentIds, utterance, requestOptions, token, notifyRoute, target);
+		const result = target.kind === 'new'
+			? await this._dispatchToNewSession(submittedInput, submittedAttachmentIds, utterance, requestOptions, token, notifyRoute, target)
+			: await this._dispatchToSession(target.sessionId, submittedInput, submittedAttachmentIds, utterance, requestOptions, token, notifyRoute);
+		if (result.status === 'sent' || result.status === 'queued') {
+			this.host.onDidAcceptRoute?.(target.kind === 'new' ? 'new_session' : 'existing_session', requestOptions.attachedContext ?? []);
 		}
-		return this._dispatchToSession(target.sessionId, submittedInput, submittedAttachmentIds, utterance, requestOptions, token, notifyRoute);
+		return result;
 	}
 
 	private async _dispatchToSession(sessionId: string, submittedInput: string, submittedAttachmentIds: readonly string[], utterance: string, requestOptions: IChatSendRequestOptions, token: CancellationToken, notifyRoute: boolean): Promise<IChatSessionRoutingDispatchResult> {

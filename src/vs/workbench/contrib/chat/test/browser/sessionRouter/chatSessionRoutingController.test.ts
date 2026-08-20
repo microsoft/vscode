@@ -17,6 +17,7 @@ import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../pl
 import { AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
 import { ChatSessionRoutingController, IChatSessionRoutingHost } from '../../../browser/sessionRouter/chatSessionRoutingController.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatService } from '../../../common/chatService/chatService.js';
+import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatModeKind } from '../../../common/constants.js';
 import { IChatSessionRoutingProvider, IChatSessionRoutingWorkspace, IChatSessionRoutingWorkspaceBrowseAction, IRoutableSession } from '../../../common/sessionRouter.js';
 
@@ -748,6 +749,7 @@ suite('ChatSessionRoutingController', () => {
 		const resource = URI.parse('agent-host-copilotcli:/new-route');
 		const folder = URI.file('/workspace');
 		let dispatched: { folder: URI | undefined; providerId: string | undefined; message: string; modelId: string | undefined } | undefined;
+		let acceptedRoute: { readonly targetKind: string; readonly attachmentKinds: readonly string[] } | undefined;
 		let localCreateCount = 0;
 		const routingProvider: IChatSessionRoutingProvider = {
 			getCandidateSessions: () => [],
@@ -766,6 +768,10 @@ suite('ChatSessionRoutingController', () => {
 					attachmentModel: { attachments: [], clear: () => { } },
 				},
 				getRoutingProvider: () => routingProvider,
+				onDidAcceptRoute: (targetKind: 'existing_session' | 'new_session', attachments: readonly IChatRequestVariableEntry[]) => acceptedRoute = {
+					targetKind,
+					attachmentKinds: attachments.map(attachment => attachment.kind),
+				},
 			} as unknown as IChatSessionRoutingHost,
 			'test',
 			{ startNewLocalSession: () => { localCreateCount++; return undefined; } } as unknown as IChatService,
@@ -779,24 +785,35 @@ suite('ChatSessionRoutingController', () => {
 			undefined!,
 			undefined!,
 		);
-		const dispatch = Reflect.get(controller, '_dispatchToNewSession') as (
+		const dispatch = Reflect.get(controller, '_dispatchTo') as (
+			target: { kind: 'new'; label: string; folder: URI; providerId: string },
 			input: string,
 			attachmentIds: readonly string[],
 			utterance: string,
 			options: object,
 			token: CancellationToken,
 			notifyRoute: boolean,
-			target: { folder: URI; providerId: string },
 		) => Promise<{ status: string; resource?: URI; reveal?: () => Promise<void> }>;
 
-		const result = await dispatch.call(controller, 'run', [], 'run', { userSelectedModelId: 'model' }, CancellationToken.None, false, { folder, providerId: 'provider' });
+		const result = await dispatch.call(
+			controller,
+			{ kind: 'new', label: 'New session', folder, providerId: 'provider' },
+			'run',
+			[],
+			'run',
+			{ userSelectedModelId: 'model', attachedContext: [{ kind: 'image' }] },
+			CancellationToken.None,
+			false,
+		);
 
 		assert.deepStrictEqual({
 			dispatched,
+			acceptedRoute,
 			localCreateCount,
 			result: { status: result.status, resource: result.resource?.toString(), hasReveal: !!result.reveal },
 		}, {
 			dispatched: { folder, providerId: 'provider', message: 'run', modelId: 'model' },
+			acceptedRoute: { targetKind: 'new_session', attachmentKinds: ['image'] },
 			localCreateCount: 0,
 			result: { status: 'sent', resource: resource.toString(), hasReveal: true },
 		});
@@ -884,6 +901,7 @@ suite('ChatSessionRoutingController', () => {
 			getRoutingProvider: () => routingProvider,
 			onWillDispatchRoute: () => callbacks.push('will'),
 			onDidResolveRoute: () => callbacks.push('resolved'),
+			onDidAcceptRoute: (targetKind: 'existing_session' | 'new_session') => callbacks.push(`accepted:${targetKind}`),
 		} as unknown as IChatSessionRoutingHost;
 		const controller = new ChatSessionRoutingController(
 			host,
@@ -906,8 +924,8 @@ suite('ChatSessionRoutingController', () => {
 		);
 		const collect = Reflect.get(controller, '_collectCandidateSessions') as (token: CancellationToken) => Promise<unknown>;
 		await collect.call(controller, CancellationToken.None);
-		const dispatch = Reflect.get(controller, '_dispatchToSession') as (
-			sessionId: string,
+		const dispatch = Reflect.get(controller, '_dispatchTo') as (
+			target: { kind: 'session'; sessionId: string; label: string; confidence: number },
 			input: string,
 			attachmentIds: readonly string[],
 			utterance: string,
@@ -916,7 +934,7 @@ suite('ChatSessionRoutingController', () => {
 			notifyRoute: boolean,
 		) => Promise<{ status: string; resource?: URI; reveal?: () => Promise<void> }>;
 
-		const result = await dispatch.call(controller, providerCandidate.sessionId, input, [], 'Run tests', { userSelectedModelId: 'model' }, CancellationToken.None, true);
+		const result = await dispatch.call(controller, { kind: 'session', sessionId: providerCandidate.sessionId, label: providerCandidate.label, confidence: 1 }, input, [], 'Run tests', { userSelectedModelId: 'model' }, CancellationToken.None, true);
 		await result.reveal?.();
 
 		assert.deepStrictEqual({
@@ -935,7 +953,7 @@ suite('ChatSessionRoutingController', () => {
 			},
 			localAcquireCount: 0,
 			providerRevealCount: 1,
-			callbacks: ['will', 'resolved'],
+			callbacks: ['will', 'resolved', 'accepted:existing_session'],
 			input: '',
 			clearedAttachments: true,
 			result: { status: 'sent', resource: providerResource.toString() },

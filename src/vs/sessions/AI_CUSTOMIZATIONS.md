@@ -34,6 +34,14 @@ src/vs/workbench/contrib/chat/browser/aiCustomization/
 └── media/
     └── aiCustomizationManagement.css             # Management editor styling, including Sessions empty-state layout
 
+src/vs/workbench/contrib/chat/browser/
+├── chatPetAchievements.ts                       # Stable achievement and accessory catalog
+├── chatPetAchievements.contribution.ts          # Open command, modal registration, and accessibility help
+├── chatPetAchievementsEditor.ts                 # Standalone modal editor pane
+├── chatPetAchievementsEditorInput.ts            # Singleton modal editor input
+├── chatPetAchievementsWidget.ts                 # Trophy collection and pet-hat selector
+└── chatPetAchievementPreview.ts                 # Shared pixel-art preview renderer
+
 src/vs/workbench/contrib/chat/common/
 ├── aiCustomizationWorkspaceService.ts          # IAICustomizationWorkspaceService + IStorageSourceFilter + BUILTIN_STORAGE
 └── customizationHarnessService.ts              # ICustomizationHarnessService + ICustomizationItem + ICustomizationItemProvider + helpers
@@ -68,6 +76,10 @@ src/vs/sessions/contrib/sessions/browser/
 The management editor opens as a compact modal editor. The modal title and welcome page heading use `Agent Customizations for {harness label}` so the active harness is visible throughout the overview experience. If no harness descriptor is available yet, the UI falls back to `Local`.
 
 The first sidebar entry is a static `Overview` navigation item. It is styled like the other sidebar labels and does not mirror the active harness label; harness identity is represented by the modal title and welcome heading instead.
+
+Pet achievements are intentionally outside Agent Customizations. The pet context menu opens a dedicated singleton editor input that requires the modal editor part. While the pet is enabled, a new unlock replaces its rendering bubble's ellipsis with a gold star for ten seconds; activating the pet during that state opens the same modal. Newly unlocked cards retain a shared `New` pill until that specific card is activated. The modal command is gated by pet enablement, and an open modal closes when the pet is disabled. The achievement catalog does not contribute a management-editor section or an Agents-window customization shortcut.
+
+The enabled catalog has six secret achievements and rewards: sending the first successful chat message (Cowboy Hat), edited-request resubmission (Top Hat & Monocle), sharing the Integrated Browser with the agent (Baseball Cap), adding a user-authored skill (Construction Hard Hat), configuring an MCP server (Firefighter Helmet), and adding user-authored instructions (Crown). Five additional achievement definitions and their Sailor, Spinner, Viking, Party, and Beret atlases remain in source with `enabled: false` so they can be restored without recreating artwork. Existing customization rows establish the startup baseline; skill, MCP, and instruction achievements unlock only when the corresponding state is added after observation begins, so a fresh achievement store starts empty. Unlocks, seen state, and the selected accessory use application-shared user storage so the workbench and Agents window observe one state; this is product user storage, not GitHub account or entitlement data. Each appearance uses one atlas and body-owned attachment tracks, so adding an ordinary reward does not require state-specific sprite exports or renderer changes. Production appearances use declared `96×96` cells so their silhouettes can span the pet's full 12-logical-pixel width, while the renderer retains compact `64×64` support. Both tiers use the same whole `8×8` logical-pixel art unit. The Dizzy state suppresses both accessory slots because its body-authored effect owns the head silhouette. Identity-bound eye accessories such as the monocle use the breathing rig anchor and the same cursor-gaze offset as the DOM eye. The Agents-window account/titlebar popover shows all enabled badges while the pet is enabled, grays locked badges, and provides a direct action to open Achievements. This badge affordance is Sessions-owned and has no core workbench account-menu equivalent.
 
 The Tools section can browse the Marketplace in the core workbench, where extension gallery browsing and installation are available. The Sessions window hides Tools Marketplace browsing and only shows the tool enablement list.
 

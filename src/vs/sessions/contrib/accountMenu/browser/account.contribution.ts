@@ -56,6 +56,8 @@ import { AgentHostCodexAgentEnabledSettingId } from '../../../../platform/agentH
 import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { AGENTIC_SIGN_IN_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { SessionsChatPetAchievementBadges } from './chatPetAchievementBadges.js';
+import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID } from '../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
 
 // --- Account Menu Items --- //
 const AccountMenu = Menus.AccountMenu;
@@ -621,6 +623,12 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 				}
 			}
 		}
+
+		panelStore.add(this.instantiationService.createInstance(SessionsChatPetAchievementBadges, panel, () => {
+			this.hoverService.hideHover(true);
+			this.clickPanelDisposable.clear();
+			void this.commandService.executeCommand(CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID);
+		}));
 
 		if (this.shouldShowCopilotDashboardHover()) {
 			const footer = append(panel, $('section.sessions-account-titlebar-panel-footer', {

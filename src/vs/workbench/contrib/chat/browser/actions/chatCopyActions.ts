@@ -23,6 +23,8 @@ import { katexContainerClassName, katexContainerLatexAttributeName } from '../..
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isChatTreeItem, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatTreeItem, IChatWidgetService } from '../chat.js';
+import { ChatPetAchievementIds } from '../chatPetAchievements.js';
+import { IChatPetService } from '../chatPetService.js';
 import { CHAT_CATEGORY, stringifyItem } from './chatActions.js';
 import { toPortableMarkdown } from '../widget/chatClipboard.js';
 
@@ -158,18 +160,24 @@ export function registerChatCopyActions() {
 			});
 		}
 
-		run(accessor: ServicesAccessor, context?: ChatTreeItem) {
+		async run(accessor: ServicesAccessor, context?: ChatTreeItem): Promise<void> {
 			const clipboardService = accessor.get(IClipboardService);
 			const chatWidgetService = accessor.get(IChatWidgetService);
+			const chatPetService = accessor.get(IChatPetService);
 			const widget = ((isRequestVM(context) || isResponseVM(context)) && chatWidgetService.getWidgetBySessionResource(context.sessionResource)) || chatWidgetService.lastFocusedWidget;
 			if (widget) {
 				const viewModel = widget.viewModel;
-				const sessionAsText = viewModel?.getItems()
+				const items = viewModel?.getItems()
 					.filter((item): item is (IChatRequestViewModel | IChatResponseViewModel) => isRequestVM(item) || (isResponseVM(item) && !item.errorDetails?.responseIsFiltered))
+					?? [];
+				const sessionAsText = items
 					.map(item => stringifyItem(item))
 					.join('\n\n');
 				if (sessionAsText) {
-					clipboardService.writeText(toPortableMarkdown(sessionAsText));
+					await clipboardService.writeText(toPortableMarkdown(sessionAsText));
+					if (items.some(isResponseVM)) {
+						chatPetService.unlockAchievement(ChatPetAchievementIds.ChatOutputCopied);
+					}
 				}
 			}
 		}
@@ -202,6 +210,7 @@ export function registerChatCopyActions() {
 		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const chatWidgetService = accessor.get(IChatWidgetService);
 			const clipboardService = accessor.get(IClipboardService);
+			const chatPetService = accessor.get(IChatPetService);
 
 			const widget = chatWidgetService.lastFocusedWidget;
 			let item = args[0] as ChatTreeItem | undefined;
@@ -218,6 +227,9 @@ export function registerChatCopyActions() {
 			const selectedText = nativeSelection?.toString();
 			if (widget && selectedText && selectedText.length > 0 && dom.isAncestor(dom.getActiveElement(), widget.domNode)) {
 				await clipboardService.writeText(selectedText);
+				if (isResponseVM(item)) {
+					chatPetService.unlockAchievement(ChatPetAchievementIds.ChatOutputCopied);
+				}
 				return;
 			}
 
@@ -227,6 +239,9 @@ export function registerChatCopyActions() {
 
 			const text = stringifyItem(item, false);
 			await clipboardService.writeText(toPortableMarkdown(text));
+			if (isResponseVM(item)) {
+				chatPetService.unlockAchievement(ChatPetAchievementIds.ChatOutputCopied);
+			}
 		}
 	});
 
@@ -248,6 +263,7 @@ export function registerChatCopyActions() {
 		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const chatWidgetService = accessor.get(IChatWidgetService);
 			const clipboardService = accessor.get(IClipboardService);
+			const chatPetService = accessor.get(IChatPetService);
 
 			const widget = chatWidgetService.lastFocusedWidget;
 			let item = args[0] as ChatTreeItem | undefined;
@@ -265,6 +281,7 @@ export function registerChatCopyActions() {
 			const text = item.response.getFinalResponse();
 			if (text) {
 				await clipboardService.writeText(toPortableMarkdown(text));
+				chatPetService.unlockAchievement(ChatPetAchievementIds.ChatOutputCopied);
 			}
 		}
 	});
@@ -287,6 +304,7 @@ export function registerChatCopyActions() {
 		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const chatWidgetService = accessor.get(IChatWidgetService);
 			const clipboardService = accessor.get(IClipboardService);
+			const chatPetService = accessor.get(IChatPetService);
 
 			const widget = chatWidgetService.lastFocusedWidget;
 			let item = args[0] as ChatTreeItem | undefined;
@@ -324,6 +342,9 @@ export function registerChatCopyActions() {
 			const latexSource = katexElement?.getAttribute(katexContainerLatexAttributeName) || '';
 			if (latexSource) {
 				await clipboardService.writeText(latexSource);
+				if (isResponseVM(item)) {
+					chatPetService.unlockAchievement(ChatPetAchievementIds.ChatOutputCopied);
+				}
 			}
 		}
 	});

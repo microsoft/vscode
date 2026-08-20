@@ -47,6 +47,8 @@ import { isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatWidget } from '../widget/chatWidget.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatSessionRoutingController, IChatSessionRoutingHost } from '../sessionRouter/chatSessionRoutingController.js';
+import { getChatPetAcceptedRouteAchievementIds } from '../chatPetAchievements.js';
+import { IChatPetService } from '../chatPetService.js';
 import { combineVoiceInput } from '../voiceClient/voiceInputUtils.js';
 import { IChatInputWindowCIFailure, IChatInputWindowCIFailureProvider, IChatInputWindowService, ChatInputWindowStorageKeys, CHAT_INPUT_WINDOW_DEFAULT_HEIGHT, CHAT_INPUT_WINDOW_SET_VOICE_TARGET_COMMAND_ID } from '../../common/chatInputWindow.js';
 import { autorun, IReader, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
@@ -198,6 +200,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		@IHostService private readonly hostService: IHostService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IChatSessionRoutingProviderService private readonly routingProviderService: IChatSessionRoutingProviderService,
+		@IChatPetService private readonly chatPetService: IChatPetService,
 	) {
 		super();
 
@@ -549,6 +552,11 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 					this.voiceSessionController.markRoutedRequestPending(resource, requestId);
 				}
 				this.commandService.executeCommand(CHAT_INPUT_WINDOW_SET_VOICE_TARGET_COMMAND_ID, resource?.toString(), kind).catch(() => { });
+			},
+			onDidAcceptRoute: (targetKind, attachedContext) => {
+				for (const achievementId of getChatPetAcceptedRouteAchievementIds(targetKind, attachedContext)) {
+					this.chatPetService.unlockAchievement(achievementId);
+				}
 			},
 			onDidDismissRoute: (resource, requestId) => {
 				const dismissed = new Set(this._dismissedPendingRequests.get());

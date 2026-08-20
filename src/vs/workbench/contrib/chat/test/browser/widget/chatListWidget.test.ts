@@ -7,6 +7,7 @@ import assert from 'assert';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
@@ -15,6 +16,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IChatAccessibilityService } from '../../../browser/chat.js';
+import { IChatPetService } from '../../../browser/chatPetService.js';
 import { computeScrollDownState, getAnchoredScrollTop, AutoScrollHolds, UserToggleResizeState, ChatListWidget } from '../../../browser/widget/chatListWidget.js';
 import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
@@ -153,6 +155,11 @@ suite('ChatListWidget', () => {
 			disposeRequest: () => { },
 			acceptResponse: () => { },
 			acceptElicitation: () => { },
+		});
+		instantiationService.stub(IChatPetService, new class extends mock<IChatPetService>() {
+			override unlockAchievement(): boolean {
+				return false;
+			}
 		});
 
 		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
