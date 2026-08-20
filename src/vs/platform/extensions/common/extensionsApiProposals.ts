@@ -489,6 +489,9 @@ const _allApiProposals = {
 	testRelatedCode: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.testRelatedCode.d.ts',
 	},
+	testRunProfilePriority: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.testRunProfilePriority.d.ts',
+	},
 	textDocumentChangeReason: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.textDocumentChangeReason.d.ts',
 	},

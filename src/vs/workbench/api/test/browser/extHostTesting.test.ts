@@ -651,7 +651,7 @@ suite('ExtHost Testing', () => {
 			cts = new CancellationTokenSource();
 			c = new TestRunCoordinator(proxy, new NullLogService());
 
-			configuration = new TestRunProfileImpl(mockObject<MainThreadTestingShape>()(), new Map(), new Set(), Event.None, 'ctrlId', 42, 'Do Run', TestRunProfileKind.Run, () => { }, false);
+			configuration = new TestRunProfileImpl(ext, mockObject<MainThreadTestingShape>()(), new Map(), new Set(), Event.None, 'ctrlId', 42, 'Do Run', TestRunProfileKind.Run, () => { }, false);
 
 			await single.expand(single.root.id, Infinity);
 			single.collectDiff();
@@ -895,6 +895,29 @@ suite('ExtHost Testing', () => {
 
 			task1.end();
 		});
+	});
+
+	test('guards test run profile priority as proposed API', () => {
+		const profile = ds.add(new TestRunProfileImpl(nullExtensionDescription, mockObject<MainThreadTestingShape>()(), new Map(), new Set(), Event.None, 'ctrlId', 42, 'Run', TestRunProfileKind.Run, () => { }, true));
+		assert.throws(() => profile.priority, /testRunProfilePriority/);
+		assert.throws(() => profile.priority = 1, /testRunProfilePriority/);
+	});
+
+	test('publishes and updates test run profile priority', async () => {
+		const proxy = mockObject<MainThreadTestingShape>()();
+		const extension = { ...nullExtensionDescription, enabledApiProposals: ['testRunProfilePriority'] };
+		const profile = ds.add(new TestRunProfileImpl(extension, proxy, new Map(), new Set(), Event.None, 'ctrlId', 42, 'Run', TestRunProfileKind.Run, () => { }, true));
+
+		assert.strictEqual(profile.priority, 0);
+		profile.priority = 2;
+		await timeout(0);
+		assert.strictEqual(proxy.$publishTestRunProfile.args[0][0].priority, 2);
+
+		profile.priority = Number.POSITIVE_INFINITY;
+		assert.strictEqual(profile.priority, Number.MAX_VALUE);
+
+		profile.priority = 3;
+		assert.deepStrictEqual(proxy.$updateTestRunConfig.args.at(-1), ['ctrlId', 42, { priority: 3 }]);
 	});
 
 	suite('service', () => {

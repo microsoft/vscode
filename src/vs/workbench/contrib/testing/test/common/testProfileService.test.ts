@@ -7,13 +7,14 @@
 
 import assert from 'assert';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { upcastDeepPartial, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { TestProfileService } from '../../common/testProfileService.js';
-import { ITestRunProfile, TestRunProfileBitset } from '../../common/testTypes.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
-import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { TestId } from '../../common/testId.js';
+import { TestProfileService } from '../../common/testProfileService.js';
 import { IMainThreadTestController } from '../../common/testService.js';
+import { InternalTestItem, ITestRunProfile, TestRunProfileBitset } from '../../common/testTypes.js';
 
 suite('Workbench - TestProfileService', () => {
 	let t: TestProfileService;
@@ -52,6 +53,18 @@ suite('Workbench - TestProfileService', () => {
 		return p;
 	};
 
+	const makeTest = (...tags: string[]) => upcastDeepPartial<InternalTestItem>({
+		controllerId: 'ctrlId',
+		item: {
+			extId: new TestId(['ctrlId', 'test']).toString(),
+			tags,
+		},
+	});
+	const assertDefaultProfile = (expected: ITestRunProfile, ...tags: string[]) => assert.strictEqual(
+		t.getDefaultProfileForTest(TestRunProfileBitset.Run, makeTest(...tags))?.profileId,
+		expected.profileId,
+	);
+
 	const assertGroupDefaults = (group: TestRunProfileBitset, expected: ITestRunProfile[]) => {
 		assert.deepStrictEqual(t.getGroupDefaultProfiles(group).map(p => p.label), expected.map(e => e.label));
 	};
@@ -70,6 +83,36 @@ suite('Workbench - TestProfileService', () => {
 		addProfile({ isDefault: false, group: TestRunProfileBitset.Run, label: 'e', controllerId: '2' });
 		expectProfiles(t.getGroupDefaultProfiles(TestRunProfileBitset.Run), ['c', 'd']);
 		expectProfiles(t.getGroupDefaultProfiles(TestRunProfileBitset.Debug), ['a']);
+	});
+
+	suite('getDefaultProfileForTest', () => {
+		test('uses priority only for automatic profile selection', () => {
+			const root = addProfile({ label: 'a: root', priority: 0, tag: 'root' });
+			const unrelated = addProfile({ label: 'm: unrelated', priority: 100, tag: 'unrelated' });
+			const nested = addProfile({ label: 'z: nested', priority: 1, tag: 'nested' });
+
+			assertDefaultProfile(nested, 'root', 'nested');
+			assert.deepStrictEqual(t.getControllerProfiles('ctrlId').map(p => p.label), ['a: root', 'm: unrelated', 'z: nested']);
+			expectProfiles([root, unrelated, nested], t.getGroupDefaultProfiles(TestRunProfileBitset.Run, 'ctrlId').map(p => p.label));
+
+			t.updateProfile('ctrlId', nested.profileId, { priority: -1 });
+			assertDefaultProfile(root, 'root', 'nested');
+		});
+
+		test('user-selected default takes precedence over priority', () => {
+			addProfile({ label: 'a: high priority', priority: 100 });
+			const selected = addProfile({ label: 'z: selected', priority: 0 });
+			t.setGroupDefaultProfiles(TestRunProfileBitset.Run, [selected]);
+
+			assertDefaultProfile(selected);
+		});
+
+		test('treats missing and zero priority equally', () => {
+			addProfile({ label: 'z', priority: 0 });
+			const alphabeticallyFirst = addProfile({ label: 'a' });
+
+			assertDefaultProfile(alphabeticallyFirst);
+		});
 	});
 
 	suite('setGroupDefaultProfiles', () => {
