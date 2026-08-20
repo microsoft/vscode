@@ -133,11 +133,12 @@ suite('Sessions - ChatCompositeBar', () => {
 				hasFill: tab.querySelector(':scope > .chat-composite-bar-tab-fill.modern-ui-editor-tab-fill') !== null,
 				hasLabel: tab.querySelector(':scope > .chat-composite-bar-tab-label.modern-ui-editor-tab-label') !== null,
 				hasActions: tab.querySelector(':scope > .chat-composite-bar-tab-actions') !== null,
+				ariaLabel: tab.getAttribute('aria-label'),
 			})),
 		}, {
 			tabs: [
-				{ hasSharedPresentation: true, hasFill: true, hasLabel: true, hasActions: false },
-				{ hasSharedPresentation: true, hasFill: true, hasLabel: true, hasActions: true },
+				{ hasSharedPresentation: true, hasFill: true, hasLabel: true, hasActions: false, ariaLabel: 'Main Chat, State: Completed' },
+				{ hasSharedPresentation: true, hasFill: true, hasLabel: true, hasActions: true, ariaLabel: 'Secondary Chat, State: Completed' },
 			],
 		});
 	});

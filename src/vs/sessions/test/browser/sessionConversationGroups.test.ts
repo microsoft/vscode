@@ -8,8 +8,8 @@ import { extUri } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { getSessionConversationGroupId, SESSION_CONVERSATION_CHATS_GROUP, SESSION_CONVERSATION_SUBAGENTS_GROUP } from '../../browser/sessionConversationGroups.js';
-import { ChatOriginKind, IChat, IChatOrigin } from '../../services/sessions/common/session.js';
+import { getSessionConversationGroupId, getSessionConversationStatusAriaLabel, getSessionConversationStatusLabel, SESSION_CONVERSATION_CHATS_GROUP, SESSION_CONVERSATION_SUBAGENTS_GROUP } from '../../browser/sessionConversationGroups.js';
+import { ChatOriginKind, IChat, IChatOrigin, SessionStatus } from '../../services/sessions/common/session.js';
 
 function createChat(id: string, origin?: IChatOrigin): IChat {
 	return new class extends mock<IChat>() {
@@ -33,6 +33,25 @@ suite('Sessions - Session conversation groups', () => {
 			SESSION_CONVERSATION_CHATS_GROUP,
 			SESSION_CONVERSATION_SUBAGENTS_GROUP,
 			undefined,
+		]);
+	});
+
+	test('localizes every conversation state for accessibility', () => {
+		assert.deepStrictEqual([
+			SessionStatus.Untitled,
+			SessionStatus.InProgress,
+			SessionStatus.NeedsInput,
+			SessionStatus.Completed,
+			SessionStatus.Error,
+		].map(status => ({
+			label: getSessionConversationStatusLabel(status),
+			ariaLabel: getSessionConversationStatusAriaLabel(status),
+		})), [
+			{ label: 'New', ariaLabel: 'State: New' },
+			{ label: 'In Progress', ariaLabel: 'State: In Progress' },
+			{ label: 'Input Needed', ariaLabel: 'State: Input Needed' },
+			{ label: 'Completed', ariaLabel: 'State: Completed' },
+			{ label: 'Failed', ariaLabel: 'State: Failed' },
 		]);
 	});
 

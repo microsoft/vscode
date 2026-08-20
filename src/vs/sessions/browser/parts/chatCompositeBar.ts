@@ -43,6 +43,7 @@ import { MenuItemAction } from '../../../platform/actions/common/actions.js';
 import { ChatPillActionViewItem } from '../../../workbench/browser/chatPills.js';
 import { SessionActivatingActionRunner } from '../sessionActionRunner.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
+import { getSessionConversationStatusAriaLabel } from '../sessionConversationGroups.js';
 
 interface IChatTab {
 	readonly chat: IChat;
@@ -338,7 +339,9 @@ export class ChatCompositeBar extends Disposable {
 		const labelEl = $('.chat-composite-bar-tab-label.modern-ui-editor-tab-label');
 		this._tabDisposables.add(autorun(reader => {
 			const title = chat.title.read(reader);
+			const status = chat.status.read(reader);
 			labelEl.textContent = title;
+			tab.setAttribute('aria-label', localize('chatTabAriaLabel', "{0}, {1}", title, getSessionConversationStatusAriaLabel(status)));
 		}));
 
 		// Lock icon shown for read-only (non-interactive) chats.

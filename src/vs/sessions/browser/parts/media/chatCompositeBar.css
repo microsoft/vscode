@@ -190,6 +190,10 @@
 	border-bottom: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--session-view-foreground, var(--chat-tab-active-foreground)) 12%, transparent);
 }
 
+:is(.hc-black, .hc-light) .chat-groups-view.single-group .chat-composite-bar-tabs-row {
+	border-bottom-color: var(--vscode-contrastBorder);
+}
+
 /* The ScrollableElement wrapper holding the tabs is the shrinkable flex item */
 .chat-composite-bar-tabs-row > .monaco-scrollable-element {
 	flex: 0 1 auto;
