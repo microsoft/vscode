@@ -92,12 +92,27 @@ export async function openSessionByResource(accessor: ServicesAccessor, resource
 		throw new Error(`Chat session not found: ${resource.toString()}`);
 	}
 
-	return instantiationService.invokeFunction(openSession, session, openOptions);
+	return instantiationService.invokeFunction(openSession, session, openOptions, /* alreadyResolved */ true);
 }
 
-export async function openSession(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions): Promise<IChatWidget | undefined> {
+export async function openSession(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions, alreadyResolved?: boolean): Promise<IChatWidget | undefined> {
 	const instantiationService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
+
+	// List and picker clicks arrive here with a resolved session, so the redirect
+	// has to happen on this path too or those opens never migrate. A no-op for
+	// anything that is not a superseded legacy resource.
+	if (!alreadyResolved) {
+		const migrated = await adoptLegacyCopilotCliResource(
+			accessor.get(IAgentHostConnectionsService).ambientConnection,
+			session.resource,
+			logService,
+			accessor.get(IConfigurationService),
+		);
+		if (migrated) {
+			session = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService).getSession(migrated)) ?? session;
+		}
+	}
 
 	// First, give registered participants a chance to handle the session
 	for (const participant of sessionOpenerRegistry.getParticipants()) {

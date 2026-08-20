@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout } from '../../../../base/common/async.js';
+import { disposableTimeout, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -31,6 +31,9 @@ import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { setActiveSessionContextKeys } from '../common/sessionContextKeys.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
+
+/** Upper bound on redirecting every persisted slot before the grid is restored. */
+const RESTORE_RESOLVE_BUDGET_MS = 10_000;
 
 /**
  * Upper bound on how long restore waits for a persisted session to resurface
@@ -1210,14 +1213,24 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._restoreCts.value = cts;
 		const token = cts.token;
 
-		const targets: IRestoreTarget[] = await Promise.all(this._getVisibleSessionStates().map(async state => ({
-			// Persisted state names a session by URI, so a legacy Copilot CLI slot
-			// restores through the old provider unless it is redirected here.
-			resource: await this.sessionsManagementService.resolveSessionResource(URI.parse(state.sessionResource), 'restore'),
+		const persisted = this._getVisibleSessionStates();
+		const unresolved: IRestoreTarget[] = persisted.map(state => ({
+			resource: URI.parse(state.sessionResource),
 			isSticky: !!state.isSticky,
 			isActive: !!state.isActive,
 			order: state.visibleOrder!,
-		})));
+		}));
+		// Redirecting a persisted slot can wait on a cold agent host. Bound the whole
+		// pass so one slow slot cannot hold the entire grid blank; an unredirected
+		// slot still opens, just against its persisted resource.
+		const targets: IRestoreTarget[] = await raceTimeout(Promise.all(persisted.map(async (state, index) => ({
+			// Persisted state names a session by URI, so a legacy Copilot CLI slot
+			// restores through the old provider unless it is redirected here.
+			resource: await this.sessionsManagementService.resolveSessionResource(URI.parse(state.sessionResource), 'restore'),
+			isSticky: unresolved[index].isSticky,
+			isActive: unresolved[index].isActive,
+			order: unresolved[index].order,
+		}))), RESTORE_RESOLVE_BUDGET_MS) ?? unresolved;
 
 		if (token.isCancellationRequested) {
 			return;

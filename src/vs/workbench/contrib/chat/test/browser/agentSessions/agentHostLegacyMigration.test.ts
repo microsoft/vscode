@@ -66,6 +66,31 @@ suite('AgentHost legacy Copilot CLI migration', () => {
 		);
 	});
 
+	test('does not redirect when the subscription settles on an error', async () => {
+		// `onDidChange` can land an Error in `value`; returning the twin then opens a
+		// session the host refused, which fails outright instead of degrading.
+		const changeEmitter = disposables.add(new Emitter<void>());
+		const subscription = {
+			value: undefined as unknown,
+			verifiedValue: undefined,
+			onDidChange: changeEmitter.event as Event<never>,
+			onDidError: Event.None,
+			onWillApplyAction: Event.None,
+			onDidApplyAction: Event.None,
+		};
+		const connection = new class extends mock<IAgentConnection>() {
+			override getSubscription<T>(): IReference<IAgentSubscription<T>> {
+				queueMicrotask(() => {
+					subscription.value = new Error('refused');
+					changeEmitter.fire();
+				});
+				return { object: subscription as IAgentSubscription<T>, dispose: () => { } };
+			}
+		};
+
+		assert.strictEqual(await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService(), migrationOn), undefined);
+	});
+
 	test('retries after a refusal instead of pinning the session to the legacy path', async () => {
 		const { connection, subscribed } = createConnection('refused');
 

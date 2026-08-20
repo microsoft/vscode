@@ -119,7 +119,6 @@ import { AgentHostCheckpointService } from './agentHostCheckpointService.js';
  * provider-side session, worktree, and on-disk state.
  */
 const SESSION_GC_GRACE_MS = 30_000;
-
 const DAY_MS = 24 * 60 * 60 * 1000;
 const RECENT_EXTERNAL_SESSION_LIMIT = 2;
 /** A catalog pass slower than this is logged at info, since it delays every session-list refresh. */
@@ -1975,7 +1974,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/** Tracks the migrate-legacy setting so the config listener acts only on transitions. */
 	private _lastMigrateLegacyEnabled = false;
-	/** Adoptable keys retracted while migration was off, restored when it is re-enabled. */
+	/** Adoptable keys retracted in this window; re-enabling also recovers earlier ones from the catalog. */
 	private readonly _retractedAdoptableKeys = new Set<string>();
 
 	private _isMigrateLegacyEnabled(): boolean {
@@ -1995,12 +1994,10 @@ export class AgentService extends Disposable implements IAgentService {
 		this._lastMigrateLegacyEnabled = enabled;
 		if (enabled) {
 			// Discovery skips chats already in the registry, so it cannot re-announce
-			// what disabling retracted — restore exactly those from the registry.
-			if (this._retractedAdoptableKeys.size > 0) {
-				this._sessionListReconciliation = this._sessionListReconciliation
-					.then(() => this._resurfaceAdoptableSessions())
-					.catch(error => this._logService.warn('[AgentService] Re-surfacing adoptable legacy sessions failed', error));
-			}
+			// what disabling retracted — restore them from the registry instead.
+			this._sessionListReconciliation = this._sessionListReconciliation
+				.then(() => this._resurfaceAdoptableSessions())
+				.catch(error => this._logService.warn('[AgentService] Re-surfacing adoptable legacy sessions failed', error));
 			return;
 		}
 		for (const key of [...this._announcedSurfacedKeys]) {
@@ -2018,8 +2015,9 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * A key is forgotten only once it is confirmed surfaced, so a failed listing —
-	 * or migration being disabled again before this runs — leaves it restorable.
+	 * Re-announces adoptable-legacy sessions that are not currently surfaced —
+	 * those this window retracted, plus any the catalog still reports as adoptable,
+	 * so rows retracted before a restart are recovered too.
 	 */
 	private async _resurfaceAdoptableSessions(): Promise<void> {
 		if (!this._isMigrateLegacyEnabled()) {
@@ -2027,7 +2025,11 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		for (const metadata of await this.listSessions()) {
 			const key = metadata.session.toString();
-			if (!this._retractedAdoptableKeys.has(key)) {
+			if (this._announcedSurfacedKeys.has(key) || this._stateManager.getSessionState(key)) {
+				this._retractedAdoptableKeys.delete(key);
+				continue;
+			}
+			if (!this._retractedAdoptableKeys.has(key) && !readSessionEhcliAdoptable(metadata._meta)) {
 				continue;
 			}
 			const provider = AgentSession.provider(metadata.session);
@@ -4413,12 +4415,13 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const adopted = adoption.adopted;
 
-		// A session the registry does not know is only restorable when it is an
-		// adoptable legacy chat: `external` defaults to false for unknown sessions,
-		// so without this an external chat (e.g. one the GitHub app created, hidden
-		// while `showExternalSessions` is `none`) would be materialized here and
-		// thereby claimed away from the extension host's own list.
-		if (!registeredSession && migrateLegacyEnabled && agent.ensureChatAdopted && !adoption.eligible) {
+		// A session the registry does not know is only restorable when it is ours:
+		// either an adoptable legacy chat, or one that already has Agent Host
+		// metadata whose registry entry was lost. `external` defaults to false for
+		// unknown sessions, so without this an external chat (e.g. one the GitHub app
+		// created, hidden while `showExternalSessions` is `none`) would be
+		// materialized here and thereby claimed away from the extension host's list.
+		if (!registeredSession && migrateLegacyEnabled && agent.ensureChatAdopted && !adoption.eligible && !adoption.native) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session is not an adoptable legacy chat: ${sessionStr}`);
 		}
 

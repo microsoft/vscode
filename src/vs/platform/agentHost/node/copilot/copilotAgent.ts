@@ -602,14 +602,18 @@ function isExtensionHostCliMarker(marker: IExtensionHostCliMarker | undefined): 
 }
 
 /**
- * Working directory the extension host recorded for a chat, used when the SDK
- * reports none. A worktree session ran in its checkout, not the repository root.
+ * Working directory candidates the extension host recorded for a chat, in
+ * precedence order, used when the SDK reports none. A worktree session ran in
+ * its checkout, not the repository root — but that checkout may since have been
+ * deleted, so callers fall through to the next candidate that still exists.
  */
-function extensionHostCliWorkingDirectoryPath(marker: IExtensionHostCliMarker | undefined): string | undefined {
-	const recorded = marker?.worktreeProperties?.worktreePath
-		?? marker?.workspaceFolder?.folderPath
-		?? marker?.repositoryProperties?.repositoryPath;
-	return typeof recorded === 'string' && recorded.length > 0 ? recorded : undefined;
+function extensionHostCliWorkingDirectoryPaths(marker: IExtensionHostCliMarker | undefined): string[] {
+	return [
+		marker?.worktreeProperties?.worktreePath,
+		marker?.workspaceFolder?.folderPath,
+		marker?.repositoryProperties?.repositoryPath,
+		marker?.worktreeProperties?.repositoryPath,
+	].filter((path): path is string => typeof path === 'string' && path.length > 0);
 }
 
 /**
@@ -3087,8 +3091,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * here and become unreachable once the extension is retired.
 	 */
 	private async _extensionHostCliWorkingDirectory(sessionId: string): Promise<URI | undefined> {
-		const recorded = extensionHostCliWorkingDirectoryPath(await this._readExtensionHostCliMarker(sessionId));
-		return recorded ? URI.file(recorded) : undefined;
+		// Adoption is durable and one-way, so never persist a recorded path that no
+		// longer exists (a deleted worktree is the common case).
+		for (const candidate of extensionHostCliWorkingDirectoryPaths(await this._readExtensionHostCliMarker(sessionId))) {
+			try {
+				if ((await fs.stat(candidate)).isDirectory()) {
+					return URI.file(candidate);
+				}
+			} catch {
+				// Missing or unreadable; fall through to the next candidate.
+			}
+		}
+		return undefined;
 	}
 
 	/** Adopts a legacy extension-host Copilot CLI session in place when it is eligible on disk. */
@@ -3103,7 +3117,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// existence — to avoid falsely treating an empty DB as migrated.
 			const existing = await this._readStoredSessionMetadata(session);
 			if (existing?.workingDirectory) {
-				return { adopted: false, eligible: false }; // already native / adopted
+				return { adopted: false, eligible: false, native: true }; // already native / adopted
 			}
 			// Only migrate legacy EH Copilot CLI sessions — never other Copilot SDK
 			// sessions (standalone CLI, Local agent, …) that share `~/.copilot`.

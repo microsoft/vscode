@@ -1030,6 +1030,8 @@ export interface IAgentChatAdoptionResult {
 	readonly adopted: boolean;
 	/** Whether the chat was a genuine legacy adoption candidate. */
 	readonly eligible: boolean;
+	/** Whether the chat already has Agent Host metadata, i.e. it is ours regardless of adoption. */
+	readonly native?: boolean;
 }
 
 /**

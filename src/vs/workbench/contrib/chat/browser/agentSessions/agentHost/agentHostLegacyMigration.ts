@@ -92,10 +92,17 @@ function whenSubscriptionSettles(subscription: IAgentSubscription<SessionState>,
 	if (current !== undefined) {
 		return Promise.resolve(!(current instanceof Error));
 	}
+	// Without an error signal a refusal never resolves, so waiting would burn the
+	// whole timeout on every declined session. Decline instead.
+	const onDidError = subscription.onDidError;
+	if (!onDidError) {
+		return Promise.resolve(false);
+	}
 	return new Promise<boolean>(resolve => {
-		store.add(subscription.onDidChange(() => resolve(true)));
-		if (subscription.onDidError) {
-			store.add(subscription.onDidError(() => resolve(false)));
-		}
+		store.add(subscription.onDidChange(() => {
+			const settled = subscription.value;
+			resolve(settled !== undefined && !(settled instanceof Error));
+		}));
+		store.add(onDidError(() => resolve(false)));
 	});
 }
