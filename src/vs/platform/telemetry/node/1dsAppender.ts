@@ -6,7 +6,9 @@
 import type { IPayloadData, IXHROverride } from '@microsoft/1ds-post-js';
 import { streamToBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
 import { IRequestOptions } from '../../../base/parts/request/common/request.js';
+import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
 import { IRequestService, NO_FETCH_TELEMETRY } from '../../request/common/request.js';
 import { AbstractOneDataSystemAppender, IAppInsightsCore } from '../common/1dsAppender.js';
 
@@ -97,12 +99,16 @@ async function sendPostAsync(requestService: IRequestService | undefined, payloa
 
 export class OneDataSystemAppender extends AbstractOneDataSystemAppender {
 
+	private _isConnectionMetered = false;
+	private readonly _meteredConnectionListener: IDisposable | undefined;
+
 	constructor(
 		requestService: IRequestService | undefined,
 		isInternalTelemetry: boolean,
 		eventPrefix: string,
 		defaultData: { [key: string]: unknown } | null,
 		iKeyOrClientFactory: string | (() => IAppInsightsCore), // allow factory function for testing
+		meteredConnectionService?: IMeteredConnectionService,
 	) {
 		// Override the way events get sent since node doesn't have XHTMLRequest
 		const customHttpXHROverride: IXHROverride = {
@@ -113,5 +119,20 @@ export class OneDataSystemAppender extends AbstractOneDataSystemAppender {
 		};
 
 		super(isInternalTelemetry, eventPrefix, defaultData, iKeyOrClientFactory, customHttpXHROverride);
+
+		if (meteredConnectionService) {
+			this.setIsConnectionMetered(meteredConnectionService.isConnectionMetered);
+		}
+		this._meteredConnectionListener = meteredConnectionService?.onDidChangeIsConnectionMetered(isMetered => this.setIsConnectionMetered(isMetered));
+	}
+
+	setIsConnectionMetered(isMetered: boolean): void {
+		this._isConnectionMetered = isMetered;
+		this.setTransmissionPaused(isMetered);
+	}
+
+	override flush(): Promise<void> {
+		this._meteredConnectionListener?.dispose();
+		return this._isConnectionMetered ? Promise.resolve() : super.flush();
 	}
 }
