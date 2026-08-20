@@ -83,6 +83,8 @@ import { ICustomViewDescriptor } from '../services/customView/browser/customView
 import { ISessionsSetUpService } from './sessionsSetUpService.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../common/layoutConstants.js';
 
+const PHONE_NOTIFICATION_ROW_HEIGHT = 44;
+
 //#region Workbench Options
 
 export interface IWorkbenchOptions {
@@ -1010,7 +1012,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		instantiationService: IInstantiationService,
 		notificationService: NotificationService
 	): void {
-		setNotificationRowHeight(COMPACT_NOTIFICATION_ROW_HEIGHT);
+		this.registerNotificationRowHeight();
 
 		// Instantiate Notification components
 		const notificationsCenter = this._register(instantiationService.createInstance(NotificationsCenter, this.mainContainer, notificationService.model));
@@ -1041,6 +1043,12 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 				() => notificationsToasts.isVisible || notificationsCenter.isVisible
 			)
 		});
+	}
+
+	private registerNotificationRowHeight(): void {
+		this._register(autorun(reader => {
+			setNotificationRowHeight(this.layoutPolicy.isPhoneLayout.read(reader) ? PHONE_NOTIFICATION_ROW_HEIGHT : COMPACT_NOTIFICATION_ROW_HEIGHT);
+		}));
 		this._register(toDisposable(() => setNotificationRowHeight(DEFAULT_NOTIFICATION_ROW_HEIGHT)));
 	}
 
