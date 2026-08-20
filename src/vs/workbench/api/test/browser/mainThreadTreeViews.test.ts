@@ -16,7 +16,7 @@ import { NullTelemetryService } from '../../../../platform/telemetry/common/tele
 import { MainThreadTreeViews } from '../../browser/mainThreadTreeViews.js';
 import { DataTransferDTO, ExtHostTreeViewsShape } from '../../common/extHost.protocol.js';
 import { CustomTreeView } from '../../../browser/parts/views/treeView.js';
-import { Extensions, ITreeItem, ITreeView, ITreeViewDescriptor, IViewContainersRegistry, IViewDescriptorService, IViewsRegistry, TreeItemCollapsibleState, ViewContainer, ViewContainerLocation } from '../../../common/views.js';
+import { Extensions, ITreeItem, ITreeView, ITreeViewDescriptor, IView, IViewContainersRegistry, IViewDescriptorService, IViewsRegistry, TreeItemCollapsibleState, ViewContainer, ViewContainerLocation } from '../../../common/views.js';
 import { IExtHostContext } from '../../../services/extensions/common/extHostCustomers.js';
 import { ExtensionHostKind } from '../../../services/extensions/common/extensionHostKind.js';
 import { ViewDescriptorService } from '../../../services/views/browser/viewDescriptorService.js';
@@ -183,5 +183,53 @@ suite('MainThreadHostTreeView', function () {
 		assert.strictEqual(uriListValue, URI.from({ scheme: 'file', authority: '', path: '/transformed/correct/path.txt', query: '', fragment: '' }).toString());
 	});
 
+	test('clearSelection sets the empty selection on the tree view', () => {
+		const treeView: ITreeView = (<ITreeViewDescriptor>ViewsRegistry.getView(testTreeViewId)).treeView;
+		const selectionCalls: ITreeItem[][] = [];
+		const actualSetSelection = treeView.setSelection.bind(treeView);
+		treeView.setSelection = (items: ITreeItem[]) => {
+			selectionCalls.push(items);
+			actualSetSelection(items);
+		};
+
+		try {
+			mainThreadTreeViews.$clearSelection(testTreeViewId);
+		} finally {
+			treeView.setSelection = actualSetSelection;
+		}
+
+		assert.deepStrictEqual(selectionCalls, [[]], 'The tree view should be asked to select nothing');
+		assert.deepStrictEqual(treeView.getSelection(), [], 'Nothing should be selected');
+	});
+
+	test('clearSelection does not open the view', () => {
+		const openedViews: string[] = [];
+		const viewsService = new class extends TestViewsService {
+			override openView<T extends IView>(id: string, focus?: boolean): Promise<T | null> {
+				openedViews.push(id);
+				return super.openView<T>(id, focus);
+			}
+		}();
+		const treeViews = disposables.add(new MainThreadTreeViews(
+			new class implements IExtHostContext {
+				remoteAuthority = '';
+				extensionHostKind = ExtensionHostKind.LocalProcess;
+				dispose() { }
+				assertRegistered() { }
+				set(v: any): any { return null; }
+				getProxy(): any {
+					return extHostTreeViewsShape;
+				}
+				drain(): any { return null; }
+			}, viewsService, new TestNotificationService(), new TestExtensionService(), new NullLogService(), NullTelemetryService));
+
+		treeViews.$clearSelection(testTreeViewId);
+
+		assert.deepStrictEqual(openedViews, [], 'Clearing the selection should not reveal the view');
+	});
+
+	test('clearSelection is a no-op for an unknown tree view', () => {
+		mainThreadTreeViews.$clearSelection('unknownTreeView');
+	});
 
 });
