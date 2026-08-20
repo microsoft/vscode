@@ -175,7 +175,7 @@ const CODEX_THINKING_LEVEL_KEY = 'thinkingLevel';
  */
 const USER_AGENT_PREFIX = 'vscode_codex';
 
-/** Where a user finishes setting Codex up outside the app; the workbench labels the button. */
+/** Where a user finishes setting Codex up outside the app; the workbench labels the link. */
 const CODEX_SETUP_DOCS_URL = 'https://learn.chatgpt.com/codex/auth';
 
 /**

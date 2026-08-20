@@ -128,10 +128,10 @@ suite('Agent SDK setup banner', () => {
 			const gitHub = 'Sign in to GitHub to use GitHub Copilot models';
 			// Unconditional: setup finished in a terminal has no completion signal, so
 			// every agent needs the "look again" route whatever else it declares.
-			const reload = `If you already set up Claude elsewhere, [reload Claude configuration](command:${AGENT_SDK_SETUP_RELOAD_COMMAND_ID}?%255B%2522claude%2522%255D).`;
+			const reload = `[reload the configuration](command:${AGENT_SDK_SETUP_RELOAD_COMMAND_ID}?%255B%2522claude%2522%255D) if you have set up Claude elsewhere.`;
 			// The agent id, like every button carries — the command resolves the URL
 			// from the agent's own declaration rather than trusting the banner's copy.
-			const docs = `[Learn more](command:${AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID}?%255B%2522claude%2522%255D) about other ways to set up Claude.`;
+			const docs = `For other ways to set up Claude, [learn more](command:${AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID}?%255B%2522claude%2522%255D) on their docs.`;
 
 			assert.deepStrictEqual({
 				gitHubOnly: noAccount({}),
@@ -139,10 +139,10 @@ suite('Agent SDK setup banner', () => {
 				signIn: noAccount({ signInProviderName: 'ChatGPT' }),
 				both: noAccount({ setupDocsUrl: 'https://example.test/claude', signInProviderName: 'ChatGPT' }),
 			}, {
-				gitHubOnly: `${gitHub}. ${reload}`,
-				docs: `${gitHub}. ${reload} ${docs}`,
-				signIn: `${gitHub}, or sign in to ChatGPT to use your ChatGPT subscription. ${reload}`,
-				both: `${gitHub}, or sign in to ChatGPT to use your ChatGPT subscription. ${reload} ${docs}`,
+				gitHubOnly: `${gitHub} or ${reload}`,
+				docs: `${gitHub} or ${reload} ${docs}`,
+				signIn: `${gitHub}, sign in to ChatGPT to use your ChatGPT subscription, or ${reload}`,
+				both: `${gitHub}, sign in to ChatGPT to use your ChatGPT subscription, or ${reload} ${docs}`,
 			});
 		});
 
@@ -158,7 +158,7 @@ suite('Agent SDK setup banner', () => {
 			const name = 'Claude \\[x\\]\\(command:evil\\)';
 
 			assert.strictEqual(typeof description === 'string' ? description : description?.value,
-				`Sign in to GitHub to use GitHub Copilot models, or sign in to Chat\\[G\\]PT to use your Chat\\[G\\]PT subscription. If you already set up ${name} elsewhere, [reload ${name} configuration](command:${AGENT_SDK_SETUP_RELOAD_COMMAND_ID}?%255B%2522claude%2522%255D). [Learn more](command:${AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID}?%255B%2522claude%2522%255D) about other ways to set up ${name}.`);
+				`Sign in to GitHub to use GitHub Copilot models, sign in to Chat\\[G\\]PT to use your Chat\\[G\\]PT subscription, or [reload the configuration](command:${AGENT_SDK_SETUP_RELOAD_COMMAND_ID}?%255B%2522claude%2522%255D) if you have set up ${name} elsewhere. For other ways to set up ${name}, [learn more](command:${AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID}?%255B%2522claude%2522%255D) on their docs.`);
 		});
 
 		test('the copy is trusted for its own two commands alone, so its links render and reach nothing else', () => {

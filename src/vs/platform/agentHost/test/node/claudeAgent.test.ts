@@ -6092,7 +6092,7 @@ suite('ClaudeAgent — agent SDK setup channel', () => {
 		assert.deepStrictEqual(readSetup(ctx), {
 			agent: 'claude',
 			download: 'ready',
-			setupDocsUrl: 'https://docs.claude.com/en/docs/claude-code/setup',
+			setupDocsUrl: 'https://code.claude.com/docs/en/third-party-integrations',
 			// No in-app sign-in: every Claude credential is established outside the
 			// app, so the banner can only point at the docs.
 			signInProviderName: undefined,

@@ -93,10 +93,9 @@ function setupMarkdown(value: string): MarkdownString {
 /**
  * The "no account" second line: one whole sentence per combination of routes,
  * never assembled from localized fragments, because clause order is not stable
- * across languages. The GitHub clause is unconditional and leads: it is the
- * primary button, and reaching models through our Copilot proxy is workbench
- * knowledge rather than something an agent could declare. Reload and docs trail
- * the sign-in routes, ranked as the copy's only links rather than buttons.
+ * across languages. The routes share one "or" list, ranked as the buttons rank
+ * them and led by the unconditional GitHub clause: reaching models through our
+ * Copilot proxy is workbench knowledge, not something an agent declares.
  */
 function noAccountDescription(setup: IAgentSdkSetupInfo, displayName: string): IMarkdownString {
 	// Both nouns are the host's, and this string is trusted for two commands, so
@@ -110,15 +109,15 @@ function noAccountDescription(setup: IAgentSdkSetupInfo, displayName: string): I
 	const reload = createCommandUri(AGENT_SDK_SETUP_RELOAD_COMMAND_ID, setup.agent).toString();
 	const docs = setup.setupDocsUrl ? createCommandUri(AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID, setup.agent).toString() : undefined;
 	if (provider && docs) {
-		return setupMarkdown(localize('agentHost.sdkSetup.noAccountDescription.all', "Sign in to GitHub to use GitHub Copilot models, or sign in to {2} to use your {2} subscription. If you already set up {0} elsewhere, [reload {0} configuration]({1}). [Learn more]({3}) about other ways to set up {0}.", name, reload, provider, docs));
+		return setupMarkdown(localize('agentHost.sdkSetup.noAccountDescription.all', "Sign in to GitHub to use GitHub Copilot models, sign in to {2} to use your {2} subscription, or [reload the configuration]({1}) if you have set up {0} elsewhere. For other ways to set up {0}, [learn more]({3}) on their docs.", name, reload, provider, docs));
 	}
 	if (provider) {
-		return setupMarkdown(localize('agentHost.sdkSetup.noAccountDescription.signIn', "Sign in to GitHub to use GitHub Copilot models, or sign in to {2} to use your {2} subscription. If you already set up {0} elsewhere, [reload {0} configuration]({1}).", name, reload, provider));
+		return setupMarkdown(localize('agentHost.sdkSetup.noAccountDescription.signIn', "Sign in to GitHub to use GitHub Copilot models, sign in to {2} to use your {2} subscription, or [reload the configuration]({1}) if you have set up {0} elsewhere.", name, reload, provider));
 	}
 	if (docs) {
-		return setupMarkdown(localize('agentHost.sdkSetup.noAccountDescription.docs', "Sign in to GitHub to use GitHub Copilot models. If you already set up {0} elsewhere, [reload {0} configuration]({1}). [Learn more]({2}) about other ways to set up {0}.", name, reload, docs));
+		return setupMarkdown(localize('agentHost.sdkSetup.noAccountDescription.docs', "Sign in to GitHub to use GitHub Copilot models or [reload the configuration]({1}) if you have set up {0} elsewhere. For other ways to set up {0}, [learn more]({2}) on their docs.", name, reload, docs));
 	}
-	return setupMarkdown(localize('agentHost.sdkSetup.noAccountDescription', "Sign in to GitHub to use GitHub Copilot models. If you already set up {0} elsewhere, [reload {0} configuration]({1}).", name, reload));
+	return setupMarkdown(localize('agentHost.sdkSetup.noAccountDescription', "Sign in to GitHub to use GitHub Copilot models or [reload the configuration]({1}) if you have set up {0} elsewhere.", name, reload));
 }
 
 /**
