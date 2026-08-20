@@ -192,6 +192,20 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		assert.strictEqual(result.hasGitHubRemote, false);
 	});
 
+	(hasGit ? test : test.skip)('reports no state at all when the status probe fails', async () => {
+		const dir = initRepo({ remote: 'https://github.com/owner/repo.git' });
+		const before = await svc!.getSessionGitState(URI.file(dir));
+		// The repository root is cached from the call above, so the probes still
+		// run against a repository that can no longer answer them — the same
+		// shape a probe takes when it times out under load. A partial state
+		// would be persisted over the branch this session still depends on.
+		rmDirWithRetry(join(dir, '.git'));
+
+		const after = await svc!.getSessionGitState(URI.file(dir));
+
+		assert.deepStrictEqual({ before: before?.branchName, after }, { before: 'main', after: undefined });
+	});
+
 	(hasGit ? test : test.skip)('reports outgoingChanges relative to base branch when local branch has no upstream', async () => {
 		// Create a bare "remote" repo and set up the working repo so that
 		// `refs/remotes/origin/HEAD` exists (required for baseBranchName parsing).

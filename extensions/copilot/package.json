@@ -81,6 +81,7 @@
     "onStartupFinished",
     "onLanguageModelChat:copilot",
     "onUri",
+    "onCommand:_github.copilot.chat.reportModelFeedbackSurvey",
     "onFileSystem:ccreq",
     "onFileSystem:ccsettings"
   ],

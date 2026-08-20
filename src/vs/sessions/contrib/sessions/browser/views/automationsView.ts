@@ -695,8 +695,9 @@ class AutomationHistorySection extends Disposable {
 		const element = $('.automations-history-group');
 		const header = DOM.append(element, $('.automations-history-group-header'));
 		header.textContent = label;
-		const temporaryRowsContainer = DOM.append(element, $('.automations-temporary-runs'));
-		const listContainer = DOM.append(element, $('.automations-run-session-list'));
+		const runsContainer = DOM.append(element, $('.automations-history-group-runs'));
+		const temporaryRowsContainer = DOM.append(runsContainer, $('.automations-temporary-runs'));
+		const listContainer = DOM.append(runsContainer, $('.automations-run-session-list'));
 
 		const runsBySession = new Map<string, IAutomationRun>();
 		const entry: IAutomationHistoryGroup = {

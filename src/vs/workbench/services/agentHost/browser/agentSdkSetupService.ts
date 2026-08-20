@@ -6,7 +6,7 @@
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, IAgentSdkSetupInfo, readAgentSdkSetupInfos, readConsentedSdkAgents, resolveConsentedSdkDownloads, writeConsentedSdkAgents } from '../../../../platform/agentHost/common/agentSdkSetup.js';
+import { AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, AGENT_SDK_SETUP_RELOAD_REQUEST_KEY, IAgentSdkSetupInfo, readAgentSdkSetupInfos, readConsentedSdkAgents, resolveConsentedSdkDownloads, writeConsentedSdkAgents } from '../../../../platform/agentHost/common/agentSdkSetup.js';
 import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
 import { ActionType } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { ROOT_STATE_URI } from '../../../../platform/agentHost/common/state/sessionState.js';
@@ -51,7 +51,8 @@ type AgentSdkSetupFunnelStep =
 	| 'consentedDownload'
 	| 'docsClicked'
 	| 'gitHubSignInClicked'
-	| 'signInClicked';
+	| 'signInClicked'
+	| 'reloadClicked';
 
 interface IAgentSdkSetupFunnelEvent {
 	agent: string;
@@ -60,7 +61,7 @@ interface IAgentSdkSetupFunnelEvent {
 
 type AgentSdkSetupFunnelClassification = {
 	agent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent whose setup this step belongs to, e.g. claude or codex.' };
-	step: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Which step of the agent SDK setup funnel was reached (downloadOffered, downloadClicked, consentedDownload, noAccount, docsClicked, gitHubSignInClicked, signInClicked, resolved).' };
+	step: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Which step of the agent SDK setup funnel was reached (downloadOffered, downloadClicked, consentedDownload, noAccount, docsClicked, gitHubSignInClicked, signInClicked, reloadClicked, resolved).' };
 	owner: 'TylerLeonhardt';
 	comment: 'Tracks how far a signed-out user gets through setting up their own Claude or Codex account.';
 };
@@ -80,6 +81,12 @@ export interface IAgentSdkSetupService {
 
 	/** Open the setup instructions `agent` published, if it published any. */
 	openSetupDocs(agent: string): void;
+
+	/**
+	 * Ask `agent` to look again at a setup the user completed outside the app —
+	 * the only signal there is that a `claude login` in a terminal finished.
+	 */
+	requestReload(agent: string): void;
 
 	/** Start GitHub sign-in, which reaches every agent's models through our proxy. */
 	signInToGitHub(agent: string): void;
@@ -174,6 +181,13 @@ class AgentSdkSetupService extends Disposable implements IAgentSdkSetupService {
 		void this._openerService.open(url, { openExternal: true });
 	}
 
+	requestReload(agent: string): void {
+		this._reportStep(agent, 'reloadClicked');
+		// Deliberately not a pending request: that set gates the download offer, and
+		// a reload happens in a state where there is nothing to offer.
+		this._dispatchRequest(AGENT_SDK_SETUP_RELOAD_REQUEST_KEY, agent);
+	}
+
 	signInToGitHub(agent: string): void {
 		// A thin wrapper over the ordinary Copilot sign-in, taking the agent id only
 		// to attribute the click — which is the funnel's most telling drop.
@@ -213,16 +227,20 @@ class AgentSdkSetupService extends Disposable implements IAgentSdkSetupService {
 
 	private _dispatchDownloadRequest(agent: string): void {
 		this._pendingRequests.add(agent);
-		// A fresh nonce every time so pressing the same button twice is two
-		// requests; the agent clears the key as it consumes it.
-		this._agentHostService.dispatch(ROOT_STATE_URI, {
-			type: ActionType.RootConfigChanged,
-			config: { [AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY]: { agent, request: generateUuid() } },
-		});
+		this._dispatchRequest(AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, agent);
 		// The statuses are unchanged but {@link isDownloadPending} is not, and
 		// without this the offer stays up until the host answers — the flicker the
 		// pending set exists to prevent.
 		this._onDidChangeSetups.fire(this._setups);
+	}
+
+	private _dispatchRequest(key: string, agent: string): void {
+		// A fresh nonce every time so pressing the same thing twice is two
+		// requests; the agent clears the key as it consumes it.
+		this._agentHostService.dispatch(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { [key]: { agent, request: generateUuid() } },
+		});
 	}
 
 	private _updateSetups(setups: readonly IAgentSdkSetupInfo[]): void {

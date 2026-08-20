@@ -769,6 +769,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			reg.defineInstance(ICodeReviewService, codeReviewService);
 			reg.defineInstance(IChatEditingService, new class extends mock<IChatEditingService>() {
 				override readonly editingSessionsObs = constObservable([]);
+				override getEditingSession() { return undefined; }
 			}());
 			reg.defineInstance(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
 				override readonly model = new class extends mock<IAgentSessionsService['model']>() {

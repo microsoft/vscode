@@ -16,6 +16,7 @@ import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { buildChangesetUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
 import { withAgentCustomizationSettings } from '../../common/agentCustomizationSettings.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
+import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 
 suite('AgentHostStateManager', () => {
 
@@ -293,14 +294,17 @@ suite('AgentHostStateManager', () => {
 		});
 	});
 
-	test('createSession emits sessionAdded notification', () => {
+	test('createSession emits sessionAdded only for non-ephemeral sessions', () => {
 		const notifications: INotification[] = [];
 		disposables.add(manager.onDidEmitNotification(n => notifications.push(n)));
 
 		manager.createSession(makeSessionSummary());
+		manager.createSession({
+			...makeSessionSummary(URI.from({ scheme: 'copilot', path: '/ephemeral-session' }).toString()),
+			_meta: withEphemeralSessionMeta(undefined, true),
+		});
 
-		assert.strictEqual(notifications.length, 1);
-		assert.strictEqual(notifications[0].type, NotificationType.SessionAdded);
+		assert.deepStrictEqual(notifications.map(notification => notification.type), [NotificationType.SessionAdded]);
 	});
 
 	test('default chat inherits the session working directory resolved at materialization', () => {
