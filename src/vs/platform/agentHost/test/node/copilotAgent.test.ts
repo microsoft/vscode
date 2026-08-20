@@ -3719,6 +3719,33 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('does not set USE_TGREP in the CLI env when the tgrep setting is off (default)', async () => {
+			const client = new TestCopilotClient([]);
+			const { agent } = createTestAgentContext(disposables, { copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listChatsToMigrate();
+
+				assert.strictEqual(getCreatedClientOptions(agent).at(-1)?.env?.['USE_TGREP'], undefined);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('injects USE_TGREP=true into the CLI env when the tgrep setting is enabled', async () => {
+			const client = new TestCopilotClient([]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+			try {
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.Tgrep]: true });
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listChatsToMigrate();
+
+				assert.strictEqual(getCreatedClientOptions(agent).at(-1)?.env?.['USE_TGREP'], 'true');
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('enables the built-in GitHub MCP server by default and removes its environment variable when disabled', async () => {
 			const enabledClient = new TestCopilotClient([]);
 			const { agent: enabledAgent } = createTestAgentContext(disposables, { copilotClient: enabledClient });

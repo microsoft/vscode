@@ -973,6 +973,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.RubberDuck) ?? DEFAULT_COPILOT_RUBBER_DUCK_ENABLED;
 	}
 
+	private _isTgrepEnabled(): boolean {
+		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Tgrep) === true;
+	}
+
 	private _getCopilotSdkLogLevelSetting(): CopilotSdkLogLevelSetting {
 		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.CopilotSdkLogLevel) ?? 'info';
 	}
@@ -1001,6 +1005,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return new CopilotAgentStartupConfig(
 			this._isSessionSyncEnabled(),
 			this._isRubberDuckEnabled(),
+			this._isTgrepEnabled(),
 			this._getCopilotSdkLogLevelSetting(),
 			this._getEnterpriseHost(),
 			this._isSystemProxyEnabled(),
@@ -1933,6 +1938,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 				env['RUBBER_DUCK_AGENT'] = 'true';
 			} else {
 				delete env['RUBBER_DUCK_AGENT'];
+			}
+
+			// `USE_TGREP=true` makes the runtime bypass the repository-size
+			// threshold; unset (not "false") keeps its default threshold-gated behavior.
+			if (startupConfig.tgrep) {
+				env['USE_TGREP'] = 'true';
+			} else {
+				delete env['USE_TGREP'];
 			}
 
 			// Resolve the CLI entry point and native SDK binaries from node_modules.
