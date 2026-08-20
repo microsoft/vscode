@@ -5,6 +5,19 @@
 
 /* ---- Chat Layout ---- */
 
+.chat-view-chat {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+}
+
+.chat-view-chat > .chat-view-widget {
+	position: relative;
+	flex: 1 1 auto;
+	min-width: 0;
+	min-height: 0;
+}
+
 .agent-sessions-workbench .interactive-session {
 	max-width: none;
 }

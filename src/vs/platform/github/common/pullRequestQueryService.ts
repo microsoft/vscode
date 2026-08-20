@@ -56,7 +56,7 @@ const reviewThreadsQuery = `query AgentHostPullRequestReviewThreads($owner: Stri
 				nodes {
 					id isResolved isOutdated path diffSide line originalLine
 					comments(first: 100) {
-						nodes { id databaseId body url createdAt updatedAt path line originalLine state commit { oid } originalCommit { oid } author { login ... on User { databaseId } } }
+						nodes { id databaseId body url createdAt updatedAt path line originalLine state authorAssociation commit { oid } originalCommit { oid } author { login ... on User { databaseId } ... on Bot { databaseId } } }
 						pageInfo { hasNextPage endCursor }
 					}
 				}
@@ -71,7 +71,7 @@ const reviewThreadCommentsQuery = `query AgentHostPullRequestReviewThreadComment
 	node(id: $threadId) {
 		... on PullRequestReviewThread {
 			comments(first: 100, after: $after) {
-				nodes { id databaseId body url createdAt updatedAt path line originalLine state commit { oid } originalCommit { oid } author { login ... on User { databaseId } } }
+				nodes { id databaseId body url createdAt updatedAt path line originalLine state authorAssociation commit { oid } originalCommit { oid } author { login ... on User { databaseId } ... on Bot { databaseId } } }
 				pageInfo { hasNextPage endCursor }
 			}
 		}
@@ -128,11 +128,11 @@ const expectedCheckSuitesQuery = `query AgentHostPullRequestExpectedCheckSuites(
 
 const mergeabilityQuery = (includeMergeQueue: boolean) => `query AgentHostPullRequestMergeability($owner: String!, $repo: String!, $number: Int!${includeMergeQueue ? ', $baseBranch: String!' : ''}) {
 	repository(owner: $owner, name: $repo) {
-		id nameWithOwner mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed
+		id nameWithOwner mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed viewerPermission
 		${includeMergeQueue ? 'mergeQueue(branch: $baseBranch) { id }' : ''}
 		pullRequest(number: $number) {
 			id headRefOid baseRefOid mergeable mergeStateStatus reviewDecision
-			viewerCanUpdateBranch viewerCanMerge viewerCanEnableAutoMerge
+			viewerCanUpdateBranch viewerCanEnableAutoMerge
 			autoMergeRequest { enabledAt }
 			mergeQueueEntry { id }
 		}
@@ -558,7 +558,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 			mergeStateStatus: stringProperty(pullRequest, 'mergeStateStatus'),
 			reviewDecision: stringProperty(pullRequest, 'reviewDecision'),
 			viewerCanUpdate: booleanProperty(pullRequest, 'viewerCanUpdateBranch') ?? false,
-			viewerCanMerge: booleanProperty(pullRequest, 'viewerCanMerge') ?? false,
+			viewerCanMerge: canViewerMerge(repository),
 			viewerCanEnableAutoMerge: booleanProperty(pullRequest, 'viewerCanEnableAutoMerge') ?? false,
 			allowedMergeMethods,
 			autoMergeEnabled: optionalObjectProperty(pullRequest, 'autoMergeRequest') !== undefined,
@@ -645,6 +645,19 @@ function needsCapabilities(fragment: PullRequestFragment): boolean {
 	return fragment === 'reviewThreads' || fragment === 'checks' || fragment === 'mergeability';
 }
 
+/** `RepositoryPermission` values that grant push access, and therefore permission to merge a pull request. */
+const mergePermissions: ReadonlySet<string> = new Set(['ADMIN', 'MAINTAIN', 'WRITE']);
+
+/**
+ * GitHub's GraphQL schema has no `PullRequest.viewerCanMerge`, so merge permission is derived from the
+ * viewer's permission on the base repository. `Repository.viewerPermission` is null when the request is
+ * authenticated as a GitHub App, which fails closed the same way the REST fallback does.
+ */
+function canViewerMerge(repository: object): boolean {
+	const permission = normalizedEnumProperty(repository, 'viewerPermission');
+	return permission !== undefined && mergePermissions.has(permission);
+}
+
 function toCore(value: unknown, ref: PullRequestRef): PullRequestCore {
 	const item = asObject(value, 'GitHub pull request response was malformed');
 	const base = objectProperty(item, 'base');
@@ -664,9 +677,11 @@ function toCore(value: unknown, ref: PullRequestRef): PullRequestCore {
 		draft: booleanProperty(item, 'draft') ?? false,
 		headSha: requiredString(head, 'sha'),
 		headRef: requiredString(head, 'ref'),
+		headRepositoryNameWithOwner: optionalObjectProperty(head, 'repo') ? stringProperty(objectProperty(head, 'repo'), 'full_name') : undefined,
+		maintainerCanModify: booleanProperty(item, 'maintainer_can_modify') ?? false,
 		baseSha: requiredString(base, 'sha'),
 		baseRef: requiredString(base, 'ref'),
-		author: toActor(optionalObjectProperty(item, 'user')),
+		author: toActor(optionalObjectProperty(item, 'user'), stringProperty(item, 'author_association')),
 		createdAt: stringProperty(item, 'created_at'),
 		updatedAt: stringProperty(item, 'updated_at'),
 		closedAt: nullableStringProperty(item, 'closed_at'),
@@ -679,7 +694,7 @@ function toComment(value: unknown, includeBody: boolean): PullRequestComment {
 	return {
 		id: requiredId(item, 'id'),
 		nodeId: idProperty(item, 'node_id'),
-		author: toActor(optionalObjectProperty(item, 'user')),
+		author: toActor(optionalObjectProperty(item, 'user'), stringProperty(item, 'author_association')),
 		body: includeBody ? nullableStringProperty(item, 'body') : undefined,
 		url: stringProperty(item, 'html_url'),
 		createdAt: stringProperty(item, 'created_at'),
@@ -692,7 +707,7 @@ function toReview(value: unknown, includeBody: boolean): PullRequestReview {
 	return {
 		id: requiredId(item, 'id'),
 		nodeId: idProperty(item, 'node_id'),
-		author: toActor(optionalObjectProperty(item, 'user')),
+		author: toActor(optionalObjectProperty(item, 'user'), stringProperty(item, 'author_association')),
 		state: stringProperty(item, 'state') ?? 'UNKNOWN',
 		body: includeBody ? nullableStringProperty(item, 'body') : undefined,
 		commitId: stringProperty(item, 'commit_id'),
@@ -722,7 +737,7 @@ function toGraphQLInlineComment(value: unknown, includeBody: boolean, diffSide: 
 	return {
 		id: requiredId(item, 'databaseId', 'id'),
 		nodeId: idProperty(item, 'id'),
-		author: toActor(optionalObjectProperty(item, 'author')),
+		author: toActor(optionalObjectProperty(item, 'author'), stringProperty(item, 'authorAssociation')),
 		body: includeBody ? nullableStringProperty(item, 'body') : undefined,
 		url: stringProperty(item, 'url'),
 		createdAt: stringProperty(item, 'createdAt'),
@@ -804,7 +819,7 @@ function filterChecks(checks: readonly PullRequestCheck[], requirednessAvailable
 	return includeOptional || !requirednessAvailable ? checks : checks.filter(check => check.required !== false);
 }
 
-function toActor(value: object | undefined): { readonly id?: string; readonly login: string } | undefined {
+function toActor(value: object | undefined, association?: string): { readonly id?: string; readonly login: string; readonly association?: string } | undefined {
 	if (!value) {
 		return undefined;
 	}
@@ -813,7 +828,11 @@ function toActor(value: object | undefined): { readonly id?: string; readonly lo
 		return undefined;
 	}
 	const id = idProperty(value, 'databaseId') ?? idProperty(value, 'id');
-	return id ? { id, login } : { login };
+	return {
+		...(id ? { id } : {}),
+		login,
+		...(association ? { association } : {}),
+	};
 }
 
 function addParticipant(

@@ -112,6 +112,7 @@ export class MockAgent implements IAgent {
 	sessionMessages: IHistoryRecord[] = [];
 	/** Usage stamped onto every reconstructed turn (e.g. an Auto-model stub). */
 	turnUsageOverride: UsageInfo | undefined = undefined;
+	chatModel: ModelSelection | undefined;
 
 	/** Optional overrides applied to session metadata from listSessions. */
 	sessionMetadataOverrides: Partial<Omit<IAgentSessionMetadata, 'session'>> = {};
@@ -153,7 +154,7 @@ export class MockAgent implements IAgent {
 		this._discoveredChatsEmitter.fire(chats);
 	}
 
-	async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+	async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | undefined> {
 		return [];
 	}
 
@@ -358,14 +359,18 @@ export class MockAgent implements IAgent {
 			return this.sendMessage(session, chat, prompt, attachments, turnId, senderClientId, clientType);
 		},
 		abort: (chat: URI, context: URI | IAgentChatContext): Promise<void> => {
+			this._recordContext('abort', chat, context);
 			const { session } = this._resolveChatTarget(chat, context);
 			return this.abortSession(session);
 		},
+		getModel: (): ModelSelection | undefined => this.chatModel,
 		changeModel: (chatUri: URI, model: ModelSelection, context: URI | IAgentChatContext): Promise<void> => {
+			this._recordContext('changeModel', chatUri, context);
 			const { session, chat } = this._resolveChatTarget(chatUri, context);
 			return this.changeModel(session, model, chat);
 		},
 		changeAgent: (chatUri: URI, agent: AgentSelection | undefined, context: URI | IAgentChatContext): Promise<void> => {
+			this._recordContext('changeAgent', chatUri, context);
 			const { session, chat } = this._resolveChatTarget(chatUri, context);
 			return this.changeAgent(session, agent, chat);
 		},
@@ -556,7 +561,7 @@ export class ScriptedMockAgent implements IAgent {
 		this._discoveredChatsEmitter.fire(chats);
 	}
 
-	async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+	async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | undefined> {
 		return [];
 	}
 

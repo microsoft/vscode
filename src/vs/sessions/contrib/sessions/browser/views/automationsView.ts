@@ -42,7 +42,6 @@ import { SessionStatusIcon } from '../../../../browser/sessionStatusIcon.js';
 import { AbstractCustomView } from '../../../../services/customView/browser/customView.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
-import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { Menus } from '../../../../browser/menus.js';
 import { Action2, MenuItemAction, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
@@ -454,14 +453,14 @@ class AutomationCardsSection extends Disposable {
 		if (!await this.ensureEnabled()) {
 			return;
 		}
-		const result = await this.automationDialogService.showAutomationDialog({ existing: automation });
-		if (!result || result.kind !== 'update') {
-			return;
-		}
-		if (!await this.ensureEnabled()) {
-			return;
-		}
 		try {
+			const result = await this.automationDialogService.showAutomationDialog({ existing: automation });
+			if (!result || result.kind !== 'update') {
+				return;
+			}
+			if (!await this.ensureEnabled()) {
+				return;
+			}
 			const updateResult = await this.automationService.updateAutomationIfUnchanged(result.id, result.value, automation, () => this.throwIfDisabled());
 			if (updateResult.kind === 'conflict') {
 				throw new Error(updateResult.current
@@ -696,8 +695,9 @@ class AutomationHistorySection extends Disposable {
 		const element = $('.automations-history-group');
 		const header = DOM.append(element, $('.automations-history-group-header'));
 		header.textContent = label;
-		const temporaryRowsContainer = DOM.append(element, $('.automations-temporary-runs'));
-		const listContainer = DOM.append(element, $('.automations-run-session-list'));
+		const runsContainer = DOM.append(element, $('.automations-history-group-runs'));
+		const temporaryRowsContainer = DOM.append(runsContainer, $('.automations-temporary-runs'));
+		const listContainer = DOM.append(runsContainer, $('.automations-run-session-list'));
 
 		const runsBySession = new Map<string, IAutomationRun>();
 		const entry: IAutomationHistoryGroup = {
@@ -728,6 +728,7 @@ class AutomationHistorySection extends Disposable {
 		const list = disposables.add(this.instantiationService.createInstance(SessionsFlatList, entry.listContainer, {
 			showSessionHover: false,
 			alwaysConsumeMouseWheel: false,
+			useCompactQuickChatRows: false,
 			toolbarMenuId: Menus.AutomationsHistoryItem,
 			markSessionReadOnOpen: false,
 			approvalModel: this.approvalModel,
@@ -1015,7 +1016,7 @@ function formatHourMinute(hour: number, minute: number): string {
 }
 
 function getAutomationTargetLabel(target: AutomationTarget): string {
-	return target.kind === 'workspace' ? basename(target.folderUri) : localize('quickChat', "Quick Chat");
+	return target.kind === 'workspace' ? basename(target.folderUri) : localize('quickChat', "No workspace");
 }
 
 function groupRunsByDate(runs: readonly IAutomationRun[]): { key: string; label: string; runs: IAutomationRun[] }[] {
@@ -1194,8 +1195,6 @@ function registerAutomationHistoryItemActions(): IDisposable {
 	);
 }
 
-registerWorkbenchContribution2(AutomationsCustomViewContribution.ID, AutomationsCustomViewContribution, WorkbenchPhase.BlockRestore);
-
 class PrimaryButtonActionViewItem extends BaseActionViewItem {
 
 	private button: Button | undefined;
@@ -1206,9 +1205,9 @@ class PrimaryButtonActionViewItem extends BaseActionViewItem {
 
 	override render(container: HTMLElement): void {
 		this.element = container;
-		container.classList.add('chat-composite-bar-meta-item');
+		container.classList.add('chat-pill-item');
 		const button = this.button = this._register(new Button(container, { secondary: false, ...defaultButtonStyles }));
-		button.element.classList.add('monaco-text-button', 'chat-composite-bar-meta-item-button');
+		button.element.classList.add('monaco-text-button', 'chat-pill-button');
 		this._register(button.onDidClick(() => {
 			if (this._action.enabled) {
 				this.actionRunner.run(this._action, this._context);
@@ -1218,7 +1217,9 @@ class PrimaryButtonActionViewItem extends BaseActionViewItem {
 		this.updateEnabled();
 	}
 
-	override focus(): void { this.button?.focus(); }
+	// Focus must restore the tab stop that `blur` removed, otherwise arrow
+	// navigation can leave the containing toolbar with no tabbable item.
+	override focus(): void { if (this.button) { this.button.element.tabIndex = 0; this.button.focus(); } }
 	override blur(): void { if (this.button) { this.button.element.tabIndex = -1; this.button.element.blur(); } }
 	override setFocusable(focusable: boolean): void { if (this.button) { this.button.element.tabIndex = focusable ? 0 : -1; } }
 

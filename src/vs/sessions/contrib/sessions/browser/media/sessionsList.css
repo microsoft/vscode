@@ -67,6 +67,10 @@
 			right: 0;
 			top: 0;
 		}
+
+		.actions-container {
+			gap: var(--vscode-spacing-size40);
+		}
 	}
 
 	.monaco-list-row .session-pending-voice-indicator {
@@ -495,18 +499,12 @@
 	.session-section-icon {
 		flex-shrink: 0;
 		margin-right: 6px;
-		font-size: var(--vscode-codiconFontSize, 16px);
-	}
-
-	.session-section-status-indicator {
-		flex-shrink: 0;
-		margin-left: 4px;
-		position: relative;
 		width: 16px;
 		height: 16px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
+		font-size: var(--vscode-codiconFontSize, 16px);
 	}
 
 	.session-section-count {
@@ -522,6 +520,10 @@
 		display: none;
 	}
 
+	.session-section-toolbar .actions-container {
+		gap: var(--vscode-spacing-size40);
+	}
+
 	.session-section-toolbar .monaco-action-bar .action-label {
 		border-radius: var(--vscode-cornerRadius-small);
 	}
@@ -531,15 +533,16 @@
 		display: none;
 		color: var(--vscode-descriptionForeground);
 		font-size: var(--vscode-codiconFontSize-compact, 12px);
-		width: 22px;
 		height: 22px;
+		margin-right: 6px;
 		border-radius: var(--vscode-cornerRadius-small);
 		justify-content: center;
 	}
 }
 
 .monaco-list-row:hover .session-section .session-section-toolbar,
-.monaco-list-row.focused .session-section .session-section-toolbar {
+.monaco-list-row.focused .session-section .session-section-toolbar,
+.monaco-list-row .session-section.dropdown-active .session-section-toolbar {
 	display: block;
 }
 
@@ -562,12 +565,19 @@
 }
 
 .monaco-list-row:hover .session-section .session-section-chevron.collapsible,
-.monaco-list-row.focused .session-section .session-section-chevron.collapsible {
+.sessions-list-control:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused .session-section .session-section-chevron.collapsible,
+.monaco-list-row .session-section.dropdown-active .session-section-chevron.collapsible {
 	display: flex;
 	align-items: center;
 }
 
-.monaco-list-row .session-section .session-section-chevron.collapsible:hover {
+.monaco-list-row:hover .session-section .session-section-chevron.collapsible + .session-section-icon,
+.sessions-list-control:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused .session-section .session-section-chevron.collapsible + .session-section-icon,
+.monaco-list-row .session-section.dropdown-active .session-section-chevron.collapsible + .session-section-icon {
+	display: none;
+}
+
+.session-section.dropdown-active .session-section-toolbar .monaco-dropdown-with-primary {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 

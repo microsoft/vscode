@@ -32,7 +32,7 @@ import { AuthenticationSession, AuthenticationSessionAccount, IAuthenticationExt
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { IHostService } from '../../host/browser/host.js';
-import { adaptManagedSettings, IManagedSettingsResponse, parseManagedSettingsCompatibilityError } from './managedSettings.js';
+import { adaptManagedSettings, appendManagedSettingsClientIdentity, IManagedSettingsResponse, parseManagedSettingsCompatibilityError } from './managedSettings.js';
 
 interface IDefaultAccountConfig {
 	readonly preferredExtensions: string[];
@@ -326,6 +326,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		@IRequestService private readonly requestService: IRequestService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IProductService private readonly productService: IProductService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IHostService private readonly hostService: IHostService,
@@ -914,7 +915,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		}
 	}
 
-	private async getManagedSettings(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined, options?: { forceRefresh?: boolean }): Promise<{ data: Partial<IPolicyData> | undefined; fetchedAt: number; compatibilityError: IManagedSettingsCompatibilityError | null }> {
+	private async getManagedSettings(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined, options?: { forceRefresh?: boolean }): Promise<{ data: Partial<IPolicyData> | undefined; fetchedAt: number | undefined; compatibilityError: IManagedSettingsCompatibilityError | null }> {
 		const accountId = sessions[0].account.id;
 		const cachedManagedSettings = accountPolicyData?.managedSettingsFetchedAt !== undefined && !this.isDataStale(accountPolicyData.managedSettingsFetchedAt)
 			? {
@@ -940,12 +941,15 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 				return { data: { managedSettings: undefined }, fetchedAt, compatibilityError: null };
 			case 'updateRequired':
 				return { data: { managedSettings: undefined }, fetchedAt, compatibilityError: result.error };
-			case 'unavailable':
+			case 'unavailable': {
+				// A failed fetch must not extend the life of the cached response: carry the cache's timestamp for expiry
+				const retained = this._managedSettingsCompatibilityError ? undefined : cachedManagedSettings;
 				return {
-					data: this._managedSettingsCompatibilityError ? { managedSettings: undefined } : cachedManagedSettings?.data,
-					fetchedAt,
+					data: { managedSettings: retained?.data.managedSettings },
+					fetchedAt: retained?.fetchedAt,
 					compatibilityError: this._managedSettingsCompatibilityError,
 				};
+			}
 		}
 	}
 
@@ -957,9 +961,10 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 			return { kind: 'unavailable' };
 		}
 
-		this.logService.debug('[DefaultAccount] Fetching managed settings from:', managedSettingsUrl);
+		const requestUrl = appendManagedSettingsClientIdentity(managedSettingsUrl, this.productService);
+		this.logService.debug('[DefaultAccount] Fetching managed settings from:', requestUrl);
 		const rateLimitBackoffActive = Date.now() < this._rateLimitBackoffUntil;
-		const response = await this.request(managedSettingsUrl, 'GET', undefined, sessions, CancellationToken.None, 'defaultAccount.managedSettings', MANAGED_SETTINGS_REQUEST_TIMEOUT_MS);
+		const response = await this.request(requestUrl, 'GET', undefined, sessions, CancellationToken.None, 'defaultAccount.managedSettings', MANAGED_SETTINGS_REQUEST_TIMEOUT_MS);
 		if (!response) {
 			this.logService.debug('[DefaultAccount] Managed settings fetch returned no response (network error, all sessions rejected, or active rate-limit backoff); falling back to local-only policy');
 			this.reportManagedSettingsOutcome('no-response', rateLimitBackoffActive);

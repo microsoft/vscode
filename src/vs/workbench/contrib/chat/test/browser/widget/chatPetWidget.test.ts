@@ -19,11 +19,11 @@ import { StorageScope, StorageTarget } from '../../../../../../platform/storage/
 import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
-import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, chatPetAchievements, ChatPetAccessoryIds, ChatPetAchievementIds, disabledChatPetAchievements, getChatPetAcceptedRouteAchievementIds, getChatPetAchievementPresentation, getChatPetCustomizationAchievementIds, getUnlockedChatPetAccessories, isUserAuthoredChatPetCustomization, shouldUnlockChatPetIntegratedBrowserShare } from '../../../browser/chatPetAchievements.js';
+import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, chatPetAchievements, ChatPetAccessoryIds, ChatPetAchievementIds, disabledChatPetAchievements, getChatPetAchievementPresentation, getChatPetCustomizationAchievementIds, getUnlockedChatPetAccessories, isUserAuthoredChatPetCustomization, shouldUnlockChatPetIntegratedBrowserShare } from '../../../browser/chatPetAchievements.js';
 import { ChatPetService, getChatPetVariant } from '../../../browser/chatPetService.js';
 import { getChatPetAccessoryImageSource, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions } from '../../../browser/widget/chatPetAccessoryRenderer.js';
 import { getChatPetAccessoryRigFrame, getChatPetAccessoryRigPose, getChatPetAccessoryTrack, getChatPetAntennaeOcclusionBounds, getChatPetEyeAccessoryAnchor, getChatPetReducedMotionRigFrame } from '../../../browser/widget/chatPetAccessoryRig.js';
-import { CHAT_PET_ACHIEVEMENT_UNLOCKED_DURATION, CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_ICON_TRANSFORMATION_CHANCE, CHAT_PET_IDLE_SLEEP_DELAY, CHAT_PET_YAPPING_CHANCE, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, ChatPetWidget, advanceChatPetThrow, doesChatPetStateBlink, doesChatPetStateTrackCursor, drawChatPetAchievementStar, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetEyeAccessoryGazeOffset, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalPosition, getChatPetPlatformTop, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetThrowLanding, getChatPetThrowVelocity, getChatPetVerticalOffset, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetKeyboardInteractionEnabled, isChatPetVisible, setChatPetWideLayerOffset, shouldPlaceChatPetSpeechBubbleLeft, shouldSettleChatPetThrow } from '../../../browser/widget/chatPetWidget.js';
+import { CHAT_PET_ACHIEVEMENT_UNLOCKED_DURATION, CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_ICON_TRANSFORMATION_CHANCE, CHAT_PET_IDLE_SLEEP_DELAY, CHAT_PET_WALL_IMPACT_DURATION, CHAT_PET_YAPPING_CHANCE, ChatPetBlinkController, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, ChatPetWidget, advanceChatPetThrow, doesChatPetStateBlink, doesChatPetStateTrackCursor, drawChatPetAchievementStar, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBlinkDelay, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetEyeAccessoryGazeOffset, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalPosition, getChatPetPlatformTop, getChatPetRelativeHorizontalPosition, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetThrowLanding, getChatPetThrowRotation, getChatPetThrowVelocity, getChatPetVerticalOffset, getChatPetWallReboundVelocity, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetKeyboardInteractionEnabled, isChatPetVisible, isChatPetWindowActive, setChatPetWideLayerOffset, shouldPlaceChatPetSpeechBubbleLeft, shouldReserveChatPetSpace, shouldSettleChatPetThrow } from '../../../browser/widget/chatPetWidget.js';
 
 suite('ChatPetWidget', () => {
 
@@ -103,7 +103,11 @@ suite('ChatPetWidget', () => {
 			new class extends mock<IContextMenuService>() { }(),
 			new class extends mock<ICommandService>() { }(),
 			new NullLogService(),
-			new class extends mock<IHostService>() { override readonly hasFocus = true; }(),
+			new class extends mock<IHostService>() {
+				override readonly hasFocus = true;
+				override readonly onDidChangeFocus = Event.None;
+				override readonly onDidChangeActiveWindow = Event.None;
+			}(),
 		));
 		const visual = parent.getElementsByClassName('chat-pet-visual')[0];
 		const button = parent.getElementsByClassName('chat-pet-button')[0] as HTMLElement;
@@ -279,17 +283,33 @@ suite('ChatPetWidget', () => {
 		assert.strictEqual(CHAT_PET_CONFIRMATION_ATTENTION_DURATION, 2_000);
 	});
 
-	test('only shows in the latest focused chat widget when enabled', () => {
+	test('only shows in the active window but reserves space in each window\'s latest focused chat', () => {
 		assert.deepStrictEqual([
-			isChatPetVisible(false, false),
-			isChatPetVisible(false, true),
-			isChatPetVisible(true, false),
-			isChatPetVisible(true, true),
+			{ visible: isChatPetVisible(false, false, false), spaceReserved: shouldReserveChatPetSpace(false, false) },
+			{ visible: isChatPetVisible(false, true, true), spaceReserved: shouldReserveChatPetSpace(false, true) },
+			{ visible: isChatPetVisible(true, false, true), spaceReserved: shouldReserveChatPetSpace(true, false) },
+			{ visible: isChatPetVisible(true, true, false), spaceReserved: shouldReserveChatPetSpace(true, true) },
+			{ visible: isChatPetVisible(true, true, true), spaceReserved: shouldReserveChatPetSpace(true, true) },
+		], [
+			{ visible: false, spaceReserved: false },
+			{ visible: false, spaceReserved: false },
+			{ visible: false, spaceReserved: false },
+			{ visible: false, spaceReserved: true },
+			{ visible: true, spaceReserved: true },
+		]);
+	});
+
+	test('tracks the active renderer window independently from application focus', () => {
+		assert.deepStrictEqual([
+			isChatPetWindowActive(false, 1, 1),
+			isChatPetWindowActive(true, 1, 1),
+			isChatPetWindowActive(true, 2, 1),
+			isChatPetWindowActive(true, 1, 2),
 		], [
 			false,
-			false,
-			false,
 			true,
+			false,
+			false,
 		]);
 	});
 
@@ -314,14 +334,22 @@ suite('ChatPetWidget', () => {
 	test('restores a custom position or uses the default position when reopening', () => {
 		assert.deepStrictEqual([
 			getChatPetRestoredHorizontalPosition(undefined, 20, 220),
-			getChatPetRestoredHorizontalPosition(80, 20, 220),
+			getChatPetRestoredHorizontalPosition(0.3, 20, 220),
 			getChatPetRestoredHorizontalPosition(0, 20, 220),
-			getChatPetRestoredHorizontalPosition(240, 20, 220),
+			getChatPetRestoredHorizontalPosition(1.1, 20, 220),
+			getChatPetRelativeHorizontalPosition(80, 20, 220),
+			getChatPetRelativeHorizontalPosition(0, 20, 220),
+			getChatPetRelativeHorizontalPosition(240, 20, 220),
+			getChatPetRelativeHorizontalPosition(20, 20, 20),
 		], [
 			188,
 			80,
 			20,
 			220,
+			0.3,
+			0,
+			1,
+			undefined,
 		]);
 	});
 
@@ -421,7 +449,11 @@ suite('ChatPetWidget', () => {
 				}
 			}(),
 			new NullLogService(),
-			new class extends mock<IHostService>() { override readonly hasFocus = true; }(),
+			new class extends mock<IHostService>() {
+				override readonly hasFocus = true;
+				override readonly onDidChangeFocus = Event.None;
+				override readonly onDidChangeActiveWindow = Event.None;
+			}(),
 		));
 		disposables.add(toDisposable(() => {
 			parent.remove();
@@ -487,31 +519,31 @@ suite('ChatPetWidget', () => {
 		]);
 	});
 
-	test('shares pet scale until the pet is dismissed', () => {
-		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
-		service.toggle();
-		service.setScale(1.4);
-		const firstChatScale = service.scale.get();
-		const secondChatScale = service.scale.get();
-		const dismissed = service.toggle();
-		const resetScale = service.scale.get();
-		const restored = service.toggle();
+	test('persists pet scale and position across windows, dismissal, and restart', () => {
+		const storageService = disposables.add(new TestStorageService());
+		const firstWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const secondWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		firstWindow.toggle();
+		firstWindow.setScale(1.4);
+		firstWindow.setHorizontalPosition(0.3);
+		const dismissed = firstWindow.toggle();
+		const restartedWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
 
-		assert.deepStrictEqual([
-			firstChatScale,
-			secondChatScale,
+		assert.deepStrictEqual({
+			firstWindow: firstWindow.scale.get(),
+			secondWindow: secondWindow.scale.get(),
+			secondWindowPosition: secondWindow.horizontalPosition.get(),
 			dismissed,
-			resetScale,
-			restored,
-			service.scale.get(),
-		], [
-			1.4,
-			1.4,
-			false,
-			1,
-			true,
-			1,
-		]);
+			restartedWindow: restartedWindow.scale.get(),
+			restartedWindowPosition: restartedWindow.horizontalPosition.get(),
+		}, {
+			firstWindow: 1.4,
+			secondWindow: 1.4,
+			secondWindowPosition: 0.3,
+			dismissed: false,
+			restartedWindow: 1.4,
+			restartedWindowPosition: 0.3,
+		});
 	});
 
 	test('persists idempotent achievements and synchronizes the selected accessory', () => {
@@ -713,26 +745,14 @@ suite('ChatPetWidget', () => {
 	});
 
 	test('detects user-authored customizations', () => {
-		assert.deepStrictEqual({
-			acceptedRoutes: [
-				getChatPetAcceptedRouteAchievementIds('new_session', []),
-				getChatPetAcceptedRouteAchievementIds('existing_session', []),
-			],
-			customizations: [
-				isUserAuthoredChatPetCustomization('local', false),
-				isUserAuthoredChatPetCustomization('user', undefined),
-				isUserAuthoredChatPetCustomization('extension', false),
-				isUserAuthoredChatPetCustomization('plugin', false),
-				isUserAuthoredChatPetCustomization('builtin', true),
-				isUserAuthoredChatPetCustomization('local', true),
-			],
-		}, {
-			acceptedRoutes: [
-				[ChatPetAchievementIds.FirstChatMessage],
-				[ChatPetAchievementIds.FirstChatMessage, ChatPetAchievementIds.QueueOrSteeringMessage],
-			],
-			customizations: [true, true, false, false, false, false],
-		});
+		assert.deepStrictEqual([
+			isUserAuthoredChatPetCustomization('local', false),
+			isUserAuthoredChatPetCustomization('user', undefined),
+			isUserAuthoredChatPetCustomization('extension', false),
+			isUserAuthoredChatPetCustomization('plugin', false),
+			isUserAuthoredChatPetCustomization('builtin', true),
+			isUserAuthoredChatPetCustomization('local', true),
+		], [true, true, false, false, false, false]);
 	});
 
 	test('unlocks browser sharing only after sharing succeeds', () => {
@@ -896,6 +916,43 @@ suite('ChatPetWidget', () => {
 			false,
 			false,
 		]);
+	});
+
+	test('varies blink timing independently between breaths', () => {
+		const clock = sinon.useFakeTimers();
+		const changes: { readonly time: number; readonly blinking: boolean }[] = [];
+		const randomValues = [0, 0.5, 1];
+		const controller = new ChatPetBlinkController(blinking => changes.push({ time: Date.now(), blinking }), () => randomValues.shift() ?? 1);
+		try {
+			controller.setEnabled(true);
+			clock.tick(1_400);
+			clock.tick(260);
+			controller.onAnimationComplete();
+			clock.tick(2_400);
+			clock.tick(260);
+			controller.onAnimationComplete();
+			clock.tick(3_400);
+			clock.tick(260);
+			controller.onAnimationComplete();
+			controller.setEnabled(false);
+
+			assert.deepStrictEqual({
+				delays: [getChatPetBlinkDelay(0), getChatPetBlinkDelay(0.5), getChatPetBlinkDelay(1)],
+				changes,
+			}, {
+				delays: [1_400, 2_400, 3_400],
+				changes: [
+					{ time: 1_400, blinking: true },
+					{ time: 1_660, blinking: false },
+					{ time: 4_060, blinking: true },
+					{ time: 4_320, blinking: false },
+					{ time: 7_720, blinking: true },
+					{ time: 7_980, blinking: false },
+				],
+			});
+		} finally {
+			controller.dispose();
+		}
 	});
 
 	test('disables cursor tracking for fixed-eye sprite states', () => {
@@ -1437,21 +1494,55 @@ suite('ChatPetWidget', () => {
 		]);
 	});
 
-	test('turns recent horizontal flicks into bounded wall throws', () => {
+	test('turns recent directional flicks into bounded throws', () => {
 		assert.deepStrictEqual([
 			getChatPetThrowVelocity([{ x: 0, y: 0, time: 0 }, { x: 60, y: 10, time: 40 }, { x: 120, y: 20, time: 80 }], 100),
 			getChatPetThrowVelocity([{ x: 200, y: 100, time: 0 }, { x: 150, y: 60, time: 50 }, { x: 120, y: 40, time: 80 }], 90),
 			getChatPetThrowVelocity([{ x: 0, y: 0, time: 0 }, { x: 40, y: 0, time: 100 }], 100),
 			getChatPetThrowVelocity([{ x: 0, y: 0, time: 0 }, { x: 50, y: 100, time: 50 }], 50),
 			getChatPetThrowVelocity([{ x: 0, y: 0, time: 0 }, { x: 70, y: 90, time: 100 }], 100),
+			getChatPetThrowVelocity([{ x: 0, y: 100, time: 0 }, { x: 0, y: -20, time: 80 }], 80),
+			getChatPetThrowVelocity([{ x: 0, y: 0, time: 0 }, { x: 240, y: 320, time: 40 }], 40),
 			getChatPetThrowVelocity([{ x: 0, y: 0, time: 0 }, { x: 120, y: 0, time: 80 }], 161),
 		], [
-			{ x: 1_500, y: -420 },
+			{ x: 1_500, y: 250 },
 			{ x: -1_000, y: -750 },
 			undefined,
+			{ x: 1_000, y: 2_000 },
+			{ x: 700, y: 900 },
+			{ x: 0, y: -1_500 },
+			{ x: 1_440, y: 1_920 },
 			undefined,
-			undefined,
-			undefined,
+		]);
+	});
+
+	test('preserves gravity direction through a shorter wall rebound', () => {
+		assert.deepStrictEqual({
+			impactDuration: CHAT_PET_WALL_IMPACT_DURATION,
+			downward: getChatPetWallReboundVelocity({ x: 1_500, y: 900 }),
+			upward: getChatPetWallReboundVelocity({ x: -1_000, y: -750 }),
+		}, {
+			impactDuration: 48,
+			downward: { x: -300, y: 900 },
+			upward: { x: 200, y: -750 },
+		});
+	});
+
+	test('smoothly rights throws through the apex', () => {
+		assert.deepStrictEqual([
+			getChatPetThrowRotation(45, 20, -500, 16),
+			getChatPetThrowRotation(45, 20, -225, 16),
+			getChatPetThrowRotation(330, 20, 100, 16),
+			getChatPetThrowRotation(-330, -20, 100, 16),
+			getChatPetThrowRotation(358, 20, 100, 16),
+			getChatPetThrowRotation(90, -20, 100, 16),
+		].map(rotation => Math.round(rotation * 100) / 100), [
+			58,
+			57.26,
+			341.52,
+			-341.52,
+			360,
+			78.48,
 		]);
 	});
 

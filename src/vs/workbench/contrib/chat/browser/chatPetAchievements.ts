@@ -277,17 +277,6 @@ export function hasChatPetImageAttachment(entries: readonly { readonly kind: str
 	return entries.some(entry => entry.kind === 'image');
 }
 
-export function getChatPetAcceptedRouteAchievementIds(targetKind: 'existing_session' | 'new_session', entries: readonly { readonly kind: string }[]): readonly ChatPetAchievementId[] {
-	const achievementIds: ChatPetAchievementId[] = [ChatPetAchievementIds.FirstChatMessage];
-	if (targetKind === 'existing_session') {
-		achievementIds.push(ChatPetAchievementIds.QueueOrSteeringMessage);
-	}
-	if (hasChatPetImageAttachment(entries)) {
-		achievementIds.push(ChatPetAchievementIds.ImageRequest);
-	}
-	return achievementIds;
-}
-
 export function shouldUnlockChatPetIntegratedBrowserShare(shared: boolean, succeeded: boolean): boolean {
 	return shared && succeeded;
 }

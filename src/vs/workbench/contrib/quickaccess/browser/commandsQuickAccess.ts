@@ -38,7 +38,6 @@ import { createKeybindingCommandQuery } from '../../../services/preferences/brow
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { CHAT_OPEN_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
 import { ASK_QUICK_QUESTION_ACTION_ID } from '../../chat/browser/actions/chatQuickInputActions.js';
-import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { IChatAgentService } from '../../chat/common/participants/chatAgents.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 
@@ -281,7 +280,7 @@ export class ShowAllCommandsAction extends Action2 {
 			title: localize2('showTriggerActions', 'Show All Commands'),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: ChatContextKeys.inChatInputWindow.negate(),
+				when: undefined,
 				primary: !isFirefox ? (KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyP) : undefined,
 				secondary: [KeyCode.F1]
 			},

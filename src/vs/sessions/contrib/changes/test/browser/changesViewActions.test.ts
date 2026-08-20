@@ -5,15 +5,22 @@
 
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { constObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
+import { SessionsDiffRenderSideBySideContext } from '../../../editor/common/diffEditorOptionsService.js';
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext, TextCompareEditorActiveContext } from '../../../../../workbench/common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ChangesContextKeys, ChangesViewMode } from '../../common/changes.js';
 import { IsPhoneLayoutContext, SessionHasChangesContext, SessionHasWorkspaceContext, SessionIsCreatedContext, SinglePaneDiffEditorInputActiveContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
@@ -45,6 +52,28 @@ suite('Changes View Actions', () => {
 			whileNew: false,
 			afterCreation: true,
 		});
+	});
+
+	test('Open Pull Request delegates to the shared GitHub action', async () => {
+		const activeSession = new class extends mock<IActiveSession>() { };
+		const calls: { readonly commandId: string; readonly args: readonly unknown[] }[] = [];
+		const instantiationService = new TestInstantiationService();
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override async executeCommand<R = unknown>(commandId: string, ...args: unknown[]): Promise<R | undefined> {
+				calls.push({ commandId, args });
+				return undefined;
+			}
+		});
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
+		});
+
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.action.agentSessions.openPullRequest')!.handler(accessor));
+
+		assert.deepStrictEqual(calls, [{
+			commandId: 'workbench.agentSessions.action.openPullRequest',
+			args: [activeSession],
+		}]);
 	});
 
 	test('primary header actions gate themselves to the single-pane Changes editor', () => {
@@ -127,7 +156,7 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('toggle inline view is contributed to multi-file and single-file diff editor headers with toggle state', () => {
+	test('preferred diff view is contributed to multi-file and single-file diff editor headers with toggle state', () => {
 		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'toggle.diff.renderSideBySide');
@@ -149,9 +178,10 @@ suite('Changes View Actions', () => {
 			group: item.group,
 			order: item.order,
 			icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
+			tooltip: typeof item.command.tooltip === 'string' ? item.command.tooltip : item.command.tooltip?.value,
 			toggledTitle: toggledInfo?.title,
-			toggledOnMultiDiffSideBySide: toggledInfo?.condition.serialize().includes(EditorContextKeys.multiDiffEditorRenderSideBySide.key),
-			toggledOnSingleDiffSideBySide: toggledInfo?.condition.serialize().includes(EditorContextKeys.diffEditorInlineMode.key),
+			toggledTooltip: toggledInfo?.tooltip,
+			toggledOnSharedPreference: toggledInfo?.condition.serialize().includes(SessionsDiffRenderSideBySideContext.key),
 			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
 			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
 			hasTextCompareEditorGate: when.includes(TextCompareEditorActiveContext.key),
@@ -160,13 +190,14 @@ suite('Changes View Actions', () => {
 			matchesNonTextDiffContext: item.when?.evaluate(nonTextDiffContext) ?? false,
 		}, {
 			id: 'toggle.diff.renderSideBySide',
-			title: 'Show Side by Side Diff',
+			title: 'Prefer Side by Side Diff',
 			group: '1_diff',
 			order: 20,
 			icon: Codicon.diffSidebyside.id,
-			toggledTitle: 'Show Inline Diff',
-			toggledOnMultiDiffSideBySide: true,
-			toggledOnSingleDiffSideBySide: true,
+			tooltip: 'Uses inline layout when space is limited unless screen reader optimized mode is enabled.',
+			toggledTitle: 'Prefer Inline Diff',
+			toggledTooltip: 'Always uses inline layout.',
+			toggledOnSharedPreference: true,
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
 			hasTextCompareEditorGate: true,
@@ -176,7 +207,7 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('toggle inline view is contributed to the command palette (Changes category)', () => {
+	test('preferred diff view is contributed to the command palette (Changes category)', () => {
 		const item = MenuRegistry.getMenuItems(MenuId.CommandPalette)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'toggle.diff.renderSideBySide' && item.command.category !== undefined && (typeof item.command.category === 'string' ? item.command.category : item.command.category.value) === 'Changes');
@@ -194,7 +225,7 @@ suite('Changes View Actions', () => {
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 		}, {
 			id: 'toggle.diff.renderSideBySide',
-			title: 'Toggle Diff View',
+			title: 'Toggle Preferred Diff View',
 			category: 'Changes',
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,

@@ -1686,7 +1686,19 @@ export default defineConfig(
 						'@anthropic-ai/claude-agent-sdk', // used by agentHost for Claude Agent SDK session enumeration / queries
 						'@modelcontextprotocol/sdk/**/*', // used by agentHost for Claude client-tool MCP result types (Phase 10)
 						'@github/copilot-sdk',
-						'zod' // used by agentHost for Claude client-tool MCP input schemas
+						'zod', // used by agentHost for Claude client-tool MCP input schemas
+						{
+							'when': 'test',
+							'pattern': 'events'
+						},
+						{
+							'when': 'test',
+							'pattern': 'module'
+						},
+						{
+							'when': 'test',
+							'pattern': 'websocket'
+						}
 					]
 				},
 				{
@@ -2204,6 +2216,8 @@ export default defineConfig(
 						'vs/sessions/contrib/*/~',
 						'vs/sessions/contrib/providers/*/~',
 						'vs/sessions/services/*/~',
+						'@microsoft/dev-tunnels-connections', // type-only browser bundle conformance check
+						'@microsoft/dev-tunnels-management', // type-only browser bundle conformance check
 					]
 				},
 				{
@@ -2316,9 +2330,21 @@ export default defineConfig(
 					]
 				},
 				{
+					'target': 'test/scenario/**',
+					'restrictions': [
+						'test/automation',
+						'test/scenario/**',
+						'@vscode/*',
+						'@parcel/*',
+						'@playwright/*',
+						'*' // node modules
+					]
+				},
+				{
 					'target': 'test/mcp/**',
 					'restrictions': [
 						'test/automation',
+						'test/scenario',
 						'test/mcp/**',
 						'@vscode/*',
 						'@parcel/*',

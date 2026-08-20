@@ -8,7 +8,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
-import type { ToolDefinition } from '../../common/state/sessionState.js';
+import { buildChatUri, type ToolDefinition } from '../../common/state/sessionState.js';
 import type { IClaudeAgentSdkService } from '../../node/claude/claudeAgentSdkService.js';
 import {
 	buildServerToolMcpServer,
@@ -44,18 +44,20 @@ const fakeToolDefinitions: readonly ToolDefinition[] = [
 class FakeServerToolHost implements IAgentServerToolHost {
 	readonly definitions: readonly ToolDefinition[] = fakeToolDefinitions;
 	readonly toolNames: readonly string[] = fakeToolDefinitions.map(def => def.name);
-	readonly executions: Array<{ sessionUri: string; toolName: string; rawArgs: unknown }> = [];
+	readonly executions: Array<{ chatUri: string; toolName: string; rawArgs: unknown }> = [];
 	result = 'ok';
 	error: Error | undefined;
 
 	advertise(): void { }
 
+	getDefinitionsForSession(): readonly ToolDefinition[] { return this.definitions; }
+
 	canRequireConfirmation(_toolName: string): boolean { return false; }
 
 	requiresConfirmation(_sessionUri: string, _toolName: string): boolean { return false; }
 
-	executeTool(sessionUri: string, toolName: string, rawArgs: unknown): string {
-		this.executions.push({ sessionUri, toolName, rawArgs });
+	executeTool(chatUri: string, toolName: string, rawArgs: unknown): string {
+		this.executions.push({ chatUri, toolName, rawArgs });
 		if (this.error) {
 			throw this.error;
 		}
@@ -67,12 +69,12 @@ suite('claudeServerToolMcpServer / buildServerToolMcpServer', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	const sessionUri = 'claude:/server-tool-session';
+	const chatUri = buildChatUri('claude:/server-tool-session', 'peer');
 
 	test('registers every server tool on the server-tool MCP server', async () => {
 		const { sdk, recorded } = makeSdk();
 		const host = new FakeServerToolHost();
-		const server = await buildServerToolMcpServer(host, sessionUri, sdk);
+		const server = await buildServerToolMcpServer(host, chatUri, sdk);
 		assert.deepStrictEqual({
 			serverName: server.name,
 			toolNames: recorded.map(t => t.name).sort(),
@@ -86,7 +88,7 @@ suite('claudeServerToolMcpServer / buildServerToolMcpServer', () => {
 		const { sdk, recorded } = makeSdk();
 		const host = new FakeServerToolHost();
 		host.result = 'listed 2 comments';
-		await buildServerToolMcpServer(host, sessionUri, sdk);
+		await buildServerToolMcpServer(host, chatUri, sdk);
 
 		const handler = recorded.find(t => t.name === 'serverToolA')!.handler;
 		const result = await handler({ foo: 'bar' }, undefined);
@@ -95,7 +97,7 @@ suite('claudeServerToolMcpServer / buildServerToolMcpServer', () => {
 			executions: host.executions,
 			result,
 		}, {
-			executions: [{ sessionUri, toolName: 'serverToolA', rawArgs: { foo: 'bar' } }],
+			executions: [{ chatUri, toolName: 'serverToolA', rawArgs: { foo: 'bar' } }],
 			result: { content: [{ type: 'text', text: 'listed 2 comments' }] },
 		});
 	});
@@ -104,7 +106,7 @@ suite('claudeServerToolMcpServer / buildServerToolMcpServer', () => {
 		const { sdk, recorded } = makeSdk();
 		const host = new FakeServerToolHost();
 		host.error = new Error('boom');
-		await buildServerToolMcpServer(host, sessionUri, sdk);
+		await buildServerToolMcpServer(host, chatUri, sdk);
 
 		const result = await recorded[0]!.handler({}, undefined);
 		assert.deepStrictEqual(result, { content: [{ type: 'text', text: 'boom' }], isError: true });

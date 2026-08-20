@@ -83,6 +83,7 @@ extensions/vscode-api-tests/src/singlefolder-tests/browser*.test.ts @kycutler @j
 
 # Testing
 test/mcp/** @TylerLeonhardt
+test/scenario/** @bryanchen-d
 test/sanity/** @dmitrivMS
 
 # Agents Workbench

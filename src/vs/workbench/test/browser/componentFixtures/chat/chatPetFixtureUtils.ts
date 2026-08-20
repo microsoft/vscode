@@ -30,6 +30,8 @@ export class FixtureChatPetService extends Disposable implements IChatPetService
 	readonly onTheRun: IObservable<boolean> = this.onTheRunValue;
 	private readonly scaleValue = observableValue(this, 1);
 	readonly scale: IObservable<number> = this.scaleValue;
+	private readonly horizontalPositionValue = observableValue<number | undefined>(this, undefined);
+	readonly horizontalPosition: IObservable<number | undefined> = this.horizontalPositionValue;
 	private readonly unlockedAchievementsValue: ISettableObservable<readonly ChatPetAchievementId[]>;
 	readonly unlockedAchievements: IObservable<readonly ChatPetAchievementId[]>;
 	private readonly unseenAchievementsValue: ISettableObservable<readonly ChatPetAchievementId[]>;
@@ -68,6 +70,10 @@ export class FixtureChatPetService extends Disposable implements IChatPetService
 
 	setScale(scale: number): void {
 		this.scaleValue.set(scale, undefined);
+	}
+
+	setHorizontalPosition(position: number): void {
+		this.horizontalPositionValue.set(position, undefined);
 	}
 
 	unlockAchievement(id: ChatPetAchievementId): boolean {

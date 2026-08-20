@@ -26,7 +26,6 @@ import { IStorageService, StorageScope } from '../../../../platform/storage/comm
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTracker.js';
 import { ISessionsWindowOpenViewState, SessionsWindowOpenTelemetry, SessionsWindowSessionStartTelemetry } from '../../sessions/browser/sessionsWindowOpenTelemetry.js';
-import { SessionsWindowStartupExperiment } from '../../sessions/browser/sessionsWindowStartupExperiment.js';
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from '../browser/newSessionComposerService.js';
 import { ChatPetAchievementIds } from '../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
@@ -237,7 +236,6 @@ class ChatPetAgentsWindowAchievementContribution implements IWorkbenchContributi
 }
 
 registerWorkbenchContribution2(SelectAgentsFolderContribution.ID, SelectAgentsFolderContribution, WorkbenchPhase.BlockStartup);
-registerWorkbenchContribution2(SessionsWindowStartupExperiment.ID, SessionsWindowStartupExperiment, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(SessionsCopilotConfigSlashSubmitHandlerContribution.ID, SessionsCopilotConfigSlashSubmitHandlerContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatPetAgentsWindowAchievementContribution.ID, ChatPetAgentsWindowAchievementContribution, WorkbenchPhase.AfterRestored);
 

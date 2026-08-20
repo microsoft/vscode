@@ -218,6 +218,7 @@ export class ContextMenuController implements IEditorContribution {
 		this._contextMenuIsBeingShownCount++;
 		this._contextMenuService.showContextMenu({
 			domForShadowRoot: useShadowDOM ? this._editor.getOverflowWidgetsDomNode() ?? this._editor.getDomNode() : undefined,
+			useWindowContainerForShadowRoot: useShadowDOM && this._editor.getOption(EditorOption.fixedOverflowWidgets),
 
 			getAnchor: () => anchor,
 
@@ -366,6 +367,7 @@ export class ContextMenuController implements IEditorContribution {
 		this._contextMenuIsBeingShownCount++;
 		this._contextMenuService.showContextMenu({
 			domForShadowRoot: useShadowDOM ? this._editor.getDomNode() : undefined,
+			useWindowContainerForShadowRoot: useShadowDOM && this._editor.getOption(EditorOption.fixedOverflowWidgets),
 			getAnchor: () => anchor,
 			getActions: () => actions,
 			onHide: (wasCancelled: boolean) => {

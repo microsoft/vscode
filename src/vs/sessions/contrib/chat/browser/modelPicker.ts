@@ -21,7 +21,7 @@ import { Menus } from '../../../browser/menus.js';
 import { IsPhoneLayoutContext, SessionUsesCombinedConfigPickerContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
-import { ISessionModelSelectionModel } from './sessionModelSelectionModel.js';
+import { ISessionModelSelection } from './sessionModelSelection.js';
 import { INewChatModelPickerService } from './newChatModelPicker.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
@@ -50,7 +50,7 @@ export class ModelPicker extends Disposable {
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 		@ISessionContext private readonly _sessionContext: ISessionContext,
-		@ISessionModelSelectionModel private readonly _selectionModel: ISessionModelSelectionModel,
+		@ISessionModelSelection private readonly _selectionModel: ISessionModelSelection,
 		@IChatPetService private readonly _chatPetService: IChatPetService,
 	) {
 		super();

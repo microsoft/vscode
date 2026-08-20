@@ -131,6 +131,42 @@ suite('domainMatcher', () => {
 			assert.strictEqual(matchesDomainPattern('example.com', 'https://example.com/page'), true);
 		});
 
+		test('matches explicitly configured local and private host patterns', () => {
+			assert.deepStrictEqual([
+				matchesDomainPattern('localhost', 'localhost'),
+				matchesDomainPattern('sub.localhost', '*.localhost'),
+				matchesDomainPattern('127.0.0.1', '127.0.0.1'),
+				matchesDomainPattern('0.0.0.0', '0.0.0.0'),
+				matchesDomainPattern('service.internal', 'service.internal'),
+				matchesDomainPattern('localhost', 'other.localhost'),
+			], [
+				true,
+				true,
+				true,
+				true,
+				true,
+				false,
+			]);
+		});
+
+		test('matches bracketed and bare IPv6 patterns', () => {
+			assert.deepStrictEqual([
+				matchesDomainPattern('[::1]', '[::1]'),
+				matchesDomainPattern('[::1]', '::1'),
+				matchesDomainPattern('[fd00::1]', 'fd00::1'),
+				matchesDomainPattern('fd00', 'fd00::1'),
+				matchesDomainPattern('[2001:db8::1]', '2001:0db8:0:0:0:0:0:1'),
+				matchesDomainPattern('[2001:db8::1]', '2001:db8::2'),
+			], [
+				true,
+				true,
+				true,
+				false,
+				true,
+				false,
+			]);
+		});
+
 		test('returns false for invalid pattern', () => {
 			assert.strictEqual(matchesDomainPattern('example.com', ''), false);
 		});
