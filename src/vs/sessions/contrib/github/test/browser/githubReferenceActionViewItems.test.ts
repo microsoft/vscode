@@ -9,7 +9,7 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { SessionHeaderMetaActionViewItem } from '../../../../browser/parts/sessionHeaderMetaActionViewItem.js';
+import { ChatPillActionViewItem } from '../../../../../workbench/browser/chatPills.js';
 import { OpenIssueActionViewItem } from '../../browser/issueActions.js';
 import { OpenPullRequestActionViewItem } from '../../browser/pullRequestActions.js';
 
@@ -32,7 +32,7 @@ interface IPullRequestViewItemTestHarness {
 const openIssueViewItemOnDidClickButton = Reflect.get(OpenIssueActionViewItem.prototype, 'onDidClickButton') as (this: IIssueViewItemTestHarness) => void;
 const openPullRequestViewItemOnDidClickButton = Reflect.get(OpenPullRequestActionViewItem.prototype, 'onDidClickButton') as (this: IPullRequestViewItemTestHarness) => void;
 
-class TestDropdownMetaActionViewItem extends SessionHeaderMetaActionViewItem {
+class TestDropdownMetaActionViewItem extends ChatPillActionViewItem {
 
 	dropdownVisible = true;
 	opened = 0;
@@ -69,7 +69,7 @@ suite('GitHub Reference Action View Items', () => {
 			let ancestorMouseDowns = 0;
 			store.add(addDisposableListener(container, EventType.MOUSE_DOWN, () => ancestorMouseDowns++));
 			store.add(addDisposableListener(mainWindow.document, EventType.MOUSE_DOWN, () => viewItem.dropdownVisible = false));
-			const button = container.querySelector<HTMLElement>('.chat-composite-bar-meta-item-button')!;
+			const button = container.querySelector<HTMLElement>('.chat-pill-button')!;
 
 			button.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { bubbles: true, button: 0 }));
 			button.dispatchEvent(new MouseEvent(EventType.CLICK, { bubbles: true }));

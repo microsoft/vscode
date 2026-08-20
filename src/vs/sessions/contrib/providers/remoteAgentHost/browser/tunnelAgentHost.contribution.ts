@@ -937,7 +937,13 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 							c => c.address === address && RemoteAgentHostConnectionStatus.isConnected(c.status)
 						);
 						if (!alreadyConnected) {
-							this._connectTunnel(address, { userInitiated: false });
+							const mode = this._tunnelService.getAutoConnectMode(tunnel);
+							if (mode === 'prompt') {
+								this._logService.info(`[TunnelAgentHost] Prompting for the initial agent host location for ${address}`);
+								this._connectTunnel(address, { userInitiated: true });
+							} else {
+								this._connectTunnel(address, { userInitiated: false });
+							}
 						}
 					}
 				}

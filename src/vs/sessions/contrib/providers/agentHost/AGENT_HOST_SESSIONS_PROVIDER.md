@@ -65,6 +65,24 @@ A baseline PR becomes session-related when the user references it in a message o
 
 Pull-request identity uses the Agent Host's configured GitHub host. Never canonicalize references to `github.com`: Enterprise checkout URLs and explicit references must remain comparable by host, owner, repository, and number.
 
+## Session Artifacts
+
+Agents record artifacts — pull requests, issues, commits, websites, files and other resources — with the `add_artifact`, `remove_artifact` and `list_artifacts` server tools. The tools and their agent instruction are gated by `chat.artifactTools.enabled`, forwarded to the host as the `artifactTools` root config key.
+
+Artifacts are session-scoped: any chat or subagent of a session reads and writes the same list. They live on the session's `_meta` bag under `agentHost/sessionArtifacts`, so a change reaches subscribed clients through the ordinary action envelope as soon as the tool runs, and are persisted to the session database so they survive a host restart. Adding an artifact whose value (link, resource URI, or commit hash) already exists returns the existing entry instead of a duplicate. The host computes `isGitHub` for pull request and issue artifacts by parsing their link; clients must not re-derive it.
+
+Pull request artifacts must declare `createdByThisSession`, which distinguishes a pull request the session opened from one it merely referenced.
+
+The provider promotes GitHub pull request and issue artifacts out of the artifacts pill and into the session's GitHub links, so the same reference is never shown twice and promoted pull requests take part in the ordinary polling. Promotion only applies to links the pull request and issue pills can render — an enterprise host or a malformed link stays an artifact rather than disappearing from both places — and merged URLs are deduplicated against the discovered ones. Only pull requests created by the session and those discovered for the checkout are eligible to become the session's main pull request; a merely referenced artifact is listed and polled but never promoted to main.
+
+## Session Customizations Used by a Chat
+
+The provider derives, per chat, which customizations the agent used or read, and publishes them on `IChat.customizations` for the customizations pill above the chat input. The data is chat-scoped, not session-scoped: two chats in one session report their own lists.
+
+Detection parses the same chat output stream as the file-edit reducers, so no extra subscription is opened. Three signals are extracted from each turn's tool calls: an MCP tool call names its server through `contributor.customizationId`; a skill-invoking tool names a skill; and any path-like token in a tool call's inline input is a candidate read. Parsed references deliberately resolve to nothing on their own, which is what lets a completed turn be parsed once and cached by turn id while only the in-progress turn is re-parsed per delta.
+
+References are resolved against a `CustomizationIndex` built from the session's customization tree. Paths match a customization's own URI, a relative path resolved against the session's workspace and worktree roots, or any file inside a skill's or plugin's folder. The index is rebuilt only when the customization array identity changes, so ordinary session-state churn does not invalidate it. Resolution keeps first-reference order and drops duplicates, so a skill reached by both invocation and file read appears once.
+
 ## Agent Merge
 
 Agent Merge is a provider-neutral Agent Host controller. Copilot, Claude, and Codex use the same persisted session state, pull-request subscription, readiness gate, system-initiated repair turn, scoped GitHub tools, and native merge executor. The controller does not encode provider approval keys: the owning `IAgent` selects the provider-native autonomous configuration to apply and the controller records and conditionally restores that patch.
@@ -139,7 +157,7 @@ The **only** per-provider difference is the storage key: local uses the fixed `l
 
 ### External session visibility
 
-Provider-native sessions discovered outside the Agent Host carry `_meta.external`. `chat.agentSessions.showExternal` controls whether the catalog publishes none, all, the last 24 hours, or the last 7 days (the default). Configuration changes publish or unpublish matching summaries immediately, including restored sessions, while retaining live Agent Host state so a later settings change can surface them again. The state manager distinguishes a summary retained as the diff baseline from one actually published through `root/sessionAdded`; restoring a filtered session records the former without implying the latter, and hidden summary changes advance that baseline without emitting root notifications.
+Provider-native sessions discovered outside the Agent Host carry `_meta.external`. `chat.agentSessions.showExternal` controls whether the catalog publishes none, all, the last 24 hours, or the last 7 days (the default). Configuration changes publish or unpublish matching summaries immediately, including restored sessions, while retaining live Agent Host state so a later settings change can surface them again. The state manager separately tracks the canonical diff baseline, exposure through a client-scoped `root/listSessions` response, and process-wide delivery through `root/sessionAdded`. A list response therefore enables later summary deltas without suppressing a global add needed by other clients, while restoring a filtered session records only the baseline and hidden summary changes advance it without emitting root notifications.
 
 Copilot discovery includes external SDK sessions only when their persisted `clientName` is exactly `github/cli` or `github/autopilot`, their persisted context includes non-empty repository metadata, and they were modified within the last seven days. Unknown and missing client names, repository-less sessions, and older sessions are excluded. `clientName` identifies the runtime client that created or last resumed the session, not immutable creator provenance.
 
@@ -270,10 +288,10 @@ The provider ships a rich set of session-scoped UI in `browser/`:
 | `agentHostSessionChangesets.ts` / `agentHostDiffs.ts` | Changeset model, operation mapping/invocation, and diff conversion (`mapProtocolStatus` maps the protocol status bitset → `SessionStatus`). |
 | `agentHostSessionBranchActions.ts` | Branch-related session actions. |
 | `exportDebugLogsAction.ts` | "Export debug logs" developer action. |
-| `openSessionEventsFileActions.ts` | "Open Copilot CLI State File" — Sessions-app variant resolving the session via `ISessionsManagementService.activeSession`. |
+| `openAgentHostStateFileAction.ts` | "Open Agent Host State File" — Sessions-app variant that resolves the active Agent Host connection and asks the owning provider for its live state-file resource. |
 | `mobile/` | Phone-layout variants: `mobileAgentHostModePicker.ts`, the scoped-model-backed `mobileChatInputConfigPicker.ts`, and the provider-backed `mobileChatPhoneInputPresenter.ts`. |
 
-Skill buttons and the `openSessionEventsFile` action are gated on `IsAgentHostSession` (and `ChatContextKeys.enabled`).
+Skill buttons and the state-file action are gated on `IsAgentHostSession` (and `ChatContextKeys.enabled`).
 
 ## Settings
 
@@ -300,4 +318,4 @@ Two synthetic filesystem providers expose JSONC settings editors:
 
 ## Tests
 
-`test/browser/` covers the provider and its pickers: `localAgentHostSessionsProvider.test.ts`, `agentHostAgentPicker.test.ts`, `agentHostAgents.test.ts`, `mobileChatPhoneInputTarget.test.ts`, `agentHostClaudePermissionModePicker.test.ts`, `agentHostSkillButtons.test.ts`, `agentSessionSettingsFileSystemProvider.test.ts`, `openSessionEventsFile.test.ts`, and `agentHost/agentHostPermissionPickerDelegate.test.ts`.
+`test/browser/` covers the provider and its pickers: `localAgentHostSessionsProvider.test.ts`, `agentHostAgentPicker.test.ts`, `agentHostAgents.test.ts`, `mobileChatPhoneInputTarget.test.ts`, `agentHostClaudePermissionModePicker.test.ts`, `agentHostSkillButtons.test.ts`, `agentSessionSettingsFileSystemProvider.test.ts`, `openAgentHostStateFile.test.ts`, and `agentHost/agentHostPermissionPickerDelegate.test.ts`.
