@@ -147,9 +147,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 				),
 				ContextKeyExpr.or(
 					CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.RequiresSignIn),
-					CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.AccessDenied),
-					CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.Misconfigured),
-					CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.Unreachable)
+					CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.AccessDenied)
 				)
 			),
 			order: -1,
@@ -181,16 +179,6 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		viewRegistry.registerViewWelcomeContent('workbench.views.extensions.marketplaceAccess', {
 			content: localize('access denied', "Your account does not have access to the Extensions Marketplace. Please contact your administrator."),
 			when: CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.AccessDenied)
-		});
-
-		viewRegistry.registerViewWelcomeContent('workbench.views.extensions.marketplaceAccess', {
-			content: localize('marketplace misconfigured', "The Extensions Marketplace is not configured correctly and cannot be reached. Please contact your administrator."),
-			when: CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.Misconfigured)
-		});
-
-		viewRegistry.registerViewWelcomeContent('workbench.views.extensions.marketplaceAccess', {
-			content: localize('marketplace unreachable', "The Extensions Marketplace is currently unavailable. Check your network connection and [try again]({0}).", `command:workbench.action.reloadWindow`),
-			when: CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.Unreachable)
 		});
 	}
 
@@ -1189,12 +1177,6 @@ export class ExtensionMarketplaceStatusUpdater extends Disposable implements IWo
 				break;
 			case ExtensionGalleryManifestStatus.AccessDenied:
 				badge = new WarningBadge(() => localize('accessDenied', "Access denied to marketplace"));
-				break;
-			case ExtensionGalleryManifestStatus.Misconfigured:
-				badge = new WarningBadge(() => localize('marketplaceMisconfigured', "Marketplace is misconfigured"));
-				break;
-			case ExtensionGalleryManifestStatus.Unreachable:
-				badge = new WarningBadge(() => localize('marketplaceUnreachable', "Marketplace is currently unavailable"));
 				break;
 		}
 

@@ -121,6 +121,12 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		try {
 			const account = await this.galleryAccountService.getAccount();
 			if (!account) {
+				// A transient failure to resolve the account is not a sign-out - Unknown means we could
+				// not tell - so it must not retract a marketplace the user already has.
+				if (this.galleryAccountService.accountStatus === ExtensionGalleryAccountStatus.Unknown
+					&& this.currentStatus === ExtensionGalleryManifestStatus.Available) {
+					return;
+				}
 				this.logService.debug('[Marketplace] Enterprise marketplace configured but user not signed in');
 				this.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
 				return;
@@ -152,7 +158,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 							}>('galleryservice:custom:marketplace');
 					} catch (error) {
 						this.logService.error('[Marketplace] Error fetching manifest from custom marketplace', error);
-						this.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
+						this.update(null, ExtensionGalleryManifestStatus.AccessDenied);
 					}
 					return;
 			}

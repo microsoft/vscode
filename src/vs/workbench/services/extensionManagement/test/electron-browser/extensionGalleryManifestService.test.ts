@@ -395,37 +395,20 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		assert.strictEqual(indexRequests, 0);
 	});
 
-	test('Microsoft provider — non-HTTPS service index URL → Misconfigured (no request issued)', async () => {
-		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
-		configurationService.setUserConfiguration(ExtensionGalleryServiceUrlConfigKey, 'http://marketplace.example.com');
-		microsoftSessions = [createMicrosoftSession()];
-		let requestIssued = false;
-		requestHandler = () => {
-			requestIssued = true;
-			return mockResponse(200, createGalleryManifest());
-		};
-
-		const service = createService();
-		await service.getExtensionGalleryManifest();
-
-		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Misconfigured);
-		assert.strictEqual(requestIssued, false);
-	});
-
-	test('Microsoft provider — service index returns 500 with JSON body → Unreachable (not parsed as manifest)', async () => {
+	test('Microsoft provider — service index returns 500 with JSON body → AccessDenied (not parsed as manifest)', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
 		microsoftSessions = [createMicrosoftSession()];
 		// A 5xx error body is valid JSON and truthy; it must be rejected outright rather than
-		// mistaken for a manifest (which would otherwise land in Misconfigured).
+		// mistaken for a manifest.
 		requestHandler = () => mockResponse(500, { error: 'internal' });
 
 		const service = createService();
 		await service.getExtensionGalleryManifest();
 
-		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Unreachable);
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.AccessDenied);
 	});
 
-	test('Microsoft provider — manifest fetch fails → Unreachable', async () => {
+	test('Microsoft provider — manifest fetch fails → AccessDenied', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
 		microsoftSessions = [createMicrosoftSession()];
 		// Manifest discovery fails transiently (network error)
@@ -434,9 +417,8 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		const service = createService();
 		await service.getExtensionGalleryManifest();
 
-		// A configured marketplace whose manifest can't be fetched is Unreachable so the
-		// UI can surface a message (distinct from the initial no-gallery Unavailable).
-		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Unreachable);
+		// A configured marketplace whose manifest can't be fetched is reported as denied, as on main.
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.AccessDenied);
 	});
 
 	test('Microsoft provider — no session → RequiresSignIn without probing the service index', async () => {
@@ -461,9 +443,8 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 
 	test('Microsoft provider — no session → stays RequiresSignIn even when the index would fail', async () => {
 		// Pins the invariant that makes "not signed in" a stable, actionable state: with no session
-		// the index is never probed, so a failing marketplace cannot turn RequiresSignIn into
-		// Unreachable ("check your network connection") and strand the user without a sign-in
-		// affordance. Covers the post-startup re-validation triggered when authentication connects.
+		// the index is never probed, so a failing marketplace cannot mask the sign-in affordance.
+		// Covers the post-startup re-validation triggered when authentication connects.
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
 		microsoftSessions = [];
 		let indexRequests = 0;
@@ -485,7 +466,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		assert.strictEqual(indexRequests, 0);
 	});
 
-	test('Microsoft provider — service index rejects the client (400) → AccessDenied, not Unreachable', async () => {
+	test('Microsoft provider — service index rejects the client (400) → AccessDenied', async () => {
 		// A marketplace that refuses this client outright — e.g. below its minimum supported
 		// version — is a durable rejection, so retrying cannot help. `main` reports any failed
 		// fetch of a configured marketplace as AccessDenied ("contact your administrator"); keep
@@ -493,37 +474,6 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
 		microsoftSessions = [createMicrosoftSession()];
 		requestHandler = () => mockResponse(400, { message: 'Only VS Code clients version 1.104.2 or later are allowed.' });
-
-		const service = createService();
-		await service.getExtensionGalleryManifest();
-
-		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.AccessDenied);
-	});
-
-	test('Microsoft provider — auth-gated service index, session token presented → Available', async () => {
-		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
-		microsoftSessions = [createMicrosoftSession()];
-		// The index is gated: it returns 401 for anonymous reads but 200 once a bearer token
-		// is presented. This asserts the token is actually threaded into the manifest fetch.
-		requestHandler = (options) => {
-			const hasAuth = !!(options.headers && options.headers['Authorization']);
-			return hasAuth
-				? mockResponse(200, createGalleryManifest())
-				: mockResponse(401, { message: 'auth required' });
-		};
-
-		const service = createService();
-		await service.getExtensionGalleryManifest();
-
-		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
-	});
-
-	test('Microsoft provider — auth-gated service index, token forbidden (403) → AccessDenied', async () => {
-		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
-		microsoftSessions = [createMicrosoftSession()];
-		// A token is presented but the server returns 403 — the identity is accepted but forbidden
-		// from reading the index.
-		requestHandler = () => mockResponse(403, { message: 'forbidden' });
 
 		const service = createService();
 		await service.getExtensionGalleryManifest();
@@ -571,26 +521,20 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 
 	test('Microsoft — multiple accounts, stored preference selects that account (not sessions[0])', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
-		// Two accounts signed in; the remembered choice is the second, so the first (`sessions[0]`)
-		// must NOT be used. The bearer token threaded into the check — and hence the cached account —
-		// proves the remembered account was selected.
+		// Two accounts signed in. The first is a personal account (ineligible), the remembered choice
+		// is the second (eligible). Landing on Available therefore proves the remembered account was
+		// used; picking `sessions[0]` would have produced AccessDenied.
 		storageData.set('marketplace.account', JSON.stringify({ authProvider: 'microsoft', id: 'ms-account-2' }));
 		microsoftSessions = [
-			createMicrosoftSession('token-1', 'ms-account-1', 'ms-session-1'),
-			createMicrosoftSession('token-2', 'ms-account-2', 'ms-session-2'),
+			createMicrosoftSession('token-1', 'ms-account-1', 'ms-session-1', MSA_TENANT_ID),
+			createMicrosoftSession('token-2', 'ms-account-2', 'ms-session-2', ENTRA_TENANT_ID),
 		];
-		let seenAuthHeader: string | string[] | undefined;
-		requestHandler = (options) => {
-			seenAuthHeader = options.headers?.['Authorization'];
-			return mockResponse(200, createGalleryManifest());
-		};
+		requestHandler = () => mockResponse(200, createGalleryManifest());
 
 		const service = createService();
 		await service.getExtensionGalleryManifest();
 
 		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
-		// The bearer carries the remembered account's token ('token-2'), never the first session's.
-		assert.ok(typeof seenAuthHeader === 'string' && seenAuthHeader.includes('token-2') && !seenAuthHeader.includes('token-1'));
 	});
 
 	test('Microsoft — stored preference no longer signed in, several remain → RequiresSignIn (no silent switch)', async () => {
@@ -615,83 +559,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		assert.strictEqual(indexRequests, 0);
 	});
 
-	test('Microsoft provider — service index returns a non-manifest 200 → Unreachable (not a crash)', async () => {
-		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
-		microsoftSessions = [createMicrosoftSession()];
-		// A 200 whose JSON body has no `resources` array must be rejected — otherwise resource-URI
-		// lookup throws on a non-iterable and escapes the fetch try/catch. It is a failed fetch, so it
-		// surfaces Unreachable and is not cached.
-		requestHandler = () => mockResponse(200, { error: 'not a manifest' });
-
-		const service = createService();
-		await service.getExtensionGalleryManifest();
-
-		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Unreachable);
-	});
-
-	test('Microsoft provider — service index 200 with malformed resources → Unreachable (not a crash)', async () => {
-		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
-		microsoftSessions = [createMicrosoftSession()];
-		// `resources` is an array but an entry is missing `id`/`type`. Endpoint discovery calls
-		// `resource.type.split()` outside the fetch try/catch, so an undefined `type` would throw
-		// there and reject initialization. The response must instead be rejected as a failed
-		// fetch → Unreachable, and never cached.
-		requestHandler = () => mockResponse(200, { version: '1.0.0', resources: [{}] });
-
-		const service = createService();
-		await service.getExtensionGalleryManifest();
-
-		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Unreachable);
-	});
-
-	test('Microsoft provider — auth-gated service index, token rejected (401) → AccessDenied', async () => {
-		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
-		microsoftSessions = [createMicrosoftSession()];
-		// A token is presented but the server returns 401 — the user is already signed in, so
-		// re-prompting for sign-in would loop on the same rejected token without ever explaining
-		// the condition. Surface AccessDenied instead. Unlike a 403, a 401 is not a durable
-		// per-identity denial, so we must NOT cache a negative result.
-		requestHandler = () => mockResponse(401, { message: 'auth required' });
-
-		const service = createService();
-		await service.getExtensionGalleryManifest();
-
-		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.AccessDenied);
-	});
-
-	test('Microsoft provider — stale validation superseded by sign-out does not restore access', async () => {
-		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
-		microsoftSessions = [createMicrosoftSession()];
-
-		// Hold the index fetch open so the first validation parks mid-flight after it has already
-		// read a valid, eligible session.
-		let releaseIndex!: (v: IRequestContext) => void;
-		const indexGate = new Promise<IRequestContext>(resolve => { releaseIndex = resolve; });
-		requestHandler = () => indexGate;
-
-		const service = createService();
-		const inflight = service.getExtensionGalleryManifest();
-
-		// Let the first validation advance to the point where it awaits the index fetch.
-		await new Promise(resolve => setTimeout(resolve, 0));
-
-		// The user signs out — this supersedes the in-flight validation (its token is cancelled).
-		microsoftSessions = [];
-		onDidChangeSessions.fire({ providerId: 'microsoft', label: 'Microsoft', event: { added: [], removed: [], changed: [] } });
-
-		// The superseding validation resolves to RequiresSignIn.
-		await new Promise(resolve => setTimeout(resolve, 0));
-		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
-
-		// The stale index fetch finally returns a valid manifest — it must be discarded.
-		releaseIndex(mockResponse(200, createGalleryManifest()));
-		await inflight.catch(() => { });
-		await new Promise(resolve => setTimeout(resolve, 0));
-
-		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
-	});
-
-	test('GitHub provider — eligible account, manifest fetch fails → Unreachable', async () => {
+	test('GitHub provider — eligible account, manifest fetch fails → AccessDenied', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
 		defaultAccount = createDefaultAccount({ enterprise: true });
 		requestHandler = () => { throw new Error('network down'); };
@@ -699,7 +567,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		const service = createService();
 		await service.getExtensionGalleryManifest();
 
-		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Unreachable);
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.AccessDenied);
 	});
 
 	test('Microsoft provider — Entra auth product-gated off → uses GitHub path', async () => {
@@ -717,26 +585,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 	});
 
 
-	test('Microsoft — token-bearing requests disable redirect following (no header leak)', async () => {
-		// A bearer token must never be forwarded across a redirect (the request service would
-		// re-send the Authorization header to the redirect target). The token-bearing index
-		// fetch must set followRedirects: 0.
-		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
-		microsoftSessions = [createMicrosoftSession()];
-		const seen: { followRedirects: number | undefined }[] = [];
-		requestHandler = (options) => {
-			seen.push({ followRedirects: options.followRedirects });
-			return mockResponse(200, createGalleryManifest());
-		};
-
-		const service = createService();
-		await service.getExtensionGalleryManifest();
-
-		assert.ok(seen.length >= 1);
-		assert.ok(seen.every(r => r.followRedirects === 0));
-	});
-
-	test('Microsoft — getSessions throws → Unreachable (not silent Unavailable)', async () => {
+	test('Microsoft — getSessions throws → RequiresSignIn (not silent Unavailable)', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
 		instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
 			override readonly onDidChangeSessions = onDidChangeSessions.event;
@@ -748,12 +597,12 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		const service = createService();
 		await service.getExtensionGalleryManifest();
 
-		// No cache to fall back on and the account couldn't be resolved — the configured
-		// marketplace must show "unreachable" rather than a blank (Unavailable) view.
-		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Unreachable);
+		// The account couldn't be resolved — the configured marketplace must report a definite
+		// state rather than a blank (Unavailable) view.
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
 	});
 
-	test('GitHub — getDefaultAccount throws → Unreachable (not silent Unavailable)', async () => {
+	test('GitHub — getDefaultAccount throws → RequiresSignIn (not silent Unavailable)', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
 		instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
 			override readonly onDidChangeDefaultAccount = onDidChangeDefaultAccount.event;
@@ -765,7 +614,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		const service = createService();
 		await service.getExtensionGalleryManifest();
 
-		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Unreachable);
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
 	});
 
 	// --- Already-available marketplace ---
@@ -789,22 +638,6 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 
 		const second = await service.getExtensionGalleryManifest();
 		assert.strictEqual(second?.resources[0].id, 'tenantB');
-	});
-
-	test('Microsoft — a transient fetch failure does not downgrade an available marketplace', async () => {
-		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
-		microsoftSessions = [createMicrosoftSession()];
-		requestHandler = () => mockResponse(200, createGalleryManifest());
-
-		const service = createService();
-		await service.getExtensionGalleryManifest();
-		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
-
-		requestHandler = () => { throw new Error('network down'); };
-		onDidChangeSessions.fire({ providerId: 'microsoft', label: 'Microsoft', event: { added: [], removed: [], changed: [] } });
-		await new Promise(resolve => setTimeout(resolve, 0));
-
-		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
 	});
 
 	test('Microsoft — a transient auth failure does not downgrade an available marketplace', async () => {

@@ -72,11 +72,7 @@ export const enum ExtensionGalleryManifestStatus {
 	Available = 'available',
 	RequiresSignIn = 'requiresSignIn',
 	AccessDenied = 'accessDenied',
-	Unavailable = 'unavailable',
-	/** A configured marketplace could not be reached — transient, unlike {@link Unavailable}. */
-	Unreachable = 'unreachable',
-	/** The deployment cannot work as configured — e.g. a non-HTTPS service index under Entra auth. */
-	Misconfigured = 'misconfigured'
+	Unavailable = 'unavailable'
 }
 
 export const IExtensionGalleryManifestService = createDecorator<IExtensionGalleryManifestService>('IExtensionGalleryManifestService');
