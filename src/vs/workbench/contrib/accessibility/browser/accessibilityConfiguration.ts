@@ -960,8 +960,11 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 	}
 
 	private updateConfiguration(): void {
-		if (!this.speechService.hasSpeechProvider) {
-			return; // these settings require a speech provider
+		// Text to speech is also provided by the built-in engines, which do not
+		// make a speech provider available: gating on that alone would leave
+		// reading aloud with no settings at all, including the language it reads in.
+		if (!this.speechService.hasSpeechProvider && !this.speechService.hasTextToSpeechProvider) {
+			return; // these settings require speech to be available
 		}
 
 		const languages = this.getLanguages();
@@ -994,6 +997,22 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 					'tags': ['accessibility'],
 					'enumDescriptions': languagesSorted.map(key => languages[key].name),
 					'enumItemLabels': languagesSorted.map(key => languages[key].name)
+				},
+				[AccessibilityVoiceSettingId.MaiSpeechEndpoint]: {
+					'markdownDescription': localize('voice.maiSpeechEndpoint', "The endpoint of the speech service used to read text aloud, for example `https://eastus2.tts.speech.microsoft.com`. Run `Speech: Set Up Read Aloud` to configure it together with its key, which is stored securely rather than in your settings. Note that the text being read is sent to this service."),
+					'type': 'string',
+					'default': '',
+					// Application scope so that a workspace cannot point reading aloud
+					// at another server and have the key sent there.
+					'scope': ConfigurationScope.APPLICATION,
+					'tags': ['accessibility', 'usesOnlineServices']
+				},
+				[AccessibilityVoiceSettingId.MaiVoice]: {
+					'markdownDescription': localize('voice.maiVoice', "The voice used to read text aloud, for example `en-US-Harper:MAI-Voice-2`. Leave empty to pick a voice for {0} automatically.", `\`#${AccessibilityVoiceSettingId.SpeechLanguage}#\``),
+					'type': 'string',
+					'default': '',
+					'scope': ConfigurationScope.APPLICATION,
+					'tags': ['accessibility']
 				},
 				[AccessibilityVoiceSettingId.AutoSynthesize]: {
 					'type': 'string',

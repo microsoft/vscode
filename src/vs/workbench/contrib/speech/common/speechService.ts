@@ -15,6 +15,7 @@ import { language } from '../../../../base/common/platform.js';
 export const ISpeechService = createDecorator<ISpeechService>('speechService');
 
 export const HasSpeechProvider = new RawContextKey<boolean>('hasSpeechProvider', false, { type: 'boolean', description: localize('hasSpeechProvider', "A speech provider is registered to the speech service.") });
+export const HasTextToSpeechProvider = new RawContextKey<boolean>('hasTextToSpeechProvider', false, { type: 'boolean', description: localize('hasTextToSpeechProvider', "Text-to-speech is available, either from a registered speech provider or the built-in synthesizer.") });
 export const SpeechToTextInProgress = new RawContextKey<boolean>('speechToTextInProgress', false, { type: 'boolean', description: localize('speechToTextInProgress', "A speech-to-text session is in progress.") });
 export const TextToSpeechInProgress = new RawContextKey<boolean>('textToSpeechInProgress', false, { type: 'boolean', description: localize('textToSpeechInProgress', "A text-to-speech session is in progress.") });
 
@@ -88,6 +89,36 @@ export interface ISpeechProvider {
 	createKeywordRecognitionSession(token: CancellationToken): IKeywordRecognitionSession;
 }
 
+/**
+ * A text-to-speech engine that ships with VS Code, used when no extension
+ * registered a {@link ISpeechProvider}. Unlike a speech provider this only
+ * synthesizes speech, so it must not enable speech-to-text or keyword
+ * recognition features.
+ */
+export interface IBuiltinTextToSpeechEngine {
+
+	/**
+	 * Whether this engine can run in the current environment. When `false` the
+	 * engine is ignored entirely and text-to-speech stays unavailable unless an
+	 * extension provides it.
+	 */
+	readonly isSupported: boolean;
+
+	/**
+	 * Fired when {@link isSupported} changes, for engines that only become
+	 * available once they are configured.
+	 */
+	readonly onDidChangeSupported?: Event<void>;
+
+	/**
+	 * Higher wins when more than one engine is registered, so that an on-device
+	 * model can supersede the speech synthesizer of the platform.
+	 */
+	readonly priority: number;
+
+	createTextToSpeechSession(token: CancellationToken, options?: ITextToSpeechSessionOptions): ITextToSpeechSession;
+}
+
 export interface ISpeechService {
 
 	readonly _serviceBrand: undefined;
@@ -96,7 +127,20 @@ export interface ISpeechService {
 
 	readonly hasSpeechProvider: boolean;
 
+	/**
+	 * Whether speech can be synthesized, either by a registered speech provider
+	 * or by the built-in text-to-speech engine. Prefer this over
+	 * {@link hasSpeechProvider} when gating text-to-speech only features.
+	 */
+	readonly hasTextToSpeechProvider: boolean;
+
 	registerSpeechProvider(identifier: string, provider: ISpeechProvider): IDisposable;
+
+	/**
+	 * Registers the built-in text-to-speech engine, used only when no extension
+	 * registered a speech provider.
+	 */
+	registerBuiltinTextToSpeechEngine(engine: IBuiltinTextToSpeechEngine): IDisposable;
 
 	readonly onDidStartSpeechToTextSession: Event<void>;
 	readonly onDidEndSpeechToTextSession: Event<void>;
@@ -138,6 +182,8 @@ export const enum AccessibilityVoiceSettingId {
 	SpeechTimeout = 'accessibility.voice.speechTimeout',
 	AutoSynthesize = 'accessibility.voice.autoSynthesize',
 	SpeechLanguage = 'accessibility.voice.speechLanguage',
+	MaiSpeechEndpoint = 'accessibility.voice.maiSpeechEndpoint',
+	MaiVoice = 'accessibility.voice.maiVoice',
 	IgnoreCodeBlocks = 'accessibility.voice.ignoreCodeBlocks'
 }
 

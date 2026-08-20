@@ -114,6 +114,8 @@ registerSingleton(IUserDataInitializationService, new SyncDescriptor(UserDataIni
 // Logs
 import './contrib/logs/electron-browser/logs.contribution.js';
 
+// Speech
+
 // Localizations
 import './contrib/localization/electron-browser/localization.contribution.js';
 
