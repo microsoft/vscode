@@ -272,7 +272,6 @@ suite('SearchSubagentTool', () => {
 		test('drops the line when the path is outside the workspace', async () => {
 			const { tool } = makeToolInstance(false, 4, {
 				invokeFunction: sequencedInvokeFunction(
-					() => { throw new Error('outside workspace'); },
 					{ needsConfirmation: true, realPath: undefined },
 				),
 			});
@@ -286,8 +285,8 @@ suite('SearchSubagentTool', () => {
 		test('keeps the original line when an inside-workspace path fails to open', async () => {
 			const { tool } = makeToolInstance(false, 4, {
 				invokeFunction: sequencedInvokeFunction(
-					undefined,
 					{ needsConfirmation: false, realPath: undefined },
+					undefined,
 				),
 				openTextDocument: async () => { throw new Error('file not found'); },
 			});
@@ -305,7 +304,10 @@ suite('SearchSubagentTool', () => {
 			const uri = URI.joinPath(URI.file(cwd), filePath);
 
 			const { tool } = makeToolInstance(false, 4, {
-				invokeFunction: sequencedInvokeFunction(undefined),
+				invokeFunction: sequencedInvokeFunction(
+					{ needsConfirmation: false, realPath: undefined },
+					undefined,
+				),
 				openTextDocument: async () => makeFakeDocument(uri, fileText),
 			});
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { PromptElement, PromptPiece } from '@vscode/prompt-tsx';
-import { lstat, realpath } from 'fs/promises';
+import { realpath } from 'fs/promises';
 import * as path from 'path';
 import type * as vscode from 'vscode';
 import { IChatDebugFileLoggerService } from '../../../platform/chat/common/chatDebugFileLoggerService';
@@ -163,63 +163,9 @@ export function resolveToolInputPath(path: string, promptPathRepresentationServi
 	return uri;
 }
 
-export async function isFileOkForTool(accessor: ServicesAccessor, uri: URI, buildPromptContext?: IBuildPromptContext): Promise<boolean> {
-	try {
-		await assertFileOkForTool(accessor, uri, buildPromptContext);
-		return true;
-	} catch {
-		return false;
-	}
-}
-
-export interface AssertFileOkForToolOptions {
-	readOnly?: boolean;
-	workingDirectory?: URI;
-}
-
-export async function assertFileOkForTool(accessor: ServicesAccessor, uri: URI, buildPromptContext?: IBuildPromptContext, options?: AssertFileOkForToolOptions): Promise<void> {
-	const workspaceService = accessor.get(IWorkspaceService);
-	const tabsAndEditorsService = accessor.get(ITabsAndEditorsService);
-	const promptPathRepresentationService = accessor.get(IPromptPathRepresentationService);
-	const customInstructionsService = accessor.get(ICustomInstructionsService);
-	const diskSessionResources = accessor.get(IChatDiskSessionResources);
-	const configurationService = accessor.get(IConfigurationService);
-	const chatDebugFileLogger = accessor.get(IChatDebugFileLoggerService);
-	const sessionTranscriptService = accessor.get(ISessionTranscriptService);
-
-	await assertFileNotContentExcluded(accessor, uri);
-
-	const normalizedUri = normalizePath(uri);
-	const workingDir = new WorkingDirectory(options?.workingDirectory, workspaceService);
-	if (workingDir.getFolder(normalizedUri)) {
-		return;
-	}
-	if (options?.readOnly && isUriUnderAdditionalReadAccessPaths(normalizedUri, configurationService)) {
-		return;
-	}
-	if (uri.scheme === Schemas.untitled) {
-		return;
-	}
-	const fileOpenInSomeTab = tabsAndEditorsService.tabs.some(tab => isEqual(tab.uri, uri));
-	if (fileOpenInSomeTab) {
-		return;
-	}
-	if (diskSessionResources.isSessionResourceUri(normalizedUri)) {
-		return;
-	}
-	if (chatDebugFileLogger.isDebugLogUri(normalizedUri)) {
-		return;
-	}
-	if (sessionTranscriptService.isTranscriptUri(normalizedUri)) {
-		return;
-	}
-	if (normalizedUri.scheme === 'vscode-chat-response-resource') {
-		return;
-	}
-	if (await isExternalInstructionsFile(normalizedUri, customInstructionsService, buildPromptContext)) {
-		return;
-	}
-	throw new Error(`File ${promptPathRepresentationService.getFilePath(normalizedUri)} is outside of the workspace, and not open in an editor, and can't be read`);
+interface FileExternalConfirmationOptions {
+	readonly readOnly?: boolean;
+	readonly workingDirectory?: URI;
 }
 
 async function isExternalInstructionsFile(normalizedUri: URI, customInstructionsService: ICustomInstructionsService, buildPromptContext?: IBuildPromptContext): Promise<boolean> {
@@ -274,12 +220,14 @@ function getInstructionsIndexFile(buildPromptContext: IBuildPromptContext, custo
 
 }
 
-export async function assertFileNotContentExcluded(accessor: ServicesAccessor, uri: URI): Promise<void> {
+export async function assertFileNotContentExcluded(accessor: ServicesAccessor, uri: URI, realPath?: URI): Promise<void> {
 	const ignoreService = accessor.get(IIgnoreService);
 	const promptPathRepresentationService = accessor.get(IPromptPathRepresentationService);
-
 	if (await ignoreService.isCopilotIgnored(uri)) {
 		throw new Error(`File ${promptPathRepresentationService.getFilePath(uri)} is configured to be ignored by Copilot`);
+	}
+	if (realPath && !extUriBiasedIgnorePathCase.isEqual(realPath, uri) && await ignoreService.isCopilotIgnored(realPath)) {
+		throw new Error(`File ${promptPathRepresentationService.getFilePath(realPath)} is configured to be ignored by Copilot`);
 	}
 }
 
@@ -288,7 +236,14 @@ export interface FileExternalConfirmationResult {
 	readonly realPath: URI | undefined;
 }
 
-export async function isFileExternalAndNeedsConfirmation(accessor: ServicesAccessor, uri: URI, buildPromptContext?: IBuildPromptContext, options?: { readOnly?: boolean; workingDirectory?: URI }): Promise<FileExternalConfirmationResult> {
+export async function isFileExternalAndNeedsConfirmation(accessor: ServicesAccessor, uri: URI, buildPromptContext?: IBuildPromptContext, options?: FileExternalConfirmationOptions): Promise<FileExternalConfirmationResult> {
+	const instantiationService = accessor.get(IInstantiationService);
+	return instantiationService.invokeFunction(
+		accessor => getFileExternalConfirmation(accessor, uri, buildPromptContext, options, true)
+	);
+}
+
+async function getFileExternalConfirmation(accessor: ServicesAccessor, uri: URI, buildPromptContext: IBuildPromptContext | undefined, options: FileExternalConfirmationOptions | undefined, requireExistingExternalFile: boolean): Promise<FileExternalConfirmationResult> {
 	const workspaceService = accessor.get(IWorkspaceService);
 	const tabsAndEditorsService = accessor.get(ITabsAndEditorsService);
 	const customInstructionsService = accessor.get(ICustomInstructionsService);
@@ -302,8 +257,7 @@ export async function isFileExternalAndNeedsConfirmation(accessor: ServicesAcces
 
 	const workingDir = new WorkingDirectory(options?.workingDirectory, workspaceService);
 	if (workingDir.getFolder(normalizedUri)) {
-		const realPath = await getExternalSymlinkRealPath(normalizedUri, uri => workingDir.getFolder(uri));
-		return { needsConfirmation: realPath !== undefined, realPath };
+		return getWorkspaceFileExternalConfirmation(normalizedUri, uri => workingDir.getFolder(uri));
 	}
 	if (options?.readOnly && isUriUnderAdditionalReadAccessPaths(normalizedUri, configurationService)) {
 		return { needsConfirmation: false, realPath: undefined };
@@ -327,11 +281,12 @@ export async function isFileExternalAndNeedsConfirmation(accessor: ServicesAcces
 		return { needsConfirmation: false, realPath: undefined };
 	}
 
-	// If the file doesn't exist, throw immediately rather than showing a confusing "external file"
-	// confirmation — the tool should fail with a clear "file not found" error instead.
-	const fileExists = await fileSystemService.stat(normalizedUri).then(() => true).catch(() => false);
-	if (!fileExists) {
-		throw new Error(`File ${normalizedUri.fsPath} does not exist`);
+	if (requireExistingExternalFile) {
+		// Avoid showing a confusing external-file confirmation when the tool will ultimately fail.
+		const fileExists = await fileSystemService.stat(normalizedUri).then(() => true).catch(() => false);
+		if (!fileExists) {
+			throw new Error(`File ${normalizedUri.fsPath} does not exist`);
+		}
 	}
 
 	return { needsConfirmation: true, realPath: undefined };
@@ -341,41 +296,26 @@ export async function isFileExternalAndNeedsConfirmation(accessor: ServicesAcces
  * Checks whether a symlinked file resolves outside the workspace.
  */
 export async function isExternalSymlinkedFile(uri: URI, getFolder: (uri: URI) => URI | undefined): Promise<boolean> {
-	return (await getExternalSymlinkRealPath(uri, getFolder)) !== undefined;
+	return (await getWorkspaceFileExternalConfirmation(uri, getFolder)).needsConfirmation;
 }
 
-async function getExternalSymlinkRealPath(uri: URI, getFolder: (uri: URI) => URI | undefined): Promise<URI | undefined> {
+async function getWorkspaceFileExternalConfirmation(uri: URI, getFolder: (uri: URI) => URI | undefined): Promise<FileExternalConfirmationResult> {
 	if (uri.scheme !== Schemas.file) {
-		return undefined;
+		return { needsConfirmation: false, realPath: undefined };
 	}
 
 	const workspaceFolder = getFolder(uri);
 	if (!workspaceFolder || workspaceFolder.scheme !== Schemas.file) {
-		return undefined;
+		return { needsConfirmation: false, realPath: undefined };
 	}
 
-	let current = uri.fsPath;
-	while (!isEqual(normalizePath(URI.file(current)), normalizePath(workspaceFolder))) {
-		try {
-			if ((await lstat(current)).isSymbolicLink()) {
-				const resolvedUri = normalizePath(await resolveRealPathForNonexistent(uri, workspaceFolder));
-				const resolvedWorkspaceFolder = normalizePath(URI.file(await realpath(workspaceFolder.fsPath)));
-				return extUriBiasedIgnorePathCase.isEqualOrParent(resolvedUri, resolvedWorkspaceFolder) ? undefined : resolvedUri;
-			}
-		} catch (error) {
-			if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-				throw error;
-			}
-		}
-
-		const parent = path.dirname(current);
-		if (parent === current) {
-			return undefined;
-		}
-		current = parent;
+	const resolvedUri = normalizePath(await resolveRealPathForNonexistent(uri, workspaceFolder));
+	if (extUriBiasedIgnorePathCase.isEqual(resolvedUri, uri)) {
+		return { needsConfirmation: false, realPath: undefined };
 	}
 
-	return undefined;
+	const isInsideWorkspace = getFolder(resolvedUri) !== undefined;
+	return { needsConfirmation: !isInsideWorkspace, realPath: resolvedUri };
 }
 
 /**
@@ -394,7 +334,14 @@ export async function resolveRealPathForNonexistent(resource: URI, stopAt?: URI)
 	let current = path.dirname(resource.fsPath);
 	while (true) {
 		if (stopAt && isEqual(normalizePath(URI.file(current)), normalizePath(stopAt))) {
-			return URI.file(path.join(await realpath(stopAt.fsPath), ...tail));
+			try {
+				return URI.file(path.join(await realpath(stopAt.fsPath), ...tail));
+			} catch (error) {
+				if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+					return resource;
+				}
+				throw error;
+			}
 		}
 
 		const parent = path.dirname(current);
