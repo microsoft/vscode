@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { AgentInfo, ForkSessionOptions, ForkSessionResult, GetSessionMessagesOptions, McpSdkServerConfigWithInstance, McpServerStatus, ModelInfo, Options, PermissionMode, Query, SDKControlInterruptResponse, SDKMessage, SDKSessionInfo, SDKUserMessage, SdkMcpToolDefinition, SessionMessage, SessionMutationOptions, Settings, SlashCommand, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { AccountInfo, AgentInfo, ForkSessionOptions, ForkSessionResult, GetSessionMessagesOptions, McpSdkServerConfigWithInstance, McpServerStatus, ModelInfo, Options, PermissionMode, Query, SDKControlInterruptResponse, SDKMessage, SDKSessionInfo, SDKUserMessage, SdkMcpToolDefinition, SessionMessage, SessionMutationOptions, Settings, SlashCommand, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { CCAModel } from '@vscode/copilot-api';
 
@@ -32,7 +32,6 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { join } from '../../../../base/common/path.js';
 import { generateUuid, isUUID } from '../../../../base/common/uuid.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -78,7 +77,9 @@ import { createClaudeInternalMcpServerCustomization } from '../../node/claude/cu
 import { ClaudeSessionMetadataStore } from '../../node/claude/claudeSessionMetadataStore.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { ClaudeAgentSdkService, IClaudeAgentSdkService, IClaudeSdkBindings } from '../../node/claude/claudeAgentSdkService.js';
+import { AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, readAgentSdkSetupInfos } from '../../common/agentSdkSetup.js';
 import { IAgentSdkDownloader } from '../../node/agentSdkDownloader.js';
+import { RecordingAgentSdkDownloader } from './testAgentSdkDownloader.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { IClaudeProxyCreditsReport, IClaudeProxyHandle, IClaudeProxyService } from '../../node/claude/claudeProxyService.js';
 import { resolvePromptToContentBlocks } from '../../node/claude/claudePromptResolver.js';
@@ -509,6 +510,14 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 	readonly supportedModelsOptions: Options[] = [];
 
 	/**
+	 * Programmable `accountInfo()` report. Defaults to the shape measured on a
+	 * machine with nothing configured, so a test that does not opt in gets the
+	 * honest "no account" answer; {@link NATIVE_ACCOUNT} is the opt-in.
+	 */
+	accountInfoResult: AccountInfo = { tokenSource: 'none', apiProvider: 'firstParty' };
+	accountInfoCallCount = 0;
+
+	/**
 	 * Optional gate awaited by {@link FakeQuery.supportedModels} before it
 	 * resolves. Lets a test park the native half of a merged refresh mid-flight
 	 * (the call is counted before the await, so `supportedModelsCallCount`-based
@@ -516,6 +525,13 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 	 * undefined.
 	 */
 	supportedModelsGate: Promise<void> | undefined;
+
+	/**
+	 * Programmable rejection for the native half of a merged refresh. Distinct
+	 * from a *fulfilled* empty enumeration, which is an honest "no native models";
+	 * a rejection is "we could not find out".
+	 */
+	supportedModelsRejection: Error | undefined;
 
 	/** All warm queries produced by {@link startup}. Last entry is the most recent. */
 	readonly warmQueries: FakeWarmQuery[] = [];
@@ -543,10 +559,23 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 		return this.canLoadWithoutDownloadResult;
 	}
 
-	ensureAvailableForDiscoveryCalls = 0;
-	async ensureAvailableForDiscovery(): Promise<void> {
-		this.ensureAvailableForDiscoveryCalls++;
+	ensureAvailableCalls = 0;
+	async ensureAvailable(): Promise<void> {
+		this.ensureAvailableCalls++;
+		if (this.ensureAvailableRejection) {
+			throw this.ensureAvailableRejection;
+		}
+		// Deliberately does NOT flip {@link canLoadWithoutDownloadResult}: a real
+		// fetch takes seconds, so tests stage that flip themselves when they
+		// release the gate.
+		await this.ensureAvailableGate;
 	}
+
+	/** Optional gate awaited by {@link ensureAvailable}, so a test can park a download mid-flight. */
+	ensureAvailableGate: Promise<void> | undefined;
+
+	/** Programmable failure for an explicit download (dead CDN, disk full). */
+	ensureAvailableRejection: Error | undefined;
 
 	/**
 	 * Programmable result for {@link canLoadWithoutDownload}. Defaults to
@@ -874,6 +903,9 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 	}
 	supportedModels(): Promise<ModelInfo[]> {
 		this._sdk.supportedModelsCallCount++;
+		if (this._sdk.supportedModelsRejection) {
+			return Promise.reject(this._sdk.supportedModelsRejection);
+		}
 		const gate = this._sdk.supportedModelsGate;
 		return gate ? gate.then(() => this._sdk.supportedModelsResult) : Promise.resolve(this._sdk.supportedModelsResult);
 	}
@@ -903,7 +935,10 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 			error_count: 0,
 		}) as never;
 	}
-	accountInfo(): never { throw new Error('FakeQuery: accountInfo not modeled'); }
+	accountInfo(): Promise<AccountInfo> {
+		this._sdk.accountInfoCallCount++;
+		return Promise.resolve(this._sdk.accountInfoResult);
+	}
 	rewindFiles(): never { throw new Error('FakeQuery: rewindFiles not modeled'); }
 	readFile(): never { throw new Error('FakeQuery: readFile not modeled'); }
 	seedReadState(): never { throw new Error('FakeQuery: seedReadState not modeled'); }
@@ -1059,6 +1094,7 @@ interface ITestContext {
 	readonly otelService: RecordingOTelService;
 	readonly instantiationService: IInstantiationService;
 	readonly fileService: IFileService;
+	readonly sdkDownloader: RecordingAgentSdkDownloader;
 }
 
 /**
@@ -1083,12 +1119,17 @@ class CapturingLogService extends NullLogService {
 
 function createTestContext(
 	disposables: Pick<DisposableStore, 'add'>,
-	overrides?: { logService?: ILogService; database?: TestSessionDatabase; sessionDataService?: ISessionDataService; rootConfig?: Record<string, unknown>; userHome?: URI; gitHubEndpointService?: IAgentHostGitHubEndpointService; checkpointService?: IAgentHostCheckpointService },
+	overrides?: { logService?: ILogService; database?: TestSessionDatabase; sessionDataService?: ISessionDataService; rootConfig?: Record<string, unknown>; userHome?: URI; gitHubEndpointService?: IAgentHostGitHubEndpointService; checkpointService?: IAgentHostCheckpointService; nativeAccount?: AccountInfo },
 ): ITestContext {
 	const proxy = new FakeClaudeProxyService();
 	const api = new FakeCopilotApiService();
 	api.models = async () => [...ALL_MODELS];
 	const sdk = new FakeClaudeAgentSdkService();
+	// Staged before the agent is constructed: its ctor queues the first model
+	// refresh, which is what asks for the account.
+	if (overrides?.nativeAccount) {
+		sdk.accountInfoResult = overrides.nativeAccount;
+	}
 	const sessionData = new RecordingSessionDataService(
 		overrides?.sessionDataService
 		?? (overrides?.database
@@ -1106,6 +1147,7 @@ function createTestContext(
 	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
 
 	const otelService = new RecordingOTelService();
+	const sdkDownloader = new RecordingAgentSdkDownloader();
 	const services = new ServiceCollection(
 		[IFileService, fileService],
 		[INativeEnvironmentService, { userHome: overrides?.userHome ?? URI.file('/mock-home') } as INativeEnvironmentService],
@@ -1114,6 +1156,7 @@ function createTestContext(
 		[IClaudeProxyService, proxy],
 		[ISessionDataService, sessionData],
 		[IClaudeAgentSdkService, sdk],
+		[IAgentSdkDownloader, sdkDownloader],
 		[IAgentPluginManager, new FakeAgentPluginManager()],
 		[IAgentHostGitService, createNoopGitService()],
 		[IAgentHostCheckpointService, overrides?.checkpointService ?? NULL_CHECKPOINT_SERVICE],
@@ -1167,7 +1210,7 @@ function createTestContext(
 	chats.changeAgent = (chat, nextAgent, context) => changeAgent(chat, nextAgent, toChatContext(chat, context));
 	const getMessages = chats.getMessages.bind(agent.chats);
 	chats.getMessages = (chat, context) => getMessages(chat, toChatContext(chat, context));
-	return { agent, proxy, api, sdk, sessionData, stateManager, configService, otelService, instantiationService, fileService };
+	return { agent, proxy, api, sdk, sessionData, stateManager, configService, otelService, instantiationService, fileService, sdkDownloader };
 }
 
 /** Drains the microtask queue so awaited refresh writes settle. */
@@ -1176,21 +1219,12 @@ function tick(): Promise<void> {
 }
 
 /**
- * Run `body` against a temp `$HOME/.claude/settings.json` carrying an Anthropic
- * key so {@link detectExistingClaudeSetup} reports a usable native setup, then
- * always clean the directory up. Pair with `allowSignedOutWhenUsable` to make a
- * signed-out agent resolve its model-less default to native.
+ * The SDK account report of a user signed in on their own credentials — the
+ * `claude login` / keychain case no filesystem check could ever see. Pass as
+ * `nativeAccount` to make an agent publish native models.
  */
-async function withNativeSetup(body: (userHome: URI) => Promise<void>): Promise<void> {
-	const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/claude-native-setup-`));
-	await fs.mkdir(join(userHome.fsPath, '.claude'), { recursive: true });
-	await fs.writeFile(join(userHome.fsPath, '.claude', 'settings.json'), JSON.stringify({ env: { ANTHROPIC_API_KEY: 'sk-ant-test-key' } }), 'utf8');
-	try {
-		await body(userHome);
-	} finally {
-		await fs.rm(userHome.fsPath, { recursive: true, force: true });
-	}
-}
+const NATIVE_ACCOUNT: AccountInfo = { tokenSource: 'ANTHROPIC_AUTH_TOKEN', apiProvider: 'firstParty' };
+
 
 /**
  * A two-turn source transcript (`u1`/`a1`, `u2`/`a2`) used by the Phase 6.5
@@ -1204,22 +1238,6 @@ function forkSourceMessages(sourceId: string): SessionMessage[] {
 		{ type: 'user', uuid: 'u2', session_id: sourceId, parent_tool_use_id: null, parent_agent_id: null, message: { role: 'user', content: [{ type: 'text', text: 'banana' }] } },
 		{ type: 'assistant', uuid: 'a2', session_id: sourceId, parent_tool_use_id: null, parent_agent_id: null, message: { id: 'msg_a2', role: 'assistant', content: [{ type: 'text', text: 'banana!' }] } },
 	];
-}
-
-/**
- * Stub for {@link IAgentSdkDownloader} consumed by tests that need a real
- * `ClaudeAgentSdkService` constructor but override `_loadSdk` themselves —
- * the downloader is therefore never actually called.
- */
-function stubAgentSdkDownloader(): IAgentSdkDownloader {
-	return {
-		_serviceBrand: undefined,
-		onDidDownloadProgress: Event.None,
-		acquireDownloadProgressInterest: () => toDisposable(() => { }),
-		isAvailable: () => false,
-		isSdkResolvableWithoutDownload: async () => false,
-		loadSdkRoot: () => { throw new Error('test stub: downloader.loadSdkRoot should not be called'); },
-	};
 }
 
 /**
@@ -1331,7 +1349,9 @@ suite('ClaudeAgent', () => {
 			resource_name: 'GitHub Copilot',
 			authorization_servers: ['https://github.com/login/oauth'],
 			scopes_supported: ['read:user', 'user:email'],
-			required: true,
+			// Shape check; the `required` flag itself is the subject of
+			// 'the Copilot resource is unconditionally optional […]'.
+			required: false,
 		}, {
 			resource: 'https://api.github.com/repos',
 			resource_name: 'GitHub Repository',
@@ -1390,51 +1410,48 @@ suite('ClaudeAgent', () => {
 	});
 
 	test('signed-in probe flips inferred-native to proxy (allowSignedOutWhenUsable)', async () => {
-		// The fix for the startup catch-22: with the exp flag on and a local Claude
-		// setup present, a signed-OUT user resolves to native — which still
-		// advertises the Copilot resource as not-required so the host can probe. If
-		// the host then silently forwards a GitHub token (the user was signed in all
-		// along), the acquired proxy handle re-resolves the default (rule 2: signed
-		// in ⇒ proxy) and flips the transport to proxy, starting the proxy. Real
-		// detection is used against a real `~/.claude/settings.json` credential under
-		// a temp home.
-		await withNativeSetup(async userHome => {
-			const { agent, proxy } = createTestContext(disposables, {
-				rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true },
-				userHome,
-			});
-			// Signed out at startup ⇒ native, Copilot advertised as not-required.
-			const before = {
+		// The fix for the startup catch-22: with the exp flag on and the SDK
+		// reporting a Claude account, a signed-OUT user resolves to native — which
+		// still advertises the Copilot resource as not-required so the host can
+		// probe. If the host then silently forwards a GitHub token (the user was
+		// signed in all along), the acquired proxy handle re-resolves the default
+		// (rule 2: signed in ⇒ proxy) and flips the transport to proxy, starting
+		// the proxy.
+		const { agent, proxy } = createTestContext(disposables, {
+			rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true },
+			nativeAccount: NATIVE_ACCOUNT,
+		});
+		// Signed out at startup ⇒ native, Copilot advertised as not-required.
+		const before = {
+			resources: agent.getProtectedResources().map(r => ({ resource: r.resource, required: r.required })),
+			proxyStarts: proxy.startCalls.length,
+		};
+
+		// Host probe forwards a GitHub token (user was signed in) ⇒ flip to proxy.
+		await agent.authenticate('https://api.github.com', 'gh-token');
+		await tick();
+
+		assert.deepStrictEqual({
+			before,
+			after: {
 				resources: agent.getProtectedResources().map(r => ({ resource: r.resource, required: r.required })),
 				proxyStarts: proxy.startCalls.length,
-			};
-
-			// Host probe forwards a GitHub token (user was signed in) ⇒ flip to proxy.
-			await agent.authenticate('https://api.github.com', 'gh-token');
-			await tick();
-
-			assert.deepStrictEqual({
-				before,
-				after: {
-					resources: agent.getProtectedResources().map(r => ({ resource: r.resource, required: r.required })),
-					proxyStarts: proxy.startCalls.length,
-				},
-			}, {
-				before: {
-					resources: [
-						{ resource: 'https://api.github.com', required: false },
-						{ resource: 'https://api.github.com/repos', required: false },
-					],
-					proxyStarts: 0,
-				},
-				after: {
-					resources: [
-						{ resource: 'https://api.github.com', required: false },
-						{ resource: 'https://api.github.com/repos', required: false },
-					],
-					proxyStarts: 1,
-				},
-			});
+			},
+		}, {
+			before: {
+				resources: [
+					{ resource: 'https://api.github.com', required: false },
+					{ resource: 'https://api.github.com/repos', required: false },
+				],
+				proxyStarts: 0,
+			},
+			after: {
+				resources: [
+					{ resource: 'https://api.github.com', required: false },
+					{ resource: 'https://api.github.com/repos', required: false },
+				],
+				proxyStarts: 1,
+			},
 		});
 	});
 
@@ -1463,17 +1480,52 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('keeps the last known-good models when a periodic refresh fails', async () => {
-		const { agent, api } = createTestContext(disposables);
+	test('keeps the last known-good models only when every attempted source fails', async () => {
+		// Retention is all-or-nothing across the merged catalog: a source that
+		// *answers* is authoritative for its own half. Asking the SDK on every
+		// refresh widened where that bites — a Copilot-only user used to skip the
+		// native half entirely, so a CAPI hiccup held their picker; now the native
+		// half answers "no account" and the merged write drops the stale rows.
+		const { agent, api, sdk } = createTestContext(disposables);
 		api.models = async () => [...ALL_MODELS];
 		await agent.authenticate('https://api.github.com', 'tok');
 		await agent.refreshModels();
-		const modelIds = agent.models.get().map(model => model.id);
+		const populated = agent.models.get().map(model => model.id);
 
+		// Only the proxy fails; the native half answers honestly (no account, so no
+		// models) and that answer is published.
 		api.models = async () => { throw new Error('transient failure'); };
 		await agent.refreshModels();
+		const proxyOnlyFailed = agent.models.get().map(model => model.id);
 
-		assert.deepStrictEqual(agent.models.get().map(model => model.id), modelIds);
+		// Now nothing can answer: the catalog is held rather than blanked again.
+		api.models = async () => [...ALL_MODELS];
+		await agent.refreshModels();
+		const republished = agent.models.get().map(model => model.id);
+		api.models = async () => { throw new Error('transient failure'); };
+		sdk.supportedModelsRejection = new Error('sdk subprocess died');
+		await agent.refreshModels();
+
+		assert.deepStrictEqual({
+			populated,
+			proxyOnlyFailed,
+			republished,
+			bothFailed: agent.models.get().map(model => model.id),
+		}, {
+			populated: [
+				toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-opus-4.6'),
+				toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-sonnet-4.6'),
+			],
+			proxyOnlyFailed: [],
+			republished: [
+				toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-opus-4.6'),
+				toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-sonnet-4.6'),
+			],
+			bothFailed: [
+				toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-opus-4.6'),
+				toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-sonnet-4.6'),
+			],
+		});
 	});
 
 	test('clears models when enumeration for a replacement token fails', async () => {
@@ -1499,73 +1551,64 @@ suite('ClaudeAgent', () => {
 		// superseded account to drop, and blanking would close the
 		// `allowSignedOutWhenUsable` gate mid-startup and force the sign-in dialog
 		// on a user who is already signing in.
-		const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/claude-first-signin-`));
-		await fs.mkdir(join(userHome.fsPath, '.claude'), { recursive: true });
-		await fs.writeFile(join(userHome.fsPath, '.claude', 'settings.json'), JSON.stringify({ env: { ANTHROPIC_API_KEY: 'sk-ant-test-key' } }), 'utf8');
-		try {
-			const { agent, api, sdk } = createTestContext(disposables, { userHome });
-			sdk.supportedModelsResult = [
-				{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '', supportedEffortLevels: ['high'] },
-			];
-			// The constructor's bootstrap refresh publishes native-only (no token yet).
-			for (let i = 0; i < 100 && agent.models.get().length === 0; i++) {
-				await tick();
-			}
-			const bootstrap = agent.models.get().map(model => model.name);
-
-			// Hold the CAPI enumeration open so the post-sign-in refresh is still in
-			// flight when we sample the catalog — that pending window is exactly what
-			// the renderer saw as an empty (and therefore `Unusable`) agent.
-			const gate = new DeferredPromise<void>();
-			api.models = async () => { await gate.p; return [...ALL_MODELS]; };
-			await agent.authenticate('https://api.github.com', 'tok');
-			const whileEnumerating = agent.models.get().map(model => model.name);
-
-			gate.complete();
-			await agent.refreshModels();
-
-			assert.deepStrictEqual({
-				bootstrap,
-				whileEnumerating,
-				merged: agent.models.get().map(model => model.name),
-			}, {
-				bootstrap: ['Claude Sonnet 4.5'],
-				whileEnumerating: ['Claude Sonnet 4.5'],
-				merged: ['Claude Opus 4.6', 'Claude Sonnet 4.6', 'Claude Sonnet 4.5'],
-			});
-		} finally {
-			await fs.rm(userHome.fsPath, { recursive: true, force: true });
+		const { agent, api, sdk } = createTestContext(disposables, { nativeAccount: NATIVE_ACCOUNT });
+		sdk.supportedModelsResult = [
+			{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '', supportedEffortLevels: ['high'] },
+		];
+		// The constructor's bootstrap refresh publishes native-only (no token yet).
+		for (let i = 0; i < 100 && agent.models.get().length === 0; i++) {
+			await tick();
 		}
+		const bootstrap = agent.models.get().map(model => model.name);
+
+		// Hold the CAPI enumeration open so the post-sign-in refresh is still in
+		// flight when we sample the catalog — that pending window is exactly what
+		// the renderer saw as an empty (and therefore `Unusable`) agent.
+		const gate = new DeferredPromise<void>();
+		api.models = async () => { await gate.p; return [...ALL_MODELS]; };
+		await agent.authenticate('https://api.github.com', 'tok');
+		const whileEnumerating = agent.models.get().map(model => model.name);
+
+		gate.complete();
+		await agent.refreshModels();
+
+		assert.deepStrictEqual({
+			bootstrap,
+			whileEnumerating,
+			merged: agent.models.get().map(model => model.name),
+		}, {
+			bootstrap: ['Claude Sonnet 4.5'],
+			whileEnumerating: ['Claude Sonnet 4.5'],
+			merged: ['Claude Opus 4.6', 'Claude Sonnet 4.6', 'Claude Sonnet 4.5'],
+		});
 	});
 
-	test('signed out with a local setup: models populate from supportedModels() with no proxy start and no CAPI models() call', async () => {
-		// Native enumeration only runs when a credential is actually present, so
-		// give this a real `~/.claude/settings.json` under a temp home. Signed out,
-		// so the proxy half of the merged catalog contributes nothing.
-		await withNativeSetup(async userHome => {
-			const { agent, proxy, api, sdk } = createTestContext(disposables, { userHome });
-			let capiModelsCalls = 0;
-			api.models = async () => { capiModelsCalls++; return []; };
-			sdk.supportedModelsResult = [
-				{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '', supportedEffortLevels: ['high'] },
-			];
-			// The constructor kicks off an initial native refresh; `_fetchNativeModels`
-			// awaits a real `mkdtemp` before enumerating, so poll until it lands.
-			for (let i = 0; i < 100 && sdk.supportedModelsCallCount === 0; i++) {
-				await tick();
-			}
+	test('signed out with an SDK-reported account: models populate from supportedModels() with no proxy start and no CAPI models() call', async () => {
+		// Native enumeration only publishes when the SDK's own account report says
+		// the user is set up, so hand it one. Signed out, so the proxy half of the
+		// merged catalog contributes nothing.
+		const { agent, proxy, api, sdk } = createTestContext(disposables, { nativeAccount: NATIVE_ACCOUNT });
+		let capiModelsCalls = 0;
+		api.models = async () => { capiModelsCalls++; return []; };
+		sdk.supportedModelsResult = [
+			{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '', supportedEffortLevels: ['high'] },
+		];
+		// The constructor kicks off an initial native refresh; `_fetchNativeModels`
+		// awaits a real `mkdtemp` before enumerating, so poll until it lands.
+		for (let i = 0; i < 100 && sdk.supportedModelsCallCount === 0; i++) {
 			await tick();
-			assert.deepStrictEqual({
-				models: agent.models.get().map(m => ({ id: m.id, name: m.name })),
-				proxyStarts: proxy.startCalls.length,
-				supportedModelsCalls: sdk.supportedModelsCallCount,
-				capiModelsCalls,
-			}, {
-				models: [{ id: toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929'), name: 'Claude Sonnet 4.5' }],
-				proxyStarts: 0,
-				supportedModelsCalls: 1,
-				capiModelsCalls: 0,
-			});
+		}
+		await tick();
+		assert.deepStrictEqual({
+			models: agent.models.get().map(m => ({ id: m.id, name: m.name })),
+			proxyStarts: proxy.startCalls.length,
+			supportedModelsCalls: sdk.supportedModelsCallCount,
+			capiModelsCalls,
+		}, {
+			models: [{ id: toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929'), name: 'Claude Sonnet 4.5' }],
+			proxyStarts: 0,
+			supportedModelsCalls: 1,
+			capiModelsCalls: 0,
 		});
 	});
 
@@ -1575,62 +1618,62 @@ suite('ClaudeAgent', () => {
 		// configured to use. Published next to the Copilot-routed models it reads
 		// as a third, unrelated choice whose target is invisible, so it is
 		// filtered out — the model it resolves to is already its own row.
-		await withNativeSetup(async userHome => {
-			const { agent, sdk } = createTestContext(disposables, { userHome });
-			sdk.supportedModelsResult = [
-				{ value: 'default', resolvedModel: 'claude-sonnet-4-5-20250929', displayName: 'Default (recommended)', description: '' },
-				{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '' },
-			];
-			for (let i = 0; i < 100 && sdk.supportedModelsCallCount === 0; i++) {
-				await tick();
-			}
+		const { agent, sdk } = createTestContext(disposables, { nativeAccount: NATIVE_ACCOUNT });
+		sdk.supportedModelsResult = [
+			{ value: 'default', resolvedModel: 'claude-sonnet-4-5-20250929', displayName: 'Default (recommended)', description: '' },
+			{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '' },
+		];
+		for (let i = 0; i < 100 && sdk.supportedModelsCallCount === 0; i++) {
 			await tick();
-			assert.deepStrictEqual(agent.models.get().map(m => ({ id: m.id, name: m.name })), [
-				{ id: toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929'), name: 'Claude Sonnet 4.5' },
-			]);
-		});
+		}
+		await tick();
+		assert.deepStrictEqual(agent.models.get().map(m => ({ id: m.id, name: m.name })), [
+			{ id: toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929'), name: 'Claude Sonnet 4.5' },
+		]);
 	});
 
-	test('signed out without a credential publishes an empty catalog instead of the SDK static list', async () => {
+	test('an SDK account report of "nothing configured" publishes an empty catalog instead of the SDK static list', async () => {
 		// `supportedModels()` answers even with no credentials (it is a static
 		// catalog), so publishing it would advertise models that fail on first
 		// use — and would make the type look usable-without-GitHub to the window
-		// gate. `/mock-home` has no `.claude` credential, so the native half is
-		// never attempted; signed out, neither is the proxy half.
+		// gate. The gate is `accountInfo()`, not the model list: both are asked
+		// (they are local, cheap calls against an already-present SDK) and the
+		// account report is what decides whether the models are published.
 		const { agent, sdk } = createTestContext(disposables);
 		sdk.supportedModelsResult = [
 			{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '' },
 		];
-		for (let i = 0; i < 20; i++) {
+		for (let i = 0; i < 100 && sdk.accountInfoCallCount === 0; i++) {
 			await tick();
 		}
+		await tick();
 		assert.deepStrictEqual({
 			models: agent.models.get(),
+			accountInfoCalls: sdk.accountInfoCallCount,
 			supportedModelsCalls: sdk.supportedModelsCallCount,
 		}, {
 			models: [],
-			supportedModelsCalls: 0,
+			accountInfoCalls: 1,
+			supportedModelsCalls: 1,
 		});
 	});
 
 	test('native model enumeration closes the throwaway query (no leaked subprocess)', async () => {
-		await withNativeSetup(async userHome => {
-			const { sdk } = createTestContext(disposables, { userHome });
-			sdk.supportedModelsResult = [
-				{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '' },
-			];
-			// The constructor kicks off the initial native enumeration; wait for it.
-			for (let i = 0; i < 100 && sdk.supportedModelsCallCount === 0; i++) {
-				await tick();
-			}
+		const { sdk } = createTestContext(disposables, { nativeAccount: NATIVE_ACCOUNT });
+		sdk.supportedModelsResult = [
+			{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '' },
+		];
+		// The constructor kicks off the initial native enumeration; wait for it.
+		for (let i = 0; i < 100 && sdk.supportedModelsCallCount === 0; i++) {
 			await tick();
-			assert.deepStrictEqual({
-				queries: sdk.enumerationQueries.length,
-				closed: sdk.enumerationQueries[0]?.closeCount,
-			}, {
-				queries: 1,
-				closed: 1,
-			});
+		}
+		await tick();
+		assert.deepStrictEqual({
+			queries: sdk.enumerationQueries.length,
+			closed: sdk.enumerationQueries[0]?.closeCount,
+		}, {
+			queries: 1,
+			closed: 1,
 		});
 	});
 
@@ -1640,15 +1683,13 @@ suite('ClaudeAgent', () => {
 		// so a session that later picks a Copilot-routed model has a started proxy
 		// to run against — even though the model-less default
 		// (`_defaultTransportMode`) was native right up to this call.
-		await withNativeSetup(async userHome => {
-			const { agent, proxy } = createTestContext(disposables, {
-				rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true },
-				userHome,
-			});
-			const accepted = await agent.authenticate('https://api.github.com', 'tok');
-			await tick();
-			assert.deepStrictEqual({ accepted, proxyStarts: proxy.startCalls.length }, { accepted: true, proxyStarts: 1 });
+		const { agent, proxy } = createTestContext(disposables, {
+			rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true },
+			nativeAccount: NATIVE_ACCOUNT,
 		});
+		const accepted = await agent.authenticate('https://api.github.com', 'tok');
+		await tick();
+		assert.deepStrictEqual({ accepted, proxyStarts: proxy.startCalls.length }, { accepted: true, proxyStarts: 1 });
 	});
 
 	test('a host-default transport flip no longer proactively demands auth (sign-in defers to first send)', async () => {
@@ -1658,16 +1699,14 @@ suite('ClaudeAgent', () => {
 		// `auth/required`. Sign-in for a Copilot-routed model defers to the first
 		// send, where `_ensureAuthenticated` throws `AHP_AUTH_REQUIRED`. Signing in
 		// is the surviving runtime flip lever (native default → proxy default).
-		await withNativeSetup(async userHome => {
-			const { agent } = createTestContext(disposables, {
-				rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true },
-				userHome,
-			});
-			await agent.authenticate('https://api.github.com', 'tok');
-			await tick();
-
-			assert.strictEqual((agent as IAgent).authenticationRequired, undefined);
+		const { agent } = createTestContext(disposables, {
+			rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true },
+			nativeAccount: NATIVE_ACCOUNT,
 		});
+		await agent.authenticate('https://api.github.com', 'tok');
+		await tick();
+
+		assert.strictEqual((agent as IAgent).authenticationRequired, undefined);
 	});
 
 	test('construction in proxy mode does not emit auth/required', async () => {
@@ -2007,6 +2046,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeProxyService, proxy],
 			[ISessionDataService, createNullSessionDataService()],
 			[IClaudeAgentSdkService, new FakeClaudeAgentSdkService()],
+			[IAgentSdkDownloader, new RecordingAgentSdkDownloader()],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IAgentHostGitService, createNoopGitService()],
 			[IProductService, FakeProductService],
@@ -2081,6 +2121,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeProxyService, proxy],
 			[ISessionDataService, createNullSessionDataService()],
 			[IClaudeAgentSdkService, new FakeClaudeAgentSdkService()],
+			[IAgentSdkDownloader, new RecordingAgentSdkDownloader()],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IProductService, FakeProductService],
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
@@ -2152,6 +2193,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeProxyService, proxy],
 			[ISessionDataService, createNullSessionDataService()],
 			[IClaudeAgentSdkService, new FakeClaudeAgentSdkService()],
+			[IAgentSdkDownloader, new RecordingAgentSdkDownloader()],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IProductService, FakeProductService],
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
@@ -4188,6 +4230,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeProxyService, proxy],
 			[ISessionDataService, sessionData],
 			[IClaudeAgentSdkService, sdk],
+			[IAgentSdkDownloader, new RecordingAgentSdkDownloader()],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IAgentHostGitService, createNoopGitService()],
 			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
@@ -4894,7 +4937,6 @@ suite('ClaudeAgent', () => {
 			},
 		};
 		const sdk = new FakeClaudeAgentSdkService();
-		sdk.canLoadWithoutDownloadResult = false;
 		sdk.sessionList = [
 			{ sessionId: 'a', summary: 'Session A', lastModified: 1000, createdAt: 900 },
 			{ sessionId: 'b', summary: 'Session B', lastModified: 2000, createdAt: 1900 },
@@ -4908,6 +4950,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeProxyService, new FakeClaudeProxyService()],
 			[ISessionDataService, sessionData],
 			[IClaudeAgentSdkService, sdk],
+			[IAgentSdkDownloader, new RecordingAgentSdkDownloader()],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IProductService, FakeProductService],
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
@@ -4930,7 +4973,7 @@ suite('ClaudeAgent', () => {
 			modifiedA: a?.modifiedTime,
 			modifiedB: b?.modifiedTime,
 			sdkCalls: sdk.listSessionsCallCount,
-			availabilityRequests: sdk.ensureAvailableForDiscoveryCalls,
+			availabilityRequests: sdk.ensureAvailableCalls,
 			migrationChats: chatsToMigrate?.map(r => sessionIdOfChat(r.chat)),
 		}, {
 			count: 3,
@@ -4940,7 +4983,7 @@ suite('ClaudeAgent', () => {
 			modifiedA: 1000,
 			modifiedB: 2000,
 			sdkCalls: 2,
-			availabilityRequests: 1,
+			availabilityRequests: 0,
 			migrationChats: ['a'],
 		});
 
@@ -5019,6 +5062,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeProxyService, new FakeClaudeProxyService()],
 			[ISessionDataService, sessionData],
 			[IClaudeAgentSdkService, sdk],
+			[IAgentSdkDownloader, new RecordingAgentSdkDownloader()],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IProductService, FakeProductService],
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
@@ -5061,6 +5105,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeProxyService, new FakeClaudeProxyService()],
 			[ISessionDataService, createNullSessionDataService()],
 			[IClaudeAgentSdkService, sdk],
+			[IAgentSdkDownloader, new RecordingAgentSdkDownloader()],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IProductService, FakeProductService],
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
@@ -5110,6 +5155,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeProxyService, new FakeClaudeProxyService()],
 			[ISessionDataService, sessionData],
 			[IClaudeAgentSdkService, sdk],
+			[IAgentSdkDownloader, new RecordingAgentSdkDownloader()],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IProductService, FakeProductService],
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
@@ -5184,7 +5230,7 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('restore reads defer while cold discovery requests SDK availability', async () => {
+	test('neither restore nor cold discovery pulls the SDK down', async () => {
 		// Regression: when a materialized Claude session is restored on
 		// startup (the renderer subscribes to the last-active session), the
 		// host's restore path calls `getChatMetadata` -> `getSessionInfo`
@@ -5192,8 +5238,8 @@ suite('ClaudeAgent', () => {
 		// Before the fix that eagerly triggered a cold SDK download (with no
 		// progress interest registered, so no notification) purely from
 		// preselecting/restoring Claude — the download must only start on the
-		// first user message. Discovery is different: it requests background SDK
-		// availability so native chats are retried without a new session.
+		// first user message. Discovery used to be exempt and fetch in the
+		// background; it no longer is, since the download is the user's call.
 		const sdk = new FakeClaudeAgentSdkService();
 		sdk.canLoadWithoutDownloadResult = false;
 		sdk.sessionList = [
@@ -5208,6 +5254,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeProxyService, new FakeClaudeProxyService()],
 			[ISessionDataService, createNullSessionDataService()],
 			[IClaudeAgentSdkService, sdk],
+			[IAgentSdkDownloader, new RecordingAgentSdkDownloader()],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IProductService, FakeProductService],
 		);
@@ -5226,19 +5273,19 @@ suite('ClaudeAgent', () => {
 		assert.deepStrictEqual({
 			metadata,
 			messages,
-			// Restore must never touch the SDK. Discovery alone asks the SDK
-			// service to begin availability work.
+			// Nothing reachable from restore or discovery may touch the SDK
+			// while it is absent, whether to read it or to fetch it.
 			getSessionInfoCalls: sdk.getSessionInfoCalls,
 			getSessionMessagesCalls: sdk.getSessionMessagesCalls,
-			availabilityRequests: sdk.ensureAvailableForDiscoveryCalls,
+			availabilityRequests: sdk.ensureAvailableCalls,
 			discoveredChats,
 		}, {
 			metadata: undefined,
 			messages: [],
 			getSessionInfoCalls: [],
 			getSessionMessagesCalls: [],
-			availabilityRequests: 1,
-			discoveredChats: [1],
+			availabilityRequests: 0,
+			discoveredChats: [],
 		});
 	});
 
@@ -5307,7 +5354,7 @@ suite('ClaudeAgent', () => {
 
 		const services = new ServiceCollection(
 			[ILogService, new RecordingLogService()],
-			[IAgentSdkDownloader, stubAgentSdkDownloader()],
+			[IAgentSdkDownloader, new RecordingAgentSdkDownloader(false)],
 		);
 		const inst = disposables.add(new InstantiationService(services));
 		const svc = inst.createInstance(TestableClaudeAgentSdkService);
@@ -5394,7 +5441,7 @@ suite('ClaudeAgent', () => {
 
 		const inst = disposables.add(new InstantiationService(new ServiceCollection(
 			[ILogService, new NullLogService()],
-			[IAgentSdkDownloader, stubAgentSdkDownloader()],
+			[IAgentSdkDownloader, new RecordingAgentSdkDownloader(false)],
 		)));
 		const svc = inst.createInstance(TestableClaudeAgentSdkService);
 
@@ -5505,6 +5552,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeProxyService, new RecordingProxyService()],
 			[ISessionDataService, createNullSessionDataService()],
 			[IClaudeAgentSdkService, new FakeClaudeAgentSdkService()],
+			[IAgentSdkDownloader, new RecordingAgentSdkDownloader()],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IAgentHostGitService, createNoopGitService()],
 			[IProductService, FakeProductService],
@@ -5560,6 +5608,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeProxyService, proxy],
 			[ISessionDataService, sessionData],
 			[IClaudeAgentSdkService, sdk],
+			[IAgentSdkDownloader, new RecordingAgentSdkDownloader()],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IAgentHostGitService, createNoopGitService()],
 			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
@@ -6011,6 +6060,171 @@ suite('ClaudeAgent', () => {
 	// #endregion
 });
 
+suite('ClaudeAgent — agent SDK setup channel', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	/** What the workbench would read off root state right now. */
+	function readSetup(ctx: ITestContext) {
+		return readAgentSdkSetupInfos(ctx.stateManager.rootState).find(setup => setup.agent === 'claude');
+	}
+
+	/** Addresses a download request at an agent the way `IAgentSdkSetupService` does. */
+	function dispatchDownload(ctx: ITestContext, agent = 'claude', request = 'req-1'): void {
+		ctx.configService.updateRootConfig({ [AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY]: { agent, request } });
+	}
+
+	/** Waits for the ctor's queued publish (and any refresh it chains) to settle. */
+	async function settle(): Promise<void> {
+		for (let i = 0; i < 20; i++) {
+			await tick();
+		}
+	}
+
+	test('an SDK already on disk publishes `ready` plus the docs URL the banner links to', async () => {
+		const ctx = createTestContext(disposables);
+		await settle();
+
+		assert.deepStrictEqual(readSetup(ctx), {
+			agent: 'claude',
+			download: 'ready',
+			setupDocsUrl: 'https://docs.claude.com/en/docs/claude-code/setup',
+			// No in-app sign-in: every Claude credential is established outside the
+			// app, so the banner can only point at the docs.
+			signInProviderName: undefined,
+		});
+	});
+
+	test('a cold cache publishes `notDownloaded`, which is what turns the banner into an offer', async () => {
+		const ctx = createTestContext(disposables);
+		ctx.sdk.canLoadWithoutDownloadResult = false;
+		await ctx.agent.refreshModels();
+		await settle();
+
+		assert.strictEqual(readSetup(ctx)?.download, 'notDownloaded');
+	});
+
+	test('an explicit download fetches the SDK, holds progress interest for the fetch, and ends at `ready`', async () => {
+		const ctx = createTestContext(disposables);
+		ctx.sdk.canLoadWithoutDownloadResult = false;
+		let releaseDownload = () => { };
+		ctx.sdk.ensureAvailableGate = new Promise<void>(resolve => {
+			// Releasing the gate is the moment the SDK lands on disk.
+			releaseDownload = () => { ctx.sdk.canLoadWithoutDownloadResult = true; resolve(); };
+		});
+		await ctx.agent.refreshModels();
+		await settle();
+
+		dispatchDownload(ctx);
+		await settle();
+		const inFlight = {
+			download: readSetup(ctx)?.download,
+			interests: [...ctx.sdkDownloader.progressInterests],
+			held: ctx.sdkDownloader.heldProgressInterests,
+			fetches: ctx.sdk.ensureAvailableCalls,
+		};
+
+		releaseDownload();
+		await settle();
+
+		assert.deepStrictEqual({ inFlight, after: readSetup(ctx)?.download, held: ctx.sdkDownloader.heldProgressInterests }, {
+			inFlight: { download: 'downloading', interests: ['claude'], held: 1, fetches: 1 },
+			after: 'ready',
+			held: 0,
+		});
+	});
+
+	test('the request key is cleared as it is consumed, so an identical later press still lands', async () => {
+		const ctx = createTestContext(disposables);
+		ctx.sdk.canLoadWithoutDownloadResult = false;
+		await ctx.agent.refreshModels();
+		await settle();
+
+		dispatchDownload(ctx, 'claude', 'press-1');
+		await settle();
+		const consumed = ctx.configService.getRootConfigValues()[AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY];
+
+		dispatchDownload(ctx, 'claude', 'press-2');
+		await settle();
+
+		assert.deepStrictEqual({ consumed, fetches: ctx.sdk.ensureAvailableCalls }, { consumed: undefined, fetches: 2 });
+	});
+
+	test('a request addressed to another agent is ignored', async () => {
+		const ctx = createTestContext(disposables);
+		ctx.sdk.canLoadWithoutDownloadResult = false;
+		await ctx.agent.refreshModels();
+		await settle();
+
+		dispatchDownload(ctx, 'codex');
+		await settle();
+
+		assert.deepStrictEqual({
+			fetches: ctx.sdk.ensureAvailableCalls,
+			// Left in place for the agent it names, rather than consumed by this one.
+			key: ctx.configService.getRootConfigValues()[AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY],
+		}, {
+			fetches: 0,
+			key: { agent: 'codex', request: 'req-1' },
+		});
+	});
+
+	test('a failed download releases the progress interest and stops claiming to be downloading', async () => {
+		const ctx = createTestContext(disposables);
+		ctx.sdk.canLoadWithoutDownloadResult = false;
+		ctx.sdk.ensureAvailableRejection = new Error('CDN unreachable');
+		await ctx.agent.refreshModels();
+		await settle();
+
+		dispatchDownload(ctx);
+		await settle();
+
+		assert.deepStrictEqual({
+			download: readSetup(ctx)?.download,
+			held: ctx.sdkDownloader.heldProgressInterests,
+		}, {
+			download: 'notDownloaded',
+			held: 0,
+		});
+	});
+
+	test('chat discovery waits for the SDK rather than fetching it, and runs again once it lands', async () => {
+		// The catalog of migratable Claude Code chats lives inside the SDK, so
+		// discovery used to fetch one at startup — hundreds of megabytes for a
+		// user still being asked whether they want it.
+		const ctx = createTestContext(disposables);
+		ctx.sdk.canLoadWithoutDownloadResult = false;
+		ctx.sdk.sessionList = [{ sessionId: 'from-claude-code', summary: 'An existing chat', lastModified: 1000, createdAt: 900 }];
+		// Subscribing is what starts discovery.
+		const discovered: number[] = [];
+		disposables.add(ctx.agent.onDidDiscoverChats(chats => discovered.push(chats.length)));
+		await settle();
+		const cold = {
+			discovered: [...discovered],
+			// `undefined` is "ask again later", as distinct from "nothing to migrate".
+			migratable: await ctx.agent.listChatsToMigrate(),
+			fetches: ctx.sdk.ensureAvailableCalls,
+		};
+
+		let landed = () => { };
+		ctx.sdk.ensureAvailableGate = new Promise<void>(resolve => {
+			landed = () => { ctx.sdk.canLoadWithoutDownloadResult = true; resolve(); };
+		});
+		dispatchDownload(ctx);
+		await settle();
+		const inFlight = [...discovered];
+
+		landed();
+		await settle();
+
+		assert.deepStrictEqual({ cold, inFlight, after: discovered, migratable: await ctx.agent.listChatsToMigrate() }, {
+			cold: { discovered: [], migratable: undefined, fetches: 0 },
+			inFlight: [],
+			after: [1],
+			migratable: [],
+		});
+	});
+});
+
 suite('ClaudeAgent — per-session provider', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -6202,56 +6416,59 @@ suite('ClaudeAgent — per-session provider', () => {
 		// the host-global default flips underneath it. Otherwise signing into
 		// Copilot mid-conversation would silently drag a running native
 		// (BYO-Anthropic) session onto the proxy on its next rebind.
-		await withNativeSetup(async userHome => {
-			const ctx = createTestContext(disposables, {
-				rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true },
-				userHome,
-			});
+		const ctx = createTestContext(disposables, {
+			rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true },
+			nativeAccount: NATIVE_ACCOUNT,
+		});
+		// The host default only becomes native once the SDK has been *asked* about
+		// the account — that answer is what `_defaultTransportMode` reads. Await a
+		// full refresh, or this materializes on the proxy default and throws
+		// `AHP_AUTH_REQUIRED` while signed out.
+		await ctx.agent.refreshModels();
 
-			// Materialize a native session while signed out: turn-1 starts the
-			// subprocess (system_init) then crashes mid-stream, leaving it needing a
-			// warm rebind on the next send.
-			const created = await createSession(ctx.agent, { workingDirectories: [URI.file('/workspace')], model: { id: 'claude-sonnet-4-5-20250929' } });
-			const sid = created.sdkSessionId;
-			ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sid)];
-			ctx.sdk.queryAdvance = async (i: number) => { if (i === 1) { throw new Error('subprocess crashed'); } };
-			await assert.rejects(
-				ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session))),
-				(err: Error) => err.message.includes('subprocess crashed'),
-			);
-			ctx.sdk.queryAdvance = undefined;
+		// Materialize a native session while signed out: turn-1 starts the
+		// subprocess (system_init) then crashes mid-stream, leaving it needing a
+		// warm rebind on the next send.
+		const created = await createSession(ctx.agent, { workingDirectories: [URI.file('/workspace')], model: { id: 'claude-sonnet-4-5-20250929' } });
+		const sid = created.sdkSessionId;
+		ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sid)];
+		ctx.sdk.queryAdvance = async (i: number) => { if (i === 1) { throw new Error('subprocess crashed'); } };
+		await assert.rejects(
+			ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session))),
+			(err: Error) => err.message.includes('subprocess crashed'),
+		);
+		ctx.sdk.queryAdvance = undefined;
 
-			// Sign into Copilot: this flips the host default native→proxy and
-			// acquires a proxy handle.
-			await ctx.agent.authenticate('https://api.github.com', 'tok');
-			await tick();
+		// Sign into Copilot: this flips the host default native→proxy and
+		// acquires a proxy handle.
+		await ctx.agent.authenticate('https://api.github.com', 'tok');
+		await tick();
 
-			// Positive control that the flip is live: a brand-new session now
-			// materializes on the proxy (carrying the per-session bearer token).
-			const fresh = await createSession(ctx.agent, { workingDirectories: [URI.file('/fresh')], model: { id: 'claude-opus-4.6' } });
-			const freshSid = fresh.sdkSessionId;
-			ctx.sdk.nextQueryMessages = [makeSystemInitMessage(freshSid), makeResultSuccess(freshSid)];
-			await ctx.agent.chats.sendMessage(defaultChatUri(fresh.session), 'hi', undefined, undefined, 'fresh-1', undefined, undefined, chatContext(defaultChatUri(fresh.session)));
+		// Positive control that the flip is live: a brand-new session now
+		// materializes on the proxy (carrying the per-session bearer token).
+		const fresh = await createSession(ctx.agent, { workingDirectories: [URI.file('/fresh')], model: { id: 'claude-opus-4.6' } });
+		const freshSid = fresh.sdkSessionId;
+		ctx.sdk.nextQueryMessages = [makeSystemInitMessage(freshSid), makeResultSuccess(freshSid)];
+		await ctx.agent.chats.sendMessage(defaultChatUri(fresh.session), 'hi', undefined, undefined, 'fresh-1', undefined, undefined, chatContext(defaultChatUri(fresh.session)));
 
-			// Recover the ORIGINAL session: the next send warm-rebuilds it (resume),
-			// and that rebuild must stay native despite the flipped host default.
-			ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sid), makeResultSuccess(sid)];
-			await ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'recover', undefined, undefined, 'turn-2', undefined, undefined, chatContext(defaultChatUri(created.session)));
+		// Recover the ORIGINAL session: the next send warm-rebuilds it (resume),
+		// and that rebuild must stay native despite the flipped host default.
+		ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sid), makeResultSuccess(sid)];
+		await ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'recover', undefined, undefined, 'turn-2', undefined, undefined, chatContext(defaultChatUri(created.session)));
 
-			assert.deepStrictEqual({
-				originalMaterializeNative: proxyAuthTokenOf(ctx.sdk.capturedStartupOptions[0]) === undefined,
-				freshSessionProxy: proxyAuthTokenOf(ctx.sdk.capturedStartupOptions[1]) !== undefined,
-				rebuild: {
-					resume: ctx.sdk.capturedStartupOptions[2]?.resume,
-					stayedNative: proxyAuthTokenOf(ctx.sdk.capturedStartupOptions[2]) === undefined,
-				},
-				totalStartups: ctx.sdk.startupCallCount,
-			}, {
-				originalMaterializeNative: true,
-				freshSessionProxy: true,
-				rebuild: { resume: sid, stayedNative: true },
-				totalStartups: 3,
-			});
+		assert.deepStrictEqual({
+			originalMaterializeNative: proxyAuthTokenOf(ctx.sdk.capturedStartupOptions[0]) === undefined,
+			freshSessionProxy: proxyAuthTokenOf(ctx.sdk.capturedStartupOptions[1]) !== undefined,
+			rebuild: {
+				resume: ctx.sdk.capturedStartupOptions[2]?.resume,
+				stayedNative: proxyAuthTokenOf(ctx.sdk.capturedStartupOptions[2]) === undefined,
+			},
+			totalStartups: ctx.sdk.startupCallCount,
+		}, {
+			originalMaterializeNative: true,
+			freshSessionProxy: true,
+			rebuild: { resume: sid, stayedNative: true },
+			totalStartups: 3,
 		});
 	});
 
@@ -6283,63 +6500,73 @@ suite('ClaudeAgent — per-session provider', () => {
 		});
 	});
 
-	test('the Copilot resource is optional only when the opt-in AND a BYO-Anthropic credential are both present', async () => {
-		// Full 2x2 so no single input can carry the result on its own: in
-		// particular `optInOnNoCredential` is the regression this guards — the
-		// requirement must survive the opt-in being on when the user has no
-		// Anthropic credential to run on.
-		const copilotRequired = (agent: ClaudeAgent) =>
-			agent.getProtectedResources().find(r => r.resource === 'https://api.github.com')?.required;
-		const optIn = { rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true } };
-		await withNativeSetup(async userHome => {
-			assert.deepStrictEqual({
-				optInOnNoCredential: copilotRequired(createTestContext(disposables, { ...optIn }).agent),
-				optInOnWithCredential: copilotRequired(createTestContext(disposables, { ...optIn, userHome }).agent),
-				optInOffWithCredential: copilotRequired(createTestContext(disposables, { userHome }).agent),
-				optInOffNoCredential: copilotRequired(createTestContext(disposables).agent),
-			}, {
-				optInOnNoCredential: true,
-				optInOnWithCredential: false,
-				optInOffWithCredential: true,
-				optInOffNoCredential: true,
+	test('the Copilot resource is unconditionally optional, whatever the opt-in or the SDK account report says', async () => {
+		// The load-bearing assertion of the whole feature. `required: false` is what
+		// stops `resolveAgentAuthRequirement` answering `GitHub` for this session
+		// type; when *every* type answers `GitHub`, `resolveSignedOutWindowGate`
+		// puts a non-dismissible sign-in wall over the entire Agents window.
+		//
+		// The full 2x2 is asserted because the behavior it replaces was a 2x2 with
+		// three `true`s in it: neither the opt-in nor the account report may bring
+		// the requirement back. Even with no Claude account the type reads as
+		// `Unusable` rather than `GitHub`, which is what opens the window. The flag
+		// is absent by design — it gates this one level up, in
+		// `resolveSignedOutWindowGate`.
+		const advertisedRequirement = async (inputs: { optIn: boolean; account: boolean }) => {
+			const { agent } = createTestContext(disposables, {
+				...(inputs.optIn ? { rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true } } : {}),
+				...(inputs.account ? { nativeAccount: NATIVE_ACCOUNT } : {}),
 			});
+			// Let the account probe land. The old answer keyed on exactly this fact,
+			// so without the wait both halves of the matrix would be asserting the
+			// same pre-probe state and the test would pass vacuously.
+			await agent.refreshModels();
+			return agent.getProtectedResources().find(r => r.resource === 'https://api.github.com')?.required;
+		};
+
+		assert.deepStrictEqual({
+			optInOnWithAccount: await advertisedRequirement({ optIn: true, account: true }),
+			optInOffWithAccount: await advertisedRequirement({ optIn: false, account: true }),
+			optInOnNoAccount: await advertisedRequirement({ optIn: true, account: false }),
+			optInOffNoAccount: await advertisedRequirement({ optIn: false, account: false }),
+		}, {
+			optInOnWithAccount: false,
+			optInOffWithAccount: false,
+			optInOnNoAccount: false,
+			optInOffNoAccount: false,
 		});
 	});
 
 	test('the Copilot resource is advertised, never dropped, so the silent token probe survives', async () => {
 		// `authenticateProtectedResources` matches on `resource` and ignores
 		// `required`, so dropping it would break sign-in forwarding.
-		await withNativeSetup(async userHome => {
-			const optional = createTestContext(disposables, {
-				rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true },
-				userHome,
-			}).agent.getProtectedResources();
-			assert.deepStrictEqual(optional.map(r => ({ resource: r.resource, required: r.required })), [
-				{ resource: 'https://api.github.com', required: false },
-				{ resource: 'https://api.github.com/repos', required: false },
-			]);
-		});
+		const optional = createTestContext(disposables, {
+			rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true },
+			nativeAccount: NATIVE_ACCOUNT,
+		}).agent.getProtectedResources();
+		assert.deepStrictEqual(optional.map(r => ({ resource: r.resource, required: r.required })), [
+			{ resource: 'https://api.github.com', required: false },
+			{ resource: 'https://api.github.com/repos', required: false },
+		]);
 	});
 
 	test('merged catalog lists both providers, each id provider-qualified', async () => {
-		await withNativeSetup(async userHome => {
-			const { agent, api, sdk } = createTestContext(disposables, { userHome });
-			api.models = async () => [CLAUDE_OPUS];
-			sdk.supportedModelsResult = [
-				{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '' },
-			];
-			await agent.authenticate('https://api.github.com', 'tok');
-			await agent.refreshModels();
-			await tick();
+		const { agent, api, sdk } = createTestContext(disposables, { nativeAccount: NATIVE_ACCOUNT });
+		api.models = async () => [CLAUDE_OPUS];
+		sdk.supportedModelsResult = [
+			{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '' },
+		];
+		await agent.authenticate('https://api.github.com', 'tok');
+		await agent.refreshModels();
+		await tick();
 
-			// Proxy first (preserves `models[0]`-is-default), then native; each id is
-			// rewritten to its provider-qualified form so the picked row carries its
-			// transport.
-			assert.deepStrictEqual(agent.models.get().map(m => ({ id: m.id, name: m.name })), [
-				{ id: toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-opus-4.6'), name: 'Claude Opus 4.6' },
-				{ id: toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929'), name: 'Claude Sonnet 4.5' },
-			]);
-		});
+		// Proxy first (preserves `models[0]`-is-default), then native; each id is
+		// rewritten to its provider-qualified form so the picked row carries its
+		// transport.
+		assert.deepStrictEqual(agent.models.get().map(m => ({ id: m.id, name: m.name })), [
+			{ id: toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-opus-4.6'), name: 'Claude Opus 4.6' },
+			{ id: toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929'), name: 'Claude Sonnet 4.5' },
+		]);
 	});
 
 	test('per-session transport gates on the picked model, not a global mode', async () => {
@@ -6402,23 +6629,21 @@ suite('ClaudeAgent — per-session provider', () => {
 		// unconditionally — a signed-out window with a native setup has no GitHub
 		// token to trigger a proxy refresh, so without this it would never populate
 		// its picker and dead-end. No `authenticate`, no explicit `refreshModels`.
-		await withNativeSetup(async userHome => {
-			const { agent, sdk } = createTestContext(disposables, { userHome });
-			sdk.supportedModelsResult = [
-				{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '' },
-			];
-			// The constructor kicks off the initial merged enumeration; wait for it.
-			for (let i = 0; i < 100 && sdk.supportedModelsCallCount === 0; i++) {
-				await tick();
-			}
+		const { agent, sdk } = createTestContext(disposables, { nativeAccount: NATIVE_ACCOUNT });
+		sdk.supportedModelsResult = [
+			{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '' },
+		];
+		// The constructor kicks off the initial merged enumeration; wait for it.
+		for (let i = 0; i < 100 && sdk.supportedModelsCallCount === 0; i++) {
 			await tick();
+		}
+		await tick();
 
-			// Signed out → the proxy half contributes nothing; only the native
-			// models appear, provider-qualified.
-			assert.deepStrictEqual(agent.models.get().map(m => m.id), [
-				toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929'),
-			]);
-		});
+		// Signed out → the proxy half contributes nothing; only the native
+		// models appear, provider-qualified.
+		assert.deepStrictEqual(agent.models.get().map(m => m.id), [
+			toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929'),
+		]);
 	});
 
 	test('a failing proxy start does not fail sign-in', async () => {
@@ -6520,6 +6745,7 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 			[ICopilotApiService, new FakeCopilotApiService()],
 			[IAgentHostAuthenticationService, disposables.add(new FakeAgentHostAuthenticationService())],
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
+			[IAgentSdkDownloader, new RecordingAgentSdkDownloader()],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[ISessionDataService, sessionData],
 		);
@@ -8123,6 +8349,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
 
 		const otelService = new RecordingOTelService();
+		const sdkDownloader = new RecordingAgentSdkDownloader();
 		const services = new ServiceCollection(
 			[IFileService, fileService],
 			[INativeEnvironmentService, { userHome: URI.file('/mock-home') } as INativeEnvironmentService],
@@ -8131,6 +8358,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			[IClaudeProxyService, proxy],
 			[ISessionDataService, sessionData],
 			[IClaudeAgentSdkService, sdk],
+			[IAgentSdkDownloader, sdkDownloader],
 			[IAgentPluginManager, pluginManager],
 			[IAgentHostGitService, createNoopGitService()],
 			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
@@ -8176,7 +8404,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 				?? (chat.scheme === 'ahp-chat' ? URI.parse(parseRequiredSessionUriFromChatUri(chat.toString())) : chat);
 			return sendMessage(chat, prompt, workingDirectoriesOrDirectory, attachments, turnId, senderClientId, clientType, { ...createAgentChatContext(stateManager, session, chat), ...explicit });
 		};
-		return { agent, proxy, api, sdk, sessionData, stateManager, configService, otelService, instantiationService, fileService };
+		return { agent, proxy, api, sdk, sessionData, stateManager, configService, otelService, instantiationService, fileService, sdkDownloader };
 	}
 
 	function publishReducerCustomizations(stateManager: AgentHostStateManager, session: URI, customizations: readonly Customization[]): void {
