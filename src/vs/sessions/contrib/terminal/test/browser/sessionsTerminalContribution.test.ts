@@ -511,7 +511,7 @@ suite('SessionsTerminalContribution', () => {
 
 		activeSessionObs.set(session, undefined);
 		await tick();
-		assert.deepStrictEqual(createdTerminals, []);
+		assert.strictEqual(createdTerminals.length, 0);
 
 		session.worktreePending.set(false, undefined);
 		await tick();
