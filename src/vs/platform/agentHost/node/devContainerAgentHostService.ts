@@ -9,6 +9,8 @@ import { Duplex } from 'stream';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
+import { FileAccess } from '../../../base/common/network.js';
+import { join } from '../../../base/common/path.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { vLiteral, vObj, vString } from '../../../base/common/validation.js';
 import { localize } from '../../../nls.js';
@@ -22,6 +24,7 @@ import { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDev
 import { IRelayMessage } from '../common/relayTransport.js';
 import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
 import type { AgentHostEndpointAddress } from '../common/agentHostEndpointRegistry.js';
+import { getAppNodeModulesPath } from './appNodeModules.js';
 import {
 	buildAgentHostSpawnCommand,
 	buildAgentRelayCommand,
@@ -86,6 +89,9 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 	private readonly _onDidCloseConnection = this._register(new Emitter<string>());
 	readonly onDidCloseConnection = this._onDidCloseConnection.event;
 
+	private readonly _onDidOutput = this._register(new Emitter<{ readonly connectionId: string; readonly data: string }>());
+	readonly onDidOutput = this._onDidOutput.event;
+
 	private readonly _connections = this._register(new DisposableMap<string, IDevContainerRelay>());
 	private readonly _connectionStores = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly _connectionTokenSources = new Map<string, CancellationTokenSource>();
@@ -113,6 +119,7 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 		try {
 			this._logService.info(`${LOG_PREFIX} Starting Dev Container for ${config.workspaceFolder}`);
 			const up = await this._runDevContainer(
+				config.connectionId,
 				['up', '--workspace-folder', config.workspaceFolder],
 				tokenSource.token,
 			);
@@ -121,7 +128,7 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 				throw new Error(localize('devContainerAgentHost.invalidUpResult', "Dev Container CLI returned an invalid result: {0}", up.stdout.trim() || up.stderr.trim()));
 			}
 
-			const exec = this._createExec(config.workspaceFolder, tokenSource.token);
+			const exec = this._createExec(config.connectionId, config.workspaceFolder, tokenSource.token);
 			const [{ stdout: unameS }, { stdout: unameM }] = await Promise.all([
 				exec('uname -s'),
 				exec('uname -m'),
@@ -191,9 +198,10 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 		}
 	}
 
-	protected _createExec(workspaceFolder: string, token: CancellationToken): ISshExec {
+	protected _createExec(connectionId: string, workspaceFolder: string, token: CancellationToken): ISshExec {
 		return async (command, options) => {
 			const result = await this._runDevContainer(
+				connectionId,
 				['exec', '--workspace-folder', workspaceFolder, '/bin/sh', '-c', command],
 				token,
 			);
@@ -222,20 +230,24 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		const child = spawn('devcontainer', [
+		const child = this._spawnDevContainer([
 			'exec',
 			'--workspace-folder',
 			workspaceFolder,
 			'/bin/sh',
 			'-c',
 			command,
-		], { stdio: ['pipe', 'pipe', 'pipe'], env: environment });
+		], environment);
 		const cancellationListener = token.onCancellationRequested(() => {
 			if (!child.killed) {
 				child.kill();
 			}
 		});
-		child.stderr.on('data', data => this._logService.trace(`${LOG_PREFIX} relay stderr: ${data.toString().trimEnd()}`));
+		child.stderr.on('data', data => {
+			const text = data.toString();
+			this._reportOutput(connectionId, text);
+			this._logService.trace(`${LOG_PREFIX} relay stderr: ${text.trimEnd()}`);
+		});
 		const duplex = Duplex.from({ readable: child.stdout, writable: child.stdin });
 		const WS = nativeRequire('ws') as typeof WebSocket;
 		const urlHost = endpoint.type === 'tcp' ? endpoint.host : '127.0.0.1';
@@ -292,14 +304,15 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 		return relay;
 	}
 
-	protected async _runDevContainer(args: readonly string[], token: CancellationToken): Promise<{ stdout: string; stderr: string; code: number }> {
+	protected async _runDevContainer(connectionId: string, args: readonly string[], token: CancellationToken): Promise<{ stdout: string; stderr: string; code: number }> {
 		const environment = await this._resolveShellEnvironment();
 		return new Promise((resolve, reject) => {
 			if (token.isCancellationRequested) {
 				reject(new CancellationError());
 				return;
 			}
-			const child = spawn('devcontainer', args, { stdio: ['ignore', 'pipe', 'pipe'], env: environment });
+			this._reportOutput(connectionId, `$ devcontainer ${args.map(arg => JSON.stringify(arg)).join(' ')}\n`);
+			const child = this._spawnDevContainer(args, environment);
 			let stdout = '';
 			let stderr = '';
 			let settled = false;
@@ -322,13 +335,18 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 					child.kill();
 				}
 			});
-			child.stdout.on('data', data => stdout += data.toString());
-			child.stderr.on('data', data => stderr += data.toString());
+			child.stdout.on('data', data => {
+				const text = data.toString();
+				stdout += text;
+				this._reportOutput(connectionId, text);
+			});
+			child.stderr.on('data', data => {
+				const text = data.toString();
+				stderr += text;
+				this._reportOutput(connectionId, text);
+			});
 			child.once('error', error => {
-				const wrapped = (error as NodeJS.ErrnoException).code === 'ENOENT'
-					? new Error(localize('devContainerAgentHost.cliNotFound', "The 'devcontainer' CLI was not found on PATH."))
-					: error;
-				finish(wrapped, null);
+				finish(error, null);
 			});
 			child.once('close', code => finish(undefined, code));
 		});
@@ -352,6 +370,20 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 		return this._shellEnvironment;
 	}
 
+	protected _reportOutput(connectionId: string, data: string): void {
+		this._onDidOutput.fire({ connectionId, data });
+	}
+
+	protected _spawnDevContainer(
+		args: readonly string[],
+		environment: NodeJS.ProcessEnv,
+	): ChildProcessWithoutNullStreams {
+		return spawn(process.execPath, [getDevContainerCliPath(), ...args], {
+			stdio: ['pipe', 'pipe', 'pipe'],
+			env: { ...environment, ELECTRON_RUN_AS_NODE: '1' },
+		});
+	}
+
 	async relaySend(connectionId: string, message: string): Promise<void> {
 		const relay = this._connections.get(connectionId);
 		if (!relay) {
@@ -365,6 +397,10 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 		this._connectionStores.deleteAndDispose(connectionId);
 		this._connections.deleteAndDispose(connectionId);
 	}
+}
+
+export function getDevContainerCliPath(): string {
+	return join(FileAccess.asFileUri(getAppNodeModulesPath()).fsPath, '@devcontainers', 'cli', 'devcontainer.js');
 }
 
 export function parseDevContainerUpResult(output: string): IDevContainerUpResult | undefined {

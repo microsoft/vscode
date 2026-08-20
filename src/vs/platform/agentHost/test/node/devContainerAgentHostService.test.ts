@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { spawnSync } from 'child_process';
+import { existsSync } from 'fs';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -12,7 +14,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { DevContainerAgentHostMainService, IDevContainerRelay, parseDevContainerUpResult } from '../../node/devContainerAgentHostService.js';
+import { DevContainerAgentHostMainService, getDevContainerCliPath, IDevContainerRelay, parseDevContainerUpResult } from '../../node/devContainerAgentHostService.js';
 import { ISshExec } from '../../node/sshRemoteAgentHostHelpers.js';
 
 class TestRelay implements IDevContainerRelay {
@@ -52,8 +54,9 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		return Promise.resolve(process.env);
 	}
 
-	protected override _runDevContainer(args: readonly string[]): Promise<{ stdout: string; stderr: string; code: number }> {
+	protected override _runDevContainer(connectionId: string, args: readonly string[]): Promise<{ stdout: string; stderr: string; code: number }> {
 		assert.deepStrictEqual(args, ['up', '--workspace-folder', '/workspace']);
+		this._reportOutput(connectionId, 'Starting Dev Container\n');
 		return Promise.resolve({
 			stdout: '[1 ms] Starting...\n{"outcome":"success","containerId":"container-id","remoteWorkspaceFolder":"/workspaces/project"}\n',
 			stderr: '',
@@ -117,8 +120,27 @@ suite('Dev Container Agent Host Main Service', () => {
 		});
 	});
 
+	test('resolves the bundled Dev Container CLI', () => {
+		const cliPath = getDevContainerCliPath();
+		const result = spawnSync(process.execPath, [cliPath, '--version'], {
+			encoding: 'utf8',
+			env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+		});
+		assert.deepStrictEqual({
+			exists: existsSync(cliPath),
+			status: result.status,
+			version: result.stdout.trim(),
+		}, {
+			exists: true,
+			status: 0,
+			version: '0.88.0',
+		});
+	});
+
 	test('reuses a standalone endpoint and exposes its relay', async () => {
 		const service = store.add(new TestDevContainerAgentHostMainService());
+		const output: string[] = [];
+		store.add(service.onDidOutput(event => output.push(`${event.connectionId}:${event.data}`)));
 		const result = await service.connect({
 			connectionId: 'connection',
 			workspaceFolder: '/workspace',
@@ -132,6 +154,7 @@ suite('Dev Container Agent Host Main Service', () => {
 			relayCommand: service.relayCommand,
 			sent: service.relay.sent,
 			disposed: service.relay.disposed,
+			output,
 		}, {
 			result: {
 				connectionId: 'connection',
@@ -142,6 +165,7 @@ suite('Dev Container Agent Host Main Service', () => {
 			relayCommand: '~/.vscode-server-oss/code-insiders --cli-data-dir ~/.vscode-server-oss/cli agent relay \'instance\' --user-data-dir \'/home/vscode/.config/Code\'',
 			sent: ['{"jsonrpc":"2.0"}'],
 			disposed: true,
+			output: ['connection:Starting Dev Container\n'],
 		});
 	});
 });

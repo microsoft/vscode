@@ -5,8 +5,9 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
-import { basename } from '../../../../../base/common/resources.js';
-import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { StringSHA1 } from '../../../../../base/common/hash.js';
+import { basename, getComparisonKey } from '../../../../../base/common/resources.js';
+import { combinedDisposable, Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -25,8 +26,47 @@ import { ISharedProcessService } from '../../../../../platform/ipc/electron-brow
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
+import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../../workbench/services/output/common/output.js';
 import { IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
+
+class DevContainerOutputWriter extends Disposable {
+	private readonly _channelId: string;
+
+	constructor(
+		mainService: IDevContainerAgentHostMainService,
+		connectionId: string,
+		workspaceUri: URI,
+		private readonly _outputService: IOutputService,
+	) {
+		super();
+		const sha = new StringSHA1();
+		sha.update(getComparisonKey(workspaceUri));
+		this._channelId = `devContainer.${sha.digest()}`;
+
+		const registry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
+		if (!registry.getChannel(this._channelId)) {
+			registry.registerChannel({
+				id: this._channelId,
+				label: localize('devContainerOutputChannel', "Dev Container ({0})", basename(workspaceUri)),
+				log: false,
+				languageId: 'log',
+			});
+		}
+
+		this._append(localize('devContainerOutputStarting', "\n--- Starting Dev Container for {0} ---\n", workspaceUri.fsPath));
+		this._register(mainService.onDidOutput(output => {
+			if (output.connectionId === connectionId) {
+				this._append(output.data);
+			}
+		}));
+	}
+
+	private _append(value: string): void {
+		this._outputService.getChannel(this._channelId)?.append(value);
+	}
+}
 
 class DevContainerAgentHostConnector implements IDevContainerAgentHostConnector {
 	private readonly _mainService: IDevContainerAgentHostMainService;
@@ -37,6 +77,7 @@ class DevContainerAgentHostConnector implements IDevContainerAgentHostConnector 
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IOutputService private readonly _outputService: IOutputService,
 	) {
 		this._mainService = ProxyChannel.toService<IDevContainerAgentHostMainService>(
 			sharedProcessService.getChannel(DEV_CONTAINER_AGENT_HOST_CHANNEL),
@@ -48,6 +89,7 @@ class DevContainerAgentHostConnector implements IDevContainerAgentHostConnector 
 			throw new Error(localize('devContainerAgentHost.localWorkspaceRequired', "Dev Container Agent Hosts require a local file workspace."));
 		}
 		const connectionId = generateUuid();
+		const outputWriter = new DevContainerOutputWriter(this._mainService, connectionId, workspaceUri, this._outputService);
 		const cancellationListener = token.onCancellationRequested(() => {
 			void this._mainService.disconnect(connectionId).catch(error => {
 				this._logService.warn('[DevContainerAgentHostConnector] Failed to cancel connection', error);
@@ -97,11 +139,14 @@ class DevContainerAgentHostConnector implements IDevContainerAgentHostConnector 
 				address: result.address,
 				name: result.name,
 				connection: protocolClient,
-				transportDisposable: toDisposable(() => {
-					void this._mainService.disconnect(connectionId).catch(error => {
-						this._logService.warn('[DevContainerAgentHostConnector] Failed to disconnect transport', error);
-					});
-				}),
+				transportDisposable: combinedDisposable(
+					outputWriter,
+					toDisposable(() => {
+						void this._mainService.disconnect(connectionId).catch(error => {
+							this._logService.warn('[DevContainerAgentHostConnector] Failed to disconnect transport', error);
+						});
+					}),
+				),
 				workspaceUri: workspaceUri.with({
 					scheme: AGENT_HOST_SCHEME,
 					authority: agentHostAuthority(result.address),
@@ -110,6 +155,7 @@ class DevContainerAgentHostConnector implements IDevContainerAgentHostConnector 
 				defaultDirectory: result.remoteWorkspaceFolder,
 			};
 		} catch (error) {
+			outputWriter.dispose();
 			protocolClient?.dispose();
 			await this._mainService.disconnect(connectionId);
 			throw error;

@@ -24,6 +24,12 @@ export interface IDevContainerAgentHostConnectResult {
 	readonly remoteWorkspaceFolder: string;
 }
 
+/** One chunk of output from a Dev Container CLI process. */
+export interface IDevContainerAgentHostOutput {
+	readonly connectionId: string;
+	readonly data: string;
+}
+
 export const IDevContainerAgentHostMainService = createDecorator<IDevContainerAgentHostMainService>('devContainerAgentHostMainService');
 
 /** Shared-process service that owns Dev Container CLI processes and protocol relays. */
@@ -31,6 +37,8 @@ export interface IDevContainerAgentHostMainService extends IRelayChannel {
 	readonly _serviceBrand: undefined;
 
 	readonly onDidCloseConnection: Event<string>;
+	/** Streaming stdout and stderr from Dev Container CLI processes. */
+	readonly onDidOutput: Event<IDevContainerAgentHostOutput>;
 
 	connect(config: IDevContainerAgentHostConfig): Promise<IDevContainerAgentHostConnectResult>;
 	disconnect(connectionId: string): Promise<void>;
