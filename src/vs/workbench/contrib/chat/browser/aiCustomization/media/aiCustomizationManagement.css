@@ -125,7 +125,9 @@
 	outline-offset: -1px;
 }
 
-.ai-customization-management-editor .sidebar-migration-icon {
+/* Outrank `.codicon[class*='codicon-'] { display: inline-block; }` so the
+ * migration warning retains its flex centering. */
+.ai-customization-management-editor .sidebar-migration-button .sidebar-migration-icon {
 	flex-shrink: 0;
 	width: 16px;
 	height: 16px;
@@ -467,7 +469,9 @@
 	margin-left: auto;
 }
 
-.ai-customization-group-header .group-icon {
+/* Outrank the shared codicon display rule so this renderer-only icon remains
+ * hidden instead of taking space before the group label. */
+.ai-customization-group-header .group-icon.codicon {
 	display: none;
 }
 
@@ -617,7 +621,9 @@ per-word capitalization does not survive translation. */
 	gap: 6px;
 }
 
-.ai-customization-list-item .item-type-icon {
+/* Outrank the shared codicon display rule so the hidden item-type role does
+ * not take space before customization labels. */
+.ai-customization-list-item .item-type-icon.codicon {
 	display: none;
 }
 
@@ -1715,7 +1721,9 @@ per-word capitalization does not survive translation. */
 	opacity: 0.85;
 }
 
-.mcp-server-item .mcp-server-icon {
+/* MCP and plugin renderers share this role. Outrank the codicon display rule
+ * so their hidden type icons do not take space before item details. */
+.mcp-server-item .mcp-server-icon.codicon {
 	display: none;
 }
 
@@ -1767,6 +1775,12 @@ per-word capitalization does not survive translation. */
 	align-items: center;
 	justify-content: center;
 	font-size: var(--vscode-codiconFontSize);
+}
+
+/* Outrank `.codicon[class*='codicon-'] { display: inline-block; }` so status
+ * icons retain the flex centering defined above. */
+.mcp-server-item .mcp-server-status.codicon {
+	display: flex;
 }
 
 .mcp-server-item .mcp-server-status-action.monaco-button {
