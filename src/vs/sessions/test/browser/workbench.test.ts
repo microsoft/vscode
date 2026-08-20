@@ -7,6 +7,7 @@ import assert from 'assert';
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../base/common/observable.js';
 import { SashState } from '../../../base/browser/ui/sash/sash.js';
+import { mainWindow } from '../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { Part } from '../../../workbench/browser/part.js';
 import { IPartVisibilityChangeEvent, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
@@ -378,6 +379,27 @@ suite('Sessions - Workbench', () => {
 			listener.dispose();
 			registeredDisposables.dispose();
 			setNotificationRowHeight(DEFAULT_NOTIFICATION_ROW_HEIGHT);
+		}
+	});
+
+	test('centers notification content in touch-sized phone rows', () => {
+		const root = document.createElement('div');
+		root.className = 'agent-sessions-workbench phone-layout';
+		const list = document.createElement('div');
+		list.className = 'notifications-list-container';
+		const item = document.createElement('div');
+		item.className = 'notification-list-item';
+		const mainRow = document.createElement('div');
+		mainRow.className = 'notification-list-item-main-row';
+		item.appendChild(mainRow);
+		list.appendChild(item);
+		root.appendChild(list);
+		document.body.appendChild(root);
+
+		try {
+			assert.strictEqual(mainWindow.getComputedStyle(mainRow).alignItems, 'center');
+		} finally {
+			root.remove();
 		}
 	});
 

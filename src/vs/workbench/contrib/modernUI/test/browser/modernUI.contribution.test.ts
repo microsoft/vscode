@@ -29,6 +29,8 @@ import { generateColorThemeCSS } from '../../../../services/themes/browser/color
 import '../../../../browser/parts/activitybar/media/activityaction.css';
 import '../../../../browser/parts/media/paneCompositePart.css';
 import { ModernUIContribution } from '../../browser/modernUI.contribution.js';
+import '../../../../browser/parts/notifications/media/notificationsCenter.css';
+import '../../../../browser/parts/notifications/media/notificationsToasts.css';
 
 class ModernUITestPane extends Pane {
 
@@ -187,7 +189,7 @@ suite('ModernUIContribution', () => {
 
 	test('supports isolated notification and dialog presentation', () => {
 		const root = document.createElement('div');
-		root.className = 'monaco-workbench modern-ui-notifications-dialogs';
+		root.className = 'monaco-workbench modern-ui modern-ui-notifications-dialogs nostatusbar';
 		root.style.setProperty('--vscode-spacing-size20', '2px');
 		root.style.setProperty('--vscode-spacing-size40', '4px');
 		root.style.setProperty('--vscode-spacing-size60', '6px');
@@ -201,8 +203,12 @@ suite('ModernUIContribution', () => {
 
 		const notificationList = appendElement(root, 'notifications-list-container');
 		const notification = appendElement(notificationList, 'notification-list-item');
-		const notificationsCenter = appendElement(root, 'notifications-center top-right');
-		const notificationsToasts = appendElement(root, 'notifications-toasts top-right');
+		const notificationsCenter = appendElement(root, 'notifications-center');
+		const centerList = appendElement(notificationsCenter, 'notifications-list-container');
+		const centerRow = appendElement(centerList, 'monaco-list-row');
+		const topNotificationsCenter = appendElement(root, 'notifications-center top-right');
+		const notificationsToasts = appendElement(root, 'notifications-toasts');
+		const topNotificationsToasts = appendElement(root, 'notifications-toasts top-right');
 		const toastContainer = appendElement(notificationsToasts, 'notification-toast-container');
 		const toast = appendElement(toastContainer, 'notification-toast');
 		const toastList = appendElement(toast, 'notifications-list-container');
@@ -212,7 +218,10 @@ suite('ModernUIContribution', () => {
 		const targetWindow = getWindow(root);
 		const notificationStyle = targetWindow.getComputedStyle(notification);
 		const notificationsCenterStyle = targetWindow.getComputedStyle(notificationsCenter);
+		const centerRowStyle = targetWindow.getComputedStyle(centerRow);
+		const topNotificationsCenterStyle = targetWindow.getComputedStyle(topNotificationsCenter);
 		const notificationsToastsStyle = targetWindow.getComputedStyle(notificationsToasts);
+		const topNotificationsToastsStyle = targetWindow.getComputedStyle(topNotificationsToasts);
 		const toastStyle = targetWindow.getComputedStyle(toast);
 		const toastRowStyle = targetWindow.getComputedStyle(toastRow);
 		const dialogStyle = targetWindow.getComputedStyle(dialog);
@@ -220,11 +229,14 @@ suite('ModernUIContribution', () => {
 		assert.deepStrictEqual({
 			notificationPadding: notificationStyle.padding,
 			notificationsCenterRight: notificationsCenterStyle.right,
-			notificationsCenterTop: notificationsCenterStyle.top,
+			notificationsCenterBottom: notificationsCenterStyle.bottom,
 			notificationsCenterRadius: notificationsCenterStyle.borderRadius,
+			centerRowRadius: centerRowStyle.borderRadius,
+			topNotificationsCenterTop: topNotificationsCenterStyle.top,
 			notificationsToastsRight: notificationsToastsStyle.right,
-			notificationsToastsTop: notificationsToastsStyle.top,
+			notificationsToastsBottom: notificationsToastsStyle.bottom,
 			notificationsToastsRadius: notificationsToastsStyle.borderRadius,
+			topNotificationsToastsTop: topNotificationsToastsStyle.top,
 			toastRadius: toastStyle.borderRadius,
 			toastRowRadius: toastRowStyle.borderRadius,
 			dialogPadding: dialogStyle.padding,
@@ -232,11 +244,14 @@ suite('ModernUIContribution', () => {
 		}, {
 			notificationPadding: '6px 2px',
 			notificationsCenterRight: '12px',
-			notificationsCenterTop: '24px',
+			notificationsCenterBottom: '20px',
 			notificationsCenterRadius: '8px',
+			centerRowRadius: '0px 0px 8px 8px',
+			topNotificationsCenterTop: '24px',
 			notificationsToastsRight: '8px',
-			notificationsToastsTop: '20px',
+			notificationsToastsBottom: '16px',
 			notificationsToastsRadius: '8px',
+			topNotificationsToastsTop: '20px',
 			toastRadius: '8px',
 			toastRowRadius: '8px',
 			dialogPadding: '4px',

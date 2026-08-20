@@ -83,6 +83,10 @@
 	max-width: 100%;
 }
 
+.agent-sessions-workbench.phone-layout .notifications-list-container .notification-list-item > .notification-list-item-main-row {
+	align-items: center;
+}
+
 .agent-sessions-workbench.phone-layout .notifications-toasts,
 .agent-sessions-workbench.phone-layout .notifications-toasts .notifications-list-container,
 .agent-sessions-workbench.phone-layout .notifications-toasts .notification-toast-container > .notification-toast,

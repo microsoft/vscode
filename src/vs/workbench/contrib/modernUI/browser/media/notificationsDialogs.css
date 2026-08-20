@@ -50,6 +50,10 @@
 	border-radius: var(--vscode-cornerRadius-large);
 }
 
+.modern-ui-notifications-dialogs.monaco-workbench.nostatusbar > .notifications-center:not(.top-right) {
+	bottom: var(--modern-ui-notifications-block-end-inset, var(--vscode-spacing-size320));
+}
+
 .modern-ui-notifications-dialogs.monaco-workbench > .notifications-center.bottom-left {
 	right: auto;
 	left: var(--modern-ui-notifications-inline-inset, var(--vscode-spacing-size80));
@@ -68,6 +72,10 @@
  */
 .modern-ui-notifications-dialogs.monaco-workbench > .notifications-toasts {
 	right: calc(var(--modern-ui-notifications-inline-inset, var(--vscode-spacing-size80)) - var(--vscode-spacing-size40));
+	bottom: calc(var(--modern-ui-notifications-block-end-inset, var(--vscode-spacing-size320)) - var(--vscode-spacing-size40));
+}
+
+.modern-ui-notifications-dialogs.monaco-workbench.nostatusbar > .notifications-toasts:not(.top-right) {
 	bottom: calc(var(--modern-ui-notifications-block-end-inset, var(--vscode-spacing-size320)) - var(--vscode-spacing-size40));
 }
 
