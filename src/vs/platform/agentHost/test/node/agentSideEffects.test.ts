@@ -5043,12 +5043,13 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(await sessionDb.getMetadata(customChatTitleMetadataKey(defaultChat)), 'Existing');
 		});
 
-		test('default chat title snapshot does not overwrite a newer in-memory title', async () => {
+		test('a same-turn default chat rename wins after the inherited title snapshot', async () => {
 			const defaultChat = buildDefaultChatUri(sessionUri);
+			await sessionDb.setMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY, 'auto');
 			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 			const localAgent = new MockAgent();
 			disposables.add(toDisposable(() => localAgent.dispose()));
-			createTestSideEffects(disposables, localStateManager, {
+			const localSideEffects = createTestSideEffects(disposables, localStateManager, {
 				getAgent: () => localAgent,
 				agents: observableValue<readonly IAgent[]>('agents', [localAgent]),
 				sessionDataService: createSessionDataService(sessionDb),
@@ -5064,10 +5065,22 @@ suite('AgentSideEffects', () => {
 			});
 
 			localStateManager.addChat(sessionUri.toString(), buildChatUri(sessionUri.toString(), 'peer'), { title: 'Peer' });
-			localStateManager.updateChatTitle(sessionUri.toString(), defaultChat, 'Newer');
-			await timeout(10);
+			localSideEffects.handleAction(defaultChat, {
+				type: ActionType.SessionTitleChanged,
+				title: 'Newer',
+			});
 
-			assert.strictEqual(await sessionDb.getMetadata(customChatTitleMetadataKey(defaultChat)), undefined);
+			assert.deepStrictEqual({
+				chatTitle: await waitForMetadata(customChatTitleMetadataKey(defaultChat)),
+				chatSource: await waitForMetadata(customChatTitleSourceMetadataKey(defaultChat)),
+				sessionTitle: await waitForMetadata(SESSION_CUSTOM_TITLE_KEY),
+				sessionSource: await waitForMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY),
+			}, {
+				chatTitle: 'Newer',
+				chatSource: 'user',
+				sessionTitle: 'Newer',
+				sessionSource: 'user',
+			});
 		});
 
 		test('handleListSessions returns persisted custom title', async () => {

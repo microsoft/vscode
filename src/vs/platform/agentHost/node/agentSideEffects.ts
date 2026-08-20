@@ -1927,7 +1927,6 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 		const persist = async () => {
-			await Promise.resolve();
 			if (this._stateManager.getChatState(chat)?.title !== title) {
 				return;
 			}
