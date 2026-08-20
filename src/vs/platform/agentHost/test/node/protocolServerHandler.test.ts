@@ -23,7 +23,7 @@ import { ActionType, type ActionEnvelope, type IRootConfigChangedAction, type Se
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
 import { MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type SessionSummary } from '../../common/state/sessionState.js';
-import type { SessionAddedParams } from '../../common/state/protocol/notifications.js';
+import type { SessionAddedParams, SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
 import { CompositeProtocolServer } from '../../node/compositeProtocolServer.js';
@@ -145,9 +145,12 @@ class MockAgentService implements IAgentService {
 	readonly listedSessions: IAgentSessionMetadata[] = [];
 	readonly createSessionConfigs: (IAgentCreateSessionConfig | undefined)[] = [];
 	managedSettingsDiagnostics: readonly IAgentHostManagedSettingsDiagnostics[] = [];
+	readonly getSessionStateFileCalls: string[] = [];
+	readonly collectDebugLogsCalls: { session: string | undefined; kind: 'archive' | 'directory' }[] = [];
 	shutdownCalls = 0;
 	createSessionBarrier: DeferredPromise<void> | undefined;
 	subscribeBarrier: DeferredPromise<void> | undefined;
+	afterListSessionsSnapshot: (() => void) | undefined;
 
 	private readonly _onDidAction = new Emitter<import('../../common/state/sessionActions.js').ActionEnvelope>();
 	readonly onDidAction = this._onDidAction.event;
@@ -202,7 +205,11 @@ class MockAgentService implements IAgentService {
 		this.disposedChats.push({ session: session.toString(), chat: chat.toString() });
 		this._stateManager.removeChat(session.toString(), chat.toString());
 	}
-	async listSessions(): Promise<IAgentSessionMetadata[]> { return this.listedSessions; }
+	async listSessions(): Promise<IAgentSessionMetadata[]> {
+		const result = [...this.listedSessions];
+		this.afterListSessionsSnapshot?.();
+		return result;
+	}
 	async subscribe(resource: URI, _clientId: string): Promise<IStateSnapshot> {
 		await this.subscribeBarrier?.p;
 		const snapshot = this._stateManager.getSnapshot(resource.toString());
@@ -217,6 +224,14 @@ class MockAgentService implements IAgentService {
 	async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> { return { version: 'test', os: 'test', arch: 'test', proxySettings: {}, proxyEnv: {}, endpoints: [] }; }
 	async getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]> { return this.managedSettingsDiagnostics; }
 	async diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> { return { url }; }
+	async getSessionStateFile(session: URI): Promise<URI | undefined> {
+		this.getSessionStateFileCalls.push(session.toString());
+		return URI.file('/state/sdk-session/events.jsonl');
+	}
+	async collectDebugLogs(session: URI | undefined, kind: 'archive' | 'directory') {
+		this.collectDebugLogsCalls.push({ session: session?.toString(), kind });
+		return { kind, resource: URI.file('/tmp/agent-host-debug.zip'), providerLogsIncluded: true, size: 1024, uncompressedSize: 2048, entries: [{ path: 'agenthost.log', size: 2048 }] };
+	}
 	async authenticate(_params: AuthenticateParams): Promise<AuthenticateResult> { return { authenticated: true }; }
 	getAuthToken(): string | undefined { return undefined; }
 	async resourceWrite(_params: ResourceWriteParams): Promise<ResourceWriteResult> { return {}; }
@@ -616,6 +631,141 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	test('collects Agent Host debug logs through the extension request', async () => {
+		const transport = connectClient('client-debug-logs');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 12);
+
+		transport.simulateMessage(request(12, 'vscode/collectAgentHostDebugLogs', {
+			session: 'copilotcli:/session-1',
+			kind: 'archive',
+		}));
+
+		assert.deepStrictEqual({
+			response: await responsePromise,
+			calls: agentService.collectDebugLogsCalls,
+		}, {
+			response: {
+				jsonrpc: '2.0',
+				id: 12,
+				result: { kind: 'archive', resource: 'file:///tmp/agent-host-debug.zip', providerLogsIncluded: true, size: 1024, uncompressedSize: 2048, entries: [{ path: 'agenthost.log', size: 2048 }] },
+			},
+			calls: [{ session: 'copilotcli:/session-1', kind: 'archive' }],
+		});
+	});
+
+	test('gets an Agent Host session state file through the extension request', async () => {
+		const transport = connectClient('client-session-state-file');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 17);
+
+		transport.simulateMessage(request(17, 'vscode/getAgentHostSessionStateFile', {
+			session: 'copilotcli:/session-1',
+		}));
+
+		assert.deepStrictEqual({
+			response: await responsePromise,
+			calls: agentService.getSessionStateFileCalls,
+		}, {
+			response: {
+				jsonrpc: '2.0',
+				id: 17,
+				result: { resource: 'file:///state/sdk-session/events.jsonl' },
+			},
+			calls: ['copilotcli:/session-1'],
+		});
+	});
+
+	test('rejects a non-string Agent Host session state file session', async () => {
+		const transport = connectClient('client-session-state-file-invalid');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 18);
+
+		transport.simulateMessage(request(18, 'vscode/getAgentHostSessionStateFile', { session: 123 }));
+
+		assert.deepStrictEqual(await responsePromise, {
+			jsonrpc: '2.0',
+			id: 18,
+			error: { code: JsonRpcErrorCodes.InvalidParams, message: 'session must be a URI string' },
+		});
+	});
+
+	test('rejects an invalid Agent Host debug log artifact kind', async () => {
+		const transport = connectClient('client-debug-logs-invalid');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 13);
+
+		transport.simulateMessage(request(13, 'vscode/collectAgentHostDebugLogs', { session: 'copilotcli:/session-1', kind: 'tgz' }));
+
+		assert.deepStrictEqual(await responsePromise, {
+			jsonrpc: '2.0',
+			id: 13,
+			error: { code: JsonRpcErrorCodes.InvalidParams, message: 'kind must be archive or directory' },
+		});
+	});
+
+	test('collects Agent Host debug logs without a session', async () => {
+		const transport = connectClient('client-debug-logs-no-session');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 16);
+
+		transport.simulateMessage(request(16, 'vscode/collectAgentHostDebugLogs', { kind: 'archive' }));
+
+		assert.deepStrictEqual({
+			response: await responsePromise,
+			calls: agentService.collectDebugLogsCalls.at(-1),
+		}, {
+			response: {
+				jsonrpc: '2.0',
+				id: 16,
+				result: { kind: 'archive', resource: 'file:///tmp/agent-host-debug.zip', providerLogsIncluded: true, size: 1024, uncompressedSize: 2048, entries: [{ path: 'agenthost.log', size: 2048 }] },
+			},
+			calls: { session: undefined, kind: 'archive' },
+		});
+	});
+
+	test('rejects a non-string Agent Host debug log session', async () => {
+		const transport = connectClient('client-debug-logs-invalid-session');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 14);
+
+		transport.simulateMessage(request(14, 'vscode/collectAgentHostDebugLogs', { session: 123, kind: 'archive' }));
+
+		assert.deepStrictEqual(await responsePromise, {
+			jsonrpc: '2.0',
+			id: 14,
+			error: { code: JsonRpcErrorCodes.InvalidParams, message: 'session must be a URI string' },
+		});
+	});
+
+	test('rejects non-object Agent Host debug log params', async () => {
+		const transport = connectClient('client-debug-logs-invalid-params');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 15);
+
+		transport.simulateMessage(request(15, 'vscode/collectAgentHostDebugLogs', []));
+
+		assert.deepStrictEqual(await responsePromise, {
+			jsonrpc: '2.0',
+			id: 15,
+			error: { code: JsonRpcErrorCodes.InvalidParams, message: 'params must be an object' },
+		});
+	});
+
+	test('rejects a scheme-less Agent Host debug log session', async () => {
+		const transport = connectClient('client-debug-logs-invalid-session-uri');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 16);
+
+		transport.simulateMessage(request(16, 'vscode/collectAgentHostDebugLogs', { session: 'session-1', kind: 'archive' }));
+
+		assert.deepStrictEqual(await responsePromise, {
+			jsonrpc: '2.0',
+			id: 16,
+			error: { code: JsonRpcErrorCodes.InvalidParams, message: 'session must be a valid URI string' },
+		});
+	});
+
 	test('extension methods can be disabled without blocking managed settings contributions', () => {
 		const localDisposables = disposables.add(new DisposableStore());
 		const localServer = localDisposables.add(new MockProtocolServer());
@@ -880,6 +1030,191 @@ suite('ProtocolServerHandler', () => {
 
 		const result = (resp as unknown as { result: ListSessionsResult }).result;
 		assert.deepStrictEqual(result.items.map(item => item.project), [{ uri: URI.file('/workspace/project').toString(), displayName: 'Project' }]);
+	});
+
+	test('listSessions exposure does not suppress a global sessionAdded notification', async () => {
+		const summary = makeSessionSummary();
+		const transportA = connectClient('client-list-exposed');
+		const transportB = connectClient('client-list-missing');
+		transportA.sent.length = 0;
+		transportB.sent.length = 0;
+
+		let responsePromise = waitForResponse(transportB, 2);
+		transportB.simulateMessage(request(2, 'listSessions'));
+		await responsePromise;
+
+		agentService.listedSessions.push({
+			session: URI.parse(summary.resource),
+			startTime: Date.parse(summary.createdAt),
+			modifiedTime: Date.parse(summary.modifiedAt),
+			summary: summary.title,
+			status: summary.status,
+		});
+		responsePromise = waitForResponse(transportA, 2);
+		transportA.simulateMessage(request(2, 'listSessions'));
+		await responsePromise;
+		transportA.sent.length = 0;
+		transportB.sent.length = 0;
+
+		stateManager.announceSurfacedSession(summary);
+
+		assert.deepStrictEqual({
+			exposedClient: findNotifications(transportA.sent, 'root/sessionAdded').length,
+			missingClient: findNotifications(transportB.sent, 'root/sessionAdded').length,
+		}, {
+			exposedClient: 1,
+			missingClient: 1,
+		});
+	});
+
+	test('listSessions publishes only changed canonical fields for restored sessions', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const project = { uri: 'file:///test-project', displayName: 'Test Project' };
+			const summary = {
+				...makeSessionSummary(),
+				project,
+				workingDirectories: ['file:///test-project'],
+				changes: { additions: 1, deletions: 2, files: 3 },
+				_meta: { live: 'current' },
+			};
+			const startedAt = new Date(Date.parse(summary.modifiedAt) + 1000).toISOString();
+			stateManager.restoreSession(summary, []);
+			agentService.listedSessions.push({
+				session: URI.parse(summary.resource),
+				startTime: Date.parse(summary.createdAt),
+				modifiedTime: Date.parse(summary.modifiedAt),
+				summary: summary.title,
+				status: summary.status,
+				project: { uri: URI.parse(project.uri), displayName: project.displayName },
+				workingDirectories: summary.workingDirectories.map(directory => URI.parse(directory)),
+				changes: { ...summary.changes },
+				_meta: { providerOnly: true, live: 'stale' },
+			});
+
+			const transport = connectClient('client-list-status');
+			transport.sent.length = 0;
+			const responsePromise = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'listSessions'));
+			const response = await responsePromise;
+			const listedMeta = (response as unknown as { result: ListSessionsResult }).result.items[0]._meta;
+			transport.sent.length = 0;
+
+			stateManager.dispatchServerAction(buildDefaultChatUri(sessionUri), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt,
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			});
+			await new Promise(resolve => setTimeout(resolve, 150));
+
+			const summaryChanges = transport.sent
+				.filter(isJsonRpcNotification)
+				.filter(message => message.method === 'root/sessionSummaryChanged')
+				.map(message => (message.params as SessionSummaryChangedParams).changes);
+			assert.deepStrictEqual({ listedMeta, summaryChanges }, {
+				listedMeta: { providerOnly: true, live: 'current' },
+				summaryChanges: [{ status: SessionStatus.InProgress }],
+			});
+		});
+	});
+
+	test('repeated listSessions flushes a pending status before returning the new baseline', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const summary = makeSessionSummary();
+			stateManager.restoreSession(summary, []);
+			const listedSession: IAgentSessionMetadata = {
+				session: URI.parse(summary.resource),
+				startTime: Date.parse(summary.createdAt),
+				modifiedTime: Date.parse(summary.modifiedAt),
+				summary: summary.title,
+				status: summary.status,
+			};
+			agentService.listedSessions.push(listedSession);
+
+			const transport = connectClient('client-repeat-list-status');
+			transport.sent.length = 0;
+			let responsePromise = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'listSessions'));
+			await responsePromise;
+			transport.sent.length = 0;
+
+			stateManager.dispatchServerAction(buildDefaultChatUri(sessionUri), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: new Date().toISOString(),
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			});
+			agentService.listedSessions[0] = { ...listedSession, status: SessionStatus.InProgress };
+			responsePromise = waitForResponse(transport, 3);
+			transport.simulateMessage(request(3, 'listSessions'));
+			const response = await responsePromise;
+			const listedStatus = (response as unknown as { result: ListSessionsResult }).result.items[0].status;
+
+			stateManager.dispatchServerAction(buildDefaultChatUri(sessionUri), {
+				type: ActionType.ChatTurnComplete,
+				turnId: 'turn-1',
+				duration: 1,
+			});
+			await new Promise(resolve => setTimeout(resolve, 150));
+
+			const statusChanges = transport.sent
+				.filter(isJsonRpcNotification)
+				.filter(message => message.method === 'root/sessionSummaryChanged')
+				.map(message => (message.params as SessionSummaryChangedParams).changes.status);
+			assert.deepStrictEqual({ listedStatus, statusChanges }, {
+				listedStatus: SessionStatus.InProgress,
+				statusChanges: [SessionStatus.InProgress, SessionStatus.Idle],
+			});
+		});
+	});
+
+	test('repeated listSessions refreshes a stale snapshot before its response', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const summary = makeSessionSummary();
+			const startedAt = new Date(Date.parse(summary.modifiedAt) + 1000).toISOString();
+			stateManager.restoreSession(summary, []);
+			agentService.listedSessions.push({
+				session: URI.parse(summary.resource),
+				startTime: Date.parse(summary.createdAt),
+				modifiedTime: Date.parse(summary.modifiedAt),
+				summary: summary.title,
+				status: summary.status,
+			});
+
+			const transport = connectClient('client-stale-list-status');
+			transport.sent.length = 0;
+			let responsePromise = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'listSessions'));
+			await responsePromise;
+			transport.sent.length = 0;
+
+			agentService.afterListSessionsSnapshot = () => {
+				agentService.afterListSessionsSnapshot = undefined;
+				stateManager.dispatchServerAction(buildDefaultChatUri(sessionUri), {
+					type: ActionType.ChatTurnStarted,
+					turnId: 'turn-1',
+					startedAt,
+					message: { text: 'hello', origin: { kind: MessageKind.User } },
+				});
+			};
+			responsePromise = waitForResponse(transport, 3);
+			transport.simulateMessage(request(3, 'listSessions'));
+			await responsePromise;
+
+			const observed = transport.sent.flatMap(message => {
+				if (isJsonRpcNotification(message) && message.method === 'root/sessionSummaryChanged') {
+					return [{ kind: 'notification', status: (message.params as SessionSummaryChangedParams).changes.status }];
+				}
+				if (isJsonRpcResponse(message) && message.id === 3 && hasKey(message, { result: true })) {
+					return [{ kind: 'response', status: (message.result as ListSessionsResult).items[0].status }];
+				}
+				return [];
+			});
+			assert.deepStrictEqual(observed, [
+				{ kind: 'notification', status: SessionStatus.InProgress },
+				{ kind: 'response', status: SessionStatus.InProgress },
+			]);
+		});
 	});
 
 	test('listSessions omits project metadata when absent', async () => {

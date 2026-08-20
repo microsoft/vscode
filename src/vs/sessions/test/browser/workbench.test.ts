@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { IObservable, observableValue } from '../../../base/common/observable.js';
 import { SashState } from '../../../base/browser/ui/sash/sash.js';
+import { mainWindow } from '../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { Part } from '../../../workbench/browser/part.js';
 import { IPartVisibilityChangeEvent, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
@@ -16,6 +19,7 @@ import { DockedEditorInput } from '../../common/dockedEditorInput.js';
 import { EditorInputCapabilities } from '../../../workbench/common/editor.js';
 import { SESSIONS_LIST_MINIMUM_WIDTH } from '../../browser/parts/sidebarPart.js';
 import { Menus } from '../../browser/menus.js';
+import { DEFAULT_NOTIFICATION_ROW_HEIGHT, onDidChangeNotificationRowHeight, setNotificationRowHeight } from '../../../workbench/browser/parts/notifications/notificationsViewer.js';
 
 interface IViewSize { width: number; height: number }
 
@@ -69,6 +73,10 @@ suite('Sessions - Workbench', () => {
 	const restoreEditorPartOnActivation = Reflect.get(Workbench.prototype, '_restoreEditorPartOnActivation') as (this: ITestWorkbench) => void;
 	const layoutSinglePaneGrid = Reflect.get(SinglePaneWorkbench.prototype, '_layoutGrid') as (this: IContainerResizeTestHarness) => void;
 	const preserveSessionsEditorRatio = Reflect.get(SinglePaneWorkbench.prototype, '_preserveSessionsEditorRatio') as (this: IProportionalResizeTestHarness, previousSessionsWidth: number, previousEditorWidth: number) => void;
+	const registerNotificationRowHeight = Reflect.get(Workbench.prototype, 'registerNotificationRowHeight') as (this: {
+		layoutPolicy: { isPhoneLayout: IObservable<boolean> };
+		_register<T extends IDisposable>(disposable: T): T;
+	}) => void;
 
 	// --- Harness ------------------------------------------------------------
 
@@ -346,6 +354,54 @@ suite('Sessions - Workbench', () => {
 			host.setAuxiliaryBarHidden(!visible);
 		}
 	}
+
+	// --- Notifications ------------------------------------------------------
+
+	test('uses touch-sized notification rows on phone layouts', () => {
+		setNotificationRowHeight(DEFAULT_NOTIFICATION_ROW_HEIGHT);
+		const registeredDisposables = new DisposableStore();
+		const isPhoneLayout = observableValue('isPhoneLayout', false);
+		const rowHeights: number[] = [];
+		const listener = onDidChangeNotificationRowHeight(height => rowHeights.push(height));
+
+		try {
+			registerNotificationRowHeight.call({
+				layoutPolicy: { isPhoneLayout },
+				_register: disposable => registeredDisposables.add(disposable),
+			});
+
+			isPhoneLayout.set(true, undefined);
+			isPhoneLayout.set(false, undefined);
+			registeredDisposables.dispose();
+
+			assert.deepStrictEqual(rowHeights, [34, 44, 34, 42]);
+		} finally {
+			listener.dispose();
+			registeredDisposables.dispose();
+			setNotificationRowHeight(DEFAULT_NOTIFICATION_ROW_HEIGHT);
+		}
+	});
+
+	test('centers notification content in touch-sized phone rows', () => {
+		const root = document.createElement('div');
+		root.className = 'agent-sessions-workbench phone-layout';
+		const list = document.createElement('div');
+		list.className = 'notifications-list-container';
+		const item = document.createElement('div');
+		item.className = 'notification-list-item';
+		const mainRow = document.createElement('div');
+		mainRow.className = 'notification-list-item-main-row';
+		item.appendChild(mainRow);
+		list.appendChild(item);
+		root.appendChild(list);
+		document.body.appendChild(root);
+
+		try {
+			assert.strictEqual(mainWindow.getComputedStyle(mainRow).alignItems, 'center');
+		} finally {
+			root.remove();
+		}
+	});
 
 	// --- Editor split / reveal ---------------------------------------------
 
@@ -1918,6 +1974,70 @@ suite('Sessions - Workbench', () => {
 
 	// --- DockedAuxiliaryBarController --------------------------------------
 
+	test('aligns docked details with the editor title boundary', () => {
+		const editorContainer = document.createElement('div');
+		const auxiliaryBarContainer = document.createElement('div');
+		const layouts: { height: number; top: number }[] = [];
+		let titleHeight = 33;
+
+		Object.defineProperties(editorContainer, {
+			clientHeight: { value: 600 },
+			clientTop: { value: 1 },
+		});
+		editorContainer.getBoundingClientRect = () => ({
+			width: 800,
+			height: 600,
+			top: 0,
+			right: 800,
+			bottom: 600,
+			left: 0,
+			x: 0,
+			y: 0,
+			toJSON: () => undefined,
+		});
+
+		const auxiliaryBarPart = {
+			getContainer: () => auxiliaryBarContainer,
+			layout: (_width: number, height: number, top: number) => layouts.push({ height, top }),
+		} as unknown as Part;
+		const host: IDockedAuxiliaryBarHost = {
+			getWidth: () => 260,
+			setWidth: () => { },
+			isEditorAreaVisible: () => true,
+			isEditorVisible: () => true,
+			isAuxiliaryBarVisible: () => true,
+			hideAuxiliaryBar: () => { },
+			setEditorContentRightInset: () => { },
+			getTitleHeight: () => titleHeight,
+		};
+		const controller = new DockedAuxiliaryBarController(editorContainer, auxiliaryBarPart, host);
+
+		controller.layout();
+		titleHeight = 62;
+		controller.layout();
+
+		assert.deepStrictEqual({
+			layouts,
+			style: {
+				top: auxiliaryBarContainer.style.top,
+				height: auxiliaryBarContainer.style.height,
+			},
+			visualTop: editorContainer.clientTop + Number.parseInt(auxiliaryBarContainer.style.top, 10),
+		}, {
+			layouts: [
+				{ height: 567, top: 33 },
+				{ height: 538, top: 62 },
+			],
+			style: {
+				top: '62px',
+				height: '538px',
+			},
+			visualTop: 63,
+		});
+
+		controller.dispose();
+	});
+
 	test('fills the narrowed docked detail node and disables its overlay sash when editor content is hidden', () => {
 
 		const editorContainer = document.createElement('div');
@@ -1930,6 +2050,7 @@ suite('Sessions - Workbench', () => {
 
 		Object.defineProperty(editorContainer, 'clientWidth', { get: () => editorWidth });
 		Object.defineProperty(editorContainer, 'clientHeight', { value: 600 });
+		Object.defineProperty(editorContainer, 'clientTop', { value: 1 });
 		editorContainer.getBoundingClientRect = () => ({
 			width: editorWidth,
 			height: 600,
@@ -1956,7 +2077,7 @@ suite('Sessions - Workbench', () => {
 			isAuxiliaryBarVisible: () => true,
 			hideAuxiliaryBar: () => { },
 			setEditorContentRightInset: px => insets.push(px),
-			getHeaderHeight: () => 0,
+			getTitleHeight: () => 34,
 		};
 		const controller = new DockedAuxiliaryBarController(editorContainer, auxiliaryBarPart, host);
 
@@ -1983,14 +2104,14 @@ suite('Sessions - Workbench', () => {
 			insets: [260, 260],
 			persistedWidths: [],
 			layouts: [
-				{ width: 260, height: 565, top: 35, left: 540 },
-				{ width: 260, height: 565, top: 35, left: 0 },
+				{ width: 260, height: 566, top: 34, left: 540 },
+				{ width: 260, height: 566, top: 34, left: 0 },
 			],
 			style: {
-				top: '35px',
+				top: '34px',
 				right: '0px',
 				width: '260px',
-				height: '565px',
+				height: '566px',
 			},
 			// The grid sash owns resizing/collapsing here; the overlay sash must be disabled.
 			sashState: SashState.Disabled,
@@ -2034,7 +2155,7 @@ suite('Sessions - Workbench', () => {
 			isAuxiliaryBarVisible: () => true,
 			hideAuxiliaryBar: () => { },
 			setEditorContentRightInset: px => insets.push(px),
-			getHeaderHeight: () => 0,
+			getTitleHeight: () => 35,
 		};
 		const controller = new DockedAuxiliaryBarController(editorContainer, auxiliaryBarPart, host);
 
@@ -2094,7 +2215,7 @@ suite('Sessions - Workbench', () => {
 			isAuxiliaryBarVisible: () => true,
 			hideAuxiliaryBar: () => hideCount++,
 			setEditorContentRightInset: () => { },
-			getHeaderHeight: () => 0,
+			getTitleHeight: () => 35,
 		};
 		const controller = new DockedAuxiliaryBarController(editorContainer, auxiliaryBarPart, host);
 

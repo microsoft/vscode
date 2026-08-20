@@ -18,6 +18,7 @@ import type { ListSessionsResult, SubscribeResult } from '../../../../common/sta
 import { ActionType, NotificationType, type ChatToolCallCompleteAction, type ChatToolCallStartAction, type SessionAddedParams, type StateAction } from '../../../../common/state/sessionActions.js';
 import {
 	buildDefaultChatUri,
+	readSessionOrchestration,
 	ROOT_STATE_URI,
 	type AnnotationsState,
 	type ChatState,
@@ -865,6 +866,8 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 		}, 30_000);
 		const child = (childAdded.params as SessionAddedParams).summary;
 		createdSessions.push(child.resource);
+		const orchestration = readSessionOrchestration(child._meta);
+		assert.ok(orchestration, 'child SessionAdded summary should include orchestration metadata');
 		const childRequest = await retry(async () => {
 			const requests = context.observedModelRequestBodies
 				.map(summarizeAnthropicRequest)
@@ -881,11 +884,17 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			provider: child.provider,
 			messages: childState.turns.map(turn => turn.message.text),
 			childRequestModel: childRequest.model,
+			orchestration,
 		}, {
 			sawPendingConfirmation: true,
 			provider: model.provider,
 			messages: [childPrompt],
 			childRequestModel: model.id,
+			orchestration: {
+				parentSession: session.sessionUri,
+				creatorSession: session.sessionUri,
+				coordinateWithCreator: true,
+			},
 		});
 	}, supportsProviderModelSessionCreation);
 

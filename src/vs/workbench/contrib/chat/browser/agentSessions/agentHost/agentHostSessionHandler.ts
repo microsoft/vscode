@@ -76,6 +76,7 @@ import {
 } from '../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
 import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestionAnswers, IChatService, IChatToolInvocation, IRemotePendingRequest, ToolConfirmKind, type IChatAutoModeResolutionPart, type IChatMcpAuthenticationRequired, type IChatMcpAuthenticationRequiredServer, type IChatMcpStartingServer, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData, type IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
+import { isInConversationModelChoice } from '../../../common/modelSelection.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, isTerminalCommandPrompt, SessionType, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
@@ -379,16 +380,36 @@ function emptyDraftFromLastTurn(state: ISessionWithDefaultChat): Message | undef
 	};
 }
 
-/**
- * Whether two drafts carry the same user-authored content, ignoring the
- * {@link Message.model | model} / {@link Message.agent | agent} selection.
- *
- * Used to recognize a draft that differs from an applied remote one only
- * because this client substituted a model it could resolve locally, which must
- * not be published back over the originating client's selection.
- */
-function sameDraftUserContent(a: Message | undefined, b: Message | undefined): boolean {
-	return (a?.text ?? '') === (b?.text ?? '') && equals(a?.attachments, b?.attachments);
+/** The draft the chat channel holds, so we only send real changes and can keep its model. */
+export class DraftSyncState {
+	private _synced: Message | undefined;
+	private _remoteModel: ModelSelection | undefined;
+
+	constructor(remoteDraft: Message | undefined) {
+		this._synced = remoteDraft;
+		this._remoteModel = remoteDraft?.model;
+	}
+
+	get synced(): Message | undefined {
+		return this._synced;
+	}
+
+	get remoteModel(): ModelSelection | undefined {
+		return this._remoteModel;
+	}
+
+	applyRemote(remoteDraft: Message | undefined): void {
+		this._synced = remoteDraft;
+		this._remoteModel = remoteDraft?.model;
+	}
+
+	shouldPublish(outgoing: Message | undefined): boolean {
+		if (equals(this._synced, outgoing)) {
+			return false;
+		}
+		this._synced = outgoing;
+		return true;
+	}
 }
 
 /**
@@ -769,6 +790,8 @@ export interface IAgentHostSessionHandlerConfig {
 	readonly resolveWorkingDirectory?: (sessionResource: URI) => URI | undefined;
 	/** Whether a final-looking chat resource is still a client-side draft. */
 	readonly isNewSession?: (sessionResource: URI) => boolean;
+	/** Called after a locally-created session has been accepted by the backend. */
+	readonly onSessionMaterialized?: (sessionResource: URI) => void;
 	/**
 	 * Optional callback invoked when the server rejects an operation because
 	 * authentication is required. Should trigger interactive authentication
@@ -1252,6 +1275,23 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				// Embedded resources will be added when the workbench grows first-class support for them.
 				return undefined; // unknown attachment type
 		}
+	}
+
+	updateChatSessionMetadata(sessionResource: URI, metadata: Record<string, unknown>): void {
+		const backendSession = this._resolveSessionUri(sessionResource);
+		const state = this._getSessionState(backendSession.toString());
+		if (state) {
+			this._config.connection.dispatch(backendSession.toString(), {
+				type: ActionType.SessionMetaChanged,
+				_meta: { ...state._meta, ...metadata },
+			});
+			return;
+		}
+
+		this._provisionalService.setSessionCreationMetadata(sessionResource, {
+			...(this._provisionalService.getInitialSessionMetadata(sessionResource) ?? {}),
+			...metadata,
+		});
 	}
 
 	async provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<IChatSession> {
@@ -2271,23 +2311,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const chatURI = initial.chat.toString();
 
 			if (initial.kind === SessionInputRequestKind.ChatInput) {
-				// A user-facing elicitation with no tool call. If no turn
-				// observer renders it within the grace window, nobody could
-				// answer it, so cancel it (the agent asked; nobody was there).
-				const inputKey = this._inputRequestKey(chatURI, initial.request.id);
-				let cancelled = false;
-				itemStore.add(disposableTimeout(() => {
-					if (cancelled || this._renderedRequests.get().has(inputKey)) {
-						return;
-					}
-					cancelled = true;
-					this._logService.warn(`[AgentHost] Cancelling chat input request ${initial.request.id}: no session claimed it within ${UNOBSERVED_CLIENT_TOOL_GRACE_MS}ms`);
-					this._dispatchAction(backendSession, {
-						type: ActionType.ChatInputCompleted,
-						requestId: initial.request.id,
-						response: ChatInputResponseKind.Cancel,
-					}, chatURI);
-				}, UNOBSERVED_CLIENT_TOOL_GRACE_MS));
+				return;
+			}
+			if (initial.kind !== SessionInputRequestKind.ToolClientExecution || initial.clientId !== this._config.connection.clientId) {
 				return;
 			}
 
@@ -2295,10 +2321,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const requestLifecycle = itemStore.add(new MutableDisposable<IDisposable>());
 			itemStore.add(this._retainToolCall(key));
 
-			if (initial.kind === SessionInputRequestKind.ToolClientExecution) {
-				if (initial.clientId !== this._config.connection.clientId) {
-					return; // A different client owns this call.
-				}
+			{
 				let execution = clientToolExecutions.get(key);
 				if (!execution) {
 					execution = { source: new CancellationTokenSource(), retain: this._retainToolCall(key), activeAttempts: 0 };
@@ -2399,43 +2422,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						}, UNOBSERVED_CLIENT_TOOL_GRACE_MS);
 					}
 				}));
-			} else if (initial.kind === SessionInputRequestKind.ToolAuthentication) {
-				// An MCP tool call blocked on authentication. The token is
-				// pushed out-of-band via the `authenticate` command, so this
-				// watcher does not resolve it — but if no observer renders the
-				// call within the grace window nobody can drive that flow, so
-				// cancel the call rather than leave the agent blocked forever.
-				itemStore.add(disposableTimeout(() => {
-					if (!this._renderedRequests.get().has(key)) {
-						this._logService.warn(`[AgentHost] Cancelling MCP authentication for ${initial.toolCall.toolName} (callId=${initial.toolCall.toolCallId}): no session claimed it within ${UNOBSERVED_CLIENT_TOOL_GRACE_MS}ms`);
-						this._resolveToolCall(chatURI, initial.turnId, initial.toolCall.toolCallId, {
-							type: ActionType.ChatToolCallComplete,
-							turnId: initial.turnId,
-							toolCallId: initial.toolCall.toolCallId,
-							result: {
-								success: false,
-								pastTenseMessage: localize('agentHost.mcpToolAuthentication.cancelled', "Cancelled tool call"),
-								error: { message: localize('agentHost.mcpToolAuthentication.cancelledError', "MCP authentication was cancelled"), code: 'cancelled' },
-							},
-						});
-					}
-				}, UNOBSERVED_CLIENT_TOOL_GRACE_MS));
-			} else {
-				// A confirmation that no sub/agent observer claims within the
-				// grace window is auto-denied so the agent is not left blocked
-				// on a surface that never renders.
-				itemStore.add(disposableTimeout(() => {
-					if (!this._renderedRequests.get().has(key)) {
-						this._logService.warn(`[AgentHost] Denying confirmation for ${initial.toolCall.toolName} (callId=${initial.toolCall.toolCallId}): no session claimed it within ${UNOBSERVED_CLIENT_TOOL_GRACE_MS}ms`);
-						this._resolveToolCall(chatURI, initial.turnId, initial.toolCall.toolCallId, {
-							type: ActionType.ChatToolCallConfirmed,
-							turnId: initial.turnId,
-							toolCallId: initial.toolCall.toolCallId,
-							approved: false,
-							reason: ToolCallCancellationReason.Denied,
-						});
-					}
-				}, UNOBSERVED_CLIENT_TOOL_GRACE_MS));
 			}
 		}));
 	}
@@ -3726,7 +3712,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			} else if (status === ToolCallStatus.PendingConfirmation) {
 				// The protocol can refresh a pending tool's command without an
 				// intervening status transition. Refresh the whole presentation, not
-				// just its message, so Omni and voice expose the command that is
+				// just its message, so voice exposes the command that is
 				// actually awaiting approval while preserving the current gate.
 				const prepared = toolCallStateToPreparedInvocation(tc, opts.backendSession, this._config.connectionAuthority, opts.sessionResource.authority);
 				invocation.updatePreparedInvocation(prepared, invocation.parameters);
@@ -4988,6 +4974,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private async _createAndSubscribe(sessionResource: URI, model: ModelSelection | undefined, fork?: { session: URI; chat: URI; turnIndex: number; turnId: string }, config?: Record<string, unknown>, importConversation?: { readonly turns: readonly Turn[]; readonly model?: ModelSelection }, onFailureStage?: (stage: AgentHostInvocationFailureStage) => void): Promise<URI> {
 		const workingDirectories = this._resolveRequestedWorkingDirectories(sessionResource);
 		const requestedSession = fork ? undefined : this._resolveSessionUri(sessionResource);
+		const meta = this._provisionalService.getInitialSessionMetadata(sessionResource);
 
 		this._logService.trace(`[AgentHost] Creating new session, model=${model?.id ?? '(default)'}, provider=${this._config.provider}${fork ? `, fork from ${fork.session.toString()} at index ${fork.turnIndex}` : ''}`);
 
@@ -5011,7 +4998,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		try {
 			session = await this._config.connection.createSession({
 				session: requestedSession,
-				_meta: this._provisionalService.getInitialSessionMetadata(),
+				_meta: meta,
 				model,
 				provider: this._config.provider,
 				workingDirectories,
@@ -5031,7 +5018,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					onFailureStage?.('createSession');
 					session = await this._config.connection.createSession({
 						session: requestedSession,
-						_meta: this._provisionalService.getInitialSessionMetadata(),
+						_meta: meta,
 						model,
 						provider: this._config.provider,
 						workingDirectories,
@@ -5048,10 +5035,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				throw err;
 			}
 		}
+		this._provisionalService.clearSessionCreationMetadata(sessionResource);
 
 		if (requestedSession && !isEqual(session, requestedSession)) {
 			throw new Error(`Agent host returned unexpected session URI. Expected ${requestedSession.toString()}, got ${session.toString()}`);
 		}
+		this._config.onSessionMaterialized?.(sessionResource);
 
 		this._logService.trace(`[AgentHost] Created session: ${session.toString()}`);
 
@@ -5178,28 +5167,25 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const value = chatSubscription.value;
 			return value && !(value instanceof Error) ? value.draft : undefined;
 		};
-		let syncedDraft = readRemoteDraft();
+		const draftState = new DraftSyncState(readRemoteDraft());
 		// The last `draft` object seen on the chat channel. Protocol state is
 		// immutable, so an identical reference means the draft did not change —
 		// letting the listener bail on a reference check instead of a deep
 		// compare, which matters because it runs on every chat state change
 		// (each streaming delta), not just draft changes.
-		let lastRemoteDraft = syncedDraft;
-		let appliedRemoteDraft: Message | undefined;
+		let lastRemoteDraft = draftState.synced;
 		const syncDraft = (state: IChatModelInputState | undefined): void => {
 			if (state?.origin === ChatInputStateOrigin.Remote) {
 				return;
 			}
-			const draft = this._inputStateToDraft(sessionResource, state);
-			if (equals(syncedDraft, draft)) {
+			let draft = this._inputStateToDraft(sessionResource, state);
+			// Don't overwrite the channel's model with one we only fell back to.
+			if (draft && draftState.remoteModel && !isInConversationModelChoice(state?.selectedModelReason)) {
+				draft = { ...draft, model: draftState.remoteModel };
+			}
+			if (!draftState.shouldPublish(draft)) {
 				return;
 			}
-			if (appliedRemoteDraft && sameDraftUserContent(draft, appliedRemoteDraft)) {
-				syncedDraft = draft;
-				return;
-			}
-			appliedRemoteDraft = undefined;
-			syncedDraft = draft;
 
 			this._config.connection.dispatch(chatKey, {
 				type: ActionType.ChatDraftChanged,
@@ -5216,16 +5202,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return;
 			}
 			lastRemoteDraft = remoteDraft;
-			if (equals(syncedDraft, remoteDraft)) {
+			if (equals(draftState.synced, remoteDraft)) {
 				return;
 			}
 			const localDraft = this._inputStateToDraft(sessionResource, inputModel.state.get());
-			if (!equals(syncedDraft, localDraft)) {
+			if (!equals(draftState.synced, localDraft)) {
 				// The pending outbound debounce will publish the local edit (last writer wins).
 				return;
 			}
-			syncedDraft = remoteDraft;
-			appliedRemoteDraft = remoteDraft;
+			draftState.applyRemote(remoteDraft);
 			this._applyRemoteDraft(inputModel, sessionResource, remoteDraft);
 		}));
 		store.add(toDisposable(() => {

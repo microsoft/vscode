@@ -56,11 +56,21 @@ export const COPILOT_ALLOW_MANAGED_HOOKS_ONLY_KEY = 'allowManagedHooksOnly';
 export const COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY = 'forceRemoteSettingsRefresh';
 
 /**
+ * Enterprise-mandated sandbox floor (`sandbox.enabled` in the runtime's managed-settings schema).
+ * The runtime owns composing and enforcing this floor — it is `force-on-wins`, so a managed `true`
+ * cannot be loosened by the user. VS Code only *reads* it to decide which chat harness to offer,
+ * and deliberately declares no configuration policy for it: the control is runtime-owned, and
+ * mirroring it as a VS Code policy would invert ownership.
+ */
+export const COPILOT_SANDBOX_ENABLED_KEY = 'sandbox.enabled';
+
+/**
  * Managed-settings controls consumed by the delivery pipeline itself rather than by a
  * configuration policy. Native MDM must watch these even though no setting declares them.
  */
 export const MANAGED_SETTINGS_CONTROL_DEFINITIONS: IManagedSettingsPolicyDefinitions = {
 	[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: { type: 'boolean' },
+	[COPILOT_SANDBOX_ENABLED_KEY]: { type: 'boolean' },
 };
 
 /** Policy-only configuration delivery slot for {@link COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY}. */
@@ -152,6 +162,24 @@ export function shouldForceRemoteSettingsRefresh(nativeMdm: ManagedSettingsData 
 	return server?.[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY] === true;
 }
 
+export const IManagedSettingsService = createDecorator<IManagedSettingsService>('managedSettingsService');
+
+/** Read-only access to effective managed settings after channel resolution. */
+export interface IManagedSettingsService {
+	readonly _serviceBrand: undefined;
+	readonly onDidChangeManagedSettings: Event<void>;
+	getManagedSettingValue(key: string): ManagedSettingValue | undefined;
+}
+
+export class NullManagedSettingsService implements IManagedSettingsService {
+	readonly _serviceBrand: undefined;
+	readonly onDidChangeManagedSettings = Event.None;
+
+	getManagedSettingValue(): ManagedSettingValue | undefined {
+		return undefined;
+	}
+}
+
 let managedModelValueCallback: ((policyData: IPolicyData) => ManagedSettingValue | undefined) | undefined;
 
 /** Trim a managed-settings model value, treating a blank/whitespace-only string as unset. */
@@ -175,6 +203,21 @@ export function managedModelValue(): (policyData: IPolicyData) => ManagedSetting
 		};
 	}
 	return managedModelValueCallback;
+}
+
+/**
+ * `value` callback shared by the third-party agent harness policies (`Claude3PIntegration`,
+ * `Codex3PIntegration`): forces the harness off when the account disables chat preview features,
+ * or when the user is governed by managed settings at all.
+ *
+ * Managed settings are composed and enforced by the Copilot runtime and never reach the Claude or
+ * Codex harnesses, so leaving them available would hand a governed user an ungoverned path around
+ * every managed control the enterprise set.
+ */
+export function thirdPartyAgentEnabledValue(policyData: IPolicyData): boolean | undefined {
+	return policyData.chat_preview_features_enabled === false || policyData.managedSettingsActive === true
+		? false
+		: undefined;
 }
 
 export const INativeManagedSettingsService = createDecorator<INativeManagedSettingsService>('nativeManagedSettingsService');
