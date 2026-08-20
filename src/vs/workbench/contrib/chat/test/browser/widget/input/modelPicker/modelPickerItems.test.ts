@@ -16,6 +16,7 @@ import { filterModelsForSession } from '../../../../../browser/widget/input/chat
 import { ChatAgentLocation, ChatModeKind } from '../../../../../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, IModelsControlManifest } from '../../../../../common/languageModels.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../../services/chat/common/chatEntitlementService.js';
+import { languageModelSourcePresentationRegistry } from '../../../../../common/languageModelSourcePresentation.js';
 
 function createStubEntitlementService(opts?: { entitlement?: ChatEntitlement; isInternal?: boolean; anonymous?: boolean }): IChatEntitlementService {
 	return {
@@ -54,7 +55,7 @@ function createAutoModel(): ILanguageModelChatMetadataAndIdentifier {
  * vendor id via `modelGroup`. The picker buckets by it and resolves the
  * display name from the vendor registry.
  */
-function createAgentHostModel(id: string, name: string, modelGroup: { id: string }): ILanguageModelChatMetadataAndIdentifier {
+function createAgentHostModel(id: string, name: string, modelGroup: { id: string; sourceId?: string }): ILanguageModelChatMetadataAndIdentifier {
 	const vendor = 'agent-host-copilotcli';
 	return {
 		identifier: `${vendor}:${id}`,
@@ -141,6 +142,7 @@ function callBuild(
 		restrictedMode?: boolean;
 		onRequestTrust?: () => void;
 		setupRequired?: boolean;
+		showManageModelsInSetupRequired?: boolean;
 		onRequestSetup?: () => void;
 		onSelect?: (model: ILanguageModelChatMetadataAndIdentifier) => void;
 		entitlementService?: IChatEntitlementService;
@@ -171,6 +173,7 @@ function callBuild(
 			showAutoModel: opts.showAutoModel ?? true,
 			restrictedMode: opts.restrictedMode ?? false,
 			setupRequired: opts.setupRequired ?? false,
+			showManageModelsInSetupRequired: opts.showManageModelsInSetupRequired ?? false,
 			isUBB: false,
 		},
 		actions: {
@@ -196,7 +199,7 @@ function createControlManifest(): IModelsControlManifest {
 
 suite('buildModelPickerItems', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('accessibility provider uses radio semantics for model items', () => {
 		const provider = getModelPickerAccessibilityProvider();
@@ -239,6 +242,29 @@ suite('buildModelPickerItems', () => {
 			description: 'Copilot',
 			ariaDescription: 'Medium cost',
 		} as IActionListItem<IActionWidgetDropdownAction>), 'Claude Sonnet 4.6, Medium cost');
+	});
+
+	test('accessibility provider announces hover notices with their severity', () => {
+		const model = createModel('gpt-4.1', 'GPT-4.1');
+		model.metadata = {
+			...model.metadata,
+			priceCategory: 'medium',
+			warningText: { data_retention: 'Prompts are **retained** for 30 days.' },
+			infoText: { model_relocated: 'Now serves from a [new region](https://aka.ms/region).' },
+		} as ILanguageModelChatMetadata;
+		const provider = getModelPickerAccessibilityProvider();
+		const item = getActionItems(callBuild([model])).find(a => a.label === 'GPT-4.1')!;
+
+		assert.strictEqual(
+			provider.getAriaLabel(item),
+			'GPT-4.1, Medium cost, Warning: Prompts are retained for 30 days., Info: Now serves from a new region.');
+	});
+
+	test('accessibility provider leaves models without notices unchanged', () => {
+		const provider = getModelPickerAccessibilityProvider();
+		const item = getActionItems(callBuild([createModel('gpt-4.1', 'GPT-4.1')])).find(a => a.label === 'GPT-4.1')!;
+
+		assert.strictEqual(provider.getAriaLabel(item), 'GPT-4.1');
 	});
 
 	test('auto model always appears first', () => {
@@ -338,21 +364,23 @@ suite('buildModelPickerItems', () => {
 	});
 
 	test('setupRequired shows an explanatory header and a Sign In action instead of auto', () => {
-		const items = callBuild([], { setupRequired: true, onRequestSetup: () => { } });
+		const items = callBuild([], { setupRequired: true, showManageModelsInSetupRequired: true, onRequestSetup: () => { } });
 		const actions = getActionItems(items);
 		assert.ok(items.some(i => i.kind === ActionListItemKind.Header && i.label === 'Sign in to use Copilot'));
-		assert.strictEqual(actions.length, 1);
+		assert.strictEqual(actions.length, 2);
 		assert.strictEqual(actions[0].item?.id, 'setupRequiredSignIn');
 		assert.strictEqual(actions[0].item?.enabled, true);
 		assert.strictEqual(actions.some(a => a.label === 'Auto'), false);
-		assert.strictEqual(actions.some(a => a.item?.id === 'manageModels'), false);
+		assert.strictEqual(actions[1].item?.id, 'manageModels');
 	});
 
 	test('setupRequired Sign In action is disabled without a setup callback', () => {
 		const items = callBuild([], { setupRequired: true });
-		const signIn = getActionItems(items).find(a => a.item?.id === 'setupRequiredSignIn');
+		const actions = getActionItems(items);
+		const signIn = actions.find(a => a.item?.id === 'setupRequiredSignIn');
 		assert.strictEqual(signIn?.item?.enabled, false);
 		assert.strictEqual(signIn?.disabled, true);
+		assert.strictEqual(actions.some(a => a.item?.id === 'manageModels'), false);
 	});
 
 	test('setupRequired Sign In action invokes the setup callback', () => {
@@ -431,6 +459,39 @@ suite('buildModelPickerItems', () => {
 		// Auto, then Claude (recent) in promoted, then others
 		assert.strictEqual(actions[0].label, 'Auto');
 		assert.strictEqual(actions[1].label, 'Claude');
+	});
+
+	test('model variants sharing metadata ids remain visible across promoted and other sections', () => {
+		const auto = createAutoModel();
+		const copilotSol = createModel('gpt-5.6-sol', 'GPT-5.6 Sol');
+		const copilotTerra = createModel('gpt-5.6-terra', 'GPT-5.6 Terra');
+		const byokSol = createModel('gpt-5.6-sol', 'GPT-5.6 Sol', 'openai');
+		const byokTerra = createModel('gpt-5.6-terra', 'GPT-5.6 Terra', 'openai');
+		const copilotOther = createModel('gpt-5.5', 'GPT-5.5');
+		const byokOther = createModel('gpt-5.5', 'GPT-5.5', 'openai');
+		const languageModelsService = createLanguageModelsServiceStub([
+			{ vendor: 'copilot', displayName: 'Copilot', groups: [] },
+			{
+				vendor: 'openai',
+				displayName: 'OpenAI',
+				groups: [{ name: 'OpenAI (Work)', modelIdentifiers: [byokSol.identifier, byokTerra.identifier, byokOther.identifier] }],
+			},
+		]);
+		const items = callBuild([auto, copilotSol, copilotTerra, copilotOther, byokSol, byokTerra, byokOther], {
+			recentModelIds: [copilotSol.identifier, byokSol.identifier, copilotTerra.identifier, byokTerra.identifier],
+			languageModelsService,
+		});
+
+		assert.deepStrictEqual(getActionItems(items)
+			.filter(item => !item.isSectionToggle && item.label !== 'Auto' && item.item?.id !== 'manageModels')
+			.map(item => ({ id: item.item?.id, section: item.section, provider: item.badge })), [
+			{ id: copilotSol.identifier, section: undefined, provider: 'Copilot' },
+			{ id: byokSol.identifier, section: undefined, provider: 'OpenAI (Work)' },
+			{ id: copilotTerra.identifier, section: undefined, provider: 'Copilot' },
+			{ id: copilotOther.identifier, section: 'other', provider: undefined },
+			{ id: byokOther.identifier, section: 'other', provider: undefined },
+			{ id: byokTerra.identifier, section: 'other', provider: undefined },
+		]);
 	});
 
 	test('recently used model not in models list but in controlModels shows as unavailable (upgrade for free user)', () => {
@@ -909,6 +970,68 @@ suite('buildModelPickerItems', () => {
 		const labelledSeparators = items.filter(i => i.kind === ActionListItemKind.Separator && i.label);
 		// Buckets sorted alphabetically by resolved group display name.
 		assert.deepStrictEqual(labelledSeparators.map(s => s.label), ['Copilot', 'Hugging Face', 'OpenAI']);
+	});
+
+	test('Other Models resolves a trusted source label without a synthetic vendor descriptor', () => {
+		store.add(languageModelSourcePresentationRegistry.register({
+			ownerVendor: 'agent-host-copilotcli',
+			sourceId: 'chatgptSubscription',
+			label: 'ChatGPT',
+			icon: Codicon.openai,
+			description: 'Models provided by your ChatGPT subscription',
+		}));
+		const auto = createAutoModel();
+		const cli = createAgentHostModel('claude-haiku-4.5', 'Claude Haiku 4.5', { id: 'copilotcli' });
+		const chatgpt = createAgentHostModel('gpt-5.6', 'GPT-5.6', { id: 'chatgpt', sourceId: 'chatgptSubscription' });
+		const service = createLanguageModelsServiceStub([
+			{ vendor: 'copilotcli', displayName: 'Copilot CLI', groups: [] },
+		]);
+
+		const items = callBuild([auto, cli, chatgpt], { languageModelsService: service });
+		const labelledSeparators = items.filter(i => i.kind === ActionListItemKind.Separator && i.label);
+
+		assert.deepStrictEqual(labelledSeparators.map(s => s.label), ['ChatGPT', 'Copilot']);
+	});
+
+	test('Other Models respects the configured BYOK group name for agent-host models', () => {
+		const auto = createAutoModel();
+		const cli = createAgentHostModel('claude-haiku-4.5', 'Claude Haiku 4.5', { id: 'copilotcli' });
+		const googleModelIdentifier = 'google/GoogleBYOK/gemini-2.5-pro';
+		const google = createAgentHostModel('google/gemini-2.5-pro', 'Gemini 2.5 Pro', { id: 'google' });
+		const googleWithByokIdentifier = {
+			...google,
+			metadata: { ...google.metadata, byokModelIdentifier: googleModelIdentifier },
+		};
+		const service = createLanguageModelsServiceStub([
+			{ vendor: 'copilotcli', displayName: 'Copilot CLI', groups: [] },
+			{ vendor: 'google', displayName: 'Google', groups: [{ name: 'GoogleBYOK', modelIdentifiers: [googleModelIdentifier] }] },
+		]);
+
+		const items = callBuild([auto, cli, googleWithByokIdentifier], { languageModelsService: service });
+		const labelledSeparators = items.filter(i => i.kind === ActionListItemKind.Separator && i.label);
+
+		assert.deepStrictEqual(labelledSeparators.map(s => s.label), ['Copilot', 'GoogleBYOK']);
+	});
+
+	test('Other Models keeps identically named agent-host BYOK groups from different providers separate', () => {
+		const auto = createAutoModel();
+		const googleModelIdentifier = 'google/Default/gemini-2.5-pro';
+		const openaiModelIdentifier = 'openai/Default/gpt-5';
+		const google = createAgentHostModel('google/gemini-2.5-pro', 'Gemini 2.5 Pro', { id: 'google' });
+		const openai = createAgentHostModel('openai/gpt-5', 'GPT-5', { id: 'openai' });
+		const service = createLanguageModelsServiceStub([
+			{ vendor: 'google', displayName: 'Google', groups: [{ name: 'Default', modelIdentifiers: [googleModelIdentifier] }] },
+			{ vendor: 'openai', displayName: 'OpenAI', groups: [{ name: 'Default', modelIdentifiers: [openaiModelIdentifier] }] },
+		]);
+
+		const items = callBuild([
+			auto,
+			{ ...google, metadata: { ...google.metadata, byokModelIdentifier: googleModelIdentifier } },
+			{ ...openai, metadata: { ...openai.metadata, byokModelIdentifier: openaiModelIdentifier } },
+		], { languageModelsService: service });
+		const labelledSeparators = items.filter(i => i.kind === ActionListItemKind.Separator && i.label);
+
+		assert.deepStrictEqual(labelledSeparators.map(s => s.label), ['Default', 'Default']);
 	});
 
 	test('Other Models keeps a single section when agent-host models share one modelGroup', () => {

@@ -16,12 +16,12 @@ import { ICAPIClientService } from '../../../endpoint/common/capiClient';
 import { IDomainService } from '../../../endpoint/common/domainService';
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../endpoint/common/endpointProvider';
 import { IEnvService } from '../../../env/common/envService';
-import { ILogService } from '../../../log/common/logService';
 import { IFetcherService } from '../../../networking/common/fetcherService';
 import { ICreateEndpointBodyOptions } from '../../../networking/common/networking';
 import { CAPIChatMessage } from '../../../networking/common/openai';
 import { IChatWebSocketManager } from '../../../networking/node/chatWebSocketManager';
 import { NullExperimentationService } from '../../../telemetry/common/nullExperimentationService';
+import { TestLogService } from '../../../testing/common/testLogService';
 import { ITelemetryService } from '../../../telemetry/common/telemetry';
 import { ITokenizerProvider } from '../../../tokenizer/node/tokenizer';
 import { ChatEndpoint } from '../chatEndpoint';
@@ -67,7 +67,7 @@ const createMockServices = () => ({
 	configurationService: new InMemoryConfigurationService(new DefaultsOnlyConfigurationService()),
 	expService: new NullExperimentationService(),
 	chatWebSocketService: {} as IChatWebSocketManager,
-	logService: {} as ILogService
+	logService: new TestLogService()
 });
 
 
@@ -536,7 +536,11 @@ describe('ChatEndpoint - Kimi CAPI customization', () => {
 		expect(body.top_p).toBe(0.95);
 	});
 
-	it.each(['kimi-k2.6', 'kimi-k2.7-code', 'kimi-k3'])('should normalize tool call IDs for %s', family => {
+	it.each([
+		{ family: 'kimi-k2.6', prefix: 'functions.' },
+		{ family: 'kimi-k2.7-code', prefix: 'functions.' },
+		{ family: 'kimi-k3', prefix: '' },
+	])('should normalize tool call IDs for $family', ({ family, prefix }) => {
 		const history = createToolHistory();
 		const endpoint = createEndpoint(createNonAnthropicModelMetadata(family));
 		const body = endpoint.createRequestBody(createTestOptions(history));
@@ -548,11 +552,11 @@ describe('ChatEndpoint - Kimi CAPI customization', () => {
 				: message.role === Raw.ChatRole.Tool ? message.toolCallId : undefined)
 		}).toEqual({
 			body: [
-				{ role: OpenAI.ChatRole.Assistant, toolCallIds: ['functions.read_file:0', 'functions.replace_string_in_file:1'] },
-				{ role: OpenAI.ChatRole.Tool, toolCallId: 'functions.read_file:0' },
-				{ role: OpenAI.ChatRole.Tool, toolCallId: 'functions.replace_string_in_file:1' },
-				{ role: OpenAI.ChatRole.Assistant, toolCallIds: ['functions.run_in_terminal:2'] },
-				{ role: OpenAI.ChatRole.Tool, toolCallId: 'functions.run_in_terminal:2' },
+				{ role: OpenAI.ChatRole.Assistant, toolCallIds: [`${prefix}read_file:0`, `${prefix}replace_string_in_file:1`] },
+				{ role: OpenAI.ChatRole.Tool, toolCallId: `${prefix}read_file:0` },
+				{ role: OpenAI.ChatRole.Tool, toolCallId: `${prefix}replace_string_in_file:1` },
+				{ role: OpenAI.ChatRole.Assistant, toolCallIds: [`${prefix}run_in_terminal:2`] },
+				{ role: OpenAI.ChatRole.Tool, toolCallId: `${prefix}run_in_terminal:2` },
 				{ role: OpenAI.ChatRole.Tool, toolCallId: 'unmatched_tool_call' }
 			],
 			history: [
@@ -658,5 +662,52 @@ describe('ChatEndpoint - CAPI reasoning effort', () => {
 		const endpoint = createEndpoint(createReasoningModelMetadata('gemini-2.5-pro'));
 		const body = endpoint.createRequestBody(createOptions('high'));
 		expect(body.reasoning_effort).toBeUndefined();
+	});
+});
+
+describe('ChatEndpoint - model picker notices', () => {
+	let mockServices: ReturnType<typeof createMockServices>;
+
+	beforeEach(() => {
+		mockServices = createMockServices();
+	});
+
+	const createEndpoint = (metadata: IChatModelInformation) =>
+		new ChatEndpoint(
+			metadata,
+			mockServices.domainService,
+			mockServices.chatMLFetcher,
+			mockServices.tokenizerProvider,
+			mockServices.instantiationService,
+			mockServices.configurationService,
+			mockServices.expService,
+			mockServices.chatWebSocketService,
+			mockServices.logService
+		);
+
+	it('shows a pending deprecation as a warning and other info messages as info', () => {
+		const endpoint = createEndpoint({
+			...createNonAnthropicModelMetadata('gpt-4.1'),
+			warning_text: { data_retention: 'Prompts are retained for 30 days.' },
+			warning_messages: [{ code: 'model_degraded', message: 'GPT-4.1 is currently degraded.' }],
+			info_messages: [
+				{ code: 'model_pending_deprecation', message: 'GPT-4.1 has a planned deprecation date of 2026-06-01.' },
+				{ code: 'model_relocated', message: 'GPT-4.1 now serves from a new region.' },
+			],
+		});
+
+		expect({ warningText: endpoint.warningText, infoText: endpoint.infoText, degradationReason: endpoint.degradationReason }).toEqual({
+			warningText: {
+				data_retention: 'Prompts are retained for 30 days.',
+				model_pending_deprecation: 'GPT-4.1 has a planned deprecation date of 2026-06-01.',
+			},
+			infoText: { model_relocated: 'GPT-4.1 now serves from a new region.' },
+			degradationReason: 'GPT-4.1 is currently degraded.',
+		});
+	});
+
+	it('has no notices when CAPI sends none', () => {
+		const endpoint = createEndpoint({ ...createNonAnthropicModelMetadata('gpt-4.1'), info_messages: [] });
+		expect({ warningText: endpoint.warningText, infoText: endpoint.infoText }).toEqual({ warningText: undefined, infoText: undefined });
 	});
 });

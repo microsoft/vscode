@@ -623,6 +623,10 @@ class CodeMain {
 	}
 
 	private validatePaths(args: NativeParsedArgs): NativeParsedArgs {
+		const defaultKeybindingsExportPath = args['export-default-keybindings'];
+		if (defaultKeybindingsExportPath) {
+			args['export-default-keybindings'] = sanitizeFilePath(defaultKeybindingsExportPath, cwd());
+		}
 
 		// Track URLs if they're going to be used
 		if (args['open-url']) {

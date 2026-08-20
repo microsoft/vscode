@@ -150,6 +150,29 @@ suite('CodexAppServerClient', () => {
 		}
 	});
 
+	test('request includes W3C trace context when provided', async () => {
+		const peer = makeFakePeer();
+		const client = new CodexAppServerClient(peer.transport);
+		try {
+			const responsePromise = client.request('getAuthStatus', { refreshToken: false, includeToken: false }, {
+				traceId: '1'.repeat(32),
+				spanId: '2'.repeat(16),
+				traceparent: `00-${'1'.repeat(32)}-${'2'.repeat(16)}-01`,
+				tracestate: 'vendor=value',
+			});
+			const sent = await readNextMessage(peer.outbound) as { id: number; trace: unknown };
+			assert.deepStrictEqual(sent.trace, {
+				traceparent: `00-${'1'.repeat(32)}-${'2'.repeat(16)}-01`,
+				tracestate: 'vendor=value',
+			});
+			peer.push({ id: sent.id, result: { authMode: 'apikey' } });
+			await responsePromise;
+		} finally {
+			client.dispose();
+			peer.dispose();
+		}
+	});
+
 	test('request rejects with JsonRpcError on error envelope', async () => {
 		const peer = makeFakePeer();
 		const client = new CodexAppServerClient(peer.transport);

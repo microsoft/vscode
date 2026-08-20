@@ -58,6 +58,8 @@ Run a targeted type check or build when you are not fully confident in the chang
 - `npm run gulp compile-extensions` for built-in extensions
 - `npm run typecheck` from the `build` folder for build tooling
 
+Development compile tasks already type-check their inputs. Do not run `npm run typecheck-client` immediately before `npm run compile` or `npm run compile-client`; choose the command that covers the required validation. When tests only need fresh output files, use the fast one-shot `npm run transpile-client` instead of compiling.
+
 Use `scripts/test.sh` (or `scripts\test.bat` on Windows) for unit tests and `scripts/test-integration.sh` (or `scripts\test-integration.bat` on Windows) for integration tests. Add a targeted selector such as `--grep` whenever possible. Run `npm run valid-layers-check` only when a change may affect module layering.
 
 ## Coding Guidelines

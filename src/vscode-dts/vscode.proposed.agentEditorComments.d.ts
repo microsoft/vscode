@@ -53,6 +53,12 @@ declare module 'vscode' {
 		readonly onDidChange: Event<void>;
 
 		/**
+		 * An event that fires when the workbench requests that a comment be revealed.
+		 * The event value is the {@link AgentEditorComment.id id} to reveal.
+		 */
+		readonly onDidRevealComment: Event<string>;
+
+		/**
 		 * Add a comment for the resource at the given range. No-op when the resource
 		 * is not in scope for a session.
 		 *

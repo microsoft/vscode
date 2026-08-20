@@ -16,7 +16,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { agentHostUri } from '../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { type IAgentConnection, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
+import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
+import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import type { ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -52,12 +53,45 @@ function toLocalProjectUri(uri: URI, connectionAuthority: string): URI {
 export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly address: string;
 	readonly name: string;
+	/**
+	 * Stable preference key for this host (see
+	 * {@link IAgentHostSessionsProvider.remoteLocationPreferenceKey}), when
+	 * it differs from {@link address} — e.g. an SSH host's
+	 * `computeSSHConnectionKey()` result versus its live forwarded address.
+	 * Defaults to {@link address} when omitted.
+	 */
+	readonly preferenceKey?: string;
 	/** Optional hook to establish a connection on demand (e.g. tunnel relay). */
 	readonly connectOnDemand?: () => Promise<void>;
 	/** Optional hook to tear down the active connection on demand (e.g. tunnel relay). */
 	readonly disconnectOnDemand?: () => Promise<void>;
 	/** Optional progress messages during on-demand connect. */
 	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
+	/**
+	 * Set when the host addresses sessions under a scheme that differs from its agent provider, as
+	 * the cloud sandbox host does (sessions are `ahp-session:/<id>` while the agent is `copilot`).
+	 * The provider derives both directions from this pair, so they cannot drift apart.
+	 */
+	readonly sessionSchemeAlias?: ISessionSchemeAlias;
+	/**
+	 * Suppresses the `[host]` suffix that otherwise disambiguates this host's workspaces from
+	 * identically-named ones on other hosts. Set by hosts whose label names a task rather than a
+	 * location, where the suffix would put every session in a workspace group of one.
+	 */
+	readonly omitHostFromWorkspaceLabel?: boolean;
+	/** Type icon for this host's workspaces. See {@link ISessionWorkspace.typeIcon}. */
+	readonly workspaceTypeIcon?: ThemeIcon;
+}
+
+/**
+ * The two names a session goes by when the host's session scheme differs from its agent provider.
+ * The raw session id is shared, so only the scheme is translated.
+ */
+export interface ISessionSchemeAlias {
+	/** Scheme the UI routes by — the agent provider (e.g. `copilot`). */
+	readonly ui: string;
+	/** Scheme the host's session registry is keyed by (e.g. `ahp-session`). */
+	readonly backend: string;
 }
 
 /**
@@ -85,11 +119,18 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	readonly label: string;
 	readonly icon: ThemeIcon = Codicon.remote;
 	readonly remoteAddress: string;
+	readonly remoteLocationPreferenceKey: string;
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 	readonly canConnectOnDemand: boolean;
 	readonly onDidReportConnectProgress: Event<IAgentHostConnectProgress> | undefined;
 
 	private readonly _connectionStatus = observableValue<RemoteAgentHostConnectionStatus>('connectionStatus', RemoteAgentHostConnectionStatus.disconnected);
+	/**
+	 * Forces this host's sessions read-only. Distinct from `disconnected`: a disconnected host may
+	 * come back, so its sessions stay writable and queue on reconnect, whereas this marks a host
+	 * that is gone and whose sessions exist only as replayed history.
+	 */
+	private readonly _readOnly = observableValue<boolean>('providerReadOnly', false);
 	readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus> = this._connectionStatus;
 
 	/**
@@ -117,6 +158,9 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	private readonly _connectionAuthority: string;
 	private readonly _connectOnDemand: (() => Promise<void>) | undefined;
 	private readonly _disconnectOnDemand: (() => Promise<void>) | undefined;
+	private readonly _sessionSchemeAlias: ISessionSchemeAlias | undefined;
+	private readonly _omitHostFromWorkspaceLabel: boolean;
+	private readonly _workspaceTypeIcon: ThemeIcon | undefined;
 	/** Storage key used for persisting {@link _sessionCache} snapshots. */
 	private readonly _storageKey: string;
 	/**
@@ -154,6 +198,9 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._connectionAuthority = agentHostAuthority(config.address);
 		this._connectOnDemand = config.connectOnDemand;
 		this._disconnectOnDemand = config.disconnectOnDemand;
+		this._sessionSchemeAlias = config.sessionSchemeAlias;
+		this._omitHostFromWorkspaceLabel = config.omitHostFromWorkspaceLabel === true;
+		this._workspaceTypeIcon = config.workspaceTypeIcon;
 		this.onDidReportConnectProgress = config.onDidReportConnectProgress;
 		this.canConnectOnDemand = !!config.connectOnDemand;
 		const displayName = config.name || config.address;
@@ -161,6 +208,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this.id = `agenthost-${this._connectionAuthority}`;
 		this.label = displayName;
 		this.remoteAddress = config.address;
+		this.remoteLocationPreferenceKey = config.preferenceKey ?? config.address;
 		this._storageKey = `${CACHED_SESSIONS_STORAGE_PREFIX}${this._connectionAuthority}`;
 
 		this.browseActions = [{
@@ -174,6 +222,11 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		}];
 
 		this._enableSessionCachePersistence(this._storageKey, `${CACHED_SESSIONS_STORAGE_PREFIX_LEGACY}${this._connectionAuthority}`);
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('git.branchProtection')) {
+				this._refreshSessionWorkspaces();
+			}
+		}));
 	}
 
 	// -- BaseAgentHostSessionsProvider hooks ---------------------------------
@@ -192,13 +245,16 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	}
 
 	protected _adapterOptions() {
-		const web = this.isWebPlatform;
+		const hostLabel = this._workspaceHostLabel;
+		const typeIcon = this._workspaceTypeIcon;
 		return {
-			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => {
-				const uriForDescription = project?.uri ?? workingDirectory;
+			readOnly: this._readOnly,
+			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => {
+				const primary = workingDirectories?.[0];
+				const uriForDescription = project?.uri ?? primary;
 				const description = uriForDescription ? this._labelService.getUriLabel(dirname(uriForDescription), { relative: false }) : undefined;
-				const branchProtectionPatterns = readBranchProtectionPatterns(this._configurationService, workingDirectory ?? project?.uri);
-				return RemoteAgentHostSessionsProvider.buildWorkspace(project, workingDirectory, web ? undefined : this.label, gitHubInfo, gitState, description, branchProtectionPatterns);
+				const branchProtectionPatterns = readBranchProtectionPatterns(this._configurationService, primary ?? project?.uri);
+				return RemoteAgentHostSessionsProvider.buildWorkspace(project, workingDirectories, hostLabel, gitHubInfo, gitState, description, branchProtectionPatterns, typeIcon);
 			},
 		};
 	}
@@ -273,6 +329,71 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._connectionStatus.set(status, undefined);
 	}
 
+	/**
+	 * Forces every session on this host to be read-only.
+	 *
+	 * Set when the host is permanently unreachable and its sessions are being served from
+	 * persisted history: the conversation is genuine, but there is no host left to send to, so the
+	 * composer must be hidden rather than accept input that can never be delivered.
+	 */
+	setReadOnly(readOnly: boolean): void {
+		this._readOnly.set(readOnly, undefined);
+	}
+
+	/**
+	 * Seed discovered session summaries into the cache so they surface in the sessions list
+	 * **before** a connection is established (lazy discovery).
+	 *
+	 * An entry that already exists keeps everything the host has told us, except for a missing
+	 * project: the repository name is resolved over the network and that lookup can fail, so
+	 * filling it in on a later pass is what makes retrying worth anything. Opening a seeded session
+	 * triggers `connectOnDemand`, after which `_refreshSessions` reconciles against the host.
+	 */
+	seedSessions(metas: readonly IAgentSessionMetadata[]): void {
+		const added: ISession[] = [];
+		const changed: ISession[] = [];
+		for (const rawMeta of metas) {
+			const meta = this._adoptSessionMeta(rawMeta);
+			const rawId = AgentSession.id(meta.session);
+			const existing = this._sessionCache.get(rawId);
+			if (existing) {
+				// Announcing the change also marks the session cache dirty, so the filled-in
+				// project reaches the next persisted snapshot.
+				if (meta.project && !existing.project && existing.backfillProject(meta.project)) {
+					changed.push(existing);
+				}
+				continue;
+			}
+			const adapter = this.createAdapter(meta);
+			this._sessionCache.set(rawId, adapter);
+			added.push(adapter);
+		}
+		if (added.length > 0 || changed.length > 0) {
+			this._onDidChangeSessions.fire({ added, removed: [], changed });
+		}
+	}
+
+	/**
+	 * Map a host-reported session URI onto the UI scheme, so the session routes to the agent's
+	 * content provider. The raw id is preserved, so cache keys are unaffected.
+	 */
+	protected override _adoptSessionMeta(meta: IAgentSessionMetadata): IAgentSessionMetadata {
+		const alias = this._sessionSchemeAlias;
+		if (!alias || meta.session.scheme !== alias.backend) {
+			return meta;
+		}
+		return { ...meta, session: meta.session.with({ scheme: alias.ui }) };
+	}
+
+	/**
+	 * Inverse of {@link _adoptSessionMeta}: map the UI scheme back to the one the host's session
+	 * registry is keyed by, so backend calls address the URI the host knows.
+	 */
+	protected override _backendSessionScheme(agentProvider: string): string {
+		const alias = this._sessionSchemeAlias;
+		return alias && agentProvider === alias.ui ? alias.backend : agentProvider;
+	}
+
 	setAuthenticationPending(pending: boolean): void {
 		// Sticky: once the first authentication pass settles, never surface
 		// pending again. Subsequent re-auths happen silently in the background.
@@ -303,16 +424,15 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._defaultDirectory = defaultDirectory;
 		this._unpublished = false;
 
-		// Dynamically discover session types from the host's advertised agents.
-		const rootStateValue = connection.rootState.value;
-		if (rootStateValue && !(rootStateValue instanceof Error)) {
-			this._syncSessionTypesFromRootState(rootStateValue);
-			this._syncRootConfigFromRootState(rootStateValue);
-		}
-		this._connectionListeners.add(connection.rootState.onDidChange(rootState => {
-			this._syncSessionTypesFromRootState(rootState);
-			this._syncRootConfigFromRootState(rootState);
+		this._syncRootState(connection.rootState.value);
+		this._connectionListeners.add(connection.rootState.onDidChange(() => {
+			this._syncRootState(connection.rootState.value);
 		}));
+		if (connection.rootState.onDidError) {
+			this._connectionListeners.add(connection.rootState.onDidError(error => {
+				this._syncRootState(error);
+			}));
+		}
 
 		this._attachConnectionListeners(connection, this._connectionListeners);
 
@@ -336,11 +456,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._connection = undefined;
 		this._defaultDirectory = undefined;
 		this._disposeAllNewSessions();
-
-		if (this._sessionTypes.length > 0) {
-			this._sessionTypes = [];
-			this._onDidChangeSessionTypes.fire();
-		}
+		this._syncRootState(undefined);
 
 		// Drop only the transient pending/draft session; keep the persisted
 		// cache so the workspace picker keeps showing offline sessions.
@@ -390,15 +506,24 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 
 	// -- Workspaces ----------------------------------------------------------
 
-	static buildWorkspace(project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined, providerLabel: string | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined, description?: string, branchProtectionPatterns?: readonly string[]): ISessionWorkspace | undefined {
-		return buildAgentHostSessionWorkspace(project, workingDirectory, { providerLabel, fallbackIcon: Codicon.remote, requiresWorkspaceTrust: true, description, branchProtectionPatterns, group: SESSION_WORKSPACE_GROUP_REMOTE }, gitHubInfo, gitState);
+	/**
+	 * The host name appended to this host's workspace labels, or `undefined` when it would add
+	 * nothing — in web the workbench is already scoped to a single host by the host picker.
+	 */
+	private get _workspaceHostLabel(): string | undefined {
+		return this.isWebPlatform || this._omitHostFromWorkspaceLabel ? undefined : this.label;
+	}
+
+	static buildWorkspace(project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, providerLabel: string | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined, description?: string, branchProtectionPatterns?: readonly string[], typeIcon?: ThemeIcon): ISessionWorkspace | undefined {
+		return buildAgentHostSessionWorkspace(project, workingDirectories, { providerLabel, fallbackIcon: Codicon.remote, requiresWorkspaceTrust: true, description, branchProtectionPatterns, group: SESSION_WORKSPACE_GROUP_REMOTE, typeIcon }, gitHubInfo, gitState);
 	}
 
 	private _buildWorkspaceFromUri(uri: URI): ISessionWorkspace {
 		const folderName = basename(uri) || uri.path;
+		const hostLabel = this._workspaceHostLabel;
 		return {
 			uri,
-			label: this.isWebPlatform ? folderName : `${folderName} [${this.label}]`,
+			label: hostLabel ? `${folderName} [${hostLabel}]` : folderName,
 			description: this._labelService.getUriLabel(dirname(uri), { relative: false }),
 			group: SESSION_WORKSPACE_GROUP_REMOTE,
 			icon: Codicon.remote,

@@ -758,18 +758,23 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				});
 			}
 
-			async run(accessor: ServicesAccessor, section?: AICustomizationManagementSection, automationId?: string): Promise<void> {
+			async run(accessor: ServicesAccessor, target?: AICustomizationManagementSection | { readonly section?: AICustomizationManagementSection; readonly sessionType?: string; readonly revealUri?: URI }): Promise<void> {
 				const editorService = accessor.get(IEditorService);
 				const chatWidgetService = accessor.get(IChatWidgetService);
 				const harnessService = accessor.get(ICustomizationHarnessService);
+				const section = typeof target === 'string' ? target : target?.section;
+				const revealUri = typeof target === 'string' ? undefined : target?.revealUri;
 
 				// Detect the active chat session type and switch the harness
 				// so the customization editor opens in the matching context.
-				const widget = chatWidgetService.lastFocusedWidget;
+				const explicitSessionType = typeof target === 'string' ? undefined : target?.sessionType;
+				const widget = explicitSessionType ? undefined : chatWidgetService.lastFocusedWidget;
 				const pendingSessionType = widget?.input.pendingDelegationTarget;
-				const sessionResource = pendingSessionType
-					? harnessService.getSessionResourceForHarness(pendingSessionType)
-					: widget?.viewModel?.sessionResource;
+				const sessionResource = explicitSessionType
+					? harnessService.getSessionResourceForHarness(explicitSessionType)
+					: pendingSessionType
+						? harnessService.getSessionResourceForHarness(pendingSessionType)
+						: widget?.viewModel?.sessionResource;
 				if (sessionResource) {
 					harnessService.setActiveSession(sessionResource);
 				}
@@ -778,8 +783,8 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				const pane = await editorService.openEditor(input, { pinned: true });
 				if (section && pane instanceof AICustomizationManagementEditor) {
 					pane.selectSectionById(section);
-					if (section === AICustomizationManagementSection.Automations && automationId) {
-						pane.focusAutomation(automationId);
+					if (revealUri) {
+						await pane.revealCustomizationByUri(revealUri);
 					}
 				}
 			}

@@ -12,7 +12,6 @@ import { localize } from '../../../../nls.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry, type IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry.js';
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { AgentSandboxEnabledValue } from '../../../../platform/sandbox/common/settings.js';
 import { TerminalLocationConfigValue, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
 import { terminalColorSchema, terminalIconSchema } from '../../../../platform/terminal/common/terminalPlatformConfiguration.js';
 import { ConfigurationKeyValuePairs, IConfigurationMigrationRegistry, Extensions as WorkbenchExtensions } from '../../../common/configuration.js';
@@ -715,71 +714,6 @@ export async function registerTerminalConfiguration(getFontSnippets: () => Promi
 
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{
-		key: TerminalContribSettingId.AgentSandboxEnabled,
-		migrateFn: (value: unknown, valueAccessor) => {
-			if (value !== AgentSandboxEnabledValue.AllowNetwork) {
-				return [];
-			}
-			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [[TerminalContribSettingId.AgentSandboxEnabled, { value: AgentSandboxEnabledValue.On }]];
-			if (valueAccessor(TerminalContribSettingId.AgentSandboxAllowNetwork) === undefined) {
-				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxAllowNetwork, { value: true }]);
-			}
-			return configurationKeyValuePairs;
-		}
-	}, {
-		key: TerminalContribSettingId.AgentSandboxWindowsEnabled,
-		migrateFn: (value: unknown, valueAccessor) => {
-			if (value !== AgentSandboxEnabledValue.AllowNetwork) {
-				return [];
-			}
-			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [[TerminalContribSettingId.AgentSandboxWindowsEnabled, { value: AgentSandboxEnabledValue.On }]];
-			if (valueAccessor(TerminalContribSettingId.AgentSandboxAllowNetwork) === undefined) {
-				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxAllowNetwork, { value: true }]);
-			}
-			return configurationKeyValuePairs;
-		}
-	}, {
-		key: TerminalContribSettingId.DeprecatedAgentSandboxEnabled,
-		migrateFn: (value: unknown, valueAccessor) => {
-			// The deprecated key `chat.agent.sandbox` is now also a namespace prefix
-			// for new settings such as `chat.agent.sandbox.enabled` and
-			// `chat.agent.sandbox.fileSystem.mac`. As a result, inspecting the
-			// deprecated key may return an object representing the namespace tree
-			// (e.g. `{ fileSystem: { mac: {...} } }`) even when the user never set
-			// the original boolean setting. Only migrate when the value is actually
-			// the original boolean type and skip writing back undefined to avoid
-			// clobbering the new sub-settings.
-			if (typeof value !== 'boolean') {
-				return [];
-			}
-			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
-			if (valueAccessor(TerminalContribSettingId.AgentSandboxEnabled) === undefined) {
-				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxEnabled, { value: value ? AgentSandboxEnabledValue.On : AgentSandboxEnabledValue.Off }]);
-			}
-			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedAgentSandboxEnabled, { value: undefined }]);
-			return configurationKeyValuePairs;
-		}
-	}, {
-		key: TerminalContribSettingId.DeprecatedAgentSandboxLinuxFileSystem,
-		migrateFn: (value: { denyRead?: string[]; allowWrite?: string[]; denyWrite?: string[] }, valueAccessor) => {
-			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
-			if (value !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxLinuxFileSystem) === undefined) {
-				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxLinuxFileSystem, { value }]);
-			}
-			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedAgentSandboxLinuxFileSystem, { value: undefined }]);
-			return configurationKeyValuePairs;
-		}
-	}, {
-		key: TerminalContribSettingId.DeprecatedAgentSandboxMacFileSystem,
-		migrateFn: (value: { denyRead?: string[]; allowWrite?: string[]; denyWrite?: string[] }, valueAccessor) => {
-			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
-			if (value !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxMacFileSystem) === undefined) {
-				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxMacFileSystem, { value }]);
-			}
-			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedAgentSandboxMacFileSystem, { value: undefined }]);
-			return configurationKeyValuePairs;
-		}
-	}, {
 		key: TerminalSettingId.EnableBell,
 		migrateFn: (enableBell, accessor) => {
 			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];

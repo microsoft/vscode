@@ -9,7 +9,7 @@ import { Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { IRenderedMarkdown, MarkdownRenderOptions, renderAsPlaintext, renderMarkdown } from '../../../../../../../base/browser/markdownRenderer.js';
-import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
@@ -25,7 +25,8 @@ import { ChatToolInvocationPart } from '../../../../browser/widget/chatContentPa
 import { ChatToolConfirmationCarouselPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolConfirmationCarouselPart.js';
 import { BaseChatToolInvocationSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationSubPart.js';
 import { ChatToolProgressSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolProgressPart.js';
-import { isMcpToolInvocation } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
+import { ChatToolStreamingSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolStreamingSubPart.js';
+import { isAskQuestionsToolInvocation, isMcpToolInvocation } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
 import { DiffEditorPool, EditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { IChatAutomationConfiguredData, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
@@ -79,11 +80,24 @@ suite('ChatToolProgressSubPart', () => {
 		};
 	}
 
+	function createStreamingToolInvocation(streamingMessage: string, isAttachedToThinking: boolean = false): IChatToolInvocation {
+		const state = observableValue<IChatToolInvocation.State>('state', {
+			type: IChatToolInvocation.StateKind.Streaming,
+			partialInput: observableValue('partialInput', {}),
+			streamingMessage: observableValue('streamingMessage', streamingMessage)
+		});
+		return {
+			...createToolInvocation({ invocationMessage: streamingMessage }),
+			isAttachedToThinking,
+			state,
+		};
+	}
+
 	function createSerializedToolInvocation(options: {
 		source?: ToolDataSourceType;
 		toolId?: string;
 		isComplete?: boolean;
-		invocationMessage?: string;
+		invocationMessage?: string | IMarkdownString;
 	} = {}): IChatToolInvocationSerialized {
 		return {
 			presentation: undefined,
@@ -104,7 +118,7 @@ suite('ChatToolProgressSubPart', () => {
 	function createToolInvocation(options: {
 		source?: ToolDataSourceType;
 		toolId?: string;
-		invocationMessage?: string;
+		invocationMessage?: string | IMarkdownString;
 		progressMessage?: string;
 	} = {}): IChatToolInvocation {
 		const source = options.source ?? ToolDataSource.Internal;
@@ -268,6 +282,11 @@ suite('ChatToolProgressSubPart', () => {
 		assert.deepStrictEqual(cases, [true, true, false]);
 	});
 
+	test('detects all ask-question tool names for top-level rendering', () => {
+		const toolNames = ['copilot_askQuestions', 'vscode_askQuestions', 'ask_user', 'AskUserQuestion', 'request_user_input'];
+		assert.deepStrictEqual(toolNames.map(toolId => isAskQuestionsToolInvocation(createToolInvocation({ toolId }))), [true, true, true, true, true]);
+	});
+
 	test('renders the automation result subpart for configured automation data', () => {
 		const invocation: IChatToolInvocationSerialized = {
 			...createSerializedToolInvocation({ isComplete: true }),
@@ -292,35 +311,46 @@ suite('ChatToolProgressSubPart', () => {
 		assert.strictEqual(createInstanceStub.firstCall.args[0], ChatAutomationConfiguredResultSubPart);
 	});
 
-	test('renders codicon syntax in an automation name as literal accessible text', () => {
-		const data: IChatAutomationConfiguredData = {
-			kind: 'automationConfigured',
-			automationId: 'automation-1',
-			automationName: '$(error)',
-			operation: 'created',
+	test('renders codicon syntax in an automation name as literal text', () => {
+		const render = (automationName: string) => {
+			const part = disposables.add(instantiationService.createInstance(
+				ChatAutomationConfiguredResultSubPart,
+				createSerializedToolInvocation({ isComplete: true }),
+				{ kind: 'automationConfigured', automationId: 'automation-1', automationName, operation: 'created' } satisfies IChatAutomationConfiguredData,
+				createRenderContext(),
+				mockMarkdownRenderer,
+			));
+			const button = part.domNode.querySelector<HTMLElement>('.chat-open-session-button');
+			return {
+				text: button?.textContent,
+				ariaLabel: button?.getAttribute('aria-label'),
+				tabIndex: button?.tabIndex,
+				watchIconIsChild: !!button?.querySelector('.codicon-watch'),
+				// `codicon-*` on the root would restyle the label text.
+				rootCarriesCodiconClass: button?.classList.contains('codicon'),
+				injectedIcons: [...button?.querySelectorAll('.codicon') ?? []]
+					.flatMap(el => [...el.classList]).filter(c => c.startsWith('codicon-')),
+			};
 		};
-		const part = disposables.add(instantiationService.createInstance(
-			ChatAutomationConfiguredResultSubPart,
-			createSerializedToolInvocation({ isComplete: true }),
-			data,
-			createRenderContext(),
-			mockMarkdownRenderer,
-		));
-		const button = part.domNode.querySelector<HTMLElement>('.chat-open-session-button');
 
-		assert.deepStrictEqual({
-			text: button?.textContent,
-			ariaLabel: button?.getAttribute('aria-label'),
-			tabIndex: button?.tabIndex,
-			hasWatchIcon: button?.classList.contains('codicon-watch'),
-			hasInjectedErrorIcon: button?.classList.contains('codicon-error') || !!button?.querySelector('.codicon-error'),
-		}, {
-			text: 'Created an automation: $(error)',
-			ariaLabel: 'Open automation $(error)',
-			tabIndex: 0,
-			hasWatchIcon: true,
-			hasInjectedErrorIcon: false,
-		});
+		assert.deepStrictEqual([render('$(error)'), render('a \\$(error) b')], [
+			{
+				text: 'Created an automation: $(error)',
+				ariaLabel: 'Open automation $(error)',
+				tabIndex: 0,
+				watchIconIsChild: true,
+				rootCarriesCodiconClass: false,
+				injectedIcons: ['codicon-watch'],
+			},
+			{
+				text: 'Created an automation: a \\$(error) b',
+				ariaLabel: 'Open automation a \\$(error) b',
+				tabIndex: 0,
+				watchIconIsChild: true,
+				rootCarriesCodiconClass: false,
+				injectedIcons: ['codicon-watch'],
+			},
+		]);
 	});
 
 	test('rerenders when terminal metadata changes without changing data kind', () => {
@@ -403,6 +433,49 @@ suite('ChatToolProgressSubPart', () => {
 		assert.strictEqual(part.domNode.querySelector('.shimmer-progress'), null);
 	});
 
+	test('shimmers only the leading verb of standalone streaming progress, but not inside a thinking part', () => {
+		const patchPart = disposables.add(instantiationService.createInstance(
+			ChatToolStreamingSubPart,
+			createStreamingToolInvocation('Generating patch (282 lines)'),
+			createRenderContext(false),
+			mockMarkdownRenderer
+		));
+		const editPart = disposables.add(instantiationService.createInstance(
+			ChatToolStreamingSubPart,
+			createStreamingToolInvocation('Editing 5 lines'),
+			createRenderContext(false),
+			mockMarkdownRenderer
+		));
+		const thinkingPart = disposables.add(instantiationService.createInstance(
+			ChatToolStreamingSubPart,
+			createStreamingToolInvocation('Generating patch (282 lines)', /* isAttachedToThinking */ true),
+			createRenderContext(false),
+			mockMarkdownRenderer
+		));
+
+		const inspect = (part: ChatToolStreamingSubPart) => {
+			const shimmerText = part.domNode.querySelector<HTMLElement>('.chat-progress-shimmer-text');
+			return {
+				shimmer: !!part.domNode.querySelector('.shimmer-progress'),
+				spinner: !!part.domNode.querySelector('.codicon-loading'),
+				shimmerText: shimmerText?.textContent,
+				// A negative animation-delay keeps the sweep continuous across streaming rerenders.
+				shimmerPhaseSynced: (shimmerText?.style.animationDelay ?? '').endsWith('ms'),
+				text: part.domNode.textContent,
+			};
+		};
+
+		assert.deepStrictEqual({
+			patch: inspect(patchPart),
+			edit: inspect(editPart),
+			thinking: inspect(thinkingPart),
+		}, {
+			patch: { shimmer: true, spinner: false, shimmerText: 'Generating patch', shimmerPhaseSynced: true, text: 'Generating patch (282 lines)' },
+			edit: { shimmer: true, spinner: false, shimmerText: 'Editing', shimmerPhaseSynced: true, text: 'Editing 5 lines' },
+			thinking: { shimmer: false, spinner: false, shimmerText: undefined, shimmerPhaseSynced: false, text: 'Generating patch (282 lines)' },
+		});
+	});
+
 	test('adds shimmer styling only for active ask questions invocation progress', () => {
 		const askQuestionsTool = disposables.add(instantiationService.createInstance(
 			ChatToolProgressSubPart,
@@ -435,6 +508,16 @@ suite('ChatToolProgressSubPart', () => {
 			mockMarkdownRenderer,
 			new Set<string>()
 		));
+		const waitingForAnswerTool = disposables.add(instantiationService.createInstance(
+			ChatToolProgressSubPart,
+			createToolInvocation({
+				toolId: 'ask_user',
+				invocationMessage: 'Waiting for answer...'
+			}),
+			createRenderContext(false),
+			mockMarkdownRenderer,
+			new Set<string>()
+		));
 
 		assert.deepStrictEqual([
 			!!askQuestionsTool.domNode.querySelector('.shimmer-progress'),
@@ -443,8 +526,9 @@ suite('ChatToolProgressSubPart', () => {
 			askMultipleQuestionsTool.domNode.querySelector('.chat-progress-shimmer-text')?.textContent,
 			askMultipleQuestionsTool.domNode.textContent,
 			!!analyzingAnswersTool.domNode.querySelector('.shimmer-progress'),
-			analyzingAnswersTool.domNode.querySelector('.chat-progress-shimmer-text')?.textContent
-		], [true, 'Asking a question', 'Asking a question (Target)', 'Asking 3 questions', 'Asking 3 questions (What should we work on?, Preferred area, How hands-on?)', false, undefined]);
+			analyzingAnswersTool.domNode.querySelector('.chat-progress-shimmer-text')?.textContent,
+			!!waitingForAnswerTool.domNode.querySelector('.shimmer-progress')
+		], [true, 'Asking a question', 'Asking a question (Target)', 'Asking 3 questions', 'Asking 3 questions (What should we work on?, Preferred area, How hands-on?)', false, undefined, true]);
 	});
 
 	test('does not render a loading icon for run playwright code progress', () => {
@@ -462,6 +546,28 @@ suite('ChatToolProgressSubPart', () => {
 		));
 
 		assert.strictEqual(part.domNode.querySelector('.codicon-loading'), null);
+	});
+
+	test('renders markdown file pills in regular tool messages', () => {
+		const invocationMessage = new MarkdownString('Edit [](claudeAgent.ts)');
+		invocationMessage.baseUri = URI.file('/workspace/');
+		const tool = createToolInvocation({ toolId: 'edit', invocationMessage });
+		const markdownRenderer: IMarkdownRenderer = {
+			render: (markdown, options) => renderMarkdown(markdown, options),
+		};
+
+		const part = disposables.add(instantiationService.createInstance(
+			ChatToolProgressSubPart,
+			tool,
+			createRenderContext(false),
+			markdownRenderer,
+			new Set<string>()
+		));
+
+		assert.strictEqual(
+			part.domNode.querySelector<HTMLElement>('.chat-inline-anchor-widget .icon-label')?.textContent,
+			'claudeAgent.ts'
+		);
 	});
 
 	test('does not add shimmer styling for non-MCP tool progress', () => {

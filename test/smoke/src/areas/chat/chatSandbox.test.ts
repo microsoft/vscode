@@ -149,7 +149,7 @@ export function setup(logger: Logger): void {
 			...opts,
 			extraEnv: {
 				...(opts.extraEnv ?? {}),
-				...getCopilotSmokeTestEnv(mockServer),
+				...getCopilotSmokeTestEnv(mockServer, { userDataDir: opts.userDataDir }),
 			},
 		}), app => preseedChatExtensionEnablement(app.userDataPath));
 

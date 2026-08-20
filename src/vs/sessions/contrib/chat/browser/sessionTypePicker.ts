@@ -10,6 +10,7 @@ import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '..
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -24,11 +25,12 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
-import { getSessionTypeAvailability, getSessionTypeUnavailableDescription, getSessionTypeUnavailableHover, SessionTypeAvailability } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionTypeAvailability.js';
+import { getSessionTypeAvailability, getSessionTypePickerAvailability, getSessionTypeUnavailableDescription, getSessionTypeUnavailableHover, SessionTypeAvailability } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionTypeAvailability.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 import { SessionHarnessPickerVisibleContext } from '../../../common/contextkeys.js';
+import { isAllowSignedOutWhenUsableEnabled } from '../../../browser/sessionsAuthGate.js';
 
 const STORAGE_KEY_LAST_SESSION_TYPE = 'sessions.userSelectedSessionType';
 
@@ -73,7 +75,7 @@ const DEFAULT_TELEMETRY_SOURCE = 'NewChatSessionTypePicker';
  */
 export interface ISessionTypePickerOptions {
 	/**
-	 * When `false` (used e.g. by the automations dialog), an explicit pick is
+	 * When `false` (e.g. the automations dialog), an explicit pick is
 	 * never written to or cleared from the profile-wide
 	 * {@link STORAGE_KEY_LAST_SESSION_TYPE} preference, so picking a type here
 	 * cannot change the New Session default. The stored preference is still read
@@ -82,6 +84,11 @@ export interface ISessionTypePickerOptions {
 	readonly persistSelection?: boolean;
 	/** Telemetry id/name reported on selection. Defaults to {@link DEFAULT_TELEMETRY_SOURCE}. */
 	readonly telemetrySource?: string;
+	/**
+	 * When `false`, the dropdown chevron is not rendered on the trigger.
+	 * The picker is still interactive. Defaults to `true`.
+	 */
+	readonly showChevron?: boolean;
 }
 
 /**
@@ -159,6 +166,7 @@ export class SessionTypePicker extends Disposable {
 		@IChatSessionsService protected readonly chatSessionsService: IChatSessionsService,
 		@IChatEntitlementService protected readonly chatEntitlementService: IChatEntitlementService,
 		@ILanguageModelsService protected readonly languageModelsService: ILanguageModelsService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
@@ -262,11 +270,10 @@ export class SessionTypePicker extends Disposable {
 	/**
 	 * Constrains a pick to the types the picker actually offers, falling back to
 	 * the preferred (first) type when it doesn't. A remembered pick outlives the
-	 * harness that produced it: a session type can stop being advertised (e.g.
-	 * the extension-host Copilot CLI once `chat.agents.copilotCli.hideExtensionHost`
-	 * is on), and the stored preference still names it. Displaying it as selected
-	 * while the dropdown hides it would let the user start a session on a harness
-	 * they can no longer pick.
+	 * harness that produced it: a session type can stop being advertised while
+	 * the stored preference still names it. Displaying it as selected while the
+	 * dropdown hides it would let the user start a session on a harness they can
+	 * no longer pick.
 	 *
 	 * An empty offer list means the types aren't known yet (no session or folder
 	 * to source them from, or a provider still connecting), so the pick is left
@@ -449,7 +456,13 @@ export class SessionTypePicker extends Disposable {
 			}
 			for (const { providerId, sessionType } of types) {
 				const isCurrent = this._picked?.providerId === providerId && this._picked?.sessionTypeId === sessionType.id;
-				const availability = getSessionTypeAvailability(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, sessionType.chatSessionType ?? sessionType.id);
+				const modelTarget = sessionType.chatSessionType ?? sessionType.id;
+				const allowSignedOutWhenUsable = isAllowSignedOutWhenUsableEnabled(this.configurationService);
+				const availability = getSessionTypePickerAvailability(
+					modelTarget,
+					getSessionTypeAvailability(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, modelTarget, allowSignedOutWhenUsable),
+					allowSignedOutWhenUsable,
+				);
 				const unavailable = availability !== SessionTypeAvailability.Available;
 				const item: ISessionTypePickerItem = {
 					providerId,
@@ -637,8 +650,10 @@ export class SessionTypePicker extends Disposable {
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = modeLabel;
 
-		const chevron = dom.append(this._triggerElement, renderIcon(Codicon.chevronDownCompact));
-		chevron.classList.add('sessions-chat-dropdown-chevron');
+		if (this._options?.showChevron !== false) {
+			const chevron = dom.append(this._triggerElement, renderIcon(Codicon.chevronDownCompact));
+			chevron.classList.add('sessions-chat-dropdown-chevron');
+		}
 
 		this._triggerElement.ariaLabel = localize('sessionTypePicker.triggerAriaLabel', "Pick Session Type, {0}", modeLabel);
 	}
