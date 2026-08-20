@@ -22,10 +22,11 @@ npm install                             # once
 npm --prefix test/scenario run compile  # after any change under test/scenario
 ```
 
-**Check `ffmpeg` and `ffprobe` are on `PATH` before running.** Without them the scenario still runs
-and keeps the raw recording, but the video is not captioned with step titles. The runner warns at
-startup; if they are missing, tell the user how to install them rather than silently returning an
-unannotated video:
+**Check `ffmpeg` and `ffprobe` are available before running.** The runner looks on `PATH` and in the
+usual install locations, so an ffmpeg installed after the editor started is still found. Without them
+the scenario still runs and keeps the raw recording, but the video is not captioned with step titles.
+The runner warns at startup; if they are missing, tell the user how to install them rather than
+silently returning an unannotated video:
 
 | Platform | Install |
 |----------|---------|
@@ -33,8 +34,9 @@ unannotated video:
 | macOS | `brew install ffmpeg` |
 | Linux | `sudo apt install ffmpeg` |
 
-A new terminal may be needed for `PATH` to pick them up. An existing run can be annotated afterwards
-with `node test/scenario/out/renderEvidenceChapters.js <run-dir>`.
+A new terminal may be needed for `PATH` to pick them up, or set `FFMPEG_PATH` and `FFPROBE_PATH`. An
+existing run can be annotated afterwards with
+`node test/scenario/out/renderEvidenceChapters.js <run-dir>`.
 
 | Target | Flags | Also required | Use for |
 |--------|-------|---------------|---------|
@@ -131,15 +133,36 @@ module.exports = {
 | `workspacePath` | Disposable folder to open |
 | `userSettings` | Settings seeded into the profile before launch |
 | `extraArgs` | Extra VS Code command-line arguments |
+| `stepPauseMs` | How long to hold each finished step so its caption is readable. Defaults to `1000`; set `0` when the scenario is timing-sensitive |
 
-Each step receives a `context` with `app`, `workbench`, `code`, `page`, and `skip(reason)`.
+Each step receives a `context` with `app`, `workbench`, `code`, `page`, and `skip(reason, options)`.
 `workbench` exposes the feature helpers (`settingsEditor`, `quickaccess`, `editors`, `terminal`,
 `chat`, …); `page` is the Playwright page for anything they do not cover.
 
 - **Return a string** describing how the step was validated. It appears in the report.
 - **Throw** to fail the step. The message is recorded, and the run stops.
-- **Call `skip(reason)`** when hardware, an account, or a service is unavailable. The run stops and
-  is reported as `aborted`, never as passed.
+- **Call `skip(reason, { needs })`** when the step cannot be validated automatically. The run stops
+  and is reported as `aborted`, never as passed.
+
+## Steps that cannot be automated
+
+Decide this while planning, before writing the scenario, and classify each one — the two kinds have
+different consequences:
+
+| `needs` | Meaning | What to do |
+|---------|---------|------------|
+| `human` | A person is required: physical hardware, a subjective judgement, a sign-in that cannot be scripted | Report the step so someone can check it by hand |
+| `infrastructure` | Automatable in principle, but the harness cannot do it yet | Report it as an **enhancement to this skill**, naming the missing capability |
+
+```js
+ctx.skip('Comparing physical print output requires a person with a printer.', { needs: 'human' });
+ctx.skip('The harness cannot drive native OS file dialogs.', { needs: 'infrastructure' });
+```
+
+Blocked steps are recorded in `manifest.json`, highlighted in a **Needs attention** section of
+`report.html`, marked on the video caption (`SKIPPED - NEEDS HUMAN`), and printed at the end of the
+run. Surface them in your summary — never quietly drop a step you could not perform, and never
+weaken an assertion so that it passes.
 
 ## Run it
 
@@ -183,6 +206,12 @@ editing a manifest with `node test/scenario/out/renderEvidenceChapters.js <run-d
 Summarize the outcome, list failed or skipped steps, link `report.html`, and state the OS, the
 VS Code version and quality (both are in `manifest.json`), and the source issue. Attach the video to
 the issue or pull request by dragging it into the comment box.
+
+Always call out, separately from the pass/fail result:
+
+- **steps that need a person**, so someone knows what is still unverified;
+- **steps blocked on a missing harness capability**, named as a concrete enhancement to this skill;
+- **anything that degraded the evidence**, such as a missing ffmpeg leaving the video uncaptioned.
 
 ## Related
 

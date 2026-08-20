@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { execFileSync } from 'child_process';
 import type { Page } from '@playwright/test';
 import * as path from 'path';
 import type { Application, Code, Workbench } from '../../automation';
 import { ApplicationService, JSONValue } from './application';
-import { EvidenceService } from './evidence';
-import { tryRenderChapters } from './renderEvidenceChapters';
+import { EvidenceService, StepBlocker } from './evidence';
+import { resolveVideoTool, tryRenderChapters } from './renderEvidenceChapters';
 
 /**
  * Report missing video tooling before anything is launched.
@@ -19,14 +18,7 @@ import { tryRenderChapters } from './renderEvidenceChapters';
  * fix it, rather than letting the run complete and produce no annotated video.
  */
 function checkVideoTooling(): void {
-	const missing = ['ffmpeg', 'ffprobe'].filter(tool => {
-		try {
-			execFileSync(process.env[`${tool.toUpperCase()}_PATH`] ?? tool, ['-version'], { stdio: 'ignore' });
-			return false;
-		} catch {
-			return true;
-		}
-	});
+	const missing = (['ffmpeg', 'ffprobe'] as const).filter(tool => !resolveVideoTool(tool));
 	if (!missing.length) {
 		return;
 	}
@@ -36,11 +28,16 @@ function checkVideoTooling(): void {
 			? 'brew install ffmpeg'
 			: 'sudo apt install ffmpeg';
 	console.warn(
-		`Warning: ${missing.join(' and ')} not found on PATH, so the recording will not be captioned with step titles.\n` +
+		`Warning: ${missing.join(' and ')} could not be found, so the recording will not be captioned with step titles.\n` +
 		`         The run still produces the raw video, screenshots, trace and report.\n` +
-		`         To caption it, install ffmpeg (${install}), make sure it is on PATH, and re-run,\n` +
-		`         or annotate the finished run with: node test/scenario/out/renderEvidenceChapters.js <run-dir>`
+		`         Install ffmpeg (${install}) and re-run. If it is already installed, a PATH change does not\n` +
+		`         reach an editor that was already running, so restart it or set FFMPEG_PATH and FFPROBE_PATH,\n` +
+		`         then annotate the finished run with: node test/scenario/out/renderEvidenceChapters.js <run-dir>`
 	);
+}
+
+function wait(milliseconds: number): Promise<void> {
+	return new Promise(resolve => setTimeout(resolve, milliseconds));
 }
 
 /**
@@ -64,8 +61,15 @@ export interface ScenarioContext {
 	readonly code: Code;
 	/** The window the driver is currently attached to. */
 	readonly page: Page;
-	/** Marks the current step `skipped` and stops the run. */
-	skip(reason: string): never;
+	/**
+	 * Marks the current step `skipped` and stops the run.
+	 *
+	 * Say what is missing rather than what failed, and classify it: `human` when
+	 * a person is required, `infrastructure` when the harness could do it but
+	 * cannot yet. Both are reported prominently; the second is an enhancement
+	 * request against this skill.
+	 */
+	skip(reason: string, options?: { needs?: StepBlocker }): never;
 }
 
 export interface ScenarioStep {
@@ -90,10 +94,25 @@ export interface Scenario {
 	readonly workspacePath?: string;
 	readonly userSettings?: Record<string, JSONValue>;
 	readonly extraArgs?: string[];
+	/**
+	 * How long to hold on each completed step, in milliseconds.
+	 *
+	 * The recording is watched by a person, and a caption is only readable for as
+	 * long as its step is on screen, so each step is held briefly once it
+	 * finishes. Set `0` when the scenario depends on timing and must run at full
+	 * speed.
+	 */
+	readonly stepPauseMs?: number;
 	readonly steps: readonly ScenarioStep[];
 }
 
-class SkipStep extends Error { }
+const DEFAULT_STEP_PAUSE_MS = 1000;
+
+class SkipStep extends Error {
+	constructor(reason: string, readonly needs?: StepBlocker) {
+		super(reason);
+	}
+}
 
 function loadScenario(scenarioPath: string): Scenario {
 	// A CommonJS scenario needs a `.cjs` extension because this package is an ES
@@ -127,8 +146,17 @@ function loadScenario(scenarioPath: string): Scenario {
 	return scenario;
 }
 
-export async function runScenario(scenario: Scenario): Promise<{ runPath: string; outcome: 'passed' | 'failed' | 'aborted' }> {
+export interface ScenarioBlocker {
+	readonly id: string;
+	readonly title: string;
+	readonly needs: StepBlocker;
+	readonly reason: string;
+}
+
+export async function runScenario(scenario: Scenario): Promise<{ runPath: string; outcome: 'passed' | 'failed' | 'aborted'; blockers: ScenarioBlocker[] }> {
 	checkVideoTooling();
+	const pauseMs = Math.max(0, scenario.stepPauseMs ?? DEFAULT_STEP_PAUSE_MS);
+	const blockers: ScenarioBlocker[] = [];
 	const appService = new ApplicationService();
 	const evidence = new EvidenceService(appService);
 	const runPath = await evidence.start(
@@ -156,17 +184,23 @@ export async function runScenario(scenario: Scenario): Promise<{ runPath: string
 				workbench: app.workbench,
 				code: app.code,
 				page: app.code.driver.currentPage,
-				skip: (reason: string) => { throw new SkipStep(reason); }
+				skip: (reason: string, options?: { needs?: StepBlocker }) => { throw new SkipStep(reason, options?.needs); }
 			};
 			try {
 				const details = await step.run(context);
 				await evidence.step(step.id, step.title, 'passed', details || undefined);
 				console.log(`  PASS ${step.id} ${step.title}`);
+				// Hold the finished step so its caption is readable in the recording.
+				await wait(pauseMs);
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				const skipped = error instanceof SkipStep;
-				await evidence.step(step.id, step.title, skipped ? 'skipped' : 'failed', message);
-				console.log(`  ${skipped ? 'SKIP' : 'FAIL'} ${step.id} ${step.title}: ${message}`);
+				const needs = error instanceof SkipStep ? error.needs : undefined;
+				await evidence.step(step.id, step.title, skipped ? 'skipped' : 'failed', message, needs);
+				console.log(`  ${skipped ? 'SKIP' : 'FAIL'} ${step.id} ${step.title}${needs ? ` [needs ${needs}]` : ''}: ${message}`);
+				if (needs) {
+					blockers.push({ id: step.id, title: step.title, needs, reason: message });
+				}
 				// A later step cannot be trusted once the product is in an
 				// unexpected state, and a skipped step means its precondition is
 				// unavailable, so stop either way rather than reporting noise.
@@ -174,6 +208,7 @@ export async function runScenario(scenario: Scenario): Promise<{ runPath: string
 				// reported as aborted rather than passed.
 				outcome = skipped ? 'aborted' : 'failed';
 				notes = `${skipped ? 'Skipped' : 'Failed'} at step '${step.id}': ${message}`;
+				await wait(pauseMs);
 				break;
 			}
 		}
@@ -183,10 +218,20 @@ export async function runScenario(scenario: Scenario): Promise<{ runPath: string
 		console.error(`Scenario aborted: ${notes}`);
 	}
 
+	if (blockers.length) {
+		notes = [notes, ...blockers.map(blocker => `Step '${blocker.id}' needs ${blocker.needs}: ${blocker.reason}`)].filter(Boolean).join('\n');
+	}
+
 	const reportPath = await evidence.finish(outcome, notes);
 	console.log(`Report: ${reportPath}`);
 	tryRenderChapters(runPath);
-	return { runPath, outcome };
+	for (const blocker of blockers) {
+		const reason = blocker.reason.replace(/\s*\.\s*$/u, '');
+		console.log(blocker.needs === 'human'
+			? `Needs a person: ${blocker.id} ${blocker.title} - ${reason}.`
+			: `Needs harness support: ${blocker.id} ${blocker.title} - ${reason}. This is automatable, so report it as an enhancement to the skill.`);
+	}
+	return { runPath, outcome, blockers };
 }
 
 if (require.main === module) {
