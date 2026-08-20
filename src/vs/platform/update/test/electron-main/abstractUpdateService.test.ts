@@ -57,7 +57,7 @@ class TestUpdateService extends AbstractUpdateService {
 	blockCancelUpdate(gate: Promise<void>): void { this._cancelGate = gate; }
 
 	/** Forces the service into a given state so tests can exercise cancellation from a cancellable state. */
-	forceState(state: State): void { this.setState(state); }
+	forceState(state: State, options?: { deferred?: boolean }): void { this.setState(state, options); }
 
 	feedUrl: string | undefined = 'https://update.example/feed';
 
@@ -339,6 +339,17 @@ suite('AbstractUpdateService', () => {
 			downloadsWithoutDeferredIntent: 0,
 			downloadsAfterDeferredIntent: 1,
 		});
+	});
+
+	test('resumes an automatic download deferred after an update check', async () => {
+		const service = createService('default', { isConnectionMetered: true });
+		await service.whenInitialized;
+		service.forceState(State.AvailableForDownload({ version: '1.1.0', productVersion: '1.1.0', url: 'https://update.example/download' }), { deferred: true });
+
+		meteredConnectionService.setIsConnectionMetered(false);
+		await timeout(0);
+
+		assert.strictEqual(service.downloadCount, 1);
 	});
 
 	test('resumes overwrite checks that were deferred by metering', async () => {

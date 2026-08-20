@@ -35,7 +35,7 @@ class TestRequestService extends mock<IRequestService>() {
 	}
 }
 
-suite('PostUpdateWidgetContribution', () => {
+suite('PostUpdateWidgetContribution (Electron)', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createContribution(isConnectionMetered: boolean): TestRequestService {

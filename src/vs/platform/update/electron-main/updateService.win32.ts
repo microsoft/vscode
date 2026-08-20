@@ -276,7 +276,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 				// show update is available but don't start downloading
 				if (!explicit && this.meteredConnectionService.isConnectionMetered) {
 					this.logService.info('update#doCheckForUpdates - update available but skipping download because connection is metered');
-					this.setState(State.AvailableForDownload(update));
+					this.setState(State.AvailableForDownload(update), { deferred: true });
 					return Promise.resolve(null);
 				}
 
@@ -381,6 +381,11 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			this.nativeHostMainService.openExternal(undefined, state.update.url);
 		}
 		this.setState(State.Idle(getUpdateType()));
+	}
+
+	protected override resumeDeferredDownload(): void {
+		this.setState(State.Idle(getUpdateType()));
+		void this.checkForUpdates(false);
 	}
 
 	private async getUpdatePackagePath(version: string): Promise<string> {
