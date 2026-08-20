@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { IHeaders } from '../../../../base/parts/request/common/request.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -91,8 +92,8 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 
 		const configuredServiceUrl = this.configurationService.getValue<string>(ExtensionGalleryServiceUrlConfigKey);
 		if (configuredServiceUrl) {
-			await this.handleDefaultAccountAccess(configuredServiceUrl);
 			this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this.handleDefaultAccountAccess(configuredServiceUrl)));
+			await this.handleDefaultAccountAccess(configuredServiceUrl);
 		} else {
 			const defaultExtensionGalleryManifest = await super.getExtensionGalleryManifest();
 			this.update(defaultExtensionGalleryManifest);
@@ -107,7 +108,11 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 	}
 
 	private async handleDefaultAccountAccess(configuredServiceUrl: string): Promise<void> {
+		const token = this.beginResolution();
 		const account = await this.defaultAccountService.getDefaultAccount();
+		if (token.isCancellationRequested) {
+			return;
+		}
 
 		if (!account) {
 			this.logService.debug('[Marketplace] Enterprise marketplace configured but user not signed in');
@@ -117,7 +122,10 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			this.update(null, ExtensionGalleryManifestStatus.AccessDenied);
 		} else if (this.currentStatus !== ExtensionGalleryManifestStatus.Available) {
 			try {
-				const manifest = await this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl);
+				const manifest = await this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl, token);
+				if (token.isCancellationRequested) {
+					return;
+				}
 				this.update(manifest);
 				this.telemetryService.publicLog2<
 					{},
@@ -126,10 +134,23 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 						comment: 'Reports when a user successfully accesses a custom marketplace';
 					}>('galleryservice:custom:marketplace');
 			} catch (error) {
+				if (token.isCancellationRequested) {
+					return;
+				}
 				this.logService.error('[Marketplace] Error retrieving enterprise gallery manifest', error);
 				this.update(null, ExtensionGalleryManifestStatus.AccessDenied);
 			}
 		}
+	}
+
+	// A sign-out (or any account change) can arrive while a resolution is awaiting the manifest fetch;
+	// cancelling the previous run prevents a superseded fetch from publishing a stale status.
+	private readonly resolutionTokenSource = this._register(new MutableDisposable<CancellationTokenSource>());
+	private beginResolution(): CancellationToken {
+		this.resolutionTokenSource.value?.cancel();
+		const source = new CancellationTokenSource();
+		this.resolutionTokenSource.value = source;
+		return source.token;
 	}
 
 	private update(manifest: IExtensionGalleryManifest | null, status?: ExtensionGalleryManifestStatus): void {
@@ -167,7 +188,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		}
 	}
 
-	private async getExtensionGalleryManifestFromServiceUrl(url: string): Promise<IExtensionGalleryManifest> {
+	private async getExtensionGalleryManifestFromServiceUrl(url: string, token: CancellationToken): Promise<IExtensionGalleryManifest> {
 		const commonHeaders = await this.commonHeadersPromise;
 		const headers = {
 			...commonHeaders,
@@ -181,7 +202,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 				url,
 				headers,
 				callSite: 'extensionGalleryManifestService.fetchManifest'
-			}, CancellationToken.None);
+			}, token);
 
 			const extensionGalleryManifest = await asJson<IExtensionGalleryManifest>(context);
 
