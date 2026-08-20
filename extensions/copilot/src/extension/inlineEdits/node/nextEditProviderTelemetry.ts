@@ -1371,34 +1371,34 @@ export class TelemetrySender implements IDisposable {
 		// (model responded with nothing) apart from other reasons `modelResponse` is empty.
 		const fetchResult: ChatFetchResponseType | undefined = modelResponse?.fetchResult;
 
-		this._telemetryService.sendEnhancedGHTelemetryEvent(NES_GH_TELEMETRY_EVENT_NAME,
-			multiplexProperties({
-				opportunityId,
-				headerRequestId,
-				providerId,
-				activeDocumentLanguageId,
-				suggestionStatus,
-				modelName,
-				prompt,
-				modelResponse: modelResponse === undefined || modelResponse.response.type !== ChatFetchResponseType.Success ? undefined : modelResponse.response.value,
-				fetchResult,
-				alternativeAction: alternativeAction ? JSON.stringify({ ...alternativeAction, enhancedTelemetrySendingReason: sendingReason }) : undefined,
-				enhancedTelemetrySendingReason: !alternativeAction && sendingReason ? JSON.stringify(sendingReason) : undefined,
-				postProcessingOutcome,
-				activeDocumentRepository,
-				repositories: JSON.stringify(repositoryUrls),
-				cursorJumpModelName,
-				cursorJumpPrompt,
-				cursorJumpResponse,
-				lintErrors,
-				terminalOutput,
-				similarFilesContext: resolvedSimilarFilesContext,
-				modelConfig,
-			}),
+		void multiplexProperties({
+			opportunityId,
+			headerRequestId,
+			providerId,
+			activeDocumentLanguageId,
+			suggestionStatus,
+			modelName,
+			prompt,
+			modelResponse: modelResponse === undefined || modelResponse.response.type !== ChatFetchResponseType.Success ? undefined : modelResponse.response.value,
+			fetchResult,
+			alternativeAction: alternativeAction ? JSON.stringify({ ...alternativeAction, enhancedTelemetrySendingReason: sendingReason }) : undefined,
+			enhancedTelemetrySendingReason: !alternativeAction && sendingReason ? JSON.stringify(sendingReason) : undefined,
+			postProcessingOutcome,
+			activeDocumentRepository,
+			repositories: JSON.stringify(repositoryUrls),
+			cursorJumpModelName,
+			cursorJumpPrompt,
+			cursorJumpResponse,
+			lintErrors,
+			terminalOutput,
+			similarFilesContext: resolvedSimilarFilesContext,
+			modelConfig,
+		}).then(properties => this._telemetryService.sendEnhancedGHTelemetryEvent(NES_GH_TELEMETRY_EVENT_NAME,
+			properties,
 			{
 				isFromCache: this._boolToNum(isFromCache),
 			}
-		);
+		)).catch(() => { /* best-effort telemetry */ });
 	}
 
 	/**

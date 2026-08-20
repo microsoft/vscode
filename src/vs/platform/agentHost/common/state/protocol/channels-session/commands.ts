@@ -63,8 +63,24 @@ export interface CreateSessionParams extends BaseParams {
 	channel: URI;
 	/** Agent provider ID */
 	provider?: string;
-	/** Working directory for the session */
-	workingDirectory?: URI;
+	/**
+	 * The working directories the session's agent is granted tool access to.
+	 * A session may span multiple directories; they are equal peers except when
+	 * the agent advertises
+	 * {@link MultipleWorkingDirectoriesCapability.immutablePrimary} (in which case
+	 * the first entry is a fixed process root).
+	 *
+	 * A client MUST NOT supply more than one entry unless the agent advertises
+	 * {@link AgentCapabilities.multipleWorkingDirectories}; a server without that
+	 * capability treats only the first entry as the session's working directory
+	 * and ignores the rest. Dispatch `session/workingDirectorySet` /
+	 * `session/workingDirectoryRemoved` to change the set after the session has
+	 * started.
+	 *
+	 * Ignored for forked sessions — a fork inherits its working directories
+	 * from the source session identified by `fork`.
+	 */
+	workingDirectories?: URI[];
 	/**
 	 * Fork from an existing session. The new session is populated with content
 	 * from the source session up to and including the specified turn's response.
@@ -249,15 +265,6 @@ export interface CompletionItem {
 	 * The text inserted into the input when this item is accepted.
 	 */
 	insertText: string;
-
-	/**
-	 * Optional display label for the completion item. When omitted, the client
-	 * SHOULD display {@link insertText}. Provide an explicit label when the
-	 * inserted text differs from the label shown in the picker — e.g. a pure
-	 * action item that inserts nothing (`insertText: ''`) but should still be
-	 * shown to the user.
-	 */
-	label?: string;
 
 	/**
 	 * If defined, the start of the range in the input's `text` that is replaced

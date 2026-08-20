@@ -6,7 +6,7 @@ rounds:
           type: chat/turnStarted
           turnId: ${turn_0}
           message:
-            text: List the files in the current working directory. Reply with the filenames only.
+            text: 'Run exactly this shell command, with no modifications: `node -e "console.log(require(''fs'').readdirSync(''.'').join('' ''))"`. Then reply with the filenames it printed and nothing else.'
             origin:
               kind: user
     serverToClient:
@@ -15,7 +15,7 @@ rounds:
           type: chat/turnStarted
           turnId: ${turn_0}
           message:
-            text: List the files in the current working directory. Reply with the filenames only.
+            text: 'Run exactly this shell command, with no modifications: `node -e "console.log(require(''fs'').readdirSync(''.'').join('' ''))"`. Then reply with the filenames it printed and nothing else.'
             origin:
               kind: user
       - channel: ${session_0}
@@ -25,13 +25,6 @@ rounds:
       - channel: ${session_0}
         action:
           type: session/ready
-      - channel: ${chat_0}
-        action:
-          type: chat/responsePart
-          turnId: ${turn_0}
-          part:
-            kind: markdown
-            content: I'll list the files in the working directory.
       - channel: ${chat_0}
         action:
           type: chat/toolCallStart
@@ -51,9 +44,7 @@ rounds:
           turnId: ${turn_0}
           part:
             kind: markdown
-            content: |-
-              first.txt
-              second.md
+            content: first.txt second.md
       - channel: ${chat_0}
         action:
           type: chat/turnComplete

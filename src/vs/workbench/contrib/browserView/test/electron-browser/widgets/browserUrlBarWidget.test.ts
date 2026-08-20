@@ -8,6 +8,8 @@ import { mainWindow } from '../../../../../../base/browser/window.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import {
 	IQuickInput,
@@ -32,11 +34,35 @@ class FakeQuickPick<T extends IQuickPickItem> extends Disposable {
 	matchOnDescription = false;
 	anchor: HTMLElement | { x: number; y: number } | undefined;
 	anchorPosition: 'above' | 'below' | 'overlay' | undefined;
-	value = '';
 	valueSelection: Readonly<[number, number]> | undefined;
-	items: ReadonlyArray<T | IQuickPickSeparator> = [];
-	activeItems: ReadonlyArray<T> = [];
 	buttons: ReadonlyArray<IQuickInputButton> = [];
+
+	private _value = '';
+	private _items: ReadonlyArray<T | IQuickPickSeparator> = [];
+	private _activeItems: ReadonlyArray<T> = [];
+	itemsAssignmentCount = 0;
+	activeItemsAssignmentCount = 0;
+
+	get items(): ReadonlyArray<T | IQuickPickSeparator> {
+		return this._items;
+	}
+
+	set items(items: ReadonlyArray<T | IQuickPickSeparator>) {
+		this._items = items;
+		this.itemsAssignmentCount++;
+		if (this.visible) {
+			this._activeItems = items.filter((item): item is T => item.type !== 'separator').slice(0, 1);
+		}
+	}
+
+	get activeItems(): ReadonlyArray<T> {
+		return this._activeItems;
+	}
+
+	set activeItems(activeItems: ReadonlyArray<T>) {
+		this._activeItems = activeItems;
+		this.activeItemsAssignmentCount++;
+	}
 
 	visible = false;
 
@@ -55,6 +81,17 @@ class FakeQuickPick<T extends IQuickPickItem> extends Disposable {
 	private readonly _onDidHide = this._register(new Emitter<{ reason: QuickInputHideReason }>());
 	readonly onDidHide = this._onDidHide.event;
 
+	get value(): string {
+		return this._value;
+	}
+
+	set value(value: string) {
+		if (this._value !== value) {
+			this._value = value;
+			this._onDidChangeValue.fire(value);
+		}
+	}
+
 	show(): void { this.visible = true; }
 	hide(reason: QuickInputHideReason = QuickInputHideReason.Other): void {
 		if (!this.visible) {
@@ -67,7 +104,6 @@ class FakeQuickPick<T extends IQuickPickItem> extends Disposable {
 
 	type(value: string): void {
 		this.value = value;
-		this._onDidChangeValue.fire(value);
 	}
 
 	accept(): void {
@@ -109,7 +145,7 @@ suite('BrowserUrlBarWidget', () => {
 		setReplaced(active: boolean): void;
 	}
 
-	function makeHarness(): ITestHarness {
+	function makeHarness(readonly = false): ITestHarness {
 		const picker = new FakeQuickPick<IQuickPickItem>();
 		// Ensure the picker hides before the widget is disposed so the widget's
 		// per-picker DisposableStore (released in onDidHide) doesn't leak.
@@ -142,11 +178,13 @@ suite('BrowserUrlBarWidget', () => {
 		let ensureBrowserFocusCalls = 0;
 		const host: IBrowserUrlBarHost = {
 			get input() { return asInput(inputState); },
+			isReadonly: readonly,
 			ensureBrowserFocus() { ensureBrowserFocusCalls++; },
 		};
 
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IQuickInputService, quickInputService);
+		instantiationService.stub(IHoverService, NullHoverService);
 
 		const widget = store.add(instantiationService.createInstance(BrowserUrlBarWidget, host));
 		widget.mountContributions([]);
@@ -176,6 +214,30 @@ suite('BrowserUrlBarWidget', () => {
 		widget.mountContributions([contribution]);
 	}
 
+	test('readonly URL bar remains focusable without opening the picker', () => {
+		const harness = makeHarness(true);
+
+		harness.widget.openUrlPicker();
+		harness.display.dispatchEvent(new FocusEvent('focus', { relatedTarget: mainWindow.document.body }));
+		harness.display.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+
+		assert.deepStrictEqual({
+			activeElement: mainWindow.document.activeElement === harness.display,
+			contentEditable: harness.display.contentEditable,
+			ariaReadonly: harness.display.getAttribute('aria-readonly'),
+			ariaLabel: harness.display.getAttribute('aria-label'),
+			pickerVisible: harness.picker.visible,
+			navigated: harness.navigated
+		}, {
+			activeElement: true,
+			contentEditable: 'false',
+			ariaReadonly: 'true',
+			ariaLabel: 'Address. This address cannot be changed because the browser is locked to a file resource.',
+			pickerVisible: false,
+			navigated: []
+		});
+	});
+
 	function mountPickerActionProvider(widget: BrowserUrlBarWidget, provider: IBrowserUrlPickerActionProvider): void {
 		const contribution = {
 			widgets: [],
@@ -184,6 +246,14 @@ suite('BrowserUrlBarWidget', () => {
 			urlPickerActionProviders: [provider],
 		} as unknown as BrowserEditorContribution;
 		widget.mountContributions([contribution]);
+	}
+
+	async function waitForProviderRender(delay = 0): Promise<void> {
+		if (delay > 0) {
+			await new Promise(resolve => setTimeout(resolve, delay));
+		}
+		await Promise.resolve();
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
 	}
 
 	test('initial render shows the canonical URL', () => {
@@ -269,8 +339,7 @@ suite('BrowserUrlBarWidget', () => {
 		});
 
 		widget.openUrlPicker();
-		// Let the async provider load run.
-		await new Promise(resolve => setTimeout(resolve, 0));
+		await waitForProviderRender();
 		const suggestion = picker.items.find((i): i is IQuickPickItem => i.type !== 'separator' && i.id === 'sugg-1');
 		assert.ok(suggestion, 'suggestion item should be present');
 		picker.activeItems = [suggestion];
@@ -382,12 +451,53 @@ suite('BrowserUrlBarWidget', () => {
 		assert.deepStrictEqual(navigated, ['https://fallback.test/']);
 	});
 
-	test('refreshUrl while the picker is open mirrors the canonical URL into the picker value', () => {
+	test('refreshUrl keeps an unedited picker synchronized with the canonical URL', () => {
 		const { widget, picker, inputState } = makeHarness();
 		widget.openUrlPicker();
 		inputState.url = 'https://changed.test/';
 		widget.refreshUrl();
+		inputState.url = 'https://changed-again.test/';
+		widget.refreshUrl();
+		assert.strictEqual(picker.value, 'https://changed-again.test/');
+	});
+
+	test('refreshUrl does not overwrite picker input after the user types', () => {
+		const { widget, picker, inputState } = makeHarness();
+		widget.openUrlPicker();
+		picker.type('https://typed.test/');
+		inputState.url = 'https://changed.test/';
+		widget.refreshUrl();
+		assert.strictEqual(picker.value, 'https://typed.test/');
+	});
+
+	test('refreshUrl does not overwrite picker input after the user returns to the canonical URL', () => {
+		const { widget, picker, inputState } = makeHarness();
+		widget.openUrlPicker();
+		picker.type('https://typed.test/');
+		picker.type('https://example.com/');
+		inputState.url = 'https://changed.test/';
+		widget.refreshUrl();
+		assert.strictEqual(picker.value, 'https://example.com/');
+	});
+
+	test('refreshUrl synchronizes a picker opened by clicking without editing', () => {
+		const { picker, display, inputState, widget } = makeHarness();
+		display.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+		display.focus();
+		display.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		inputState.url = 'https://changed.test/';
+		widget.refreshUrl();
 		assert.strictEqual(picker.value, 'https://changed.test/');
+	});
+
+	test('refreshUrl preserves an edit promoted from the URL display', () => {
+		const { picker, display, inputState, widget } = makeHarness();
+		display.focus();
+		display.textContent = 'https://typed.test/';
+		display.dispatchEvent(new Event('input', { bubbles: true }));
+		inputState.url = 'https://changed.test/';
+		widget.refreshUrl();
+		assert.strictEqual(picker.value, 'https://typed.test/');
 	});
 
 	test('triggering a picker chrome button runs the action and releases focus on hide', () => {
@@ -436,7 +546,7 @@ suite('BrowserUrlBarWidget', () => {
 			},
 		});
 		widget.openUrlPicker();
-		await new Promise(resolve => setTimeout(resolve, 0));
+		await waitForProviderRender();
 		const suggestion = picker.items.find((i): i is IQuickPickItem => i.type !== 'separator' && i.id === 'sugg-2')!;
 		picker.triggerItemButton(suggestion, itemAction);
 		assert.deepStrictEqual(
@@ -493,12 +603,84 @@ suite('BrowserUrlBarWidget', () => {
 		});
 
 		widget.openUrlPicker();
-		await new Promise(resolve => setTimeout(resolve, 0));
+		await waitForProviderRender();
 		assert.ok(picker.items.some(i => i.type !== 'separator' && i.id === 'sugg-1'), 'initial suggestion present');
 
 		refresh.fire();
-		await new Promise(resolve => setTimeout(resolve, 0));
+		await waitForProviderRender();
 		assert.ok(picker.items.some(i => i.type !== 'separator' && i.id === 'sugg-2'), 'refreshed suggestion present');
+	});
+
+	test('coalesces provider results into one picker render', async () => {
+		const { widget, picker } = makeHarness();
+		mountSuggestionProvider(widget, {
+			async getSuggestions() {
+				return [{ id: 'sugg-1', label: 'Suggestion 1', apply() { } }];
+			},
+		});
+		mountSuggestionProvider(widget, {
+			async getSuggestions() {
+				return [{ id: 'sugg-2', label: 'Suggestion 2', apply() { } }];
+			},
+		});
+
+		widget.openUrlPicker();
+		await waitForProviderRender();
+
+		assert.deepStrictEqual(
+			{
+				itemsAssignmentCount: picker.itemsAssignmentCount,
+				activeItemsAssignmentCount: picker.activeItemsAssignmentCount,
+				itemIds: picker.items.filter((item): item is IQuickPickItem => item.type !== 'separator').map(item => item.id),
+			},
+			{
+				itemsAssignmentCount: 2,
+				activeItemsAssignmentCount: 1,
+				itemIds: ['https://example.com/', 'sugg-1', 'sugg-2'],
+			},
+		);
+	});
+
+	test('typing immediately refreshes providers and cancels stale work', () => {
+		const { widget, picker } = makeHarness();
+		const calls: { text: string; cancelled: () => boolean }[] = [];
+		const complete: Array<() => void> = [];
+		mountSuggestionProvider(widget, {
+			getSuggestions({ text }, token) {
+				calls.push({ text, cancelled: () => token.isCancellationRequested });
+				return new Promise(resolve => complete.push(() => resolve([])));
+			},
+		});
+
+		widget.openUrlPicker();
+		picker.type('https://example.test/');
+
+		assert.deepStrictEqual(
+			calls.map(call => ({ text: call.text, cancelled: call.cancelled() })),
+			[
+				{ text: 'https://example.com/', cancelled: true },
+				{ text: 'https://example.test/', cancelled: false },
+			],
+		);
+		complete.forEach(resolve => resolve());
+	});
+
+	test('refreshes providers for each typed value', () => {
+		const { widget, picker } = makeHarness();
+		const values: string[] = [];
+		mountSuggestionProvider(widget, {
+			async getSuggestions({ text }) {
+				values.push(text);
+				return [];
+			},
+		});
+
+		widget.openUrlPicker();
+		picker.type('h');
+		picker.type('ht');
+		picker.type('https://example.test/');
+
+		assert.deepStrictEqual(values, ['https://example.com/', 'h', 'ht', 'https://example.test/']);
 	});
 
 	test('streamed-in suggestions are never auto-focused; the default item stays active', async () => {
@@ -515,7 +697,7 @@ suite('BrowserUrlBarWidget', () => {
 		assert.strictEqual(picker.activeItems[0]?.id, 'https://typed.test/');
 
 		// Once the asynchronous suggestion streams in, focus must NOT jump to it.
-		await new Promise(resolve => setTimeout(resolve, 0));
+		await waitForProviderRender();
 		assert.ok(picker.items.some(i => i.type !== 'separator' && i.id === 'tab-1'), 'suggestion streamed in');
 		assert.strictEqual(picker.activeItems[0]?.id, 'https://typed.test/');
 	});
@@ -533,7 +715,7 @@ suite('BrowserUrlBarWidget', () => {
 
 		widget.openUrlPicker();
 		picker.type('https://typed.test/');
-		await new Promise(resolve => setTimeout(resolve, 0));
+		await waitForProviderRender();
 
 		// User arrow-keys onto the streamed-in suggestion.
 		const suggestion = picker.items.find((i): i is IQuickPickItem => i.type !== 'separator' && i.id === 'tab-1')!;
@@ -541,7 +723,7 @@ suite('BrowserUrlBarWidget', () => {
 
 		// A background provider refresh must keep the user's selection.
 		refresh.fire();
-		await new Promise(resolve => setTimeout(resolve, 0));
+		await waitForProviderRender();
 		assert.strictEqual(picker.activeItems[0]?.id, 'tab-1', 'background refresh preserves selection');
 
 		// Typing, however, resets focus back to the default "Go to" item.

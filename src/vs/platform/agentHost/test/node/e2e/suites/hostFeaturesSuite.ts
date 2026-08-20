@@ -8,20 +8,22 @@ import { execSync } from 'child_process';
 import { mkdirSync, mkdtempSync, unlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
+import { basename } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { CompletionItemKind, type CompletionsResult, type InitializeResult, type ResolveSessionConfigResult, type SessionConfigCompletionsResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
-import { buildDefaultChatUri, ROOT_STATE_URI, ToolCallConfirmationReason, type TerminalState, type ToolResultContent } from '../../../../common/state/sessionState.js';
+import { buildDefaultChatUri, MessageAttachmentKind, ROOT_STATE_URI, ToolCallConfirmationReason, type TerminalState, type ToolResultContent } from '../../../../common/state/sessionState.js';
 import {
 	createRealSession,
 	dispatchTurn,
 	getMarkdownResponseText,
 	terminalResourceFromContent,
 	textFromContent,
+	initTestGitRepo,
 } from '../harness/agentHostE2ETestHarness.js';
 import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
-import { hostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs, isWindows } = context;
@@ -37,16 +39,16 @@ export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void
 		return createRealSession(context.client, config, `${prefix}-${config.provider}`, createdSessions, URI.file(workspace));
 	}
 
-	async function getCompletions(sessionUri: string, text: string): Promise<CompletionsResult> {
+	async function getCompletions(sessionUri: string, text: string, offset = text.length): Promise<CompletionsResult> {
 		return context.client.call<CompletionsResult>('completions', {
 			channel: buildDefaultChatUri(sessionUri),
 			kind: CompletionItemKind.UserMessage,
 			text,
-			offset: text.length,
+			offset,
 		});
 	}
 
-	hostOnlyTest(context, 'initialize advertises host-owned input capabilities', async function () {
+	conformanceTest(context, 'initialize advertises host-owned input capabilities', async function () {
 
 		const result = await context.client.call<InitializeResult>('initialize', {
 			channel: ROOT_STATE_URI,
@@ -63,7 +65,7 @@ export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void
 		});
 	});
 
-	hostOnlyTest(context, 'workspace file completions are filtered, attached, and cached', async function () {
+	conformanceTest(context, 'workspace file completions are filtered, attached, and cached', async function () {
 
 		const workspace = createWorkspace('ahp-file-completions-');
 		const sourceDirectory = join(workspace, 'src');
@@ -103,7 +105,7 @@ export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void
 		});
 	});
 
-	hostOnlyTest(context, 'workspace file completions ignore plain text', async function () {
+	conformanceTest(context, 'workspace file completions ignore plain text', async function () {
 
 		const workspace = createWorkspace('ahp-empty-completions-');
 		writeFileSync(join(workspace, 'visible.txt'), 'visible\n');
@@ -114,7 +116,155 @@ export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void
 		assert.deepStrictEqual(result, { items: [] });
 	});
 
-	hostOnlyTest(context, 'rename completion appears after a locally renamed turn', async function () {
+	conformanceTest(context, 'workspace file completion replaces only the token before the cursor', async function () {
+		const workspace = createWorkspace('ahp-file-completion-range-');
+		writeFileSync(join(workspace, 'alpha.ts'), 'alpha');
+		const sessionUri = await createSession('file-completion-range', workspace);
+		const text = 'review @alp trailing';
+
+		const result = await getCompletions(sessionUri, text, 'review @alp'.length);
+
+		assert.deepStrictEqual(result.items.map(item => ({
+			insertText: item.insertText,
+			rangeStart: item.rangeStart,
+			rangeEnd: item.rangeEnd,
+		})), [{
+			insertText: '@alpha.ts',
+			rangeStart: 'review '.length,
+			rangeEnd: 'review @alp'.length,
+		}]);
+	});
+
+	conformanceTest(context, 'workspace file completion ignores embedded at signs', async function () {
+		const workspace = createWorkspace('ahp-file-completion-embedded-');
+		writeFileSync(join(workspace, 'example.txt'), 'example');
+		const sessionUri = await createSession('file-completion-embedded', workspace);
+
+		const result = await getCompletions(sessionUri, 'email@example');
+
+		assert.deepStrictEqual(result.items, []);
+	});
+
+	conformanceTest(context, 'workspace file completion accepts tab and newline delimiters', async function () {
+		const workspace = createWorkspace('ahp-file-completion-whitespace-');
+		writeFileSync(join(workspace, 'alpha.txt'), 'alpha');
+		const sessionUri = await createSession('file-completion-whitespace', workspace);
+
+		const [tab, newline] = await Promise.all([
+			getCompletions(sessionUri, 'review\t@alp'),
+			getCompletions(sessionUri, 'review\n#alp'),
+		]);
+
+		assert.deepStrictEqual({
+			tab: tab.items.map(item => item.insertText),
+			newline: newline.items.map(item => item.insertText),
+		}, {
+			tab: ['@alpha.txt'],
+			newline: ['#alpha.txt'],
+		});
+	});
+
+	conformanceTest(context, 'workspace file completion disambiguates duplicate basenames', async function () {
+		const workspace = createWorkspace('ahp-file-completion-duplicates-');
+		mkdirSync(join(workspace, 'one'));
+		mkdirSync(join(workspace, 'two'));
+		writeFileSync(join(workspace, 'one', 'same.ts'), 'one');
+		writeFileSync(join(workspace, 'two', 'same.ts'), 'two');
+		const sessionUri = await createSession('file-completion-duplicates', workspace);
+
+		const result = await getCompletions(sessionUri, '@same');
+
+		assert.deepStrictEqual(result.items.map(item => item.attachment?.label).sort(), [
+			`${basename(URI.file(workspace))} \u2022 one/same.ts`,
+			`${basename(URI.file(workspace))} \u2022 two/same.ts`,
+		]);
+	});
+
+	conformanceTest(context, 'workspace file completion matches nested relative paths', async function () {
+		const workspace = createWorkspace('ahp-file-completion-nested-');
+		mkdirSync(join(workspace, 'feature'));
+		writeFileSync(join(workspace, 'feature', 'target.ts'), 'nested');
+		writeFileSync(join(workspace, 'target.ts'), 'root');
+		const sessionUri = await createSession('file-completion-nested', workspace);
+
+		const result = await getCompletions(sessionUri, '@feature/target');
+
+		assert.deepStrictEqual(result.items.map(item => item.attachment?.type === MessageAttachmentKind.Resource ? item.attachment.uri : undefined), [
+			URI.file(join(workspace, 'feature', 'target.ts')).toString(),
+		]);
+	});
+
+	conformanceTest(context, 'workspace file completion caps an empty query at fifty results', async function () {
+		const workspace = createWorkspace('ahp-file-completion-limit-');
+		for (let index = 0; index < 60; index++) {
+			writeFileSync(join(workspace, `file-${String(index).padStart(2, '0')}.txt`), String(index));
+		}
+		const sessionUri = await createSession('file-completion-limit', workspace);
+
+		const result = await getCompletions(sessionUri, '@');
+
+		assert.strictEqual(result.items.length, 50);
+	});
+
+	conformanceTest(context, 'workspace file completion supports a trigger at the start of input', async function () {
+		const workspace = createWorkspace('ahp-file-completion-start-');
+		writeFileSync(join(workspace, 'alpha.ts'), 'alpha');
+		const sessionUri = await createSession('file-completion-start', workspace);
+
+		const result = await getCompletions(sessionUri, '#alp');
+
+		assert.deepStrictEqual(result.items.map(item => ({
+			insertText: item.insertText,
+			rangeStart: item.rangeStart,
+			rangeEnd: item.rangeEnd,
+		})), [{
+			insertText: '#alpha.ts',
+			rangeStart: 0,
+			rangeEnd: 4,
+		}]);
+	});
+
+	conformanceTest(context, 'workspace file completion ignores a token separated from the cursor', async function () {
+		const workspace = createWorkspace('ahp-file-completion-separated-');
+		writeFileSync(join(workspace, 'alpha.ts'), 'alpha');
+		const sessionUri = await createSession('file-completion-separated', workspace);
+
+		const result = await getCompletions(sessionUri, 'review @alpha later');
+
+		assert.deepStrictEqual(result.items, []);
+	});
+
+	conformanceTest(context, 'workspace file completion matches file names case-insensitively', async function () {
+		const workspace = createWorkspace('ahp-file-completion-case-');
+		writeFileSync(join(workspace, 'MixedCase.ts'), 'mixed');
+		const sessionUri = await createSession('file-completion-case', workspace);
+
+		const result = await getCompletions(sessionUri, '@mixedcase');
+
+		assert.deepStrictEqual(result.items.map(item => item.insertText), ['@MixedCase.ts']);
+	});
+
+	conformanceTest(context, 'workspace file completion fuzzy matches a basename', async function () {
+		const workspace = createWorkspace('ahp-file-completion-fuzzy-');
+		writeFileSync(join(workspace, 'agentHostCoverage.ts'), 'coverage');
+		const sessionUri = await createSession('file-completion-fuzzy', workspace);
+
+		const result = await getCompletions(sessionUri, '@agcov');
+
+		assert.deepStrictEqual(result.items.map(item => item.insertText), ['@agentHostCoverage.ts']);
+	});
+
+	conformanceTest(context, 'workspace file completion ignores a token after the cursor', async function () {
+		const workspace = createWorkspace('ahp-file-completion-offset-');
+		writeFileSync(join(workspace, 'alpha.ts'), 'alpha');
+		const sessionUri = await createSession('file-completion-offset', workspace);
+
+		const result = await getCompletions(sessionUri, 'prefix @alpha', 'prefix'.length);
+
+		assert.deepStrictEqual(result.items, []);
+	});
+
+	conformanceTest(context, 'rename completion appears after a locally renamed turn', async function () {
 
 		const sessionUri = await createSession('rename-completion');
 		const before = await getCompletions(sessionUri, '/r');
@@ -127,7 +277,7 @@ export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void
 			isActionNotification(n, 'chat/turnComplete')
 			&& (getActionEnvelope(n).action as { turnId: string }).turnId === 'turn-rename',
 		);
-		await assertRecordedAhpSnapshot(this.test!, context.client);
+		await assertRecordedAhpSnapshot(this.test!, context.client, behaviorSnapshot);
 
 		const after = await getCompletions(sessionUri, '/r');
 		const session = await fetchSessionWithChat(context.client, sessionUri);
@@ -144,7 +294,7 @@ export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void
 		assert.match(getMarkdownResponseText(context.client), /Renamed: Coverage Session/);
 	});
 
-	hostOnlyTest(context, 'an empty rename command completes without changing the title', async function () {
+	conformanceTest(context, 'an empty rename command completes without changing the title', async function () {
 
 		const sessionUri = await createSession('empty-rename');
 		const before = await fetchSessionWithChat(context.client, sessionUri);
@@ -157,7 +307,7 @@ export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void
 			isActionNotification(n, 'chat/turnComplete')
 			&& (getActionEnvelope(n).action as { turnId: string }).turnId === 'turn-empty-rename',
 		);
-		await assertRecordedAhpSnapshot(this.test!, context.client);
+		await assertRecordedAhpSnapshot(this.test!, context.client, behaviorSnapshot);
 
 		const after = await fetchSessionWithChat(context.client, sessionUri);
 		assert.deepStrictEqual({
@@ -171,9 +321,7 @@ export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void
 		});
 	});
 
-	// Successful bang-command completion depends on POSIX shell command
-	// detection; Windows emits output but never reaches tool completion.
-	hostOnlyTest(context, 'a bang command runs locally and exposes terminal output', async function () {
+	conformanceTest(context, 'a bang command runs locally and exposes terminal output', async function () {
 
 		const sessionUri = await createSession('bang-success');
 		const chatUri = buildDefaultChatUri(sessionUri);
@@ -219,7 +367,7 @@ export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void
 		});
 	}, !isWindows);
 
-	hostOnlyTest(context, 'a failing bang command reports its exit code', async function () {
+	conformanceTest(context, 'a failing bang command reports its exit code', async function () {
 
 		const sessionUri = await createSession('bang-failure');
 
@@ -253,14 +401,10 @@ export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void
 		});
 	});
 
-	// Git-backed config discovery leaves this temporary repository locked on
-	// Windows CI after the provider session is disposed.
-	hostOnlyTest(context, 'session configuration resolves and completes git branches', async function () {
+	conformanceTest(context, 'session configuration resolves and completes git branches', async function () {
 
 		const workspace = createWorkspace('ahp-config-completions-');
-		execSync('git init', { cwd: workspace });
-		execSync('git config user.name "Agent Host Test"', { cwd: workspace });
-		execSync('git config user.email "agent-host-test@example.com"', { cwd: workspace });
+		initTestGitRepo(workspace);
 		execSync('git commit --allow-empty -m "initial"', { cwd: workspace });
 		execSync('git branch feature/coverage-target', { cwd: workspace });
 		await createSession('config-completions', workspace);
@@ -293,5 +437,6 @@ export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void
 				label: 'feature/coverage-target',
 			}],
 		});
-	}, !isWindows);
+	});
+
 }

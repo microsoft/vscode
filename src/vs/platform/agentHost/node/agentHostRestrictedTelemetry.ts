@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as zlib from 'zlib';
+import { promisify } from 'util';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { ICommonProperties } from '../../telemetry/common/telemetry.js';
@@ -40,6 +42,8 @@ export interface IAgentHostInternalTelemetryContext {
 export interface IAgentHostRestrictedTelemetryContext extends IAgentHostInternalTelemetryContext {
 	readonly restrictedTelemetryEnabled: boolean;
 	readonly telemetryEndpoint: string | undefined;
+	/** Whether content exclusion is enabled; undefined when account discovery could not determine it. */
+	readonly copilotIgnoreEnabled?: boolean;
 }
 
 export interface IAgentHostInternalTelemetrySink {
@@ -52,36 +56,61 @@ export interface IAgentHostInternalTelemetrySink {
 export type FetchFn = typeof globalThis.fetch;
 
 /**
- * App Insights caps a single property value at ~8192 chars. Long values are split across
- * numbered keys (`key`, `key_02`, `key_03`, …) so the Copilot Telemetry Service reassembles
- * them, mirroring the Copilot extension's `multiplexProperties` so events look identical on the
- * wire and downstream.
+ * App Insights caps a single property value at ~8192 chars. Long values are chunked so the Copilot
+ * Telemetry Service can reassemble them, mirroring the Copilot extension's `multiplexProperties` so
+ * events look identical on the wire and downstream.
+ *
+ * When a value is too long it is gzip + base64 compressed and emitted under a compressed chunk
+ * family, normally `<key>Chunk`, `<key>Chunk_2`, `<key>Chunk_3`, … (first column has no numeric
+ * suffix, the rest are NOT zero-padded, each capped at {@link MAX_PROPERTY_LENGTH}), while the
+ * original `<key>` column carries just the first uncompressed chunk of the value.
+ * The `messagesJson` property is the schema exception: its compressed family is
+ * `messagesJSONChunk`, `messagesJSONChunk_2`, `messagesJSONChunk_3`, …
+ *
+ * Fields in {@link ALWAYS_COMPRESSED_CHUNK_KEYS} always get the compressed chunk family even when
+ * they fit within {@link MAX_PROPERTY_LENGTH}, so the backend can always read them from their
+ * compressed chunk family without branching on size.
  */
 const MAX_PROPERTY_LENGTH = 8192;
 const MAX_CONCATENATED_PROPERTIES = 50;
+const MAX_TELEMETRY_ITEM_BODY_LENGTH = MAX_PROPERTY_LENGTH * MAX_CONCATENATED_PROPERTIES;
 
-export function multiplexProperties(properties: TelemetryProps): TelemetryProps {
+// Suffix appended to the base property name for the compressed (gzip + base64) chunk family.
+const COMPRESSED_CHUNK_SUFFIX = 'Chunk';
+
+// Fields that are always emitted as a compressed chunk family, regardless of their length. These
+// are known to frequently exceed the per-property limit, so always producing the compressed chunk
+// family gives the backend a single, uniform place to read the value from.
+const ALWAYS_COMPRESSED_CHUNK_KEYS = new Set<string>(['messagesJson', 'diffsJSON']);
+
+const gzip = promisify(zlib.gzip);
+
+// Compress off the main thread (libuv threadpool) so large telemetry values never block the agent
+// host event loop.
+async function compressTelemetryValue(value: string): Promise<string> {
+	const compressed = await gzip(Buffer.from(value, 'utf8'));
+	return compressed.toString('base64');
+}
+
+export async function multiplexProperties(properties: TelemetryProps): Promise<TelemetryProps> {
 	const newProperties: TelemetryProps = { ...properties };
 	for (const key in properties) {
 		const value = properties[key];
-		let remaining = value?.length ?? 0;
-		if (remaining > MAX_PROPERTY_LENGTH) {
-			let lastStartIndex = 0;
-			let count = 0;
-			while (remaining > 0 && count < MAX_CONCATENATED_PROPERTIES) {
-				count += 1;
-				let propertyName = key;
-				if (count > 1) {
-					propertyName = key + '_' + (count < 10 ? '0' : '') + count;
-				}
-				let offsetIndex = lastStartIndex + MAX_PROPERTY_LENGTH;
-				if (remaining < MAX_PROPERTY_LENGTH) {
-					offsetIndex = lastStartIndex + remaining;
-				}
-				newProperties[propertyName] = value!.slice(lastStartIndex, offsetIndex);
-				remaining -= MAX_PROPERTY_LENGTH;
-				lastStartIndex += MAX_PROPERTY_LENGTH;
-			}
+		const valueLength = value?.length ?? 0;
+		// Known-large fields are always emitted as a compressed chunk family so the backend can read
+		// them uniformly, even when they happen to be short.
+		const forceCompress = value !== undefined && ALWAYS_COMPRESSED_CHUNK_KEYS.has(key);
+		if (valueLength <= MAX_PROPERTY_LENGTH && !forceCompress) {
+			continue;
+		}
+		// Compressed chunking: keep the original column as just the first uncompressed chunk and emit
+		// the full value gzip + base64 compressed under its schema chunk family (no zero padding).
+		newProperties[key] = value!.slice(0, MAX_PROPERTY_LENGTH);
+		const compressed = await compressTelemetryValue(value!);
+		const compressedChunkKey = key === 'messagesJson' ? 'messagesJSON' : key;
+		for (let offset = 0, index = 1; offset < compressed.length && index <= MAX_CONCATENATED_PROPERTIES; offset += MAX_PROPERTY_LENGTH, index++) {
+			const columnName = index === 1 ? `${compressedChunkKey}${COMPRESSED_CHUNK_SUFFIX}` : `${compressedChunkKey}${COMPRESSED_CHUNK_SUFFIX}_${index}`;
+			newProperties[columnName] = compressed.slice(offset, offset + MAX_PROPERTY_LENGTH);
 		}
 	}
 	return newProperties;
@@ -104,6 +133,8 @@ export interface IAgentHostRestrictedTelemetry {
 	sendInternalMSFTTelemetryEventForContext(context: IAgentHostInternalTelemetryContext, eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void;
 	/** Sets the Copilot user tracking id (`copilot_trackingId`) carried on every subsequent event. */
 	setCopilotTrackingId(trackingId: string | undefined): void;
+	/** Adds a property carried on every subsequent event, mirroring `ITelemetryService.setCommonProperty`. */
+	setCommonProperty(name: string, value: string | boolean): void;
 	/** Overrides the POST endpoint with the user's CAPI `endpoints.telemetry`; falsy restores the default. */
 	setRestrictedTelemetryEndpoint(endpointUrl: string | undefined): void;
 	/** Enables enhanced GH telemetry once the token opts in (`rt=1`); off by default and on flip/logout. */
@@ -201,6 +232,10 @@ export class AgentHostRestrictedTelemetrySender implements IAgentHostRestrictedT
 		this._commonProps.copilot_trackingId = trackingId || undefined;
 	}
 
+	setCommonProperty(name: string, value: string | boolean): void {
+		this._commonProps[name] = String(value);
+	}
+
 	setRestrictedTelemetryEndpoint(endpointUrl: string | undefined): void {
 		// The user's telemetry host comes from the CAPI `endpoints.telemetry` discovery; fall back
 		// to the dotcom default when it is unknown so events are never sent to an empty URL.
@@ -245,6 +280,13 @@ export class AgentHostRestrictedTelemetrySender implements IAgentHostRestrictedT
 			},
 		};
 
+		const body = JSON.stringify(envelope);
+		const bodyLength = Buffer.byteLength(body, 'utf8');
+		if (bodyLength > MAX_TELEMETRY_ITEM_BODY_LENGTH) {
+			this._logService.trace(`[ahp-restricted] drop ${name}: serialized body is ${bodyLength} bytes (maximum ${MAX_TELEMETRY_ITEM_BODY_LENGTH})`);
+			return;
+		}
+
 		this._logService.trace(`[ahp-restricted] emit ${name} (iKey ${iKey.slice(0, 8)})`);
 
 		if (typeof this._fetchFn !== 'function') {
@@ -258,7 +300,7 @@ export class AgentHostRestrictedTelemetrySender implements IAgentHostRestrictedT
 		this._fetchFn(context?.endpointUrl || (context ? GH_TELEMETRY_URL : this._endpointUrl), {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/x-json-stream' },
-			body: JSON.stringify(envelope),
+			body,
 		}).then(res => {
 			if (!res.ok) {
 				this._logService.warn(`[ahp-restricted] ${name} rejected: HTTP ${res.status}`);

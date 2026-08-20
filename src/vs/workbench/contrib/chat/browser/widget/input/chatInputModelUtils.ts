@@ -5,16 +5,15 @@
 
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, isLanguageModelVendorAbsenceConclusive } from '../../../common/languageModels.js';
-import { resolveModelIdentifier } from '../../../common/modelSelection.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { localChatSessionType } from '../../../common/chatSessionsService.js';
+import { getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
 
 /**
- * Describes the context needed for model selection decisions.
+ * Whether the surface can run this model at all, given the mode it is in and where it is shown.
+ * Supplied by the surface so these rules do not have to be restated in terms of its inputs.
  */
-interface IModelSelectionContext {
-	readonly location: ChatAgentLocation;
-	readonly currentModeKind: ChatModeKind;
-	readonly sessionType: string | undefined;
-}
+export type IsModelSupportedHere = (model: ILanguageModelChatMetadataAndIdentifier) => boolean;
 
 /**
  * Filter models based on session type.
@@ -150,29 +149,28 @@ export function shouldDropAgnosticDraftModel(
 }
 
 /**
- * Whether an {@link ILanguageModelChatMetadataAndIdentifier} selection should be written to the
- * persisted per-(location, sessionType) model storage key.
+ * Whether the input should treat a session as a brand-new conversation, which is what unlocks the
+ * shared new-chat draft, the default mode/permission level, and `chat.defaultModel`.
  *
- * A model selection is only persisted for an explicit request (`storeSelection`) that is NOT
- * happening while the input is switching to a session (`suppressDuringSessionSwitch`). While
- * switching, the model may be set in-memory (for the picker) and restored from the key, but must
- * never WRITE the key — only an explicit user action may. This is the single guard on
- * `chatInputPart`'s sole storage writer (`setCurrentLanguageModel`).
+ * `hasNoRequests` is sampled when the input binds, and a contributed session's requests load after
+ * that — so on its own it reports a started agent-host session as new. A contributed session's
+ * resource keeps its `untitled-` path until the session is started, so it stays accurate
+ * regardless of load timing. Local sessions have no such marker and rely on `hasNoRequests`.
  */
-export function shouldPersistModelSelection(storeSelection: boolean, suppressDuringSessionSwitch: boolean): boolean {
-	return storeSelection && !suppressDuringSessionSwitch;
+export function isNewConversation(sessionResource: URI, hasNoRequests: boolean): boolean {
+	return hasNoRequests
+		&& (getChatSessionType(sessionResource) === localChatSessionType || isUntitledChatSession(sessionResource));
 }
 
 /**
- * Whether model-selection persistence must be suppressed while the input switches to a session.
+ * Whether a chat input counts as bound to a conversation that is already underway.
  *
- * True for every empty session of an own-pool (agent-host) session type: the per-type key holds
- * the user's last explicit pick, and switching to the session must not clobber it via any of the
- * paths that run during the switch (draft sync, empty-state seeding, autorun default).
- * General/local (no own pool) is unaffected.
+ * An unbound input counts as started: a session switch clears the bound model for the duration of
+ * an async load while the outgoing session type is still published, and a notice must not surface
+ * in that window. Only a model seen to be request-free is unstarted.
  */
-export function shouldSuppressModelPersistenceOnSessionSwitch(isEmpty: boolean, sessionOwnsPool: boolean): boolean {
-	return isEmpty && sessionOwnsPool;
+export function isSessionStarted(hasBoundModel: boolean, hasRequests: boolean): boolean {
+	return !hasBoundModel || hasRequests;
 }
 
 /**
@@ -181,34 +179,10 @@ export function shouldSuppressModelPersistenceOnSessionSwitch(isEmpty: boolean, 
  *
  * True only for a FRESH untitled own-pool session — one with no incoming `selectedModel` in its
  * own input state. A session that already carries its own model (a transferred/handoff or
- * startup-restored draft) keeps that model in-memory and is left alone. Distinct from
- * {@link shouldSuppressModelPersistenceOnSessionSwitch}, which suppresses the STORAGE write for
- * ALL empty own-pool sessions regardless.
+ * startup-restored draft) keeps that model in-memory and is left alone.
  */
 export function shouldRestorePerTypeModelOnSessionSwitch(isEmpty: boolean, sessionOwnsPool: boolean, hadIncomingModel: boolean): boolean {
 	return isEmpty && sessionOwnsPool && !hadIncomingModel;
-}
-
-/**
- * Whether the input should WAIT for a restored session's own remembered model to be contributed,
- * instead of falling back to the pool default.
- *
- * True when the session's remembered `desiredModel` belongs to this session's own pool (it
- * targets `sessionType`) but is not yet present in `allModels` — i.e. the session-type pool has
- * not finished loading at restore time (cold or partial). Waiting avoids persisting a transient
- * pool default (e.g. Haiku) over the session's remembered model (e.g. Opus) while the pool
- * settles. A model that does not belong to this session's pool returns false, so the caller
- * defaults instead of waiting forever.
- */
-export function shouldWaitForSessionModel(
-	desiredModel: ILanguageModelChatMetadataAndIdentifier,
-	sessionType: string | undefined,
-	allModels: ILanguageModelChatMetadataAndIdentifier[],
-): boolean {
-	if (!sessionType || desiredModel.metadata.targetChatSessionType !== sessionType) {
-		return false;
-	}
-	return !allModels.some(m => m.identifier === desiredModel.identifier);
 }
 
 /**
@@ -233,60 +207,6 @@ export function findBestMatchingModel(
 }
 
 /**
- * Find the default model for a given location from a list of models.
- * Prefers the model marked as default for the location, falls back to the first model.
- */
-export function findDefaultModel(
-	models: ILanguageModelChatMetadataAndIdentifier[],
-	location: ChatAgentLocation,
-): ILanguageModelChatMetadataAndIdentifier | undefined {
-	return models.find(m => m.metadata.isDefaultForLocation[location]) || models[0];
-}
-
-export function findReplacementForProvisionalModel(
-	currentModelId: string | undefined,
-	provisionalModelId: string | undefined,
-	models: readonly ILanguageModelChatMetadataAndIdentifier[],
-	location: ChatAgentLocation,
-): ILanguageModelChatMetadataAndIdentifier | undefined {
-	if (!provisionalModelId || currentModelId !== provisionalModelId) {
-		return undefined;
-	}
-	return models.find(model => model.metadata.isDefaultForLocation[location]);
-}
-
-/**
- * Determine whether a persisted model selection should be restored.
- *
- * A persisted model should be restored if:
- * 1. The model still exists in the available models list
- * 2. Either the model wasn't the default at the time it was persisted,
- *    OR it is currently the default for the location
- *
- * This prevents scenarios where a user's explicit model choice gets overridden
- * when the default model changes, while still tracking default model changes
- * for users who never explicitly chose a model.
- */
-export function shouldRestorePersistedModel(
-	persistedModelId: string,
-	persistedAsDefault: boolean,
-	availableModels: ILanguageModelChatMetadataAndIdentifier[],
-	location: ChatAgentLocation,
-): { shouldRestore: boolean; model: ILanguageModelChatMetadataAndIdentifier | undefined } {
-	const resolution = resolveModelIdentifier(availableModels, persistedModelId, true);
-	if (resolution.kind !== 'available') {
-		return { shouldRestore: false, model: undefined };
-	}
-	const model = resolution.model;
-
-	if (!persistedAsDefault || model.metadata.isDefaultForLocation[location]) {
-		return { shouldRestore: true, model };
-	}
-
-	return { shouldRestore: false, model };
-}
-
-/**
  * Determines whether the current model should be reset because it is no longer
  * compatible with the current mode, session, or availability.
  *
@@ -295,11 +215,15 @@ export function shouldRestorePersistedModel(
 export function shouldResetModelToDefault(
 	currentModel: ILanguageModelChatMetadataAndIdentifier | undefined,
 	availableModels: ILanguageModelChatMetadataAndIdentifier[],
-	context: IModelSelectionContext,
+	isModelSupportedHere: IsModelSupportedHere,
 	allModels: ILanguageModelChatMetadataAndIdentifier[],
+	sessionType: string | undefined,
 ): boolean {
+	// Nothing selected yet is not a reason to reset: with an empty catalog there is nothing to
+	// reset *to*, and with a partly-published one the first model to arrive is an arbitrary
+	// stand-in. Waiting lets the intended model be applied when it appears.
 	if (!currentModel) {
-		return true;
+		return false;
 	}
 
 	// Model is no longer in the available list
@@ -307,18 +231,13 @@ export function shouldResetModelToDefault(
 		return true;
 	}
 
-	// Model not supported for current mode
-	if (!isModelSupportedForMode(currentModel, context.currentModeKind)) {
-		return true;
-	}
-
-	// Model not supported for inline chat
-	if (!isModelSupportedForInlineChat(currentModel, context.location)) {
+	// Model not usable on this surface (mode, or where it is shown)
+	if (!isModelSupportedHere(currentModel)) {
 		return true;
 	}
 
 	// Model not valid for current session
-	if (!isModelValidForSession(currentModel, allModels, context.sessionType)) {
+	if (!isModelValidForSession(currentModel, allModels, sessionType)) {
 		return true;
 	}
 
@@ -335,17 +254,16 @@ export function shouldResetModelToDefault(
  *                 mode, or missing inline-chat capability); the caller should fall
  *                 back to the default model for the current location.
  *
- * @param context Optional because some callers (e.g. unit tests, or code paths
- *   that only care about session-pool validation) don't have a full UI context
- *   available. When omitted, mode and inline-chat checks are skipped and only
- *   session-pool membership is validated.
+ * @param isModelSupportedHere Optional because some callers (e.g. unit tests, or
+ *   code paths that only care about session-pool validation) cannot say. When
+ *   omitted, only session-pool membership is validated.
  */
 export function resolveModelFromSyncState(
 	stateModel: ILanguageModelChatMetadataAndIdentifier,
 	currentModel: ILanguageModelChatMetadataAndIdentifier | undefined,
 	allModels: ILanguageModelChatMetadataAndIdentifier[],
 	sessionType: string | undefined,
-	context?: IModelSelectionContext,
+	isModelSupportedHere?: IsModelSupportedHere,
 ): { action: 'keep' | 'apply' | 'default' } {
 	// Validate the state model belongs to this session's model pool first.
 	if (!isModelValidForSession(stateModel, allModels, sessionType)) {
@@ -357,14 +275,9 @@ export function resolveModelFromSyncState(
 		return { action: 'keep' };
 	}
 
-	// When a UI context is available, also validate mode and inline-chat compatibility
-	if (context) {
-		if (!isModelSupportedForMode(stateModel, context.currentModeKind)) {
-			return { action: 'default' };
-		}
-		if (!isModelSupportedForInlineChat(stateModel, context.location)) {
-			return { action: 'default' };
-		}
+	// When the surface can say, also validate that it can run the model at all
+	if (isModelSupportedHere && !isModelSupportedHere(stateModel)) {
+		return { action: 'default' };
 	}
 
 	return { action: 'apply' };
@@ -421,3 +334,15 @@ export function shouldResetOnModelListChange(
 	return !availableModels.some(m => m.identifier === currentModelId);
 }
 
+
+/**
+ * The selection a request should be sent with, given what an inline request editor had chosen.
+ *
+ * Resubmitting an edited request must use the picker the user actually chose in. That editor is
+ * torn down before the request is built, so its selection is captured up front and always wins
+ *
+ * `edited` is `undefined` when no inline edit is in flight, in which case the composer is correct.
+ */
+export function resolveEditedRequestSelection<T>(edited: T | undefined, composer: T): T {
+	return edited ?? composer;
+}

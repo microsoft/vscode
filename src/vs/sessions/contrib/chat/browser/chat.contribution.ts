@@ -9,14 +9,16 @@ import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import product from '../../../../platform/product/common/product.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionsManagementService, inheritableSessionTarget } from '../../../services/sessions/common/sessionsManagement.js';
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
 import { RunScriptContribution } from './runScriptAction.js';
 import './nullInlineChatSessionService.js';
-import './nullChatTipService.js';
 import './modelPicker.js';
 import './agentHostDelegation.js';
+import './newSessionFolderQuickPickAction.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ISessionsTasksService, SessionsTasksService } from './sessionsTasksService.js';
@@ -36,7 +38,6 @@ import { SessionsChatAccessibilityHelp } from './sessionsChatAccessibilityHelp.j
 import { SessionsOpenerParticipantContribution } from './sessionsOpenerParticipant.js';
 import { OpenSessionLinkOpenerContribution } from './openSessionLinkOpener.contribution.js';
 import { WorktreeCreatedTaskDispatcher, AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING } from './worktreeCreatedTaskDispatcher.js';
-import { LastTurnChangesMultiDiffSourceResolverContribution } from './lastTurnChangesMultiDiffSourceResolver.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -44,6 +45,10 @@ import { EditorAreaFocusContext, SideBarVisibleContext } from '../../../../workb
 import { NEW_SESSION_ACTION_ID } from '../common/constants.js';
 import { SessionsTitleBarNewSessionEnabledContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { Menus } from '../../../browser/menus.js';
+import { ISessionsChatViewStateService, SessionsChatViewStateService } from './chatViewStateService.js';
+import { SessionsChatResponseFileChangesService } from './sessionTurnChanges.js';
+import { IChatResponseFileChangesService } from '../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
+import { SHOW_SESSION_METADATA_IN_CHAT_INPUT_SETTING } from '../../../common/sessionConfig.js';
 
 
 class NewChatInSessionsWindowAction extends Action2 {
@@ -88,15 +93,19 @@ class NewChatInSessionsWindowAction extends Action2 {
 
 	override run(accessor: ServicesAccessor): void {
 		const sessionsService = accessor.get(ISessionsService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const activeSession = sessionsService.activeSession.get();
 		// A quick chat never contributes its folder — it is workspace-less by
 		// intent (any scratch working directory must not seed the workspace
 		// composer), so it always falls to the New Session composer's folder picker.
 		const isQuickChat = activeSession?.isQuickChat?.get() ?? false;
+		const folderUri = isQuickChat ? undefined : activeSession?.workspace.get()?.uri;
+		// Inherit the active session's harness so the new session defaults to
+		// the kind the user is working in — but only while the folder still
+		// offers it (see `inheritableSessionTarget`).
 		sessionsService.openNewSession({
-			folderUri: isQuickChat ? undefined : activeSession?.workspace.get()?.uri,
-			providerId: activeSession?.providerId,
-			sessionTypeId: activeSession?.sessionType,
+			folderUri,
+			...inheritableSessionTarget(sessionsManagementService, activeSession, folderUri),
 		});
 	}
 }
@@ -113,7 +122,6 @@ registerWorkbenchContribution2(SessionsOpenerParticipantContribution.ID, Session
 registerWorkbenchContribution2(OpenSessionLinkOpenerContribution.ID, OpenSessionLinkOpenerContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(RegisterDefaultSessionTaskRunnersContribution.ID, RegisterDefaultSessionTaskRunnersContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(WorktreeCreatedTaskDispatcher.ID, WorktreeCreatedTaskDispatcher, WorkbenchPhase.AfterRestored);
-registerWorkbenchContribution2(LastTurnChangesMultiDiffSourceResolverContribution.ID, LastTurnChangesMultiDiffSourceResolverContribution, WorkbenchPhase.BlockRestore);
 
 // register services
 registerSingleton(IPromptsService, AgenticPromptsService, InstantiationType.Delayed);
@@ -122,6 +130,8 @@ registerSingleton(ISessionsTasksService, SessionsTasksService, InstantiationType
 registerSingleton(IAICustomizationWorkspaceService, SessionsAICustomizationWorkspaceService, InstantiationType.Delayed);
 registerSingleton(ICustomizationHarnessService, SessionsCustomizationHarnessService, InstantiationType.Delayed);
 registerSingleton(IChatViewFactory, ChatViewFactory, InstantiationType.Delayed);
+registerSingleton(ISessionsChatViewStateService, SessionsChatViewStateService, InstantiationType.Delayed);
+registerSingleton(IChatResponseFileChangesService, SessionsChatResponseFileChangesService, InstantiationType.Delayed);
 
 // register accessibility help
 AccessibleViewRegistry.register(new SessionsChatAccessibilityHelp());
@@ -140,6 +150,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('chat.agentSessions.scopedInputHistory', "Controls whether chat input history in the Agents Window is scoped to the current session. Disable this to use shared input history across sessions."),
+		},
+		[SHOW_SESSION_METADATA_IN_CHAT_INPUT_SETTING]: {
+			type: 'boolean',
+			default: product.quality !== 'stable',
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('chat.agentSessions.showSessionMetadataInInput', "Controls whether session metadata such as changes, pull requests, and issues appears above the chat input instead of in the session header."),
 		},
 	},
 });
