@@ -34,7 +34,7 @@ import { PROMPT_LANGUAGE_ID, PromptFileSource, PromptsType, Target, getPromptsTy
 import { IWorkspaceInstructionFile, PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { evaluateApplyToPattern, PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
 import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, IConfiguredHooksInfo, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPluginPromptPath, IBuiltinPromptPath, IPromptPath, IPromptsService, IAgentSkill, IInstructionDiscoveryInfo, IInstructionDiscoveryResult, IInstructionFile, IUserPromptPath, PromptsStorage, IPromptFileContext, IPromptFileResource, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, IPromptSourceFolderResult, ICustomAgentVisibility, IAgentInstructionFile, AgentInstructionFileType, Logger, ISlashCommandDiscoveryInfo, ISlashCommandDiscoveryResult, IAgentDiscoveryInfo, IAgentDiscoveryResult, IHookDiscoveryInfo, IResolvedChatPromptSlashCommand, matchesSessionType } from './promptsService.js';
-import { Delayer, raceCancellationError } from '../../../../../../base/common/async.js';
+import { Delayer, Limiter, raceCancellationError } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { ChatRequestHooks, parseSubagentHooksFromYaml } from '../hookSchema.js';
 import { type IParsedHookCommand } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
@@ -52,6 +52,15 @@ import { COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, COPILOT_STRICT_PLUGIN_ONLY_CUS
 import { isPromptTypeBlocked, StrictPluginOnlyCustomization } from '../../customizationLockdown.js';
 import { isAgentPluginForceEnabledByPolicy } from '../../plugins/agentPluginEnablement.js';
 import { ChatConfiguration } from '../../constants.js';
+
+/**
+ * Maximum number of prompt files to read in parallel during discovery.
+ *
+ * Discovery fans out over every visible agent, skill, prompt and hook file, so
+ * without a bound a single pass opens one file handle per file, which on large
+ * plugin or skill collections can exhaust the process file handle limit.
+ */
+const PROMPT_FILE_DISCOVERY_CONCURRENCY = 10;
 
 /**
  * Provides prompt services.
@@ -537,7 +546,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 			...enabledSkills,
 		];
 
-		const parseResults = await Promise.all(slashCommandFiles.map(async promptPath => {
+		const slashCommandLimiter = new Limiter<ISlashCommandDiscoveryResult>(PROMPT_FILE_DISCOVERY_CONCURRENCY);
+		const parseResults = await Promise.all(slashCommandFiles.map(promptPath => slashCommandLimiter.queue(async () => {
 			try {
 				const parsedPromptFile = await this.parseNew(promptPath.uri, token);
 				let rawName: string;
@@ -563,7 +573,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				}
 				return { status: 'skipped', skipReason: 'parse-error', errorMessage: e instanceof Error ? e.message : String(e), promptPath } satisfies ISlashCommandDiscoveryResult;
 			}
-		}));
+		})));
 
 		// Deduplicate skills that resolve to the same canonical name. This can
 		// happen when two skill locations point at the same files, e.g. when
@@ -736,7 +746,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const userHome = userHomeUri.scheme === Schemas.file ? userHomeUri.fsPath : userHomeUri.path;
 		const defaultFolder = this.workspaceService.getWorkspace().folders[0];
 
-		const files = await Promise.all(allAgentFiles.map(async (promptPath): Promise<IAgentDiscoveryResult> => {
+		const agentLimiter = new Limiter<IAgentDiscoveryResult>(PROMPT_FILE_DISCOVERY_CONCURRENCY);
+		const files = await Promise.all(allAgentFiles.map(promptPath => agentLimiter.queue(async (): Promise<IAgentDiscoveryResult> => {
 			const uri = promptPath.uri;
 			const isEnabled = !disabledAgents.has(uri);
 
@@ -778,7 +789,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					promptPath,
 				};
 			}
-		}));
+		})));
 
 		const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.agent);
 		return { type: PromptsType.agent, files, sourceFolders, durationInMillis: stopWatch.elapsed() };
@@ -1253,12 +1264,14 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const defaultFolder = this.workspaceService.getWorkspace().folders[0];
 
 		// Process each hook file in parallel
-		const fileResults = await Promise.all(hookFiles.map(async (hookFile): Promise<{
+		type HookFileResult = {
 			file?: IPromptFileDiscoveryResult;
 			hooks?: Map<HookType, IParsedHookCommand[]>;
 			sourceUri?: URI;
 			hasDisabledClaudeHooks?: boolean;
-		}> => {
+		};
+		const hookLimiter = new Limiter<HookFileResult>(PROMPT_FILE_DISCOVERY_CONCURRENCY);
+		const fileResults = await Promise.all(hookFiles.map(hookFile => hookLimiter.queue(async (): Promise<HookFileResult> => {
 			const name = basename(hookFile.uri);
 
 			// Plugins are handled separately down below because they do their own parsing+interpolation
@@ -1365,7 +1378,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					},
 				};
 			}
-		}));
+		})));
 
 		// Merge results from parallel processing
 		const files: IPromptFileDiscoveryResult[] = [];
