@@ -180,6 +180,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 					group: { title: '', ...(entry.icon ? { icon: entry.icon } : {}) },
 					...(entry.resource ? { iconClasses: getIconClasses(this._modelService, this._languageService, entry.resource, FileKind.FILE) } : {}),
 					...(entry.toolbarActions?.length ? { toolbarActions: [...entry.toolbarActions] } : {}),
+					hover: entry.hover,
 					item: entry,
 				});
 			}
@@ -243,4 +244,3 @@ export function createChatSectionPill(
 		? { action, createActionViewItem: viewItemOptions => new ChatResourcePillActionViewItem(action, viewItemOptions, singleResourceEntry, resourceLabels) }
 		: { action, createActionViewItem: viewItemOptions => instantiationService.createInstance(ChatDropdownPillActionViewItem, action, viewItemOptions, sections, options) });
 }
-

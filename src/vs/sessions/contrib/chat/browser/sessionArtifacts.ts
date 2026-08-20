@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, IReader } from '../../../../base/common/observable.js';
 import { basename, getComparisonKey } from '../../../../base/common/resources.js';
@@ -51,11 +52,21 @@ function artifactValueKey(artifact: ISessionArtifact): string {
 	return (artifact.link?.toString() ?? artifact.commitHash ?? artifact.id).toLowerCase();
 }
 
+function artifactLocation(uri: URI): Pick<IChatPillEntry, 'hover' | 'tooltip'> {
+	const value = uri.toString(true);
+	return {
+		hover: { content: new MarkdownString().appendText(value) },
+		tooltip: value,
+	};
+}
+
 function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions): IChatPillEntry | undefined {
 	if (artifact.kind === SessionArtifactKind.File) {
-		return artifact.uri
-			? { id: artifact.id, label: basename(artifact.uri), resource: artifact.uri, open: () => actions.openResource(artifact.uri!) }
-			: undefined;
+		if (!artifact.uri) {
+			return undefined;
+		}
+		const uri = artifact.uri;
+		return { id: artifact.id, label: basename(uri), resource: uri, ...artifactLocation(uri), open: () => actions.openResource(uri) };
 	}
 
 	const icon = artifactIcons.get(artifact.kind) ?? Codicon.archive;
@@ -72,18 +83,22 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions): 
 				run: () => actions.copy(artifact.commitHash!),
 			})]
 			: [];
-		return { id: artifact.id, label: artifact.label, icon, toolbarActions: copyAction, open: () => actions.openExternal(link) };
+		return { id: artifact.id, label: artifact.label, icon, toolbarActions: copyAction, ...artifactLocation(link), open: () => actions.openExternal(link) };
 	}
 
 	if (artifact.kind === SessionArtifactKind.Resource) {
-		return artifact.uri
-			? { id: artifact.id, label: artifact.label, icon, open: () => actions.openResource(artifact.uri!) }
-			: undefined;
+		if (!artifact.uri) {
+			return undefined;
+		}
+		const uri = artifact.uri;
+		return { id: artifact.id, label: artifact.label, icon, ...artifactLocation(uri), open: () => actions.openResource(uri) };
 	}
 
-	return artifact.link
-		? { id: artifact.id, label: artifact.label, icon, open: () => actions.openExternal(artifact.link!) }
-		: undefined;
+	if (!artifact.link) {
+		return undefined;
+	}
+	const link = artifact.link;
+	return { id: artifact.id, label: artifact.label, icon, ...artifactLocation(link), open: () => actions.openExternal(link) };
 }
 
 /**
@@ -112,7 +127,7 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 		}
 		seen.add(getComparisonKey(file.uri));
 		const entries = entriesByKind.get(SessionArtifactKind.File) ?? [];
-		entries.push({ id: file.uri.toString(), label: basename(file.uri), resource: file.uri, open: () => actions.openResource(file.uri) });
+		entries.push({ id: file.uri.toString(), label: basename(file.uri), resource: file.uri, ...artifactLocation(file.uri), open: () => actions.openResource(file.uri) });
 		entriesByKind.set(SessionArtifactKind.File, entries);
 	}
 

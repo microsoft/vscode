@@ -168,18 +168,18 @@ suite('ChatTurnPills', () => {
 
 	test('summarizes multiple artifacts and groups the dropdown by section', () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
-		let shownItems: readonly { readonly kind: ActionListItemKind; readonly label: string | undefined }[] = [];
+		let shownItems: readonly { readonly kind: ActionListItemKind; readonly label: string | undefined; readonly hover: string | undefined }[] = [];
 		instantiationService.stub(IActionWidgetService, new class extends mock<IActionWidgetService>() {
 			override get isVisible(): boolean { return false; }
 			override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[]): void {
-				shownItems = items.map(item => ({ kind: item.kind, label: item.label }));
+				shownItems = items.map(item => ({ kind: item.kind, label: item.label, hover: typeof item.hover?.content === 'string' ? item.hover.content : undefined }));
 			}
 		});
 		const opened: string[] = [];
 		const widget = disposables.add(instantiationService.createInstance(ChatTurnPillsWidget, {
 			stats: constObservable(EMPTY_DIFF_STATS),
 			artifacts: constObservable<readonly IChatPillSection[]>([
-				{ title: 'Pull Requests', entries: [{ id: 'pr', label: '#12', icon: Codicon.gitPullRequest, open: () => opened.push('pr') }] },
+				{ title: 'Pull Requests', entries: [{ id: 'pr', label: '#12', icon: Codicon.gitPullRequest, hover: { content: 'https://github.com/microsoft/vscode/pull/12' }, open: () => opened.push('pr') }] },
 				{ title: 'Files', entries: [{ id: 'file', label: 'plan.md', resource: URI.file('/artifacts/plan.md'), open: () => opened.push('file') }] },
 			]),
 			changesEnabled: constObservable(false),
@@ -200,16 +200,17 @@ suite('ChatTurnPills', () => {
 			dropdownItems: shownItems.map(item => ({
 				kind: item.kind,
 				label: item.label,
+				hover: item.hover,
 			})),
 		}, {
 			label: '2 Artifacts',
 			ariaLabel: 'Show 2 artifacts',
 			dropdownItems: [
-				{ kind: ActionListItemKind.Header, label: 'Pull Requests' },
-				{ kind: ActionListItemKind.Action, label: '#12' },
-				{ kind: ActionListItemKind.Separator, label: '' },
-				{ kind: ActionListItemKind.Header, label: 'Files' },
-				{ kind: ActionListItemKind.Action, label: 'plan.md' },
+				{ kind: ActionListItemKind.Header, label: 'Pull Requests', hover: undefined },
+				{ kind: ActionListItemKind.Action, label: '#12', hover: 'https://github.com/microsoft/vscode/pull/12' },
+				{ kind: ActionListItemKind.Separator, label: '', hover: undefined },
+				{ kind: ActionListItemKind.Header, label: 'Files', hover: undefined },
+				{ kind: ActionListItemKind.Action, label: 'plan.md', hover: undefined },
 			],
 		});
 	});

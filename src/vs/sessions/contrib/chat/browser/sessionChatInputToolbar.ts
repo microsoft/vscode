@@ -7,6 +7,7 @@ import { $, addDisposableListener, DisposableResizeObserver, EventType, getWindo
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { toAction, Action, Separator, type IAction } from '../../../../base/common/actions.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedOpts, IObservable, IReader, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -59,12 +60,18 @@ export function shouldShowSessionTurnPills(hasDebugData: boolean, turnActive: bo
 
 /** Fake artifacts for the pill debug overlay. */
 function buildDebugArtifactSections(debugData: ISessionChatPillsDebugData): readonly IChatPillSection[] {
-	const entries = debugData.markdownFiles.map(name => ({
-		id: name,
-		label: name,
-		resource: URI.from({ scheme: 'session-chat-pills-debug', path: `/${name}` }),
-		open: () => { },
-	}));
+	const entries = debugData.markdownFiles.map(name => {
+		const resource = URI.from({ scheme: 'session-chat-pills-debug', path: `/${name}` });
+		const location = resource.toString(true);
+		return {
+			id: name,
+			label: name,
+			resource,
+			hover: { content: new MarkdownString().appendText(location) },
+			tooltip: location,
+			open: () => { },
+		};
+	});
 	return entries.length ? [{ title: localize('sessionArtifacts.files', "Files"), entries }] : [];
 }
 
@@ -173,7 +180,7 @@ export class SessionChatInputToolbar extends Disposable {
 			const debugData = this._debugData.read(reader);
 			return debugData ? buildDebugArtifactSections(debugData) : sessionArtifacts.sections.read(reader);
 		});
-		const sessionCustomizations = this._register(instantiationService.createInstance(SessionCustomizations, this._chat));
+		const sessionCustomizations = this._register(instantiationService.createInstance(SessionCustomizations, this._chat, this._session));
 		this._customizationSections = sessionCustomizations.sections;
 
 		const turnStatusPillsEnabled = observeTurnStatusPillsEnabled(this._configurationService);
