@@ -13,13 +13,12 @@ import { URI } from '../../../../base/common/uri.js';
 import { IDiffEditor } from '../../../../editor/common/editorCommon.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { AbstractEditorWithViewState } from '../../../../workbench/browser/parts/editor/editorWithViewState.js';
@@ -54,6 +53,7 @@ import { localize } from '../../../../nls.js';
 import { getChangesEditorFileStats } from './changesEditorLabels.js';
 
 const HEADER_HEIGHT = 35;
+const PREFERRED_RENDER_SIDE_BY_SIDE_STORAGE_KEY = 'sessions.changesEditor.renderSideBySide';
 
 /**
  * Optimizes the embedded diffs for the narrow Agents window panel while
@@ -168,6 +168,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 
 	private _singlePane = false;
 	private _scopedInstantiationService: IInstantiationService | undefined;
+	private _renderSideBySide = true;
 
 	/** Session whose changes this editor is currently showing (from its input). */
 	private readonly _inputSessionResource = observableValue<URI | undefined>(this, undefined);
@@ -192,14 +193,13 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChangesViewService private readonly changesViewService: IChangesViewService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
 		@ISessionChangesService private readonly sessionChangesService: ISessionChangesService,
 	) {
@@ -215,6 +215,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			editorService,
 			editorGroupService,
 		);
+		this._renderSideBySide = this.storageService.getBoolean(PREFERRED_RENDER_SIDE_BY_SIDE_STORAGE_KEY, StorageScope.PROFILE, true);
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
@@ -254,16 +255,17 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			paneInstantiationService.createInstance(SessionChangesUIElementFactory, this._scopedChangesObs),
 			CHANGES_DIFF_EDITOR_OPTIONS,
 		));
-		this._applyRenderSideBySide();
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('diffEditor.renderSideBySide')) {
-				this._applyRenderSideBySide();
-			}
-		}));
+		this._applyDiffLayoutOptions();
 	}
 
-	private _applyRenderSideBySide(): void {
-		this.widget?.setRenderSideBySide(this.configurationService.getValue<boolean>('diffEditor.renderSideBySide') ?? true);
+	private _applyDiffLayoutOptions(): void {
+		this.widget?.setRenderSideBySide(this._renderSideBySide, { useInlineViewWhenSpaceIsLimited: true });
+	}
+
+	togglePreferredDiffLayout(): void {
+		this._renderSideBySide = !this._renderSideBySide;
+		this.storageService.store(PREFERRED_RENDER_SIDE_BY_SIDE_STORAGE_KEY, this._renderSideBySide, StorageScope.PROFILE, StorageTarget.USER);
+		this._applyDiffLayoutOptions();
 	}
 
 	/**

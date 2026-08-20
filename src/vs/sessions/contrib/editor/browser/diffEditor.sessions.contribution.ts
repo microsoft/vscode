@@ -7,7 +7,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { DiffEditorCommandsService, IDiffEditorCommandsService } from '../../../../workbench/browser/parts/editor/diffEditorCommandsService.js';
@@ -49,19 +49,23 @@ export class SessionsDiffEditorCommandsService extends DiffEditorCommandsService
 					continue;
 				}
 
-				const renderSideBySide = !control.renderSideBySide;
+				const key = 'diffEditor.renderSideBySide';
 				if (modifiedResource) {
-					await this.sessionsTextResourceConfigurationService.updateValue(modifiedResource, 'diffEditor.renderSideBySide', renderSideBySide);
+					const renderSideBySide = !(this.sessionsTextResourceConfigurationService.getValue<boolean>(modifiedResource, key) ?? true);
+					await this.sessionsTextResourceConfigurationService.updateValue(modifiedResource, key, renderSideBySide);
+					const useInlineViewWhenSpaceIsLimited = this.sessionsTextResourceConfigurationService.getValue<boolean>(modifiedResource, 'diffEditor.useInlineViewWhenSpaceIsLimited') ?? true;
+					control.updateOptions({ renderSideBySide, useInlineViewWhenSpaceIsLimited });
+				} else {
+					const renderSideBySide = !(this.configurationService.getValue<boolean>(key) ?? true);
+					const useInlineViewWhenSpaceIsLimited = this.configurationService.getValue<boolean>('diffEditor.useInlineViewWhenSpaceIsLimited') ?? true;
+					control.updateOptions({ renderSideBySide, useInlineViewWhenSpaceIsLimited });
 				}
-				control.updateOptions({ renderSideBySide, useInlineViewWhenSpaceIsLimited: false });
 				return;
 			}
 		}
 
 		if (this.editorService.activeEditorPane instanceof SessionChangesEditor) {
-			const key = 'diffEditor.renderSideBySide';
-			const value = this.configurationService.getValue<boolean>(key) ?? true;
-			await this.configurationService.updateValue(key, !value, ConfigurationTarget.WORKSPACE);
+			this.editorService.activeEditorPane.togglePreferredDiffLayout();
 			return;
 		}
 

@@ -155,7 +155,7 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('toggle inline view is contributed to multi-file and single-file diff editor headers with toggle state', () => {
+	test('preferred diff view is contributed to multi-file and single-file diff editor headers with toggle state', () => {
 		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'toggle.diff.renderSideBySide');
@@ -177,9 +177,11 @@ suite('Changes View Actions', () => {
 			group: item.group,
 			order: item.order,
 			icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
+			tooltip: typeof item.command.tooltip === 'string' ? item.command.tooltip : item.command.tooltip?.value,
 			toggledTitle: toggledInfo?.title,
+			toggledTooltip: toggledInfo?.tooltip,
 			toggledOnMultiDiffSideBySide: toggledInfo?.condition.serialize().includes(EditorContextKeys.multiDiffEditorRenderSideBySide.key),
-			toggledOnSingleDiffSideBySide: toggledInfo?.condition.serialize().includes(EditorContextKeys.diffEditorInlineMode.key),
+			toggledOnSingleDiffPreference: toggledInfo?.condition.serialize().includes('config.diffEditor.renderSideBySide'),
 			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
 			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
 			hasTextCompareEditorGate: when.includes(TextCompareEditorActiveContext.key),
@@ -188,13 +190,15 @@ suite('Changes View Actions', () => {
 			matchesNonTextDiffContext: item.when?.evaluate(nonTextDiffContext) ?? false,
 		}, {
 			id: 'toggle.diff.renderSideBySide',
-			title: 'Show Side by Side Diff',
+			title: 'Prefer Side by Side Diff',
 			group: '1_diff',
 			order: 20,
 			icon: Codicon.diffSidebyside.id,
-			toggledTitle: 'Show Inline Diff',
+			tooltip: 'Uses side-by-side layout when space allows.',
+			toggledTitle: 'Prefer Inline Diff',
+			toggledTooltip: 'Always uses inline layout.',
 			toggledOnMultiDiffSideBySide: true,
-			toggledOnSingleDiffSideBySide: true,
+			toggledOnSingleDiffPreference: true,
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
 			hasTextCompareEditorGate: true,
@@ -204,7 +208,7 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('toggle inline view is contributed to the command palette (Changes category)', () => {
+	test('preferred diff view is contributed to the command palette (Changes category)', () => {
 		const item = MenuRegistry.getMenuItems(MenuId.CommandPalette)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'toggle.diff.renderSideBySide' && item.command.category !== undefined && (typeof item.command.category === 'string' ? item.command.category : item.command.category.value) === 'Changes');
@@ -222,7 +226,7 @@ suite('Changes View Actions', () => {
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 		}, {
 			id: 'toggle.diff.renderSideBySide',
-			title: 'Toggle Diff View',
+			title: 'Toggle Preferred Diff View',
 			category: 'Changes',
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,

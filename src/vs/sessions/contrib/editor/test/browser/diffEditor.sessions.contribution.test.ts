@@ -74,27 +74,23 @@ suite('SessionsDiffEditorCommandsService', () => {
 		return pane;
 	}
 
-	test('flips the workspace renderSideBySide setting when the Changes editor is active', async () => {
+	test('toggles the Changes editor preference without changing workspace configuration', async () => {
 		// Use the prototype so `instanceof SessionChangesEditor` holds without constructing the heavy pane.
 		const changesEditor = Object.create(SessionChangesEditor.prototype) as IEditorPane;
+		let toggleCount = 0;
+		Object.defineProperty(changesEditor, 'togglePreferredDiffLayout', { value: () => toggleCount++ });
 		const { service, workspaceWrites, resourceWrites } = createService(changesEditor, true /* currently side by side */);
 
 		await service.toggleRenderSideBySide([]);
 
-		assert.deepStrictEqual(workspaceWrites, [{ key: 'diffEditor.renderSideBySide', value: false, target: ConfigurationTarget.WORKSPACE }]);
-		assert.strictEqual(resourceWrites.length, 0, 'the base resource-scoped path must not be used for the Changes editor');
+		assert.deepStrictEqual({ toggleCount, workspaceWrites, resourceWrites }, {
+			toggleCount: 1,
+			workspaceWrites: [],
+			resourceWrites: [],
+		});
 	});
 
-	test('toggles back to side by side when currently inline', async () => {
-		const changesEditor = Object.create(SessionChangesEditor.prototype) as IEditorPane;
-		const { service, workspaceWrites } = createService(changesEditor, false /* currently inline */);
-
-		await service.toggleRenderSideBySide([]);
-
-		assert.deepStrictEqual(workspaceWrites, [{ key: 'diffEditor.renderSideBySide', value: true, target: ConfigurationTarget.WORKSPACE }]);
-	});
-
-	test('toggles and persists the active single-file diff editor without forwarded arguments', async () => {
+	test('toggles the configured preference when a narrow single-file diff is effectively inline', async () => {
 		const resource = URI.file('/workspace/file.ts');
 		const controlUpdates: IDiffEditorOptions[] = [];
 		const textDiffEditor = createTextDiffEditor(resource, false, controlUpdates);
@@ -108,8 +104,8 @@ suite('SessionsDiffEditorCommandsService', () => {
 			controlUpdates,
 		}, {
 			workspaceWrites: [],
-			resourceWrites: [{ resource, key: 'diffEditor.renderSideBySide', value: true }],
-			controlUpdates: [{ renderSideBySide: true, useInlineViewWhenSpaceIsLimited: false }],
+			resourceWrites: [{ resource, key: 'diffEditor.renderSideBySide', value: false }],
+			controlUpdates: [{ renderSideBySide: false, useInlineViewWhenSpaceIsLimited: true }],
 		});
 	});
 
@@ -131,7 +127,7 @@ suite('SessionsDiffEditorCommandsService', () => {
 		}, {
 			resourceWrites: [{ resource: targetResource, key: 'diffEditor.renderSideBySide', value: false }],
 			activeControlUpdates: [],
-			targetControlUpdates: [{ renderSideBySide: false, useInlineViewWhenSpaceIsLimited: false }],
+			targetControlUpdates: [{ renderSideBySide: false, useInlineViewWhenSpaceIsLimited: true }],
 		});
 	});
 
@@ -151,7 +147,7 @@ suite('SessionsDiffEditorCommandsService', () => {
 		}, {
 			workspaceWrites: [],
 			resourceWrites: [{ resource, key: 'diffEditor.renderSideBySide', value: false }],
-			controlUpdates: [{ renderSideBySide: false, useInlineViewWhenSpaceIsLimited: false }],
+			controlUpdates: [{ renderSideBySide: false, useInlineViewWhenSpaceIsLimited: true }],
 		});
 	});
 });

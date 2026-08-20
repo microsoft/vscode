@@ -325,22 +325,23 @@ registerAction2(ExpandAllSessionChangesDiffsAction);
 
 // The Agents window reuses the workbench `toggle.diff.renderSideBySide` command so a
 // user's keybinding for it carries over here (issue #324765). The sessions override of
-// IDiffEditorCommandsService flips the workspace `diffEditor.renderSideBySide` setting,
-// which the Changes editor observes.
+// IDiffEditorCommandsService updates the Changes editor's own preferred layout.
 
-// Primary header button with state-specific titles: "Show Side by Side Diff" when
-// currently inline, and (checked) "Show Inline Diff" when currently side by side.
+// The action changes the preferred layout. Side by side still falls back to inline
+// when the editor is narrow, so the label must not promise an immediate layout.
 MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, {
 	command: {
 		id: TOGGLE_DIFF_SIDE_BY_SIDE,
-		title: localize('showSideBySideDiff', "Show Side by Side Diff"),
+		title: localize('preferSideBySideDiff', "Prefer Side by Side Diff"),
+		tooltip: localize('preferSideBySideDiff.tooltip', "Uses side-by-side layout when space allows."),
 		icon: Codicon.diffSidebyside,
 		toggled: {
 			condition: ContextKeyExpr.or(
 				ContextKeyExpr.and(singlePaneChangesEditorActive, EditorContextKeys.multiDiffEditorRenderSideBySide),
-				ContextKeyExpr.and(singlePaneFileDiffEditorActive, EditorContextKeys.diffEditorInlineMode.negate())
+				ContextKeyExpr.and(singlePaneFileDiffEditorActive, ContextKeyExpr.equals('config.diffEditor.renderSideBySide', true))
 			)!,
-			title: localize('showInlineDiff', "Show Inline Diff"),
+			title: localize('preferInlineDiff', "Prefer Inline Diff"),
+			tooltip: localize('preferInlineDiff.tooltip', "Always uses inline layout."),
 		},
 	},
 	group: '1_diff',
@@ -352,7 +353,7 @@ MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, {
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: TOGGLE_DIFF_SIDE_BY_SIDE,
-		title: localize2('toggleDiffView', "Toggle Diff View"),
+		title: localize2('togglePreferredDiffView', "Toggle Preferred Diff View"),
 		category: localize2('changes', "Changes"),
 	},
 	when: singlePaneDiffEditorTitleVisible
