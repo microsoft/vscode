@@ -9,6 +9,7 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { openSessionByResource } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsOpener.js';
 import { SessionsOpenerParticipantContribution } from '../../browser/sessionsOpenerParticipant.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -22,6 +23,7 @@ suite('SessionsOpenerParticipant', () => {
 	test('opens a sessions-layer resource without a legacy agent session', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({ ambientConnection: undefined }));
 		const resource = URI.parse('agent-host-copilotcli://provider/session');
 		const session = upcastPartial<ISession>({ resource });
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({

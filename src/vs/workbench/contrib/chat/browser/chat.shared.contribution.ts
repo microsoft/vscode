@@ -20,7 +20,7 @@ import { AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsCon
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agentMerge.js';
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostAllowSignedOutWhenUsableSettingId, AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, AgentHostReasoningSummaryEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, copilotSdkLogLevelSettingValues } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostMultiTurnContextRoutingEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, AgentHostReasoningSummaryEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, copilotSdkLogLevelSettingValues } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../../platform/chat/common/chatSettings.js';
 import { reasoningEffortLevels } from '../../../../platform/agentHost/common/reasoningEffort.js';
 import { ChatSessionArchiveActionWordingSettingId } from '../../../../platform/chat/common/sessionArchiveActions.js';
@@ -97,6 +97,9 @@ import { CodeBlockActionRendering, registerChatCodeBlockActions, registerChatCod
 import { ChatContextContributions } from './actions/chatContext.js';
 import { registerChatContextActions } from './actions/chatContextActions.js';
 import { ChatCopyActionRendering, registerChatCopyActions } from './actions/chatCopyActions.js';
+import { ChatModelFeedbackSurveyActionRendering, registerChatModelFeedbackSurveyActions } from './actions/chatModelFeedbackSurveyActions.js';
+import { ChatModelFeedbackSurveyService, IChatModelFeedbackSurveyService } from './feedbackSurvey/chatModelFeedbackSurveyService.js';
+import { ChatModelFeedbackSurveyPromptContribution } from './feedbackSurvey/chatModelFeedbackSurveyPromptContribution.js';
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
 import { registerChatElicitationActions } from './actions/chatElicitationActions.js';
 import { registerChatExecuteActions } from './actions/chatExecuteActions.js';
@@ -397,13 +400,13 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ShowExternalAgentSessions]: {
 			type: 'string',
-			enum: [AgentHostExternalSessionsMode.None, AgentHostExternalSessionsMode.Recent, AgentHostExternalSessionsMode.Last24Hours, AgentHostExternalSessionsMode.Last7Days, AgentHostExternalSessionsMode.All],
+			enum: [AgentHostExternalSessionsMode.None, AgentHostExternalSessionsMode.Recent, AgentHostExternalSessionsMode.Last24Hours, AgentHostExternalSessionsMode.Last7Days, AgentHostExternalSessionsMode.Last30Days],
 			enumDescriptions: [
 				nls.localize('chat.agentSessions.showExternal.none', "Only shows sessions created by the Agent Host."),
 				nls.localize('chat.agentSessions.showExternal.recent', "Shows the 2 most recently updated external sessions from the last 7 days."),
 				nls.localize('chat.agentSessions.showExternal.last24Hours', "Shows external sessions updated in the last 24 hours."),
 				nls.localize('chat.agentSessions.showExternal.last7Days', "Shows external sessions updated in the last 7 days."),
-				nls.localize('chat.agentSessions.showExternal.all', "Shows all sessions discovered from supported external agent applications."),
+				nls.localize('chat.agentSessions.showExternal.last30Days', "Shows external sessions updated in the last 30 days."),
 			],
 			default: AgentHostExternalSessionsMode.None,
 			markdownDescription: nls.localize('chat.agentSessions.showExternal', "Controls which external agent sessions, created outside VS Code's Agent Host, are shown."),
@@ -562,6 +565,12 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.detectParticipant.enabled', "Enables chat participant autodetection for panel chat."),
 			default: true
+		},
+		[ChatConfiguration.ExperimentalStickyScrollEnabled]: {
+			type: 'boolean',
+			description: nls.localize('chat.experimental.stickyScroll.enabled', "Controls whether chat requests use experimental tree-based sticky scroll instead of the sticky prompt header."),
+			default: product.quality === 'insider',
+			tags: ['experimental'],
 		},
 		[ChatConfiguration.InlineReferencesStyle]: {
 			type: 'string',
@@ -1591,6 +1600,13 @@ configurationRegistry.registerConfiguration({
 			experiment: { mode: 'startup' },
 			tags: ['experimental', 'advanced'],
 		},
+		[AgentHostMultiTurnContextRoutingEnabledSettingId]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.agentHost.copilot.multiTurnContextRouting', "When enabled, Auto model selection in Copilot SDK agent sessions routes on the conversation so far, sending prior user messages to the router instead of scoring the latest message alone."),
+			default: false,
+			experiment: { mode: 'startup' },
+			tags: ['experimental', 'advanced'],
+		},
 		[AgentHostCopilotModelCapabilityOverridesSettingId]: {
 			type: 'object',
 			markdownDescription: nls.localize('chat.agentHost.copilot.modelCapabilityOverrides', "Per-model capability overrides for Copilot SDK agent sessions, keyed by model id (`*` matches every model; a specific entry wins field-by-field), intended for evaluating models against an existing model's profile. Declare an aliased `family` (for example `claude-opus-4.8`) to route the model to that family's tuned system prompt and tool profile without changing the model id sent to the runtime — so a preview model can be evaluated against a known prompt while still running on its own endpoint — a `reasoningEffort` to pin its effort level, `availableTools`/`excludedTools` to filter its tool set, or `modelCapabilities` to override individual capability limits (e.g. vision support, context window size) passed through to the SDK. All overrides apply when a session launches or resumes. On a mid-session model change, only the new model's `reasoningEffort` is applied; the session keeps its launch-time family, tool filters, and model capabilities. Only affects Copilot agent sessions.\n\n**Note**: This is an advanced setting for experimentation."),
@@ -2283,6 +2299,15 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.subagents.useRichRendering', "Controls whether subagents in chat editors use a rich presentation that opens each subagent in its own editor instead of rendering its full activity inline in the parent chat."),
 			default: true,
 		},
+		[ChatConfiguration.TerminalAgentHostEnabled]: {
+			type: 'boolean',
+			description: nls.localize('chat.terminal.agentHost.enabled', "Controls whether Terminal Chat is backed by the Agent Host instead of the extension host. Applied on startup."),
+			default: false,
+			tags: ['experimental'],
+			experiment: {
+				mode: 'startup'
+			}
+		},
 		[ChatConfiguration.CollectInstructionsInExtension]: {
 			type: 'boolean',
 			description: nls.localize('chat.experimental.collectInstructionsInExtension', "When enabled, automatic instruction collection (.instructions.md, agent instructions, customizations index) is performed by the GitHub Copilot Chat extension instead of the core workbench."),
@@ -2416,6 +2441,14 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).
 
 			return { value };
 		}
+	},
+	{
+		key: ChatConfiguration.ShowExternalAgentSessions,
+		migrateFn: (value: unknown) => ({
+			value: value === 'all'
+				? AgentHostExternalSessionsMode.Last30Days
+				: value,
+		})
 	},
 	{
 		key: ChatConfiguration.NotifyWindowOnConfirmation,
@@ -2983,6 +3016,8 @@ registerWorkbenchContribution2(ChatPromptFilesExtensionPointHandler.ID, ChatProm
 registerWorkbenchContribution2(ChatCompatibilityNotifier.ID, ChatCompatibilityNotifier, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(CodeBlockActionRendering.ID, CodeBlockActionRendering, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatCopyActionRendering.ID, ChatCopyActionRendering, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(ChatModelFeedbackSurveyActionRendering.ID, ChatModelFeedbackSurveyActionRendering, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(ChatModelFeedbackSurveyPromptContribution.ID, ChatModelFeedbackSurveyPromptContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatImplicitContextContribution.ID, ChatImplicitContextContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatViewsWelcomeHandler.ID, ChatViewsWelcomeHandler, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(ChatGettingStartedContribution.ID, ChatGettingStartedContribution, WorkbenchPhase.Eventually);
@@ -3025,6 +3060,7 @@ registerWorkbenchContribution2(TranscriptContextAttachmentWidgetContribution.ID,
 registerChatActions();
 registerChatAccessibilityActions();
 registerChatCopyActions();
+registerChatModelFeedbackSurveyActions();
 registerChatOpenAgentDebugPanelAction();
 registerChatCodeBlockActions();
 registerChatCodeCompareBlockActions();
@@ -3066,6 +3102,7 @@ registerSingleton(IChatWidgetService, ChatWidgetService, InstantiationType.Delay
 registerSingleton(IChatPasteTargetService, ChatPasteTargetService, InstantiationType.Delayed);
 registerSingleton(IChatSideChatService, ChatSideChatService, InstantiationType.Delayed);
 registerSingleton(IChatRequestOriginService, ChatRequestOriginService, InstantiationType.Delayed);
+registerSingleton(IChatModelFeedbackSurveyService, ChatModelFeedbackSurveyService, InstantiationType.Delayed);
 registerSingleton(IChatPetService, ChatPetService, InstantiationType.Delayed);
 registerSingleton(IQuickChatService, QuickChatService, InstantiationType.Delayed);
 registerSingleton(IChatAccessibilityService, ChatAccessibilityService, InstantiationType.Delayed);

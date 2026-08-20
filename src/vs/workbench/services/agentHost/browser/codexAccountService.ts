@@ -9,6 +9,7 @@ import { Action, IAction, SubmenuAction, toAction } from '../../../../base/commo
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { CODEX_ACCOUNT_SIGN_IN_REQUEST_KEY, CODEX_ACCOUNT_SIGN_OUT_REQUEST_KEY, ICodexAccountInfo, readCodexAccountInfo } from '../../../../platform/agentHost/common/codexAccount.js';
+import { CODEX_AGENT_PROVIDER_ID } from '../../../../platform/agentHost/common/agent.js';
 import { AgentHostCodexAgentEnabledSettingId, CodexPreferAgentHostEditorSettingId, IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
 import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { ActionType } from '../../../../platform/agentHost/common/state/sessionActions.js';
@@ -25,6 +26,12 @@ export const ICodexAccountService = createDecorator<ICodexAccountService>('codex
 
 export interface ICodexAccountService {
 	readonly _serviceBrand: undefined;
+	/**
+	 * The agent whose account this service manages, so callers that dispatch by
+	 * agent id — the SDK setup banner's Sign In button — can check they are
+	 * talking to the right service without carrying a literal `'codex'`.
+	 */
+	readonly agent: string;
 	readonly account: ICodexAccountInfo;
 	readonly onDidChangeAccount: Event<ICodexAccountInfo>;
 	signIn(): void;
@@ -72,6 +79,8 @@ export function openCodexAuthUrl(openerService: Pick<IOpenerService, 'open'>, au
 
 class CodexAccountService extends Disposable implements ICodexAccountService {
 	declare readonly _serviceBrand: undefined;
+
+	readonly agent = CODEX_AGENT_PROVIDER_ID;
 
 	private readonly _onDidChangeAccount = this._register(new Emitter<ICodexAccountInfo>());
 	readonly onDidChangeAccount = this._onDidChangeAccount.event;

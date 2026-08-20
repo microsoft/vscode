@@ -35,7 +35,7 @@ import { ToolName } from '../common/toolNames';
 import { ICopilotTool, ToolRegistry } from '../common/toolsRegistry';
 import { formatUriForFileWidget } from '../common/toolUtils';
 import { getImageMimeType } from './imageToolUtils';
-import { assertFileNotContentExcluded, assertFileOkForTool, isFileExternalAndNeedsConfirmation, resolveToolInputPath } from './toolUtils';
+import { assertFileNotContentExcluded, isFileExternalAndNeedsConfirmation, resolveToolInputPath } from './toolUtils';
 
 export const getReadFileV2Description = (orig: vscode.LanguageModelToolInformation): vscode.LanguageModelToolInformation => ({
 	name: ToolName.ReadFile,
@@ -219,20 +219,30 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 				throw new Error(`Cannot read image files with ${ToolName.ReadFile}. Use ${ToolName.ViewImage} instead.`);
 			}
 
-			// Check if file is external (outside workspace, not open in editor, etc.)
-			const isExternal = await this.instantiationService.invokeFunction(
-				accessor => isFileExternalAndNeedsConfirmation(accessor, uri!, this._promptContext, { readOnly: true, workingDirectory: options.workingDirectory })
+			await this.instantiationService.invokeFunction(
+				accessor => assertFileNotContentExcluded(accessor, uri!)
 			);
 
-			if (isExternal) {
-				// Still check content exclusion (copilot ignore)
+			// Check if file is external (outside workspace, not open in editor, etc.)
+			const { needsConfirmation, realPath } = await this.instantiationService.invokeFunction(
+				accessor => isFileExternalAndNeedsConfirmation(accessor, uri!, this._promptContext, { readOnly: true, workingDirectory: options.workingDirectory })
+			);
+			if (realPath) {
 				await this.instantiationService.invokeFunction(
-					accessor => assertFileNotContentExcluded(accessor, uri!)
+					accessor => assertFileNotContentExcluded(accessor, realPath)
 				);
+			}
 
+			if (needsConfirmation) {
 				const folderUri = dirname(uri);
 
-				const message = this.workspaceService.getWorkspaceFolders().length === 1 ? new MarkdownString(l10n.t`${formatUriForFileWidget(uri)} is outside of the current folder in ${formatUriForFileWidget(folderUri)}.`) : new MarkdownString(l10n.t`${formatUriForFileWidget(uri)} is outside of the current workspace in ${formatUriForFileWidget(folderUri)}.`);
+				const message = realPath
+					? this.workspaceService.getWorkspaceFolders().length === 1
+						? new MarkdownString(l10n.t`${formatUriForFileWidget(uri)} links to ${formatUriForFileWidget(realPath)}, which is outside the current folder.`)
+						: new MarkdownString(l10n.t`${formatUriForFileWidget(uri)} links to ${formatUriForFileWidget(realPath)}, which is outside the current workspace.`)
+					: this.workspaceService.getWorkspaceFolders().length === 1
+						? new MarkdownString(l10n.t`${formatUriForFileWidget(uri)} is outside of the current folder in ${formatUriForFileWidget(folderUri)}.`)
+						: new MarkdownString(l10n.t`${formatUriForFileWidget(uri)} is outside of the current workspace in ${formatUriForFileWidget(folderUri)}.`);
 
 				// Return confirmation request for external file
 				// The folder-based "allow this session" option is provided by the core confirmation contribution
@@ -245,8 +255,6 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 					}
 				};
 			}
-
-			await this.instantiationService.invokeFunction(accessor => assertFileOkForTool(accessor, uri!, this._promptContext, { readOnly: true, workingDirectory: options.workingDirectory }));
 
 			try {
 				documentSnapshot = await this.getSnapshot(uri);

@@ -11,7 +11,7 @@ import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { createSchema, schemaProperty } from '../../common/agentHostSchema.js';
+import { AgentHostProxyConfigKey, createSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { AGENT_CUSTOMIZATION_SETTINGS_META_KEY, getAgentCustomizationSettingsEntries } from '../../common/agentCustomizationSettings.js';
 import type { RootConfigState } from '../../common/state/protocol/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -261,6 +261,26 @@ suite('AgentConfigurationService', () => {
 		const persisted = JSON.parse(fs.readFileSync(resource.fsPath, 'utf8')) as Record<string, unknown>;
 		assert.strictEqual(persisted['test.account'], undefined);
 		assert.deepStrictEqual(localManager.rootState.config?.values['test.account'], { status: 'signedIn' });
+		fs.rmSync(directory, { recursive: true, force: true });
+	});
+
+	test('loads manually configured proxy settings from persisted Agent Host config', () => {
+		const directory = fs.mkdtempSync(join(os.tmpdir(), 'agent-config-'));
+		const resource = URI.file(join(directory, 'agent-host-config.json'));
+		fs.writeFileSync(resource.fsPath, JSON.stringify({
+			[AgentHostProxyConfigKey.Proxy]: 'http://proxy.example:8080',
+			[AgentHostProxyConfigKey.NoProxy]: ['localhost'],
+		}));
+		const localManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const localService = disposables.add(new AgentConfigurationService(localManager, new NullLogService(), resource));
+
+		assert.deepStrictEqual({
+			proxy: localService.getRootConfigValues?.()[AgentHostProxyConfigKey.Proxy],
+			noProxy: localService.getRootConfigValues?.()[AgentHostProxyConfigKey.NoProxy],
+		}, {
+			proxy: 'http://proxy.example:8080',
+			noProxy: ['localhost'],
+		});
 		fs.rmSync(directory, { recursive: true, force: true });
 	});
 
