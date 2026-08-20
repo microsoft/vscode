@@ -101,6 +101,7 @@ export class AgentHostSessionListStore extends Disposable {
 		// doesn't know which workspace this VS Code window has open.
 		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(() => {
 			this._cacheValid = false;
+			this._filterEntriesToWorkspace();
 			void this.refresh(CancellationToken.None);
 		}));
 	}
@@ -222,16 +223,6 @@ export class AgentHostSessionListStore extends Disposable {
 		try {
 			sessions = await this._connection.listSessions();
 		} catch {
-			// If notifications mutated the list while we were fetching, the
-			// in-memory state is more up-to-date than our failed fetch.
-			if (startGeneration !== this._mutationGeneration) {
-				return;
-			}
-			if (this._entries.size === 0) {
-				return;
-			}
-			this._entries.clear();
-			this._onDidChangeSessions.fire({ removed: previousEntries.map(entry => this._toRemoval(entry)) });
 			return;
 		}
 
@@ -399,6 +390,22 @@ export class AgentHostSessionListStore extends Disposable {
 			return true;
 		}
 		return this._matchesAnyFolder(workingDirectories, folders);
+	}
+
+	private _filterEntriesToWorkspace(): void {
+		// The retained projection can only narrow; a successful refresh supplies newly eligible sessions.
+		const removed: IAgentHostSessionListRemoval[] = [];
+		for (const [key, entry] of this._entries) {
+			if (!this._isSessionInWorkspace(entry)) {
+				this._entries.delete(key);
+				this._pendingNewSessions.delete(key);
+				removed.push(this._toRemoval(entry));
+			}
+		}
+		if (removed.length > 0) {
+			this._mutationGeneration++;
+			this._onDidChangeSessions.fire({ removed });
+		}
 	}
 
 	private _matchesAnyFolder(workingDirectories: readonly URI[], folders: readonly IWorkspaceFolder[]): boolean {

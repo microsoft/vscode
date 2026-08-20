@@ -32,7 +32,6 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { getUntitledSessionTitle } from '../../../services/sessions/common/session.js';
 import { BlockedSessions } from '../../blockedSessions/browser/blockedSessions.js';
 import { BlockedSessionsList, IBlockedSessionsHeaderActionContext, registerBlockedSessionsItemActions } from './blockedSessionsList.js';
 import { BlockedSessionsCIFixModel } from './blockedSessionsCIFixModel.js';
@@ -40,6 +39,8 @@ import { SessionActionFeedback } from './sessionActionFeedback.js';
 import { AgentSessionApprovalModel } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { BlockedSessionsIndicatorModel, RequiresInputKind } from './blockedSessionsIndicatorModel.js';
 import { openSessionToTheSide } from './views/sessionsView.js';
+import { getSessionWorkspaceDisplayInfo, ISessionWorkspaceDisplayInfo } from '../../../browser/sessionWorkspace.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 /**
  * Internal command behind the blocked-sessions dropdown header's "Show All
@@ -127,9 +128,8 @@ const BLOCKED_DROPDOWN_MAX_WIDTH_RATIO = 0.9;
  * Sessions Title Bar Widget - renders the active chat session
  * in the command center of the agent sessions workbench.
  *
- * Shows the current chat session as a clickable pill with:
- * - Kind icon at the beginning (provider type icon)
- * - Repository folder name and active branch/worktree name when available
+ * Shows the current chat session as a clickable pill with its workspace icon
+ * and folder name when available.
  *
  * When at least one session is blocked (needs input or has failing CI checks),
  * the widget instead adopts an orange "N sessions require input" state and reveals those sessions as a
@@ -157,6 +157,8 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 	/** Guard to prevent re-entrant rendering */
 	private _isRendering = false;
+	private _workspaceInfo: ISessionWorkspaceDisplayInfo | undefined;
+	private _isQuickChat = false;
 
 	/** Model behind the "N sessions require input" indicator (blocked-session set, blink, labels). */
 	private readonly _blockedIndicator: BlockedSessionsIndicatorModel;
@@ -188,6 +190,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super(undefined, action, options);
 
@@ -215,11 +218,8 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		// Re-render when the active session's title, workspace, or quick-chat kind changes
 		this._register(autorun(reader => {
 			const sessionData = this.sessionsService.activeSession.read(reader);
-			if (sessionData) {
-				sessionData.title.read(reader);
-				sessionData.workspace.read(reader);
-				sessionData.isQuickChat?.read(reader);
-			}
+			this._workspaceInfo = getSessionWorkspaceDisplayInfo(sessionData, reader);
+			this._isQuickChat = sessionData?.isQuickChat?.read(reader) ?? false;
 			this._lastRenderState = undefined;
 			this._render();
 		}));
@@ -308,10 +308,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			} else if (showRequiresInput) {
 				renderState = `blocked|${blockedCount}|${requiresInputKind ?? 'mixed'}`;
 			} else {
-				const icon = this._getActiveSessionIcon();
-				const sessionTitle = this._getSessionTitle() ?? getUntitledSessionTitle(this.sessionsService.activeSession.get()?.isQuickChat?.get() ?? false);
-				const workspaceLabel = this._getRepositoryLabel();
-				renderState = `normal|${icon?.id ?? ''}|${sessionTitle ?? ''}|${workspaceLabel ?? ''}`;
+				renderState = `normal|${this._workspaceInfo?.icon.id ?? ''}|${this._workspaceInfo?.label ?? ''}|${this._isQuickChat}`;
 			}
 
 			// Skip re-render if state hasn't changed
@@ -362,43 +359,35 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	}
 
 	/**
-	 * Render the active-session pill: icon + title + workspace. Clicking opens the
+	 * Render the active-session pill: workspace icon + folder. Clicking opens the
 	 * sessions picker.
 	 */
 	private _renderActiveSession(): void {
 		const container = this._container!;
 		container.setAttribute('aria-label', localize('agentSessionsShowSessions', "Show Sessions"));
 
-		const icon = this._getActiveSessionIcon();
-		const sessionTitle = this._getSessionTitle() ?? getUntitledSessionTitle(this.sessionsService.activeSession.get()?.isQuickChat?.get() ?? false);
-		const workspaceLabel = this._getRepositoryLabel();
+		const workspaceInfo = this._workspaceInfo;
 
-		// Session pill: icon + title + workspace together
+		// Session pill: workspace icon + label
 		const sessionPill = $('div.agent-sessions-titlebar-pill');
 
-		// Center group: icon + title + workspace name
+		// Center group: workspace icon and name
 		const centerGroup = $('div.agent-sessions-titlebar-center');
 
-		// Kind icon at the beginning
-		if (icon) {
-			const iconEl = $('div.agent-sessions-titlebar-icon' + ThemeIcon.asCSSSelector(icon));
-			centerGroup.appendChild(iconEl);
-		}
-
-		// Session title shown next to the icon
-		if (sessionTitle) {
-			const titleEl = $('div.agent-sessions-titlebar-title');
-			titleEl.textContent = sessionTitle;
-			centerGroup.appendChild(titleEl);
-		}
-
-		// Workspace name shown after the session title
-		if (workspaceLabel) {
-			const separatorEl = $('div.agent-sessions-titlebar-separator');
-			centerGroup.appendChild(separatorEl);
+		if (workspaceInfo) {
+			const workspaceIconEl = $(`div.agent-sessions-titlebar-workspace-icon${ThemeIcon.asCSSSelector(workspaceInfo.icon)}`, { 'aria-hidden': 'true' });
+			centerGroup.appendChild(workspaceIconEl);
 
 			const workspaceEl = $('div.agent-sessions-titlebar-workspace');
-			workspaceEl.textContent = workspaceLabel;
+			workspaceEl.textContent = workspaceInfo.label;
+			centerGroup.appendChild(workspaceEl);
+			this._dynamicDisposables.add(this.hoverService.setupDelayedHover(workspaceEl, { content: workspaceInfo.label }));
+		} else if (this._isQuickChat) {
+			const workspaceIconEl = $(`div.agent-sessions-titlebar-workspace-icon${ThemeIcon.asCSSSelector(Codicon.commentDiscussion)}`, { 'aria-hidden': 'true' });
+			centerGroup.appendChild(workspaceIconEl);
+
+			const workspaceEl = $('div.agent-sessions-titlebar-workspace');
+			workspaceEl.textContent = localize('noWorkspace', "No workspace");
 			centerGroup.appendChild(workspaceEl);
 		}
 
@@ -683,39 +672,6 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			}
 		}
 		this.sessionsService.openSession(resource, { preserveFocus }).catch(onUnexpectedError);
-	}
-
-	/**
-	 * Get the icon for the active session's type.
-	 */
-	private _getActiveSessionIcon(): ThemeIcon | undefined {
-		const sessionData = this.sessionsService.activeSession.get();
-		if (sessionData) {
-			return sessionData.icon;
-		}
-		return undefined;
-	}
-
-	/**
-	 * Get the display title for the active session.
-	 */
-	private _getSessionTitle(): string | undefined {
-		const sessionData = this.sessionsService.activeSession.get();
-		return sessionData?.title.get()?.trim() || undefined;
-	}
-
-	/**
-	 * Get the repository label for the active session.
-	 */
-	private _getRepositoryLabel(): string | undefined {
-		const sessionData = this.sessionsService.activeSession.get();
-		if (sessionData) {
-			const workspace = sessionData.workspace.get();
-			if (workspace) {
-				return workspace.label;
-			}
-		}
-		return undefined;
 	}
 
 	private _showSessionsPicker(): void {

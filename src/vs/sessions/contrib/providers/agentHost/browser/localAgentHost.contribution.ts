@@ -11,7 +11,7 @@ import { AgentHostContribution } from '../../../../../workbench/contrib/chat/bro
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { AgentHostTerminalContribution } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostTerminalContribution.js';
 import { AgentHostAllowSignedOutWhenUsableContribution } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAllowSignedOutWhenUsableContribution.js';
-import { AgentHostDiscoveredConfigNotificationContribution } from './agentHostDiscoveredConfigNotification.js';
+import { AgentHostSdkSetupNotificationContribution } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSdkSetupNotification.js';
 import { AgentHostSignedOutModelsNotificationContribution } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSignedOutModelsNotification.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -89,6 +89,6 @@ class LocalAgentHostContribution extends Disposable implements IWorkbenchContrib
 registerWorkbenchContribution2(AgentHostContribution.ID, AgentHostContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentHostTerminalContribution.ID, AgentHostTerminalContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentHostAllowSignedOutWhenUsableContribution.ID, AgentHostAllowSignedOutWhenUsableContribution, WorkbenchPhase.AfterRestored);
-registerWorkbenchContribution2(AgentHostDiscoveredConfigNotificationContribution.ID, AgentHostDiscoveredConfigNotificationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentHostSignedOutModelsNotificationContribution.ID, AgentHostSignedOutModelsNotificationContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentHostSdkSetupNotificationContribution.ID, AgentHostSdkSetupNotificationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(LocalAgentHostContribution.ID, LocalAgentHostContribution, WorkbenchPhase.AfterRestored);

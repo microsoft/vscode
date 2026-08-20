@@ -26,6 +26,8 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { getSessionTypeAvailability, getSessionTypePickerAvailability, getSessionTypeUnavailableDescription, getSessionTypeUnavailableHover, SessionTypeAvailability } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionTypeAvailability.js';
+import { hasAgentSdkSetupNotification } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSdkSetupNotification.js';
+import { IChatInputNotificationService } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationService.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
@@ -167,6 +169,7 @@ export class SessionTypePicker extends Disposable {
 		@IChatEntitlementService protected readonly chatEntitlementService: IChatEntitlementService,
 		@ILanguageModelsService protected readonly languageModelsService: ILanguageModelsService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@IChatInputNotificationService protected readonly chatInputNotificationService: IChatInputNotificationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
@@ -462,6 +465,7 @@ export class SessionTypePicker extends Disposable {
 					modelTarget,
 					getSessionTypeAvailability(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, modelTarget, allowSignedOutWhenUsable),
 					allowSignedOutWhenUsable,
+					hasAgentSdkSetupNotification(this.chatInputNotificationService, modelTarget),
 				);
 				const unavailable = availability !== SessionTypeAvailability.Available;
 				const item: ISessionTypePickerItem = {

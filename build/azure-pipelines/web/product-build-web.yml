@@ -68,6 +68,10 @@ jobs:
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Authentication
 
+      - template: ../common/foundry-local.yml@self
+        parameters:
+          phase: prepare
+
       - script: |
           set -e
           ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
@@ -92,6 +96,10 @@ jobs:
           GITHUB_TOKEN: "$(github-token-code-oss)"
         displayName: Install dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+      - template: ../common/foundry-local.yml@self
+        parameters:
+          phase: install
 
       - script: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
         displayName: Verify native optional dependency binaries

@@ -16,7 +16,6 @@ import { localize } from '../../../nls.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
 import { getUntitledSessionTitle } from '../../services/sessions/common/session.js';
-import { ActionRunner, IAction } from '../../../base/common/actions.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
 import { MenuItemAction } from '../../../platform/actions/common/actions.js';
@@ -29,37 +28,16 @@ import { applySessionBarThemeColors } from './sessionBarStyles.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { SessionStatusIcon } from '../sessionStatusIcon.js';
-import { SessionHeaderMetaActionViewItem } from './sessionHeaderMetaActionViewItem.js';
-
-/**
- * An action runner for the session header toolbars that promotes the header's
- * session to be the active session before running any contributed command. This
- * ensures commands (e.g. View All Changes) operate on the clicked session even when
- * a different session is currently active.
- */
-class SessionActivatingActionRunner extends ActionRunner {
-
-	constructor(
-		private readonly _getSession: () => IActiveSession | undefined,
-		private readonly _sessionsService: ISessionsService,
-	) {
-		super();
-	}
-
-	protected override async runAction(action: IAction, context?: unknown): Promise<void> {
-		const session = this._getSession();
-		if (session) {
-			this._sessionsService.setActive(session);
-		}
-		await super.runAction(action, context);
-	}
-}
+import { ChatPillActionViewItem } from '../../../workbench/browser/chatPills.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { observableConfigValue } from '../../../platform/observable/common/platformObservableUtils.js';
+import { SHOW_SESSION_METADATA_IN_CHAT_INPUT_SETTING } from '../../common/sessionConfig.js';
+import { SessionActivatingActionRunner } from '../sessionActionRunner.js';
 
 /**
  * The session header shown at the top of a session view. It surfaces the session
- * identity (status icon + title), a meta row (contributed workspace folder /
- * changes / pull request pills), and the session toolbars (e.g. Run, Open in
- * VS Code, New Chat).
+ * identity, optional workspace metadata, contributed metadata pills, and the
+ * session toolbars.
  *
  * It is intentionally decoupled from the {@link ChatCompositeBar} (the chat tab
  * strip) so the two surfaces evolve independently. The hosting view tells the
@@ -80,6 +58,8 @@ export class SessionHeader extends Disposable {
 	private readonly _editingDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private _renameInput: HTMLInputElement | undefined;
 	private _session: IActiveSession | undefined;
+	private _sessionIsCreated = false;
+	private _requestedVisible = true;
 
 	// dragstart's own target is always the draggable container, so this tracks the
 	// preceding pointerdown's target to know where the gesture actually began.
@@ -96,6 +76,7 @@ export class SessionHeader extends Disposable {
 	private readonly _sessionTransfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
 
 	private readonly _metaActionsSignal: IObservable<void>;
+	private readonly _showMetadataInChatInput: IObservable<boolean>;
 
 	private readonly _statusIcon: SessionStatusIcon;
 
@@ -118,9 +99,11 @@ export class SessionHeader extends Disposable {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
+		this._showMetadataInChatInput = observableConfigValue(SHOW_SESSION_METADATA_IN_CHAT_INPUT_SETTING, false, configurationService);
 		this._container = $('.chat-composite-bar.session-header-bar');
 
 		// Header: a status icon column alongside a main column that stacks the title
@@ -165,9 +148,6 @@ export class SessionHeader extends Disposable {
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			menuOptions: { shouldForwardArgs: true },
 			highlightToggledItems: true,
-			// Render every group in the primary slot with a separator between groups
-			// so the actions stay visually grouped.
-			toolbarOptions: { primaryGroup: () => true, useSeparatorsInPrimaryActions: true },
 		}));
 
 		this._metaRow = $('.chat-composite-bar-meta-row');
@@ -179,7 +159,7 @@ export class SessionHeader extends Disposable {
 		// diff-stats action (opens the multi-file diff editor) and the GitHub
 		// contribution contributes the pull request pill (opens the PR on GitHub),
 		// each rendered as a compact secondary button pill via
-		// SessionHeaderMetaActionViewItem.
+		// ChatPillActionViewItem.
 		const metaToolbarContainer = $('.chat-composite-bar-meta-toolbar');
 		this._metaRow.appendChild(metaToolbarContainer);
 		// Commands contributed into the header meta toolbar (e.g. View All Changes)
@@ -195,7 +175,7 @@ export class SessionHeader extends Disposable {
 			// registers its own action view item via IActionViewItemService.
 			actionViewItemProvider: (action, options) => {
 				if (action instanceof MenuItemAction) {
-					return instantiationService.createInstance(SessionHeaderMetaActionViewItem, undefined, action, options);
+					return instantiationService.createInstance(ChatPillActionViewItem, undefined, action, options);
 				}
 				return undefined;
 			},
@@ -210,7 +190,7 @@ export class SessionHeader extends Disposable {
 		}));
 		this._register(heightObserver.observe(this._container));
 
-		this._setVisible(false);
+		this._applyVisibility(false);
 		this._updateStyles();
 		this._register(this._themeService.onDidColorThemeChange(() => this._updateStyles()));
 
@@ -303,7 +283,8 @@ export class SessionHeader extends Disposable {
 		this._sessionDisposables.value = store;
 
 		if (!session) {
-			this._setVisible(false);
+			this._sessionIsCreated = false;
+			this._updateVisibility();
 			return;
 		}
 
@@ -312,8 +293,21 @@ export class SessionHeader extends Disposable {
 		}));
 
 		store.add(autorun(reader => {
-			this._setVisible(session.isCreated.read(reader));
+			this._sessionIsCreated = session.isCreated.read(reader);
+			this._updateVisibility();
 		}));
+	}
+
+	setVisible(visible: boolean): void {
+		if (this._requestedVisible === visible) {
+			return;
+		}
+		this._requestedVisible = visible;
+		this._updateVisibility();
+	}
+
+	private _updateVisibility(): void {
+		this._applyVisibility(this._sessionIsCreated && this._requestedVisible);
 	}
 
 	private _updateHeader(session: IActiveSession, reader: IReader): void {
@@ -330,17 +324,18 @@ export class SessionHeader extends Disposable {
 		const isQuickChat = session.isQuickChat?.read(reader) ?? false;
 		this._titleTextEl.textContent = session.title.read(reader) || getUntitledSessionTitle(isQuickChat);
 		this._titleEl.classList.toggle('editable', this._isTitleEditable());
+		const showMetadataInChatInput = this._showMetadataInChatInput.read(reader);
 
 		// Meta row: contributed action pills (workspace folder · diff stats · pull request).
 		// Reading the signal re-runs this on menu changes.
 		this._metaActionsSignal.read(reader);
 		const hasMetaActions = !this._metaToolbar.isEmpty();
 
-		this._metaRow.style.display = hasMetaActions ? '' : 'none';
+		this._metaRow.style.display = !showMetadataInChatInput && hasMetaActions ? '' : 'none';
 		this._onDidChangeHeight.fire();
 	}
 
-	private _setVisible(visible: boolean): void {
+	private _applyVisibility(visible: boolean): void {
 		const wasVisible = this._visible;
 		this._visible = visible;
 		this._container.style.display = this._visible ? '' : 'none';
@@ -497,7 +492,6 @@ export class SessionViewFloatingToolbar extends Disposable {
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			menuOptions: { shouldForwardArgs: true },
 			highlightToggledItems: true,
-			toolbarOptions: { primaryGroup: () => true, useSeparatorsInPrimaryActions: true },
 		}));
 
 		this._setVisible(false);
