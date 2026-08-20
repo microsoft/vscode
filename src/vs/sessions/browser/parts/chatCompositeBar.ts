@@ -44,6 +44,9 @@ import { ChatPillActionViewItem } from '../../../workbench/browser/chatPills.js'
 import { SessionActivatingActionRunner } from '../sessionActionRunner.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
 import { getSessionConversationStatusAriaLabel } from '../sessionConversationGroups.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { observableConfigValue } from '../../../platform/observable/common/platformObservableUtils.js';
+import { SHOW_SESSION_METADATA_IN_CHAT_INPUT_SETTING } from '../../common/sessionConfig.js';
 
 interface IChatTab {
 	readonly chat: IChat;
@@ -114,6 +117,7 @@ export class ChatCompositeBar extends Disposable {
 	private readonly _sessionToolbar: MenuWorkbenchToolBar;
 	private readonly _metaRow: HTMLElement;
 	private readonly _metaToolbar: MenuWorkbenchToolBar;
+	private readonly _showMetadataInChatInput: IObservable<boolean>;
 	private readonly _tabs: IChatTab[] = [];
 	private readonly _tabDisposables = this._register(new DisposableStore());
 
@@ -122,6 +126,7 @@ export class ChatCompositeBar extends Disposable {
 	private _editingTab: IChatTab | undefined;
 	private _delegate: IChatCompositeBarDelegate | undefined;
 	private _showSessionActions = false;
+	private _metadataInInput = false;
 
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
@@ -153,9 +158,11 @@ export class ChatCompositeBar extends Disposable {
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@ISessionsService sessionsService: ISessionsService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
+		this._showMetadataInChatInput = observableConfigValue(SHOW_SESSION_METADATA_IN_CHAT_INPUT_SETTING, false, configurationService);
 		this._container = $('.chat-composite-bar.session-chat-tabs-bar');
 
 		// Tabs row — only shown when the group has multiple chats or is split out.
@@ -285,6 +292,7 @@ export class ChatCompositeBar extends Disposable {
 			this._newChatContainer.classList.toggle('hidden', !supportsMultipleChats || isQuickChat);
 			this._newChatAction.enabled = supportsMultipleChats && !isQuickChat && !delegate.session.isArchived.read(reader);
 			this._showSessionActions = delegate.showSessionActions.read(reader);
+			this._metadataInInput = this._showMetadataInChatInput.read(reader);
 			this._sessionActionsContainer.classList.toggle('hidden', !this._showSessionActions);
 			this._updateMetaRowVisibility();
 
@@ -293,7 +301,7 @@ export class ChatCompositeBar extends Disposable {
 	}
 
 	private _updateMetaRowVisibility(): void {
-		this._metaRow.style.display = this._showSessionActions && !this._metaToolbar.isEmpty() ? '' : 'none';
+		this._metaRow.style.display = this._showSessionActions && !this._metadataInInput && !this._metaToolbar.isEmpty() ? '' : 'none';
 	}
 
 	setAriaLabel(label: string): void {

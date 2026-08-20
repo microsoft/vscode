@@ -14,11 +14,16 @@ import { URI } from '../../../base/common/uri.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
+import { MenuRegistry } from '../../../platform/actions/common/actions.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { ChatCompositeBar, IChatCompositeBarDelegate } from '../../browser/parts/chatCompositeBar.js';
 import { getSessionChatDragData, isSessionChatDrag } from '../../browser/dnd.js';
 import { CLOSE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
+import { SHOW_SESSION_METADATA_IN_CHAT_INPUT_SETTING } from '../../common/sessionConfig.js';
+import { Menus } from '../../browser/menus.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsPartService } from '../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
@@ -83,16 +88,19 @@ interface IChatCompositeBarHarness {
 	readonly tabs: readonly HTMLElement[];
 }
 
-function createHarness(disposables: Pick<DisposableStore, 'add'>, isQuickChat = false): IChatCompositeBarHarness {
+function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { readonly isQuickChat?: boolean; readonly showMetadataInInput?: boolean }): IChatCompositeBarHarness {
 	const store = disposables.add(new DisposableStore());
 	const instantiationService = workbenchInstantiationService(undefined, store);
 	const commandService = new TestCommandService();
 	const sessionsService = new TestSessionsService();
 	const mainChat = createChat('main', 'Main Chat');
 	const secondaryChat = createChat('secondary', 'Secondary Chat');
-	const session = createSession([mainChat, secondaryChat], mainChat, isQuickChat);
+	const session = createSession([mainChat, secondaryChat], mainChat, options?.isQuickChat);
 
 	instantiationService.stub(ICommandService, commandService);
+	instantiationService.stub(IConfigurationService, new TestConfigurationService({
+		[SHOW_SESSION_METADATA_IN_CHAT_INPUT_SETTING]: options?.showMetadataInInput ?? false,
+	}));
 	instantiationService.stub(ISessionsService, sessionsService);
 	instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 		override readonly onDidChangeSessions = Event.None;
@@ -145,9 +153,19 @@ suite('Sessions - ChatCompositeBar', () => {
 	});
 
 	test('hides New Chat for workspace-less sessions', () => {
-		const { bar } = createHarness(disposables, true);
+		const { bar } = createHarness(disposables, { isQuickChat: true });
 
 		assert.strictEqual(bar.element.querySelector('.chat-composite-bar-new-chat')?.classList.contains('hidden'), true);
+	});
+
+	test('hides header metadata pills when they are configured in the chat input', () => {
+		disposables.add(MenuRegistry.appendMenuItem(Menus.SessionHeaderMeta, {
+			command: { id: 'test.sessionMetadata', title: 'Changes' },
+			group: 'navigation',
+		}));
+		const { bar } = createHarness(disposables, { showMetadataInInput: true });
+
+		assert.strictEqual(bar.element.querySelector<HTMLElement>('.chat-composite-bar-meta-row')?.style.display, 'none');
 	});
 
 	test('middle-click closes the targeted inactive non-main chat', () => {
