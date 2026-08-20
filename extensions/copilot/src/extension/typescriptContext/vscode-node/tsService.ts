@@ -11,6 +11,7 @@ export namespace TypeScript {
 	const unifiedSection = 'js/ts';
 	const legacySection = 'typescript';
 	const useTsgoKey = 'experimental.useTsgo';
+	const version7ExtensionIds = ['typescriptteam.vscode-typescript', 'typescriptteam.native-preview'] as const;
 
 	export const versionKey = `${unifiedSection}.${useTsgoKey}`;
 	export const legacyVersionKey = `${legacySection}.${useTsgoKey}`;
@@ -31,6 +32,16 @@ export namespace TypeScript {
 
 	export function isVersion7SupportEnabled(configurationService: IConfigurationService): boolean {
 		return configurationService.getConfig(ConfigKey.TypeScript7LanguageContext) ?? false;
+	}
+
+	export function getVersion7Extension<T>(getExtension: (extensionId: string) => vscode.Extension<T> | undefined = extensionId => vscode.extensions.getExtension<T>(extensionId)): vscode.Extension<T> | undefined {
+		for (const extensionId of version7ExtensionIds) {
+			const extension = getExtension(extensionId);
+			if (extension !== undefined) {
+				return extension;
+			}
+		}
+		return undefined;
 	}
 
 	function hasUserValue(inspect: ReturnType<vscode.WorkspaceConfiguration['inspect']>): boolean {

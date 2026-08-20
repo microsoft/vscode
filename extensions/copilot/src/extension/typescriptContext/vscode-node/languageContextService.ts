@@ -515,7 +515,7 @@ export class InlineCompletionContribution implements vscode.Disposable, TokenBud
 		// Check that the TypeScript extension is installed and runs in the same extension host.
 		const useTypeScript7 = TypeScript.runsVersion7();
 		const typeScriptExtension = useTypeScript7
-			? vscode.extensions.getExtension('typescriptteam.native-preview')
+			? TypeScript.getVersion7Extension()
 			: vscode.extensions.getExtension('vscode.typescript-language-features');
 		if (typeScriptExtension === undefined) {
 			this.telemetrySender.sendActivationFailedTelemetry(ErrorLocation.Client, ErrorPart.TypescriptPlugin, 'TypeScript extension not found', useTypeScript7 ? 'ts6' : 'ts7');

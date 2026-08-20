@@ -7,6 +7,7 @@ import { API } from '@typescript/native/unstable/async';
 import * as vscode from 'vscode';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
+import { TypeScript } from '../tsService';
 
 interface TypeScript7ExtensionApi {
 	onLanguageServerInitialized: vscode.Event<void>;
@@ -123,7 +124,7 @@ class TypeScript7Connection implements vscode.Disposable {
 		if (this.extensionApi !== undefined) {
 			return this.extensionApi;
 		}
-		const extension = vscode.extensions.getExtension<TypeScript7ExtensionApi>('typescriptteam.native-preview');
+		const extension = TypeScript.getVersion7Extension<TypeScript7ExtensionApi>();
 		if (extension === undefined) {
 			return undefined;
 		}
