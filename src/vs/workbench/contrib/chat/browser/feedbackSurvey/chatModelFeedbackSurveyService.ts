@@ -20,6 +20,7 @@ import { ILanguageModelsService } from '../../common/languageModels.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IChatResponseViewModel } from '../../common/model/chatViewModel.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { IChatService } from '../../common/chatService/chatService.js';
 
 /** Name of the experiment treatment carrying the survey payload. */
 export const CHAT_MODEL_FEEDBACK_SURVEY_TREATMENT = 'chatModelFeedbackSurvey';
@@ -156,12 +157,14 @@ export class ChatModelFeedbackSurveyService extends Disposable implements IChatM
 		@ICommandService private readonly commandService: ICommandService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IChatService private readonly chatService: IChatService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
 		void this.resolveConfig();
 		this._register(this.assignmentService.onDidRefetchAssignments(() => void this.resolveConfig()));
+		this._register(this.chatService.onDidDisposeSession(e => this.forgetSessions(e.sessionResources)));
 	}
 
 	private async resolveConfig(): Promise<void> {
@@ -209,6 +212,15 @@ export class ChatModelFeedbackSurveyService extends Disposable implements IChatM
 		const key = this.getKey(response);
 		const existing = this._states.get(key);
 		if (existing) {
+			// The config can be retired and feedback can be switched off after a survey was
+			// offered, so a cached one is only handed back while it still applies. A survey the
+			// user is part way through is left alone, since a treatment that briefly resolves to
+			// nothing must not take a form away mid answer.
+			const stillApplies = this._config?.id === existing.config.id && this.isFeedbackUiEnabled();
+			if (!stillApplies && !isInProgress(existing)) {
+				this._states.delete(key);
+				return undefined;
+			}
 			// A survey the user is part way through stays put, so a form is never pulled away
 			// when a newer response arrives. Anything else follows the newest response.
 			if (!response.isLast && !isInProgress(existing)) {
@@ -403,6 +415,20 @@ export class ChatModelFeedbackSurveyService extends Disposable implements IChatM
 
 		this.writePromptMisses(state.config, misses + 1);
 		return false;
+	}
+
+	/** Releases everything held for sessions that have gone away. */
+	private forgetSessions(sessionResources: readonly URI[]): void {
+		for (const sessionResource of sessionResources) {
+			const session = sessionResource.toString();
+			this._sessionPromptCounts.delete(session);
+			this._lastSurveyedResponse.delete(session);
+			for (const [key, state] of [...this._states]) {
+				if (state.sessionResource.toString() === session) {
+					this._states.delete(key);
+				}
+			}
+		}
 	}
 
 	/** Whether any survey is part way through, which an unrequested prompt must not displace. */

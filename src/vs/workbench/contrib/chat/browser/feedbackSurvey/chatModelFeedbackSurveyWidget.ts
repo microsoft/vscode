@@ -156,13 +156,15 @@ export class ChatModelFeedbackSurveyWidget extends Disposable {
 			? localize('chat.feedbackSurvey.acknowledgement', "Thanks, your feedback has been recorded.")
 			: step.title;
 
-		this.renderCloseButton(header);
+		const closeButton = this.renderCloseButton(header);
 
 		// An answered survey has nothing left to ask, so it only acknowledges.
 		if (state.isSubmitted) {
 			if (this.lastFocusedStep !== ACKNOWLEDGEMENT_STEP_KEY) {
 				this.lastFocusedStep = ACKNOWLEDGEMENT_STEP_KEY;
 				status(localize('chat.feedbackSurvey.submitted', "Feedback submitted. Thank you."));
+				// Submitting removed the control that had focus, so move it to the one left.
+				closeButton.focus();
 			}
 			return;
 		}
@@ -188,7 +190,7 @@ export class ChatModelFeedbackSurveyWidget extends Disposable {
 		}
 	}
 
-	private renderCloseButton(header: HTMLElement): void {
+	private renderCloseButton(header: HTMLElement): Button {
 		const label = localize('chat.feedbackSurvey.dismiss', "Dismiss Survey");
 		const close = this.renderDisposables.add(new Button(header, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
 		close.label = `$(${Codicon.closeSmall.id})`;
@@ -196,6 +198,7 @@ export class ChatModelFeedbackSurveyWidget extends Disposable {
 		close.element.setAttribute('aria-label', label);
 		this.renderDisposables.add(this.hoverService.setupDelayedHover(close.element, { content: label }));
 		this.renderDisposables.add(close.onDidClick(() => this.dismiss()));
+		return close;
 	}
 
 	/** Renders the options as a single select list, matching the ask question tool. */

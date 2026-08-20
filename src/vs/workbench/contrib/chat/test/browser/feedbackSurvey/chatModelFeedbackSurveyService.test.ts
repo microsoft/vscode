@@ -17,6 +17,7 @@ import { ITelemetryService, TelemetryLevel } from '../../../../../../platform/te
 import { IAssignmentFilter, IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
 import { ChatModelFeedbackSurveyService, ChatModelFeedbackSurveyStatus } from '../../../browser/feedbackSurvey/chatModelFeedbackSurveyService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { IChatService } from '../../../common/chatService/chatService.js';
 import { CHAT_MODEL_FEEDBACK_SURVEY_CONFIG_VERSION } from '../../../common/feedbackSurvey/chatModelFeedbackSurveyConfig.js';
 import { IChatModelFeedbackSurveyTelemetryEvent } from '../../../common/feedbackSurvey/chatModelFeedbackSurveyTelemetry.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
@@ -93,11 +94,13 @@ suite('ChatModelFeedbackSurveyService', () => {
 		} as unknown as ICommandService);
 		instantiationService.stub(ILanguageModelsService, { lookupLanguageModel: () => undefined } as unknown as ILanguageModelsService);
 		instantiationService.stub(IChatSessionsService, { getChatSessionContribution: () => undefined } as unknown as IChatSessionsService);
+		const disposeSession = disposables.add(new Emitter<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' }>());
+		instantiationService.stub(IChatService, { onDidDisposeSession: disposeSession.event } as unknown as IChatService);
 		instantiationService.stub(ILogService, new NullLogService());
 
 		const service = disposables.add(instantiationService.createInstance(ChatModelFeedbackSurveyService));
 		await new Promise(resolve => setTimeout(resolve, 0)); // let the treatment resolve
-		return { service, events };
+		return { service, events, disposeSession, configurationService };
 	}
 
 	test('offers a matching response one stable survey and reports it as shown once', async () => {
@@ -350,6 +353,27 @@ suite('ChatModelFeedbackSurveyService', () => {
 			dismissals: 0,
 			opens: 1,
 		});
+	});
+
+	test('stops offering a survey once feedback is switched off', async () => {
+		const { service, configurationService } = await createService();
+		const response = createResponse('req-1');
+		const offered = !!service.getSurvey(response);
+
+		configurationService.setUserConfiguration('telemetry', { feedback: { enabled: false } });
+
+		assert.deepStrictEqual({ offered, afterDisabling: service.getSurvey(response) }, { offered: true, afterDisabling: undefined });
+	});
+
+	test('releases what it held for a session once that session goes away', async () => {
+		const { service, disposeSession } = await createService();
+		const response = createResponse('req-1');
+		const first = service.getSurvey(response)?.instanceId;
+
+		disposeSession.fire({ sessionResources: [defaultSession], reason: 'cleared' });
+
+		// A fresh instance means the entry really was released rather than reused.
+		assert.notStrictEqual(service.getSurvey(createResponse('req-1'))?.instanceId, first);
 	});
 
 	test('keeps the control on the newest response even after the prompt budget is spent', async () => {

@@ -59,6 +59,16 @@ class ChatModelFeedbackSurveyActionViewItem extends MenuEntryActionViewItem {
 	}
 
 	/**
+	 * The control discloses a panel rather than holding a pressed state, so it reports
+	 * `aria-expanded` instead of the `aria-pressed` the base item would apply.
+	 */
+	protected override updateChecked(): void {
+		super.updateChecked();
+		this.label?.removeAttribute('aria-pressed');
+		this.label?.setAttribute('aria-expanded', String(!!this.action.checked));
+	}
+
+	/**
 	 * The base item paints one icon onto the label, so that has to be cleared before drawing two.
 	 * The label keeps its `aria-label` and only the icons are hidden from screen readers.
 	 */
