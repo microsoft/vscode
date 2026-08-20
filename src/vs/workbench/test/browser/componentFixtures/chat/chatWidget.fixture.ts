@@ -6,6 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -77,6 +78,8 @@ export interface IChatWidgetFixtureOptions {
 	readonly inputVisible?: boolean;
 	/** Whether to populate the response footer with an action. */
 	readonly responseFooterAction?: boolean;
+	/** Whether to render display math through KaTeX. */
+	readonly enableMath?: boolean;
 	/** Whether to show request and response timing details. */
 	readonly verbose?: boolean;
 	/**
@@ -221,6 +224,9 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	});
 	configService.setUserConfiguration('editor', { fontFamily: 'monospace', fontLigatures: false });
 	configService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, true);
+	if (options.enableMath !== undefined) {
+		configService.setUserConfiguration(ChatConfiguration.EnableMath, options.enableMath);
+	}
 	if (options.verbose !== undefined) {
 		configService.setUserConfiguration(ChatConfiguration.Verbose, options.verbose);
 	}
@@ -820,6 +826,100 @@ async function renderResizeObserverLoopHarness(context: ComponentFixtureContext,
 	}));
 }
 
+async function renderMathResizeObserverHarness(context: ComponentFixtureContext): Promise<void> {
+	const targetWindow = dom.getWindow(context.container);
+	const previousFileRoot = globalThis._VSCODE_FILE_ROOT;
+	globalThis._VSCODE_FILE_ROOT = new URL('/out/', targetWindow.location.origin).toString();
+	context.disposableStore.add(toDisposable(() => globalThis._VSCODE_FILE_ROOT = previousFileRoot));
+	let handle: IChatWidgetFixtureHandle | undefined;
+	await renderChatWidget(context, {
+		messages: [{
+			user: 'Explain this equation.',
+			assistant: [{
+				kind: 'markdown',
+				text: '$$\\int_{-\\infty}^{\\infty} e^{-x^2}\\,dx = \\sqrt{\\pi}$$',
+			}],
+		}],
+		width: 720,
+		height: 800,
+		listHeight: 720,
+		enableMath: true,
+		onRendered: value => handle = value,
+	});
+
+	if (!handle) {
+		throw new Error('Math ResizeObserver harness did not initialize');
+	}
+	const fixtureHandle = handle;
+
+	const controls = dom.$('.math-resize-observer-harness');
+	const runButton = dom.append(controls, dom.$<HTMLButtonElement>('button.math-resize-observer-run'));
+	runButton.type = 'button';
+	runButton.textContent = 'Run math stream stress';
+	const status = dom.append(controls, dom.$('span.math-resize-observer-status'));
+	status.role = 'status';
+	status.textContent = 'Ready';
+	const warnings = dom.append(controls, dom.$('span.math-resize-observer-warnings'));
+	warnings.textContent = 'Warnings: 0';
+	controls.style.position = 'absolute';
+	controls.style.top = '8px';
+	controls.style.right = '8px';
+	controls.style.zIndex = '100';
+	controls.style.display = 'flex';
+	controls.style.gap = '8px';
+	controls.style.padding = '6px 8px';
+	controls.style.background = 'var(--vscode-editorWidget-background)';
+	controls.style.border = '1px solid var(--vscode-widget-border)';
+	context.container.style.position = 'relative';
+	context.container.appendChild(controls);
+
+	let warningCount = 0;
+	context.disposableStore.add(dom.addDisposableListener(targetWindow, dom.EventType.ERROR, event => {
+		if (event instanceof ErrorEvent && event.message.includes('ResizeObserver loop')) {
+			warningCount++;
+			warnings.textContent = `Warnings: ${warningCount}`;
+			warnings.dataset['observerContext'] = dom.getRecentDisposableResizeObserverContextForLoopError(event.message, targetWindow) ?? event.message;
+		}
+	}));
+
+	const nextFrame = () => new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
+	const runStress = async () => {
+		runButton.disabled = true;
+		status.textContent = 'Streaming display equations...';
+		const request = fixtureHandle.model.addRequest(makeUserMessage('Derive several related identities.'), { variables: [] }, 0);
+
+		for (let index = 1; index <= 20; index++) {
+			status.textContent = `Streaming display equation ${index}/20...`;
+			const terms = Array.from({ length: index % 8 + 3 }, (_, term) => `\\frac{x^{${term + 1}}}{${term + 1}}`).join(' + ');
+			fixtureHandle.model.acceptResponseProgress(request, {
+				kind: 'markdownContent',
+				content: new MarkdownString(`$$${terms} = C_${index}$$`),
+			});
+			fixtureHandle.listWidget.refresh();
+			fixtureHandle.listWidget.scrollTop = fixtureHandle.listWidget.scrollHeight;
+			await nextFrame();
+			for (const mathBlock of context.container.querySelectorAll<HTMLElement>('.katex-display')) {
+				mathBlock.style.fontSize = index % 2 === 0 ? '32px' : '16px';
+			}
+			await nextFrame();
+		}
+
+		request.response!.complete();
+		fixtureHandle.listWidget.refresh();
+		await nextFrame();
+		warnings.dataset['mathBlocks'] = String(context.container.querySelectorAll('.katex-display').length);
+		warnings.dataset['mathScrollables'] = String(Array.from(context.container.querySelectorAll('.monaco-scrollable-element')).filter(element => element.querySelector('.katex-display')).length);
+		status.textContent = warningCount > 0
+			? 'Completed with ResizeObserver warning'
+			: 'Completed without warning';
+		runButton.disabled = false;
+	};
+
+	context.disposableStore.add(dom.addDisposableListener(runButton, dom.EventType.CLICK, () => {
+		void runStress();
+	}));
+}
+
 export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 	SimpleQA: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: SIMPLE_QA }) }),
 	ScrollToBottomAction: defineComponentFixture({ render: renderScrollToBottomAction }),
@@ -844,6 +944,11 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 		labels: { kind: 'animated' },
 		virtualTime: { enabled: false },
 		render: context => renderResizeObserverLoopHarness(context, 'none'),
+	}),
+	MathResizeObserverHarness: defineComponentFixture({
+		labels: { kind: 'animated' },
+		virtualTime: { enabled: false },
+		render: renderMathResizeObserverHarness,
 	}),
 	CodeBlockInList: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: CODE_BLOCK_IN_LIST }) }),
 	bugs: defineThemedFixtureGroup({

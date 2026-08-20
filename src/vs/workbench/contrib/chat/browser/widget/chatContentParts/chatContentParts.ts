@@ -70,6 +70,7 @@ export interface IChatContentPartRenderContext {
 	readonly currentWidth: IObservable<number>;
 	readonly onDidChangeVisibility: Event<boolean>;
 	readonly inlineTextModels: InlineTextModelCollection;
+	readonly registerMathLayoutParticipant?: (layout: () => void) => IDisposable;
 }
 
 /**

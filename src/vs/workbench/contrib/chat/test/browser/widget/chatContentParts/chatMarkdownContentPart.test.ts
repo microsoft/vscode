@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
-import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
@@ -277,6 +277,35 @@ suite('ChatMarkdownContentPart', () => {
 		assert.strictEqual(part.codeblocks.length, 0);
 		assert.strictEqual(renderedCodeBlocks.length, 0);
 		assert.ok(part.domNode.textContent?.includes('Hello, world!'));
+	});
+
+	test('registers math layout with the owning row lifecycle', () => {
+		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		configService.setUserConfiguration(ChatConfiguration.EnableMath, true);
+		renderer = {
+			render: (_markdown, _options, outElement) => {
+				const element = outElement ?? mainWindow.document.createElement('div');
+				const math = mainWindow.document.createElement('div');
+				math.classList.add('katex-display');
+				math.textContent = 'x';
+				element.replaceChildren(math);
+				return { element, dispose() { } };
+			}
+		};
+		let registered = false;
+		let unregistered = false;
+		const context = {
+			...createRenderContext(),
+			registerMathLayoutParticipant: () => {
+				registered = true;
+				return toDisposable(() => unregistered = true);
+			},
+		};
+
+		const part = createMarkdownPart('$$x$$', context);
+		assert.strictEqual(registered, true);
+		part.dispose();
+		assert.strictEqual(unregistered, true);
 	});
 
 	test('always renders Agent Host session links as rich links', () => {
