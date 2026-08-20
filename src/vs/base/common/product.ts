@@ -159,12 +159,6 @@ export interface IProductConfiguration {
 
 	readonly dictationRuntime?: IDictationRuntimeProductConfig;
 
-	/**
-	 * Hard gate for the Entra ID marketplace auth path. When falsy,
-	 * `extensions.gallery.authProvider: microsoft` is ignored and the GitHub path is used.
-	 */
-	readonly enableExtensionGalleryEntraAuth?: boolean;
-
 	readonly mcpGallery?: {
 		readonly serviceUrl: string;
 		readonly itemWebUrl: string;

@@ -22,8 +22,9 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { AuthenticationSession, AuthenticationSessionAccount, IAuthenticationService } from '../../authentication/common/authentication.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
-import { ExtensionGalleryAccessProviderId, getEffectiveAuthProvider } from './extensionGalleryAccess.js';
 
+/** The authentication provider that gates Private Marketplace access. */
+export type ExtensionGalleryAccessProviderId = 'github' | 'microsoft';
 
 const PREFERRED_ACCOUNT_KEY = 'marketplace.account';
 
@@ -127,7 +128,7 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
-		this.authProvider = getEffectiveAuthProvider(configurationService.getValue<string>(ExtensionGalleryAuthProviderConfigKey), !!productService.enableExtensionGalleryEntraAuth);
+		this.authProvider = configurationService.getValue<string>(ExtensionGalleryAuthProviderConfigKey) === 'microsoft' ? 'microsoft' : 'github';
 		CONTEXT_MARKETPLACE_AUTH_PROVIDER.bindTo(contextKeyService).set(this.authProvider);
 
 		// The Microsoft path's change signal is wired in connectAuthentication instead, to keep the DI

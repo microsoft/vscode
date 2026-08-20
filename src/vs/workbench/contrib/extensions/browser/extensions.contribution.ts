@@ -2140,13 +2140,12 @@ registerAction2(class ExtensionsGallerySignInAction extends Action2 {
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
-		const productService = accessor.get(IProductService);
 		const commandService = accessor.get(ICommandService);
 		const authProvider = configurationService.getValue<string>(ExtensionGalleryAuthProviderConfigKey);
 
 		// Delegate to the provider-specific sign-in command. The Microsoft flow lives in the Electron
 		// account-service layer (account selection + persistence) and cannot be reached from here.
-		const commandId = (authProvider === 'microsoft' && productService.enableExtensionGalleryEntraAuth)
+		const commandId = authProvider === 'microsoft'
 			? ExtensionGalleryMicrosoftSignInCommandId
 			: DEFAULT_ACCOUNT_SIGN_IN_COMMAND;
 		await commandService.executeCommand(commandId);

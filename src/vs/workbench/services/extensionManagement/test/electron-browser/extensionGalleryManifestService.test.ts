@@ -108,7 +108,6 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 	let microsoftSessions: AuthenticationSession[];
 	let configurationService: TestConfigurationService;
 	let storageData: Map<string, string>;
-	let entraAuthEnabled: boolean;
 	let telemetryService: RecordingTelemetryService;
 
 	setup(() => {
@@ -116,7 +115,6 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		microsoftSessions = [];
 		requestHandler = () => mockResponse(200, createGalleryManifest());
 		storageData = new Map();
-		entraAuthEnabled = true;
 
 		onDidChangeDefaultAccount = disposableStore.add(new Emitter<IDefaultAccount | null>());
 		onDidChangeSessions = disposableStore.add(new Emitter<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>());
@@ -138,7 +136,6 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 				accessSKUs: ['copilot_business'],
 			},
 			nameLong: 'VS Code Test',
-			get enableExtensionGalleryEntraAuth() { return entraAuthEnabled; },
 		});
 
 		instantiationService.stub(IEnvironmentService, new class extends mock<IEnvironmentService>() {
@@ -570,9 +567,8 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.AccessDenied);
 	});
 
-	test('Microsoft provider — Entra auth product-gated off → uses GitHub path', async () => {
-		entraAuthEnabled = false;
-		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+	test('authProvider is matched case-sensitively — a differently-cased value uses the GitHub path', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'Microsoft');
 		microsoftSessions = [createMicrosoftSession()];
 		defaultAccount = createDefaultAccount({ enterprise: true });
 		requestHandler = () => mockResponse(200, createGalleryManifest());
@@ -580,7 +576,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		const service = createService();
 		await service.getExtensionGalleryManifest();
 
-		// Entra path is skipped → GitHub path with enterprise account → Available
+		// Not the 'microsoft' literal → GitHub path with enterprise account → Available
 		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
 	});
 
