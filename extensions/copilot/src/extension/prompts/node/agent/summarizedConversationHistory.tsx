@@ -803,6 +803,7 @@ class ConversationHistorySummarizer {
 			summaryResponse = await endpoint.makeChatRequest2({
 				debugName: `summarizeConversationHistory-${mode}`,
 				messages,
+				modelConfiguration: this.props.promptContext.request?.modelConfiguration,
 				// Compaction is a standalone turn. Explicit because the default differs per
 				// endpoint: true on ChatEndpoint (HTTP), false on OpenAIEndpoint (#323554).
 				ignoreStatefulMarker: true,

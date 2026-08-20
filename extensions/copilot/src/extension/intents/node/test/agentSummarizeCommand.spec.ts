@@ -5,9 +5,10 @@
 
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { IChatMLFetcher } from '../../../../platform/chat/common/chatMLFetcher';
-import { ChatLocation } from '../../../../platform/chat/common/commonTypes';
+import { ChatFetchResponseType, ChatLocation } from '../../../../platform/chat/common/commonTypes';
 import { StaticChatMLFetcher } from '../../../../platform/chat/test/common/staticChatMLFetcher';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
+import { MockEndpoint } from '../../../../platform/endpoint/test/node/mockEndpoint';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
 import { TestWorkspaceService } from '../../../../platform/test/node/testWorkspaceService';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
@@ -25,7 +26,8 @@ import { ChatTelemetryBuilder } from '../../../prompt/node/chatParticipantTeleme
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
 import { MockChatResponseStream, TestChatRequest } from '../../../test/node/testHelpers';
 import { ToolName } from '../../../tools/common/toolNames';
-import { AgentIntent } from '../agentIntent';
+import { BackgroundSummarizer } from '../../../prompts/node/agent/backgroundSummarizer';
+import { AgentIntent, AgentIntentInvocation } from '../agentIntent';
 
 describe('AgentIntent /summarize command', () => {
 	let accessor: ITestingServicesAccessor;
@@ -217,5 +219,61 @@ describe('AgentIntent /summarize command', () => {
 		const first = intent.getOrCreateBackgroundSummarizer('sessionId', 100_000, 'model-a');
 		const second = intent.getOrCreateBackgroundSummarizer('sessionId', 100_000, 'model-a');
 		expect(second).toBe(first);
+	});
+
+	test('background compaction forwards the selected request configuration and preserves absence', async () => {
+		const captureBackgroundConfiguration = async (modelConfiguration: Readonly<Record<string, unknown>> | undefined) => {
+			const endpoint = instantiationService.createInstance(MockEndpoint, undefined);
+			const captured: Array<Readonly<Record<string, unknown>> | undefined> = [];
+			endpoint.makeChatRequest2 = async options => {
+				captured.push(options.modelConfiguration);
+				return {
+					type: ChatFetchResponseType.Success,
+					value: '<summary>background summary</summary>',
+					requestId: 'background-request',
+					serverRequestId: undefined,
+					usage: undefined,
+					resolvedModel: endpoint.model,
+				};
+			};
+
+			const request = new TestChatRequest('');
+			(request as TestChatRequest & { modelConfiguration?: Readonly<Record<string, unknown>> }).modelConfiguration = modelConfiguration;
+			const conversation = createConversationWithHistory();
+			const backgroundSummarizer = new BackgroundSummarizer(100_000, endpoint.model);
+			const startBackgroundSummarization = (AgentIntentInvocation.prototype as unknown as {
+				_startBackgroundSummarization(
+					this: unknown,
+					backgroundSummarizer: BackgroundSummarizer,
+					mainRenderMessages: [],
+					promptContext: unknown,
+					props: unknown,
+					token: unknown,
+					contextRatio: number,
+				): void;
+			})._startBackgroundSummarization;
+			startBackgroundSummarization.call({
+				endpoint,
+				request,
+				_lastModelCapabilities: undefined,
+				instantiationService,
+				logService: { debug() { }, warn() { }, error() { } },
+				sessionTranscriptService: { getTranscriptPath() { return undefined; } },
+				telemetryService: { sendMSFTTelemetryEvent() { } },
+			}, backgroundSummarizer, [], {
+				history: conversation.turns.slice(0, -1),
+				toolCallRounds: [],
+				conversation,
+			}, {}, token, 0.8);
+			await backgroundSummarizer.waitForCompletion();
+
+			expect(backgroundSummarizer.error).toBeUndefined();
+			expect(captured).toHaveLength(1);
+			return captured[0];
+		};
+
+		const selected = { reasoningEffort: 'high', contextSize: 500_000 } as const;
+		expect(await captureBackgroundConfiguration(selected)).toEqual(selected);
+		expect(await captureBackgroundConfiguration(undefined)).toBeUndefined();
 	});
 });

@@ -14,6 +14,32 @@ import { decodeStatefulMarker } from '../../common/statefulMarkerContainer';
 import { convertToApiChatMessage, ExtensionContributedChatEndpoint } from '../extChatEndpoint';
 
 describe('ExtensionContributedChatEndpoint', () => {
+	it('forwards the complete per-request model configuration unchanged', async () => {
+		let capturedOptions: vscode.LanguageModelChatRequestOptions | undefined;
+		const languageModel = createLanguageModel(options => capturedOptions = options);
+		const endpoint = new ExtensionContributedChatEndpoint(
+			languageModel,
+			createInstantiationService(),
+			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' })),
+		);
+		const modelConfiguration = { reasoningEffort: 'high', contextSize: 500_000 } as const;
+
+		const result = await endpoint.makeChatRequest2({
+			debugName: 'test',
+			messages: [{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hello' }]
+			}],
+			finishedCb: undefined,
+			location: ChatLocation.Panel,
+			requestOptions: {},
+			modelConfiguration,
+		}, new vscode.CancellationTokenSource().token);
+
+		expect(result.type).toBe(ChatFetchResponseType.Success);
+		expect(capturedOptions?.configuration).toEqual(modelConfiguration);
+	});
+
 	it('forwards telemetry turn from request properties through model options', async () => {
 		let capturedOptions: vscode.LanguageModelChatRequestOptions | undefined;
 		const languageModel = createLanguageModel(options => capturedOptions = options);
@@ -36,6 +62,7 @@ describe('ExtensionContributedChatEndpoint', () => {
 		}, new vscode.CancellationTokenSource().token);
 
 		expect(result.type).toBe(ChatFetchResponseType.Success);
+		expect(capturedOptions?.configuration).toBeUndefined();
 		expect(capturedOptions?.modelOptions?._telemetryTurn).toBe(5);
 	});
 

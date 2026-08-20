@@ -62,6 +62,7 @@ interface InlineChatHarnessOptions {
 	readonly toolResults?: readonly { readonly hasError?: boolean }[];
 	readonly advanceTime?: (ms: number) => void;
 	readonly markEditOnSuccessfulTool?: boolean;
+	readonly modelConfiguration?: Readonly<Record<string, unknown>>;
 }
 
 
@@ -189,6 +190,35 @@ suite('InlineChatIntent', () => {
 				})
 			})
 		]);
+	});
+
+	test('Inline tool loop forwards selected configuration across every leg and preserves absence', async () => {
+		const selected = { reasoningEffort: 'high', contextSize: 500_000 } as const;
+		const harness = createInlineChatHarness({
+			modelConfiguration: selected,
+			responses: [
+				{ value: 'first try', toolCalls: [{ id: 'tool-call-1', name: ToolName.ApplyPatch, arguments: '{}' }] },
+				{ value: 'second try' },
+			],
+			toolResults: [{ hasError: true }],
+		});
+
+		try {
+			await harness.run();
+		} finally {
+			harness.restore();
+		}
+
+		expect(harness.mockEndpoint.makeChatRequest2).toHaveBeenCalledTimes(2);
+		expect(harness.mockEndpoint.makeChatRequest2.mock.calls.map(call => call[0].modelConfiguration)).toEqual([selected, selected]);
+
+		const absentHarness = createInlineChatHarness();
+		try {
+			await absentHarness.run();
+		} finally {
+			absentHarness.restore();
+		}
+		expect(absentHarness.mockEndpoint.makeChatRequest2.mock.calls[0][0].modelConfiguration).toBeUndefined();
 	});
 
 	test('Bail-out exit tool is invoked inside the invoke_agent span', async () => {
@@ -503,6 +533,7 @@ function createInlineChatHarness(options: InlineChatHarnessOptions = {}) {
 		const conversation = new Conversation('someId', [mockTurn as unknown as Turn]);
 		const request = {
 			prompt: 'test prompt',
+			modelConfiguration: options.modelConfiguration,
 			location2: new ChatRequestEditorData({} as vscode.TextEditor, document, { isEmpty: true } as vscode.Selection, {} as vscode.Range),
 			toolInvocationToken: {} as vscode.ChatParticipantToolToken,
 			references: [],

@@ -17,9 +17,10 @@ declare module 'vscode' {
 		readonly requestInitiator: string;
 
 		/**
-		 * Per-model configuration provided by the user. This contains values configured
-		 * in the user's language models configuration file, validated against the model's
-		 * {@linkcode LanguageModelChatInformation.configurationSchema configurationSchema}.
+		 * Effective model configuration for this request. The editor starts with defaults from the model's
+		 * {@linkcode LanguageModelChatInformation.configurationSchema configurationSchema}, applies the
+		 * model's configured values, and then applies request-local
+		 * {@linkcode LanguageModelChatRequestOptions.configuration configuration} overrides.
 		 */
 		readonly modelConfiguration?: {
 			readonly [key: string]: any;
@@ -29,6 +30,20 @@ declare module 'vscode' {
 		 * Whether encrypted thinking state should be included in the response.
 		 */
 		readonly includeEncryptedThinking?: boolean;
+	}
+
+	export interface LanguageModelChatRequestOptions {
+
+		/**
+		 * Request-local model configuration. Values supplied here override schema defaults and
+		 * the model's configured values for this request. The caller is responsible for supplying
+		 * keys and values accepted by the model's
+		 * {@linkcode LanguageModelChatInformation.configurationSchema configurationSchema}; the editor
+		 * merges these values but does not validate them at request dispatch.
+		 */
+		readonly configuration?: {
+			readonly [key: string]: any;
+		};
 	}
 
 	/**
@@ -182,12 +197,12 @@ declare module 'vscode' {
 
 	export interface ChatRequest {
 		/**
-		 * Per-model configuration provided by the user. Contains resolved values based on the model's
-		 * {@linkcode LanguageModelChatInformation.configurationSchema configurationSchema},
-		 * with user overrides applied on top of schema defaults.
+		 * Effective configuration selected for this conversation request. It contains defaults from the
+		 * model's {@linkcode LanguageModelChatInformation.configurationSchema configurationSchema} with
+		 * the model's configured values applied on top.
 		 *
-		 * This is the same data that is sent as {@linkcode ProvideLanguageModelChatResponseOptions.configuration}
-		 * when the model is invoked via the language model API.
+		 * This value can be supplied as {@linkcode LanguageModelChatRequestOptions.configuration}
+		 * and is delivered to providers as {@linkcode ProvideLanguageModelChatResponseOptions.modelConfiguration}.
 		 */
 		readonly modelConfiguration?: { readonly [key: string]: any };
 	}
