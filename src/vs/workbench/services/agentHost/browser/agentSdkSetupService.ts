@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, IAgentSdkSetupInfo, readAgentSdkSetupInfos, readConsentedSdkAgents, resolveConsentedSdkDownloads, writeConsentedSdkAgents } from '../../../../platform/agentHost/common/agentSdkSetup.js';
 import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
@@ -107,7 +107,7 @@ class AgentSdkSetupService extends Disposable implements IAgentSdkSetupService {
 	private readonly _onDidChangeSetups = this._register(new Emitter<readonly IAgentSdkSetupInfo[]>());
 	readonly onDidChangeSetups = this._onDidChangeSetups.event;
 
-	private _setups: readonly IAgentSdkSetupInfo[];
+	private _setups: readonly IAgentSdkSetupInfo[] = [];
 
 	/**
 	 * Agents whose SDK we have already re-requested under standing consent, so a
@@ -137,10 +137,21 @@ class AgentSdkSetupService extends Disposable implements IAgentSdkSetupService {
 		@ICodexAccountService private readonly _codexAccountService: ICodexAccountService,
 	) {
 		super();
-		const initialState = this._agentHostService.rootState.value;
-		this._setups = readAgentSdkSetupInfos(initialState instanceof Error ? undefined : initialState);
-		this._applyConsent();
-		this._register(this._agentHostService.rootState.onDidChange(state => this._updateSetups(readAgentSdkSetupInfos(state))));
+		// `rootState` is a getter over a protocol client the host replaces on every
+		// restart and reconnect, so one subscription taken here would go quietly
+		// stale — re-bind, as the banner and the Copilot notification both do.
+		const rootStateListeners = this._register(new DisposableStore());
+		const bindRootState = () => {
+			rootStateListeners.clear();
+			rootStateListeners.add(this._agentHostService.rootState.onDidChange(state => this._updateSetups(readAgentSdkSetupInfos(state))));
+			// A request the previous host never answered never will be; dropping it
+			// re-offers the button rather than suppressing the offer for good.
+			this._pendingRequests.clear();
+			const state = this._agentHostService.rootState.value;
+			this._updateSetups(readAgentSdkSetupInfos(state instanceof Error ? undefined : state));
+		};
+		bindRootState();
+		this._register(this._agentHostService.onAgentHostStart(bindRootState));
 	}
 
 	requestDownload(agent: string): void {

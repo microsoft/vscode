@@ -906,9 +906,6 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const tokenAtStart = this._githubToken;
 		// True only for a dev override, a dev bare import, or an already-cached SDK.
 		const canAttemptNative = await this._sdkService.canLoadWithoutDownload();
-		// Free republish: another path may have pulled the SDK down since we last
-		// looked (the download gesture, or a session the user started).
-		this._sdkSetupChannel.publishWith(canAttemptNative);
 		if (!canAttemptNative) {
 			// No SDK, so no evidence of an account — say so rather than retaining a stale `true`.
 			this._nativeAccountSetUp = false;
@@ -930,22 +927,26 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			// rather than blanking. Sources we didn't attempt resolve fulfilled-empty
 			// and are not counted as failures.
 			this._logService.error('[Claude] All attempted model sources failed (merged refresh); keeping last known-good catalog');
-			return;
+		} else {
+			// Unwrap each settled fetch: its models on success, or an empty list on
+			// rejection (logged) so the other provider's catalog still publishes.
+			const settledCatalog = (outcome: PromiseSettledResult<readonly IAgentModelInfo[]>, label: string): readonly IAgentModelInfo[] => {
+				if (outcome.status === 'fulfilled') {
+					return outcome.value;
+				}
+				this._logService.error(outcome.reason, `[Claude] Failed to fetch ${label} models (merged refresh); keeping the other provider`);
+				return [];
+			};
+			const proxyModels = settledCatalog(proxyOutcome, 'proxy');
+			const nativeModels = settledCatalog(nativeOutcome, 'native');
+			const merged = mergeClaudeModelCatalogs(proxyModels, nativeModels);
+			this._logService.info(`[Claude] Models refreshed (merged). Count: ${merged.length}, ${merged.map(m => m.name).join(', ')}`);
+			this._models.set(merged, undefined);
 		}
-		// Unwrap each settled fetch: its models on success, or an empty list on
-		// rejection (logged) so the other provider's catalog still publishes.
-		const settledCatalog = (outcome: PromiseSettledResult<readonly IAgentModelInfo[]>, label: string): readonly IAgentModelInfo[] => {
-			if (outcome.status === 'fulfilled') {
-				return outcome.value;
-			}
-			this._logService.error(outcome.reason, `[Claude] Failed to fetch ${label} models (merged refresh); keeping the other provider`);
-			return [];
-		};
-		const proxyModels = settledCatalog(proxyOutcome, 'proxy');
-		const nativeModels = settledCatalog(nativeOutcome, 'native');
-		const merged = mergeClaudeModelCatalogs(proxyModels, nativeModels);
-		this._logService.info(`[Claude] Models refreshed (merged). Count: ${merged.length}, ${merged.map(m => m.name).join(', ')}`);
-		this._models.set(merged, undefined);
+		// Last, never first: this is a free republish of "is the SDK on disk" (some
+		// other path may have fetched it), but announcing `ready` before the catalog
+		// lands is exactly how the window renders "no account found".
+		this._sdkSetupChannel.publishWith(canAttemptNative);
 	}
 
 	/**

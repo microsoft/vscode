@@ -1736,8 +1736,12 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private async _refreshModels(): Promise<void> {
-		await Promise.all([this._refreshCopilotModels(), this._refreshCodexModels()]);
+		const [, sdkReady] = await Promise.all([this._refreshCopilotModels(), this._refreshCodexModels()]);
 		this._models.set([...this._copilotModels, ...this._codexModels], undefined);
+		// Last, never first: also the freshest answer to "is the SDK here" (a
+		// download that landed elsewhere surfaces here), but announcing `ready`
+		// before the catalog lands is how the window renders "no account found".
+		this._sdkSetupChannel.publishWith(sdkReady);
 	}
 
 	/**
@@ -1815,25 +1819,25 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _refreshCodexModels(): Promise<void> {
+	private async _refreshCodexModels(): Promise<boolean> {
+		// Outside the `try` so a throw still reports what we had established about
+		// the SDK, rather than a `false` the caller would publish as "not downloaded".
+		let sdkReady = false;
 		try {
 			// A refresh must never be what pulls the SDK down — the download is an
 			// explicit gesture now — so with no local SDK this reports the honest
 			// empty catalog and the banner offers it. A live connection already
 			// proves the SDK is on disk, so it short-circuits the stat.
-			const sdkReady = this._connection.kind !== 'idle' || await this._isSdkResolvableWithoutDownload();
-			// Also the freshest answer to "is the SDK here" — a download that landed
-			// elsewhere (a prewarm, another window) surfaces here.
-			this._sdkSetupChannel.publishWith(sdkReady);
+			sdkReady = this._connection.kind !== 'idle' || await this._isSdkResolvableWithoutDownload();
 			if (!sdkReady) {
 				this._codexModels = [];
-				return;
+				return sdkReady;
 			}
 			const connection = await this._ensureConnection();
 			const account = await this._refreshAccount(connection.client, false);
 			if (account.status === 'signedOut' || account.status === 'error') {
 				this._codexModels = [];
-				return;
+				return sdkReady;
 			}
 			const configResponse = await connection.client.request<'config/read', ConfigReadResponse>('config/read', { includeLayers: false });
 			const modelProvider = configResponse.config.model_provider ?? CODEX_OPENAI_MODEL_PROVIDER;
@@ -1862,6 +1866,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			// Keep the last known-good catalog; a transient periodic failure must
 			// not make every model disappear.
 		}
+		return sdkReady;
 	}
 
 	// #endregion

@@ -751,6 +751,42 @@ suite('CodexAgent — agent SDK setup channel', () => {
 		});
 	});
 
+	test('a download that lands stays `downloading` until the catalog does, so the banner never flashes "no account"', async () => {
+		const sdkDownloader = createNotDownloaded();
+		sdkDownloader.loadSdkRootResult = async () => { sdkDownloader.resolvableWithoutDownload = true; return '/tmp/codex-sdk'; };
+		const ctx = createAgentContext(disposables, async () => [], {}, sdkDownloader);
+		let releaseEnumeration = () => { };
+		const enumerated = new Promise<void>(resolve => { releaseEnumeration = resolve; });
+		const connection = createChatGPTConnection();
+		ctx.agent['_ensureConnection'] = async () => ({
+			...connection,
+			client: {
+				request: async (method: string) => {
+					if (method === 'model/list') {
+						await enumerated;
+					}
+					return connection.client.request(method);
+				},
+			},
+		} as never);
+		await settle();
+
+		dispatchDownload(ctx);
+		await settle();
+		const enumerating = { download: readSetup(ctx)?.download, models: ctx.agent.models.get().length };
+
+		releaseEnumeration();
+		await settle();
+
+		assert.deepStrictEqual({ enumerating, after: readSetup(ctx)?.download, models: ctx.agent.models.get().length }, {
+			// `ready` while the catalog is still empty is precisely how the window
+			// renders "we looked and found no account".
+			enumerating: { download: 'downloading', models: 0 },
+			after: 'ready',
+			models: 1,
+		});
+	});
+
 	test('the request key is cleared as it is consumed, so an identical later press still lands', async () => {
 		const sdkDownloader = createNotDownloaded();
 		let downloads = 0;

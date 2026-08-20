@@ -108,6 +108,9 @@ function noAccountDescription(setup: IAgentSdkSetupInfo, displayName: string): s
 /**
  * The session type an agent's sessions run under, derived the same way
  * `AgentHostChatContribution` derives it — so agent #3 needs no edit here.
+ * Scoped to the window's ambient host, which is itself the remote in a remote
+ * window; the Sessions app's additional `remote-<authority>-<agent>`
+ * connections are outside this banner, as they are the Copilot one.
  */
 export function agentSdkSetupSessionType(agent: string): string {
 	return `${LOCAL_AGENT_HOST_SCHEME_PREFIX}${agent}`;

@@ -6133,6 +6133,47 @@ suite('ClaudeAgent — agent SDK setup channel', () => {
 		});
 	});
 
+	test('a download that lands stays `downloading` until the catalog does, so the banner never flashes "no account"', async () => {
+		const ctx = createTestContext(disposables, { nativeAccount: NATIVE_ACCOUNT });
+		// Let the constructor's own refresh reach enumeration before the gate below
+		// goes up, so the only blocked enumeration is the download's.
+		for (let i = 0; i < 100 && ctx.sdk.supportedModelsCallCount === 0; i++) {
+			await tick();
+		}
+		ctx.sdk.canLoadWithoutDownloadResult = false;
+		await ctx.agent.refreshModels();
+		await settle();
+
+		ctx.sdk.supportedModelsResult = [
+			{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '', supportedEffortLevels: ['high'] },
+		];
+		let releaseEnumeration = () => { };
+		ctx.sdk.supportedModelsGate = new Promise<void>(resolve => { releaseEnumeration = resolve; });
+		// Resolving the fetch is the moment the SDK lands on disk.
+		ctx.sdk.ensureAvailableGate = Promise.resolve().then(() => { ctx.sdk.canLoadWithoutDownloadResult = true; });
+		const enumerationsBefore = ctx.sdk.supportedModelsCallCount;
+
+		dispatchDownload(ctx);
+		for (let i = 0; i < 100 && ctx.sdk.supportedModelsCallCount === enumerationsBefore; i++) {
+			await tick();
+		}
+		const enumerating = { download: readSetup(ctx)?.download, models: ctx.agent.models.get().length };
+
+		releaseEnumeration();
+		for (let i = 0; i < 100 && ctx.agent.models.get().length === 0; i++) {
+			await tick();
+		}
+		await settle();
+
+		assert.deepStrictEqual({ enumerating, after: readSetup(ctx)?.download, models: ctx.agent.models.get().length }, {
+			// `ready` while the catalog is still empty is precisely how the window
+			// renders "we looked and found no account".
+			enumerating: { download: 'downloading', models: 0 },
+			after: 'ready',
+			models: 1,
+		});
+	});
+
 	test('the request key is cleared as it is consumed, so an identical later press still lands', async () => {
 		const ctx = createTestContext(disposables);
 		ctx.sdk.canLoadWithoutDownloadResult = false;

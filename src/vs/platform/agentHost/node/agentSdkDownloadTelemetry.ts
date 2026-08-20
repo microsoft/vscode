@@ -80,7 +80,7 @@ type AgentSdkDownloadClassification = {
 	packageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Which agent SDK was being fetched, e.g. claude or codex.' };
 	phase: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the download started, completed, or failed.' };
 	failureReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Coarse bucket for a failed download (cancelled, network, filesystem, extract, notConfigured, unsupportedTarget, unknown). Empty unless the phase is failed.' };
-	explicitlyRequested: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a user gesture asked for this download, as opposed to a quiet re-fetch under standing consent.' };
+	explicitlyRequested: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the setup flow drove this download and showed its progress — a click, or a quiet re-fetch under standing consent — as opposed to a background fetch nobody was watching.' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'How long the download had been running when it reached this phase.' };
 	receivedBytes: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Bytes fetched by the time this phase was reached.' };
 	totalBytes: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total size the server advertised, or zero when it did not.' };
@@ -91,8 +91,9 @@ type AgentSdkDownloadClassification = {
 /**
  * Report one endpoint of a download. Callers pass only terminal and `started`
  * frames; the throttled `progress` frames are not counted.
- * `explicitlyRequested` is the user-gesture-versus-standing-consent split costs
- * are measured on.
+ * `explicitlyRequested` splits setup-driven downloads from background ones, not
+ * clicks from standing consent — both hold a progress interest. That split is
+ * the funnel's own `downloadClicked` / `consentedDownload` steps.
  */
 export function reportAgentSdkDownload(
 	telemetryService: ITelemetryService,
