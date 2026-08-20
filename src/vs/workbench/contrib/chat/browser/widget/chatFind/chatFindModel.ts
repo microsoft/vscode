@@ -64,13 +64,16 @@ function buildSegments(items: readonly ChatTreeItem[]): IChatFindSegment[] {
 				segments.push({ itemId: item.id, itemKind: 'request', partIndex: -1, text: item.messageText });
 			}
 		} else if (isResponseVM(item)) {
-			const annotated = annotateSpecialMarkdownContentWithSource(item.response.value);
+			// A filtered response renders none of its content, so the references slot, the
+			// response body and the citations are all absent and row-level text starts at 0.
+			const isFiltered = !!item.errorDetails?.responseIsFiltered;
+			const annotated = isFiltered ? [] : annotateSpecialMarkdownContentWithSource(item.response.value);
 			const renderedContent = item.isComplete
 				? moveResponseOutcomeToolsAfterFinalResponse(annotated.map(entry => entry.content))
 				: annotated.map(entry => entry.content);
 			// Mirrors the renderer, which puts the references slot first and code citations
 			// between the response content and the trailing parts that hold row-level text.
-			const trailingPartIndex = renderedContent.length + 1 + (item.codeCitations?.length ? 1 : 0);
+			const trailingPartIndex = isFiltered ? 0 : renderedContent.length + 1 + (item.codeCitations?.length ? 1 : 0);
 			// Indexes only what the response renders: `getChatFindTextParts` deliberately omits
 			// reasoning and tool result payloads, whose text does not exist in the DOM until
 			// their container is expanded, so a match there could never be revealed.
@@ -278,32 +281,6 @@ export class ChatFindModel extends Disposable {
 		this._activeIndex = -1;
 		this._activeAnchor = undefined;
 		this._invalidRegex = false;
-	}
-
-	/**
-	 * Drops the active match and settles on the one taking its place, continuing in `previous`'s
-	 * direction. Used when a match turns out to be unreachable, so the reported total only ever
-	 * counts positions navigation can actually visit.
-	 */
-	dropActiveMatch(previous: boolean): IChatFindMatch | undefined {
-		if (this._activeIndex < 0 || this._activeIndex >= this._matches.length) {
-			return undefined;
-		}
-		this._matches = [
-			...this._matches.slice(0, this._activeIndex),
-			...this._matches.slice(this._activeIndex + 1),
-		];
-		if (this._matches.length === 0) {
-			this._activeIndex = -1;
-		} else if (previous) {
-			// Removing the active match shifts later matches down, so the previous one is one back.
-			this._activeIndex = this._activeIndex === 0 ? this._matches.length - 1 : this._activeIndex - 1;
-		} else if (this._activeIndex >= this._matches.length) {
-			this._activeIndex = 0;
-		}
-		this._updateAnchor();
-		this._onDidChangeMatches.fire();
-		return this.activeMatch;
 	}
 
 	private _updateAnchor(): void {

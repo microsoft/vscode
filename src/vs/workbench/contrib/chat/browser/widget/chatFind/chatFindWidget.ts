@@ -389,9 +389,10 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 	}
 
 	/**
-	 * Moves past a match that turns out not to exist in the DOM, so navigation never appears to do
-	 * nothing. The match is dropped rather than stepped over: leaving it in would advertise a
-	 * position in the result count that navigation can never land on.
+	 * Steps past a match the DOM cannot produce, so navigation never appears to do nothing. The
+	 * index predicts where the renderer puts content, and a prediction can still be wrong for
+	 * content whose placement is decided at render time; rather than stall, keep going the same
+	 * way. Bounded so a query whose matches are all unlocatable cannot spin.
 	 */
 	private _skipUnlocatableMatch(): void {
 		if (this._unlocatableSkips >= ChatFindWidget.MAX_UNLOCATABLE_SKIPS) {
@@ -399,10 +400,7 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 			return;
 		}
 		this._unlocatableSkips++;
-		this._model.dropActiveMatch(this._lastNavigationWasPrevious);
-		// Keeps the same settle barrier: the count stays pending until the walk lands somewhere,
-		// so the label never shows a total that is one drop away from changing.
-		this._navigateToActive();
+		this._advanceActiveMatch(this._lastNavigationWasPrevious);
 	}
 
 	findFirst(): void {

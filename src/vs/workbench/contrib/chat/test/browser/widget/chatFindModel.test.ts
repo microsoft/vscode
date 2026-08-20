@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ChatFindModel } from '../../../browser/widget/chatFind/chatFindModel.js';
 import { ChatTreeItem } from '../../../browser/chat.js';
@@ -15,7 +16,7 @@ function fakeRequest(id: string, messageText: string): ChatTreeItem {
 }
 
 /** Builds a minimal fake response item satisfying `isResponseVM` (`typeof item.setVote !== 'undefined'`). */
-function fakeResponse(id: string, value: unknown[], errorDetails?: { message: string }, codeCitations?: unknown[]): ChatTreeItem {
+function fakeResponse(id: string, value: unknown[], errorDetails?: { message: string; responseIsFiltered?: boolean }, codeCitations?: unknown[]): ChatTreeItem {
 	const response = { value };
 	return {
 		id,
@@ -31,6 +32,10 @@ function fakeResponse(id: string, value: unknown[], errorDetails?: { message: st
 
 function markdown(text: string) {
 	return { kind: 'markdownContent', content: new MarkdownString(text) };
+}
+
+function inlineReference(path: string) {
+	return { kind: 'inlineReference', inlineReference: URI.file(path) };
 }
 
 function thinking(text: string) {
@@ -197,6 +202,100 @@ suite('ChatFindModel', () => {
 		model.dispose();
 	});
 
+	test('does not index markdown link targets, which never render as text', () => {
+		// Reproduces a real transcript: a response listing edited files as markdown links whose
+		// targets repeat the branch name. Only the link label is rendered, so counting the target
+		// inflates the total with matches navigation can never reach.
+		const items = [
+			fakeRequest('req1', 'Change port to 1242'),
+			fakeResponse('resp1', [markdown([
+				'Changes include:',
+				'',
+				'- Added [src/](/Users/me/simple-server.worktrees/change-port-to-1242/src)',
+				'- Added [index.html](/Users/me/simple-server.worktrees/change-port-to-1242/index.html)',
+				'- Added [dist/](/Users/me/simple-server.worktrees/change-port-to-1242/.gitignore)',
+			].join('\n'))]),
+		];
+		const model = new ChatFindModel(() => items);
+		model.setQuery('chang', { isRegex: false, matchCase: false, wholeWord: false });
+
+		// "Change port to 1242" and "Changes include:" — not the three link targets.
+		assert.deepStrictEqual(model.matches.map(match => match.itemId), ['resp1', 'req1']);
+		model.dispose();
+	});
+
+	test('still indexes the visible label of a link inside a list item', () => {
+		const items = [fakeResponse('resp1', [markdown('- Added [needle.ts](/some/path/needle.ts)')])];
+		const model = new ChatFindModel(() => items);
+		model.setQuery('needle', { isRegex: false, matchCase: false, wholeWord: false });
+
+		assert.strictEqual(model.matches.length, 1, 'the label renders, so it stays findable');
+		model.dispose();
+	});
+
+	test('does not fuse parts the renderer merges into one block', () => {
+		// An inline reference splits the surrounding markdown into three parts that render as one
+		// line. Concatenating their trimmed text would index `Seefoo.tsfor details`, hiding the
+		// sentence that is actually on screen.
+		const items = [fakeResponse('resp1', [
+			markdown('See '),
+			inlineReference('/repo/foo.ts'),
+			markdown(' for details'),
+		])];
+		const model = new ChatFindModel(() => items);
+
+		model.setQuery('See foo.ts for details', { isRegex: false, matchCase: false, wholeWord: false });
+		assert.strictEqual(model.matches.length, 1, 'the rendered sentence is findable');
+
+		model.setQuery('foo.tsfor', { isRegex: false, matchCase: false, wholeWord: false });
+		assert.strictEqual(model.matches.length, 0, 'the fused text never existed on screen');
+		model.dispose();
+	});
+
+	test('keeps a paragraph break between parts that render as separate blocks', () => {
+		const items = [fakeResponse('resp1', [markdown('first para\n\n'), markdown('second para')])];
+		const model = new ChatFindModel(() => items);
+
+		model.setQuery('para second', { isRegex: false, matchCase: false, wholeWord: false });
+		assert.strictEqual(model.matches.length, 0, 'a block boundary is not a space');
+		model.dispose();
+	});
+
+	test('does not index a filtered response, whose content the renderer drops', () => {
+		// A filtered response renders only its error message; the references slot, the body and
+		// the citations are all dropped, so indexing the body counts unreachable matches.
+		const items = [fakeResponse(
+			'resp1',
+			[markdown('needle in the body')],
+			{ message: 'Sorry, the response was filtered', responseIsFiltered: true },
+		)];
+		const model = new ChatFindModel(() => items);
+
+		model.setQuery('needle', { isRegex: false, matchCase: false, wholeWord: false });
+		assert.strictEqual(model.matches.length, 0);
+		model.dispose();
+	});
+
+	test('still indexes the error message of a filtered response, which does render', () => {
+		const items = [fakeResponse(
+			'resp1',
+			[markdown('needle in the body')],
+			{ message: 'Sorry, the needle was filtered', responseIsFiltered: true },
+		)];
+		const model = new ChatFindModel(() => items);
+
+		model.setQuery('needle', { isRegex: false, matchCase: false, wholeWord: false });
+
+		assert.deepStrictEqual(model.matches.map(match => ({
+			partIndex: match.partIndex,
+			scopeStartPartIndex: match.scopeStartPartIndex,
+		})), [
+			// Row-level text starts at 0: nothing of the response body precedes it.
+			{ partIndex: -1, scopeStartPartIndex: 0 },
+		]);
+		model.dispose();
+	});
+
 	test('respects case sensitivity', () => {
 		const items = [fakeResponse('resp1', [markdown('Needle and needle and NEEDLE')])];
 		const model = new ChatFindModel(() => items);
@@ -257,58 +356,6 @@ suite('ChatFindModel', () => {
 
 		model.previous();
 		assert.strictEqual(model.activeIndex, 2, 'wraps to last match');
-		model.dispose();
-	});
-
-	test('dropping the active match keeps the total honest and settles on its successor', () => {
-		// A match Find cannot reach must leave the result count entirely, or the counter
-		// advertises a position navigation can never land on.
-		const items = [fakeResponse('resp1', [markdown('a a a')])];
-		const model = new ChatFindModel(() => items);
-		model.setQuery('a', { isRegex: false, matchCase: false, wholeWord: false });
-		model.next();
-
-		const dropped = model.matches[1];
-		model.dropActiveMatch(false);
-
-		assert.deepStrictEqual({
-			total: model.matches.length,
-			activeIndex: model.activeIndex,
-			keptDropped: model.matches.includes(dropped),
-		}, {
-			total: 2,
-			activeIndex: 1,
-			keptDropped: false,
-		});
-		model.dispose();
-	});
-
-	test('dropping the last match wraps to the first, and backwards drops step back', () => {
-		const items = [fakeResponse('resp1', [markdown('a a a')])];
-		const model = new ChatFindModel(() => items);
-		model.setQuery('a', { isRegex: false, matchCase: false, wholeWord: false });
-
-		model.previous();
-		assert.strictEqual(model.activeIndex, 2, 'starts on the last match');
-		model.dropActiveMatch(false);
-		assert.strictEqual(model.activeIndex, 0, 'dropping the last match wraps forwards');
-
-		model.dropActiveMatch(true);
-		assert.strictEqual(model.activeIndex, 0, 'dropping backwards from the first wraps to the end');
-		assert.strictEqual(model.matches.length, 1);
-		model.dispose();
-	});
-
-	test('dropping every match leaves no active match', () => {
-		const items = [fakeResponse('resp1', [markdown('a')])];
-		const model = new ChatFindModel(() => items);
-		model.setQuery('a', { isRegex: false, matchCase: false, wholeWord: false });
-
-		model.dropActiveMatch(false);
-
-		assert.strictEqual(model.matches.length, 0);
-		assert.strictEqual(model.activeIndex, -1);
-		assert.strictEqual(model.activeMatch, undefined);
 		model.dispose();
 	});
 

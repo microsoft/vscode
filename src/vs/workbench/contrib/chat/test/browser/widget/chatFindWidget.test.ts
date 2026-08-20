@@ -236,64 +236,44 @@ suite('ChatFindWidget unlocatable match walk', () => {
 	interface IWalkHarness {
 		_unlocatableSkips: number;
 		_lastNavigationWasPrevious: boolean;
-		_model: { dropActiveMatch(previous: boolean): void };
-		_navigateToActive(): void;
-		updateResultCount(): Promise<void>;
+		_completeSettle(): void;
+		_advanceActiveMatch(previous: boolean): void;
 	}
 
-	/**
-	 * Walks `locatable` from `startIndex`. Unreachable entries are dropped rather than stepped
-	 * over, so the surviving set is what the result count would report.
-	 */
+	/** Walks `locatable` from `startIndex`, stepping past entries the DOM cannot produce. */
 	function runWalk(locatable: readonly boolean[], startIndex: number, previous: boolean) {
-		const remaining = [...locatable];
+		const directions: boolean[] = [];
 		let index = startIndex;
 		const harness: IWalkHarness = {
 			_unlocatableSkips: 0,
 			_lastNavigationWasPrevious: previous,
-			_model: {
-				dropActiveMatch(wasPrevious: boolean) {
-					remaining.splice(index, 1);
-					if (remaining.length === 0) {
-						index = -1;
-					} else if (wasPrevious) {
-						index = index === 0 ? remaining.length - 1 : index - 1;
-					} else if (index >= remaining.length) {
-						index = 0;
-					}
-				},
-			},
-			_navigateToActive() {
-				if (index >= 0 && !remaining[index]) {
+			_completeSettle() { },
+			_advanceActiveMatch(wasPrevious: boolean) {
+				directions.push(wasPrevious);
+				index = (index + (wasPrevious ? -1 : 1) + locatable.length) % locatable.length;
+				if (!locatable[index]) {
 					skipUnlocatableMatch.call(harness);
 				}
 			},
-			updateResultCount: async () => { },
 		};
 
-		harness._navigateToActive();
-		return { index, remaining, skips: harness._unlocatableSkips };
+		harness._advanceActiveMatch(previous);
+		return { index, directions, skips: harness._unlocatableSkips };
 	}
 
-	test('drops unreachable matches so the total only counts what can be visited', () => {
-		// Active on index 1; 1 and 2 cannot be located, 3 can.
-		const result = runWalk([true, false, false, true], 1, false);
+	test('advances past unlocatable matches to the next locatable one', () => {
+		// index 0 active; 1 and 2 cannot be located, 3 can.
+		const result = runWalk([true, false, false, true], 0, false);
 
-		assert.deepStrictEqual({ remaining: result.remaining, index: result.index, skips: result.skips }, {
-			remaining: [true, true],
-			index: 1,
-			skips: 2,
-		});
+		assert.strictEqual(result.index, 3);
+		assert.strictEqual(result.skips, 2, 'skipped exactly the two unlocatable matches');
 	});
 
 	test('keeps walking backwards when navigating to the previous match', () => {
-		const result = runWalk([true, false, false, true], 2, true);
+		const result = runWalk([true, false, false, true], 3, true);
 
-		assert.deepStrictEqual({ remaining: result.remaining, index: result.index, skips: result.skips }, {
-			remaining: [true, true],
-			index: 0,
-			skips: 2,
-		});
+		assert.strictEqual(result.index, 0);
+		assert.deepStrictEqual(result.directions, [true, true, true], 'every step kept the direction');
 	});
 
 	test('stops at the cap when nothing can be located', () => {
