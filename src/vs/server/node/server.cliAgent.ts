@@ -18,6 +18,9 @@ export function hasAgentCommand(args: readonly string[]): boolean {
 		if (arg === 'agent') {
 			return true;
 		}
+		if (Object.entries(OPTIONS).some(([id, option]) => id === arg && option.type === 'subcommand')) {
+			return false;
+		}
 		const option = getOption(arg);
 		if (option?.type === 'string' || option?.type === 'string[]') {
 			valueForOption = true;
@@ -32,7 +35,7 @@ function getOption(arg: string): Option<'boolean'> | Option<'string'> | Option<'
 	}
 	const id = arg.startsWith('--') ? arg.slice(2) : arg.slice(1);
 	for (const [optionId, option] of Object.entries(OPTIONS)) {
-		if (option.type !== 'subcommand' && (id === option.alias || id === optionId)) {
+		if (option.type !== 'subcommand' && (id === option.alias || id === optionId || option.deprecates?.includes(id))) {
 			return option;
 		}
 	}
