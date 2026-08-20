@@ -13,15 +13,19 @@ import { URI } from '../../../base/common/uri.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
+import { Codicon } from '../../../base/common/codicons.js';
 import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { SessionHeader } from '../../browser/parts/sessionHeader.js';
+import { SHOW_SESSION_METADATA_IN_CHAT_INPUT_SETTING } from '../../common/sessionConfig.js';
 import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
-import { IChat, ISessionCapabilities, SessionStatus } from '../../services/sessions/common/session.js';
+import { IChat, ISessionCapabilities, ISessionWorkspace, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 
-function createHarness(disposables: Pick<DisposableStore, 'add'>) {
+function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { readonly showMetadataInChatInput?: boolean; readonly workspace?: ISessionWorkspace }) {
 	const store = disposables.add(new DisposableStore());
 	const instantiationService = workbenchInstantiationService(undefined, store);
 
@@ -39,6 +43,9 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>) {
 		override readonly onDidChangeSessions = Event.None;
 	}());
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+	instantiationService.stub(IConfigurationService, new TestConfigurationService({
+		[SHOW_SESSION_METADATA_IN_CHAT_INPUT_SETTING]: options?.showMetadataInChatInput ?? false,
+	}));
 
 	const mainChat = new class extends mock<IChat>() {
 		override readonly title: IObservable<string> = constObservable('Main Chat');
@@ -61,6 +68,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>) {
 		override readonly visibleChatTabs: IObservable<readonly IChat[]> = constObservable([mainChat]);
 		override readonly shouldShowChatTabs: IObservable<boolean> = constObservable(false);
 		override readonly capabilities: IObservable<ISessionCapabilities> = constObservable({ supportsMultipleChats: false });
+		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(options?.workspace);
 	}();
 
 	const header = store.add(instantiationService.createInstance(SessionHeader));
@@ -113,5 +121,38 @@ suite('Sessions - SessionHeader', () => {
 		const dragEvent = simulateDragFrom(header, header.element);
 
 		assert.strictEqual(dragEvent.defaultPrevented, false);
+	});
+
+	test('shows read-only workspace metadata beside the title and hides the second row when configured', () => {
+		const root = URI.file('C:\\Code\\vscode');
+		const workspace: ISessionWorkspace = {
+			uri: root,
+			label: 'vscode',
+			icon: Codicon.folder,
+			folders: [{
+				root,
+				workingDirectory: root,
+				name: 'vscode',
+				description: undefined,
+			}],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
+		};
+		const { header } = createHarness(disposables, { showMetadataInChatInput: true, workspace });
+
+		const workspaceMeta = header.element.querySelector<HTMLElement>('.chat-composite-bar-workspace-meta');
+		const metaRow = header.element.querySelector<HTMLElement>('.chat-composite-bar-meta-row');
+
+		assert.deepStrictEqual({
+			workspaceText: workspaceMeta?.textContent,
+			workspaceHidden: workspaceMeta?.classList.contains('hidden'),
+			workspaceFocusable: workspaceMeta?.tabIndex,
+			metaRowDisplay: metaRow?.style.display,
+		}, {
+			workspaceText: '·vscode',
+			workspaceHidden: false,
+			workspaceFocusable: -1,
+			metaRowDisplay: 'none',
+		});
 	});
 });

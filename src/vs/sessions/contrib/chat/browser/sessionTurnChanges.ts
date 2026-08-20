@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { constObservable, derived, IObservable } from '../../../../base/common/observable.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { AbstractChatResponseFileChangesService, IChatResponseFileChangesOpenContext } from '../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
 import { IEditSessionEntryDiff } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISession, ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -42,21 +43,26 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 			return;
 		}
 		if (context.isLastTurn) {
+			if (requestId === undefined) {
+				if (isAgentHostProviderId(owner.session.providerId)) {
+					void this._openSessionTurnChanges(owner.session);
+				} else {
+					const changes = owner.chat.lastTurnChanges;
+					if (changes) {
+						this._openTransientLastTurnChanges(owner.session, owner.chat.resource.toString(), changes);
+					}
+				}
+				return;
+			}
+
 			if (this._isMostRecentChat(owner.session, owner.chat)) {
 				void this._openSessionTurnChanges(owner.session);
 				return;
 			}
 
-			const changes = requestId === undefined
-				? owner.chat.lastTurnChanges
-				: this._getSessionFileChanges(chatResource, requestId);
+			const changes = this._getSessionFileChanges(owner.session, chatResource, requestId);
 			if (changes) {
-				void this._openSessionTurnChanges(owner.session, {
-					id: `${TURN_CHANGES_CHANGESET_ID}:${requestId ?? owner.chat.resource.toString()}`,
-					label: localize('lastTurnChanges.label', "Last Turn Changes"),
-					description: localize('lastTurnChanges.description', "Changes from the viewed chat's last turn."),
-					changes,
-				});
+				this._openTransientLastTurnChanges(owner.session, requestId, changes);
 			}
 			return;
 		}
@@ -73,7 +79,7 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 			id: `${TURN_CHANGES_CHANGESET_ID}:${requestId}`,
 			label: localize('historicalTurnChanges.label', "Turn Changes"),
 			description: localize('historicalTurnChanges.description', "Changes from the selected chat turn."),
-			changes: this._toSessionFileChanges(changes),
+			changes: this._toSessionFileChanges(owner.session, changes),
 		});
 	}
 
@@ -104,19 +110,35 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 		return isEqual(mostRecentChat?.resource ?? session.mainChat.get().resource, chat.resource);
 	}
 
-	private _getSessionFileChanges(chatResource: URI, requestId: string): IObservable<readonly ISessionFileChange[]> | undefined {
+	private _getSessionFileChanges(session: ISession, chatResource: URI, requestId: string): IObservable<readonly ISessionFileChange[]> | undefined {
 		const changes = this.getChangesForRequest(chatResource, requestId);
-		return changes ? this._toSessionFileChanges(changes) : undefined;
+		return changes ? this._toSessionFileChanges(session, changes) : undefined;
 	}
 
-	private _toSessionFileChanges(changes: IObservable<readonly IEditSessionEntryDiff[]>): IObservable<readonly ISessionFileChange[]> {
-		return derived(reader => changes.read(reader).map((diff): ISessionFileChange => ({
-			uri: diff.modifiedURI,
-			originalUri: isEqual(diff.originalURI, diff.modifiedURI) ? undefined : diff.originalURI,
-			modifiedUri: diff.isDeleted ? undefined : diff.modifiedSnapshotURI ?? diff.modifiedURI,
-			insertions: diff.added,
-			deletions: diff.removed,
-		})));
+	private _toSessionFileChanges(session: ISession, changes: IObservable<readonly IEditSessionEntryDiff[]>): IObservable<readonly ISessionFileChange[]> {
+		return derived(reader => {
+			const workspace = session.workspace?.read(reader);
+			const workspaceFolders = workspace?.folders.flatMap(folder => [folder.root, folder.workingDirectory]) ?? [];
+			return changes.read(reader)
+				.filter(diff => workspaceFolders.some(folder =>
+					extUriBiasedIgnorePathCase.isEqualOrParent(folder.with({ path: diff.modifiedURI.path }), folder)))
+				.map((diff): ISessionFileChange => ({
+					uri: diff.modifiedURI,
+					originalUri: isEqual(diff.originalURI, diff.modifiedURI) ? undefined : diff.originalURI,
+					modifiedUri: diff.isDeleted ? undefined : diff.modifiedSnapshotURI ?? diff.modifiedURI,
+					insertions: diff.added,
+					deletions: diff.removed,
+				}));
+		});
+	}
+
+	private _openTransientLastTurnChanges(session: ISession, id: string, changes: IObservable<readonly ISessionFileChange[]>): void {
+		void this._openSessionTurnChanges(session, {
+			id: `${TURN_CHANGES_CHANGESET_ID}:${id}`,
+			label: localize('lastTurnChanges.label', "Turn Changes"),
+			description: localize('lastTurnChanges.description', "Changes from the viewed chat's last turn."),
+			changes,
+		});
 	}
 
 	private async _openSessionTurnChanges(session: ISession, transientTurn?: ISessionTransientTurnChanges): Promise<void> {

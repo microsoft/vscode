@@ -235,7 +235,7 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/styleOverrides",
+			"name": "vs/workbench/contrib/modernUI",
 			"project": "vscode-workbench"
 		},
 		{
@@ -400,6 +400,10 @@
 		},
 		{
 			"name": "vs/workbench/services/configurationResolver",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/dataChannel",
 			"project": "vscode-workbench"
 		},
 		{

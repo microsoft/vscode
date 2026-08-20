@@ -790,7 +790,7 @@
                 }
             },
             "type": "number",
-            "default": 2,
+            "default": 12,
             "included": true
         },
         {

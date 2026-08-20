@@ -16,7 +16,7 @@ import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizati
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerCustomization, McpServerStatus, type Customization, type CustomizationEnablement, type McpServerState, type PluginCustomization, type RootConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { AgentCustomization, ROOT_STATE_URI, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentCustomization, ROOT_STATE_URI, StateComponents, readSessionFolderPickerDecision, type ISessionFolderPickerDecision } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
@@ -25,6 +25,7 @@ import { localize } from '../../../../../../nls.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
+import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { IAgentHostMcpServer } from '../../../../../../sessions/common/agentHostSessionsProvider.js';
 import { resolveMcpServerAuthentication, agentHostMcpServerId } from './agentHostAuth.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
@@ -39,6 +40,14 @@ export interface IAgentHostCustomizationService {
 	getCustomAgents(sessionResource: URI): readonly AgentCustomization[];
 
 	getCustomizations(sessionResource: URI): readonly Customization[];
+
+	/**
+	 * The harness-owned decision about the multi-root Folder picker for a
+	 * session (or `undefined` when the provider expressed no opinion). Read from
+	 * the session's `_meta`; changes are reported via
+	 * {@link onDidChangeCustomizations}.
+	 */
+	getFolderPickerDecision(sessionResource: URI): ISessionFolderPickerDecision | undefined;
 
 	getWorkingDirectory(sessionResource: URI): string | undefined;
 
@@ -98,6 +107,9 @@ export class NullAgentHostCustomizationService implements IAgentHostCustomizatio
 	getCustomizations(_sessionResource: URI): readonly Customization[] {
 		return [];
 	}
+	getFolderPickerDecision(_sessionResource: URI): ISessionFolderPickerDecision | undefined {
+		return undefined;
+	}
 	getWorkingDirectory(sessionResource: URI): string | undefined {
 		return undefined;
 	}
@@ -123,9 +135,11 @@ export class NullAgentHostCustomizationService implements IAgentHostCustomizatio
 
 export interface IAgentHostCustomizationTarget {
 	readonly customizations: readonly Customization[];
+	readonly folderPickerDecision?: ISessionFolderPickerDecision;
 	readonly workingDirectory?: string;
 	readonly workingDirectories?: readonly string[];
 	readonly rootConfig?: RootConfigState;
+	isBundledMcpServer(pluginUri: string, serverName: string): boolean;
 	authenticate(request: { resource: string; scopes?: readonly string[]; token: string }): Promise<unknown>;
 	setCustomizationEnablement(rawId: string, enablement: readonly CustomizationEnablement[]): void;
 	startMcpServer(rawId: string): Promise<void>;
@@ -169,6 +183,10 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		return this._resolveTarget(sessionResource)?.customizations ?? [];
 	}
 
+	getFolderPickerDecision(sessionResource: URI): ISessionFolderPickerDecision | undefined {
+		return this._resolveTarget(sessionResource)?.folderPickerDecision;
+	}
+
 	getWorkingDirectory(sessionResource: URI): string | undefined {
 		return this._resolveTarget(sessionResource)?.workingDirectory;
 	}
@@ -182,14 +200,14 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		if (!target) {
 			return [];
 		}
-		return this._flattenMcpServers(target.customizations)
+		return getPresentableMcpServerCustomizations(target.customizations)
 			.map(({ server, plugin }): IAgentHostMcpServer => ({
 				id: this._scopedMcpServerId(sessionResource, server.id),
 				name: server.name,
 				enabled: isCustomizationEnabled(server) && (!plugin || isCustomizationEnabled(plugin)),
 				enablement: server.enablement,
 				isPluginProvided: plugin !== undefined,
-				isClientBundled: server.isClientBundled,
+				isClientBundled: plugin !== undefined && target.isBundledMcpServer(plugin.uri, server.name),
 				owningPluginClientId: plugin?.clientId,
 				disabledReason: getCustomizationDisabledReason(server, plugin),
 				status: server.state.kind,
@@ -206,7 +224,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		if (!target) {
 			return Promise.resolve();
 		}
-		const entry = this._flattenMcpServers(target.customizations).find(({ server }) => this._scopedMcpServerId(sessionResource, server.id) === serverId);
+		const entry = flattenMcpServerCustomizations(target.customizations).find(({ server }) => this._scopedMcpServerId(sessionResource, server.id) === serverId);
 		if (!entry) {
 			return Promise.resolve();
 		}
@@ -224,7 +242,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	 */
 	private _trackMcpDiagnostics(sessionResource: URI, target: IAgentHostCustomizationTarget): void {
 		this._mcpDiagnosticSessions.add(sessionResource);
-		for (const { server, plugin } of this._flattenMcpServers(target.customizations)) {
+		for (const { server, plugin } of flattenMcpServerCustomizations(target.customizations)) {
 			this._mcpLogRegistry.record({ sessionResource, rawId: server.id, name: server.name, enabled: isCustomizationEnabled(server) && (!plugin || isCustomizationEnabled(plugin)), state: server.state });
 		}
 	}
@@ -236,7 +254,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 			if (!target) {
 				continue;
 			}
-			for (const { server, plugin } of this._flattenMcpServers(target.customizations)) {
+			for (const { server, plugin } of flattenMcpServerCustomizations(target.customizations)) {
 				this._mcpLogRegistry.record({ sessionResource, rawId: server.id, name: server.name, enabled: isCustomizationEnabled(server) && (!plugin || isCustomizationEnabled(plugin)), state: server.state });
 			}
 		}
@@ -325,17 +343,8 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		this._onDidChangeCustomizations.fire();
 	}
 
-	private _flattenMcpServers(customizations: readonly Customization[]): readonly { readonly server: McpServerCustomization; readonly plugin?: PluginCustomization }[] {
-		return customizations.flatMap(customization => customization.type === CustomizationType.McpServer
-			? [{ server: customization }]
-			: customization.children?.filter(child => child.type === CustomizationType.McpServer).map(server => ({
-				server,
-				plugin: customization.type === CustomizationType.Plugin ? customization : undefined,
-			})) ?? []);
-	}
-
 	private _findMcpServer(customizations: readonly Customization[], serverId: string): McpServerCustomization | undefined {
-		for (const { server } of this._flattenMcpServers(customizations)) {
+		for (const { server } of flattenMcpServerCustomizations(customizations)) {
 			if (server.id === serverId || this._isScopedMcpServerIdForRawId(serverId, server.id)) {
 				return server;
 			}
@@ -366,6 +375,58 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	}
 }
 
+/** One MCP server customization, with the position it was published at. */
+export interface IMcpServerCustomizationEntry {
+	readonly server: McpServerCustomization;
+	/**
+	 * The plugin that declares this server. Absent both for a server published at the top level
+	 * and for one declared by a {@link CustomizationType.Directory} container, so it says nothing
+	 * about where in the tree the server sits -- use {@link isTopLevel} for that.
+	 */
+	readonly plugin?: PluginCustomization;
+	/** Whether the agent host published this server as a customization of the session itself. */
+	readonly isTopLevel: boolean;
+}
+
+/** Every MCP server customization in a session, including duplicates of the same server. */
+export function flattenMcpServerCustomizations(customizations: readonly Customization[]): readonly IMcpServerCustomizationEntry[] {
+	return customizations.flatMap((customization): IMcpServerCustomizationEntry[] => customization.type === CustomizationType.McpServer
+		? [{ server: customization, isTopLevel: true }]
+		: customization.children?.filter(child => child.type === CustomizationType.McpServer).map(server => ({
+			server,
+			plugin: customization.type === CustomizationType.Plugin ? customization : undefined,
+			isTopLevel: false,
+		})) ?? []);
+}
+
+/**
+ * The MCP servers to *show* for a session: one entry per server.
+ *
+ * A session can carry two customizations for one server: the declaration, published as a child of
+ * whatever declared it, and a top-level entry the agent host mints for a server the SDK reports
+ * before that child resolves by name. A child is dropped when a top-level customization already
+ * speaks for its name, because the top-level copy is the one the host keeps live and resolves for
+ * lifecycle and enablement.
+ *
+ * Tree position is the signal, not the shape of the minted id and not the absence of an owning
+ * plugin -- a directory-declared child has none either. Only presentation dedupes; lookups
+ * elsewhere walk every customization, so an id from either copy still resolves. Servers of the
+ * same name from different containers are left alone, because they are different servers.
+ */
+export function getPresentableMcpServerCustomizations(customizations: readonly Customization[]): readonly IMcpServerCustomizationEntry[] {
+	const entries = flattenMcpServerCustomizations(customizations);
+	const topLevelNames = new Set<string>();
+	for (const entry of entries) {
+		if (entry.isTopLevel) {
+			topLevelNames.add(entry.server.name);
+		}
+	}
+	if (topLevelNames.size === 0) {
+		return entries;
+	}
+	return entries.filter(entry => entry.isTopLevel || !topLevelNames.has(entry.server.name));
+}
+
 class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCustomizationService {
 
 	private readonly _sessionStateSubscriptions = this._register(new DisposableResourceMap<IDisposable & { readonly connection: IAgentConnection; readonly backendSession: URI; readonly sub: IAgentSubscription<SessionState> }>());
@@ -376,6 +437,7 @@ class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCustomizat
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService logService: ILogService,
 		@IChatService private readonly _chatService: IChatService,
+		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
 	) {
 		super(instantiationService, logService);
 
@@ -419,9 +481,11 @@ class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCustomizat
 		const channel = target.backendSession.toString();
 		return {
 			customizations: sessionState?.customizations ?? [],
+			folderPickerDecision: readSessionFolderPickerDecision(sessionState?._meta),
 			workingDirectory: sessionState?.workingDirectories?.[0],
 			workingDirectories: sessionState?.workingDirectories,
 			rootConfig: rootState && !(rootState instanceof Error) ? rootState.config : undefined,
+			isBundledMcpServer: (pluginUri, serverName) => this._activeClientService.isBundledMcpServer(pluginUri, serverName),
 			authenticate: request => target.connection.authenticate(request),
 			setCustomizationEnablement: (rawId, enablement) => {
 				target.connection.dispatch(channel, {

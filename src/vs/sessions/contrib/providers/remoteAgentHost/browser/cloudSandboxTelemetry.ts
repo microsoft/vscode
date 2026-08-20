@@ -10,7 +10,7 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 
 /** The Mission Control call being reported. A closed set, so it is safe to send verbatim. */
-export type CloudSandboxRequestAction = 'connect' | 'reconnect' | 'getEnvironment' | 'listTasks' | 'getTask' | 'getTaskEvents' | 'getRepository';
+export type CloudSandboxRequestAction = 'connect' | 'reconnect' | 'getEnvironment' | 'listTasks' | 'getTask' | 'createTask' | 'deleteTask' | 'getTaskEvents' | 'getRepository';
 
 /**
  * How a Mission Control request ended, bucketed so a count is meaningful without carrying the

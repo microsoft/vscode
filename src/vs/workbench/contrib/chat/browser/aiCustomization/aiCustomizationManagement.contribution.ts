@@ -758,11 +758,12 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				});
 			}
 
-			async run(accessor: ServicesAccessor, target?: AICustomizationManagementSection | { readonly section?: AICustomizationManagementSection; readonly sessionType: string }): Promise<void> {
+			async run(accessor: ServicesAccessor, target?: AICustomizationManagementSection | { readonly section?: AICustomizationManagementSection; readonly sessionType?: string; readonly revealUri?: URI }): Promise<void> {
 				const editorService = accessor.get(IEditorService);
 				const chatWidgetService = accessor.get(IChatWidgetService);
 				const harnessService = accessor.get(ICustomizationHarnessService);
 				const section = typeof target === 'string' ? target : target?.section;
+				const revealUri = typeof target === 'string' ? undefined : target?.revealUri;
 
 				// Detect the active chat session type and switch the harness
 				// so the customization editor opens in the matching context.
@@ -782,6 +783,9 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				const pane = await editorService.openEditor(input, { pinned: true });
 				if (section && pane instanceof AICustomizationManagementEditor) {
 					pane.selectSectionById(section);
+					if (revealUri) {
+						await pane.revealCustomizationByUri(revealUri);
+					}
 				}
 			}
 		}));
