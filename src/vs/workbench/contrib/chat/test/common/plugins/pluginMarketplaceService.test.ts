@@ -781,6 +781,40 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 		assert.strictEqual(fetchCount, 1);
 	});
 
+	test('unmetering before startup idle does not start an update check', async () => {
+		let runIdle: ((idle: IdleDeadline) => void) | undefined;
+		store.add(installFakeRunWhenIdle((_target, runner) => {
+			runIdle = runner;
+			return Disposable.None;
+		}));
+		const meteredConnectionService = store.add(new TestMeteredConnectionService(true));
+		let fetchCount = 0;
+		const service = createService({
+			meteredConnectionService,
+			pluginRepositoryService: {
+				fetchRepository: async () => {
+					fetchCount++;
+					return false;
+				},
+			},
+		});
+		service.addInstalledPlugin(
+			URI.file('/agent-plugins/github.com/microsoft/plugins/my-plugin'),
+			makePlugin('my-plugin', 'my-plugin'),
+		);
+
+		meteredConnectionService.setIsConnectionMetered(false);
+		await timeout(0);
+		await timeout(0);
+		assert.strictEqual(fetchCount, 0);
+
+		assert.ok(runIdle);
+		runIdle({ didTimeout: false, timeRemaining: () => 50 });
+		await timeout(0);
+		await timeout(0);
+		assert.strictEqual(fetchCount, 1);
+	});
+
 	test('unmetering while a check is in flight does not start a concurrent check', async () => {
 		let runIdle: ((idle: IdleDeadline) => void) | undefined;
 		store.add(installFakeRunWhenIdle((_target, runner) => {

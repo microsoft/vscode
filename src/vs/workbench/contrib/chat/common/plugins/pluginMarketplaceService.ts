@@ -417,14 +417,13 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 				this.clearUpdatesAvailable();
 				this._scheduleUpdateCheck();
 			}));
-		}));
-
-		this._register(this._meteredConnectionService.onDidChangeIsConnectionMetered(isMetered => {
-			if (isMetered) {
-				this._clearUpdateCheckTimer();
-			} else {
-				this._scheduleUpdateCheck();
-			}
+			this._register(this._meteredConnectionService.onDidChangeIsConnectionMetered(isMetered => {
+				if (isMetered) {
+					this._clearUpdateCheckTimer();
+				} else {
+					this._scheduleUpdateCheck();
+				}
+			}));
 		}));
 
 		// Hydrate plugin metadata for installed entries that are not yet in
@@ -831,8 +830,8 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	}
 
 	/**
-	 * (Re-)schedules the next periodic update check. Called on
-	 * construction and whenever the auto-update config changes.
+	 * (Re-)schedules the next periodic update check after startup idle and
+	 * whenever the auto-update config or metered connection state changes.
 	 */
 	private _scheduleUpdateCheck(delayOverride?: number): void {
 		this._clearUpdateCheckTimer();

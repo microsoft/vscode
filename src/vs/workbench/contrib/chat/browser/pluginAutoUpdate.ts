@@ -51,12 +51,16 @@ export class PluginAutoUpdate extends Disposable implements IWorkbenchContributi
 
 		this._register(this._meteredConnectionService.onDidChangeIsConnectionMetered(isMetered => {
 			if (!isMetered) {
-				const marketplaceIds = this._pluginMarketplaceService.marketplacesWithUpdates.get();
-				if (marketplaceIds.size > 0) {
-					void this._triggerAutoUpdate(marketplaceIds);
-				}
+				this._triggerQueuedAutoUpdate();
 			}
 		}));
+	}
+
+	private _triggerQueuedAutoUpdate(): void {
+		const marketplaceIds = this._pluginMarketplaceService.marketplacesWithUpdates.get();
+		if (marketplaceIds.size > 0) {
+			void this._triggerAutoUpdate(marketplaceIds);
+		}
 	}
 
 	private async _triggerAutoUpdate(marketplaceIds: ReadonlySet<string>): Promise<void> {
@@ -74,10 +78,7 @@ export class PluginAutoUpdate extends Disposable implements IWorkbenchContributi
 			this._updateInFlight = false;
 
 			if (!this._store.isDisposed && !this._meteredConnectionService.isConnectionMetered) {
-				const queuedMarketplaceIds = this._pluginMarketplaceService.marketplacesWithUpdates.get();
-				if (queuedMarketplaceIds.size > 0) {
-					void this._triggerAutoUpdate(queuedMarketplaceIds);
-				}
+				this._triggerQueuedAutoUpdate();
 			}
 		}
 	}
