@@ -17,7 +17,7 @@ import { nesRename, prepareNesRename } from '../api';
 import { PrepareNesRenameResult } from '../nesRenameValidator';
 import { CancellationTokenWithTimer } from '../typescripts';
 
-const fixtures = path.join(__dirname, '../../serverPlugin/fixtures/nes');
+const fixtures = path.join(__dirname, '../../../serverPlugin/fixtures/nes');
 const cancellationToken: vscode.CancellationToken = {
 	isCancellationRequested: false,
 	onCancellationRequested: () => ({ dispose() { } }),
