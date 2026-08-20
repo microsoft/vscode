@@ -17,9 +17,13 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { editorBackground, Extensions as ColorRegistryExtensions, IColorRegistry, listHoverBackground, listHoverForeground, listInactiveSelectionBackground, listInactiveSelectionForeground, oneOf, opaque } from '../../../../../platform/theme/common/colorRegistry.js';
 import { foreground } from '../../../../../platform/theme/common/colors/baseColors.js';
 import { Extensions as ThemeServiceExtensions, IThemingRegistry } from '../../../../../platform/theme/common/themeService.js';
-import { EDITOR_BORDER, MODERN_ACTIVITY_BAR_ACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ACTIVE_FOREGROUND, MODERN_ACTIVITY_BAR_HOVER_BACKGROUND, MODERN_ACTIVITY_BAR_HOVER_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_FOREGROUND, MODERN_EDITOR_TAB_INACTIVE_BACKGROUND, MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_FOREGROUND, MODERN_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_FOREGROUND, SURFACE_BORDER, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_BORDER, TAB_ACTIVE_BORDER_TOP, TAB_ACTIVE_FOREGROUND, TAB_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_HOVER_FOREGROUND, TAB_INACTIVE_BACKGROUND, TAB_INACTIVE_FOREGROUND, TAB_LAST_PINNED_BORDER, TAB_SELECTED_BACKGROUND, TAB_UNFOCUSED_HOVER_BACKGROUND } from '../../../../common/theme.js';
+import { EDITOR_BORDER, MODERN_ACTIVITY_BAR_ACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ACTIVE_FOREGROUND, MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_HOVER_BACKGROUND, MODERN_ACTIVITY_BAR_HOVER_FOREGROUND, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_FOREGROUND, MODERN_EDITOR_TAB_INACTIVE_BACKGROUND, MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_FOREGROUND, MODERN_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_FOREGROUND, SURFACE_BORDER, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_BORDER, TAB_ACTIVE_BORDER_TOP, TAB_ACTIVE_FOREGROUND, TAB_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_HOVER_FOREGROUND, TAB_INACTIVE_BACKGROUND, TAB_INACTIVE_FOREGROUND, TAB_LAST_PINNED_BORDER, TAB_SELECTED_BACKGROUND, TAB_UNFOCUSED_HOVER_BACKGROUND } from '../../../../common/theme.js';
 import { TestEnvironmentService, TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
 import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
+import { PRESERVE_MERGED_WORKSPACE_NAME_CASE_CLASS, PRESERVE_WORKSPACE_NAME_CASE_CLASS, shouldPreserveWorkspaceNameCase } from '../../../files/browser/views/explorerView.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { joinPath } from '../../../../../base/common/resources.js';
+import { WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { ColorThemeData } from '../../../../services/themes/common/colorThemeData.js';
 import { generateColorThemeCSS } from '../../../../services/themes/browser/colorThemeCss.js';
 import '../../../../browser/parts/activitybar/media/activityaction.css';
@@ -282,11 +286,22 @@ suite('ModernUIContribution', () => {
 		const paneHeader = appendElement(appendElement(paneView, 'pane'), 'pane-header');
 		const paneTitle = appendElement(paneHeader, 'title');
 
-		const explorerPart = appendElement(layoutService.mainContainer, 'part');
-		explorerPart.dataset.activeComposite = 'workbench.view.explorer';
+		const explorerPart = appendElement(layoutService.mainContainer, `part ${PRESERVE_MERGED_WORKSPACE_NAME_CASE_CLASS}`);
+		explorerPart.dataset.activeComposite = 'workbench.views.service.sidebar.custom';
 		const explorerTitleLabel = appendElement(appendElement(explorerPart, 'title'), 'title-label');
 		const explorerTitle = document.createElement('h2');
 		explorerTitleLabel.appendChild(explorerTitle);
+		const explorerPaneHeader = appendElement(appendElement(appendElement(explorerPart, 'monaco-pane-view'), `pane ${PRESERVE_WORKSPACE_NAME_CASE_CLASS}`), 'pane-header');
+		appendElement(explorerPaneHeader, 'icon codicon-explorer-view-icon');
+		const explorerPaneTitle = appendElement(explorerPaneHeader, 'title');
+		const multiViewPart = appendElement(layoutService.mainContainer, 'part');
+		multiViewPart.dataset.activeComposite = 'workbench.views.service.sidebar.multiView';
+		const multiViewTitleLabel = appendElement(appendElement(multiViewPart, 'title'), 'title-label');
+		const multiViewTitle = document.createElement('h2');
+		multiViewTitleLabel.appendChild(multiViewTitle);
+		const multiViewExplorerPaneHeader = appendElement(appendElement(appendElement(multiViewPart, 'monaco-pane-view'), `pane ${PRESERVE_WORKSPACE_NAME_CASE_CLASS}`), 'pane-header');
+		appendElement(multiViewExplorerPaneHeader, 'icon codicon-explorer-view-icon');
+		const multiViewExplorerPaneTitle = appendElement(multiViewExplorerPaneHeader, 'title');
 		const extensionsPart = appendElement(layoutService.mainContainer, 'part');
 		const extensionsTitleLabel = appendElement(appendElement(extensionsPart, 'title'), 'title-label');
 		const extensionsTitle = document.createElement('h2');
@@ -300,6 +315,9 @@ suite('ModernUIContribution', () => {
 			classApplied: layoutService.mainContainer.classList.contains('modern-ui-uppercase-view-headers'),
 			paneTitleTransform: targetWindow.getComputedStyle(paneTitle).textTransform,
 			explorerTitleTransform: targetWindow.getComputedStyle(explorerTitle).textTransform,
+			explorerPaneTitleTransform: targetWindow.getComputedStyle(explorerPaneTitle).textTransform,
+			multiViewTitleTransform: targetWindow.getComputedStyle(multiViewTitle).textTransform,
+			multiViewExplorerPaneTitleTransform: targetWindow.getComputedStyle(multiViewExplorerPaneTitle).textTransform,
 			extensionsTitleTransform: targetWindow.getComputedStyle(extensionsTitle).textTransform,
 			panelTabTransform: targetWindow.getComputedStyle(panelTab).textTransform,
 			layoutCount: layoutService.layoutCount,
@@ -318,6 +336,9 @@ suite('ModernUIContribution', () => {
 			classApplied: layoutService.mainContainer.classList.contains('modern-ui-uppercase-view-headers'),
 			paneTitleTransform: targetWindow.getComputedStyle(paneTitle).textTransform,
 			explorerTitleTransform: targetWindow.getComputedStyle(explorerTitle).textTransform,
+			explorerPaneTitleTransform: targetWindow.getComputedStyle(explorerPaneTitle).textTransform,
+			multiViewTitleTransform: targetWindow.getComputedStyle(multiViewTitle).textTransform,
+			multiViewExplorerPaneTitleTransform: targetWindow.getComputedStyle(multiViewExplorerPaneTitle).textTransform,
 			extensionsTitleTransform: targetWindow.getComputedStyle(extensionsTitle).textTransform,
 			panelTabTransform: targetWindow.getComputedStyle(panelTab).textTransform,
 			layoutCount: layoutService.layoutCount,
@@ -326,6 +347,9 @@ suite('ModernUIContribution', () => {
 				classApplied: false,
 				paneTitleTransform: 'capitalize',
 				explorerTitleTransform: 'none',
+				explorerPaneTitleTransform: 'none',
+				multiViewTitleTransform: 'capitalize',
+				multiViewExplorerPaneTitleTransform: 'none',
 				extensionsTitleTransform: 'capitalize',
 				panelTabTransform: 'capitalize',
 				layoutCount: 0,
@@ -333,9 +357,69 @@ suite('ModernUIContribution', () => {
 			classApplied: true,
 			paneTitleTransform: 'uppercase',
 			explorerTitleTransform: 'uppercase',
+			explorerPaneTitleTransform: 'uppercase',
+			multiViewTitleTransform: 'uppercase',
+			multiViewExplorerPaneTitleTransform: 'uppercase',
 			extensionsTitleTransform: 'uppercase',
 			panelTabTransform: 'uppercase',
 			layoutCount: 0,
+		});
+	});
+
+	test('Explorer title casing follows the workspace name decision', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui';
+
+		function createExplorerTitles(workbenchState: WorkbenchState, configuration: URI | null) {
+			const preserveCase = shouldPreserveWorkspaceNameCase(workbenchState, { id: 'test', folders: [], configuration }, TestEnvironmentService);
+			const part = appendElement(root, preserveCase ? `part ${PRESERVE_MERGED_WORKSPACE_NAME_CASE_CLASS}` : 'part');
+			const mergedTitle = document.createElement('h2');
+			appendElement(appendElement(part, 'title'), 'title-label').appendChild(mergedTitle);
+			const paneHeader = appendElement(appendElement(appendElement(part, 'monaco-pane-view'), preserveCase ? `pane ${PRESERVE_WORKSPACE_NAME_CASE_CLASS}` : 'pane'), 'pane-header');
+			appendElement(paneHeader, 'icon codicon-explorer-view-icon');
+			const paneTitle = appendElement(paneHeader, 'title');
+			return { mergedTitle, paneTitle };
+		}
+
+		const untitled = createExplorerTitles(WorkbenchState.WORKSPACE, joinPath(TestEnvironmentService.untitledWorkspacesHome, '1234', 'workspace.json'));
+		const named = createExplorerTitles(WorkbenchState.WORKSPACE, URI.file('/some/path/myWorkspace.code-workspace'));
+		const folder = createExplorerTitles(WorkbenchState.FOLDER, null);
+
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+		const targetWindow = getWindow(root);
+		const transforms = () => ({
+			untitledMerged: targetWindow.getComputedStyle(untitled.mergedTitle).textTransform,
+			untitledPane: targetWindow.getComputedStyle(untitled.paneTitle).textTransform,
+			namedMerged: targetWindow.getComputedStyle(named.mergedTitle).textTransform,
+			namedPane: targetWindow.getComputedStyle(named.paneTitle).textTransform,
+			folderMerged: targetWindow.getComputedStyle(folder.mergedTitle).textTransform,
+			folderPane: targetWindow.getComputedStyle(folder.paneTitle).textTransform,
+		});
+
+		const defaultTransforms = transforms();
+		root.classList.add('modern-ui-uppercase-view-headers');
+
+		assert.deepStrictEqual({
+			defaultTransforms,
+			uppercaseTransforms: transforms(),
+		}, {
+			defaultTransforms: {
+				untitledMerged: 'capitalize',
+				untitledPane: 'capitalize',
+				namedMerged: 'none',
+				namedPane: 'none',
+				folderMerged: 'none',
+				folderPane: 'none',
+			},
+			uppercaseTransforms: {
+				untitledMerged: 'uppercase',
+				untitledPane: 'uppercase',
+				namedMerged: 'uppercase',
+				namedPane: 'uppercase',
+				folderMerged: 'uppercase',
+				folderPane: 'uppercase',
+			},
 		});
 	});
 
@@ -390,6 +474,33 @@ suite('ModernUIContribution', () => {
 			agentsIconIndicatorBottomInset: 5.5,
 			agentsIconBadgeTop: '13px',
 			agentsIconBadgeRight: '2px',
+		});
+	});
+
+	test('panel title tabs drop the classic 1px title border so the 32px pills center in the 32px bar', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui modern-ui-tabs';
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const { actionItem } = createCompositeAction(root, 32, true);
+		actionItem.closest('.part')?.classList.add('panel', 'basepanel', 'bottom');
+		actionItem.closest('.title')?.classList.add('composite', 'has-composite-bar');
+
+		const title = actionItem.closest('.title')!;
+		const classicBorder = document.createElement('style');
+		classicBorder.textContent = '.monaco-workbench .part.panel.bottom .composite.title { border-top: 1px solid; }';
+		root.prepend(classicBorder);
+		const targetWindow = getWindow(title);
+		// Assert only what this fix owns; other layout values would be brittle.
+		assert.deepStrictEqual({
+			titleBorderTopWidth: targetWindow.getComputedStyle(title).borderTopWidth,
+			titleBorderTopStyle: targetWindow.getComputedStyle(title).borderTopStyle,
+			actionItemBorderTop: targetWindow.getComputedStyle(actionItem).borderTopWidth,
+		}, {
+			titleBorderTopWidth: '0px',
+			titleBorderTopStyle: 'none',
+			actionItemBorderTop: '4px',
 		});
 	});
 
@@ -468,7 +579,7 @@ suite('ModernUIContribution', () => {
 
 		const targetWindow = getWindow(root);
 		assert.deepStrictEqual({
-			activityColorsRegistered: [MODERN_ACTIVITY_BAR_ACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ACTIVE_FOREGROUND, MODERN_ACTIVITY_BAR_HOVER_BACKGROUND, MODERN_ACTIVITY_BAR_HOVER_FOREGROUND].map(id => colorRegistry.getColors().some(color => color.id === id)),
+			activityColorsRegistered: [MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ACTIVE_FOREGROUND, MODERN_ACTIVITY_BAR_HOVER_BACKGROUND, MODERN_ACTIVITY_BAR_HOVER_FOREGROUND].map(id => colorRegistry.getColors().some(color => color.id === id)),
 			indicatorBackground: targetWindow.getComputedStyle(indicator).backgroundColor,
 			activityLabelColor: targetWindow.getComputedStyle(activityLabel).color,
 			horizontalIndicatorBackground: targetWindow.getComputedStyle(horizontalAction.indicator).backgroundColor,
@@ -483,7 +594,7 @@ suite('ModernUIContribution', () => {
 			headerOverflow: targetWindow.getComputedStyle(header).overflow,
 			footerBorderWidth: targetWindow.getComputedStyle(footer).borderTopWidth,
 		}, {
-			activityColorsRegistered: [true, true, true, true],
+			activityColorsRegistered: [true, true, true, true, true, true],
 			indicatorBackground: 'rgb(18, 52, 86)',
 			activityLabelColor: 'rgb(171, 205, 239)',
 			horizontalIndicatorBackground: 'rgb(101, 67, 33)',
@@ -543,6 +654,19 @@ suite('ModernUIContribution', () => {
 			lightSurfaceBorderIsOpaque: true,
 			lightEditorBorderIsOpaque: true,
 			lightEditorBorderMatchesSurface: true,
+		});
+	});
+
+	test('inherits the customized activity bar background when inactive', () => {
+		const theme = ColorThemeData.createUnloadedTheme('vs-dark');
+		theme.setCustomColors({ [MODERN_ACTIVITY_BAR_BACKGROUND]: '#123456' });
+
+		assert.deepStrictEqual({
+			background: theme.getColor(MODERN_ACTIVITY_BAR_BACKGROUND)?.toString(),
+			inactiveBackground: theme.getColor(MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND)?.toString(),
+		}, {
+			background: '#123456',
+			inactiveBackground: '#123456',
 		});
 	});
 

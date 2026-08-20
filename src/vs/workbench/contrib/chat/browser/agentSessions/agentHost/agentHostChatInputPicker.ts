@@ -20,7 +20,6 @@ import { IActionWidgetService } from '../../../../../../platform/actionWidget/br
 import { getCodexApprovalsPickerListOptions } from '../../../../../../platform/agentHost/browser/codexApprovalsPicker.js';
 import { AgentHostCopilotSandboxSettingId, getAgentHostCopilotSandboxSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
-import { getAgentHostCopilotManagedSandboxEnabled } from '../../../../../../platform/agentHost/common/sandboxConfigSchema.js';
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
@@ -391,7 +390,6 @@ export class AgentHostChatInputPicker extends Disposable {
 				this._refreshTrigger();
 			}
 		}));
-		this._register(this._agentHostService.rootState.onDidChange(() => this._refreshTrigger()));
 		this._reattach();
 	}
 
@@ -710,19 +708,8 @@ export class AgentHostChatInputPicker extends Disposable {
 	}
 
 	private _isSandboxingEnabled(): boolean {
-		const managedEnabled = this._getManagedSandboxEnabled();
-		if (managedEnabled !== undefined) {
-			return managedEnabled;
-		}
 		const settingId = this._getSandboxSettingId();
 		return settingId !== undefined && isAgentSandboxEnabledValue(this._configurationService.getValue<AgentSandboxEnabledSettingValue>(settingId));
-	}
-
-	private _getManagedSandboxEnabled(): boolean | undefined {
-		const rootState = this._agentHostService.rootState.value;
-		return rootState && !(rootState instanceof Error)
-			? getAgentHostCopilotManagedSandboxEnabled(rootState.config)
-			: undefined;
 	}
 
 	private _getSandboxStandaloneToggle(): IActionListItemInlineToggle | undefined {
@@ -730,14 +717,10 @@ export class AgentHostChatInputPicker extends Disposable {
 		if (this._property !== SessionConfigKey.AutoApprove || !this._isSandboxToggleSettingEnabled() || !settingId) {
 			return undefined;
 		}
-		const managedEnabled = this._getManagedSandboxEnabled();
 		return {
 			label: localize('agentHostChatInputPicker.defaultSandboxToggle', "Sandboxing for terminal"),
-			title: managedEnabled === undefined
-				? localize('agentHostChatInputPicker.defaultSandboxToggleTitle', "Run terminal commands inside a sandbox that restricts file system and network access")
-				: localize('agentHostChatInputPicker.managedSandboxToggleTitle', "Sandboxing is managed by your organization"),
+			title: localize('agentHostChatInputPicker.defaultSandboxToggleTitle', "Run terminal commands inside a sandbox that restricts file system and network access"),
 			checked: this._isSandboxingEnabled(),
-			disabled: managedEnabled !== undefined,
 			onChange: checked => {
 				const target = checked ? AgentSandboxEnabledValue.On : AgentSandboxEnabledValue.Off;
 				void this._configurationService.updateValue(settingId, target);

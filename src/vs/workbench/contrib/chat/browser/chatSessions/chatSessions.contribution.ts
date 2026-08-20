@@ -839,7 +839,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			isCore: false,
 			isDynamic: true,
 			slashCommands: contribution.commands ?? [],
-			locations: [ChatAgentLocation.Chat],
+			locations: contribution.locations ?? [ChatAgentLocation.Chat],
 			modes: [ChatModeKind.Agent, ChatModeKind.Ask],
 			disambiguation: [],
 			metadata: {
@@ -1038,6 +1038,17 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return this._contentProviders.get(resolvedType)?.resolveChatResponseUri?.(sessionResource, href, kind) ?? href;
 	}
 
+	public updateChatSessionMetadata(sessionResource: URI, metadata: Record<string, unknown>): boolean {
+		const sessionType = getChatSessionType(sessionResource);
+		const resolvedType = this._resolveToPrimaryType(sessionType) || sessionType;
+		const provider = this._contentProviders.get(resolvedType);
+		if (!provider?.updateChatSessionMetadata) {
+			return false;
+		}
+		provider.updateChatSessionMetadata(sessionResource, metadata);
+		return true;
+	}
+
 	async getChatInputCompletionTriggerCharacters(sessionType: string): Promise<readonly string[] | undefined> {
 		const resolvedType = this._resolveToPrimaryType(sessionType) || sessionType;
 		const provider = this._contentProviders.get(resolvedType);
@@ -1215,6 +1226,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 		await controllerData.initialRefresh;
 		return controllerData.controller.newChatSessionItem?.(request, token);
+	}
+
+	notifySessionMaterialized(sessionResource: URI): void {
+		this._getChatSessionItemController(sessionResource)?.controller.notifySessionMaterialized?.(sessionResource);
 	}
 
 	async deleteChatSessionItem(sessionResource: URI, token: CancellationToken): Promise<void> {

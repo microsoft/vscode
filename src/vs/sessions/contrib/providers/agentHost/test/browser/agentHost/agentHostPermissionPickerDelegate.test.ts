@@ -14,7 +14,6 @@ import { TestInstantiationService } from '../../../../../../../platform/instanti
 import { ResolveSessionConfigResult, SessionConfigPropertySchema } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { getAgentHostCopilotSandboxSettingId } from '../../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
-import { AgentHostCopilotManagedSandboxEnabledConfigKey } from '../../../../../../../platform/agentHost/common/sandboxConfigSchema.js';
 import type { RootConfigState } from '../../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../../../../../workbench/contrib/chat/common/constants.js';
 import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownClaudePermissionModeSchema, isWellKnownModeSchema, isWellKnownModeValue } from '../../../browser/agentHostPermissionPickerDelegate.js';
@@ -176,22 +175,6 @@ suite('AgentHostPermissionPickerDelegate', () => {
 			claudeApplicable: false,
 			claudeSetting: undefined,
 		});
-	});
-
-	test('exposes the server-managed sandbox value for Copilot sessions', () => {
-		const { delegate, provider } = setup(store, makeActiveSession(), 'default');
-		provider.rootConfig = {
-			schema: { type: 'object', properties: {} },
-			values: { [AgentHostCopilotManagedSandboxEnabledConfigKey]: false },
-		} as RootConfigState;
-
-		assert.strictEqual(delegate.getManagedSandboxEnabled(), false);
-
-		provider.rootConfig = {
-			schema: { type: 'object', properties: {} },
-			values: {},
-		} as RootConfigState;
-		assert.strictEqual(delegate.getManagedSandboxEnabled(), undefined);
 	});
 
 	test('returns Default when the active session has no config seeded yet', () => {

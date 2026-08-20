@@ -25,12 +25,12 @@ export async function launch(options: LaunchOptions): Promise<{ electronProcess:
 	args.push('--enable-smoke-test-driver');
 
 	// Launch electron via playwright
-	const { electron, context, page } = await launchElectron({ electronPath, args, env }, options);
+	const { electron, context, page, videoStartedAt } = await launchElectron({ electronPath, args, env }, options);
 	const electronProcess = electron.process();
 
 	return {
 		electronProcess,
-		driver: new PlaywrightDriver(electron, context, page, undefined /* no server process */, Promise.resolve() /* Window is open already */, options)
+		driver: new PlaywrightDriver(electron, context, page, undefined /* no server process */, Promise.resolve() /* Window is open already */, options, videoStartedAt)
 	};
 }
 
@@ -63,6 +63,9 @@ async function launchElectron(configuration: IElectronConfiguration, options: La
 			throw enrichLaunchError(error, options);
 		}
 	}
+	// Recording is per page, so sample the origin once the first window exists
+	// rather than when the application finished launching.
+	const videoStartedAt = options.videosPath ? Date.now() : undefined;
 
 	const context = window.context();
 
@@ -99,7 +102,7 @@ async function launchElectron(configuration: IElectronConfiguration, options: La
 		}
 	});
 
-	return { electron, context, page: window };
+	return { electron, context, page: window, videoStartedAt };
 }
 
 /**

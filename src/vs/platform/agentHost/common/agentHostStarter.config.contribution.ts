@@ -12,6 +12,7 @@ import product from '../../product/common/product.js';
 import { Registry } from '../../registry/common/platform.js';
 import {
 	AgentHostByokModelsEnabledSettingId,
+	AgentHostGitHubMcpServerEnabledSettingId,
 	AgentHostActiveAgentTitleGenerationSettingId,
 	AgentHostClaudeAgentEnabledSettingId,
 	AgentHostClaudeMultiRootEnabledSettingId,
@@ -32,11 +33,14 @@ import {
 	AgentHostOTelResourceAttributesSettingId,
 	AgentHostOTelServiceNameSettingId,
 	AgentHostSystemProxyEnabledSettingId,
+	ArtifactToolsSettingId,
 } from './agentService.js';
 import {
 	AgentHostClaudeMultiRootEnabledConfigKey,
 	AgentHostActiveAgentTitleGenerationConfigKey,
+	AgentHostArtifactToolsConfigKey,
 	AgentHostByokModelsEnabledConfigKey,
+	AgentHostGitHubMcpServerEnabledConfigKey,
 	AgentHostCodexEnabledConfigKey,
 	AgentHostCodexMultiRootEnabledConfigKey,
 	AgentHostCopilotMultiRootEnabledConfigKey,
@@ -179,6 +183,15 @@ configurationRegistry.registerConfiguration({
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostActiveAgentTitleGenerationConfigKey },
 		},
+		[ArtifactToolsSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.artifactTools.enabled', "When enabled, agents can record artifacts — pull requests, issues, commits, websites, files and other resources — which are surfaced above the chat input."),
+			default: product.quality !== 'stable',
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'auto' },
+			agentHost: { key: AgentHostArtifactToolsConfigKey },
+		},
 		[AgentHostMarkdownPlanRichLinksEnabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.experimental.markdownPlanRichLinks', "When enabled, agents receive guidance for using rich links to issues, pull requests, commits, sessions, and chats, plus running task markers, when creating or editing Markdown plan documents."),
@@ -195,6 +208,14 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'startup' },
 			agentHost: { key: AgentHostSystemProxyEnabledConfigKey },
+		},
+		[AgentHostGitHubMcpServerEnabledSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.githubMcpServer.enabled', "When enabled, agent-host sessions include the GitHub MCP server."),
+			default: true,
+			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'startup' },
+			agentHost: { key: AgentHostGitHubMcpServerEnabledConfigKey },
 		},
 		[AgentHostCopilotMultiRootEnabledSettingId]: {
 			type: 'boolean',
