@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RequestType } from '@vscode/copilot-api';
+import { retryAfterFromRateLimitHeaders } from '../../../shared-fetch-utils/common/middleware/rateLimitBackoffMiddleware';
 import { Emitter } from '../../../util/vs/base/common/event';
 import { Disposable, toDisposable } from '../../../util/vs/base/common/lifecycle';
 import { SyncDescriptor } from '../../../util/vs/platform/instantiation/common/descriptors';
@@ -28,6 +29,7 @@ type FetchTokenResult = {
 	ok: boolean;
 	status: number;
 	statusText: string;
+	retryAfterMs?: number;
 } & (
 		// success
 		| { body: TokenEnvelope; kind: 'token' }
@@ -180,6 +182,10 @@ export abstract class BaseCopilotTokenManager extends Disposable implements ICop
 		// Handle HTTP errors
 		if (!result.ok) {
 			this._logService.warn(`Failed to get copilot token due to status ${result.status} ${result.statusText}`);
+			if (result.status === 429) {
+				this._telemetryService.sendGHTelemetryErrorEvent('auth.rate_limited');
+				return { kind: 'failure', reason: 'RateLimited', retryAfterMs: result.retryAfterMs };
+			}
 			const data = TelemetryData.createAndMarkAsIssued({
 				status: result.status.toString(),
 				status_text: result.statusText,
@@ -206,7 +212,7 @@ export abstract class BaseCopilotTokenManager extends Disposable implements ICop
 			if (result.body.message?.startsWith('API rate limit exceeded')) {
 				this._logService.warn('Failed to get copilot token due to exceeding API rate limit');
 				this._telemetryService.sendGHTelemetryErrorEvent('auth.rate_limited');
-				return { kind: 'failure', reason: 'RateLimited' };
+				return { kind: 'failure', reason: 'RateLimited', retryAfterMs: result.retryAfterMs };
 			}
 			this._logService.warn(`Failed to get copilot token due to: ${result.body.message}`);
 			return { kind: 'failure', reason: 'NotAuthorized' };
@@ -290,7 +296,12 @@ export abstract class BaseCopilotTokenManager extends Disposable implements ICop
 	 * Returns a structured result with HTTP status and validated body.
 	 */
 	private async parseTokenResponse(response: Response): Promise<FetchTokenResult> {
-		const httpInfo = { ok: response.ok, status: response.status, statusText: response.statusText };
+		const httpInfo = {
+			ok: response.ok,
+			status: response.status,
+			statusText: response.statusText,
+			retryAfterMs: retryAfterFromRateLimitHeaders(response.headers),
+		};
 
 		let parsed: unknown;
 		try {
