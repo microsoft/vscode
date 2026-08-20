@@ -53,7 +53,7 @@ import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type Mes
 import { ActionType, isChatAction, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
 import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, isSubagentSession, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type UsageInfoMeta, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
-import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
+import { CopilotSessionWrapper, type ICopilotModelCallFinishedEvent } from './copilotSessionWrapper.js';
 import { clientToolNamesFromSnapshot, isMcpServerExplicitlyProjected, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME } from './toolSearchDeferral.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
@@ -698,6 +698,8 @@ export class CopilotAgentSession extends Disposable {
 	 * the same id, so mappings live until session teardown.
 	 */
 	private readonly _parentToolCallIdsByAgentId = new Map<string, string>();
+	/** Maps SDK root-agent turn ids to their owning host protocol turn ids. */
+	private readonly _hostTurnIdsBySdkTurnId = new Map<string, string>();
 	private readonly _activeSubagentAgentIds = new Set<string>();
 	private readonly _unroutableSubagentToolCallIds = new Set<string>();
 	private readonly _autoApprovals = new Map<string, PermissionAutoApproval | null>();
@@ -1093,6 +1095,30 @@ export class CopilotAgentSession extends Disposable {
 			resource: this._chatChannelUri,
 			turnId,
 			modelCallId,
+			parentToolCallId,
+		});
+	}
+
+	private _emitModelCallFinished(event: ICopilotModelCallFinishedEvent): void {
+		const parentToolCallId = this._parentToolCallIdForSubagentEvent(event);
+		if (event.agentId && !parentToolCallId) {
+			this._logService.trace(`[Copilot:${this.sessionId}] Ignoring unroutable subagent model.call_finished: agentId=${event.agentId}, sdkTurnId=${event.data.turnId}`);
+			return;
+		}
+		const turnId = event.agentId ? this._turnId : this._hostTurnIdsBySdkTurnId.get(event.data.turnId);
+		if (!turnId) {
+			this._logService.trace(`[Copilot:${this.sessionId}] Ignoring model.call_finished without a host turn mapping: sdkTurnId=${event.data.turnId}`);
+			return;
+		}
+		this._onDidSessionProgress.fire({
+			kind: 'model_call_finished',
+			resource: this._chatChannelUri,
+			turnId,
+			modelCallId: event.id,
+			dispatchDurationMs: event.data.dispatchDurationMs,
+			outcome: event.data.outcome,
+			containsBuiltInFileEditRequest: event.data.containsBuiltInFileEditRequest,
+			editClassifierVersion: event.data.editClassifierVersion,
 			parentToolCallId,
 		});
 	}
@@ -5537,6 +5563,9 @@ export class CopilotAgentSession extends Disposable {
 			this._currentTurn.value?.markRunning();
 			this._logService.trace(`[Copilot:${sessionId}] Turn started: ${e.data.turnId}`);
 			if (!e.agentId) {
+				if (this._currentTurn.value) {
+					this._hostTurnIdsBySdkTurnId.set(e.data.turnId, this._currentTurn.value.id);
+				}
 				const telemetryMessageId = this._currentTurn.value?.id ?? e.data.turnId;
 				if (this._activeRepoInfoTurn?.telemetryMessageId === telemetryMessageId) {
 					return;
@@ -5551,6 +5580,10 @@ export class CopilotAgentSession extends Disposable {
 				turn.begin = this._beginRepoInfoTelemetry(telemetryMessageId, this._currentTurn.value?.clientType ?? AgentHostClientType.Unknown, isCurrent);
 				this._activeRepoInfoTurn = turn;
 			}
+		}));
+
+		this._register(wrapper.onModelCallFinished(e => {
+			this._emitModelCallFinished(e);
 		}));
 
 		this._register(wrapper.onIntent(e => {

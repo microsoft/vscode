@@ -8,6 +8,20 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 
+export type CopilotModelCallFinishedOutcome = 'success' | 'error' | 'cancelled' | 'rejected';
+
+export interface ICopilotModelCallFinishedEvent {
+	readonly id: string;
+	readonly agentId?: string;
+	readonly data: {
+		readonly turnId: string;
+		readonly dispatchDurationMs: number;
+		readonly outcome: CopilotModelCallFinishedOutcome;
+		readonly containsBuiltInFileEditRequest?: boolean;
+		readonly editClassifierVersion: number;
+	};
+}
+
 /**
  * Thin wrapper around {@link CopilotSession} that exposes each SDK event as a
  * proper VS Code `Event<T>`. All subscriptions and the underlying SDK session
@@ -18,6 +32,8 @@ export class CopilotSessionWrapper extends Disposable {
 	private readonly _handledEventTypes = new Set<SessionEventType>();
 	private readonly _onUnhandledEvent = this._register(new Emitter<SessionEvent>());
 	readonly onUnhandledEvent = this._onUnhandledEvent.event;
+	private readonly _onModelCallFinished = this._register(new Emitter<ICopilotModelCallFinishedEvent>());
+	readonly onModelCallFinished = this._onModelCallFinished.event;
 	private readonly _shutdown = new DeferredPromise<void>();
 	private _disconnectPromise: Promise<void> | undefined;
 
@@ -27,7 +43,10 @@ export class CopilotSessionWrapper extends Disposable {
 			if (event.type === 'session.shutdown') {
 				void this._shutdown.complete();
 			}
-			if (!this._handledEventTypes.has(event.type)) {
+			const modelCallFinished = parseModelCallFinishedEvent(event);
+			if (modelCallFinished) {
+				this._onModelCallFinished.fire(modelCallFinished);
+			} else if (!this._handledEventTypes.has(event.type)) {
 				this._onUnhandledEvent.fire(event);
 			}
 		});
@@ -316,4 +335,44 @@ export class CopilotSessionWrapper extends Disposable {
 		this._register(toDisposable(unsubscribe));
 		return emitter.event;
 	}
+}
+
+function parseModelCallFinishedEvent(event: unknown): ICopilotModelCallFinishedEvent | undefined {
+	if (!isRecord(event) || event.type !== 'model.call_finished' || event.ephemeral !== true || typeof event.id !== 'string' || !isRecord(event.data)) {
+		return undefined;
+	}
+	const data = event.data;
+	if (
+		typeof data.turnId !== 'string'
+		|| typeof data.dispatchDurationMs !== 'number'
+		|| !Number.isFinite(data.dispatchDurationMs)
+		|| data.dispatchDurationMs < 0
+		|| !isModelCallFinishedOutcome(data.outcome)
+		|| typeof data.editClassifierVersion !== 'number'
+		|| !Number.isInteger(data.editClassifierVersion)
+		|| data.editClassifierVersion < 1
+		|| (data.containsBuiltInFileEditRequest !== undefined && typeof data.containsBuiltInFileEditRequest !== 'boolean')
+		|| (event.agentId !== undefined && typeof event.agentId !== 'string')
+	) {
+		return undefined;
+	}
+	return {
+		id: event.id,
+		agentId: event.agentId,
+		data: {
+			turnId: data.turnId,
+			dispatchDurationMs: data.dispatchDurationMs,
+			outcome: data.outcome,
+			containsBuiltInFileEditRequest: data.containsBuiltInFileEditRequest,
+			editClassifierVersion: data.editClassifierVersion,
+		},
+	};
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null;
+}
+
+function isModelCallFinishedOutcome(value: unknown): value is CopilotModelCallFinishedOutcome {
+	return value === 'success' || value === 'error' || value === 'cancelled' || value === 'rejected';
 }

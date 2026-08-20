@@ -206,6 +206,13 @@ class MockCopilotSession {
 		}
 	}
 
+	/** Pushes an event not yet represented by the pinned SDK TypeScript union. */
+	fireRaw(event: unknown): void {
+		for (const handler of this._allHandlers) {
+			handler(event as SessionEvent);
+		}
+	}
+
 	/**
 	 * Mirrors the SDK's own usage tracker, which folds the `copilotUsage` billed on
 	 * `assistant.usage` (including sub-agent calls) and `session.compaction_complete`
@@ -1080,6 +1087,50 @@ suite('CopilotAgentSession', () => {
 			mockSession.fire('session.compaction_start', {} as SessionEventPayload<'session.compaction_start'>['data']);
 
 			assert.deepStrictEqual(events, ['session.compaction_start']);
+		});
+
+		test('validates model.call_finished events from the raw SDK event stream', () => {
+			const mockSession = new MockCopilotSession();
+			const wrapper = disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession));
+			const events: unknown[] = [];
+			disposables.add(wrapper.onModelCallFinished(event => events.push(event)));
+
+			mockSession.fireRaw({
+				type: 'model.call_finished',
+				ephemeral: true,
+				id: 'model-call-1',
+				agentId: 'agent-1',
+				data: {
+					turnId: 'sdk-turn-1',
+					dispatchDurationMs: 125,
+					outcome: 'success',
+					containsBuiltInFileEditRequest: true,
+					editClassifierVersion: 1,
+				},
+			});
+			mockSession.fireRaw({
+				type: 'model.call_finished',
+				ephemeral: true,
+				id: 'invalid-model-call',
+				data: {
+					turnId: 'sdk-turn-1',
+					dispatchDurationMs: -1,
+					outcome: 'success',
+					editClassifierVersion: 1,
+				},
+			});
+
+			assert.deepStrictEqual(events, [{
+				id: 'model-call-1',
+				agentId: 'agent-1',
+				data: {
+					turnId: 'sdk-turn-1',
+					dispatchDurationMs: 125,
+					outcome: 'success',
+					containsBuiltInFileEditRequest: true,
+					editClassifierVersion: 1,
+				},
+			}]);
 		});
 	});
 
@@ -5225,6 +5276,37 @@ suite('CopilotAgentSession', () => {
 	// ---- event mapping ----
 
 	suite('event mapping', () => {
+
+		test('maps model.call_finished to the owning host turn', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('host-turn-1');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-1' });
+
+			mockSession.fireRaw({
+				type: 'model.call_finished',
+				ephemeral: true,
+				id: 'model-call-1',
+				data: {
+					turnId: 'sdk-turn-1',
+					dispatchDurationMs: 250,
+					outcome: 'success',
+					containsBuiltInFileEditRequest: true,
+					editClassifierVersion: 1,
+				},
+			});
+
+			assert.deepStrictEqual(signals.filter(signal => signal.kind === 'model_call_finished'), [{
+				kind: 'model_call_finished',
+				resource: session.chatUri,
+				turnId: 'host-turn-1',
+				modelCallId: 'model-call-1',
+				dispatchDurationMs: 250,
+				outcome: 'success',
+				containsBuiltInFileEditRequest: true,
+				editClassifierVersion: 1,
+				parentToolCallId: undefined,
+			}]);
+		});
 
 		test('tool_start event is mapped for non-hidden tools', async () => {
 			const { mockSession, signals } = await createAgentSession(disposables);
