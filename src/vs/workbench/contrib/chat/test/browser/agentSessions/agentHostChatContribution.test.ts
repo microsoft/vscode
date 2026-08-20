@@ -10895,6 +10895,76 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(ac.activeClient.customizations?.[0].uri, 'file:///plugin-b');
 		});
 
+		test('publishes active-client tool changes before starting an existing-session turn', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
+			const tools = observableValue<readonly ToolDefinition[]>('turnBarrierTools', []);
+			disposables.add(seedActiveClient('agent-host-copilot', {
+				customizations: constObservable([]),
+				tools,
+			}));
+			const sessionResource = AgentSession.uri('copilot', 'active-client-turn-barrier');
+			const summary: SessionSummary = {
+				resource: sessionResource.toString(),
+				provider: 'copilot',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			};
+			agentHostService.sessionStates.set(sessionResource.toString(), {
+				...createSessionState(summary),
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [{ clientId: agentHostService.clientId, tools: [], customizations: [] }],
+			});
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+			}));
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+			await timeout(10);
+			agentHostService.dispatchedActions.length = 0;
+
+			tools.set([{ name: 'semantic_search' }], undefined);
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const turnPromise = registered.impl.invoke(
+				makeRequest({ message: 'Use the new tools', sessionResource, requestId: 'turn-after-tool-change' }),
+				() => { }, [], CancellationToken.None,
+			);
+			await timeout(10);
+
+			const relevantActions = agentHostService.dispatchedActions.filter(action =>
+				action.action.type === ActionType.SessionActiveClientSet || action.action.type === ActionType.ChatTurnStarted
+			);
+			assert.deepStrictEqual(relevantActions.map(action => action.action.type), [
+				ActionType.SessionActiveClientSet,
+				ActionType.ChatTurnStarted,
+			]);
+			const activeClient = (relevantActions[0].action as { activeClient: SessionActiveClient }).activeClient;
+			assert.deepStrictEqual(activeClient.tools, [{ name: 'semantic_search' }]);
+
+			const turnAction = relevantActions[1];
+			const turnId = (turnAction.action as ITurnStartedAction).turnId;
+			agentHostService.fireAction({
+				channel: turnAction.channel.toString(),
+				action: turnAction.action,
+				serverSeq: 1,
+				origin: { clientId: agentHostService.clientId, clientSeq: turnAction.clientSeq },
+			});
+			agentHostService.fireAction({
+				channel: turnAction.channel.toString(),
+				action: { type: ActionType.ChatTurnComplete, endedAt: '2025-01-01T00:00:00.000Z', turnId } as ChatAction,
+				serverSeq: 2,
+				origin: undefined,
+			});
+			await turnPromise;
+		}));
+
 		test('reasserts a claimed active client after session state loses it', async () => {
 			const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
 			const customizations = observableValue<readonly ClientPluginCustomization[]>('driftCustomizations', [

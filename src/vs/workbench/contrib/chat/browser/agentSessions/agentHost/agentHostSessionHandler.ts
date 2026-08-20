@@ -2755,7 +2755,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// turn goes out. We only do this on turn start (not on session open)
 		// so that opening a session doesn't eagerly register this client while
 		// another client is in the middle of a turn.
-		this._ensureActiveClient(request.sessionResource, session);
+		const activeClientEntry = this._ensureActiveClient(request.sessionResource, session);
+		if (activeClientEntry) {
+			await raceCancellation(activeClientEntry.whenSettled(), cancellationToken);
+			if (cancellationToken.isCancellationRequested) {
+				return;
+			}
+		}
 
 		// Model and agent selection now travel on the turn message itself rather
 		// than via the removed `session/modelChanged` / `session/agentChanged`
