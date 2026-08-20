@@ -400,6 +400,18 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 		assert.ok(result[0].after && !result[0].before, 'untracked file in empty repo should be an addition');
 	});
 
+	(hasGit ? test : test.skip)('captureWorkingTreeAsTree seeds an unborn repository from the empty tree', async () => {
+		const fs = await import('fs/promises');
+		const { dir } = initRepo();
+		await fs.writeFile(join(dir, 'first.txt'), 'hello\n');
+
+		const tree = await svc!.captureWorkingTreeAsTree(URI.file(dir));
+		const treePaths = tree
+			? cp.execFileSync('git', ['ls-tree', '-r', '--name-only', tree], { cwd: dir, encoding: 'utf8' }).trim()
+			: undefined;
+		assert.strictEqual(treePaths, 'first.txt');
+	});
+
 	(hasGit ? test : test.skip)('captureWorkingTreeAsTree stages scoped rename source and untracked paths', async () => {
 		const fs = await import('fs/promises');
 		const { dir, run } = initRepo();
