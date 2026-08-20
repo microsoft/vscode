@@ -25,19 +25,16 @@ class FakeStream implements ITunnelDuplexStream {
 	on(_event: 'data', _listener: (data: Uint8Array) => void): this;
 	on(_event: 'error', _listener: (error: Error) => void): this;
 	on(_event: 'close', _listener: (hadError?: boolean) => void): this;
-	on(_event: 'end' | 'drain' | 'pause' | 'resume', _listener: () => void): this;
-	on(_event: 'data' | 'error' | 'end' | 'close' | 'drain' | 'pause' | 'resume', _listener: ((data: Uint8Array) => void) | ((error: Error) => void) | ((hadError?: boolean) => void) | (() => void)): this {
+	on(_event: 'end', _listener: () => void): this;
+	on(_event: 'data' | 'error' | 'end' | 'close', _listener: ((data: Uint8Array) => void) | ((error: Error) => void) | ((hadError?: boolean) => void) | (() => void)): this {
 		return this;
 	}
 
 	removeListener(_event: 'data', _listener: (data: Uint8Array) => void): void;
 	removeListener(_event: 'error', _listener: (error: Error) => void): void;
 	removeListener(_event: 'close', _listener: (hadError?: boolean) => void): void;
-	removeListener(_event: 'end' | 'drain' | 'pause' | 'resume', _listener: () => void): void;
-	removeListener(_event: 'data' | 'error' | 'end' | 'close' | 'drain' | 'pause' | 'resume', _listener: ((data: Uint8Array) => void) | ((error: Error) => void) | ((hadError?: boolean) => void) | (() => void)): void {
-	}
-
-	removeAllListeners(_event: 'error'): void {
+	removeListener(_event: 'end', _listener: () => void): void;
+	removeListener(_event: 'data' | 'error' | 'end' | 'close', _listener: ((data: Uint8Array) => void) | ((error: Error) => void) | ((hadError?: boolean) => void) | (() => void)): void {
 	}
 
 	write(_data: string | Uint8Array): boolean {
@@ -48,12 +45,6 @@ class FakeStream implements ITunnelDuplexStream {
 	}
 
 	destroy(): void {
-	}
-
-	pause(): void {
-	}
-
-	resume(): void {
 	}
 
 }

@@ -750,7 +750,7 @@ export class CopilotAgentSession extends Disposable {
 			destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
 			include: {
 				events: includeSessionLogs,
-				processLogs: true,
+				processLogs: false,
 				shellLogs: includeSessionLogs,
 			},
 		});
