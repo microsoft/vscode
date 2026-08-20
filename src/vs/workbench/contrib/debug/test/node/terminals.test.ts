@@ -127,6 +127,8 @@ suite('Debug - prepareCommand', () => {
 				prepareCommand('powershell', [], false, undefined, { EMPTY: '' }).trim(),
 				prepareCommand('powershell', [], false, undefined, { QUOTE: 'hello\'world' }).trim(),
 				prepareCommand('powershell', [], false, undefined, { MULTI: 'it\'s \'ok\'' }).trim(),
+				prepareCommand('powershell', [], false, undefined, { TRAILING: 'C:\\work\\' }).trim(),
+				prepareCommand('powershell', [], false, undefined, { BACKSLASH_QUOTE: 'C:\\it\'s\\path\\' }).trim(),
 			],
 			[
 				'${env:SIMPLE}=\'hello\';',
@@ -134,6 +136,8 @@ suite('Debug - prepareCommand', () => {
 				'${env:EMPTY}=\'\';',
 				'${env:QUOTE}=\'hello\'\'world\';',
 				'${env:MULTI}=\'it\'\'s \'\'ok\'\'\';',
+				'${env:TRAILING}=\'C:\\work\\\';',
+				'${env:BACKSLASH_QUOTE}=\'C:\\it\'\'s\\path\\\';',
 			]);
 	});
 });
