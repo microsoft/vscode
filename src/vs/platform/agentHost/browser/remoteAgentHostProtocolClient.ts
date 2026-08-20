@@ -19,8 +19,8 @@ import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
 import { AgentSession, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
-import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, AGENT_HOST_DEBUG_LOGS_MAX_FILE_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_STAGED_BYTES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
-import { CollectAgentHostDebugLogsExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, type IAgentHostExtensionCommandMap } from '../common/agentHostExtensionProtocol.js';
+import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
+import { CollectAgentHostDebugLogsExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, type IAgentHostExtensionCommandMap } from '../common/agentHostExtensionProtocol.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY } from '../common/agentHostConnectionsService.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
@@ -41,7 +41,7 @@ import { ILoadEstimator, LoadEstimator } from '../../../base/parts/ipc/common/ip
 import { ITelemetryService, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, getAgentHostTerminalAutoApproveRulesConfig, GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
-import { formatAgentHostConfigurationSyncValueForLog, getAgentHostConfigurationSyncEntries, resolveAgentHostConfigurationSyncPatch, resolveAgentHostConfigurationSyncValue } from '../common/agentHostConfigurationSync.js';
+import { formatAgentHostConfigurationSyncValueForLog, getAgentHostConfigurationSyncEntries, getAgentHostConfigurationSyncTarget, resolveAgentHostConfigurationSyncPatch, resolveAgentHostConfigurationSyncValue } from '../common/agentHostConfigurationSync.js';
 import { managedPermissionsConfigurationIds, resolveManagedSettingsPermissions, type IAgentHostManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { AgentHostClientConnectionKind, toAgentHostClientMeta } from '../common/agentHostTelemetry.js';
 import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otlp/notifications.js';
@@ -353,7 +353,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			const patch: Record<string, unknown> = {};
 			// These keys are host-level and last-writer-wins across windows.
 			const mirrored: string[] = [];
-			for (const entry of getAgentHostConfigurationSyncEntries(this._resourceIdentity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY)) {
+			for (const entry of getAgentHostConfigurationSyncEntries(getAgentHostConfigurationSyncTarget(this._resourceIdentity))) {
 				if (!e.affectsConfiguration(entry.settingId)) {
 					continue;
 				}
@@ -818,7 +818,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 * settings contributed by an extension rather than by core.
 	 */
 	private _forwardClientConfig(includeManagedSettings = true): void {
-		this._dispatchRootConfig(resolveAgentHostConfigurationSyncPatch(this._configurationService, this._resourceIdentity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY));
+		this._dispatchRootConfig(resolveAgentHostConfigurationSyncPatch(this._configurationService, getAgentHostConfigurationSyncTarget(this._resourceIdentity)));
 		this._updateTelemetryLevel();
 		this._updateTerminalAutoApproveEnabled();
 		this._updateTerminalAutoApproveRules();
@@ -1127,6 +1127,20 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		return this._sendExtensionRequest('getManagedSettingsDiagnostics');
 	}
 
+	async getSessionStateFile(session: URI): Promise<URI | undefined> {
+		const result = await this._sendExtensionRequest(GetAgentHostSessionStateFileExtensionMethod, {
+			session: session.toString(),
+		});
+		if (!result.resource) {
+			return undefined;
+		}
+		const resource = URI.parse(result.resource, true);
+		if (resource.scheme !== Schemas.file) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Agent Host returned a non-file session state resource: ${resource.toString()}`);
+		}
+		return toAgentHostUri(resource, this._connectionAuthority);
+	}
+
 	async collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> {
 		const result = await this._sendExtensionRequest(CollectAgentHostDebugLogsExtensionMethod, {
 			session: session?.toString(),
@@ -1139,9 +1153,8 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		if (resource.scheme !== Schemas.file) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Agent Host returned a non-file debug log resource: ${resource.toString()}`);
 		}
-		const maxUncompressedSize = kind === 'archive' ? AGENT_HOST_DEBUG_LOGS_MAX_STAGED_BYTES : AGENT_HOST_DEBUG_LOGS_MAX_BYTES;
 		if (!Number.isSafeInteger(result.size) || result.size < 0 || result.size > AGENT_HOST_DEBUG_LOGS_MAX_BYTES
-			|| !Number.isSafeInteger(result.uncompressedSize) || result.uncompressedSize < 0 || result.uncompressedSize > maxUncompressedSize) {
+			|| !Number.isSafeInteger(result.uncompressedSize) || result.uncompressedSize < 0 || result.uncompressedSize > AGENT_HOST_DEBUG_LOGS_MAX_BYTES) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned invalid debug log artifact sizes');
 		}
 		if (!Array.isArray(result.entries) || result.entries.length > AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES) {
@@ -1152,7 +1165,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		for (const entry of result.entries) {
 			const segments = entry.path.split('/');
 			if (!entry.path || entry.path.includes('\\') || segments.some((segment: string) => !segment || segment === '.' || segment === '..')
-				|| !Number.isSafeInteger(entry.size) || entry.size < 0 || entry.size > AGENT_HOST_DEBUG_LOGS_MAX_FILE_BYTES
+				|| !Number.isSafeInteger(entry.size) || entry.size < 0
 				|| entryPaths.has(entry.path)) {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an invalid debug log artifact manifest entry');
 			}

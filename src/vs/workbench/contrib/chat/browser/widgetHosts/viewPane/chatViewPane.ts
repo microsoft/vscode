@@ -916,7 +916,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const newSessionButtonContainer = this.sessionsNewButtonContainer = append(sessionsContainer, $('.agent-sessions-new-button-container'));
 		const newSessionButton = this._register(new Button(newSessionButtonContainer, { ...defaultButtonStyles, secondary: true }));
 		newSessionButton.label = localize('newSession', "New Session");
-		this._register(newSessionButton.onDidClick(() => this.commandService.executeCommand(ACTION_ID_NEW_CHAT, this.getActionsContext())));
+		const createNewChat = () => this.commandService.executeCommand(ACTION_ID_NEW_CHAT, this.getActionsContext());
+		this._register(newSessionButton.onDidClick(createNewChat));
 
 		// Sessions Control
 		this.sessionsControlContainer = append(sessionsContainer, $('.agent-sessions-control-container'));
@@ -924,6 +925,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			source: 'chatViewPane',
 			filter: sessionsFilter,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
+			createNewChat,
 			getHoverPosition: () => this.getSessionHoverPosition(),
 			trackActiveEditorSession: () => {
 				return !this._widget || this._widget.isEmpty(); // only track and reveal if chat widget is empty
@@ -1103,6 +1105,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			{
 				listForeground: SIDE_BAR_FOREGROUND,
 				listBackground: locationBasedColors.background,
+				listShadow: locationBasedColors.listOverrideStyles.treeStickyScrollShadow,
 				overlayBackground: locationBasedColors.overlayBackground,
 				inputEditorBackground: locationBasedColors.background,
 				resultEditorBackground: editorBackground,

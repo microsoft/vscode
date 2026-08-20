@@ -85,6 +85,7 @@ class MockCopilotSession {
 	readonly gitHubCredentialUpdates: Array<{ credentials?: { type: 'token'; host: string; token: string } }> = [];
 	gitHubCredentialUpdateResult = { success: true, copilotUserResolved: true };
 	gitHubCredentialUpdateError: Error | undefined;
+	readonly collectLogsCalls: Parameters<CopilotSession['rpc']['debug']['collectLogs']>[0][] = [];
 	readonly experimentalModeUpdates: boolean[] = [];
 	experimentalModeUpdateSuccess = true;
 	sandboxConfigUpdateSuccess = true;
@@ -252,6 +253,15 @@ class MockCopilotSession {
 	}
 
 	readonly rpc = {
+		debug: {
+			collectLogs: async (params: Parameters<CopilotSession['rpc']['debug']['collectLogs']>[0]) => {
+				this.collectLogsCalls.push(params);
+				const { destination } = params;
+				return destination.kind === 'directory'
+					? { kind: 'directory' as const, path: destination.outputDirectory, entries: [] }
+					: { kind: 'archive' as const, path: destination.outputPath, entries: [] };
+			},
+		},
 		mode: {
 			get: async () => ({ mode: 'interactive' as const }),
 			set: async (params: { mode: 'interactive' | 'plan' | 'autopilot' }) => {
@@ -1010,6 +1020,22 @@ suite('CopilotAgentSession', () => {
 			result: { success: true, copilotUserResolved: true },
 			updates: [{ credentials: { type: 'token', host: 'github.com', token: 'updated-token' } }],
 		});
+	});
+
+	test('collects SDK debug logs without process logs', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		const outputDirectory = URI.file('/tmp/agent-host-debug');
+
+		await session.collectDebugLogs(outputDirectory, true);
+		await session.collectDebugLogs(outputDirectory, false);
+
+		assert.deepStrictEqual(mockSession.collectLogsCalls, [{
+			destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
+			include: { events: true, processLogs: false, shellLogs: true },
+		}, {
+			destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
+			include: { events: false, processLogs: false, shellLogs: false },
+		}]);
 	});
 
 	suite('CopilotSessionWrapper', () => {
@@ -4040,7 +4066,7 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(mockSession.sendRequests, []);
 		});
 
-		test('syncs permission mode when the session approval level changes', async () => {
+		test('defers an idle session approval change until the next turn', async () => {
 			const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables, {
 				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
 			});
@@ -4049,8 +4075,16 @@ suite('CopilotAgentSession', () => {
 
 			fireSessionConfigChange({ [SessionConfigKey.AutoApprove]: 'default' });
 			await timeout(0);
+			const beforeTurn = [...mockSession.permissionModeSetCalls];
+			await session.send('hello', undefined, 'turn-1');
 
-			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['auto', 'off']);
+			assert.deepStrictEqual({
+				beforeTurn,
+				afterTurn: mockSession.permissionModeSetCalls,
+			}, {
+				beforeTurn: ['auto'],
+				afterTurn: ['auto', 'off'],
+			});
 		});
 
 		test('keeps sandbox enabled when the session approval level changes', async () => {
@@ -4098,6 +4132,7 @@ suite('CopilotAgentSession', () => {
 		test('syncs permission mode when root approval configuration changes', async () => {
 			const { session, mockSession, setRootValue, fireRootConfigChange } = await createAgentSession(disposables);
 			await session.syncPermissionMode('turn-start');
+			session.resetTurnState('active-turn');
 			setRootValue(AgentHostGlobalAutoApproveEnabledConfigKey, true);
 
 			fireRootConfigChange();
@@ -4111,6 +4146,7 @@ suite('CopilotAgentSession', () => {
 				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
 			});
 			await session.syncPermissionMode('turn-start');
+			session.resetTurnState('active-turn');
 			mockSession.permissionModeSetSuccess = false;
 			setConfigValue(SessionConfigKey.AutoApprove, 'default');
 
@@ -4123,6 +4159,7 @@ suite('CopilotAgentSession', () => {
 		test('aborts when a live sandbox update fails', async () => {
 			const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables);
 			await session.syncPermissionMode('turn-start');
+			session.resetTurnState('active-turn');
 			mockSession.sandboxConfigUpdateSuccess = false;
 			setConfigValue(SessionConfigKey.AutoApprove, 'autoApprove');
 
@@ -4408,6 +4445,7 @@ suite('CopilotAgentSession', () => {
 
 			const { session: initialSession, mockSession: initialMockSession, setConfigValue: setInitialConfigValue, fireSessionConfigChange: fireInitialSessionConfigChange } = await createAgentSession(disposables, { configValues: { ...configValues } });
 			await initialSession.syncPermissionMode('turn-start');
+			initialSession.resetTurnState('active-turn');
 			setInitialConfigValue(SessionConfigKey.AutoApprove, 'default');
 			fireInitialSessionConfigChange({ [SessionConfigKey.AutoApprove]: 'default' });
 			await timeout(0);
@@ -4419,6 +4457,7 @@ suite('CopilotAgentSession', () => {
 				configValues: { ...configValues },
 			});
 			await peerSession.syncPermissionMode('turn-start');
+			peerSession.resetTurnState('active-turn');
 			setPeerConfigValue(SessionConfigKey.AutoApprove, 'default');
 			// Config changes are always emitted keyed by the owning session URI
 			// (the default here), never by this peer chat's own `resource`.

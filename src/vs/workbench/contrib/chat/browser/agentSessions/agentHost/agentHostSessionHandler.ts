@@ -769,6 +769,8 @@ export interface IAgentHostSessionHandlerConfig {
 	readonly resolveWorkingDirectory?: (sessionResource: URI) => URI | undefined;
 	/** Whether a final-looking chat resource is still a client-side draft. */
 	readonly isNewSession?: (sessionResource: URI) => boolean;
+	/** Called after a locally-created session has been accepted by the backend. */
+	readonly onSessionMaterialized?: (sessionResource: URI) => void;
 	/**
 	 * Optional callback invoked when the server rejects an operation because
 	 * authentication is required. Should trigger interactive authentication
@@ -1252,6 +1254,23 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				// Embedded resources will be added when the workbench grows first-class support for them.
 				return undefined; // unknown attachment type
 		}
+	}
+
+	updateChatSessionMetadata(sessionResource: URI, metadata: Record<string, unknown>): void {
+		const backendSession = this._resolveSessionUri(sessionResource);
+		const state = this._getSessionState(backendSession.toString());
+		if (state) {
+			this._config.connection.dispatch(backendSession.toString(), {
+				type: ActionType.SessionMetaChanged,
+				_meta: { ...state._meta, ...metadata },
+			});
+			return;
+		}
+
+		this._provisionalService.setSessionCreationMetadata(sessionResource, {
+			...(this._provisionalService.getInitialSessionMetadata(sessionResource) ?? {}),
+			...metadata,
+		});
 	}
 
 	async provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<IChatSession> {
@@ -2271,23 +2290,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const chatURI = initial.chat.toString();
 
 			if (initial.kind === SessionInputRequestKind.ChatInput) {
-				// A user-facing elicitation with no tool call. If no turn
-				// observer renders it within the grace window, nobody could
-				// answer it, so cancel it (the agent asked; nobody was there).
-				const inputKey = this._inputRequestKey(chatURI, initial.request.id);
-				let cancelled = false;
-				itemStore.add(disposableTimeout(() => {
-					if (cancelled || this._renderedRequests.get().has(inputKey)) {
-						return;
-					}
-					cancelled = true;
-					this._logService.warn(`[AgentHost] Cancelling chat input request ${initial.request.id}: no session claimed it within ${UNOBSERVED_CLIENT_TOOL_GRACE_MS}ms`);
-					this._dispatchAction(backendSession, {
-						type: ActionType.ChatInputCompleted,
-						requestId: initial.request.id,
-						response: ChatInputResponseKind.Cancel,
-					}, chatURI);
-				}, UNOBSERVED_CLIENT_TOOL_GRACE_MS));
+				return;
+			}
+			if (initial.kind !== SessionInputRequestKind.ToolClientExecution || initial.clientId !== this._config.connection.clientId) {
 				return;
 			}
 
@@ -2295,10 +2300,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const requestLifecycle = itemStore.add(new MutableDisposable<IDisposable>());
 			itemStore.add(this._retainToolCall(key));
 
-			if (initial.kind === SessionInputRequestKind.ToolClientExecution) {
-				if (initial.clientId !== this._config.connection.clientId) {
-					return; // A different client owns this call.
-				}
+			{
 				let execution = clientToolExecutions.get(key);
 				if (!execution) {
 					execution = { source: new CancellationTokenSource(), retain: this._retainToolCall(key), activeAttempts: 0 };
@@ -2399,43 +2401,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						}, UNOBSERVED_CLIENT_TOOL_GRACE_MS);
 					}
 				}));
-			} else if (initial.kind === SessionInputRequestKind.ToolAuthentication) {
-				// An MCP tool call blocked on authentication. The token is
-				// pushed out-of-band via the `authenticate` command, so this
-				// watcher does not resolve it — but if no observer renders the
-				// call within the grace window nobody can drive that flow, so
-				// cancel the call rather than leave the agent blocked forever.
-				itemStore.add(disposableTimeout(() => {
-					if (!this._renderedRequests.get().has(key)) {
-						this._logService.warn(`[AgentHost] Cancelling MCP authentication for ${initial.toolCall.toolName} (callId=${initial.toolCall.toolCallId}): no session claimed it within ${UNOBSERVED_CLIENT_TOOL_GRACE_MS}ms`);
-						this._resolveToolCall(chatURI, initial.turnId, initial.toolCall.toolCallId, {
-							type: ActionType.ChatToolCallComplete,
-							turnId: initial.turnId,
-							toolCallId: initial.toolCall.toolCallId,
-							result: {
-								success: false,
-								pastTenseMessage: localize('agentHost.mcpToolAuthentication.cancelled', "Cancelled tool call"),
-								error: { message: localize('agentHost.mcpToolAuthentication.cancelledError', "MCP authentication was cancelled"), code: 'cancelled' },
-							},
-						});
-					}
-				}, UNOBSERVED_CLIENT_TOOL_GRACE_MS));
-			} else {
-				// A confirmation that no sub/agent observer claims within the
-				// grace window is auto-denied so the agent is not left blocked
-				// on a surface that never renders.
-				itemStore.add(disposableTimeout(() => {
-					if (!this._renderedRequests.get().has(key)) {
-						this._logService.warn(`[AgentHost] Denying confirmation for ${initial.toolCall.toolName} (callId=${initial.toolCall.toolCallId}): no session claimed it within ${UNOBSERVED_CLIENT_TOOL_GRACE_MS}ms`);
-						this._resolveToolCall(chatURI, initial.turnId, initial.toolCall.toolCallId, {
-							type: ActionType.ChatToolCallConfirmed,
-							turnId: initial.turnId,
-							toolCallId: initial.toolCall.toolCallId,
-							approved: false,
-							reason: ToolCallCancellationReason.Denied,
-						});
-					}
-				}, UNOBSERVED_CLIENT_TOOL_GRACE_MS));
 			}
 		}));
 	}
@@ -4988,6 +4953,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private async _createAndSubscribe(sessionResource: URI, model: ModelSelection | undefined, fork?: { session: URI; chat: URI; turnIndex: number; turnId: string }, config?: Record<string, unknown>, importConversation?: { readonly turns: readonly Turn[]; readonly model?: ModelSelection }, onFailureStage?: (stage: AgentHostInvocationFailureStage) => void): Promise<URI> {
 		const workingDirectories = this._resolveRequestedWorkingDirectories(sessionResource);
 		const requestedSession = fork ? undefined : this._resolveSessionUri(sessionResource);
+		const meta = this._provisionalService.getInitialSessionMetadata(sessionResource);
 
 		this._logService.trace(`[AgentHost] Creating new session, model=${model?.id ?? '(default)'}, provider=${this._config.provider}${fork ? `, fork from ${fork.session.toString()} at index ${fork.turnIndex}` : ''}`);
 
@@ -5011,7 +4977,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		try {
 			session = await this._config.connection.createSession({
 				session: requestedSession,
-				_meta: this._provisionalService.getInitialSessionMetadata(),
+				_meta: meta,
 				model,
 				provider: this._config.provider,
 				workingDirectories,
@@ -5031,7 +4997,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					onFailureStage?.('createSession');
 					session = await this._config.connection.createSession({
 						session: requestedSession,
-						_meta: this._provisionalService.getInitialSessionMetadata(),
+						_meta: meta,
 						model,
 						provider: this._config.provider,
 						workingDirectories,
@@ -5048,10 +5014,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				throw err;
 			}
 		}
+		this._provisionalService.clearSessionCreationMetadata(sessionResource);
 
 		if (requestedSession && !isEqual(session, requestedSession)) {
 			throw new Error(`Agent host returned unexpected session URI. Expected ${requestedSession.toString()}, got ${session.toString()}`);
 		}
+		this._config.onSessionMaterialized?.(sessionResource);
 
 		this._logService.trace(`[AgentHost] Created session: ${session.toString()}`);
 
