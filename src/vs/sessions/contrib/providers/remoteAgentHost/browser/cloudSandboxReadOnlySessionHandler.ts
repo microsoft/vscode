@@ -69,9 +69,8 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 	private _prefetchedHistory: Promise<IReplayedTaskHistory | undefined> | undefined;
 
 	/**
-	 * Starts `false`: the transcript can be shown while the connect is still in flight, and an
-	 * environment that goes on to wake must not have been presented as read-only. Observable so an
-	 * already-rendered session can be settled in place by {@link markReadOnly}.
+	 * Starts `false`: an environment that goes on to wake must not have been shown as read-only.
+	 * Observable so an already-rendered session can be settled in place by {@link markReadOnly}.
 	 */
 	private readonly _isReadOnly = observableValue<boolean>('cloudSandboxReadOnly', false);
 
@@ -105,10 +104,8 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 	}
 
 	async provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<IChatSession> {
-		// Resolve the session from the *requested* resource, not from the handler's configuration.
-		// One handler serves a whole session type, and an environment can own several sessions (a
-		// fork registers a child under its source task) — keying off config would show one
-		// session's conversation under another's name.
+		// Resolve from the *requested* resource, not the handler's config: one handler serves a
+		// whole session type, and an environment can own several sessions.
 		const sessionId = AgentSession.id(sessionResource);
 		const replayed = await this._readHistory(token);
 		const session = replayed?.sessions.find(s => AgentSession.id(URI.parse(s.session)) === sessionId);

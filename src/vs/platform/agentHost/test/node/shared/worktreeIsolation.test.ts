@@ -533,6 +533,25 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
+	test('resolveWorkingDirectoryForResume recreates a missing live worktree from legacy metadata', async () => {
+		const isolation = createIsolation(disposables);
+		const missingWorktree = URI.joinPath(worktreesRoot, 'missing-legacy-live-worktree');
+		await Promise.all([
+			db.setMetadata('copilot.worktree.branchName', 'feature/x'),
+			db.setMetadata('copilot.workingDirectory', missingWorktree.toString()),
+		]);
+
+		const resolved = await isolation.resolveWorkingDirectoryForResume(sessionUri, sessionId, missingWorktree);
+
+		assert.deepStrictEqual({
+			resolved: resolved.toString(),
+			recreatedWorktrees: addExistingCalls.map(call => ({ worktree: call.worktree.toString(), branchName: call.branchName })),
+		}, {
+			resolved: missingWorktree.toString(),
+			recreatedWorktrees: [{ worktree: missingWorktree.toString(), branchName: 'feature/x' }],
+		});
+	});
+
 	test('resolveWorkingDirectoryForResume uses the repository root for archived history', async () => {
 		const isolation = createIsolation(disposables);
 		const missingWorktree = URI.joinPath(worktreesRoot, 'missing-archived-worktree');

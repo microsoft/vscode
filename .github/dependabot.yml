@@ -14,5 +14,7 @@ updates:
     directory: "/extensions/markdown-language-features"
     schedule:
       interval: "daily"
+      time: "16:00"
+      timezone: "America/Los_Angeles"
     allow:
       - dependency-name: "@vscode/markdown-editor"

@@ -13,7 +13,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { readSessionGitHubState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { createPullRequestBootstrapPrompt, createPullRequestContextAttachment, createPullRequestQuickPickItems, createPullRequestSessionMetadata, getExistingPullRequests, getGitHubRepositoryFromRemotes, getPullRequestNumberFromCheckoutRef, IPullRequestQuickPickItem, mergePullRequestSummaries, pullRequestMatchesQuery, resolvePullRequestSessionRepository } from '../../browser/pullRequestPicker.js';
+import { createPullRequestBootstrapPrompt, createPullRequestContextAttachment, createPullRequestQuickPickItems, createPullRequestSessionMetadata, getExistingPullRequests, getPullRequestNumberFromCheckoutRef, IPullRequestQuickPickItem, mergePullRequestSummaries, pullRequestMatchesQuery, resolvePullRequestSessionRepository } from '../../browser/pullRequestPicker.js';
 import { IGitHubPullRequestSummary } from '../../common/types.js';
 import { createAndOpenPullRequestSession } from '../../browser/pullRequestSessionCreation.js';
 
@@ -259,7 +259,7 @@ suite('Create Session from Pull Request', () => {
 		});
 	});
 
-	test('resolves non-cloud repositories from session metadata or Git remotes', async () => {
+	test('resolves non-cloud repositories from session metadata', async () => {
 		const cloudRoot = URI.parse('github-remote-file://github/alexr00/playground/copilot%252Finspect-pull-request-748');
 		const localRoot = URI.file('/repos/alexr00/playground');
 		const remoteRoot = URI.parse('vscode-remote://ssh-remote+host/repos/alexr00/playground');
@@ -268,17 +268,13 @@ suite('Create Session from Pull Request', () => {
 		const remoteSession = sessionWithRepository(remoteRoot, 'alexr00', 'playground');
 
 		assert.deepStrictEqual({
-			cloud: await resolvePullRequestSessionRepository([cloudSession], async () => undefined),
-			local: await resolvePullRequestSessionRepository([localSession], async () => ({ owner: 'alexr00', repo: 'playground' })),
-			mixed: await resolvePullRequestSessionRepository([cloudSession, localSession], async () => undefined),
-			remote: await resolvePullRequestSessionRepository([remoteSession], async () => undefined),
+			cloud: await resolvePullRequestSessionRepository([cloudSession]),
+			local: await resolvePullRequestSessionRepository([localSession]),
+			mixed: await resolvePullRequestSessionRepository([cloudSession, localSession]),
+			remote: await resolvePullRequestSessionRepository([remoteSession]),
 		}, {
 			cloud: undefined,
-			local: {
-				folderUri: localRoot,
-				owner: 'alexr00',
-				repo: 'playground',
-			},
+			local: undefined,
 			mixed: {
 				folderUri: localRoot,
 				owner: 'alexr00',
@@ -289,25 +285,6 @@ suite('Create Session from Pull Request', () => {
 				owner: 'alexr00',
 				repo: 'playground',
 			},
-		});
-	});
-
-	test('parses GitHub repository identity from origin before other remotes', () => {
-		assert.deepStrictEqual({
-			https: getGitHubRepositoryFromRemotes([
-				{ name: 'upstream', fetchUrl: 'git@github.com:microsoft/vscode.git' },
-				{ name: 'origin', fetchUrl: 'https://github.com/alexr00/vscode.git' },
-			]),
-			ssh: getGitHubRepositoryFromRemotes([
-				{ name: 'origin', fetchUrl: 'ssh://git@github.com/alexr00/playground' },
-			]),
-			nonGitHub: getGitHubRepositoryFromRemotes([
-				{ name: 'origin', fetchUrl: 'https://example.com/alexr00/playground.git' },
-			]),
-		}, {
-			https: { owner: 'alexr00', repo: 'vscode' },
-			ssh: { owner: 'alexr00', repo: 'playground' },
-			nonGitHub: undefined,
 		});
 	});
 });
