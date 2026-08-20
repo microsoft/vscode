@@ -62,6 +62,7 @@ interface ITurnTiming {
 	readonly clientContext: IAgentHostClientTelemetryContext;
 	readonly completedModelCallIds: Set<string>;
 	firstProgressMs: number | undefined;
+	firstEditMs: number | undefined;
 	currentStage: AgentHostTurnFailureStage;
 
 	// Hang watchdog state
@@ -158,6 +159,7 @@ export class AgentHostTurnTracker extends Disposable {
 			clientContext,
 			completedModelCallIds: new Set(),
 			firstProgressMs: undefined,
+			firstEditMs: undefined,
 			currentStage: 'validation',
 			quietStopWatch: StopWatch.create(false),
 			lastActivityKind: TURN_ACTIVITY_NONE,
@@ -178,6 +180,13 @@ export class AgentHostTurnTracker extends Disposable {
 		const timing = this._turnTimings.get(this._key(session, turnId));
 		if (timing && timing.firstProgressMs === undefined) {
 			timing.firstProgressMs = timing.stopWatch.elapsed();
+		}
+	}
+
+	markFirstEdit(session: string, turnId: string): void {
+		const timing = this._turnTimings.get(this._key(session, turnId));
+		if (timing && timing.firstEditMs === undefined) {
+			timing.firstEditMs = timing.stopWatch.elapsed();
 		}
 	}
 
@@ -343,6 +352,7 @@ export class AgentHostTurnTracker extends Disposable {
 			session: timing.session,
 			turnId,
 			timeToFirstProgress: timing.firstProgressMs,
+			timeToFirstEdit: timing.firstEditMs,
 			totalTime: timing.stopWatch.elapsed(),
 			result,
 			model: timing.model,

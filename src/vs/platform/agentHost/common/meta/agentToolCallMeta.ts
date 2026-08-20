@@ -17,6 +17,8 @@ interface IHasToolCallMeta {
  * wrong-typed values.
  */
 export interface IToolCallMeta {
+	/** Whether the tool invocation is known to modify files. */
+	readonly modifiesFiles?: boolean;
 	/**
 	 * VS Code rendering hint. `terminal` routes the call to the command/output
 	 * renderer, `subagent` to the subagent UI, `search` to the search renderer,
@@ -125,6 +127,7 @@ export function readToolCallMeta(source: IHasToolCallMeta): IToolCallMeta {
 		return {};
 	}
 	const result: Mutable<IToolCallMeta> = {};
+	if (typeof meta['modifiesFiles'] === 'boolean') { result.modifiesFiles = meta['modifiesFiles']; }
 	if (isToolKind(meta['toolKind'])) { result.toolKind = meta['toolKind']; }
 	if (typeof meta['language'] === 'string') { result.language = meta['language']; }
 	if (typeof meta['subagentDescription'] === 'string') { result.subagentDescription = meta['subagentDescription']; }

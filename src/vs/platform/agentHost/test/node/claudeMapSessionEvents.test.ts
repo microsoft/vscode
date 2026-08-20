@@ -279,6 +279,30 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		assert.deepStrictEqual(log.warns, []);
 	});
 
+	test('content_block_start marks built-in file edit tools', () => {
+		const signals = mapSDKMessageToAgentSignals(
+			makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_write', 'Write')),
+			SESSION,
+			TURN_ID,
+			new ClaudeMapperState(),
+			new CapturingLogService(),
+			r(),
+		);
+
+		assert.deepStrictEqual(signals, [{
+			kind: 'action',
+			resource: SESSION,
+			action: {
+				type: ActionType.ChatToolCallStart,
+				turnId: TURN_ID,
+				toolCallId: 'tu_write',
+				toolName: 'Write',
+				displayName: 'Write file',
+				_meta: { modifiesFiles: true },
+			},
+		}]);
+	});
+
 	test('Test 8b — content_block_start for an mcp__client__* tool sets the Client contributor', () => {
 		// Regression: the mapper used to emit an invalid `toolClientId` field
 		// on the ChatToolCallStart action. Because the spread bypassed
@@ -478,6 +502,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 				invocationMessage: { markdown: 'Edit [new.ts](file:///src/new.ts)' },
 				toolInput: '{\n  "file_path": "/src/new.ts",\n  "content": "one\\ntwo"\n}',
 				confirmed: ToolCallConfirmationReason.NotNeeded,
+				_meta: { modifiesFiles: true },
 			}],
 		});
 	});
