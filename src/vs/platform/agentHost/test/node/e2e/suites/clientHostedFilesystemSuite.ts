@@ -265,6 +265,7 @@ export function defineClientHostedFilesystemTests(context: IAgentHostE2ETestCont
 		assertReverseRequest({ method: 'resourceWrite', uri: URI.file(file).toString() });
 	});
 
+	// Reverse binary writes currently pass through UTF-8; see KNOWN_ISSUES.md.
 	conformanceTest(context, 'client-hosted resourceWrite decodes base64 content', async function () {
 		const clientId = await initializeClient('write-binary');
 		const workspace = createWorkspace('ahp-client-hosted-write-binary-');
@@ -298,6 +299,40 @@ export function defineClientHostedFilesystemTests(context: IAgentHostE2ETestCont
 
 		assert.strictEqual(readFileSync(file, 'utf8'), 'existing');
 		assertReverseRequest({ method: 'resourceResolve', uri: URI.file(file).toString() });
+	});
+
+	conformanceTest(context, 'client-hosted concurrent resourceWrite createOnly calls have a single winner', async function () {
+		const clientId = await initializeClient('write-create-only-concurrent');
+		const workspace = createWorkspace('ahp-client-hosted-write-create-only-concurrent-');
+		const file = join(workspace, 'winner.txt');
+		const uri = clientUri(clientId, file);
+
+		const results = await Promise.allSettled([
+			context.client.call('resourceWrite', {
+				channel: ROOT_STATE_URI,
+				uri,
+				data: 'first',
+				encoding: ContentEncoding.Utf8,
+				createOnly: true,
+			}),
+			context.client.call('resourceWrite', {
+				channel: ROOT_STATE_URI,
+				uri,
+				data: 'second',
+				encoding: ContentEncoding.Utf8,
+				createOnly: true,
+			}),
+		]);
+
+		assert.deepStrictEqual({
+			statuses: results.map(result => result.status).sort(),
+			contentIsWinner: ['first', 'second'].includes(readFileSync(file, 'utf8')),
+			reverseWrites: context.client.servedReverseRequests.filter(request => request.method === 'resourceWrite').length,
+		}, {
+			statuses: ['fulfilled', 'rejected'],
+			contentIsWinner: true,
+			reverseWrites: 1,
+		});
 	});
 
 	conformanceTest(context, 'client-hosted resourceMkdir creates missing parent directories', async function () {

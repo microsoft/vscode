@@ -388,11 +388,7 @@ export class TestProtocolClient {
 		const createOnly = params.createOnly ?? false;
 
 		await mkdir(dirname(filePath), { recursive: true });
-		const exists = await this._pathExists(filePath);
-		if (createOnly && exists) {
-			throw new ProtocolError(AhpErrorCodes.AlreadyExists, `File already exists: ${filePath}`);
-		}
-		const existing = exists ? await readFile(filePath) : Buffer.alloc(0);
+		const existing = !createOnly && await this._pathExists(filePath) ? await readFile(filePath) : Buffer.alloc(0);
 		const clampedStart = Math.min(position, existing.length);
 		let next: Buffer;
 		switch (mode) {
@@ -409,7 +405,7 @@ export class TestProtocolClient {
 				next = Buffer.concat([existing.subarray(0, clampedStart), incoming]);
 				break;
 		}
-		await writeFile(filePath, next);
+		await writeFile(filePath, next, createOnly ? { flag: 'wx' } : undefined);
 		return {};
 	}
 
