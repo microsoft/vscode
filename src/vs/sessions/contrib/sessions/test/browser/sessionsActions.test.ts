@@ -33,6 +33,24 @@ suite('Sessions - Actions', () => {
 		});
 	});
 
+	test('contributes New Chat to the session list item menu', () => {
+		const action = MenuRegistry.getMenuItems(Menus.SessionItemContextMenu)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === 'sessions.chatCompositeBar.addChat');
+
+		assert.deepStrictEqual({
+			title: action && (typeof action.command.title === 'string' ? action.command.title : action.command.title.value),
+			group: action?.group,
+			order: action?.order,
+			when: action?.when?.serialize(),
+		}, {
+			title: 'New Chat in This Session',
+			group: '1_edit',
+			order: 0,
+			when: 'sessionIsCreated && sessionSupportsMultipleChats && !sessionIsArchived',
+		});
+	});
+
 	test('groups session management actions before creation and close', () => {
 		const actions = MenuRegistry.getMenuItems(Menus.SessionBarToolbar)
 			.filter(isIMenuItem)

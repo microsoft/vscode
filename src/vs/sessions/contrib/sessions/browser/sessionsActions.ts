@@ -547,26 +547,30 @@ registerAction2(class AddChatToSessionAction extends Action2 {
 				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate()),
 				primary: KeyMod.CtrlCmd | KeyCode.KeyT,
 			},
-			menu: {
+			menu: [{
 				id: Menus.SessionBarToolbar,
 				group: 'secondary/2_chats',
 				order: 20,
 				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate()),
-			},
+			}, {
+				id: Menus.SessionItemContextMenu,
+				group: '1_edit',
+				order: 0,
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate()),
+			}],
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, session?: IActiveSession): Promise<void> {
+	override async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
-		// From the menu: session is forwarded as context. From the keybinding:
-		// fall back to the active session.
-		const target = session ?? sessionsService.activeSession.get();
+		const target = Array.isArray(context) ? context[0] : context ?? sessionsService.activeSession.get();
 		if (!target) {
 			return;
 		}
 		await sessionsService.openNewChatInSession(target);
-		sessionsPartService.focusSession(target);
+		const activeSession = sessionsService.activeSession.get();
+		sessionsPartService.focusSession(activeSession?.sessionId === target.sessionId ? activeSession : undefined);
 	}
 });
 
