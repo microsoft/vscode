@@ -63,7 +63,9 @@ import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentServerToolHost } from './shared/agentServerToolHost.js';
 import { buildServerToolGroups } from './shared/serverToolGroups.js';
 import { type IChatContextSnapshot, type IRenameTitleResult, type ISessionCreationDefaults, type ISessionServerToolAccessor, validateRenameTitle } from './shared/sessionServerTools.js';
-import { AGENT_HOST_TITLE_SOURCE_AGENT, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadataValues, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
+import { AGENT_HOST_TITLE_SOURCE_AGENT, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadata, persistSessionMetadataValues, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
+import { type IArtifactServerToolAccessor } from './shared/artifactServerTools.js';
+import { parseSessionArtifacts, stringifySessionArtifacts, withSessionArtifacts } from '../common/sessionArtifacts.js';
 
 import { buildWorktreeFailureNotification, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
 import { AgentHostChangesetService } from './agentHostChangesetService.js';
@@ -95,7 +97,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostAuthenticationService, type IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostArtifactToolsConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
 import { AgentHostStorageService, IAgentHostStorageService } from './agentHostStorageService.js';
 import { SessionCoordinationService } from './sessionCoordination.js';
@@ -840,7 +842,7 @@ export class AgentService extends Disposable implements IAgentService {
 			() => this._agentMergeController.isEnabled(),
 			session => this._agentMergeController.getTurnContext(session),
 		);
-		this._serverToolHost = new AgentServerToolHost(this._stateManager, buildServerToolGroups(this._createSessionServerToolAccessor(), agentMergeTools));
+		this._serverToolHost = new AgentServerToolHost(this._stateManager, buildServerToolGroups(this._createSessionServerToolAccessor(), agentMergeTools, this._createArtifactServerToolAccessor()));
 		this._scheduleExternalSessionPrune();
 	}
 
@@ -1202,6 +1204,18 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostActiveAgentTitleGenerationConfigKey) === true;
 	}
 
+	/** Dependency surface for the artifact server-tool group. */
+	private _createArtifactServerToolAccessor(): IArtifactServerToolAccessor {
+		return {
+			isEnabled: () => this._isArtifactToolsEnabled(),
+			persist: (session, artifacts) => persistSessionMetadata(this._sessionDataService, this._logService, session, SESSION_ARTIFACTS_KEY, stringifySessionArtifacts(artifacts)),
+		};
+	}
+
+	private _isArtifactToolsEnabled(): boolean {
+		return this._configurationService.getRootValue(platformRootSchema, AgentHostArtifactToolsConfigKey) === true;
+	}
+
 	private _getServerToolCreationDefaults(source: URI): ISessionCreationDefaults | undefined {
 		const session = this._stateManager.getSessionState(source.toString());
 		if (!session) {
@@ -1516,19 +1530,27 @@ export class AgentService extends Disposable implements IAgentService {
 	 * discovery is independent and surfaces unknown chats additively.
 	 */
 	private async _awaitInitialProviderMigration(): Promise<void> {
-		const providers = [...this._providers.values()];
-		const migrations = providers.map(provider => this._initialProviderMigrations.get(provider.id) ?? Promise.resolve());
-		const results = await Promise.allSettled(migrations);
-		const retries: Promise<void>[] = [];
-		for (let index = 0; index < results.length; index++) {
-			const result = results[index];
-			if (result.status === 'rejected') {
-				const provider = providers[index];
-				this._logService.warn(`[AgentService] initial provider catalog for ${provider.id} was unavailable; retrying before listing sessions`, result.reason);
-				retries.push(this._replaceFailedInitialProviderMigration(provider, migrations[index]));
-			}
+		await Promise.all([...this._providers.values()].map(provider => this._awaitInitialProviderMigrationForProvider(provider)));
+	}
+
+	/**
+	 * Awaits the registration-time legacy migration for a single provider,
+	 * retrying once if that initial catalog pass was unavailable. Rejects only if
+	 * the retry also fails. Restore uses this to wait for its own provider's
+	 * catalog before reading per-session metadata, mirroring what
+	 * {@link _awaitInitialProviderMigration} does for `listSessions`.
+	 */
+	private async _awaitInitialProviderMigrationForProvider(provider: IAgent): Promise<void> {
+		const migration = this._initialProviderMigrations.get(provider.id);
+		if (!migration) {
+			return;
 		}
-		await Promise.all(retries);
+		try {
+			await migration;
+		} catch (err) {
+			this._logService.warn(`[AgentService] initial provider catalog for ${provider.id} was unavailable; retrying before accessing sessions`, err);
+			await this._replaceFailedInitialProviderMigration(provider, migration);
+		}
 	}
 
 	private _replaceFailedInitialProviderMigration(provider: IAgent, failed: Promise<void>): Promise<void> {
@@ -1923,8 +1945,8 @@ export class AgentService extends Disposable implements IAgentService {
 					const sessionStr = s.session.toString();
 					const changesetKeys = this._changesetCoordinator.getListMetadataKeys(sessionStr);
 					const metadataKeys: Record<string, true> = changesetKeys
-						? { customTitle: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_ORCHESTRATION_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS, ...changesetKeys }
-						: { customTitle: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_ORCHESTRATION_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS };
+						? { customTitle: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_ORCHESTRATION_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [SESSION_ARTIFACTS_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS, ...changesetKeys }
+						: { customTitle: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_ORCHESTRATION_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [SESSION_ARTIFACTS_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS };
 					const m = await ref.object.getMetadataObject(metadataKeys);
 					// This session is an internal peer-chat backing (e.g. a
 					// Claude peer chat's SDK session, enumerated by the agent's
@@ -1981,6 +2003,10 @@ export class AgentService extends Disposable implements IAgentService {
 					const multiRoot = parseSessionMultiRootMetadata(m[SESSION_META_MULTI_ROOT_KEY]);
 					if (multiRoot) {
 						updated = { ...updated, _meta: withSessionMultiRootMetadata(updated._meta, multiRoot) };
+					}
+					const artifacts = parseSessionArtifacts(m[SESSION_ARTIFACTS_KEY]);
+					if (artifacts.length > 0) {
+						updated = { ...updated, _meta: withSessionArtifacts(updated._meta, artifacts) };
 					}
 					const folderPickerDecision = parseSessionFolderPickerDecision(m[SESSION_META_FOLDER_PICKER_KEY]);
 					if (folderPickerDecision) {
@@ -2204,6 +2230,8 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/** Tracks the migrate-legacy setting so the config listener acts only on transitions. */
 	private _lastMigrateLegacyEnabled = false;
+	/** Adoptable keys retracted in this window; re-enabling also recovers earlier ones from the catalog. */
+	private readonly _retractedAdoptableKeys = new Set<string>();
 
 	private _isMigrateLegacyEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostMigrateLegacyCopilotCliEnabledConfigKey) === true;
@@ -2221,7 +2249,12 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		this._lastMigrateLegacyEnabled = enabled;
 		if (enabled) {
-			return; // turning on re-surfaces through the normal discovery / list path
+			// Discovery skips chats already in the registry, so it cannot re-announce
+			// what disabling retracted — restore them from the registry instead.
+			this._sessionListReconciliation = this._sessionListReconciliation
+				.then(() => this._resurfaceAdoptableSessions())
+				.catch(error => this._logService.warn('[AgentService] Re-surfacing adoptable legacy sessions failed', error));
+			return;
 		}
 		for (const key of [...this._announcedSurfacedKeys]) {
 			if (this._stateManager.getSessionState(key)) {
@@ -2232,7 +2265,36 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			this._announcedSurfacedKeys.delete(key);
 			this._broadcastExternalSessions.delete(key);
+			this._retractedAdoptableKeys.add(key);
 			this._stateManager.retractSurfacedSession(key);
+		}
+	}
+
+	/**
+	 * Re-announces adoptable-legacy sessions that are not currently surfaced —
+	 * those this window retracted, plus any the catalog still reports as adoptable,
+	 * so rows retracted before a restart are recovered too.
+	 */
+	private async _resurfaceAdoptableSessions(): Promise<void> {
+		if (!this._isMigrateLegacyEnabled()) {
+			return;
+		}
+		for (const metadata of await this.listSessions()) {
+			const key = metadata.session.toString();
+			if (this._announcedSurfacedKeys.has(key) || this._stateManager.getSessionState(key)) {
+				this._retractedAdoptableKeys.delete(key);
+				continue;
+			}
+			if (!this._retractedAdoptableKeys.has(key) && !readSessionEhcliAdoptable(metadata._meta)) {
+				continue;
+			}
+			const provider = AgentSession.provider(metadata.session);
+			if (provider) {
+				await this._announceSurfacedSession(metadata, provider);
+			}
+			if (this._announcedSurfacedKeys.has(key) || this._stateManager.getSessionState(key)) {
+				this._retractedAdoptableKeys.delete(key);
+			}
 		}
 	}
 
@@ -4677,6 +4739,22 @@ export class AgentService extends Disposable implements IAgentService {
 		if (await this._sessionRegistry.isTombstoned(session)) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session was explicitly deleted: ${sessionStr}`);
 		}
+		// Wait for the provider's one-time catalog migration before reading
+		// metadata, mirroring `listSessions`, so restore does not misread an
+		// unwarmed catalog as a missing session (#331648). A catalog that stays
+		// unavailable is non-fatal: fall through, but remember it so a resulting
+		// miss is classified as unavailable rather than absent.
+		let catalogReadable = true;
+		try {
+			await this._awaitInitialProviderMigrationForProvider(agent);
+		} catch (err) {
+			catalogReadable = false;
+			this._logService.warn(`[AgentService] restore: initial catalog migration for provider ${agent.id} failed; a metadata miss will be reported as unavailable, not missing`, err);
+		}
+		// Re-check after the (possibly lengthy) wait so a delete that landed meanwhile is not resurrected.
+		if (await this._sessionRegistry.isTombstoned(session)) {
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session was explicitly deleted: ${sessionStr}`);
+		}
 		const registeredSession = (await this._listRegisteredSessions()).find(entry => entry.session.toString() === sessionStr);
 		const external = registeredSession?.external ?? false;
 
@@ -4696,11 +4774,21 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const adopted = adoption.adopted;
 
+		// A session the registry does not know is only restorable when it is ours:
+		// either an adoptable legacy chat, or one that already has Agent Host
+		// metadata whose registry entry was lost. `external` defaults to false for
+		// unknown sessions, so without this an external chat (e.g. one the GitHub app
+		// created, hidden while `showExternalSessions` is `none`) would be
+		// materialized here and thereby claimed away from the extension host's list.
+		if (!registeredSession && migrateLegacyEnabled && agent.ensureChatAdopted && !adoption.eligible && !adoption.native) {
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session is not an adoptable legacy chat: ${sessionStr}`);
+		}
+
 		// From here the whole restore is wrapped so `migrated` is reported only
 		// after every required step succeeds, and any failure after a successful
 		// adoption is surfaced as a migration failure.
 		try {
-			const facts = await this._restoreSessionState(agent, session, sessionStr, adopted, external, registeredSession?.source ?? 'restore');
+			const facts = await this._restoreSessionState(agent, session, sessionStr, adopted, external, registeredSession?.source ?? 'restore', catalogReadable, !!registeredSession);
 			await this._restoreAnnotations(session);
 			if (adopted) {
 				this._reportLegacyMigration(agent.id, 'migrated', migrationStartTime, facts);
@@ -4797,10 +4885,16 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Returns the facts used for migration telemetry; throws if any required step
 	 * fails so the caller can report the outcome accurately.
 	 */
-	private async _restoreSessionState(agent: IAgent, session: URI, sessionStr: string, adopted: boolean, external: boolean, registrationSource: IRegisteredSession['source']): Promise<{ turnCount: number; hasProject: boolean; hasWorktree: boolean; workingDirectoryCount: number }> {
+	private async _restoreSessionState(agent: IAgent, session: URI, sessionStr: string, adopted: boolean, external: boolean, registrationSource: IRegisteredSession['source'], catalogReadable: boolean, sessionKnownToRegistry: boolean): Promise<{ turnCount: number; hasProject: boolean; hasWorktree: boolean; workingDirectoryCount: number }> {
 		let meta = await this._getSessionMetadataForRestore(agent, session, external);
 		if (!meta) {
-			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found on backend: ${sessionStr}`);
+			// Authoritative absence only when the catalog was readable this run and
+			// the registry has no record of the session; a miss for a known
+			// (registered) session, or while the catalog was unavailable, is
+			// transient — e.g. a provider whose SDK is not downloaded yet (#331648).
+			throw catalogReadable && !sessionKnownToRegistry
+				? new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found on backend: ${sessionStr}`)
+				: new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Provider ${agent.id} could not describe ${sessionStr} yet`);
 		}
 
 		// A freshly-adopted legacy session whose working directory is a
@@ -4898,6 +4992,7 @@ export class AgentService extends Disposable implements IAgentService {
 							[AH_META_WORKSPACELESS_DB_KEY]: true,
 							[AH_META_ORCHESTRATION_DB_KEY]: true,
 							[SESSION_META_MULTI_ROOT_KEY]: true,
+							[SESSION_ARTIFACTS_KEY]: true,
 							[SESSION_META_FOLDER_PICKER_KEY]: true,
 							...GIT_DB_METADATA_KEYS,
 							...CHANGESET_DB_METADATA_KEYS,
@@ -4961,6 +5056,7 @@ export class AgentService extends Disposable implements IAgentService {
 							sessionMetadata = withSessionOrchestration(sessionMetadata, orchestration);
 						}
 						sessionMetadata = withSessionMultiRootMetadata(sessionMetadata, parseSessionMultiRootMetadata(m[SESSION_META_MULTI_ROOT_KEY]));
+						sessionMetadata = withSessionArtifacts(sessionMetadata, parseSessionArtifacts(m[SESSION_ARTIFACTS_KEY]));
 						sessionMetadata = withSessionFolderPickerDecision(sessionMetadata, parseSessionFolderPickerDecision(m[SESSION_META_FOLDER_PICKER_KEY]));
 
 						if (m.configValues) {

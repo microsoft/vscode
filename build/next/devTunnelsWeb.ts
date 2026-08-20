@@ -24,7 +24,6 @@ const allowedImporterRoots = [
 	path.join(NODE_MODULES_ROOT, '@microsoft', 'dev-tunnels-connections'),
 	path.join(NODE_MODULES_ROOT, '@microsoft', 'dev-tunnels-management'),
 	path.join(NODE_MODULES_ROOT, '@microsoft', 'dev-tunnels-contracts'),
-	path.join(NODE_MODULES_ROOT, 'websocket'),
 ];
 const nodeBuiltinNames = ['net', 'os', 'path', 'crypto', 'child_process', 'fs', 'http', 'https', 'tls', 'dns', 'zlib'];
 const nodeBuiltinFilter = new RegExp(`^(?:node:)?(?:${nodeBuiltinNames.join('|')}|stream|buffer)$`);
@@ -100,25 +99,18 @@ export function devTunnelsBrowserShimPlugin(): esbuild.Plugin {
 				return { path: path.join(SHIMS_ROOT, 'empty.cjs') };
 			});
 
-			build.onResolve({ filter: /^\.[\\/]node[\\/]/ }, args => {
-				if (!isSshNodeAlgorithmImport(args)) {
+			build.onResolve({ filter: /^websocket$/ }, args => {
+				if (!isAllowedImporter(args.importer)) {
 					return;
 				}
 				return { path: path.join(SHIMS_ROOT, 'empty.cjs') };
 			});
 
-			build.onResolve({ filter: /^bufferutil$/ }, args => {
-				if (!isAllowedImporter(args.importer)) {
+			build.onResolve({ filter: /^\.[\\/]node[\\/]/ }, args => {
+				if (!isSshNodeAlgorithmImport(args)) {
 					return;
 				}
-				return { path: path.join(SHIMS_ROOT, 'bufferutil.cjs') };
-			});
-
-			build.onResolve({ filter: /^utf-8-validate$/ }, args => {
-				if (!isAllowedImporter(args.importer)) {
-					return;
-				}
-				return { path: path.join(SHIMS_ROOT, 'utf8Validate.cjs') };
+				return { path: path.join(SHIMS_ROOT, 'empty.cjs') };
 			});
 
 			build.onResolve({ filter: /^vscode-jsonrpc$/ }, args => {

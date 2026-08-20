@@ -210,6 +210,14 @@ A provider exposes:
 Session catalog events distinguish added, removed, and changed facades. Durable
 mutable fields remain observable on each facade.
 
+A provider that supersedes another provider's sessions may also expose
+`resolveSessionResource`, which redirects a resource to the one that should
+actually be opened. Open paths address a session by URI — restored editors and
+grid slots, links, and commands all bypass the session list — so filtering the
+list is not sufficient to keep a superseded resource from being opened. The hook
+must decline unfamiliar resources cheaply, and callers fall back to the original
+resource when no provider claims it.
+
 ### Draft creation
 
 `createNewSession` and `createQuickChat` return untitled drafts. A draft is not

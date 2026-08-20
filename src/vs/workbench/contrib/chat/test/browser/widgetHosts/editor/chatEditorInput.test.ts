@@ -14,6 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
+import { IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
@@ -69,6 +70,7 @@ suite('ChatEditorInput', () => {
 			new NullLogService(),
 			new TestContextService(),
 			{ _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false) },
+			{ ambientConnection: undefined } as unknown as IAgentHostConnectionsService,
 		);
 
 		try {
@@ -124,6 +126,7 @@ suite('ChatEditorInput', () => {
 			new NullLogService(),
 			new TestContextService(),
 			{ _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false) },
+			{ ambientConnection: undefined } as unknown as IAgentHostConnectionsService,
 		);
 
 		try {

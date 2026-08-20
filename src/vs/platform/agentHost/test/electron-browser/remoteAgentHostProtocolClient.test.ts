@@ -1436,7 +1436,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 		assert.strictEqual(await resultPromise, undefined);
 	});
 
-	test('collectDebugLogs accepts an archive that expands beyond the transfer limit', async () => {
+	test('collectDebugLogs accepts an archive with a larger uncompressed size', async () => {
 		const { client, transport } = createClient();
 		const resultPromise = client.collectDebugLogs(URI.parse('copilotcli:/session-1'), 'archive');
 		const entrySize = 10 * 1024 * 1024;
@@ -1450,6 +1450,25 @@ suite('RemoteAgentHostProtocolClient', () => {
 		});
 
 		assert.strictEqual((await resultPromise).uncompressedSize, entrySize * 2);
+	});
+
+	test('collectDebugLogs accepts a directory containing 30 MiB of rotated logs', async () => {
+		const { client, transport } = createClient();
+		const resultPromise = client.collectDebugLogs(URI.parse('copilotcli:/session-1'), 'directory');
+		const entrySize = 5 * 1024 * 1024;
+		const entries = Array.from({ length: 6 }, (_, index) => ({
+			path: index === 0 ? 'agenthost.log' : `agenthost.${index}.log`,
+			size: entrySize,
+		}));
+		transport.fireMessage({
+			jsonrpc: '2.0', id: 1,
+			result: {
+				kind: 'directory', resource: 'file:///tmp/agent-host-debug-logs', providerLogsIncluded: true,
+				size: entrySize * entries.length, uncompressedSize: entrySize * entries.length, entries,
+			},
+		});
+
+		assert.strictEqual((await resultPromise).uncompressedSize, 30 * 1024 * 1024);
 	});
 
 	test('collectDebugLogs rejects an unsafe or inconsistent artifact manifest', async () => {

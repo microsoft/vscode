@@ -59,7 +59,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 
 	async getDefaultBranch(workingDirectory: URI): Promise<IDefaultBranch | undefined> {
 		// Try to read the default branch from the remote HEAD reference
-		const remoteRef = (await this._runGit(workingDirectory, ['symbolic-ref', 'refs/remotes/origin/HEAD']))?.trim();
+		const remoteRef = (await this._runGit(workingDirectory, ['symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD']))?.trim();
 		if (remoteRef) {
 			if (!remoteRef.startsWith('refs/remotes/origin/')) {
 				return { name: remoteRef, startPoint: remoteRef };
