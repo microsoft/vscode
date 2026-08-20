@@ -6,6 +6,7 @@
 import type * as http from 'http';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
+import type { IByokLmChatResult } from '../../common/agentHostByokLm.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { parseProxyBearer } from '../claude/claudeProxyAuth.js';
 import {
@@ -72,12 +73,15 @@ const PROXY_USER_FACING_NAME = 'ByokLmProxyService';
 const VENDOR_PATH_PREFIX = '/v/';
 const RESPONSES_SUFFIX = '/responses';
 
-/**
- * The BYOK proxy keeps no per-bind mutable state: the active renderer bridge is
- * resolved from {@link IByokLmBridgeRegistry} at request time, and the nonce
- * lives on the runtime owned by {@link LoopbackProxyServer}.
- */
-type ByokLmProxyState = undefined;
+type PendingToolCallKind = 'function_call' | 'custom_tool_call';
+
+interface IPendingToolContinuation {
+	readonly responseId: string;
+	readonly calls: ReadonlyMap<string, PendingToolCallKind>;
+}
+
+/** Provider state awaiting the SDK's immediate tool-result request. */
+type ByokLmProxyState = Map<string, IPendingToolContinuation>;
 
 /**
  * Local OpenAI-compatible HTTP proxy that lets the Copilot SDK runtime run
@@ -104,8 +108,7 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 	}
 
 	protected createState(): ByokLmProxyState {
-		// No per-bind state — the bridge is resolved from the registry per request.
-		return undefined;
+		return new Map();
 	}
 
 	async start(): Promise<IByokLmProxyHandle> {
@@ -145,14 +148,15 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 		// Inbound requests carry `Bearer <nonce>.<sessionId>`; the runtime is
 		// handed `<nonce>.<sessionId>` at session launch.
 		const auth = parseProxyBearer(req.headers, runtime.nonce);
-		if (!auth.valid || !auth.sessionId) {
+		const sessionId = auth.sessionId;
+		if (!auth.valid || !sessionId) {
 			this._writeJsonError(res, 401, 'Invalid authentication', 'authentication_error');
 			return;
 		}
 
 		const vendor = this._parseVendorFromResponsesPath(pathname);
 		if (method === 'POST' && vendor !== undefined) {
-			await this._handleResponses(req, res, runtime, vendor);
+			await this._handleResponses(req, res, runtime, vendor, sessionId);
 			return;
 		}
 
@@ -185,7 +189,7 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 		return vendor;
 	}
 
-	private async _handleResponses(req: http.IncomingMessage, res: http.ServerResponse, runtime: ILoopbackProxyRuntime<ByokLmProxyState>, vendor: string): Promise<void> {
+	private async _handleResponses(req: http.IncomingMessage, res: http.ServerResponse, runtime: ILoopbackProxyRuntime<ByokLmProxyState>, vendor: string, sessionId: string): Promise<void> {
 		let body: IResponsesRequest;
 		try {
 			const raw = await readProxyRequestBody(req);
@@ -195,9 +199,19 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 			return;
 		}
 
+		const continuationKey = typeof body?.model === 'string' ? this._continuationKey(sessionId, vendor, body.model) : undefined;
+		let bridgeBody = body;
+		if (continuationKey && body.previous_response_id === undefined) {
+			const pending = runtime.state.get(continuationKey);
+			const input = pending && this._recoverToolContinuation(body.input, pending);
+			if (input) {
+				bridgeBody = { ...body, input, previous_response_id: pending.responseId };
+			}
+		}
+
 		let bridgeRequest;
 		try {
-			bridgeRequest = responsesRequestToBridge(vendor, body);
+			bridgeRequest = responsesRequestToBridge(vendor, bridgeBody);
 		} catch (err) {
 			const message = err instanceof ResponsesTranslationError ? err.message : String(err);
 			this._writeJsonError(res, 400, message, 'invalid_request_error');
@@ -231,6 +245,9 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 				this._writeJsonError(res, 502, result.error, 'api_error');
 				return;
 			}
+			if (continuationKey) {
+				this._updateToolContinuation(runtime.state, continuationKey, result);
+			}
 			if (body.stream === true) {
 				res.writeHead(200, {
 					'Content-Type': 'text/event-stream',
@@ -258,6 +275,81 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 		} finally {
 			res.removeListener('close', onClose);
 			runtime.inFlight.delete(entry);
+		}
+	}
+
+	private _continuationKey(sessionId: string, vendor: string, modelId: string): string {
+		return JSON.stringify([sessionId, vendor, modelId]);
+	}
+
+	private _recoverToolContinuation(input: IResponsesRequest['input'], pending: IPendingToolContinuation): IResponsesRequest['input'] | undefined {
+		if (!Array.isArray(input)) {
+			return undefined;
+		}
+
+		// A previous_response_id request must contain only the new tool outputs.
+		let start = input.length;
+		while (start > 0 && this._toolOutputKind((input[start - 1] as { readonly type?: unknown } | null)?.type)) {
+			start--;
+		}
+		if (input.length - start !== pending.calls.size) {
+			return undefined;
+		}
+
+		const outputs = input.slice(start);
+		const seen = new Set<string>();
+		for (const value of outputs) {
+			if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+				return undefined;
+			}
+			const item = value as { readonly type?: unknown; readonly call_id?: unknown; readonly output?: unknown };
+			const kind = this._toolOutputKind(item.type);
+			const callId = item.call_id;
+			if (
+				!kind
+				|| typeof callId !== 'string'
+				|| !callId
+				|| seen.has(callId)
+				|| pending.calls.get(callId) !== kind
+				|| (item.output !== undefined && typeof item.output !== 'string')
+			) {
+				return undefined;
+			}
+			seen.add(callId);
+		}
+		return outputs;
+	}
+
+	private _toolOutputKind(type: unknown): PendingToolCallKind | undefined {
+		switch (type) {
+			case 'function_call_output':
+				return 'function_call';
+			case 'custom_tool_call_output':
+				return 'custom_tool_call';
+			default:
+				return undefined;
+		}
+	}
+
+	private _updateToolContinuation(state: ByokLmProxyState, key: string, result: IByokLmChatResult): void {
+		if (!result.responseId) {
+			state.delete(key);
+			return;
+		}
+		const calls = new Map<string, PendingToolCallKind>();
+		for (const item of result.output) {
+			if (item.type === 'function_call' || item.type === 'custom_tool_call') {
+				if (!item.callId || calls.has(item.callId)) {
+					state.delete(key);
+					return;
+				}
+				calls.set(item.callId, item.type);
+			}
+		}
+		if (calls.size) {
+			state.set(key, { responseId: result.responseId, calls });
+		} else {
+			state.delete(key);
 		}
 	}
 
