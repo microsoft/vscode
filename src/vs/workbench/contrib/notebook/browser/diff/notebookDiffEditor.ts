@@ -546,7 +546,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 	private _attachModel(model: INotebookDiffEditorModel) {
 		this._model = model;
-		this._eventDispatcher = new NotebookDiffEditorEventDispatcher();
+		this._eventDispatcher = this._localStore.add(new NotebookDiffEditorEventDispatcher());
 		const updateInsets = () => {
 			DOM.scheduleAtNextAnimationFrame(this.window, () => {
 				if (this._isDisposed) {
