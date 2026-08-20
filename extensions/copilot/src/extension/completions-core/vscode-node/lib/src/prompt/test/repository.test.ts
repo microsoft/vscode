@@ -26,11 +26,14 @@ function findGitRoot(startDir: string): string {
 
 function getOriginInfo(gitRoot: string): { org: string; repo: string } {
 	const originUrl = execSync('git config --get remote.origin.url', { cwd: gitRoot, encoding: 'utf-8' }).trim();
-	const match = originUrl.match(/github\.com[:/](?<org>[^/]+)\/(?<repo>[^/.]+)/);
+	const match = originUrl.match(/(?:github\.com[:/](?<githubOrg>[^/]+)\/(?<githubRepo>[^/.]+)|(?:dev\.azure\.com[/:]|ssh\.dev\.azure\.com:v3\/)(?<adoOrg>[^/]+)\/(?:[^/]+\/)?(?:_git\/)?(?<adoRepo>[^/.]+))/);
 	if (!match?.groups) {
 		throw new Error(`Could not parse origin URL: ${originUrl}`);
 	}
-	return { org: match.groups.org, repo: match.groups.repo };
+	return {
+		org: match.groups.githubOrg ?? match.groups.adoOrg,
+		repo: match.groups.githubRepo ?? match.groups.adoRepo
+	};
 }
 
 suite('Extract repo info tests', function () {
