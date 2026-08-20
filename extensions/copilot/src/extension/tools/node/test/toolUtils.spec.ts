@@ -357,7 +357,8 @@ describe.skipIf(isWindows)('isExternalSymlinkedFile', () => {
 		));
 		const accessor = services.createTestingAccessor();
 		try {
-			return await accessor.get(IInstantiationService).invokeFunction(acc => isFileExternalAndNeedsConfirmation(acc, uri));
+			const result = await accessor.get(IInstantiationService).invokeFunction(acc => isFileExternalAndNeedsConfirmation(acc, uri));
+			return { ...result, realPath: result.realPath?.fsPath };
 		} finally {
 			accessor.dispose();
 		}
@@ -380,7 +381,7 @@ describe.skipIf(isWindows)('isExternalSymlinkedFile', () => {
 
 		await expect(invokeIsFileExternal(URI.file(symlinkedFile))).resolves.toEqual({
 			needsConfirmation: true,
-			realPath: URI.file(externalFile),
+			realPath: externalFile,
 		});
 	});
 
@@ -393,7 +394,7 @@ describe.skipIf(isWindows)('isExternalSymlinkedFile', () => {
 
 		await expect(invokeIsFileExternal(URI.file(symlinkedFile), [workspaceDirectory, secondWorkspaceDirectory])).resolves.toEqual({
 			needsConfirmation: false,
-			realPath: URI.file(targetFile),
+			realPath: targetFile,
 		});
 	});
 
@@ -405,7 +406,7 @@ describe.skipIf(isWindows)('isExternalSymlinkedFile', () => {
 
 		await expect(invokeIsFileExternal(URI.file(symlinkedFile))).resolves.toEqual({
 			needsConfirmation: false,
-			realPath: URI.file(targetFile),
+			realPath: targetFile,
 		});
 	});
 
