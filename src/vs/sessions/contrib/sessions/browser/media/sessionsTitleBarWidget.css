@@ -68,7 +68,8 @@
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-center {
 	display: flex;
 	align-items: center;
-	gap: 6px;
+	gap: 0;
+	height: 100%;
 	min-width: 0;
 	justify-content: flex-start;
 	cursor: pointer;
@@ -76,7 +77,10 @@
 }
 /* Workspace name shown beside its icon. */
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-workspace {
+	display: flex;
+	align-items: center;
 	flex: 0 1 auto;
+	height: 100%;
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -87,6 +91,7 @@
 	display: flex;
 	align-items: center;
 	flex-shrink: 0;
+	height: 100%;
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
