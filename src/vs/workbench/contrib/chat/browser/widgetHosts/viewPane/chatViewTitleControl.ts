@@ -9,7 +9,7 @@ import { renderAsPlaintext } from '../../../../../../base/browser/markdownRender
 import { Gesture, EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { localize } from '../../../../../../nls.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
@@ -49,11 +49,26 @@ export class ChatViewTitleControl extends Disposable {
 	constructor(
 		private readonly container: HTMLElement,
 		private readonly delegate: IChatViewTitleDelegate,
+		createResizeObserver: (callback: ResizeObserverCallback) => ResizeObserver = callback => new ResizeObserver(callback),
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
 		this.render(this.container);
+		// Avoid forcing layout; ResizeObserver reports the final size before paint and triggers relayout.
+		const resizeObserver = createResizeObserver(entries => {
+			const entry = entries.find(entry => entry.target === this.titleContainer);
+			if (!entry) {
+				return;
+			}
+			const height = entry.borderBoxSize[0]?.blockSize ?? entry.contentRect.height;
+			if (height !== this.lastKnownHeight) {
+				this.lastKnownHeight = height;
+				this._onDidChangeHeight.fire();
+			}
+		});
+		resizeObserver.observe(this.titleContainer!);
+		this._register(toDisposable(() => resizeObserver.disconnect()));
 
 		this.registerActions();
 	}
@@ -165,13 +180,6 @@ export class ChatViewTitleControl extends Disposable {
 
 		this.titleContainer.classList.toggle('visible', this.shouldRender());
 		this.titleLabel.value?.updateTitle(title);
-
-		const currentHeight = this.getHeight();
-		if (currentHeight !== this.lastKnownHeight) {
-			this.lastKnownHeight = currentHeight;
-
-			this._onDidChangeHeight.fire();
-		}
 	}
 
 	private shouldRender(): boolean {
@@ -179,11 +187,7 @@ export class ChatViewTitleControl extends Disposable {
 	}
 
 	getHeight(): number {
-		if (!this.titleContainer || this.titleContainer.style.display === 'none') {
-			return 0;
-		}
-
-		return this.titleContainer.offsetHeight;
+		return this.lastKnownHeight;
 	}
 }
 
