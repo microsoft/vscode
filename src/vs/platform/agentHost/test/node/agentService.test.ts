@@ -41,6 +41,7 @@ import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType } from '../../common/state/sessionActions.js';
 import { AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { ChatInteractivity, type MessageAttachment } from '../../common/state/protocol/state.js';
+import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
 import { AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseSession } from '../../node/agentHostDatabase.js';
@@ -2265,7 +2266,7 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				label: 'Pasted text #1',
 				displayKind: undefined,
-				metadata,
+				metadata: { ...metadata, ...toHostSnapshotAttachmentMeta('text/plain') },
 				isSessionAttachment: true,
 				fileName: 'Pasted text #1.txt',
 				contents: 'large pasted text',
@@ -2314,6 +2315,8 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(rewritten.uri.startsWith(attachmentsRoot.toString() + '/'));
 			assert.strictEqual(rewritten.label, 'source.txt');
 			assert.strictEqual(rewritten.displayKind, 'document');
+			// Tagged read-only so downstream providers present it as content, not an editable file (#331154).
+			assert.ok(isHostSnapshotAttachment(rewritten), 'should be tagged as a read-only snapshot');
 
 			const snapshot = await fileService.readFile(URI.parse(rewritten.uri));
 			assert.strictEqual(snapshot.value.toString(), 'hello world');
@@ -2383,7 +2386,7 @@ suite('AgentService (node dispatcher)', () => {
 			}]);
 		});
 
-		test('does not re-snapshot attachments that already point under the session attachments folder', async () => {
+		test('does not re-snapshot attachments already under the attachments folder, but tags them read-only (#331154)', async () => {
 			const { svc, agent, session, attachmentsRoot } = await setup();
 			const existing = joinPath(attachmentsRoot, 'previous-id', 'note.txt');
 			await fileService.writeFile(existing, VSBuffer.fromString('already snapshotted'));
@@ -2397,7 +2400,9 @@ suite('AgentService (node dispatcher)', () => {
 
 			const a = agent.sendMessageCalls[0].attachments?.[0];
 			assert.ok(a && a.type === MessageAttachmentKind.Resource);
-			assert.strictEqual(a.uri, existing.toString(), 'second-pass rewrite should be a no-op');
+			assert.strictEqual(a.uri, existing.toString(), 'second-pass rewrite should not move the file');
+			// A re-attached snapshot must still be tagged so providers treat it as read-only content.
+			assert.ok(isHostSnapshotAttachment(a), 're-attached snapshot should be tagged read-only');
 		});
 
 		test('preserves the original attachment when the source cannot be read', async () => {
