@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { CopilotSession, CurrentToolMetadata, PermissionAllowAllMode, PermissionRequest, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { CopilotSession, CurrentToolMetadata, PermissionMode, PermissionRequest, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
@@ -80,7 +80,7 @@ class MockCopilotSession {
 	readonly sessionId = 'test-session-1';
 	readonly sendRequests: unknown[] = [];
 	readonly modeSetCalls: Array<{ mode: 'interactive' | 'plan' | 'autopilot' }> = [];
-	readonly permissionModeSetCalls: PermissionAllowAllMode[] = [];
+	readonly permissionModeSetCalls: PermissionMode[] = [];
 	permissionModeSetSuccess = true;
 	readonly gitHubCredentialUpdates: Array<{ credentials?: { type: 'token'; host: string; token: string } }> = [];
 	gitHubCredentialUpdateResult = { success: true, copilotUserResolved: true };
@@ -271,11 +271,11 @@ class MockCopilotSession {
 			},
 		},
 		permissions: {
-			setAllowAll: async (params: { mode?: PermissionAllowAllMode }) => {
-				const mode = params.mode ?? 'off';
-				this.operationLog.push('permissions.setAllowAll');
+			setMode: async (params: { mode: PermissionMode }) => {
+				const mode = params.mode;
+				this.operationLog.push('permissions.setMode');
 				this.permissionModeSetCalls.push(mode);
-				return { success: this.permissionModeSetSuccess, enabled: mode === 'on', mode };
+				return { success: this.permissionModeSetSuccess, mode };
 			},
 		},
 		gitHubAuth: {
@@ -2336,7 +2336,7 @@ suite('CopilotAgentSession', () => {
 
 			const log = mockSession.operationLog;
 			const modeIdx = log.indexOf('mode.set');
-			const permIdx = log.indexOf('permissions.setAllowAll');
+			const permIdx = log.indexOf('permissions.setMode');
 			const sandboxIdx = log.indexOf('options.update:sandbox');
 			const startIdx = log.indexOf('fleet.start');
 			assert.deepStrictEqual({
@@ -3795,7 +3795,7 @@ suite('CopilotAgentSession', () => {
 					accessKind: 'read',
 					paths: ['/workspace/src/file.ts'],
 					toolCallId: 'tc-assisted',
-					autoApproval: { recommendation: 'approve', reason: 'Low risk' },
+					assistedApproval: { recommendation: 'approve', reason: 'Low risk' },
 				},
 			});
 
@@ -3830,7 +3830,7 @@ suite('CopilotAgentSession', () => {
 					accessKind: 'read',
 					paths: ['/workspace/src/file.ts'],
 					toolCallId: 'tc-managed',
-					autoApproval: { recommendation: 'approve', reason: 'Low risk' },
+					assistedApproval: { recommendation: 'approve', reason: 'Low risk' },
 				},
 			});
 
@@ -3960,7 +3960,7 @@ suite('CopilotAgentSession', () => {
 					diff: 'diff',
 					canOfferSessionApproval: true,
 					toolCallId: 'tc-assisted-late-event',
-					autoApproval: { recommendation: 'approve', reason: 'Matches the request' },
+					assistedApproval: { recommendation: 'approve', reason: 'Matches the request' },
 				},
 			});
 
@@ -3986,7 +3986,7 @@ suite('CopilotAgentSession', () => {
 					accessKind: 'read',
 					paths: ['/workspace/src/file.ts'],
 					toolCallId: 'tc-assisted-prompt',
-					autoApproval: { recommendation: 'requireApproval', reason: 'Needs confirmation' },
+					assistedApproval: { recommendation: 'requireApproval', reason: 'Needs confirmation' },
 				},
 			});
 
@@ -4033,7 +4033,7 @@ suite('CopilotAgentSession', () => {
 					fullCommandText: 'curl https://example.com',
 					intention: 'Access the network',
 					toolCallId: 'tc-assisted-bypass',
-					autoApproval: { recommendation: 'approve', reason: 'Incorrect recommendation' },
+					assistedApproval: { recommendation: 'approve', reason: 'Incorrect recommendation' },
 				},
 			});
 
@@ -7956,7 +7956,7 @@ suite('CopilotAgentSession', () => {
 					kind: 'custom-tool',
 					toolCallId: 'tc-assisted',
 					toolName: 'my_tool',
-					autoApproval: {
+					assistedApproval: {
 						recommendation: 'approve',
 						reason: 'The requested browser navigation is safe.',
 					},
