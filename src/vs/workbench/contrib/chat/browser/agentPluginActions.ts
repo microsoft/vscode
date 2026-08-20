@@ -73,7 +73,7 @@ export class OpenPluginFolderAction extends Action {
 		super('agentPlugin.openFolder', localize('openPluginFolder', "Open Plugin Folder"), undefined, true,
 			async () => {
 				try {
-					await commandService.executeCommand('revealFileInOS', plugin.uri);
+					await commandService.executeCommand('revealUriInOS', plugin.uri);
 				} catch {
 					await openerService.open(dirname(plugin.uri));
 				}
