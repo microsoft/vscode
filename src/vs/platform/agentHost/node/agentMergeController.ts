@@ -32,7 +32,7 @@ const backstopInterval = 10 * 60_000;
 const maximumRepeatedPromptCount = 3;
 const maximumTotalPromptCount = 6;
 
-interface IAgentMergeControllerOptions {
+export interface IAgentMergeControllerOptions {
 	readonly startTurn: (session: string, turnId: string, prompt: string) => boolean;
 	readonly cancelTurn: (session: string, turnId: string) => void;
 	readonly getAutonomousSessionConfig: (session: string, config: Readonly<Record<string, unknown>>) => Record<string, unknown> | undefined;

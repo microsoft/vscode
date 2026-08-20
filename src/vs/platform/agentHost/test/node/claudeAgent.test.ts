@@ -67,6 +67,7 @@ import { AgentHostSessionTitleSignal, IAgentHostSessionTitleSignal } from '../..
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { IAgentHostAuthenticationService, type IAgentHostAuthTokenChangeEvent } from '../../node/agentHostAuthenticationService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
+import { createTestAgentService } from './agentServiceTestUtils.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { makeMcpServerCustomization } from '../../../agentPlugins/common/pluginParsers.js';
 import { ClaudeAgent, fromSdkModelInfo } from '../../node/claude/claudeAgent.js';
@@ -84,7 +85,6 @@ import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { IClaudeProxyCreditsReport, IClaudeProxyHandle, IClaudeProxyService } from '../../node/claude/claudeProxyService.js';
 import { resolvePromptToContentBlocks } from '../../node/claude/claudePromptResolver.js';
 import { ICopilotApiService, type ICopilotApiServiceRequestOptions } from '../../node/shared/copilotApiService.js';
-import { AgentService } from '../../node/agentService.js';
 import { createAgentChatContext } from '../../node/agentChatContext.js';
 import { injectSideChatContext } from '../../node/agentPeerChats.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, RecordingCheckpointService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
@@ -2155,7 +2155,7 @@ suite('ClaudeAgent', () => {
 	test('AgentService surfaces the registered ClaudeAgent in the providers map', () => {
 		const { agent } = createTestContext(disposables);
 		const fileService = disposables.add(new FileService(new NullLogService()));
-		const service = disposables.add(new AgentService(
+		const service = disposables.add(createTestAgentService(
 			new NullLogService(),
 			fileService,
 			createNullSessionDataService(),
