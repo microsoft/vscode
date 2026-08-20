@@ -509,18 +509,15 @@ export class AgentHostGitService implements IAgentHostGitService {
 			const resolvedBase = await this._resolveRemoteTrackingBranch(repositoryRoot, baseBranch) ?? baseBranch;
 			mergeBaseCommit = (await this._runGit(repositoryRoot, ['merge-base', 'HEAD', resolvedBase]))?.trim();
 		}
-		if (!mergeBaseCommit) {
-			mergeBaseCommit = (await this._runGit(repositoryRoot, ['rev-parse', 'HEAD']))?.trim();
-		}
 
-		return mergeBaseCommit ?? EMPTY_TREE_OBJECT;
+		return mergeBaseCommit ?? this._resolveHeadTreeish(repositoryRoot);
 	}
 
 	private async _runWithTempIndex(repositoryRoot: URI, mergeBaseCommit: string, changedPaths: readonly string[]): Promise<string | undefined> {
 		// Build a throwaway index so we can stage the changed working tree
 		// paths (including untracked files) without disturbing the user's real
-		// index. `read-tree HEAD` seeds it; in empty repos that fails so we
-		// fall back to the empty tree, leaving everything as "added".
+		// index. Resolve the seed explicitly so a Git failure cannot make a
+		// populated repository look like an empty one.
 		const tempDir = URI.joinPath(this._environmentService.tmpDir, `agent-host-git-diff-${generateUuid()}`);
 		await this._fileService.createFolder(tempDir);
 		// `GIT_INDEX_FILE` is consumed by the `git` subprocess so it must be
@@ -533,11 +530,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		// the extension's `buildTempIndexEnv` does for the same reason.
 		env.COMMAND_HOOK_LOCK = '1';
 		try {
-			const seeded = await this._runGit(repositoryRoot, ['read-tree', 'HEAD'], { env });
-			if (seeded === undefined) {
-				// Empty repo (no HEAD yet) - `read-tree` of the empty tree always succeeds.
-				await this._runGit(repositoryRoot, ['read-tree', EMPTY_TREE_OBJECT], { env });
-			}
+			await this._seedTempIndex(repositoryRoot, env);
 			if (!(await this._stageChangedPaths(repositoryRoot, tempDir, changedPaths, env))) {
 				return undefined;
 			}
@@ -545,6 +538,22 @@ export class AgentHostGitService implements IAgentHostGitService {
 		} finally {
 			try { await this._fileService.del(tempDir, { recursive: true, useTrash: false }); } catch { /* best-effort */ }
 		}
+	}
+
+	private async _seedTempIndex(repositoryRoot: URI, env: Record<string, string>): Promise<void> {
+		await this._runGit(repositoryRoot, ['read-tree', await this._resolveHeadTreeish(repositoryRoot)], { env, throwOnError: true });
+	}
+
+	private async _resolveHeadTreeish(repositoryRoot: URI): Promise<string> {
+		const status = await this._runGit(repositoryRoot, ['status', '--porcelain=v2', '--branch', '--untracked-files=no'], {
+			env: { GIT_OPTIONAL_LOCKS: '0' },
+			throwOnError: true,
+		});
+		const branchOid = parseGitStatusBranchOid(status);
+		if (!branchOid) {
+			throw new Error('Git status did not report a branch object');
+		}
+		return branchOid === '(initial)' ? EMPTY_TREE_OBJECT : branchOid;
 	}
 
 	private async _stageChangedPaths(repositoryRoot: URI, tempDir: URI, changedPaths: readonly string[], env: Record<string, string>): Promise<boolean> {
@@ -744,11 +753,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		const indexFile = URI.joinPath(tempDir, 'index').fsPath;
 		const env: Record<string, string> = { GIT_INDEX_FILE: indexFile, COMMAND_HOOK_LOCK: '1' };
 		try {
-			// Seed the temp index from HEAD; for empty repos seed from the empty tree.
-			const seeded = await this._runGit(repositoryRoot, ['read-tree', 'HEAD'], { env });
-			if (seeded === undefined) {
-				await this._runGit(repositoryRoot, ['read-tree', EMPTY_TREE_OBJECT], { env });
-			}
+			await this._seedTempIndex(repositoryRoot, env);
 			if (!(await this._stageChangedPaths(repositoryRoot, tempDir, changedPaths, env))) {
 				return undefined;
 			}
@@ -1537,6 +1542,19 @@ export function parseGitStatusV2(output: string | undefined): {
 		}
 	}
 	return { branchName, upstreamBranchName, outgoingChanges, incomingChanges, uncommittedChanges };
+}
+
+/** Exported for tests. */
+export function parseGitStatusBranchOid(output: string | undefined): string | undefined {
+	if (!output) {
+		return undefined;
+	}
+	for (const line of output.split(/\r?\n/g)) {
+		if (line.startsWith('# branch.oid ')) {
+			return line.substring('# branch.oid '.length).trim() || undefined;
+		}
+	}
+	return undefined;
 }
 
 /** Exported for tests. */

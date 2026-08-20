@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { formatGitError, getRemoteTrackingRef, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
+import { formatGitError, getRemoteTrackingRef, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusBranchOid, parseGitStatusV2, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { URI } from '../../../../base/common/uri.js';
 import { EMPTY_TREE_OBJECT, getBranchCompletions, resolveDiffBaseBranchName } from '../../common/agentHostGitService.js';
@@ -147,6 +147,18 @@ suite('AgentHostGitService', () => {
 		test('returns empty object for undefined input', () => {
 			assert.deepStrictEqual(parseGitStatusV2(undefined), {});
 		});
+	});
+
+	test('parseGitStatusBranchOid parses committed and unborn repositories', () => {
+		assert.deepStrictEqual([
+			parseGitStatusBranchOid('# branch.oid 0123456789abcdef0123456789abcdef01234567\n# branch.head main'),
+			parseGitStatusBranchOid('# branch.oid (initial)\n# branch.head main'),
+			parseGitStatusBranchOid('# branch.head main'),
+		], [
+			'0123456789abcdef0123456789abcdef01234567',
+			'(initial)',
+			undefined,
+		]);
 	});
 
 	suite('parseHasGitHubRemote', () => {
