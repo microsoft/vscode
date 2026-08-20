@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
@@ -15,7 +16,7 @@ import { ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { extractExportableSessionData, isExportableSessionData } from '../../common/model/chatModel.js';
+import { extractExportableSessionData, isExportableSessionData, type ISerializableChatData } from '../../common/model/chatModel.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { revive } from '../../../../../base/common/marshalling.js';
@@ -117,7 +118,14 @@ export function registerChatExportActions() {
 				if (!isExportableSessionData(data)) {
 					throw new Error('Invalid chat session data');
 				}
-				const importedData = extractExportableSessionData(data);
+
+				const importedData: ISerializableChatData = {
+					...extractExportableSessionData(data),
+					sessionId: generateUuid(),
+					creationDate: Date.now(),
+					version: 3,
+					customTitle: undefined,
+				};
 
 				let sessionResource: URI;
 				let resolvedTarget: typeof ChatViewPaneTarget | PreferredGroup;
