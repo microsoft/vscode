@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentHostSandboxKey, type ISandboxConfigValue } from '../../common/sandboxConfigSchema.js';
 import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
-import { buildSandboxConfigForSdk, getServerManagedSandboxEnabled, type CopilotSandboxConfig, type IAgentSandboxFileSystemSetting } from '../../node/copilot/sandboxConfigForSdk.js';
+import { buildSandboxConfigForSdk, type IAgentSandboxFileSystemSetting, type SandboxConfig } from '../../node/copilot/sandboxConfigForSdk.js';
 
 /**
  * Build the host-side `sandbox` root-config bag (the shape the workbench
@@ -54,38 +54,33 @@ function sandbox(
 }
 
 function expectedSandboxConfig(options?: {
-	hasFileSystemPolicy?: boolean;
 	readwritePaths?: string[];
 	readonlyPaths?: string[];
 	deniedPaths?: string[];
 	allowOutbound?: boolean;
 	allowBypass?: boolean;
-}): CopilotSandboxConfig {
-	const hasFileSystemPolicy = options?.hasFileSystemPolicy === true
-		|| options?.readwritePaths !== undefined
-		|| options?.readonlyPaths !== undefined
-		|| options?.deniedPaths !== undefined;
+}): SandboxConfig {
 	return {
 		enabled: true,
-		...(options?.allowBypass !== undefined ? { allowBypass: options.allowBypass } : {}),
-		...(hasFileSystemPolicy || options?.allowOutbound !== undefined
-			? {
-				userPolicy: {
-					...(hasFileSystemPolicy
-						? {
-							filesystem: {
-								...(options?.deniedPaths?.length ? { deniedPaths: options.deniedPaths } : {}),
-								...(options?.readonlyPaths?.length ? { readonlyPaths: options.readonlyPaths } : {}),
-								...(options?.readwritePaths?.length ? { readwritePaths: options.readwritePaths } : {}),
-							},
-						}
-						: {}),
-					...(options?.allowOutbound !== undefined
-						? { network: { allowOutbound: options.allowOutbound } }
-						: {}),
-				},
-			}
-			: {}),
+		allowBypass: options?.allowBypass ?? false,
+		addCurrentWorkingDirectory: true,
+		allowDevToolAccess: true,
+		auth: {
+			git: false,
+			gh: false,
+		},
+		userPolicy: {
+			filesystem: {
+				...(options?.deniedPaths?.length ? { deniedPaths: options.deniedPaths } : {}),
+				...(options?.readonlyPaths?.length ? { readonlyPaths: options.readonlyPaths } : {}),
+				...(options?.readwritePaths?.length ? { readwritePaths: options.readwritePaths } : {}),
+				clearPolicyOnExit: true,
+			},
+			network: {
+				allowOutbound: options?.allowOutbound === true,
+				allowLocalNetwork: true,
+			},
+		},
 	};
 }
 
@@ -155,22 +150,6 @@ suite('buildSandboxConfigForSdk', () => {
 			}), undefined);
 		});
 
-		test('server-managed enablement overrides the local setting', () => {
-			assert.strictEqual(buildSandboxConfigForSdk('linux', undefined, true), undefined);
-			assert.strictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On), false), undefined);
-		});
-
-		test('does not apply local sandbox settings when enablement is server-managed', () => {
-			const localSandbox: ISandboxConfigValue = {
-				[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
-				[AgentHostSandboxKey.AllowNetwork]: true,
-				[AgentHostSandboxKey.AllowUnsandboxedCommands]: true,
-				[AgentHostSandboxKey.LinuxFileSystem]: { allowWrite: ['/workspace'] },
-			};
-
-			assert.strictEqual(buildSandboxConfigForSdk('linux', localSandbox, true), undefined);
-			assert.strictEqual(buildSandboxConfigForSdk('linux', localSandbox, false), undefined);
-		});
 	});
 
 	suite('filesystem policy', () => {
@@ -185,24 +164,6 @@ suite('buildSandboxConfigForSdk', () => {
 			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', cfg)?.userPolicy?.filesystem, expectedSandboxConfig({ readwritePaths: ['/linux'] }).userPolicy?.filesystem);
 			assert.deepStrictEqual(buildSandboxConfigForSdk('darwin', cfg)?.userPolicy?.filesystem, expectedSandboxConfig({ readwritePaths: ['/mac'] }).userPolicy?.filesystem);
 			assert.deepStrictEqual(buildSandboxConfigForSdk('win32', cfg)?.userPolicy?.filesystem, expectedSandboxConfig({ readwritePaths: ['C:\\windows'] }).userPolicy?.filesystem);
-		});
-
-		suite('getServerManagedSandboxEnabled', () => {
-			test('returns explicit server-managed sandbox enablement', () => {
-				assert.deepStrictEqual([
-					getServerManagedSandboxEnabled({ serverManaged: true, settings: { sandbox: { enabled: true } } }),
-					getServerManagedSandboxEnabled({ serverManaged: true, settings: { sandbox: { enabled: false } } }),
-				], [true, false]);
-			});
-
-			test('ignores non-server-managed, absent, and malformed sandbox values', () => {
-				assert.deepStrictEqual([
-					getServerManagedSandboxEnabled({ serverManaged: false, settings: { sandbox: { enabled: true } } }),
-					getServerManagedSandboxEnabled({ serverManaged: true, settings: {} }),
-					getServerManagedSandboxEnabled({ serverManaged: true, settings: { sandbox: { enabled: 'true' } } }),
-					getServerManagedSandboxEnabled({ serverManaged: true, settings: undefined }),
-				], [undefined, undefined, undefined, undefined]);
-			});
 		});
 
 		test('maps each setting to the corresponding SDK list', () => {
@@ -220,7 +181,7 @@ suite('buildSandboxConfigForSdk', () => {
 		});
 
 		test('does not add defaults for an empty filesystem policy', () => {
-			assert.deepStrictEqual(buildSandboxConfigForSdk('darwin', sandbox('darwin', AgentSandboxEnabledValue.On, {})), expectedSandboxConfig({ hasFileSystemPolicy: true }));
+			assert.deepStrictEqual(buildSandboxConfigForSdk('darwin', sandbox('darwin', AgentSandboxEnabledValue.On, {})), expectedSandboxConfig());
 		});
 
 		test('denyRead wins over every other setting for the same path', () => {
@@ -265,7 +226,10 @@ suite('buildSandboxConfigForSdk', () => {
 	suite('network hosts', () => {
 		test('drops host lists without adding a network policy', () => {
 			for (const platform of ['darwin', 'linux'] as const) {
-				assert.strictEqual(buildSandboxConfigForSdk(platform, sandbox(platform, AgentSandboxEnabledValue.On, undefined, { allowedHosts: ['github.com'], blockedHosts: ['evil.example'] }))?.userPolicy?.network, undefined, platform);
+				assert.deepStrictEqual(buildSandboxConfigForSdk(platform, sandbox(platform, AgentSandboxEnabledValue.On, undefined, { allowedHosts: ['github.com'], blockedHosts: ['evil.example'] }))?.userPolicy?.network, {
+					allowOutbound: false,
+					allowLocalNetwork: true,
+				}, platform);
 			}
 		});
 
@@ -273,12 +237,16 @@ suite('buildSandboxConfigForSdk', () => {
 			for (const platform of ['darwin', 'linux'] as const) {
 				assert.deepStrictEqual(buildSandboxConfigForSdk(platform, sandbox(platform, AgentSandboxEnabledValue.On, undefined, { allowedHosts: ['a.example'], blockedHosts: ['b.example'] }, true))?.userPolicy?.network, {
 					allowOutbound: true,
+					allowLocalNetwork: true,
 				}, platform);
 			}
 		});
 
 		test('ignores empty host lists', () => {
-			assert.strictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, undefined, { allowedHosts: [], blockedHosts: [] }))?.userPolicy?.network, undefined);
+			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, undefined, { allowedHosts: [], blockedHosts: [] }))?.userPolicy?.network, {
+				allowOutbound: false,
+				allowLocalNetwork: true,
+			});
 		});
 	});
 });
