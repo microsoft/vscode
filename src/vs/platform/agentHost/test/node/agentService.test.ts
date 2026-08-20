@@ -3160,7 +3160,7 @@ suite('AgentService (node dispatcher)', () => {
 			agent.addSession('external-one', now);
 			agent.addSession('external-two', now);
 			svc.registerProvider(agent);
-			await svc.listSessions(AgentHostExternalSessionsMode.All);
+			await svc.listSessions(AgentHostExternalSessionsMode.Last30Days);
 
 			// A catalog pass otherwise opens every registered session's database,
 			// so a mode that discards the row regardless must not pay for it.
@@ -3175,7 +3175,7 @@ suite('AgentService (node dispatcher)', () => {
 				const hidden = (await svc.listSessions(AgentHostExternalSessionsMode.None)).map(session => AgentSession.id(session.session));
 				const openedWhileHidden = [...new Set(opened)].sort();
 				opened.length = 0;
-				const visible = (await svc.listSessions(AgentHostExternalSessionsMode.All)).map(session => AgentSession.id(session.session)).sort();
+				const visible = (await svc.listSessions(AgentHostExternalSessionsMode.Last30Days)).map(session => AgentSession.id(session.session)).sort();
 
 				assert.deepStrictEqual({ hidden, openedWhileHidden, visible, openedWhileVisible: [...new Set(opened)].sort() }, {
 					hidden: [],
