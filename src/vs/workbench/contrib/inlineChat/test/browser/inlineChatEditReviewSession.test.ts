@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { waitForState } from '../../../../../base/common/observable.js';
@@ -25,7 +25,7 @@ import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IChatExternalEdit, IChatService, IChatUserActionEvent } from '../../../chat/common/chatService/chatService.js';
 import { ModifiedFileEntryState } from '../../../chat/common/editing/chatEditingService.js';
-import { IChatResponseModel } from '../../../chat/common/model/chatModel.js';
+import { ChatResponseModelChangeReason, IChatResponseModel } from '../../../chat/common/model/chatModel.js';
 import { ChatEditingModifiedDocumentEntry } from '../../../chat/browser/chatEditing/chatEditingModifiedDocumentEntry.js';
 import { InlineChatEditReviewSession } from '../../browser/inlineChatEditReviewSession.js';
 import { TestWorkerService } from './testWorkerService.js';
@@ -42,6 +42,10 @@ suite('InlineChatEditReviewSession', () => {
 	let beforeContents: ResourceMap<string>;
 	let models: ResourceMap<ITextModel>;
 
+	interface ITestChatResponse extends IChatResponseModel {
+		addExternalEdit(edit: IChatExternalEdit): void;
+	}
+
 	function getModel(resource: URI): ITextModel {
 		let model = models.get(resource) ?? modelService.getModel(resource);
 		if (!model) {
@@ -51,16 +55,28 @@ suite('InlineChatEditReviewSession', () => {
 		return model;
 	}
 
-	function createResponse(parts: readonly IChatExternalEdit[] = [], requestId = 'request-1'): IChatResponseModel {
-		return {
-			requestId,
-			response: { value: parts } as IChatResponseModel['response'],
-			agent: { id: 'agent' } as IChatResponseModel['agent'],
-			slashCommand: { name: 'inline' } as IChatResponseModel['slashCommand'],
-			request: { modelId: 'model', modeInfo: { telemetryModeId: 'edit' } } as IChatResponseModel['request'],
-			session: { sessionResource: chatSessionResource } as IChatResponseModel['session'],
-			result: undefined,
-		} as IChatResponseModel;
+	function createResponse(parts: readonly IChatExternalEdit[] = [], requestId = 'request-1'): ITestChatResponse {
+		const responseParts = [...parts];
+		const onDidChange = store.add(new Emitter<ChatResponseModelChangeReason>());
+		return new class extends mock<ITestChatResponse>() {
+			override readonly requestId = requestId;
+			override readonly response = {
+				value: responseParts,
+				getMarkdown: () => '',
+				getFinalResponse: () => '',
+				toString: () => '',
+			};
+			override readonly agent = { id: 'agent' } as IChatResponseModel['agent'];
+			override readonly slashCommand = { name: 'inline' } as IChatResponseModel['slashCommand'];
+			override readonly request = { modelId: 'model', modeInfo: { telemetryModeId: 'edit' } } as IChatResponseModel['request'];
+			override readonly session = { sessionResource: chatSessionResource } as IChatResponseModel['session'];
+			override readonly result = undefined;
+			override readonly onDidChange = onDidChange.event;
+			override addExternalEdit(edit: IChatExternalEdit): void {
+				responseParts.push(edit);
+				onDidChange.fire({ reason: 'other' });
+			}
+		};
 	}
 
 	async function beginAndEnd(targetContent: string, response = createResponse()): Promise<void> {
@@ -228,6 +244,35 @@ suite('InlineChatEditReviewSession', () => {
 		]);
 	});
 
+	test('creates an off-target entry with a populated diff before the turn ends', async () => {
+		const externalUri = URI.parse('test:/realtime-external.ts');
+		const beforeContentUri = URI.parse('test:/before-realtime-external.ts');
+		seededContents.set(targetUri, 'target before');
+		seededContents.set(externalUri, 'external after');
+		beforeContents.set(beforeContentUri, 'external before');
+		const response = createResponse();
+
+		await session.beginTurn(response);
+		response.addExternalEdit({
+			kind: 'externalEdit',
+			uri: externalUri,
+			editKind: 'edit',
+			beforeContentUri,
+		});
+
+		const entry = await waitForState(session.entries.map(entries => entries.find(candidate => candidate.modifiedURI.toString() === externalUri.toString()))) as ChatEditingModifiedDocumentEntry;
+		const diff = await waitForState(entry.diffInfo.map(value => value.changes.length > 0 ? value : undefined));
+		assert.deepStrictEqual({
+			initialContent: entry.initialContent,
+			diffChanges: diff.changes.length,
+		}, {
+			initialContent: 'external before',
+			diffChanges: 1,
+		});
+
+		await session.endTurn(response);
+	});
+
 	test('skips deleted external edits', async () => {
 		const deletedUri = URI.parse('test:/deleted.ts');
 		seededContents.set(targetUri, 'before');
@@ -235,6 +280,20 @@ suite('InlineChatEditReviewSession', () => {
 			kind: 'externalEdit',
 			uri: deletedUri,
 			editKind: 'delete',
+		}]);
+
+		await beginAndEnd('after', response);
+
+		assert.deepStrictEqual(session.entries.get().map(entry => entry.modifiedURI.toString()), [targetUri.toString()]);
+	});
+
+	test('skips renamed external edits', async () => {
+		const renamedUri = URI.parse('test:/renamed.ts');
+		seededContents.set(targetUri, 'before');
+		const response = createResponse([{
+			kind: 'externalEdit',
+			uri: renamedUri,
+			editKind: 'rename',
 		}]);
 
 		await beginAndEnd('after', response);
@@ -303,6 +362,53 @@ suite('InlineChatEditReviewSession', () => {
 			entryCount: 1,
 			initialContent,
 			modifiedContent: 'ONE\ntwo\nthree\nfour\nFIVE\n',
+			diffChanges: 2,
+		});
+	});
+
+	test('keeps an off-target file baseline across turns', async () => {
+		const externalUri = URI.parse('test:/cumulative-external.ts');
+		const beforeContentUri = URI.parse('test:/before-cumulative-external.ts');
+		const initialContent = 'one\ntwo\nthree\nfour\nfive\n';
+		seededContents.set(targetUri, 'target');
+		seededContents.set(externalUri, initialContent);
+		beforeContents.set(beforeContentUri, initialContent);
+		const firstResponse = createResponse([{
+			kind: 'externalEdit',
+			uri: externalUri,
+			editKind: 'edit',
+			beforeContentUri,
+		}], 'request-1');
+		const secondResponse = createResponse([{
+			kind: 'externalEdit',
+			uri: externalUri,
+			editKind: 'edit',
+			beforeContentUri,
+		}], 'request-2');
+
+		await session.beginTurn(firstResponse);
+		const entry = await waitForState(session.entries.map(entries => entries.find(candidate => candidate.modifiedURI.toString() === externalUri.toString()))) as ChatEditingModifiedDocumentEntry;
+		getModel(externalUri).setValue('ONE\ntwo\nthree\nfour\nfive\n');
+		await session.endTurn(firstResponse);
+		const firstDiff = await entry.getDiffInfo();
+		assert.strictEqual(firstDiff.changes.length, 1);
+
+		await session.beginTurn(secondResponse);
+		getModel(externalUri).setValue('ONE\ntwo\nthree\nfour\nFIVE\n');
+		await session.endTurn(secondResponse);
+
+		const diff = await entry.getDiffInfo();
+		assert.deepStrictEqual({
+			entryCount: session.entries.get().filter(candidate => candidate.modifiedURI.toString() === externalUri.toString()).length,
+			initialContent: entry.initialContent,
+			modifiedContent: entry.modifiedModel.getValue(),
+			firstDiffChanges: firstDiff.changes.length,
+			diffChanges: diff.changes.length,
+		}, {
+			entryCount: 1,
+			initialContent,
+			modifiedContent: 'ONE\ntwo\nthree\nfour\nFIVE\n',
+			firstDiffChanges: 1,
 			diffChanges: 2,
 		});
 	});

@@ -5,7 +5,7 @@
 
 import { Emitter } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, IReader, ITransaction, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -35,6 +35,8 @@ export class InlineChatEditReviewSession extends Disposable implements IChatEdit
 	private readonly _entries = new ResourceMap<ChatEditingModifiedDocumentEntry>();
 	private readonly _initialContents = new ResourceMap<string>();
 	private readonly _readonlyLocks = new ResourceMap<true>();
+	private readonly _externalEditListener = this._register(new MutableDisposable<IDisposable>());
+	private readonly _externalEditEntriesInFlight = new ResourceMap<Promise<void>>();
 	private readonly _onDidDispose = this._register(new Emitter<void>());
 	readonly onDidDispose = this._onDidDispose.event;
 
@@ -58,6 +60,7 @@ export class InlineChatEditReviewSession extends Disposable implements IChatEdit
 	 */
 	async beginTurn(response: IChatResponseModel): Promise<void> {
 		this._requestId = response.requestId;
+		this._externalEditListener.clear();
 
 		try {
 			if (this._textFileService.isDirty(this._targetUri)) {
@@ -88,7 +91,14 @@ export class InlineChatEditReviewSession extends Disposable implements IChatEdit
 			if (this._store.isDisposed || !entry) {
 				return;
 			}
-			entry.startExternalEdit();
+			// Keep carried-over entries in external-edit mode before agent disk writes arrive.
+			for (const tracked of this._entries.values()) {
+				tracked.startExternalEdit();
+			}
+			this._externalEditListener.value = response.onDidChange(() => {
+				void this._processExternalEdits(response);
+			});
+			void this._processExternalEdits(response);
 		} catch (error) {
 			this._logService.error(`Failed to prepare inline chat review for ${this._targetUri}`, error);
 			await this._resetReadonlyLocks();
@@ -100,27 +110,11 @@ export class InlineChatEditReviewSession extends Disposable implements IChatEdit
 	 * Reverts models from disk, finalizes external edits, and unlocks the target.
 	 */
 	async endTurn(response: IChatResponseModel): Promise<void> {
+		this._externalEditListener.clear();
 		try {
-			const resources = await this._getChangedResources(response);
+			await this._processExternalEdits(response);
 			if (this._store.isDisposed) {
 				return;
-			}
-			const telemetryInfo = this._getTelemetryInfo(response);
-
-			for (const resource of resources) {
-				if (this._store.isDisposed) {
-					return;
-				}
-				if (this._entries.has(resource)) {
-					continue;
-				}
-
-				try {
-					const entry = await this._getOrCreateEntry(resource, telemetryInfo, this._initialContents.get(resource) ?? '');
-					entry?.startExternalEdit();
-				} catch (error) {
-					this._logService.error(`Failed to create inline chat review entry for ${resource}`, error);
-				}
 			}
 		} finally {
 			if (!this._store.isDisposed) {
@@ -158,6 +152,7 @@ export class InlineChatEditReviewSession extends Disposable implements IChatEdit
 	}
 
 	override dispose(): void {
+		this._externalEditListener.clear();
 		this._onDidDispose.fire();
 		for (const entry of this._entries.values()) {
 			entry.stopExternalEdit();
@@ -171,26 +166,74 @@ export class InlineChatEditReviewSession extends Disposable implements IChatEdit
 		return uris.length === 0 ? entries : entries.filter(entry => uris.some(uri => isEqual(entry.modifiedURI, uri)));
 	}
 
-	private async _getChangedResources(response: IChatResponseModel): Promise<readonly URI[]> {
-		const resources = [this._targetUri];
-
+	private async _processExternalEdits(response: IChatResponseModel): Promise<void> {
 		for (const part of response.response.value) {
-			if (part.kind !== 'externalEdit' || part.editKind === 'delete') {
+			if (part.kind !== 'externalEdit') {
 				continue;
 			}
 
-			const externalEdit: IChatExternalEdit = part;
-			if (resources.some(resource => isEqual(resource, externalEdit.uri))) {
-				continue;
+			try {
+				await this._getOrCreateExternalEditEntry(part, this._getTelemetryInfo(response));
+				if (this._store.isDisposed) {
+					return;
+				}
+			} catch (error) {
+				this._logService.error(`Failed to create inline chat review entry for ${part.uri}`, error);
 			}
+		}
+	}
 
-			if (!this._initialContents.has(externalEdit.uri)) {
-				this._initialContents.set(externalEdit.uri, await this._readBeforeContent(externalEdit));
-			}
-			resources.push(externalEdit.uri);
+	private async _getOrCreateExternalEditEntry(edit: IChatExternalEdit, telemetryInfo: IModifiedEntryTelemetryInfo): Promise<void> {
+		if (edit.editKind === 'delete' || edit.editKind === 'rename' || isEqual(edit.uri, this._targetUri)) {
+			return;
 		}
 
-		return resources;
+		if (this._entries.has(edit.uri)) {
+			const entry = await this._getOrCreateEntry(edit.uri, telemetryInfo, this._initialContents.get(edit.uri) ?? '');
+			if (this._store.isDisposed || !entry) {
+				return;
+			}
+			entry.startExternalEdit();
+			return;
+		}
+
+		const inFlight = this._externalEditEntriesInFlight.get(edit.uri);
+		if (inFlight) {
+			await inFlight;
+			if (this._store.isDisposed) {
+				return;
+			}
+			return;
+		}
+
+		const createEntry = this._createExternalEditEntry(edit, telemetryInfo);
+		this._externalEditEntriesInFlight.set(edit.uri, createEntry);
+		try {
+			await createEntry;
+			if (this._store.isDisposed) {
+				return;
+			}
+		} finally {
+			if (this._externalEditEntriesInFlight.get(edit.uri) === createEntry) {
+				this._externalEditEntriesInFlight.delete(edit.uri);
+			}
+		}
+	}
+
+	private async _createExternalEditEntry(edit: IChatExternalEdit, telemetryInfo: IModifiedEntryTelemetryInfo): Promise<void> {
+		let initialContent = this._initialContents.get(edit.uri);
+		if (initialContent === undefined) {
+			initialContent = await this._readBeforeContent(edit);
+			if (this._store.isDisposed) {
+				return;
+			}
+			this._initialContents.set(edit.uri, initialContent);
+		}
+
+		await this._getOrCreateEntry(edit.uri, telemetryInfo, initialContent, true);
+		if (this._store.isDisposed) {
+			return;
+		}
 	}
 
 	private async _readCurrentContent(resource: URI): Promise<string> {
@@ -220,11 +263,14 @@ export class InlineChatEditReviewSession extends Disposable implements IChatEdit
 		}
 	}
 
-	private async _getOrCreateEntry(resource: URI, telemetryInfo: IModifiedEntryTelemetryInfo, initialContent: string): Promise<ChatEditingModifiedDocumentEntry | undefined> {
+	private async _getOrCreateEntry(resource: URI, telemetryInfo: IModifiedEntryTelemetryInfo, initialContent: string, startExternalEdit = false): Promise<ChatEditingModifiedDocumentEntry | undefined> {
 		const existingEntry = this._entries.get(resource);
 		if (existingEntry) {
 			if (telemetryInfo.requestId !== existingEntry.telemetryInfo.requestId) {
 				existingEntry.updateTelemetryInfo(telemetryInfo);
+			}
+			if (startExternalEdit) {
+				existingEntry.startExternalEdit();
 			}
 			return existingEntry;
 		}
@@ -243,6 +289,9 @@ export class InlineChatEditReviewSession extends Disposable implements IChatEdit
 			ChatEditKind.Modified,
 			initialContent,
 		));
+		if (startExternalEdit) {
+			entry.startExternalEdit();
+		}
 		this._entries.set(resource, entry);
 		this._entriesObs.set([...this._entries.values()], undefined);
 		return entry;
