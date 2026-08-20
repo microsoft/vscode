@@ -73,10 +73,7 @@ export class ClaudeSdkMessageRouter extends Disposable {
 			await this._editObserver.observeUser(message, turnId, this._mapperState);
 		}
 		if (turnId === undefined) {
-			// A background subagent settles after the turn that spawned it has
-			// ended, so the queue is drained by the time its completion arrives.
-			// The signal carries its own chat and tool call id, so route it
-			// rather than dropping it with the turn-scoped messages.
+			// A background subagent settles with the queue already drained.
 			if (message.type === 'system') {
 				this._produceSignals(() => mapSubagentSystemMessage(message, this._chatChannelUri, this._subagents));
 			}
