@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession } from '@github/copilot-sdk';
 import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
 import { AgentHostSandboxKey, type ISandboxConfigValue } from '../../common/sandboxConfigSchema.js';
 
@@ -20,31 +19,84 @@ export interface IAgentSandboxFileSystemSetting {
 	denyWrite?: string[];
 }
 
-type SdkSandboxConfig = NonNullable<Parameters<CopilotSession['rpc']['options']['update']>[0]['sandboxConfig']>;
+/**
+ * ToDo: This will be removed as the SDK's built-in sandbox configuration types are exported.
+ */
+export interface SandboxConfig {
+	/** Whether sandboxing is enabled for the session. */
+	enabled: boolean;
 
-export type CopilotSandboxConfig = SdkSandboxConfig & {
-	readonly allowBypass?: boolean;
-};
+	/** Whether all sandbox restrictions can be bypassed. */
+	allowBypass?: boolean;
 
-export interface IManagedSandboxSettingsSnapshot {
-	readonly serverManaged?: boolean;
-	readonly settings?: unknown;
+	/** Automatically grant read/write access to the current working directory. */
+	addCurrentWorkingDirectory?: boolean;
+
+	/** Automatically grant access to common developer tools and caches. */
+	allowDevToolAccess?: boolean;
+
+	/** Credential injection available while sandboxing is enabled. */
+	auth?: SandboxAuthConfig;
+
+	/** User-defined filesystem, network, and macOS policies. */
+	userPolicy?: SandboxUserPolicy;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === 'object' && value !== null;
+export interface SandboxAuthConfig {
+	/** Inject credentials for authenticated Git operations. */
+	git?: boolean;
+
+	/** Export GH_TOKEN for GitHub CLI operations. */
+	gh?: boolean;
 }
 
-export function getServerManagedSandboxEnabled(snapshot: IManagedSandboxSettingsSnapshot): boolean | undefined {
-	if (snapshot.serverManaged !== true || !isRecord(snapshot.settings)) {
-		return undefined;
-	}
-	const sandbox = snapshot.settings['sandbox'];
-	if (!isRecord(sandbox)) {
-		return undefined;
-	}
-	const enabled = sandbox['enabled'];
-	return typeof enabled === 'boolean' ? enabled : undefined;
+export interface SandboxUserPolicy {
+	filesystem?: SandboxFilesystemPolicy;
+	network?: SandboxNetworkPolicy;
+
+	/** Only relevant on macOS. */
+	seatbelt?: SandboxSeatbeltPolicy;
+}
+
+export interface SandboxFilesystemPolicy {
+	/** Paths that sandboxed processes can read and write. */
+	readwritePaths?: string[];
+
+	/** Paths that sandboxed processes can only read. */
+	readonlyPaths?: string[];
+
+	/** Paths that sandboxed processes cannot access. */
+	deniedPaths?: string[];
+
+	/** Whether to clear the filesystem policy when the session exits. */
+	clearPolicyOnExit?: boolean;
+}
+
+export interface SandboxNetworkPolicy {
+	/** Whether outbound network connections are permitted. */
+	allowOutbound?: boolean;
+
+	/** Whether localhost and local-network connections are permitted. */
+	allowLocalNetwork?: boolean;
+
+	/** Optional proxy used by sandboxed processes. */
+	proxy?: SandboxNetworkProxyPolicy;
+}
+
+export interface SandboxNetworkProxyPolicy {
+	/** HTTP or HTTPS proxy URL. */
+	url: string;
+
+	/** Optional proxy username. */
+	username?: string;
+
+	/** Optional proxy password or secret/environment reference. */
+	password?: string;
+}
+
+export interface SandboxSeatbeltPolicy {
+	/** Whether macOS Keychain access is permitted. */
+	keychainAccess?: boolean;
 }
 
 /**
@@ -57,9 +109,6 @@ export function getServerManagedSandboxEnabled(snapshot: IManagedSandboxSettings
  * sandbox policy down into the SDK itself. When the custom terminal tool is
  * ON, the AgentHost's own {@link TerminalSandboxEngine} wraps commands and
  * this function is not consulted.
- *
- * When managed sandbox enablement is defined, the runtime owns the effective
- * sandbox configuration and the host must not apply local sandbox settings.
  *
  * Mirrors `buildSandboxConfigForCLI` in
  * `extensions/copilot/src/extension/chatSessions/copilotcli/node/copilotcliSessionService.ts`
@@ -78,12 +127,7 @@ export function getServerManagedSandboxEnabled(snapshot: IManagedSandboxSettings
 export function buildSandboxConfigForSdk(
 	platform: NodeJS.Platform,
 	sandbox: ISandboxConfigValue | undefined,
-	managedEnabled?: boolean,
-): CopilotSandboxConfig | undefined {
-	if (managedEnabled !== undefined) {
-		return undefined;
-	}
-
+): SandboxConfig | undefined {
 	const enabledRaw = platform === 'win32'
 		? sandbox?.[AgentHostSandboxKey.WindowsEnabled]
 		: sandbox?.[AgentHostSandboxKey.Enabled];
@@ -119,24 +163,28 @@ export function buildSandboxConfigForSdk(
 	}
 
 	const allowNetwork = sandbox?.[AgentHostSandboxKey.AllowNetwork];
-	const allowBypass = sandbox?.[AgentHostSandboxKey.AllowUnsandboxedCommands];
-	const filesystem = hasFileSystemPolicy
-		? {
-			...(denied.size ? { deniedPaths: [...denied] } : {}),
-			...(readonly.size ? { readonlyPaths: [...readonly] } : {}),
-			...(readwrite.size ? { readwritePaths: [...readwrite] } : {}),
-		}
-		: undefined;
-	const network = typeof allowNetwork === 'boolean' ? { allowOutbound: allowNetwork } : undefined;
-	const userPolicy = filesystem || network
-		? {
-			...(filesystem ? { filesystem } : {}),
-			...(network ? { network } : {}),
-		}
-		: undefined;
-	return {
+	const allowBypass = sandbox?.[AgentHostSandboxKey.AllowUnsandboxedCommands] ?? false;
+	const sandboxConfig: SandboxConfig = {
 		enabled: true,
-		...(typeof allowBypass === 'boolean' ? { allowBypass } : {}),
-		...(userPolicy ? { userPolicy } : {}),
+		allowBypass,
+		addCurrentWorkingDirectory: true,
+		allowDevToolAccess: true,
+		auth: {
+			git: false,
+			gh: false,
+		},
+		userPolicy: {
+			filesystem: {
+				...(denied.size ? { deniedPaths: [...denied] } : {}),
+				...(readonly.size ? { readonlyPaths: [...readonly] } : {}),
+				...(readwrite.size ? { readwritePaths: [...readwrite] } : {}),
+				clearPolicyOnExit: true,
+			},
+			network: {
+				allowOutbound: typeof allowNetwork === 'boolean' ? allowNetwork : false,
+				allowLocalNetwork: true,
+			},
+		},
 	};
+	return sandboxConfig;
 }

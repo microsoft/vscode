@@ -181,6 +181,27 @@ function isSessionSection(item: SessionListItem): item is ISessionSection {
 	return !isSessionGroupItem(item) && 'sessions' in item && Array.isArray((item as ISessionSection).sessions);
 }
 
+function getSessionSectionIcon(sectionId: string): ThemeIcon | undefined {
+	switch (sectionId) {
+		case QUICK_CHATS_SECTION_ID:
+			return Codicon.commentDiscussion;
+		case 'pinned':
+			return Codicon.pinned;
+		case AUTOMATIONS_SECTION_ID:
+			return Codicon.watch;
+		case 'archived':
+			return Codicon.archive;
+		case 'recent':
+			return Codicon.history;
+		case 'older':
+			return Codicon.calendar;
+		default:
+			return sectionId.startsWith('workspace:')
+				? Codicon.folder
+				: undefined;
+	}
+}
+
 function isSessionShowMore(item: SessionListItem): item is ISessionShowMore {
 	return 'showMore' in item && (item as ISessionShowMore).showMore === true;
 }
@@ -659,7 +680,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 			if (!hideDetails) {
 				const badgeLabel = isQuickChat
-					? localize('quickChatBadge', "Chat")
+					? localize('quickChatBadge', "No workspace")
 					: workspace && (
 						this.options.grouping() !== SessionsGrouping.Workspace ||
 						this.options.isPinned(element) ||
@@ -969,13 +990,13 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		));
 
 		container.classList.add('session-section');
+		const chevron = DOM.append(container, $('span.session-section-chevron'));
+		chevron.setAttribute('aria-hidden', 'true');
 		const icon = DOM.append(container, $('span.session-section-icon'));
 		icon.setAttribute('aria-hidden', 'true');
 		const label = DOM.append(container, $('span.session-section-label'));
 		const count = DOM.append(container, $('span.session-section-count'));
 		const toolbarContainer = DOM.append(container, $('.session-section-toolbar'));
-		const chevron = DOM.append(container, $('span.session-section-chevron'));
-		chevron.setAttribute('aria-hidden', 'true');
 
 		const contextKeyService = disposables.add(this.contextKeyService.createScoped(container));
 		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
@@ -1040,10 +1061,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		// Leading icon for the "Pinned" and "Chats" (quick chats) section headers.
 		// Templates are reused across rows, so recompute the icon every render.
 		DOM.clearNode(template.icon);
-		const sectionIcon = element.id === QUICK_CHATS_SECTION_ID ? Codicon.commentDiscussion
-			: element.id === 'pinned' ? Codicon.pinned
-				: element.id === AUTOMATIONS_SECTION_ID ? Codicon.watch
-					: undefined;
+		const sectionIcon = getSessionSectionIcon(element.id);
 		template.icon.className = sectionIcon ? `session-section-icon ${ThemeIcon.asClassName(sectionIcon)}` : 'session-section-icon';
 		template.icon.style.display = sectionIcon ? '' : 'none';
 
@@ -1081,6 +1099,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		}
 
 		this.updateChevron(template, node.collapsible, node.collapsed);
+		template.chevron.classList.toggle('collapsible', node.collapsible);
 
 		// Set context key for section type so toolbar actions can use when clauses
 		const sectionType = element.id.startsWith('workspace:') ? 'workspace' : element.id;
@@ -1181,11 +1200,14 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		const disposables = new DisposableStore();
 
 		container.classList.add('session-section', 'session-group');
+		const chevron = DOM.append(container, $('span.session-section-chevron'));
+		chevron.setAttribute('aria-hidden', 'true');
+		const icon = DOM.append(container, $('span.session-section-icon'));
+		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.folderLibrary));
+		icon.setAttribute('aria-hidden', 'true');
 		const label = DOM.append(container, $('span.session-section-label'));
 		const inputContainer = DOM.append(container, $('.session-group-input'));
 		const toolbarContainer = DOM.append(container, $('.session-section-toolbar'));
-		const chevron = DOM.append(container, $('span.session-section-chevron'));
-		chevron.setAttribute('aria-hidden', 'true');
 
 		const contextKeyService = disposables.add(this.contextKeyService.createScoped(container));
 		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
