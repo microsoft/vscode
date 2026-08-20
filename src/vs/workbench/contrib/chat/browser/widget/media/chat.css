@@ -38,22 +38,6 @@
 
 .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-tree-sticky-container .monaco-tree-sticky-row {
 	overflow: hidden;
-	animation: chat-sticky-row-fade-in 250ms ease-out;
-}
-
-.monaco-reduce-motion .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-tree-sticky-container .monaco-tree-sticky-row {
-	animation: none;
-}
-
-@keyframes chat-sticky-row-fade-in {
-	from {
-		filter: opacity(0);
-		transform: translateY(-4px);
-	}
-	to {
-		filter: opacity(1);
-		transform: translateY(0);
-	}
 }
 
 .interactive-list > .chat-scroll-down {
@@ -4028,10 +4012,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value .rendered-markdown .chat-request-text,
 	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown > p:first-child {
-		/* Clamp request text to 4 lines — only in sticky scroll */
+		/* Clamp request text to 2 lines — only in sticky scroll */
 		display: -webkit-box;
-		line-clamp: 4;
-		-webkit-line-clamp: 4;
+		line-clamp: 2;
+		-webkit-line-clamp: 2;
 		-webkit-box-orient: vertical;
 		overflow: hidden;
 	}

@@ -566,7 +566,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.ExperimentalStickyScrollEnabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.experimental.stickyScroll.enabled', "Controls whether chat requests use experimental tree-based sticky scroll instead of the sticky prompt header."),
-			default: product.quality !== 'stable',
+			default: product.quality === 'insider',
 			tags: ['experimental'],
 		},
 		[ChatConfiguration.InlineReferencesStyle]: {
