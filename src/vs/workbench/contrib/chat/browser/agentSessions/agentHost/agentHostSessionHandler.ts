@@ -103,13 +103,12 @@ import type { AgentHostPromptCacheNotification } from './agentHostPromptCacheNot
 import { IChatResponseFileChangesService } from '../../chatResponseFileChangesService.js';
 import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind, toSessionReferenceAttachmentMeta, toSessionReferenceModelRepresentation } from './agentHostSessionReferenceAttachment.js';
 import { buildHostLocalEventsPath } from '../../copilotCliEventsUri.js';
-import { toolDataToDefinition, toClientToolReferenceName } from './agentHostToolUtils.js';
-import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE } from './agentHostToolSetEnablementService.js';
+import { toClientToolReferenceName } from './agentHostToolUtils.js';
+import { isCopilotCliSessionType } from './agentHostToolSetEnablementService.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
 import { activeTurnToProgress, BOOLEAN_TRUE_OPTION_ID, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToRequestOrigin, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
 import { resolveMcpServerAuthentication, agentHostMcpServerId, modelRequiresAgentAuthentication } from './agentHostAuth.js';
-export { toolDataToDefinition };
 
 /**
  * Upper bound on the live editor text we inline for an unsaved document, matching the 1 MB per-file cap chat uses
@@ -2512,7 +2511,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * a claimed call always runs with context regardless.
 	 */
 	private _clientToolRequiresConfirmation(toolCall: ToolCallState): boolean {
-		const clientToolName = toClientToolReferenceName(toolCall.toolName, this._config.sessionType === AGENT_HOST_COPILOT_CLI_SESSION_TYPE);
+		const clientToolName = toClientToolReferenceName(toolCall.toolName, isCopilotCliSessionType(this._config.sessionType));
 		return this._toolsService.getToolByName(clientToolName)?.canRequestPreApproval === true;
 	}
 
@@ -2531,7 +2530,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const toolCall = request.toolCall;
 		const toolName = toolCall.toolName;
 		const isToolSearch = toolName === RUNTIME_TOOL_SEARCH_TOOL_NAME;
-		const clientToolName = toClientToolReferenceName(toolName, this._config.sessionType === AGENT_HOST_COPILOT_CLI_SESSION_TYPE);
+		const clientToolName = toClientToolReferenceName(toolName, isCopilotCliSessionType(this._config.sessionType));
 		const toolData = this._toolsService.getToolByName(clientToolName);
 
 		// A tool-search completion (success or failure) must drop the transient
@@ -3901,7 +3900,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			adopted.didExecuteTool(undefined);
 		}
 
-		const clientToolName = toClientToolReferenceName(toolName, this._config.sessionType === AGENT_HOST_COPILOT_CLI_SESSION_TYPE);
+		const clientToolName = toClientToolReferenceName(toolName, isCopilotCliSessionType(this._config.sessionType));
 		const toolData = this._toolsService.getToolByName(clientToolName);
 		if (!toolData) {
 			this._logService.warn(`[AgentHost] Client tool call for unknown tool: ${toolName}`);

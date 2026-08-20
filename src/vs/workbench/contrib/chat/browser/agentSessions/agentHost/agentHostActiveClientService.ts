@@ -33,7 +33,7 @@ import { IConfigurationResolverService } from '../../../../../services/configura
 import { AgentCustomizationSyncProvider } from './agentCustomizationSyncProvider.js';
 import { type ILocalCustomizationSyncOptions, resolveCustomizationRefs, resolveLocalCustomAgents } from './agentHostLocalCustomizations.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
-import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, IAgentHostToolSetEnablementService, isToolEnabledInSet } from './agentHostToolSetEnablementService.js';
+import { IAgentHostToolSetEnablementService, isCopilotCliSessionType, isToolEnabledInSet } from './agentHostToolSetEnablementService.js';
 import { type ISyncedCustomizationOrigin, SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
 
 export const IAgentHostActiveClientService = createDecorator<IAgentHostActiveClientService>('agentHostActiveClientService');
@@ -410,7 +410,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 				const tools = this._allToolsObs.read(reader);
 				const toolSets = this._allToolSetsObs.read(reader);
 				const enablement = this._toolSetEnablementService.observe(sessionType).read(reader);
-				const isCopilotSession = sessionType === AGENT_HOST_COPILOT_CLI_SESSION_TYPE;
+				const isCopilotSession = isCopilotCliSessionType(sessionType);
 				const semanticSearchEnabled = isCopilotSession && this._semanticSearchEnabled.read(reader);
 				const enabledToolIds = new Set<string>();
 				for (const ts of toolSets) {

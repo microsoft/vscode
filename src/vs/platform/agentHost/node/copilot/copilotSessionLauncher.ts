@@ -140,8 +140,8 @@ export function filterClientToolNames(names: ReadonlySet<string>, availableTools
 	if (!availableTools && !excludedTools) {
 		return names;
 	}
-	availableTools = toSdkToolFilterPatterns(availableTools);
-	excludedTools = toSdkToolFilterPatterns(excludedTools);
+	const sdkAvailableTools = toSdkToolFilterPatterns(availableTools);
+	const sdkExcludedTools = toSdkToolFilterPatterns(excludedTools);
 	const matches = (patterns: readonly string[], name: string) => {
 		const sdkName = toSdkClientToolName(name);
 		return patterns.some(pattern =>
@@ -154,8 +154,8 @@ export function filterClientToolNames(names: ReadonlySet<string>, availableTools
 	};
 	const result = new Set<string>();
 	for (const name of names) {
-		const allowed = !availableTools || matches(availableTools, name);
-		if (allowed && !(excludedTools && matches(excludedTools, name))) {
+		const allowed = !sdkAvailableTools || matches(sdkAvailableTools, name);
+		if (allowed && !(sdkExcludedTools && matches(sdkExcludedTools, name))) {
 			result.add(name);
 		}
 	}

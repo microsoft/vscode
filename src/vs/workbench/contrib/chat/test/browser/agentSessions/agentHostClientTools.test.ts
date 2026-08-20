@@ -77,6 +77,9 @@ import { IUriIdentityService } from '../../../../../../platform/uriIdentity/comm
 
 suite('AgentHostClientTools', () => {
 
+	/** A remote agent host running the same Copilot CLI harness (`remote-{authority}-{provider}`). */
+	const REMOTE_COPILOT_CLI_SESSION_TYPE = 'remote-devbox-copilotcli';
+
 	const disposables = new DisposableStore();
 
 	teardown(() => disposables.clear());
@@ -207,18 +210,24 @@ suite('AgentHostClientTools', () => {
 		);
 		const registration = disposables.add(service.registerForAgent(AGENT_HOST_COPILOT_CLI_SESSION_TYPE));
 		const scope = disposables.add(registration.acquireScope([]));
+		const remoteRegistration = disposables.add(service.registerForAgent(REMOTE_COPILOT_CLI_SESSION_TYPE));
+		const remoteScope = disposables.add(remoteRegistration.acquireScope([]));
 		const otherRegistration = disposables.add(service.registerForAgent('agent-host-claude'));
 		const otherScope = disposables.add(otherRegistration.acquireScope([]));
 		await scope.whenResolved();
+		await remoteScope.whenResolved();
 		await otherScope.whenResolved();
 		const observedNames: string[][] = [];
 		disposables.add(autorun(reader => observedNames.push(scope.tools.read(reader).map(tool => tool.name))));
 
 		setSemanticSearchEnabled(true);
+		const remoteEnabledNames = remoteScope.tools.get().map(tool => tool.name);
 		setSemanticSearchEnabled(false);
 
 		assert.deepStrictEqual({
 			copilotNames: observedNames,
+			remoteEnabledNames,
+			remoteDisabledNames: remoteScope.tools.get().map(tool => tool.name),
 			otherNames: otherScope.tools.get().map(tool => tool.name),
 		}, {
 			copilotNames: [
@@ -226,6 +235,8 @@ suite('AgentHostClientTools', () => {
 				[SEMANTIC_SEARCH_TOOL_NAME, 'readFile'],
 				['readFile'],
 			],
+			remoteEnabledNames: [SEMANTIC_SEARCH_TOOL_NAME, 'readFile'],
+			remoteDisabledNames: ['readFile'],
 			otherNames: [CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, 'readFile'],
 		});
 	});
@@ -2498,7 +2509,8 @@ suite('AgentHostClientTools', () => {
 
 		test('maps semantic search to codebase only for Copilot sessions', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const invoke = async (sessionType: string, toolCallId: string) => {
-				const codebaseTool = sessionType === AGENT_HOST_COPILOT_CLI_SESSION_TYPE
+				const isCopilot = sessionType === AGENT_HOST_COPILOT_CLI_SESSION_TYPE || sessionType === REMOTE_COPILOT_CLI_SESSION_TYPE;
+				const codebaseTool = isCopilot
 					? testCodebaseTool
 					: { ...testCodebaseTool, canRequestPreApproval: true };
 				const { handler, connection, toolsService } = createHandlerWithMocks(
@@ -2539,9 +2551,10 @@ suite('AgentHostClientTools', () => {
 			assert.deepStrictEqual(
 				[
 					await invoke(AGENT_HOST_COPILOT_CLI_SESSION_TYPE, 'copilot-semantic'),
+					await invoke(REMOTE_COPILOT_CLI_SESSION_TYPE, 'remote-copilot-semantic'),
 					await invoke('agent-host-claude', 'claude-semantic'),
 				],
-				[testCodebaseTool.id, testSemanticSearchTool.id],
+				[testCodebaseTool.id, testCodebaseTool.id, testSemanticSearchTool.id],
 			);
 		}));
 
