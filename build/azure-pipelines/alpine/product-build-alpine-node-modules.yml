@@ -61,6 +61,10 @@ jobs:
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Authentication
 
+      - template: ../common/foundry-local.yml@self
+        parameters:
+          phase: prepare
+
       - task: Docker@1
         inputs:
           azureSubscriptionEndpoint: vscode
@@ -127,6 +131,10 @@ jobs:
           VSCODE_NPMRC_PATH: $(NPMRC_PATH)
         displayName: Install dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+      - template: ../common/foundry-local.yml@self
+        parameters:
+          phase: install
 
       - script: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
