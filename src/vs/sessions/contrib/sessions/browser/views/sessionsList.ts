@@ -1206,7 +1206,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		const chevron = DOM.append(container, $('span.session-section-chevron'));
 		chevron.setAttribute('aria-hidden', 'true');
 		const icon = DOM.append(container, $('span.session-section-icon'));
-		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.collection));
+		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.folderLibrary));
 		icon.setAttribute('aria-hidden', 'true');
 		const label = DOM.append(container, $('span.session-section-label'));
 		const inputContainer = DOM.append(container, $('.session-group-input'));

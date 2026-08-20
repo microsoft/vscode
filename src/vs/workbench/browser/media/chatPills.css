@@ -142,6 +142,7 @@
 }
 
 .chat-resource-pill-button .monaco-icon-label::before {
+	background-size: var(--vscode-codiconFontSize-compact);
 	width: var(--vscode-codiconFontSize-compact);
 	height: 14px;
 }
