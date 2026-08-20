@@ -45,7 +45,7 @@ import { ChatInteractivity, type MessageAttachment } from '../../common/state/pr
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
 import { AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionOptions } from '../../node/agentHostDatabase.js';
-import { AgentSessionRegistry } from '../../node/agentSessionRegistry.js';
+import { AgentSessionRegistry, type IRegisteredSession } from '../../node/agentSessionRegistry.js';
 import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
 import { AGENT_HOST_TITLE_SOURCE_AUTO, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
@@ -3603,29 +3603,34 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MockAgent('copilot'));
 			svc.registerProvider(agent);
-			const gate = new DeferredPromise<void>();
-			const inner = svc as unknown as { _computeSessions(mode: AgentHostExternalSessionsMode): Promise<readonly IAgentSessionMetadata[]> };
-			const original = inner._computeSessions;
-			let computations = 0;
-			inner._computeSessions = async mode => {
-				computations++;
-				await gate.p;
-				return original.call(svc, mode);
+			await svc.listSessions();
+			const snapshotCaptured = new DeferredPromise<void>();
+			const releaseSnapshot = new DeferredPromise<void>();
+			const inner = svc as unknown as { _listRegisteredSessions(): Promise<IRegisteredSession[]> };
+			const original = inner._listRegisteredSessions;
+			let listCalls = 0;
+			inner._listRegisteredSessions = async () => {
+				const snapshot = await original.call(svc);
+				listCalls++;
+				if (listCalls === 1) {
+					snapshotCaptured.complete();
+					await releaseSnapshot.p;
+				}
+				return snapshot;
 			};
 
-			const preInvalidation = svc.listSessions();
+			const listing = svc.listSessions();
+			await snapshotCaptured.p;
 			await svc.createSession({ provider: 'copilot' });
-			const postInvalidation = svc.listSessions();
-			gate.complete();
+			releaseSnapshot.complete();
+			const listed = await listing;
 
 			assert.deepStrictEqual({
-				computations,
-				preInvalidation: (await preInvalidation).length,
-				postInvalidation: (await postInvalidation).length,
+				listCalls,
+				listed: listed.length,
 			}, {
-				computations: 2,
-				preInvalidation: 1,
-				postInvalidation: 1,
+				listCalls: 2,
+				listed: 1,
 			});
 		});
 
