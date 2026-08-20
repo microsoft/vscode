@@ -220,7 +220,7 @@ export class TypeOfLocalsRunnable extends AbstractContextRunnable {
 			}
 			for (const { symbol, name } of symbolsToEmit) {
 				token.throwIfCancellationRequested();
-				this.handleSymbol(symbol, name);
+				await this.handleSymbol(symbol, name);
 			}
 
 

@@ -15,7 +15,7 @@ import { computeContext } from '../api';
 import { CharacterBudget, ComputeContextSession, ContextResult, RequestContext } from '../contextProvider';
 import { CancellationTokenWithTimer } from '../typescripts';
 
-const fixtures = path.join(__dirname, '../../serverPlugin/fixtures/context');
+const fixtures = path.join(__dirname, '../../../serverPlugin/fixtures/context');
 const cancellationToken: vscode.CancellationToken = {
 	isCancellationRequested: false,
 	onCancellationRequested: () => ({ dispose() { } }),
@@ -46,7 +46,7 @@ suite('TypeScript 7 context engine', () => {
 
 	test('computes imported and local types', async () => {
 		const imported = await compute('p12', 'source/f2.ts', 3, 0);
-		const local = await compute('p12', 'source/f3.ts', 4, 0);
+		const local = await compute('p12', 'source/f3.ts', 4, 0, 'TypeOfLocalsRunnable');
 		const expected = normalize('declare class Person { constructor(age: number = 10); public getAlter(): number; }');
 		assert.deepStrictEqual({
 			imported: snippets(imported).includes(expected),
@@ -96,7 +96,7 @@ suite('TypeScript 7 context engine', () => {
 		}, { class: true, method: true, constructor: true });
 	});
 
-	async function compute(projectName: string, relativeFile: string, line: number, character: number): Promise<protocol.FullContextItem[]> {
+	async function compute(projectName: string, relativeFile: string, line: number, character: number, runnableId?: protocol.ContextRunnableResultId): Promise<protocol.FullContextItem[]> {
 		const projectDirectory = path.join(fixtures, projectName);
 		const configFile = path.join(projectDirectory, 'tsconfig.json');
 		const fileName = path.join(projectDirectory, relativeFile);
@@ -113,7 +113,7 @@ suite('TypeScript 7 context engine', () => {
 			const result = new ContextResult(new CharacterBudget(7 * 1024 * 4), new CharacterBudget(8 * 1024 * 4), context);
 			const position = sourceFile.getPositionOfLineAndCharacter(line, character);
 			await computeContext(result, session, project, sourceFile, position, token);
-			return resolveItems(result.toJson());
+			return resolveItems(result.toJson(), runnableId);
 		} finally {
 			await snapshot.dispose();
 		}
@@ -126,7 +126,7 @@ class TestComputeContextSession extends ComputeContextSession {
 	}
 }
 
-function resolveItems(response: protocol.ComputeContextResponse.OK): protocol.FullContextItem[] {
+function resolveItems(response: protocol.ComputeContextResponse.OK, runnableId?: protocol.ContextRunnableResultId): protocol.FullContextItem[] {
 	const itemMap = new Map<protocol.ContextItemKey, protocol.FullContextItem>();
 	for (const item of response.contextItems ?? []) {
 		if (item.kind !== protocol.ContextKind.Reference && protocol.ContextItem.hasKey(item)) {
@@ -136,7 +136,7 @@ function resolveItems(response: protocol.ComputeContextResponse.OK): protocol.Fu
 	const result: protocol.FullContextItem[] = [];
 	const seen = new Set<protocol.ContextItemKey>();
 	for (const runnable of response.runnableResults ?? []) {
-		if (runnable.kind !== protocol.ContextRunnableResultKind.ComputedResult) {
+		if (runnable.kind !== protocol.ContextRunnableResultKind.ComputedResult || (runnableId !== undefined && runnable.id !== runnableId)) {
 			continue;
 		}
 		for (const item of runnable.items) {
