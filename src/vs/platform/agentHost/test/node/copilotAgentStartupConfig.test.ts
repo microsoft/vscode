@@ -11,9 +11,9 @@ suite('CopilotAgentStartupConfig', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('compares and describes startup configuration changes', () => {
-		const previous = new CopilotAgentStartupConfig(false, true, 'info', undefined, true, true, {});
-		const same = new CopilotAgentStartupConfig(false, true, 'info', undefined, true, true, {});
-		const changed = new CopilotAgentStartupConfig(true, true, 'trace', 'github.example.com', false, false, { deny: ['shell(*)'] });
+		const previous = new CopilotAgentStartupConfig(false, true, false, 'info', undefined, true, true, {});
+		const same = new CopilotAgentStartupConfig(false, true, false, 'info', undefined, true, true, {});
+		const changed = new CopilotAgentStartupConfig(true, true, true, 'trace', 'github.example.com', false, false, { deny: ['shell(*)'] });
 
 		assert.deepStrictEqual({
 			same: same.equals(previous),
@@ -24,7 +24,7 @@ suite('CopilotAgentStartupConfig', () => {
 			same: true,
 			changed: false,
 			proxyTargetChanged: true,
-			description: 'sessionSync=true, copilotSdkLogLevel=trace, enterpriseHost=github.example.com, systemProxy=false, githubMcpServer=false, managedSettingsPermissions',
+			description: 'sessionSync=true, multiTurnContextRouting=true, copilotSdkLogLevel=trace, enterpriseHost=github.example.com, systemProxy=false, githubMcpServer=false, managedSettingsPermissions',
 		});
 	});
 });
