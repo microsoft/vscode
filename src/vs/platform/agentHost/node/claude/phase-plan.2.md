@@ -501,7 +501,7 @@ Phase 2 is "done" when all of the following pass.
 
 ### Hygiene (run frequently during development)
 
-- [ ] `compile-check-ts-native` clean
+- [ ] `typecheck-client` clean
 - [ ] `eslint` clean
 - [ ] `valid-layers-check` clean
 - [ ] Hygiene check (gulp `hygiene`) clean — copyright headers,

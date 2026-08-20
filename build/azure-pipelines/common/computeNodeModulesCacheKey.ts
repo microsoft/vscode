@@ -12,7 +12,6 @@ const ROOT = path.join(import.meta.dirname, '../../../');
 const shasum = crypto.createHash('sha256');
 
 shasum.update(fs.readFileSync(path.join(ROOT, 'build/.cachesalt')));
-shasum.update(fs.readFileSync(path.join(ROOT, 'extensions/copilot/build/.cachesalt'))); // TODO: remove this one when all build scripts are cleaned up
 shasum.update(fs.readFileSync(path.join(ROOT, '.npmrc')));
 shasum.update(fs.readFileSync(path.join(ROOT, 'build', '.npmrc')));
 shasum.update(fs.readFileSync(path.join(ROOT, 'remote', '.npmrc')));

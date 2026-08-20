@@ -6,9 +6,10 @@
 import { IChatMLFetcher } from '../../../platform/chat/common/chatMLFetcher';
 import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IDomainService } from '../../../platform/endpoint/common/domainService';
-import { EndpointEditToolName, IChatModelInformation, ModelSupportedEndpoint } from '../../../platform/endpoint/common/endpointProvider';
+import { EndpointEditToolName, IChatModelInformation, IChatModelRequestOptions, ModelSupportedEndpoint } from '../../../platform/endpoint/common/endpointProvider';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
+import { ICreateEndpointBodyOptions, IEndpointBody } from '../../../platform/networking/common/networking';
 import { IChatWebSocketManager } from '../../../platform/networking/node/chatWebSocketManager';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITokenizerProvider } from '../../../platform/tokenizer/node/tokenizer';
@@ -90,17 +91,24 @@ interface _CustomEndpointModelConfig {
 	name: string;
 	url: string;
 	apiType?: CustomEndpointApiType;
-	maxInputTokens: number;
+	/** Optional when {@link contextWindow} is set; then derived as `contextWindow - maxOutputTokens`. */
+	maxInputTokens?: number;
 	maxOutputTokens: number;
+	/** The model's full context window (input + output) in tokens, e.g. 1000000 for a 1M model. */
+	contextWindow?: number;
 	toolCalling: boolean;
 	vision: boolean;
 	thinking?: boolean;
+	adaptiveThinking?: boolean;
+	minThinkingBudget?: number;
+	maxThinkingBudget?: number;
 	streaming?: boolean;
 	editTools?: EndpointEditToolName[];
 	requestHeaders?: Record<string, string>;
+	modelOptions?: IChatModelRequestOptions;
 	zeroDataRetentionEnabled?: boolean;
 	supportsReasoningEffort?: string[];
-	reasoningEffortFormat?: 'chat-completions' | 'responses';
+	reasoningEffortFormat?: 'chat-completions' | 'responses' | 'messages';
 }
 
 export interface CustomEndpointModelConfig extends _CustomEndpointModelConfig {
@@ -152,13 +160,18 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 		const modelCapabilities = {
 			maxInputTokens: model.maxInputTokens,
 			maxOutputTokens: model.maxOutputTokens,
+			contextWindow: modelConfiguration?.contextWindow,
 			toolCalling: !!model.capabilities?.toolCalling || false,
 			vision: !!model.capabilities?.imageInput || false,
 			name: model.name,
 			url,
 			thinking: modelConfiguration?.thinking ?? false,
+			adaptiveThinking: modelConfiguration?.adaptiveThinking,
+			minThinkingBudget: modelConfiguration?.minThinkingBudget,
+			maxThinkingBudget: modelConfiguration?.maxThinkingBudget,
 			streaming: modelConfiguration?.streaming,
 			requestHeaders: modelConfiguration?.requestHeaders,
+			modelOptions: modelConfiguration?.modelOptions,
 			zeroDataRetentionEnabled: modelConfiguration?.zeroDataRetentionEnabled,
 			supportsReasoningEffort: modelConfiguration?.supportsReasoningEffort,
 			reasoningEffortFormat: modelConfiguration?.reasoningEffortFormat
@@ -191,6 +204,8 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
  *    `${input:...}` secret storage. When the user supplies any well-known auth
  *    header, the default inferred auth header is suppressed to avoid sending
  *    conflicting credentials.
+ * 4. Omits the Responses API `store` property when Zero Data Retention was not
+ *    explicitly configured, allowing custom implementations to use their own default.
  */
 export class CustomEndpointOAIEndpoint extends OpenAIEndpoint {
 	/**
@@ -241,6 +256,14 @@ export class CustomEndpointOAIEndpoint extends OpenAIEndpoint {
 		return !!this.modelMetadata.supported_endpoints?.includes(ModelSupportedEndpoint.Messages);
 	}
 
+	override createRequestBody(options: ICreateEndpointBodyOptions): IEndpointBody {
+		const body = super.createRequestBody(options);
+		if (this.useResponsesApi && this.modelMetadata.zeroDataRetentionEnabled === undefined) {
+			delete body.store;
+		}
+		return body;
+	}
+
 	protected override _isReservedHeader(lowerKey: string): boolean {
 		if (CustomEndpointOAIEndpoint._overridableReservedAuthHeaders.has(lowerKey)) {
 			return false;
@@ -279,6 +302,14 @@ export class CustomEndpointOAIEndpoint extends OpenAIEndpoint {
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * Preserve Custom Endpoint request shaping when a context-size override clones the endpoint.
+	 */
+	override cloneWithTokenOverride(modelMaxPromptTokens: number): CustomEndpointOAIEndpoint {
+		const newModelInfo = { ...this.modelMetadata, maxInputTokens: modelMaxPromptTokens };
+		return this.instantiationService.createInstance(CustomEndpointOAIEndpoint, newModelInfo, this._apiKey, this._modelUrl);
 	}
 
 	private _interpolateApiKey(value: string): string {

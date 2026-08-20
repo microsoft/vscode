@@ -7,6 +7,7 @@ import { equals } from '../../../base/common/arrays.js';
 import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
+import { IContextKeyService } from '../../contextkey/common/contextkey.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { IRectangle } from '../../window/common/window.js';
 
@@ -426,9 +427,13 @@ export interface IModalEditorSidebar {
 	 * @param container The DOM element to render into.
 	 * @param onDidLayout An event that fires when the sidebar is
 	 * 		laid out with the available dimensions.
+	 * @param contextKeyService A context key service scoped to the modal
+	 * 		that content should descend from (e.g. when creating lists/trees)
+	 * 		so that modal-level context keys remain active while the content
+	 * 		has focus.
 	 * @returns A disposable to clean up when the modal closes.
 	 */
-	readonly render: (container: unknown /* HTMLElement */, onDidLayout: Event<{ readonly height: number; readonly width: number }>) => IDisposable;
+	readonly render: (container: unknown /* HTMLElement */, onDidLayout: Event<{ readonly height: number; readonly width: number }>, contextKeyService: IContextKeyService) => IDisposable;
 }
 
 /**

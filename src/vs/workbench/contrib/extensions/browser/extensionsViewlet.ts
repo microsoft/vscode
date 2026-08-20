@@ -13,6 +13,9 @@ import { Disposable, DisposableStore, MutableDisposable } from '../../../../base
 import { Event } from '../../../../base/common/event.js';
 import { Action } from '../../../../base/common/actions.js';
 import { append, $, Dimension, hide, show, DragAndDropObserver, trackFocus, addDisposableListener, EventType, clearNode } from '../../../../base/browser/dom.js';
+import { renderMarkdown, renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { isMarkdownString } from '../../../../base/common/htmlContent.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
@@ -569,6 +572,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ILogService logService: ILogService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super(VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService, logService);
 
@@ -769,26 +773,38 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 		const status = this.extensionsWorkbenchService.getExtensionsNotification();
 		const query = status?.query ?? status?.extensions.map(extension => `@id:${extension.identifier.id}`).join(' ');
 		if (status && (query === this.searchBox?.getValue() || !this.searchMarketplaceExtensionsContextKey.get())) {
-			this.notificationContainer.setAttribute('aria-label', status.message);
+			const messagePlainText = isMarkdownString(status.message) ? renderAsPlaintext(status.message) : status.message;
+			this.notificationContainer.setAttribute('aria-label', messagePlainText);
 			this.notificationContainer.classList.remove('hidden');
 			const messageContainer = append(this.notificationContainer, $('.message-container'));
 			append(messageContainer, $('span')).className = SeverityIcon.className(status.severity);
 			const messageText = append(messageContainer, $('span.message-text'));
-			append(messageText, $('span.message', undefined, status.message));
-			const showAction = append(messageText,
-				$('span.message-text-action', {
-					'tabindex': '0',
-					'role': 'button',
-					'aria-label': `${status.message}. ${localize('click show', "Click to Show")}`
-				}, localize('show', "Show")));
-			this.notificationDisposables.value.add(addDisposableListener(showAction, EventType.CLICK, () => this.search(query ?? '')));
-			this.notificationDisposables.value.add(addDisposableListener(showAction, EventType.KEY_DOWN, (e: KeyboardEvent) => {
-				const standardKeyboardEvent = new StandardKeyboardEvent(e);
-				if (standardKeyboardEvent.keyCode === KeyCode.Enter || standardKeyboardEvent.keyCode === KeyCode.Space) {
-					this.search(query ?? '');
-				}
-				standardKeyboardEvent.stopPropagation();
-			}));
+			const messageElement = append(messageText, $('span.message'));
+			if (isMarkdownString(status.message)) {
+				const isTrusted = status.message.isTrusted;
+				const allowCommands = typeof isTrusted === 'object' ? isTrusted.enabledCommands : !!isTrusted;
+				this.notificationDisposables.value.add(renderMarkdown(status.message, {
+					actionHandler: link => { this.openerService.open(link, { allowCommands }); },
+				}, messageElement));
+			} else {
+				messageElement.textContent = status.message;
+			}
+			if (status.extensions.length) {
+				const showAction = append(messageText,
+					$('span.message-text-action', {
+						'tabindex': '0',
+						'role': 'button',
+						'aria-label': `${messagePlainText}. ${localize('click show', "Click to Show")}`
+					}, localize('show', "Show")));
+				this.notificationDisposables.value.add(addDisposableListener(showAction, EventType.CLICK, () => this.search(query ?? '')));
+				this.notificationDisposables.value.add(addDisposableListener(showAction, EventType.KEY_DOWN, (e: KeyboardEvent) => {
+					const standardKeyboardEvent = new StandardKeyboardEvent(e);
+					if (standardKeyboardEvent.keyCode === KeyCode.Enter || standardKeyboardEvent.keyCode === KeyCode.Space) {
+						this.search(query ?? '');
+					}
+					standardKeyboardEvent.stopPropagation();
+				}));
+			}
 			const actionsContainer = append(this.notificationContainer, $('.notification-actions'));
 			if (status.action) {
 				const actionButton = append(actionsContainer,
@@ -804,6 +820,25 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 					const standardKeyboardEvent = new StandardKeyboardEvent(e);
 					if (standardKeyboardEvent.keyCode === KeyCode.Enter || standardKeyboardEvent.keyCode === KeyCode.Space) {
 						Promise.resolve(status.action!.run()).catch(error => this.notificationService.error(error));
+					}
+					standardKeyboardEvent.stopPropagation();
+				}));
+			}
+			const dismiss = status.dismiss;
+			if (dismiss) {
+				const dismissLabel = localize('dismiss notification', "Dismiss");
+				const dismissButton = append(actionsContainer,
+					$('span.dismiss-action.codicon.codicon-close', {
+						'tabindex': '0',
+						'role': 'button',
+						'aria-label': dismissLabel,
+						'title': dismissLabel,
+					}));
+				this.notificationDisposables.value.add(addDisposableListener(dismissButton, EventType.CLICK, () => dismiss()));
+				this.notificationDisposables.value.add(addDisposableListener(dismissButton, EventType.KEY_DOWN, (e: KeyboardEvent) => {
+					const standardKeyboardEvent = new StandardKeyboardEvent(e);
+					if (standardKeyboardEvent.keyCode === KeyCode.Enter || standardKeyboardEvent.keyCode === KeyCode.Space) {
+						dismiss();
 					}
 					standardKeyboardEvent.stopPropagation();
 				}));
@@ -1006,7 +1041,7 @@ export class StatusUpdater extends Disposable implements IWorkbenchContribution 
 
 		const extensionsNotification = this.extensionsWorkbenchService.getExtensionsNotification();
 		if (extensionsNotification && extensionsNotification.severity === Severity.Warning) {
-			badge = new WarningBadge(() => extensionsNotification.message);
+			badge = new WarningBadge(() => isMarkdownString(extensionsNotification.message) ? renderAsPlaintext(extensionsNotification.message) : extensionsNotification.message);
 		}
 
 		if (!badge) {

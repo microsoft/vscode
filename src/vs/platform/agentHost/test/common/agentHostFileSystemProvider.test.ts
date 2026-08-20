@@ -11,6 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileChangeType, FileSystemProviderErrorCode, FileType, IFileChange, toFileSystemProviderErrorCode } from '../../../files/common/files.js';
 import { AgentHostFileSystemProvider, agentHostRemotePath, agentHostUri, type IRemoteFilesystemConnection } from '../../common/agentHostFileSystemProvider.js';
+import { remoteAgentHostSessionTypeId } from '../../common/agentHostSessionType.js';
 import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../../common/agentHostUri.js';
 import { ContentEncoding, ResourceType, type CreateResourceWatchParams, type ResourceCopyParams, type ResourceListResult, type ResourceMkdirParams, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult } from '../../common/state/protocol/commands.js';
 import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
@@ -45,7 +46,7 @@ suite('AgentHostAuthority - encoding', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('purely alphanumeric address is returned as-is', () => {
+	test('lowercase alphanumeric address is returned as-is', () => {
 		assert.strictEqual(agentHostAuthority('localhost'), 'localhost');
 	});
 
@@ -56,15 +57,16 @@ suite('AgentHostAuthority - encoding', () => {
 		assert.strictEqual(agentHostAuthority('host.name:80'), 'host.name__80');
 	});
 
-	test('address with underscore falls through to base64', () => {
+	test('address with uppercase or underscore falls through to hex', () => {
+		assert.strictEqual(agentHostAuthority('LOCALHOST'), 'hex-4c4f43414c484f5354');
 		const authority = agentHostAuthority('host_name:8080');
-		assert.ok(authority.startsWith('b64-'), `expected base64 for underscore address, got: ${authority}`);
+		assert.ok(authority.startsWith('hex-'), `expected hex for underscore address, got: ${authority}`);
 	});
 
-	test('address with exotic characters is base64-encoded', () => {
-		assert.ok(agentHostAuthority('user@host:8080').startsWith('b64-'));
-		assert.ok(agentHostAuthority('host with spaces').startsWith('b64-'));
-		assert.ok(agentHostAuthority('http://myhost:3000').startsWith('b64-'));
+	test('address with exotic characters is hex-encoded', () => {
+		assert.ok(agentHostAuthority('user@host:8080').startsWith('hex-'));
+		assert.ok(agentHostAuthority('host with spaces').startsWith('hex-'));
+		assert.ok(agentHostAuthority('http://myhost:3000').startsWith('hex-'));
 	});
 
 	test('ws:// prefix is normalized so authority matches bare address', () => {
@@ -72,29 +74,48 @@ suite('AgentHostAuthority - encoding', () => {
 		assert.strictEqual(agentHostAuthority('ws://localhost:9090'), agentHostAuthority('localhost:9090'));
 	});
 
+	test('remote local address does not collide with the ambient authority', () => {
+		const authority = agentHostAuthority('local');
+		const wrapped = toAgentHostUri(URI.file('/remote/file.txt'), authority);
+
+		assert.deepStrictEqual({
+			authority,
+			normalizedAuthority: agentHostAuthority('ws://local'),
+			similarAddressAuthority: agentHostAuthority('remote_local'),
+			wrappedScheme: wrapped.scheme,
+			wrappedAuthority: wrapped.authority,
+		}, {
+			authority: 'remote_local',
+			normalizedAuthority: 'remote_local',
+			similarAddressAuthority: 'hex-72656d6f74655f6c6f63616c',
+			wrappedScheme: AGENT_HOST_SCHEME,
+			wrappedAuthority: 'remote_local',
+		});
+	});
+
 	test('different addresses produce different authorities', () => {
-		const cases = ['localhost:8080', 'localhost:8081', '192.168.1.1:8080', 'host-name:80', 'host.name:80', 'host_name:80', 'user@host:8080'];
+		const cases = ['localhost:8080', 'localhost:8081', '192.168.1.1:8080', 'host-name:80', 'host.name:80', 'host_name:80', 'user@host:8080', '_', 'hex-5f', 'HEX-5f'];
 		const results = cases.map(agentHostAuthority);
 		const unique = new Set(results);
 		assert.strictEqual(unique.size, cases.length, 'all authorities must be unique');
 	});
 
 	test('authority is valid in a URI authority position', () => {
-		const addresses = ['localhost', 'localhost:8081', 'user@host:8080', 'host with spaces', '192.168.1.1:9090'];
+		const addresses = ['localhost', 'LOCALHOST', 'localhost:8081', 'user@host:8080', 'host with spaces', 'wss://example.com/Path', '192.168.1.1:9090'];
 		for (const address of addresses) {
 			const authority = agentHostAuthority(address);
 			const uri = URI.from({ scheme: AGENT_HOST_SCHEME, authority, path: '/test' });
-			assert.strictEqual(uri.authority, authority, `authority for '${address}' must round-trip through URI`);
+			assert.strictEqual(URI.parse(uri.toString()).authority, authority, `authority for '${address}' must round-trip through URI serialization`);
 		}
 	});
 
 	test('authority is valid in a URI scheme position', () => {
-		const addresses = ['localhost', 'localhost:8081', 'user@host:8080', 'host with spaces'];
+		const addresses = ['localhost', 'LOCALHOST', 'localhost:8081', 'user@host:8080', 'host with spaces', 'wss://example.com/Path'];
 		for (const address of addresses) {
 			const authority = agentHostAuthority(address);
-			const scheme = `remote-${authority}-copilot`;
+			const scheme = remoteAgentHostSessionTypeId(authority, 'copilot');
 			const uri = URI.from({ scheme, path: '/test' });
-			assert.strictEqual(uri.scheme, scheme, `scheme for '${address}' must round-trip through URI`);
+			assert.strictEqual(URI.parse(uri.toString()).scheme, scheme, `scheme for '${address}' must round-trip through URI serialization`);
 		}
 	});
 });
@@ -123,6 +144,28 @@ suite('toAgentHostUri / fromAgentHostUri', () => {
 		assert.strictEqual(unwrapped.path, '/snap/before');
 	});
 
+	test('round-trips query and fragment for synthetic content URIs', () => {
+		const original = URI.from({
+			scheme: 'git-blob',
+			path: '/src/app.ts',
+			query: JSON.stringify({ sessionUri: 'copilot:/abc', sha: 'cafe1234' }),
+			fragment: 'L1',
+		});
+
+		const wrapped = toAgentHostUri(original, 'remote-host');
+		const unwrapped = fromAgentHostUri(wrapped);
+
+		assert.deepStrictEqual({
+			wrappedPath: wrapped.path,
+			wrappedFragment: wrapped.fragment,
+			unwrapped: unwrapped.toString(),
+		}, {
+			wrappedPath: original.path,
+			wrappedFragment: original.fragment,
+			unwrapped: original.toString(),
+		});
+	});
+
 	test('local authority returns original URI unchanged', () => {
 		const original = URI.file('/workspace/test.ts');
 		const result = toAgentHostUri(original, 'local');
@@ -138,11 +181,12 @@ suite('toAgentHostUri / fromAgentHostUri', () => {
 		assert.strictEqual(fromAgentHostUri(uri).path, '/');
 	});
 
-	test('fromAgentHostUri handles malformed path gracefully', () => {
+	test('fromAgentHostUri falls back to a file URI when metadata is missing', () => {
 		const uri = URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'host', path: '/file' });
 		const result = fromAgentHostUri(uri);
-		// Should not throw - falls back to extracting scheme only
+		// Should not throw - falls back to a file URI using the path verbatim
 		assert.strictEqual(result.scheme, 'file');
+		assert.strictEqual(result.path, '/file');
 	});
 });
 
@@ -150,38 +194,31 @@ suite('AGENT_HOST_LABEL_FORMATTER', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	/**
-	 * Replicates the stripPathSegments logic from the label service to
-	 * verify that the formatter's configuration is consistent with the
-	 * URI encoding.
-	 */
-	function stripPath(path: string, segments: number): string {
-		let pos = 0;
-		for (let i = 0; i < segments; i++) {
-			const next = path.indexOf('/', pos + 1);
-			if (next === -1) {
-				break;
-			}
-			pos = next;
-		}
-		return path.substring(pos);
-	}
-
-	test('stripPathSegments matches URI encoding for file URIs', () => {
+	test('label is the original path verbatim for file URIs', () => {
 		const authority = agentHostAuthority('localhost:8089');
 		const originalPath = '/Users/roblou/code/vscode';
 		const encodedUri = agentHostUri(authority, originalPath);
 
-		const stripped = stripPath(encodedUri.path, AGENT_HOST_LABEL_FORMATTER.formatting.stripPathSegments!);
-		assert.strictEqual(stripped, originalPath);
+		assert.strictEqual(AGENT_HOST_LABEL_FORMATTER.formatting.label, '${path}');
+		assert.strictEqual(encodedUri.path, originalPath);
 	});
 
-	test('stripPathSegments matches URI encoding with authority', () => {
+	test('label is the original path verbatim for URIs with authority', () => {
 		const originalUri = URI.from({ scheme: 'agenthost-content', authority: 'myhost', path: '/snap/before' });
 		const encodedUri = toAgentHostUri(originalUri, 'remote-host');
 
-		const stripped = stripPath(encodedUri.path, AGENT_HOST_LABEL_FORMATTER.formatting.stripPathSegments!);
-		assert.strictEqual(stripped, '/snap/before');
+		assert.strictEqual(encodedUri.path, '/snap/before');
+	});
+
+	test('label is the original path verbatim for git-blob URIs', () => {
+		const originalUri = URI.from({
+			scheme: 'git-blob',
+			path: '/src/app.ts',
+			query: JSON.stringify({ sessionUri: 'copilot:/abc', sha: 'cafe1234' }),
+		});
+		const encodedUri = toAgentHostUri(originalUri, 'remote-host');
+
+		assert.strictEqual(encodedUri.path, '/src/app.ts');
 	});
 });
 
@@ -312,12 +349,14 @@ suite('AgentHostFileSystemProvider - synthetic content schemes', () => {
 	 */
 	class StubConnection implements IRemoteFilesystemConnection {
 		readonly readCalls: URI[] = [];
+		readonly readEncodings: (ContentEncoding | undefined)[] = [];
 		readonly listCalls: URI[] = [];
 		readonly resolveCalls: ResourceResolveParams[] = [];
 		readResult: ResourceReadResult = { data: 'stub-content', encoding: ContentEncoding.Utf8, contentType: 'text/plain' };
 
-		async resourceRead(uri: URI): Promise<ResourceReadResult> {
+		async resourceRead(uri: URI, encoding?: ContentEncoding): Promise<ResourceReadResult> {
 			this.readCalls.push(uri);
+			this.readEncodings.push(encoding);
 			return this.readResult;
 		}
 		async resourceList(uri: URI): Promise<ResourceListResult> {
@@ -394,7 +433,23 @@ suite('AgentHostFileSystemProvider - synthetic content schemes', () => {
 		const bytes = await provider.readFile(wrapped);
 
 		assert.strictEqual(VSBuffer.wrap(bytes).toString(), 'stub-content');
-		assert.deepStrictEqual(connection.readCalls.map(u => u.toString()), [inner.toString()]);
+		assert.deepStrictEqual({
+			resources: connection.readCalls.map(u => u.toString()),
+			encodings: connection.readEncodings,
+		}, {
+			resources: [inner.toString()],
+			encodings: [ContentEncoding.Base64],
+		});
+	});
+
+	test('readFile decodes binary Base64 content', async () => {
+		const { provider, connection } = setup();
+		disposables.add(provider.registerAuthority('remote', connection));
+		connection.readResult = { data: 'UEsAAf8=', encoding: ContentEncoding.Base64, contentType: 'application/zip' };
+
+		const bytes = await provider.readFile(agentHostUri('remote', '/tmp/logs.zip'));
+
+		assert.deepStrictEqual([...bytes], [80, 75, 0, 1, 255]);
 	});
 
 	test('full stat-then-read round-trip mirrors the diff editor flow', async () => {
@@ -659,6 +714,32 @@ suite('AgentHostFileSystemProvider - resolve / mkdir / copy / watch', () => {
 		assert.strictEqual(stat.type, FileType.Directory);
 		assert.strictEqual(stat.mtime, Date.parse('2026-01-15T00:00:00.000Z'));
 		assert.strictEqual(connection.resolveCalls.length, 1, 'resourceResolve was called');
+	});
+
+	test('stat does not mark resolved files readonly so they remain editable', async () => {
+		const { provider, connection } = setup();
+		connection.nextResolveResult = { uri: '', type: ResourceType.File, size: 10, mtime: '2026-01-15T00:00:00.000Z' };
+		const wrapped = agentHostUri('remote', '/some/file.ts');
+
+		const stat = await provider.stat(wrapped);
+
+		assert.strictEqual(stat.permissions ?? 0, 0, 'resolved files must not carry the Readonly permission');
+	});
+
+	test('realpath re-encodes the connection canonical URI back into provider space', async () => {
+		const { provider, connection } = setup();
+		// Simulate a symlink: the resolve reports a canonical target that
+		// differs from the requested path.
+		connection.resourceResolve = async (params: ResourceResolveParams): Promise<ResourceResolveResult> => {
+			connection.resolveCalls.push(params);
+			return { uri: 'file:///real/target.ts', type: ResourceType.File };
+		};
+		const wrapped = agentHostUri('remote', '/link/source.ts');
+
+		const real = await provider.realpath(wrapped);
+
+		assert.strictEqual(real, agentHostUri('remote', '/real/target.ts').path);
+		assert.strictEqual(connection.resolveCalls.length, 1);
 	});
 
 	test('mkdir delegates to resourceMkdir', async () => {

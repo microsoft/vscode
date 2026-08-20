@@ -43,7 +43,7 @@ import { AgentPluginEditorInput } from './agentPluginEditorInput.js';
 import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem } from './agentPluginItems.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { EnablementStatusWidget, pluginEnablementLabels } from '../enablementStatusWidget.js';
-import { InstallPluginAction, UninstallPluginAction, createEnablePluginDropDown, createDisablePluginDropDown, createPolicyBlockedEnableAction, isPluginPolicyBlocked, EnablementDropDownAction, EnablementDropdownActionViewItem } from '../agentPluginActions.js';
+import { InstallPluginAction, createUninstallPluginAction, createEnablePluginDropDown, createDisablePluginDropDown, createPolicyBlockedEnableAction, isPluginPolicyBlocked, EnablementDropDownAction, EnablementDropdownActionViewItem } from '../agentPluginActions.js';
 import './media/agentPluginEditor.css';
 
 interface IAgentPluginEditorTemplate {
@@ -339,7 +339,10 @@ export class AgentPluginEditor extends EditorPane {
 			actions.push(createEnablePluginDropDown(item.plugin, this.agentPluginService.enablementModel, workspaceService));
 			actions.push(createDisablePluginDropDown(item.plugin, this.agentPluginService.enablementModel, workspaceService));
 		}
-		actions.push(new UninstallPluginAction(item.plugin));
+		const uninstallAction = createUninstallPluginAction(item.plugin);
+		if (uninstallAction) {
+			actions.push(uninstallAction);
+		}
 		return actions;
 	}
 

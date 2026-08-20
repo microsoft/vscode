@@ -7,6 +7,7 @@ import { Event } from '../../../base/common/event.js';
 import type {
 	IWSLAgentHostConfig,
 	IWSLAgentHostConnection,
+	IWSLCachedDistro,
 	IWSLConnectProgress,
 	IWSLDistro,
 	IWSLRemoteAgentHostService,
@@ -44,5 +45,9 @@ export class NullWSLRemoteAgentHostService implements IWSLRemoteAgentHostService
 
 	async reconnect(_distro: string, _name: string): Promise<IWSLAgentHostConnection> {
 		throw new Error('WSL is not available on this platform.');
+	}
+
+	getCachedDistros(): readonly IWSLCachedDistro[] {
+		return [];
 	}
 }

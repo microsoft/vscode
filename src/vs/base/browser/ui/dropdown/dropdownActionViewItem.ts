@@ -16,7 +16,7 @@ import { $, addDisposableListener, append, EventType, h } from '../../dom.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { IActionViewItemProvider } from '../actionbar/actionbar.js';
 import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions, IBaseActionViewItemOptions } from '../actionbar/actionViewItems.js';
-import { AnchorAlignment } from '../contextview/contextview.js';
+import { AnchorAlignment, IContextViewCloseAnimation } from '../contextview/contextview.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
 import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
 import './dropdown.css';
@@ -35,6 +35,9 @@ export interface IDropdownMenuActionViewItemOptions extends IBaseActionViewItemO
 	readonly keybindingProvider?: IKeybindingProvider;
 	readonly actionRunner?: IActionRunner;
 	readonly classNames?: string[] | string;
+	readonly menuClassName?: string;
+	readonly closeAnimation?: IContextViewCloseAnimation;
+	readonly getAnchor?: () => HTMLElement;
 	readonly anchorAlignmentProvider?: IAnchorAlignmentProvider;
 	readonly menuAsChild?: boolean;
 	readonly skipTelemetry?: boolean;
@@ -81,9 +84,13 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 		const options: IDropdownMenuOptions = {
 			contextMenuProvider: this.contextMenuProvider,
 			labelRenderer: labelRenderer,
+			isEnabled: () => this.action.enabled,
 			menuAsChild: this.options.menuAsChild,
 			actions: isActionsArray ? this.menuActionsOrProvider as IAction[] : undefined,
 			actionProvider: isActionsArray ? undefined : this.menuActionsOrProvider as IActionProvider,
+			menuClassName: this.options.menuClassName,
+			closeAnimation: this.options.closeAnimation,
+			getAnchor: this.options.getAnchor,
 			skipTelemetry: this.options.skipTelemetry
 		};
 
@@ -177,12 +184,14 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 		const disabled = !this.action.enabled;
 		this.actionItem?.classList.toggle('disabled', disabled);
 		this.element?.classList.toggle('disabled', disabled);
+		this.element?.setAttribute('aria-disabled', String(disabled));
 	}
 }
 
 export interface IActionWithDropdownActionViewItemOptions extends IActionViewItemOptions {
 	readonly menuActionsOrProvider: readonly IAction[] | IActionProvider;
 	readonly menuActionClassNames?: string[];
+	readonly keybindingProvider?: IKeybindingProvider;
 }
 
 export class ActionWithDropdownActionViewItem extends ActionViewItem {
@@ -214,7 +223,11 @@ export class ActionWithDropdownActionViewItem extends ActionViewItem {
 			separator.classList.toggle('prominent', menuActionClassNames.includes('prominent'));
 			append(this.element, separator);
 
-			this.dropdownMenuActionViewItem = this._register(new DropdownMenuActionViewItem(this._register(new Action('dropdownAction', nls.localize('moreActions', "More Actions..."))), menuActionsProvider, this.contextMenuProvider, { classNames: ['dropdown', ...ThemeIcon.asClassNameArray(Codicon.dropDownButton), ...menuActionClassNames], hoverDelegate: this.options.hoverDelegate }));
+			this.dropdownMenuActionViewItem = this._register(new DropdownMenuActionViewItem(this._register(new Action('dropdownAction', nls.localize('moreActions', "More Actions..."), undefined, this.action.enabled)), menuActionsProvider, this.contextMenuProvider, {
+				classNames: ['dropdown', ...ThemeIcon.asClassNameArray(Codicon.dropDownButton), ...menuActionClassNames],
+				hoverDelegate: this.options.hoverDelegate,
+				keybindingProvider: (<IActionWithDropdownActionViewItemOptions>this.options).keybindingProvider,
+			}));
 			this.dropdownMenuActionViewItem.render(this.element);
 
 			this._register(addDisposableListener(this.element, EventType.KEY_DOWN, e => {
@@ -249,5 +262,12 @@ export class ActionWithDropdownActionViewItem extends ActionViewItem {
 	override setFocusable(focusable: boolean): void {
 		super.setFocusable(focusable);
 		this.dropdownMenuActionViewItem?.setFocusable(focusable);
+	}
+
+	protected override updateEnabled(): void {
+		super.updateEnabled();
+		if (this.dropdownMenuActionViewItem) {
+			this.dropdownMenuActionViewItem.action.enabled = this.action.enabled;
+		}
 	}
 }

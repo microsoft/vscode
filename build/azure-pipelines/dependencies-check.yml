@@ -27,6 +27,13 @@ jobs:
           versionSource: fromFile
           versionFilePath: .nvmrc
 
+      - task: AzureKeyVault@2
+        displayName: "Azure Key Vault: Get GitHub token"
+        inputs:
+          azureSubscription: vscode-oss-build-secrets
+          KeyVaultName: vscode-oss-build-secrets
+          SecretsFilter: "github-token-code-oss"
+
       - script: |
           set -e
           echo "Checking if package.json or package-lock.json files were modified..."
@@ -102,9 +109,13 @@ jobs:
           npm_command: 'install --ignore-scripts'
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+          GITHUB_TOKEN: "$(github-token-code-oss)"
         displayName: Install dependencies with retries
         timeoutInMinutes: 1300
+        condition: and(succeeded(), eq(variables['SHOULD_VALIDATE'], 'true'))
+
+      - script: node build/npm/check-allow-scripts.ts
+        displayName: Check NPM install script approvals
         condition: and(succeeded(), eq(variables['SHOULD_VALIDATE'], 'true'))
 
       - script: |

@@ -13,6 +13,16 @@ import { ILogService } from '../../log/common/log.js';
 
 export type AhpLogDirection = 'c2s' | 's2c';
 
+interface IAhpLogMeta {
+	readonly ts: string;
+	readonly dir: AhpLogDirection;
+	readonly connectionId: string;
+	readonly transport: string;
+	readonly byteLength?: number;
+	/** Set when oversized string values in the entry were elided (see {@link stringifyAhpLogEntryTruncated}). */
+	truncated?: boolean;
+}
+
 export interface IAhpJsonlLoggerOptions {
 	readonly logsHome: URI;
 	readonly connectionId: string;
@@ -29,6 +39,19 @@ const DEFAULT_MAX_FILES = 5;
 // trying to avoid). 1 MiB strikes a balance between amortizing IPC overhead
 // and keeping per-write allocations modest.
 const MAX_BATCH_BYTES = 1024 * 1024;
+
+// A single AHP protocol message can be enormous (e.g. a `resourceRead` carrying
+// a base64-encoded file, or an `action` carrying a full session snapshot). We
+// don't want to write hundreds of MB on a single JSONL line — it bloats the log
+// directory and, more importantly, building/holding that line creates exactly
+// the GC pressure these logs are meant to help diagnose. When a serialized
+// entry exceeds this size we re-serialize it with oversized string values
+// elided so the line stays well-formed JSONL.
+const MAX_LOG_LINE_LENGTH = 1024 * 1024;
+// When trimming an oversized entry, individual string values are capped to this
+// length. Generous enough to keep messages useful for debugging.
+const MAX_LOGGED_STRING_LENGTH = 16 * 1024;
+
 
 export class AhpJsonlLogger extends Disposable {
 
@@ -64,17 +87,26 @@ export class AhpJsonlLogger extends Disposable {
 	}
 
 	log(message: object, dir: AhpLogDirection, byteLength?: number): void {
-		const entry = {
-			...message,
-			_ahpLog: {
-				ts: new Date().toISOString(),
-				dir,
-				connectionId: this._options.connectionId,
-				transport: this._options.transport,
-				...(typeof byteLength === 'number' ? { byteLength } : {}),
-			}
+		const meta: IAhpLogMeta = {
+			ts: new Date().toISOString(),
+			dir,
+			connectionId: this._options.connectionId,
+			transport: this._options.transport,
+			...(typeof byteLength === 'number' ? { byteLength } : {}),
 		};
-		const line = `${stringifyAhpLogEntry(entry)}\n`;
+		const entry = { ...message, _ahpLog: meta };
+		// Fast path: serialize once. The vast majority of messages are small, so
+		// we only pay a single stringify and use its length to decide whether the
+		// rare oversized-message path below is needed.
+		let body = stringifyAhpLogEntry(entry);
+		if (body.length > MAX_LOG_LINE_LENGTH) {
+			// Slow path (rare): a single message carried very large payloads. Walk
+			// the object via a replacer that elides long string values, keeping the
+			// line valid JSONL instead of writing/holding the full multi-MB payload.
+			meta.truncated = true;
+			body = stringifyAhpLogEntryTruncated(entry, MAX_LOGGED_STRING_LENGTH);
+		}
+		const line = `${body}\n`;
 		this._pending.push(VSBuffer.fromString(line));
 		this._scheduleDrain();
 	}
@@ -182,6 +214,22 @@ export function getAhpLogByteLength(text: string): number {
 
 export function stringifyAhpLogEntry(value: unknown): string {
 	return JSON.stringify(value, _ahpReplacer);
+}
+
+/**
+ * Like {@link stringifyAhpLogEntry} but additionally elides any string value
+ * longer than {@param maxStringLength}, replacing the overflow with a short
+ * marker. The result is still well-formed JSON, so the log remains valid JSONL.
+ * Only used for the rare oversized entry, so the extra per-value work is fine.
+ */
+function stringifyAhpLogEntryTruncated(value: unknown, maxStringLength: number): string {
+	return JSON.stringify(value, function (this: unknown, key: string, val: unknown): unknown {
+		const revived = _ahpReplacer.call(this, key, val);
+		if (typeof revived === 'string' && revived.length > maxStringLength) {
+			return `${revived.slice(0, maxStringLength)}…[${revived.length - maxStringLength} more chars elided]`;
+		}
+		return revived;
+	});
 }
 
 /**

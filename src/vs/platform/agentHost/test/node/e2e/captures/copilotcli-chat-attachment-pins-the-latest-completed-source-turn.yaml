@@ -1,0 +1,34 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember CHAT_ATTACHMENT_LATEST. Reply exactly "ready".
+    response:
+      content: ready
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content:
+            - type: text
+              text: Reply with only the code word from the attached conversation.
+            - type: text
+              text: |-
+                <attachment mimeType="text/plain" name="Source conversation">
+                The user referenced another chat, "Source conversation". That chat is identified by the link agent-host-session://copilotcli/${uuid_0}. To read its full transcript, call the get_session_context server tool with its "session" argument set to that link.
+
+                The excerpt below is that chat's full transcript up to the selected turn:
+
+                User: Remember CHAT_ATTACHMENT_LATEST. Reply exactly "ready".
+
+                Assistant: ready
+                </attachment>
+    response:
+      content: CHAT_ATTACHMENT_LATEST
+      stopReason: end_turn

@@ -31,10 +31,8 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
 import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/chatActions.js';
-import { AgentHostContribution } from '../browser/agentSessions/agentHost/agentHostChatContribution.js';
-import { AgentHostTerminalContribution } from '../browser/agentSessions/agentHost/agentHostTerminalContribution.js';
+import './codexCustomizationSettings.contribution.js';
 import { AgentSessionProviders, getAgentSessionProviderName } from '../browser/agentSessions/agentSessions.js';
-import { isSessionInProgressStatus } from '../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../browser/agentSessions/agentSessionsService.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../browser/chat.js';
 import { ChatSessionPosition, openChatSession } from '../browser/chatSessions/chatSessions.contribution.js';
@@ -47,8 +45,10 @@ import { IPluginGitService } from '../common/plugins/pluginGitService.js';
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
 import { registerChatExportZipAction } from './actions/chatExportZip.js';
 import { registerExportAgentTracesDbAction } from './actions/exportAgentTracesDb.js';
+import { registerInstallDictationModelAction } from './actions/installDictationModelAction.js';
+import { shouldWarnForSessionShutdown } from './chatLifecycle.js';
 import { HoldToVoiceChatInChatViewAction, InlineVoiceChatAction, KeywordActivationContribution, QuickVoiceChatAction, ReadChatResponseAloud, StartVoiceChatAction, StopListeningAction, StopListeningAndSubmitAction, StopReadAloud, StopReadChatItemAloud, VoiceChatInChatViewAction } from './actions/voiceChatActions.js';
-import { OpenWorkspaceInAgentsWindowAction, OpenWorkspaceInAgentsContribution, OpenAgentsWindowAction, OpenChatSessionInAgentsWindowAction, AgentsHandoffInputTipContribution, ToggleOpenInAgentsWindowTitleBarAction } from './agentSessions/agentSessionsActions.js';
+import { OpenWorkspaceInAgentsWindowAction, OpenWorkspaceInAgentsContribution, OpenAgentsWindowAction, OpenChatSessionInAgentsWindowAction, AgentsHandoffInputTipContribution, ToggleOpenInAgentsWindowTitleBarAction, OpenWorkspaceInAgentsWindowChatTitleAction, OpenWorkspaceInAgentsWindowTitleBarAction } from './agentSessions/agentSessionsActions.js';
 import { NativeBuiltinToolsContribution } from './builtInTools/tools.js';
 import { NativePluginGitCommandService } from './pluginGitCommandService.js';
 
@@ -173,20 +173,16 @@ class ChatLifecycleHandler extends Disposable {
 		}));
 
 		this._register(extensionService.onWillStop(e => {
-			e.veto(this.hasNonCloudSessionInProgress(), localize('chatRequestInProgress', "A session is in progress."));
+			e.veto(this.hasSessionThatWillStop(ShutdownReason.CLOSE), localize('chatRequestInProgress', "A session is in progress."));
 		}));
 	}
 
-	private hasNonCloudSessionInProgress(): boolean {
+	private hasSessionThatWillStop(reason: ShutdownReason): boolean {
 		if (this.chatEntitlementService.sentiment.hidden) {
 			return false; // AI features are disabled
 		}
 
-		return this.agentSessionsService.model.sessions.some(session =>
-			isSessionInProgressStatus(session.status) &&
-			session.providerType !== AgentSessionProviders.Cloud &&
-			!session.isArchived()
-		);
+		return this.agentSessionsService.model.sessions.some(session => shouldWarnForSessionShutdown(session, reason));
 	}
 
 	private shouldVetoShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
@@ -194,7 +190,7 @@ class ChatLifecycleHandler extends Disposable {
 			return false;
 		}
 
-		if (!this.hasNonCloudSessionInProgress()) {
+		if (!this.hasSessionThatWillStop(reason)) {
 			return false;
 		}
 
@@ -237,6 +233,8 @@ class ChatLifecycleHandler extends Disposable {
 }
 
 registerAction2(OpenWorkspaceInAgentsWindowAction);
+registerAction2(OpenWorkspaceInAgentsWindowChatTitleAction);
+registerAction2(OpenWorkspaceInAgentsWindowTitleBarAction);
 registerAction2(ToggleOpenInAgentsWindowTitleBarAction);
 registerAction2(OpenAgentsWindowAction);
 registerAction2(OpenChatSessionInAgentsWindowAction);
@@ -257,14 +255,13 @@ registerAction2(StopReadAloud);
 registerChatDeveloperActions();
 registerChatExportZipAction();
 registerExportAgentTracesDbAction();
+registerInstallDictationModelAction();
 
 registerWorkbenchContribution2(KeywordActivationContribution.ID, KeywordActivationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(NativeBuiltinToolsContribution.ID, NativeBuiltinToolsContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatCommandLineHandler.ID, ChatCommandLineHandler, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatSuspendThrottlingHandler.ID, ChatSuspendThrottlingHandler, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatLifecycleHandler.ID, ChatLifecycleHandler, WorkbenchPhase.AfterRestored);
-registerWorkbenchContribution2(AgentHostContribution.ID, AgentHostContribution, WorkbenchPhase.AfterRestored);
-registerWorkbenchContribution2(AgentHostTerminalContribution.ID, AgentHostTerminalContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(OpenWorkspaceInAgentsContribution.ID, OpenWorkspaceInAgentsContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(AgentsHandoffInputTipContribution.ID, AgentsHandoffInputTipContribution, WorkbenchPhase.Eventually);
 

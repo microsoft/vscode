@@ -9,21 +9,24 @@ import { BudgetExceededError } from '@vscode/prompt-tsx/dist/base/materialized';
 import type * as vscode from 'vscode';
 import { IChatSessionService } from '../../../platform/chat/common/chatSessionService';
 import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';
-import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { getTextPart } from '../../../platform/chat/common/globalStringUtils';
+import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
-import { isAnthropicFamily, isGptFamily, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelSupportsApplyPatch, modelSupportsMultiReplaceString, modelSupportsReplaceString, modelSupportsSimplifiedApplyPatchInstructions } from '../../../platform/endpoint/common/chatModelCapabilities';
+import { isAnthropicFamily, isXAiFamily, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelSupportsApplyPatch, modelSupportsMultiReplaceString, modelSupportsReplaceString, modelSupportsSimplifiedApplyPatchInstructions } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { IAutomodeService } from '../../../platform/endpoint/node/automodeService';
+import { SEARCH_AGENT_FAMILY } from '../../../platform/endpoint/node/searchAgentChatEndpoint';
 import { IEnvService } from '../../../platform/env/common/envService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IEditLogService } from '../../../platform/multiFileEdit/common/editLogService';
 import { CUSTOM_TOOL_SEARCH_NAME, isAnthropicContextEditingEnabled } from '../../../platform/networking/common/anthropic';
 import { IChatEndpoint, isCAPIEndpoint } from '../../../platform/networking/common/networking';
-import { modelsWithoutResponsesContextManagement } from '../../../platform/networking/common/openai';
+import { modelsWithoutResponsesContextManagement, nanoAiuToCredits } from '../../../platform/networking/common/openai';
 import { INotebookService } from '../../../platform/notebook/common/notebookService';
 import { GenAiMetrics } from '../../../platform/otel/common/genAiMetrics';
 import { IOTelService } from '../../../platform/otel/common/otelService';
+import { PromptConfig } from '../../../platform/promptFiles/common/promptsService';
+import { CustomInstructionsReferenceLogger, IAutomaticInstructionsCollector } from '../../../platform/promptFiles/node/automaticInstructionsCollector';
 import { IPromptPathRepresentationService } from '../../../platform/prompts/common/promptPathRepresentationService';
 import { ITasksService } from '../../../platform/tasks/common/tasksService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
@@ -32,10 +35,13 @@ import { ITestProvider } from '../../../platform/testing/common/testProvider';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 
 import { findLast } from '../../../util/vs/base/common/arraysFind';
+import { raceTimeout } from '../../../util/vs/base/common/async';
 import { isCancellationError } from '../../../util/vs/base/common/errors';
 import { Iterable } from '../../../util/vs/base/common/iterator';
+import { DisposableMap, DisposableStore } from '../../../util/vs/base/common/lifecycle';
 import { IInstantiationService, ServicesAccessor } from '../../../util/vs/platform/instantiation/common/instantiation';
 
+import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { ChatResponseProgressPart2 } from '../../../vscodeTypes';
 import { ICommandService } from '../../commands/node/commandService';
 import { Intent } from '../../common/constants';
@@ -44,23 +50,22 @@ import { Conversation, normalizeSummariesOnRounds, RenderedUserMessageMetadata, 
 import { IBuildPromptContext, InternalToolReference } from '../../prompt/common/intents';
 import { getRequestedToolCallIterationLimit, IContinueOnErrorConfirmation } from '../../prompt/common/specialRequestTypes';
 import { ChatTelemetryBuilder } from '../../prompt/node/chatParticipantTelemetry';
-import { IntentInvocationMetadata } from '../../prompt/node/conversation';
 import { IDefaultIntentRequestHandlerOptions } from '../../prompt/node/defaultIntentRequestHandler';
 import { IDocumentContext } from '../../prompt/node/documentContext';
 import { IBuildPromptResult, IIntent, IIntentInvocation } from '../../prompt/node/intents';
 import { AgentPrompt, AgentPromptProps } from '../../prompts/node/agent/agentPrompt';
 import { BackgroundSummarizationState, BackgroundSummarizationThresholds, BackgroundSummarizer, IBackgroundSummarizationResult, resolveSummaryAnchorRoundId, shouldKickOffBackgroundSummarization } from '../../prompts/node/agent/backgroundSummarizer';
-import { BackgroundTodoDecision, BackgroundTodoProcessor, IBackgroundTodoExecutionContext } from '../../prompts/node/agent/backgroundTodoProcessor';
+import { BackgroundTodoAgentProcessor, getSessionResource } from '../../prompts/node/agent/backgroundTodoAgent/backgroundTodoAgentProcessor';
 import { AgentPromptCustomizations, PromptRegistry } from '../../prompts/node/agent/promptRegistry';
-import { extractSummary, SummarizationUserMessage, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder, appendTranscriptHintToSummary, computeSummarizationRoundCounts } from '../../prompts/node/agent/summarizedConversationHistory';
+import { appendTranscriptHintToSummary, computeSummarizationRoundCounts, extractSummary, SummarizationUserMessage, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder } from '../../prompts/node/agent/summarizedConversationHistory';
 import { PromptRenderer, renderPromptElement } from '../../prompts/node/base/promptRenderer';
 import { ICodeMapperService } from '../../prompts/node/codeMapper/codeMapperService';
 import { EditCodePrompt2 } from '../../prompts/node/panel/editCodePrompt2';
 import { NotebookInlinePrompt } from '../../prompts/node/panel/notebookInlinePrompt';
 import { ToolResultMetadata } from '../../prompts/node/panel/toolCalling';
 import { IEditToolLearningService } from '../../tools/common/editToolLearningService';
-import { normalizeToolSchema } from '../../tools/common/toolSchemaNormalizer';
 import { ContributedToolName, ToolName } from '../../tools/common/toolNames';
+import { normalizeToolSchema } from '../../tools/common/toolSchemaNormalizer';
 import { IToolsService } from '../../tools/common/toolsService';
 import { applyPatch5Description } from '../../tools/node/applyPatchTool';
 import { multiReplaceStringPrimaryDescription } from '../../tools/node/multiReplaceStringTool';
@@ -69,12 +74,44 @@ import { getAgentMaxRequests } from '../common/agentConfig';
 import { addCacheBreakpoints } from './cacheBreakpoints';
 import { EditCodeIntent, EditCodeIntentInvocation, EditCodeIntentInvocationOptions, mergeMetadata, toNewChatReferences } from './editCodeIntent';
 import { ToolCallingLoop } from './toolCallingLoop';
-import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 
 function isResponsesCompactionContextManagementEnabled(endpoint: IChatEndpoint, configurationService: IConfigurationService, experimentationService: IExperimentationService): boolean {
 	return endpoint.apiType === 'responses'
 		&& configurationService.getExperimentBasedConfig(ConfigKey.ResponsesApiContextManagementEnabled, experimentationService)
 		&& !modelsWithoutResponsesContextManagement.has(endpoint.family);
+}
+
+/**
+ * Applies the user's "Context Size" model-picker selection to the endpoint used
+ * for the agent's model requests.
+ *
+ * The picker offers two tiers — the model's default context max and its full
+ * native window (see `getContextSizeOptions`). For server-managed context (the
+ * Responses-API compaction path) the request endpoint's `modelMaxPromptTokens`
+ * is what drives the `compact_threshold` sent to the server. If the default
+ * tier is not propagated to the request endpoint, the server compacts against
+ * the model's full window and the stateful conversation grows far past the
+ * user's selection — billing them for the larger context. Mirrors the override
+ * applied on the `vscode.lm` path in `languageModelAccess.ts`.
+ *
+ * Only clamps when the selection is strictly smaller than the model window so
+ * the full tier ("Longer sessions") stays uncompacted.
+ *
+ * When no explicit selection is present, uses the default tier, or the full window when long context is free (no surcharge).
+ *
+ * @internal - exported for testing
+ */
+export function applyContextSizeOverride(endpoint: IChatEndpoint, request: vscode.ChatRequest): IChatEndpoint {
+	const contextSize = request.modelConfiguration?.contextSize;
+	// Prefer a valid explicit selection (guard 0/-1/NaN/Infinity); else use the default tier, or the full window when long context is free.
+	const hasLongContextSurcharge = !!endpoint.tokenPricing?.longContext;
+	const effectiveSize = (typeof contextSize === 'number' && Number.isFinite(contextSize) && contextSize > 0)
+		? contextSize
+		: hasLongContextSurcharge ? endpoint.tokenPricing?.default.contextMax : undefined;
+	if (typeof effectiveSize === 'number' && effectiveSize > 0 && effectiveSize < endpoint.modelMaxPromptTokens) {
+		return endpoint.cloneWithTokenOverride(effectiveSize);
+	}
+	return endpoint;
 }
 
 /**
@@ -107,6 +144,11 @@ export function isBackgroundTodoAgentEnabled(
 	authenticationService: IAuthenticationService,
 	request: vscode.ChatRequest): boolean {
 	const token = authenticationService.copilotToken;
+
+	// Disable background todo agent for experimental models temporarily
+	if (endpoint.modelProvider?.toLowerCase() === 'experimental') {
+		return false;
+	}
 
 	// Only enable for a signed in no-free plan user talking to the CAPI endpoint.
 	const isEnabledForToken = token !== undefined && !token.isFreeUser && !token.isNoAuthUser && isCAPIEndpoint(endpoint);
@@ -159,6 +201,7 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	const endpointProvider = accessor.get<IEndpointProvider>(IEndpointProvider);
 	const editToolLearningService = accessor.get<IEditToolLearningService>(IEditToolLearningService);
 	const authenticationService = accessor.get<IAuthenticationService>(IAuthenticationService);
+	const logService = accessor.get<ILogService>(ILogService);
 
 	model ??= await endpointProvider.getChatEndpoint(request);
 
@@ -192,31 +235,35 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	allowTools[ToolName.CoreRunTest] = await testService.hasAnyTests();
 	allowTools[ToolName.CoreRunTask] = tasksService.getTasks().length > 0;
 
-	// The specialized subagents must only run when
-	// the main agent is on CAPI.
+	// The specialized subagents and semantic search only work when the main
+	// agent is on CAPI. semantic_search relies on embeddings that require a
+	// Copilot token source, so on BYOK / custom endpoints it can abort the chat
+	// turn (e.g. when the GitHub auth provider is unavailable). Keep it off
+	// there. See https://github.com/microsoft/vscode/issues/322525.
 	if (!isCAPIEndpoint(model)) {
 		allowTools[ToolName.SearchSubagent] = false;
 		allowTools[ToolName.ExploreSubagent] = false;
 		allowTools[ToolName.ExecutionSubagent] = false;
+		allowTools[ToolName.Codebase] = false;
 	} else {
 		const searchSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentToolEnabled, experimentationService);
 		const exploreAgentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.ExploreAgentEnabled, experimentationService);
-		const isGptOrAnthropic = isGptFamily(model) || isAnthropicFamily(model);
-		allowTools[ToolName.SearchSubagent] = isGptOrAnthropic && searchSubagentEnabled && exploreAgentEnabled;
-		allowTools[ToolName.ExploreSubagent] = isGptOrAnthropic && searchSubagentEnabled && !exploreAgentEnabled;
-
 		const executionSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentToolEnabled, experimentationService);
-		// The execution subagent is powered by gemini-3-flash, so it can only be
-		// offered when that model is actually available to the user. If it isn't
-		// in the user's endpoints, keep the tool disabled regardless of the setting.
-		// Skip the (potentially expensive) endpoint lookup when the tool would be
-		// disabled anyway based on model family or the experiment setting.
-		let hasGemini3Flash = false;
-		if (isGptOrAnthropic && executionSubagentEnabled) {
-			const allEndpoints = await endpointProvider.getAllChatEndpoints();
-			hasGemini3Flash = allEndpoints.some(ep => ep.family.toLowerCase().includes('gemini-3-flash'));
-		}
-		allowTools[ToolName.ExecutionSubagent] = isGptOrAnthropic && executionSubagentEnabled && hasGemini3Flash;
+
+		// The search/explore subagents are the only ones whose availability depends
+		// on the model list, so skip the lookup entirely when they are off.
+		const allEndpoints = searchSubagentEnabled
+			? await endpointProvider.getAllChatEndpoints().catch(err => {
+				logService.warn(`getAgentTools: failed to fetch chat endpoints, disabling the search/explore subagents: ${err}`);
+				return [] as IChatEndpoint[];
+			})
+			: [];
+
+		const searchAgentAvailable = allEndpoints.some(e => e.family === SEARCH_AGENT_FAMILY);
+		allowTools[ToolName.SearchSubagent] = searchSubagentEnabled && exploreAgentEnabled && searchAgentAvailable;
+		allowTools[ToolName.ExploreSubagent] = searchSubagentEnabled && !exploreAgentEnabled && searchAgentAvailable;
+
+		allowTools[ToolName.ExecutionSubagent] = executionSubagentEnabled;
 	}
 
 	const skillToolEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SkillToolEnabled, experimentationService);
@@ -229,7 +276,7 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 
 	allowTools[CUSTOM_TOOL_SEARCH_NAME] = !!model.supportsToolSearch;
 
-	if (model.family.includes('grok-code')) {
+	if (isXAiFamily(model)) {
 		allowTools[ToolName.CoreManageTodoList] = false;
 	}
 
@@ -291,7 +338,15 @@ export class AgentIntent extends EditCodeIntent {
 	override readonly id = AgentIntent.ID;
 
 	private readonly _backgroundSummarizers = new Map<string, BackgroundSummarizer>();
-	private readonly _backgroundTodoProcessors = new Map<string, BackgroundTodoProcessor>();
+	private readonly _backgroundTodoProcessors = new DisposableMap<string, BackgroundTodoAgentProcessor>();
+
+	/**
+	 * Holds long-lived subscriptions for this intent (e.g. the session-dispose
+	 * cleanup below). AgentIntent is an app-lifetime singleton that is never
+	 * disposed, so this mainly keeps the subscription owned rather than dropped
+	 * on the floor.
+	 */
+	private readonly _sessionListeners = new DisposableStore();
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -303,20 +358,21 @@ export class AgentIntent extends EditCodeIntent {
 		@IChatSessionService chatSessionService: IChatSessionService,
 		@IAutomodeService private readonly _automodeService: IAutomodeService,
 		@ILogService private readonly _logService: ILogService,
+		@IToolsService private readonly _toolsService: IToolsService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IAuthenticationService private readonly _authenticationService: IAuthenticationService
 	) {
 		super(instantiationService, endpointProvider, configurationService, expService, codeMapperService, workspaceService, { intentInvocation: AgentIntentInvocation, processCodeblocks: false });
-		chatSessionService.onDidDisposeChatSession(sessionId => {
+		this._sessionListeners.add(chatSessionService.onDidDisposeChatSession(sessionId => {
 			const summarizer = this._backgroundSummarizers.get(sessionId);
 			if (summarizer) {
 				summarizer.cancel();
 				this._backgroundSummarizers.delete(sessionId);
 			}
-			const todoProcessor = this._backgroundTodoProcessors.get(sessionId);
-			if (todoProcessor) {
-				todoProcessor.cancel();
-				this._backgroundTodoProcessors.delete(sessionId);
-			}
-		});
+			// deleteAndDispose() runs the processor's dispose(), which cancels the
+			// in-flight generation and tears down its queue, CTS and history store.
+			this._backgroundTodoProcessors.deleteAndDispose(sessionId);
+		}));
 	}
 
 	getOrCreateBackgroundSummarizer(sessionId: string, modelMaxPromptTokens: number, endpointId: string): BackgroundSummarizer {
@@ -350,10 +406,21 @@ export class AgentIntent extends EditCodeIntent {
 		}
 	}
 
-	getOrCreateBackgroundTodoProcessor(sessionId: string): BackgroundTodoProcessor {
+	getOrCreateBackgroundTodoProcessor(promptContext: IBuildPromptContext): BackgroundTodoAgentProcessor | undefined {
+		const sessionId = promptContext.conversation?.sessionId;
+		if (sessionId === undefined) {
+			return undefined;
+		}
 		let processor = this._backgroundTodoProcessors.get(sessionId);
 		if (!processor) {
-			processor = new BackgroundTodoProcessor(this._logService);
+			processor = new BackgroundTodoAgentProcessor(
+				sessionId,
+				getSessionResource(promptContext),
+				this._toolsService,
+				this._telemetryService,
+				this.instantiationService,
+				this._logService
+			);
 			this._backgroundTodoProcessors.set(sessionId, processor);
 		}
 		return processor;
@@ -386,25 +453,37 @@ export class AgentIntent extends EditCodeIntent {
 		try {
 			return await super.handleRequest(conversation, request, stream, token, documentContext, agentName, location, chatTelemetry, yieldRequested);
 		} finally {
-			// Fire one final bg todo review pass once the agent loop has ended for
-			// this turn. The per-round passes never see the very last round, so any
-			// task that just completed otherwise stays stuck as 'in-progress'.
-			// Await completion so the tool invocation runs while the request is
-			// still active — the platform rejects tool calls for completed requests.
-			// Do NOT pass the request `token` as parentToken — it may be cancelled
-			// by the framework after the turn ends, which would immediately abort
-			// the background pass even on a normal completion.
-			const todoProcessor = this._backgroundTodoProcessors.get(conversation.sessionId);
-			if (todoProcessor !== undefined) {
-				const currentTurn = conversation.getLatestTurn();
-				const invocation = currentTurn.getMetadata(IntentInvocationMetadata)?.value;
-				const executionContext = invocation instanceof AgentIntentInvocation ? invocation.getBackgroundTodoExecutionContext() : undefined;
-				if (executionContext) {
-					todoProcessor.requestFinalReview(currentTurn.id, executionContext);
-					await todoProcessor.waitForCompletion();
-				}
-			}
+			await this._runFinalBackgroundTodoPass(conversation, request);
 		}
+	}
+
+	/**
+	 * Fire one final bg todo review pass once the agent loop has ended for this
+	 * turn. The per-round passes never see the very last round, so any task that
+	 * just completed otherwise stays stuck as 'in-progress'. Awaits completion so
+	 * this final pass runs before we return, while the request's tool invocation
+	 * token is (hopefully) still valid.
+	 */
+	private async _runFinalBackgroundTodoPass(conversation: Conversation, request: vscode.ChatRequest): Promise<void> {
+		if (request.subAgentInvocationId !== undefined || request.subAgentName !== undefined) {
+			return;
+		}
+		const todoProcessor = this._backgroundTodoProcessors.get(conversation.sessionId);
+		if (!todoProcessor) {
+			return;
+		}
+		// Only run the final review pass when the background todo agent is still
+		// enabled for the current model. If the user switched to a BYOK (non-CAPI)
+		// model mid-session, the existing processor must not fire against it.
+		const endpoint = await this.endpointProvider.getChatEndpoint(request).catch(() => undefined);
+		if (!endpoint || !isBackgroundTodoAgentEnabled(endpoint, this.configurationService, this.expService, this._authenticationService, request)) {
+			return;
+		}
+		await raceTimeout(
+			todoProcessor.endTurn(conversation.getLatestTurn().id, request.toolInvocationToken),
+			5000,
+			() => todoProcessor.cancel()
+		);
 	}
 
 	private async handleSummarizeCommand(
@@ -490,6 +569,7 @@ export class AgentIntent extends EditCodeIntent {
 				stream.usage({
 					promptTokens: summaryMetadata.usage.prompt_tokens,
 					completionTokens: summaryMetadata.usage.completion_tokens,
+					copilotCredits: nanoAiuToCredits(summaryMetadata.usage.copilot_usage?.total_nano_aiu),
 					promptTokenDetails: summaryMetadata.promptTokenDetails,
 				});
 			}
@@ -547,8 +627,6 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 	/** Cached model capabilities from the most recent main agent render, reused by the background summarizer. */
 	private _lastModelCapabilities: { enableThinking: boolean; reasoningEffort: string | undefined; enableToolSearch: boolean; enableContextEditing: boolean } | undefined;
 
-	private _backgroundTodoExecutionContext: IBackgroundTodoExecutionContext | undefined;
-
 	/**
 	 * RNG used to jitter the background-summarization trigger threshold around 0.80.
 	 * Tests may overwrite this directly (e.g. `(invocation as any)._thresholdRng = () => 0.5`).
@@ -578,9 +656,14 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		@IAutomodeService private readonly automodeService: IAutomodeService,
 		@IOTelService protected override readonly otelService: IOTelService,
 		@ISessionTranscriptService private readonly sessionTranscriptService: ISessionTranscriptService,
+		@IAutomaticInstructionsCollector private readonly _automaticInstructionsCollector: IAutomaticInstructionsCollector,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 	) {
-		super(intent, location, endpoint, request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, otelService);
+		// Apply the user's "Context Size" picker selection to the request endpoint
+		// so the server-managed compaction threshold (Responses API) is keyed to the
+		// selected tier rather than the model's full native window. See
+		// applyContextSizeOverride for the cost rationale.
+		super(intent, location, applyContextSizeOverride(endpoint, request), request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, otelService);
 	}
 
 	public override getAvailableTools(): Promise<vscode.LanguageModelToolInformation[]> {
@@ -593,6 +676,21 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		token: vscode.CancellationToken
 	): Promise<IBuildPromptResult> {
 		this._resolvedCustomizations = await PromptRegistry.resolveAllCustomizations(this.instantiationService, this.endpoint);
+
+		// Only collect automatic instructions in the extension when the corresponding core setting opts in.
+		// Otherwise the core workbench performs the collection before the request reaches the extension.
+		const collectInstructionsInExtension = this.configurationService.getNonExtensionConfig<boolean>(PromptConfig.COLLECT_INSTRUCTIONS_IN_EXTENSION) === true;
+		if (collectInstructionsInExtension) {
+			const addedInstructionsAndIndex = await this._automaticInstructionsCollector.collect(this.request, token);
+			if (addedInstructionsAndIndex.length > 0) {
+				promptContext = { ...promptContext, chatVariables: ChatVariablesCollection.merge(promptContext.chatVariables, new ChatVariablesCollection(addedInstructionsAndIndex)) };
+			}
+		} else {
+			await this.instantiationService.createInstance(CustomInstructionsReferenceLogger).compare(this.request, this._automaticInstructionsCollector, token);
+		}
+		await this.instantiationService.createInstance(CustomInstructionsReferenceLogger).logReferences(promptContext.conversation?.sessionId, promptContext.chatVariables.references, collectInstructionsInExtension);
+
+
 		// Add any references from the codebase invocation to the request
 		const codebase = await this._getCodebaseReferences(promptContext, token);
 
@@ -600,7 +698,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		let toolReferences: vscode.ChatPromptReference[] = [];
 		if (codebase) {
 			toolReferences = toNewChatReferences(variables, codebase.references);
-			variables = new ChatVariablesCollection([...this.request.references, ...toolReferences]);
+			variables = new ChatVariablesCollection([...variables.references, ...toolReferences]);
 		}
 
 		const tools = promptContext.tools?.availableTools;
@@ -648,6 +746,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			endpoint,
 			promptContext: {
 				...promptContext,
+				chatVariables: variables,
 				tools: promptContext.tools && {
 					...promptContext.tools,
 					toolReferences: this.stableToolReferences.filter((r) => r.name !== ToolName.Codebase),
@@ -915,9 +1014,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 				|| backgroundSummarizer.state === BackgroundSummarizationState.Failed;
 
 			const cacheWarm = (promptContext.toolCallRounds?.length ?? 0) > 0;
-
 			const kickOff = shouldKickOffBackgroundSummarization(postRenderRatio, cacheWarm, this._thresholdRng);
-
 			if (kickOff && idleOrFailed) {
 				// Compute and cache model capabilities from the current render's
 				// messages. These must match the main agent fetch for cache parity.
@@ -939,8 +1036,8 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			}
 		}
 
-		// ── Background todo processing ──────────────────────────────────
-		this._maybeStartBackgroundTodoPass(endpoint, promptContext, token);
+		// Background todo processing
+		this._maybeStartBackgroundTodoAgentPass(endpoint, promptContext, token);
 
 		const lastMessage = result.messages.at(-1);
 		if (lastMessage?.role === Raw.ChatRole.User) {
@@ -951,7 +1048,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		}
 
 		if (this.endpoint.apiType !== 'messages') {
-			addCacheBreakpoints(result.messages);
+			addCacheBreakpoints(result.messages, this.endpoint.apiType);
 		}
 
 		if (this.request.command === 'error') {
@@ -1083,6 +1180,9 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 				const response = await this.endpoint.makeChatRequest2({
 					debugName: 'summarizeConversationHistory',
 					messages,
+					// Compaction is a standalone turn. Explicit because the default differs per
+					// endpoint: true on ChatEndpoint (HTTP), false on OpenAIEndpoint (#323554).
+					ignoreStatefulMarker: true,
 					finishedCb: undefined,
 					location: ChatLocation.Agent,
 					conversationId,
@@ -1122,24 +1222,9 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 				const promptTypes = messages.map(msg => `${msg.role}${'name' in msg && msg.name ? `-${msg.name}` : ''}:${getTextPart(msg.content).length}`).join(',');
 				/* __GDPR__
 					"summarizedConversationHistory" : {
-						"owner": "bhavyau",
-						"comment": "Tracks background summarization outcome",
-						"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The success state." },
-						"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID." },
-						"summarizationMode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The summarization mode." },
-						"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Session id." },
-						"chatRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat request ID." },
-						"lastUsedTool": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The last tool used before summarization." },
-						"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The request ID from the summarization call." },
-						"promptTypes": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Role and character count of each prompt message in order, as a proxy for cache hit rate (e.g. system:1234,user:567)." },
-						"numRounds": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total tool call rounds." },
-						"turnIndex": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The index of the current turn." },
-						"curTurnRoundIndex": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The index of the current round within the current turn." },
-						"isDuringToolCalling": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Whether this was triggered during tool calling." },
-						"duration": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Duration in ms." },
-						"promptTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Prompt tokens." },
-						"promptCacheTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Cached prompt tokens." },
-						"responseTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Output tokens." }
+						"owner": "roblourens",
+						"comment": "Tracks when summarization happens and what the outcome was",
+						"${include}": [ "${SummarizedConversationHistoryData}" ]
 					}
 				*/
 				this.telemetryService.sendMSFTTelemetryEvent('summarizedConversationHistory', {
@@ -1179,15 +1264,9 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 
 				/* __GDPR__
 					"summarizedConversationHistory" : {
-						"owner": "bhavyau",
-						"comment": "Tracks background summarization failure",
-						"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The success state." },
-						"detailedOutcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Detailed failure reason." },
-						"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID." },
-						"summarizationMode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The summarization mode." },
-						"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Session id." },
-						"chatRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat request ID." },
-						"duration": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Duration in ms." }
+						"owner": "roblourens",
+						"comment": "Tracks when summarization happens and what the outcome was",
+						"${include}": [ "${SummarizedConversationHistoryData}" ]
 					}
 				*/
 				this.telemetryService.sendMSFTTelemetryEvent('summarizedConversationHistory', {
@@ -1337,75 +1416,30 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 	}
 
 	// ── Background todo processing ──────────────────────────────────
-
-	/**
-	 * Returns the `BackgroundTodoProcessor` for this session, or `undefined`
-	 * if the intent is not an `AgentIntent`.
-	 */
-	private _getOrCreateBackgroundTodoProcessor(sessionId: string | undefined): BackgroundTodoProcessor | undefined {
-		if (!sessionId || !(this.intent instanceof AgentIntent)) {
+	private _getOrCreateBackgroundTodoAgentProcessor(promptContext: IBuildPromptContext) {
+		if (!(this.intent instanceof AgentIntent)) {
 			return undefined;
 		}
-		return this.intent.getOrCreateBackgroundTodoProcessor(sessionId);
+		return this.intent.getOrCreateBackgroundTodoProcessor(promptContext);
 	}
-
-	getBackgroundTodoExecutionContext(): IBackgroundTodoExecutionContext | undefined {
-		return this._backgroundTodoExecutionContext;
-	}
-
-	/**
-	 * Kick off a background todo pass if the policy says to run.
-	 */
-	private _maybeStartBackgroundTodoPass(
-		endpoint: IChatEndpoint,
-		promptContext: IBuildPromptContext,
-		token: vscode.CancellationToken,
-	): void {
-		// Subagent requests must not drive background todo passes. The main
-		// agent's next render will see all accumulated rounds from subagents
-		// via the delta tracker and trigger a single consolidated pass then.
-		if (this.request.subAgentInvocationId) {
+	private _maybeStartBackgroundTodoAgentPass(endpoint: IChatEndpoint, promptContext: IBuildPromptContext, token: vscode.CancellationToken) {
+		if (
+			!isBackgroundTodoAgentEnabled(endpoint, this.configurationService, this.expService, this.authenticationService, this.request) ||
+			isTodoToolExplicitlyEnabled(this.request) ||
+			this.request.subAgentInvocationId !== undefined ||
+			this.request.subAgentName !== undefined ||
+			!isBackgroundTodoAgentEnabled(endpoint, this.configurationService, this.expService, this.authenticationService, this.request) ||
+			isTodoToolExplicitlyEnabled(this.request)
+		) {
 			return;
 		}
 
-		const sessionId = promptContext.conversation?.sessionId;
-		const processor = this._getOrCreateBackgroundTodoProcessor(sessionId);
-		if (!processor) {
+		const processor = this._getOrCreateBackgroundTodoAgentProcessor(promptContext);
+		if (processor === undefined) {
 			return;
 		}
 
-		const turnId = promptContext.conversation?.getLatestTurn()?.id;
-		const executionContext: IBackgroundTodoExecutionContext = {
-			instantiationService: this.instantiationService,
-			logService: this.logService,
-			toolsService: this.toolsService,
-			telemetryService: this.telemetryService,
-			promptContext,
-		};
-
-		const { decision, reason, delta } = processor.shouldRun({
-			backgroundTodoAgentEnabled: isBackgroundTodoAgentEnabled(endpoint, this.configurationService, this.expService, this.authenticationService, this.request),
-			todoToolExplicitlyEnabled: isTodoToolExplicitlyEnabled(this.request),
-			isAgentPrompt: this.prompt === AgentPrompt,
-			promptContext,
-			turnId,
-		});
-
-		this.logService.debug(`[BackgroundTodo] policy decision: ${decision} (${reason})`);
-
-		if (decision === BackgroundTodoDecision.Wait && reason === 'processorInProgress' && delta) {
-			// Coalesce into the queue so the latest context is not lost.
-			this._backgroundTodoExecutionContext = executionContext;
-			processor.requestRegularPass(delta, executionContext, token, turnId);
-			return;
-		}
-
-		if (decision !== BackgroundTodoDecision.Run || !delta) {
-			return;
-		}
-
-		this._backgroundTodoExecutionContext = executionContext;
-		processor.requestRegularPass(delta, executionContext, token, turnId);
+		processor.trackTurnRound(promptContext, token);
 	}
 
 	override processResponse = undefined;

@@ -7,7 +7,6 @@ import { win32 } from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IWindowsMxcConfig, IWindowsMxcPolicyContainment, IWindowsMxcSandboxPolicy } from './sandboxHelperService.js';
-import type { ITerminalSandboxResolvedNetworkDomains } from './terminalSandboxService.js';
 
 export interface IWindowsMxcConfigOptions {
 	command: string;
@@ -16,7 +15,6 @@ export interface IWindowsMxcConfigOptions {
 	tempDir: URI;
 	schemaVersion?: string;
 	allowNetwork: boolean;
-	networkDomains: ITerminalSandboxResolvedNetworkDomains;
 	allowReadPaths: string[];
 	allowWritePaths: string[];
 	denyReadPaths: string[];
@@ -30,7 +28,7 @@ export const IWindowsMxcTerminalSandboxRuntime = createDecorator<IWindowsMxcTerm
 export interface IWindowsMxcTerminalSandboxRuntime {
 	readonly _serviceBrand: undefined;
 
-	getExecutablePath(appRoot: string, arch: string | undefined): string;
+	getExecutablePath(appRoot: string, nativeModulesDir: string, arch: string | undefined): string;
 	getRuntimeReadPaths(appRoot: string | undefined, executablePath: string | undefined): string[];
 	createConfig(options: IWindowsMxcConfigOptions, buildSandboxPayload: IWindowsMxcBuildSandboxPayload): Promise<IWindowsMxcConfig>;
 	wrapCommand(executablePath: string, configPath: string): string;
@@ -47,12 +45,11 @@ export interface IWindowsMxcTerminalSandboxRuntime {
 export class WindowsMxcTerminalSandboxRuntime implements IWindowsMxcTerminalSandboxRuntime {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _configVersion = '0.4.0-alpha';
-	private readonly _containerName = 'vscode-terminal-sandbox';
+	private readonly _configVersion = '0.6.0-alpha';
 
-	getExecutablePath(appRoot: string, arch: string | undefined): string {
+	getExecutablePath(appRoot: string, nativeModulesDir: string, arch: string | undefined): string {
 		const binArch = arch === 'arm64' ? 'arm64' : 'x64';
-		return win32.join(appRoot, 'node_modules', '@microsoft', 'mxc-sdk', 'bin', binArch, 'wxc-exec.exe');
+		return win32.join(appRoot, nativeModulesDir, '@microsoft', 'mxc-sdk', 'bin', binArch, 'wxc-exec.exe');
 	}
 
 	getRuntimeReadPaths(appRoot: string | undefined, executablePath: string | undefined): string[] {
@@ -71,17 +68,17 @@ export class WindowsMxcTerminalSandboxRuntime implements IWindowsMxcTerminalSand
 		const shell = options.shell
 			? this._quoteWindowsCommandLineArgument(options.shell)
 			: 'pwsh.exe';
-		const commandLine = `${shell} -NoProfile -ExecutionPolicy Bypass -Command ${this._quoteWindowsCommandLineArgument(options.command)}`;
+		const commandLine = `${shell} -NoProfile -Command ${this._quoteWindowsCommandLineArgument(options.command)}`;
 		const cwd = options.cwd ? this.toWindowsPath(options.cwd) : tempDirPath;
 		const policy: IWindowsMxcSandboxPolicy = {
 			version: options.schemaVersion ?? this._configVersion,
 			timeoutMs: 0,
 			filesystem: {
-				readwritePaths: [...new Set(options.allowWritePaths.map(path => this._normalizeWindowsPath(path)))],
-				readonlyPaths: [...new Set([tempDirPath, ...(options.shell && win32.isAbsolute(options.shell) ? [win32.dirname(options.shell)] : []), ...options.allowReadPaths].map(path => this._normalizeWindowsPath(path)))],
-				deniedPaths: [...new Set(options.denyReadPaths.map(path => this._normalizeWindowsPath(path)))],
+				readwritePaths: options.allowWritePaths.map(path => this._normalizeWindowsPath(path)),
+				readonlyPaths: [tempDirPath, ...(options.shell && win32.isAbsolute(options.shell) ? [win32.dirname(options.shell)] : []), ...options.allowReadPaths].map(path => this._normalizeWindowsPath(path)),
+				deniedPaths: options.denyReadPaths.map(path => this._normalizeWindowsPath(path)),
 			},
-			network: this._createNetworkPolicy(options.allowNetwork, options.networkDomains),
+			network: this._createNetworkPolicy(options.allowNetwork),
 			ui: {
 				allowWindows: true,
 				clipboard: 'none',
@@ -89,7 +86,7 @@ export class WindowsMxcTerminalSandboxRuntime implements IWindowsMxcTerminalSand
 			},
 		};
 
-		const config = await buildSandboxPayload(commandLine, policy, cwd, this._containerName);
+		const config = await buildSandboxPayload(commandLine, policy, cwd);
 		if (!config?.process) {
 			throw new Error('Unable to build Windows MXC sandbox payload');
 		}
@@ -123,20 +120,10 @@ export class WindowsMxcTerminalSandboxRuntime implements IWindowsMxcTerminalSand
 		return path.replace(/\//g, '\\');
 	}
 
-	private _createNetworkPolicy(allowNetwork: boolean, networkDomains: ITerminalSandboxResolvedNetworkDomains): NonNullable<IWindowsMxcSandboxPolicy['network']> {
-		const allowedHosts = networkDomains.allowedDomains.length > 0 ? networkDomains.allowedDomains : undefined;
-		const blockedHosts = networkDomains.deniedDomains.length > 0 ? networkDomains.deniedDomains : undefined;
-		const allowOutbound = allowNetwork || !!allowedHosts?.length;
-		const network: NonNullable<IWindowsMxcSandboxPolicy['network']> = {
-			allowOutbound,
-		};
-		if (allowOutbound && allowedHosts) {
-			network.allowedHosts = allowedHosts;
-		}
-		if (allowOutbound && blockedHosts) {
-			network.blockedHosts = blockedHosts;
-		}
-		return network;
+	private _createNetworkPolicy(allowNetwork: boolean): NonNullable<IWindowsMxcSandboxPolicy['network']> {
+		// MXC does not support per-host network policies on Windows. Rely on the
+		// overall allow/block policy instead of emitting unsupported host lists.
+		return { allowOutbound: allowNetwork };
 	}
 
 	private _quotePowerShellArgument(value: string): string {

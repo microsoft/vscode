@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from '../../../../../base/common/network.js';
-import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { resolveDefaultNewChatSessionType } from '../../common/constants.js';
+import { getChatSessionType, getNewChatSessionResource } from '../../common/model/chatUri.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 
-export async function clearChatEditor(accessor: ServicesAccessor, chatEditorInput?: ChatEditorInput): Promise<void> {
+export async function clearChatEditor(accessor: ServicesAccessor, chatEditorInput?: ChatEditorInput, targetSessionType?: string): Promise<void> {
 	const editorService = accessor.get(IEditorService);
 
 	if (!chatEditorInput) {
@@ -19,11 +19,13 @@ export async function clearChatEditor(accessor: ServicesAccessor, chatEditorInpu
 	}
 
 	if (chatEditorInput instanceof ChatEditorInput) {
-		// If we have a contributed session, make sure we create an untitled session for it.
-		// Otherwise create a generic new chat editor.
-		const resource = chatEditorInput.sessionResource && chatEditorInput.sessionResource.scheme !== Schemas.vscodeLocalChatSession
-			? chatEditorInput.sessionResource.with({ path: `/untitled-${generateUuid()}` })
-			: ChatEditorInput.getNewEditorUri();
+		const currentResource = chatEditorInput.sessionResource;
+		const currentSessionType = currentResource ? getChatSessionType(currentResource) : undefined;
+		const resolved = resolveDefaultNewChatSessionType(accessor, {
+			explicitOverride: targetSessionType,
+			currentSessionType,
+		});
+		const resource = getNewChatSessionResource(resolved.sessionType);
 
 		// A chat editor can only be open in one group
 		const identifier = editorService.findEditors(chatEditorInput.resource)[0];

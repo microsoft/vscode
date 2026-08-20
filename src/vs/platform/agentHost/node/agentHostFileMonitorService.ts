@@ -15,10 +15,14 @@ import { ILogService } from '../../log/common/log.js';
 export const IAgentHostFileMonitorService = createDecorator<IAgentHostFileMonitorService>('agentHostFileMonitorService');
 
 export const DEFAULT_AGENT_HOST_WATCH_EXCLUDES: readonly string[] = Object.freeze([
+	'**/.git',
+	'**/.git/lfs/**',
+	'**/.git/logs/**',
 	'**/.git/objects/**',
 	'**/.git/subtree-cache/**',
 	'**/.git/**/*.lock',
-	'**/.hg/store/**',
+	'**/.git/**/FETCH_HEAD',
+	'**/.git/**/fsmonitor--daemon/**',
 	'**/*.watchman-cookie-*',
 ]);
 

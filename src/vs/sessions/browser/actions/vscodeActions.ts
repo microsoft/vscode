@@ -19,7 +19,7 @@ import { IsAuxiliaryWindowContext } from '../../../workbench/common/contextkeys.
 import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../common/contextkeys.js';
 import { logSessionsInteraction } from '../../common/sessionsTelemetry.js';
 import { Menus } from '../../browser/menus.js';
-import { ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { IActionViewItemService } from '../../../platform/actions/browser/actionViewItemService.js';
@@ -52,7 +52,7 @@ export class OpenInVSCodeAction extends Action2 {
 
 		const openerService = accessor.get(IOpenerService);
 		const productService = accessor.get(IProductService);
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const sessionsService = accessor.get(ISessionsService);
 		const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 		const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 
@@ -67,7 +67,7 @@ export class OpenInVSCodeAction extends Action2 {
 		const params = new URLSearchParams();
 		params.set('windowId', '_blank');
 
-		const activeSession = sessionsManagementService.activeSession.get();
+		const activeSession = sessionsService.activeSession.get();
 		if (!activeSession) {
 			await openerService.open(URI.from({ scheme, query: params.toString() }), { openExternal: true });
 			return;
@@ -117,7 +117,7 @@ export class OpenInVSCodeWidgetContribution extends Disposable implements IWorkb
 	) {
 		super();
 		this._register(actionViewItemService.register(Menus.TitleBarCenterRight, OpenInVSCodeAction.ID, (action, options) => {
-			return instantiationService.createInstance(OpenInVSCodeTitleBarWidget, action, options);
+			return instantiationService.createInstance(OpenInVSCodeTitleBarWidget, action, options, OpenInVSCodeAction.ID);
 		}, undefined));
 	}
 }

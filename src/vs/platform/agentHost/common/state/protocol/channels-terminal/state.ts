@@ -108,6 +108,12 @@ export interface TerminalState {
 	 * are absent in the normal idle state.
 	 */
 	supportsCommandDetection?: boolean;
+	/**
+	 * Whether this terminal-style resource is backed by a pseudoterminal.
+	 * When `false`, output is plain text and clients do not need to parse
+	 * VT sequences.
+	 */
+	isPty?: boolean;
 }
 
 // ─── Terminal Content Parts ──────────────────────────────────────────────────
