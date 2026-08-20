@@ -26,6 +26,8 @@ import { ChatAgentService, IChatAgentService } from '../../../common/participant
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
+import { IChatModelFeedbackSurveyService } from '../../../browser/feedbackSurvey/chatModelFeedbackSurveyService.js';
+import { MockChatModelFeedbackSurveyService } from '../feedbackSurvey/mockChatModelFeedbackSurveyService.js';
 
 function nextFrame(): Promise<void> {
 	return new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
@@ -64,6 +66,7 @@ suite('ChatListWidget', () => {
 		configurationService.setUserConfiguration(ChatConfiguration.Verbose, false);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
 		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
 		instantiationService.stub(IAccessibleViewService, { getOpenAriaHint: () => '' });
 		instantiationService.stub(IChatAccessibilityService, {
