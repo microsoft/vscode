@@ -18,10 +18,6 @@ export function shouldErrorOnUnmatchedPattern(args: readonly string[]): boolean 
 	return args.length > 0;
 }
 
-export function getEslintConcurrency(args: readonly string[]): 'off' | number {
-	return args.length > 0 ? 'off' : 4;
-}
-
 async function eslint(args: readonly string[]): Promise<void> {
 	const started = Date.now();
 	console.log(args.length > 0
@@ -31,7 +27,7 @@ async function eslint(args: readonly string[]): Promise<void> {
 		cache: true,
 		cacheLocation: '.eslintcache',
 		cacheStrategy: 'content',
-		concurrency: getEslintConcurrency(args),
+		concurrency: 'auto',
 		errorOnUnmatchedPattern: shouldErrorOnUnmatchedPattern(args),
 	});
 	const formatter = await linter.loadFormatter('compact');
