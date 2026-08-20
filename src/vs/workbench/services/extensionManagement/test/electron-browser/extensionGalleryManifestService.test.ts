@@ -54,7 +54,6 @@ function createGalleryManifest() {
 	};
 }
 
-/** Captures emitted telemetry events so tests can assert on event names. */
 class RecordingTelemetryService extends NullTelemetryServiceShape {
 	readonly events: { readonly eventName: string; readonly data: unknown }[] = [];
 
@@ -207,14 +206,9 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 	});
 
 	test('sign-out during the in-flight startup fetch does not restore access', async () => {
-		// Regression for the sign-out race: the account listener must be attached before the initial
-		// fetch is awaited, and a superseded fetch must not publish. Otherwise a sign-out mid-fetch is
-		// dropped (or lost to the race) and the resolved manifest leaves a signed-out user on an
-		// Available marketplace.
 		defaultAccount = createDefaultAccount({ enterprise: true });
 
-		// Hold the manifest fetch open so the startup resolution parks mid-flight after it has already
-		// read a valid, eligible account.
+		// Hold the manifest fetch open so the startup resolution parks mid-flight.
 		let releaseIndex!: (v: IRequestContext) => void;
 		const indexGate = new Promise<IRequestContext>(resolve => { releaseIndex = resolve; });
 		requestHandler = () => indexGate;
@@ -222,16 +216,13 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		const service = createService();
 		const inflight = service.getExtensionGalleryManifest();
 
-		// Let the startup resolution advance to the point where it awaits the manifest fetch.
 		await new Promise(resolve => setTimeout(resolve, 0));
 
-		// The user signs out — this must supersede the in-flight resolution.
 		defaultAccount = null;
 		onDidChangeDefaultAccount.fire(null);
 		await new Promise(resolve => setTimeout(resolve, 0));
 
-		// The stale fetch finally returns a valid manifest — it must be discarded, leaving the
-		// signed-out user on RequiresSignIn rather than an Available marketplace.
+		// The stale fetch must be discarded rather than restore an Available marketplace.
 		releaseIndex(mockResponse(200, createGalleryManifest()));
 		const manifest = await inflight.catch(() => null);
 		await new Promise(resolve => setTimeout(resolve, 0));
