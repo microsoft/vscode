@@ -114,38 +114,3 @@ export function observeAllowSignedOutWhenUsable(configurationService: IConfigura
 		Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(AgentHostAllowSignedOutWhenUsableSettingId)),
 		() => isAllowSignedOutWhenUsableEnabled(configurationService));
 }
-
-/**
- * Inputs to the "discovered your existing <agent> configuration" nudge for a
- * single agent-host session type.
- */
-export interface IDiscoveredConfigNudgeContext {
-	/** Whether a GitHub account is currently signed in. */
-	readonly signedIn: boolean;
-	/** The `chat.agentHost.allowSignedOutWhenUsable` experimentation opt-in. */
-	readonly allowSignedOutWhenUsable: boolean;
-	/**
-	 * Whether the agent's session type is usable without GitHub right now — i.e.
-	 * its agent discovered an existing native configuration and is running in
-	 * native mode rather than the Copilot proxy.
-	 */
-	readonly usableWithoutGitHub: boolean;
-	/**
-	 * Whether the user has already dismissed this nudge, which silences it for
-	 * good. Once muted, the nudge never shows again regardless of the other
-	 * inputs.
-	 */
-	readonly muted: boolean;
-}
-
-/**
- * Decides whether to surface the discovered-config nudge for one agent-host
- * session type: shown only to a signed-out user who has opted in, when that
- * type is usable without GitHub right now — the agent found an existing native
- * config, so we let them in and explain how to switch to a Copilot subscription
- * instead. Signed-in users never see it; with the opt-in off, or once the user
- * has muted it, it is always false.
- */
-export function shouldShowDiscoveredConfigNudge(context: IDiscoveredConfigNudgeContext): boolean {
-	return !context.signedIn && context.allowSignedOutWhenUsable && context.usableWithoutGitHub && !context.muted;
-}
