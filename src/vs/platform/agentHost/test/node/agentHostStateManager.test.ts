@@ -10,11 +10,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType, NotificationType, type ActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
-import { MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
+import { ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { buildChangesetUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
 import { withAgentCustomizationSettings } from '../../common/agentCustomizationSettings.js';
+import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 
 suite('AgentHostStateManager', () => {
 
@@ -273,6 +274,25 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(notifications[0].type, NotificationType.SessionRemoved);
 	});
 
+	test('deleteSession clears parent and subagent annotations', () => {
+		const subagent = buildSubagentSessionUri(sessionUri, 'tool-call');
+		const parentAnnotations = buildAnnotationsUri(sessionUri);
+		const subagentAnnotations = buildAnnotationsUri(subagent);
+		manager.createSession(makeSessionSummary());
+		manager.restoreAnnotations(sessionUri, { annotations: [] });
+		manager.restoreAnnotations(subagent, { annotations: [] });
+
+		manager.deleteSession(sessionUri);
+
+		assert.deepStrictEqual({
+			parent: manager.getAnnotationsState(parentAnnotations),
+			subagent: manager.getAnnotationsState(subagentAnnotations),
+		}, {
+			parent: undefined,
+			subagent: undefined,
+		});
+	});
+
 	test('createSession emits sessionAdded notification', () => {
 		const notifications: INotification[] = [];
 		disposables.add(manager.onDidEmitNotification(n => notifications.push(n)));
@@ -299,6 +319,44 @@ suite('AgentHostStateManager', () => {
 		}, {
 			session: 'file:///resolved-worktree',
 			defaultChat: 'file:///resolved-worktree',
+		});
+	});
+
+	test('listed provisional session still applies the materialization upsert', () => {
+		const provisional = { ...makeSessionSummary(), workingDirectories: ['file:///provisional'] };
+		manager.createSession(provisional, { emitNotification: false });
+		manager.dispatchServerAction(sessionChatUri, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		});
+		manager.prepareSessionSummariesForListing([manager.getSessionSummary(sessionUri)!]);
+		const notifications: INotification[] = [];
+		disposables.add(manager.onDidEmitNotification(notification => notifications.push(notification)));
+
+		const persisted = {
+			...makeSessionSummary(),
+			project: { uri: 'file:///resolved-worktree', displayName: 'Resolved Worktree' },
+			workingDirectories: ['file:///resolved-worktree'],
+		};
+		manager.markSessionPersisted(sessionUri, persisted);
+
+		const added = notifications.find(notification => notification.type === NotificationType.SessionAdded);
+		assert.deepStrictEqual({
+			status: manager.getSessionState(sessionUri)?.status,
+			project: manager.getSessionState(sessionUri)?.project,
+			workingDirectories: manager.getSessionState(sessionUri)?.workingDirectories,
+			addedStatus: added?.type === NotificationType.SessionAdded ? added.summary.status : undefined,
+			addedProject: added?.type === NotificationType.SessionAdded ? added.summary.project : undefined,
+			addedWorkingDirectories: added?.type === NotificationType.SessionAdded ? added.summary.workingDirectories : undefined,
+		}, {
+			status: SessionStatus.InProgress,
+			project: persisted.project,
+			workingDirectories: persisted.workingDirectories,
+			addedStatus: SessionStatus.InProgress,
+			addedProject: persisted.project,
+			addedWorkingDirectories: persisted.workingDirectories,
 		});
 	});
 
@@ -600,6 +658,37 @@ suite('AgentHostStateManager', () => {
 		manager.restoreSession(makeSessionSummary(), []);
 
 		assert.strictEqual(notifications.length, 0, 'should not emit notification for restored sessions');
+	});
+
+	test('restored unpublished sessions retain summary changes without notifying root clients', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			manager.restoreSession(makeSessionSummary(), []);
+			const notifications: INotification[] = [];
+			disposables.add(manager.onDidEmitNotification(notification => notifications.push(notification)));
+
+			manager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Hidden Title' });
+			await new Promise(resolve => setTimeout(resolve, 150));
+			const hiddenChanges = notifications.filter(notification => notification.type === NotificationType.SessionSummaryChanged);
+			const retainedTitle = manager.getSessionSummary(sessionUri)?.title;
+
+			manager.setSessionSummaryPublished(sessionUri, true);
+			const added = notifications.find(notification => notification.type === NotificationType.SessionAdded);
+			manager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Visible Title' });
+			await new Promise(resolve => setTimeout(resolve, 150));
+			const visibleChanges = notifications.filter(notification => notification.type === NotificationType.SessionSummaryChanged) as SessionSummaryChangedParams[];
+
+			assert.deepStrictEqual({
+				hiddenChangeCount: hiddenChanges.length,
+				retainedTitle,
+				addedTitle: added?.type === NotificationType.SessionAdded ? added.summary.title : undefined,
+				visibleChanges: visibleChanges.map(change => change.changes.title),
+			}, {
+				hiddenChangeCount: 0,
+				retainedTitle: 'Hidden Title',
+				addedTitle: 'Hidden Title',
+				visibleChanges: ['Visible Title'],
+			});
+		});
 	});
 
 	test('restoreSession emits sessionSummaryChanged clearing the adoptable marker for a previously surfaced session', () => {
@@ -1379,6 +1468,7 @@ suite('AgentHostStateManager', () => {
 				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'a', origin: { kind: MessageKind.User } },
 			});
+
 			manager.dispatchServerAction(peerChat, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-peer',
@@ -1415,6 +1505,45 @@ suite('AgentHostStateManager', () => {
 					activeAfterBothComplete: 0,
 				},
 			);
+		});
+
+		test('session-status event captures every lifecycle transition without debouncing', () => {
+			manager.createSession(makeSessionSummary());
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const statuses: SessionStatus[] = [];
+			disposables.add(manager.onDidChangeSessionStatus(e => statuses.push(e.status & ~(SessionStatus.IsRead | SessionStatus.IsArchived))));
+
+			manager.dispatchServerAction(defaultChat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-default',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'a', origin: { kind: MessageKind.User } },
+			});
+			manager.dispatchServerAction(defaultChat, {
+				type: ActionType.ChatInputRequested,
+				request: {
+					id: 'request',
+					purpose: ChatInputRequestPurpose.AskUser,
+					questions: [{ kind: ChatInputQuestionKind.Text, id: 'question', message: 'Continue?' }],
+				},
+			});
+			manager.dispatchServerAction(defaultChat, {
+				type: ActionType.ChatInputCompleted,
+				requestId: 'request',
+				response: ChatInputResponseKind.Accept,
+			});
+			manager.dispatchServerAction(defaultChat, {
+				type: ActionType.ChatTurnComplete,
+				turnId: 'turn-default',
+				duration: 1000,
+			});
+
+			assert.deepStrictEqual(statuses, [
+				SessionStatus.InProgress,
+				SessionStatus.InputNeeded,
+				SessionStatus.InProgress,
+				SessionStatus.Idle,
+			]);
 		});
 
 		test('removeChat clears a peer chat that is removed mid-turn', () => {

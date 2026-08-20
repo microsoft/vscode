@@ -1,5 +1,9 @@
 # Base Session Layout Controller — Spec
 
+> **Specification change gate:** A bug fix that restores an existing `B*` rule
+> belongs in a regression test. Update this file only when the intended base
+> controller behavior changes.
+
 Specifies [`baseSessionLayoutController.ts`](./baseSessionLayoutController.ts) (`BaseLayoutController`),
 the abstract, platform-agnostic controller that manages the per-session layout state shared by every
 layout. Platform-specific auxiliary bar behaviour lives in the desktop / mobile subclasses
@@ -70,8 +74,9 @@ default layout instead of stale state. Open editors are still preserved.
   (`_editorPartHiddenBySession`, only while a single session is visible — the editor area is shared in
   multi-session mode; captured lazily at switch-away it would race the switch derive), so a switch-back
   `_applyWorkingSet` skips the editor-part reveal for layouts that use per-session visibility. Single-pane
-  overrides `_isEditorPartVisibilityPerSession` and `_isViewStatePerSession` to disable both maps; its
-  `SinglePaneSidePaneVisibilityStrategy` owns shared New/Existing lifecycle profiles instead.
+  overrides `_isEditorPartVisibilityPerSession` and `_isViewStatePerSession` to disable both maps;
+  `SinglePaneExistingSessionStrategy` owns the shared Existing visibility profile, while
+  `SinglePaneNewSessionStrategy` applies only a one-time entry rule and stores no visibility state.
   `onDidReplaceSession`
   copies a replaced active draft's editor-part hidden state to the committed resource before that resource's
   first working-set apply, avoiding a fall-through to the created-session default. Cleanup on

@@ -15,13 +15,13 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IChatAccessibilityService } from '../../../browser/chat.js';
-import { computeScrollDownState, getAnchoredScrollTop, AutoScrollHolds, UserToggleResizeState, ChatListWidget } from '../../../browser/widget/chatListWidget.js';
+import { computeScrollDownState, getAnchoredScrollTop, AutoScrollHolds, UserToggleResizeState, ChatListWidget, IChatListWidgetOptions } from '../../../browser/widget/chatListWidget.js';
 import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { ChatModel } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
-import { ChatViewModel } from '../../../common/model/chatViewModel.js';
+import { ChatViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
@@ -51,6 +51,50 @@ async function waitForStableLayout(widget: ChatListWidget, maxFrames = 120): Pro
 
 suite('ChatListWidget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createWidget(options: IChatListWidgetOptions = {}) {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, false);
+		configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
+		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
+		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
+		configurationService.setUserConfiguration(ChatConfiguration.TurnStatusPills, false);
+		configurationService.setUserConfiguration(ChatConfiguration.Verbose, false);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+		instantiationService.stub(IAccessibleViewService, { getOpenAriaHint: () => '' });
+		instantiationService.stub(IChatAccessibilityService, {
+			acceptRequest: () => { },
+			disposeRequest: () => { },
+			acceptResponse: () => { },
+			acceptElicitation: () => { },
+		});
+
+		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+		const container = mainWindow.document.createElement('div');
+		container.style.position = 'absolute';
+		container.style.insetBlockStart = '0px';
+		container.style.insetInlineStart = '0px';
+		container.style.width = '500px';
+		container.style.height = '300px';
+		container.classList.add('monaco-reduce-motion');
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+
+		const widget = disposables.add(instantiationService.createInstance(ChatListWidget, container, {
+			currentChatMode: () => ChatModeKind.Agent,
+			location: ChatAgentLocation.Chat,
+			editorOptions: {} as ChatEditorOptions,
+			...options,
+		}));
+		widget.setViewModel(viewModel);
+		widget.setVisible(true);
+		return { disposables, model, viewModel, container, widget };
+	}
 
 	test('auto-scroll holds compose and survive a double release', () => {
 		const holds = new AutoScrollHolds();
@@ -130,52 +174,40 @@ suite('ChatListWidget', () => {
 		]);
 	});
 
+	test('keeps responses visible when a filter excludes their requests', async () => {
+		const { disposables, model, viewModel, widget } = createWidget({
+			filter: { filter: item => isResponseVM(item) },
+		});
+		const text = 'question';
+		const request = model.addRequest({
+			text,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+		}, { variables: [] }, 0);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('response') });
+
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+
+		const requestItem = viewModel.getItems().find(isRequestVM)!;
+		const responseItem = viewModel.getItems().find(isResponseVM)!;
+		assert.deepStrictEqual({
+			requestVisible: widget.getElementTop(requestItem) !== undefined,
+			responseVisible: widget.getElementTop(responseItem) !== undefined,
+		}, {
+			requestVisible: false,
+			responseVisible: true,
+		});
+
+		disposables.dispose();
+	});
+
 	// Regression test for the completed-response disclosure ("Completed N steps in ..."): expanding
 	// a collapsible while the transcript is scrolled to the very bottom used to auto-scroll to the
 	// new end, so the revealed content grew *upwards* and pushed the summary off the top of the
 	// viewport. The summary must stay put and the content must grow downwards instead.
 	test('expanding a collapsible at the bottom of the transcript keeps its header anchored', async () => {
-		const disposables = store.add(new DisposableStore());
-		const instantiationService = workbenchInstantiationService(undefined, disposables);
-		const configurationService = new TestConfigurationService();
-		configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, false);
-		configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
-		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
-		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
-		configurationService.setUserConfiguration(ChatConfiguration.TurnStatusPills, false);
-		configurationService.setUserConfiguration(ChatConfiguration.Verbose, false);
-		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(IChatService, new MockChatService());
-		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
-		instantiationService.stub(IAccessibleViewService, { getOpenAriaHint: () => '' });
-		instantiationService.stub(IChatAccessibilityService, {
-			acceptRequest: () => { },
-			disposeRequest: () => { },
-			acceptResponse: () => { },
-			acceptElicitation: () => { },
-		});
-
-		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
-		const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
-
-		const container = mainWindow.document.createElement('div');
-		container.style.position = 'absolute';
-		container.style.insetBlockStart = '0px';
-		container.style.insetInlineStart = '0px';
-		container.style.width = '500px';
-		container.style.height = '300px';
-		// Disable the disclosure's expand transition so layout settles without animation.
-		container.classList.add('monaco-reduce-motion');
-		mainWindow.document.body.appendChild(container);
-		disposables.add(toDisposable(() => container.remove()));
-
-		const widget = disposables.add(instantiationService.createInstance(ChatListWidget, container, {
-			currentChatMode: () => ChatModeKind.Agent,
-			location: ChatAgentLocation.Chat,
-			editorOptions: {} as ChatEditorOptions,
-		}));
-		widget.setViewModel(viewModel);
-		widget.setVisible(true);
+		const { disposables, model, container, widget } = createWidget();
 
 		// Enough completed turns for the transcript to overflow the viewport, each with enough
 		// steps for the renderer to fold them into a completed-response disclosure.

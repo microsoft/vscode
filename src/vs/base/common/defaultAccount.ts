@@ -69,6 +69,16 @@ export interface IPolicyData {
 	 * `enabledPlugins`, `extraKnownMarketplaces`) are carried as canonical JSON strings.
 	 */
 	readonly managedSettings?: ManagedSettingsData;
+
+	/**
+	 * Whether at least one managed-settings delivery channel currently supplies a setting — i.e.
+	 * the user is governed by GitHub Copilot managed settings at all, independent of which keys
+	 * were set.
+	 *
+	 * Unlike {@link managedSettings}, this is not projected onto the keys VS Code declares, so it
+	 * also reflects runtime-owned keys VS Code never reads.
+	 */
+	readonly managedSettingsActive?: boolean;
 }
 
 export interface ICopilotTokenInfo {

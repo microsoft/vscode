@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/pullRequestPicker.css';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { fromNow } from '../../../../base/common/date.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -29,14 +30,8 @@ export interface IPullRequestSessionRepository {
 	readonly repo: string;
 }
 
-export interface IRepositoryRemote {
-	readonly name: string;
-	readonly fetchUrl?: string;
-}
-
 export async function resolvePullRequestSessionRepository(
 	sectionSessions: readonly ISession[],
-	resolveGitHubRepository: (folderUri: URI) => Promise<{ readonly owner: string; readonly repo: string } | undefined>,
 ): Promise<IPullRequestSessionRepository | undefined> {
 	let folderUri: URI | undefined;
 	for (const session of sectionSessions) {
@@ -54,23 +49,8 @@ export async function resolvePullRequestSessionRepository(
 	if (!folderUri) {
 		return undefined;
 	}
-	const identity = getFirstGitHubRepository(sectionSessions) ?? await resolveGitHubRepository(folderUri);
+	const identity = getFirstGitHubRepository(sectionSessions);
 	return identity ? { folderUri, owner: identity.owner, repo: identity.repo } : undefined;
-}
-
-export function getGitHubRepositoryFromRemotes(remotes: readonly IRepositoryRemote[]): { readonly owner: string; readonly repo: string } | undefined {
-	const orderedRemotes = [...remotes].sort((a, b) => Number(b.name === 'origin') - Number(a.name === 'origin'));
-	for (const remote of orderedRemotes) {
-		const fetchUrl = remote.fetchUrl?.trim().replace(/\/$/, '').replace(/\.git$/, '');
-		if (!fetchUrl) {
-			continue;
-		}
-		const match = /^(?:(?:https?|ssh):\/\/(?:git@)?github\.com\/|git@github\.com:)(?<owner>[^/\s]+)\/(?<repo>[^/\s]+)$/i.exec(fetchUrl);
-		if (match?.groups) {
-			return { owner: match.groups.owner, repo: match.groups.repo };
-		}
-	}
-	return undefined;
 }
 
 export function getExistingPullRequests(sessions: readonly ISession[], owner: string, repo: string, repositorySessions: readonly ISession[] = []): IExistingPullRequests {
@@ -82,6 +62,9 @@ export function getExistingPullRequests(sessions: readonly ISession[], owner: st
 	for (const session of sessions) {
 		const workspace = session.workspace.get();
 		for (const folder of workspace?.folders ?? []) {
+			if (folder.root.scheme === GITHUB_REMOTE_FILE_SCHEME) {
+				continue;
+			}
 			const gitHubInfo = folder.gitRepository?.gitHubInfo.get();
 			const matchesRepository = gitHubInfo
 				? gitHubInfo.owner.toLowerCase() === normalizedOwner && gitHubInfo.repo.toLowerCase() === normalizedRepo
@@ -212,11 +195,13 @@ function appendGroup(items: (IPullRequestQuickPickItem | IQuickPickSeparator)[],
 function toQuickPickItem(pullRequest: IGitHubPullRequestSummary): IPullRequestQuickPickItem {
 	const updated = fromNow(new Date(pullRequest.updatedAt), true, true);
 	const detail = localize('pullRequest.detail', "@{0} \u00b7 updated {1} \u00b7 +{2} -{3}", pullRequest.author.login, updated, pullRequest.additions, pullRequest.deletions);
+	const icon = pullRequest.isDraft ? Codicon.gitPullRequestDraft : Codicon.gitPullRequest;
+	const iconColorClass = pullRequest.isDraft ? 'sessions-pull-request-draft' : 'sessions-pull-request-open';
 	return {
 		label: `#${pullRequest.number} ${pullRequest.title}`,
 		detail,
 		ariaLabel: localize('pullRequest.ariaLabel', "Pull request #{0}, {1}, by {2}, updated {3}, {4} additions and {5} deletions", pullRequest.number, pullRequest.title, pullRequest.author.login, updated, pullRequest.additions, pullRequest.deletions),
-		iconClass: ThemeIcon.asClassName(pullRequest.isDraft ? Codicon.gitPullRequestDraft : Codicon.gitPullRequest),
+		iconClass: `${ThemeIcon.asClassName(icon)} ${iconColorClass}`,
 		pullRequest,
 	};
 }

@@ -305,6 +305,9 @@ export interface IEditSessionEntryDiff extends IEditSessionDiffStats {
 	 */
 	modifiedSnapshotURI?: URI;
 
+	/** Whether the modified resource was deleted by this edit. */
+	isDeleted?: boolean;
+
 	/** Diff state information: */
 	quitEarly: boolean;
 	identical: boolean;
