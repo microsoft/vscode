@@ -447,6 +447,53 @@ suite('PullRequestQueryService', () => {
 	});
 
 	test('derives merge permission from the repository permission of the viewer', async () => {
+		// `null` is what GitHub returns when the request is authenticated as a GitHub App.
+		const permissions = ['ADMIN', 'MAINTAIN', 'WRITE', 'TRIAGE', 'READ', null];
+		const canMerge: Record<string, boolean> = {};
+		for (const viewerPermission of permissions) {
+			await withServer(async server => {
+				server.enqueue(gitHubGraphQLStep({
+					queryIncludes: ['AgentHostPullRequestMergeability', 'viewerPermission'],
+					response: gitHubGraphQLResponse({
+						repository: {
+							mergeCommitAllowed: true,
+							squashMergeAllowed: false,
+							rebaseMergeAllowed: false,
+							viewerPermission,
+							mergeQueue: null,
+							pullRequest: {
+								headRefOid: 'head-1',
+								baseRefOid: 'base',
+								mergeable: 'MERGEABLE',
+								mergeStateStatus: 'CLEAN',
+								reviewDecision: 'APPROVED',
+								viewerCanUpdateBranch: false,
+								viewerCanEnableAutoMerge: false,
+								autoMergeRequest: null,
+								mergeQueueEntry: null,
+							},
+						},
+					}),
+				}));
+				const { query, ref, credential } = setup(server);
+				const result = await query.fetch('mergeability', ref, core('head-1'), { priority: 'interactive', mergeability: true }, credential, new AbortController().signal);
+				assert.ok(result.fragment === 'mergeability', `expected a mergeability fragment for ${viewerPermission ?? 'null'}, got ${result.fragment}`);
+				canMerge[viewerPermission ?? 'null'] = result.value.viewerCanMerge;
+				server.assertSatisfied();
+			});
+		}
+
+		assert.deepStrictEqual(canMerge, {
+			ADMIN: true,
+			MAINTAIN: true,
+			WRITE: true,
+			TRIAGE: false,
+			READ: false,
+			null: false,
+		});
+	});
+
+	test('normalizes the remaining mergeability fields', async () => {
 		await withServer(async server => {
 			server.enqueue(gitHubGraphQLStep({
 				queryIncludes: ['AgentHostPullRequestMergeability', 'viewerPermission'],
