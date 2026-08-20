@@ -222,7 +222,7 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 
 	private _renderChevron(header: HTMLElement, details: HTMLDetailsElement, showChanges: IObservable<boolean>): IDisposable {
 		const chevron = header.appendChild($('span.chat-file-changes-chevron.chat-collapsible-hover-chevron', { 'aria-hidden': 'true' }));
-		chevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRight));
+		chevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRightCompact));
 
 		const setExpansionState = () => {
 			header.setAttribute('aria-expanded', String(details.open));

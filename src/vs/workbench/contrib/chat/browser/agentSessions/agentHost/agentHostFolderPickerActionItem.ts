@@ -152,7 +152,7 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 		const label = folder ? folder.name : (selected ? basename(selected) : localize('agentHost.selectFolder', "Folder"));
 		dom.reset(
 			element,
-			...renderLabelWithIcons(`$(folder)`),
+			...renderLabelWithIcons(`$(folder-compact)`),
 			dom.$('span.chat-input-picker-label', undefined, label),
 		);
 		// Set the aria label after the visible text is in place: the base class

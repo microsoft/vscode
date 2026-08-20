@@ -97,7 +97,7 @@ export class ChatVoiceInputModeAction extends Action2 {
 		super({
 			id: ChatVoiceInputModeAction.ID,
 			title: localize2('voiceInputMode', "Voice Input Mode"),
-			icon: Codicon.mic,
+			icon: Codicon.micCompact,
 			precondition: SegmentedVoiceInputModePillActive,
 			menu: {
 				id: MenuId.ChatExecute,
@@ -630,7 +630,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			// spinner, which the `.preparing` CSS animates.
 			const dictationIcon = dictationBusy
 				? dictationDownloading.read(reader) ? Codicon.micDownloadCompact : Codicon.loadingCompact
-				: isDictating ? Codicon.micFilled : Codicon.mic;
+				: isDictating ? Codicon.micFilled : Codicon.micCompact;
 			this._dictationIcon!.className = `chat-voice-input-mode-icon ${ThemeIcon.asClassName(dictationIcon)}`;
 
 			// Wrap the download glyph in a determinate progress ring during an
@@ -672,7 +672,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			this._muteCell!.classList.toggle('collapsed', !mutePresent);
 			this._muteCell!.classList.toggle('active', muted);
 			this._muteCell!.setAttribute('aria-pressed', String(muted));
-			this._muteIcon!.className = `chat-voice-input-mode-icon ${ThemeIcon.asClassName(muted ? Codicon.mic : Codicon.mute)}`;
+			this._muteIcon!.className = `chat-voice-input-mode-icon ${ThemeIcon.asClassName(muted ? Codicon.micCompact : Codicon.mute)}`;
 			this._updateAriaLabels();
 
 			// Audio-reactive bars only while live (and not hovering the disconnect preview).

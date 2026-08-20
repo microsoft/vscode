@@ -43,7 +43,7 @@
 		}
 
 		.codicon {
-			font-size: 12px;
+			font-size: var(--vscode-codiconFontSize-compact);
 		}
 
 		.rendered-markdown.collapsible-title-content {
@@ -112,7 +112,7 @@
 
 	&.chat-thinking-active > .chat-used-context-label .monaco-button.monaco-icon-button {
 
-		.codicon.codicon-circle-filled {
+		.codicon.codicon-circle-filled-compact {
 			display: none;
 		}
 	}
@@ -223,8 +223,8 @@
 			}
 
 			/* todo: ideally not !important, but the competing css has 14 specificity */
-			.codicon.codicon-check,
-			.codicon.codicon-loading {
+			.codicon.codicon-check-compact,
+			.codicon.codicon-loading-compact {
 				display: none !important;
 			}
 
@@ -236,7 +236,7 @@
 				display: inline-block;
 			}
 
-			.show-checkmarks .progress-container > .codicon.codicon-check {
+			.show-checkmarks .progress-container > .codicon.codicon-check-compact {
 				display: inline-flex;
 			}
 
@@ -269,11 +269,11 @@
 		.chat-thinking-tool-wrapper .chat-markdown-part.rendered-markdown {
 			padding: 5px 12px 4px 24px;
 
-			.status-icon.codicon-check {
+			.status-icon.codicon-check-compact {
 				display: none;
 			}
 
-			.show-checkmarks .status-icon.codicon-check {
+			.show-checkmarks .status-icon.codicon-check-compact {
 				display: inline-flex;
 			}
 
@@ -295,11 +295,11 @@
 		.chat-thinking-tool-wrapper > .chat-codeblock-pill-container {
 			padding: 5px 12px 4px 24px;
 
-			.status-icon.codicon-check {
+			.status-icon.codicon-check-compact {
 				display: none;
 			}
 
-			.show-checkmarks .status-icon.codicon-check {
+			.show-checkmarks .status-icon.codicon-check-compact {
 				display: inline-flex;
 			}
 		}
@@ -349,7 +349,7 @@
 				top: 9px;
 				width: 12px;
 				height: 12px;
-				font-size: 12px;
+				font-size: var(--vscode-codiconFontSize-compact);
 				line-height: 12px;
 				text-align: center;
 				color: var(--vscode-descriptionForeground);
@@ -412,7 +412,7 @@
 		margin-bottom: 2px;
 		overflow: hidden;
 
-		.codicon:not(.codicon-check, .codicon-loading) {
+		.codicon:not(.codicon-check-compact, .codicon-loading-compact) {
 			display: inline-flex;
 		}
 

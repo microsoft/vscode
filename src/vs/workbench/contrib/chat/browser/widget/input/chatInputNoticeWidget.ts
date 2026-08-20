@@ -14,6 +14,7 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../..
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { IChatInputNoticeFocusTarget } from './chatInputNoticeHost.js';
+import { getCompactCodicon } from '../../chatIcons.js';
 import './media/chatInputNotice.css';
 
 /**
@@ -220,7 +221,7 @@ export class ChatInputNoticeWidget extends Disposable implements IChatInputNotic
 
 		// The producer's class goes on the action itself rather than the housing, so
 		// it names the thing that is actually clicked, focused and styled.
-		const cssClass = [ThemeIcon.asClassName(options.icon), options.className].filter(Boolean).join(' ');
+		const cssClass = [ThemeIcon.asClassName(getCompactCodicon(options.icon)), options.className].filter(Boolean).join(' ');
 		const actionBar = register(new ActionBar(container));
 		actionBar.push(register(new Action('chatInputNotice.action', options.ariaLabel, cssClass, true, async () => options.onActivate())), { icon: true, label: false });
 

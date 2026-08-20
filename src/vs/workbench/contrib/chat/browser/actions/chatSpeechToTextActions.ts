@@ -141,7 +141,7 @@ export class ToggleChatSpeechToTextAction extends Action2 {
 			id: ToggleChatSpeechToTextAction.ID,
 			title: localize2('chat.speechToText.start', "Dictate (Speech to Text)"),
 			category: CHAT_CATEGORY,
-			icon: Codicon.mic,
+			icon: Codicon.micCompact,
 			f1: false,
 			toggled: {
 				condition: ChatContextKeys.speechToTextRecording,

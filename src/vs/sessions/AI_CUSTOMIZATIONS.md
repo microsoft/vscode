@@ -69,6 +69,8 @@ The management editor opens as a compact modal editor. The modal title and welco
 
 The first sidebar entry is a static `Overview` navigation item. It is styled like the other sidebar labels and does not mirror the active harness label; harness identity is represented by the modal title and welcome heading instead.
 
+Dense management-editor affordances, including group and tool-list chevrons, use compact codicon glyphs and the compact codicon font-size token.
+
 The Tools section can browse the Marketplace in the core workbench, where extension gallery browsing and installation are available. The Sessions window hides Tools Marketplace browsing and only shows the tool enablement list.
 
 The Plugins section keeps plugin maintenance close to plugin creation: its compact toolbar includes an accessible Update Plugins button beside Create Plugin. This invokes the shared `workbench.agentPlugins.checkForUpdates` command, matching the Update Plugins action in the installed Agent Plugins view title; holding Alt/Shift on that view-title action invokes the existing force-update command. Update actions are disabled while the shared operation is running. Progress is shown while checking, followed by a notification listing updated or failed plugins, or confirming that plugins are already up to date.

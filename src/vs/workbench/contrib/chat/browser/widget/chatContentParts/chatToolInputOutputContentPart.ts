@@ -128,7 +128,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		elements.root.appendChild(contentAnimation.root);
 
 		// Add hover chevron indicator on the right (decorative, hide from screen readers)
-		const hoverChevron = dom.$('span.chat-collapsible-hover-chevron.codicon.codicon-chevron-right');
+		const hoverChevron = dom.$('span.chat-collapsible-hover-chevron.codicon.codicon-chevron-right-compact');
 		hoverChevron.setAttribute('aria-hidden', 'true');
 		btn.element.appendChild(hoverChevron);
 
@@ -142,11 +142,11 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 
 			const isInProgress = !output && !isError;
 			if (isError) {
-				btn.icon = Codicon.error;
+				btn.icon = Codicon.errorCompact;
 			} else {
 				btn.icon = output
-					? Codicon.check
-					: ThemeIcon.modify(Codicon.loading, 'spin');
+					? Codicon.checkCompact
+					: ThemeIcon.modify(Codicon.loadingCompact, 'spin');
 			}
 			elements.root.classList.toggle('shimmer-progress', shimmer && isInProgress);
 

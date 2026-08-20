@@ -979,7 +979,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-item-container.interactive-item-compact .header .codicon-avatar .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .interactive-item-container.interactive-item-compact .header .avatar + .avatar {
@@ -1074,7 +1074,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-dnd-overlay .attach-context-overlay-text .codicon {
 	height: 12px;
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	margin-right: 3px;
 }
 
@@ -1853,7 +1853,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-editor-container .monaco-editor .chat-prompt-spinner {
 	transform-origin: 6px 6px;
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor,
@@ -1935,7 +1935,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			}
 
 			.codicon {
-				font-size: 12px;
+				font-size: var(--vscode-codiconFontSize-compact);
 			}
 		}
 
@@ -1988,7 +1988,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	position: absolute;
 	bottom: 0;
 	right: 0;
-	font-size: 12px !important;
+	font-size: var(--vscode-codiconFontSize-compact) !important;
 	color: var(--vscode-problemsWarningIcon-foreground);
 	background: var(--vscode-input-background);
 	width: fit-content;
@@ -2026,13 +2026,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 				align-items: center;
 				margin-left: 4px;
 				flex-shrink: 0;
-				font-size: 12px;
+				font-size: var(--vscode-codiconFontSize-compact);
 
 				.codicon.codicon-info {
 					color: var(--vscode-problemsInfoIcon-foreground) !important;
 				}
 
-				.codicon.codicon-warning {
+				.codicon.codicon-warning-compact {
 					color: var(--vscode-problemsWarningIcon-foreground) !important;
 				}
 			}
@@ -2042,7 +2042,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			}
 
 			.codicon {
-				font-size: 12px;
+				font-size: var(--vscode-codiconFontSize-compact);
 			}
 		}
 
@@ -2371,7 +2371,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		position: absolute;
 		bottom: 0;
 		left: 12px;
-		font-size: 12px !important;
+		font-size: var(--vscode-codiconFontSize-compact) !important;
 		background: var(--vscode-input-background);
 		width: fit-content;
 		height: fit-content;
@@ -2574,7 +2574,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: 11px;
 }
 
-.interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups .monaco-button .codicon-sparkle {
+.interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups .monaco-button .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups .monaco-button .codicon-sparkle-compact {
 	float: left;
 }
 
@@ -3387,12 +3391,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-file-changes-label .monaco-button .codicon,
 .interactive-session .chat-used-context-label .monaco-button .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	color: var(--vscode-icon-foreground) !important;
 }
 
 /* Hide the leading icon on collapsible parts by default; show-checkmarks restores it */
-.interactive-session .chat-used-context-label .monaco-icon-button > .codicon:first-child:not(.chat-collapsible-hover-chevron):not(.codicon-error):not(.codicon-warning) {
+.interactive-session .chat-used-context-label .monaco-icon-button > .codicon:first-child:not(.chat-collapsible-hover-chevron):not(.codicon-error-compact):not(.codicon-warning-compact) {
 	display: none;
 }
 
@@ -3402,7 +3406,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 /* Hover chevron indicator for collapsible parts */
 .chat-collapsible-hover-chevron {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	opacity: 0;
 	transform: rotate(0deg);
 	transform-origin: center;
@@ -3444,14 +3448,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding-top: 2px;
 
 	> .codicon[class*='codicon-'] {
-		font-size: 12px;
+		font-size: var(--vscode-codiconFontSize-compact);
 
 		&::before {
-			font-size: 12px;
+			font-size: var(--vscode-codiconFontSize-compact);
 		}
 	}
 
-	> .codicon.codicon-check {
+	> .codicon.codicon-check-compact {
 		display: none;
 	}
 
@@ -3461,7 +3465,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		/* Matching the margin on all .monaco-text-button .codicon */
 		margin: 0 .2em;
 
-		&.codicon-error {
+		&.codicon-error-compact {
 			color: var(--vscode-editorError-foreground) !important;
 		}
 	}
@@ -3519,8 +3523,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-descriptionForeground);
 }
 
-.show-checkmarks .progress-container > .codicon.codicon-check,
-.progress-container.show-checkmarks > .codicon.codicon-check {
+.show-checkmarks .progress-container > .codicon.codicon-check-compact,
+.progress-container.show-checkmarks > .codicon.codicon-check-compact {
 	display: inline-flex;
 	margin-left: 4px;
 }
@@ -3765,7 +3769,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 
 .chat-attached-context-attachment .chat-attached-context-pill {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	display: inline-flex;
 	align-items: center;
 	padding: 2px 0 2px 0px;
@@ -3775,9 +3779,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	outline: none;
 	border: none;
 
-	.codicon.codicon-file-media,
-	.codicon.codicon-warning {
-		font-size: 12px;
+	.codicon.codicon-file-media-compact,
+	.codicon.codicon-warning,
+	.codicon.codicon-warning-compact {
+		font-size: var(--vscode-codiconFontSize-compact);
 		margin-right: 2px;
 	}
 }
@@ -4349,7 +4354,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			margin-right: 5px;
 		}
 
-		.monaco-toolbar .action-label.codicon.codicon-repo-forked {
+		.monaco-toolbar .action-label.codicon,
+		.monaco-toolbar .action-label .codicon {
+			font-size: var(--vscode-codiconFontSize-compact);
+		}
+
+		.monaco-toolbar .action-label:has(> .chat-fork-action-icon) {
 			width: fit-content;
 			padding: 2px 5px;
 		}
@@ -4358,13 +4368,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			margin-right: 0;
 		}
 
-		.monaco-toolbar .actions-container > .action-item:not(:first-child):has(.action-label.codicon.codicon-repo-forked) {
+		.monaco-toolbar .actions-container > .action-item:not(:first-child):has(.chat-fork-action-icon) {
 			display: flex;
 			align-items: center;
 			gap: 4px;
 		}
 
-		.monaco-toolbar .actions-container > .action-item:not(:first-child):has(.action-label.codicon.codicon-repo-forked)::before {
+		.monaco-toolbar .actions-container > .action-item:not(:first-child):has(.chat-fork-action-icon)::before {
 			content: '\00B7';
 			font-size: 12px;
 			line-height: 18px;
@@ -4650,8 +4660,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /* Chevron icon in dropdown container */
-.chat-welcome-view-suggested-prompt .codicon-chevron-down.dropdown-chevron {
-	font-size: 12px;
+.chat-welcome-view-suggested-prompt .codicon-chevron-down-compact.dropdown-chevron {
+	font-size: var(--vscode-codiconFontSize-compact);
 	opacity: 0.7;
 	flex-shrink: 0;
 }
@@ -4779,7 +4789,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	When both modes are available, their outlines identify them as a paired
 	control. A lone action is left borderless to match the send button. */
-.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-mic,
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-mic-compact,
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-mic-filled,
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-mic-download-compact,
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-voice-mode-compact,
@@ -4793,7 +4803,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
-.chat-execute-toolbar.chat-voice-input-actions-multiple .monaco-action-bar .action-item > .action-label.codicon-mic,
+.chat-execute-toolbar.chat-voice-input-actions-multiple .monaco-action-bar .action-item > .action-label.codicon-mic-compact,
 .chat-execute-toolbar.chat-voice-input-actions-multiple .monaco-action-bar .action-item > .action-label.codicon-mic-filled,
 .chat-execute-toolbar.chat-voice-input-actions-multiple .monaco-action-bar .action-item > .action-label.codicon-mic-download-compact,
 .chat-execute-toolbar.chat-voice-input-actions-multiple .monaco-action-bar .action-item > .action-label.codicon-voice-mode-compact,

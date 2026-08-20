@@ -11,9 +11,10 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { CodiconActionViewItem } from '../../../notebook/browser/view/cellParts/cellActionView.js';
 
-const forkIconClasses = ThemeIcon.asClassNameArray(Codicon.repoForked);
-const spinnerIconClasses = ThemeIcon.asClassNameArray(ThemeIcon.modify(Codicon.loading, 'spin'));
-const labelIconClasses = [...new Set([...forkIconClasses, ...spinnerIconClasses])].filter(className => className !== 'codicon');
+const actionIconClasses = ThemeIcon.asClassNameArray(Codicon.repoForked);
+const forkIconClasses = ThemeIcon.asClassNameArray(Codicon.repoForkedCompact);
+const spinnerIconClasses = ThemeIcon.asClassNameArray(ThemeIcon.modify(Codicon.loadingCompact, 'spin'));
+const labelIconClasses = [...new Set([...actionIconClasses, ...forkIconClasses, ...spinnerIconClasses])].filter(className => className !== 'codicon');
 
 export class ChatForkActionViewItem extends CodiconActionViewItem {
 

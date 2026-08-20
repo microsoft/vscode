@@ -335,7 +335,7 @@
 }
 
 .ai-customization-management-editor .harness-dropdown-chevron {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	flex-shrink: 0;
 	opacity: 0.7;
 }
@@ -461,7 +461,7 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	opacity: 0.7;
 	order: 10;
 	margin-left: auto;
@@ -1243,7 +1243,7 @@ per-word capitalization does not survive translation. */
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	color: var(--vscode-foreground);
 	opacity: 0.7;
 	cursor: pointer;
@@ -1456,7 +1456,7 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-scope .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-description {

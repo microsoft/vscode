@@ -39,8 +39,8 @@ suite('ChatForkActionViewItem', () => {
 		});
 		viewItem.actionRunner = actionRunner;
 
-		const forkIconClass = `codicon-${Codicon.repoForked.id}`;
-		const loadingIconClass = `codicon-${Codicon.loading.id}`;
+		const forkIconClass = `codicon-${Codicon.repoForkedCompact.id}`;
+		const loadingIconClass = `codicon-${Codicon.loadingCompact.id}`;
 		const runPromise = actionRunner.run(action);
 		const label = container.querySelector<HTMLElement>('.action-label');
 		const icon = label?.querySelector<HTMLElement>('.chat-fork-action-icon');

@@ -54,10 +54,10 @@
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	width: var(--vscode-codiconFontSize-compact, 12px);
-	height: var(--vscode-codiconFontSize-compact, 12px);
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
 	margin: 0;
-	font-size: var(--vscode-codiconFontSize-compact, 12px);
+	font-size: var(--vscode-codiconFontSize-compact);
 	flex-shrink: 0;
 }
 

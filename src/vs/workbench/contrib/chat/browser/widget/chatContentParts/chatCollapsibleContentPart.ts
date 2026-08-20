@@ -22,6 +22,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { getCompactCodicon } from '../../chatIcons.js';
 import './media/chatCollapsibleContentPart.css';
 
 
@@ -50,7 +51,7 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 	}
 
 	public set icon(value: ThemeIcon | undefined) {
-		this._overrideIcon.set(value, undefined);
+		this._overrideIcon.set(value ? getCompactCodicon(value) : undefined, undefined);
 	}
 
 	protected readonly element: ChatTreeItem;
@@ -106,7 +107,7 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 		}
 
 		// Add hover chevron indicator on the right (decorative, hide from screen readers)
-		const hoverChevron = $('span.chat-collapsible-hover-chevron.codicon.codicon-chevron-right', { 'aria-hidden': 'true' });
+		const hoverChevron = $('span.chat-collapsible-hover-chevron.codicon.codicon-chevron-right-compact', { 'aria-hidden': 'true' });
 		this._hoverChevron = hoverChevron;
 		collapseButton.element.appendChild(hoverChevron);
 

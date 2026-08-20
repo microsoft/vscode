@@ -39,10 +39,11 @@ import { GitHubPaths, IDefaultAccountService } from '../../../../../../../platfo
 import { IUpdateService } from '../../../../../../../platform/update/common/update.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
+import { getCompactCodicon } from '../../../chatIcons.js';
 import { withChatInputPickerMotion } from '../chatInputPickerActionItem.js';
 import { buildModelPickerItems, createManageModelsAction, getModelPickerAccessibilityProvider, getModelPickerControlModels, ModelPickerSection, shouldShowManageModelsAction } from './modelPickerItems.js';
 import { ModelPickerConfiguration } from './modelPickerConfiguration.js';
-import { getModelPickerIcon } from './modelProviderIcons.js';
+import { getCompactModelPickerIcon } from './modelProviderIcons.js';
 import { getModelPickerUnavailableReason, isAutoModel, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
 
 const CACHE_BREAK_HINT_DISMISSED_STORAGE_KEY = 'chat.cacheBreakHintDismissed';
@@ -560,7 +561,7 @@ export class ModelPickerWidget extends Disposable {
 	private _updateBadge(): void {
 		if (this._badgeIcon) {
 			if (this._badge) {
-				const icon = this._badge === 'info' ? Codicon.info : Codicon.warning;
+				const icon = this._badge === 'info' ? Codicon.info : Codicon.warningCompact;
 				dom.reset(this._badgeIcon, renderIcon(icon));
 				this._badgeIcon.style.display = '';
 				this._badgeIcon.classList.toggle('info', this._badge === 'info');
@@ -586,7 +587,9 @@ export class ModelPickerWidget extends Disposable {
 		// --- Name section ---
 		const nameChildren: (HTMLElement | string)[] = [];
 		const modelIcon = this._selectedModel
-			? (this._selectedModel.metadata.statusIcon ?? (this._delegate.getPresentationOptions().showModelIcon ? getModelPickerIcon(this._selectedModel) : undefined))
+			? (this._delegate.getPresentationOptions().showModelIcon
+				? getCompactModelPickerIcon(this._selectedModel)
+				: this._selectedModel.metadata.statusIcon ? getCompactCodicon(this._selectedModel.metadata.statusIcon) : undefined)
 			: undefined;
 		const compact = this._compact?.get() ?? false;
 		if (modelIcon && !noModelsAvailable) {

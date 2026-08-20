@@ -172,7 +172,7 @@ class GroupHeaderRenderer implements IListRenderer<IGroupHeaderEntry, IGroupHead
 
 		// Chevron
 		templateData.chevron.className = 'group-chevron';
-		templateData.chevron.classList.add(...ThemeIcon.asClassNameArray(element.collapsed ? Codicon.chevronRight : Codicon.chevronDown));
+		templateData.chevron.classList.add(...ThemeIcon.asClassNameArray(element.collapsed ? Codicon.chevronRightCompact : Codicon.chevronDownCompact));
 
 		// Icon
 		templateData.icon.className = 'group-icon';

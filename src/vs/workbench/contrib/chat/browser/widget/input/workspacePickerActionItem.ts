@@ -111,10 +111,10 @@ export class WorkspacePickerActionItem extends ChatInputPickerActionViewItem {
 		if (currentWorkspace) {
 			// Show the workspace label or folder name
 			const label = currentWorkspace.label || basename(currentWorkspace.uri);
-			labelElements.push(...renderLabelWithIcons(`$(folder)`));
+			labelElements.push(...renderLabelWithIcons(`$(folder-compact)`));
 			labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
 		} else {
-			labelElements.push(...renderLabelWithIcons(`$(folder)`));
+			labelElements.push(...renderLabelWithIcons(`$(folder-compact)`));
 			labelElements.push(dom.$('span.chat-input-picker-label', undefined, localize('selectWorkspace', "Workspace")));
 		}
 
