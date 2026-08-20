@@ -20,7 +20,7 @@ import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportK
 import { AgentSession, type IAgentCreateChatOptions, type IMcpNotification } from '../common/agent.js';
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { type IAgentService } from '../common/agentService.js';
-import { CollectAgentHostDebugLogsExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod } from '../common/agentHostExtensionProtocol.js';
+import { CollectAgentHostDebugLogsExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod } from '../common/agentHostExtensionProtocol.js';
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
@@ -1464,7 +1464,7 @@ export class ProtocolServerHandler extends Disposable {
 					...(s._meta !== undefined ? { _meta: s._meta } : {}),
 				} satisfies ListSessionsResult['items'][number];
 			});
-			return { items };
+			return { items: this._stateManager.prepareSessionSummariesForListing(items) };
 		},
 		resolveSessionConfig: async (_client, params) => {
 			return this._agentService.resolveSessionConfig({
@@ -1670,6 +1670,28 @@ export class ProtocolServerHandler extends Disposable {
 				return this._agentService.getManagedSettingsDiagnostics();
 			case 'diagnosticsFetch':
 				return this._agentService.diagnosticsFetch((params as { url: string }).url);
+			case GetAgentHostSessionStateFileExtensionMethod: {
+				if (!this._agentService.getSessionStateFile) {
+					return undefined;
+				}
+				if (!isParamsObject(params)) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'params must be an object'));
+				}
+				const sessionParam = params['session'];
+				if (typeof sessionParam !== 'string') {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a URI string'));
+				}
+				let session: URI;
+				try {
+					session = URI.parse(sessionParam, true);
+				} catch {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a valid URI string'));
+				}
+				if (!AgentSession.provider(session)) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be an Agent Session URI'));
+				}
+				return this._agentService.getSessionStateFile(session).then(resource => ({ resource: resource?.toString() }));
+			}
 			case CollectAgentHostDebugLogsExtensionMethod: {
 				if (!this._agentService.collectDebugLogs) {
 					return undefined;
