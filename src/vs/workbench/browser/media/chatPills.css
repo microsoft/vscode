@@ -136,8 +136,9 @@
 }
 
 .chat-resource-pill-button .monaco-icon-label::before {
+	background-size: var(--vscode-codiconFontSize-compact);
 	width: var(--vscode-codiconFontSize-compact);
-	height: 18px;
+	height: var(--vscode-codiconFontSize-compact);
 }
 
 /* File rows render a themed file icon in the same slot codicon rows use, so

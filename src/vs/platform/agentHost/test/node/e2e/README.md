@@ -104,7 +104,8 @@ The residual case is `providerHostOnlyTest(...)`: per-provider, but no model tra
 | `conformance/` | The conformance-tier entry point. Registered once; names a reference provider. |
 | `providers/` | Deterministic provider entry points and provider-specific scenarios. Live Codex scenarios are isolated in `codexAgentHostLive.integrationTest.ts`. |
 | `suites/` | Scenario modules, each of which may contribute to either tier. Add new scenarios to the closest existing suite; add a suite module when a new behavior area emerges. |
-| `suites/clientFilesystemSuite.ts` | The `resource*` family in both directions, including the host's reverse requests for client-side files. |
+| `suites/clientFilesystemSuite.ts` | Client-to-host `resource*` operations and resource-watch behavior. |
+| `suites/clientHostedFilesystemSuite.ts` | Host-to-client `resource*` operations against client-hosted files. |
 | `harness/` | Record/replay, AHP snapshots, shared turn drivers, and server lifecycle. |
 | `harness/agentHostTarget.ts` | The portability seam: the only code that knows how to launch a concrete AHP implementation. |
 | `captures/*.yaml` | Committed model fixtures, plus one shared strict empty fixture for tests that declare no model traffic. |
