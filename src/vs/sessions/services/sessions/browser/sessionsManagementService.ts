@@ -24,7 +24,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { getSessionReferenceResource } from './sessionReference.js';
 import { ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
-import { IDeleteChatOptions, ISessionChangeEvent, ISessionsProvider, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
+import { IDeleteChatOptions, IPreparedNewSession, ISessionChangeEvent, ISessionsProvider, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
 import { ChatModelSource, IChat, ISession, ISessionWorkspace, ISideChatSelection, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -680,16 +680,59 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async sendNewChatRequest(session: ISession, options: ISendRequestOptions): Promise<void> {
+		let provider = this._getProvider(session);
+		if (!provider) {
+			throw new Error(`Sessions provider '${session.providerId}' not found`);
+		}
+
+		if (provider.prepareNewSession) {
+			const originalSession = session;
+			const preparationTokenSource = new CancellationTokenSource(this._disposeCts.token);
+			const preparationListeners = new DisposableStore();
+			preparationListeners.add(this.onDidReplaceNewDraftSession(({ from }) => {
+				if (from.sessionId === originalSession.sessionId) {
+					preparationTokenSource.cancel();
+				}
+			}));
+			preparationListeners.add(this.onDidDiscardNewSession(discarded => {
+				if (discarded.sessionId === originalSession.sessionId) {
+					preparationTokenSource.cancel();
+				}
+			}));
+			let prepared: IPreparedNewSession;
+			try {
+				prepared = await provider.prepareNewSession(session.sessionId, preparationTokenSource.token);
+			} finally {
+				preparationListeners.dispose();
+				preparationTokenSource.dispose();
+			}
+			const preparedSession = prepared.session;
+			if (preparedSession.sessionId !== originalSession.sessionId) {
+				const preparedProvider = this._getProvider(preparedSession);
+				if (!preparedProvider) {
+					await prepared.discard?.();
+					throw new Error(`Sessions provider '${preparedSession.providerId}' not found after preparing the new session`);
+				}
+				if (this._newSession.get()?.sessionId !== originalSession.sessionId) {
+					if (prepared.discard) {
+						await prepared.discard();
+					} else {
+						preparedProvider.deleteNewSession(preparedSession.sessionId);
+					}
+					throw new CancellationError();
+				}
+				provider.deleteNewSession(originalSession.sessionId);
+				this._onDidReplaceNewDraftSession.fire({ from: originalSession, to: preparedSession });
+				session = preparedSession;
+				provider = preparedProvider;
+			}
+		}
+
 		// The session is graduating into the list (being sent),
 		// so the provider keeps owning it — just drop the pointer, do not delete.
 		// Clearing the new session recomputes the isNewChatSession context key
 		// via the view service's active-session autorun.
 		this._newSession.set(undefined, undefined);
-
-		const provider = this._getProvider(session);
-		if (!provider) {
-			throw new Error(`Sessions provider '${session.providerId}' not found`);
-		}
 
 		if (options.background) {
 			// Fire-and-forget so the composer can reset immediately. On commit

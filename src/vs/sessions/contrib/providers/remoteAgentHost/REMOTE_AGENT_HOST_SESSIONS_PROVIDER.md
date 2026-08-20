@@ -87,6 +87,12 @@ Decoupling these allows copilot sessions from different providers (local CLI, re
 - `ITunnelHostService` is a required dependency of the tunnel agent host contribution on every target, because tunnel discovery filters out the locally hosted tunnel. Hosting is CLI-backed and therefore impossible in a browser, so web registers an inert implementation that reports a permanently inactive sharing state rather than leaving the service unregistered. Omitting it fails construction of the whole contribution and silently disables tunnel discovery.
 - Browser tunnel connections use VS Code's shared common RFC 6455 frame codec over the Dev Tunnels duplex stream; the SDK's node-only `websocket` import is stubbed in the browser bundle.
 
+### Dev Container Connections
+
+`DevContainerAgentHostService` provides the desktop-only connection boundary for an Agent Host running inside a Dev Container. The first implementation requires the `devcontainer` CLI on the user's resolved shell `PATH`. The desktop connector runs `devcontainer up` for the selected local workspace, installs the matching VS Code remote CLI inside the container, and reuses or launches a dedicated standalone Agent Host. A shared-process relay carries the Agent Host WebSocket protocol over `devcontainer exec` standard input/output.
+
+The service registers the connected client as a runtime-only `DevContainer` managed remote connection and creates a `RemoteAgentHostSessionsProvider` around it. The shared remote Agent Host contribution observes the managed connection and supplies connection-level filesystem, model, terminal, and log integration. When the new-session checkbox is enabled, the local provider prepares this connection before `createNewChat`, marks the mapped container workspace trusted after the source local folder passes trust, creates an equivalent draft on the Dev Container provider, transfers compatible configuration and selections, and disposes the eager local draft.
+
 ## Stubbed Operations
 
 - `deleteChat` — No-op (agent host sessions don't support deleting individual chats)

@@ -18,6 +18,7 @@ export const enum AgentHostClientConnectionKind {
 	Local = 'local',
 	DirectWebSocket = 'direct_websocket',
 	DevTunnel = 'dev_tunnel',
+	DevContainer = 'dev_container',
 	SSH = 'ssh',
 	WSL = 'wsl',
 	RemoteExtensionHost = 'remote_extension_host',
