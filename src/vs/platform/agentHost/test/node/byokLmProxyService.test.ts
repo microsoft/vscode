@@ -422,6 +422,96 @@ suite('ByokLmProxyService', () => {
 		});
 	});
 
+	test('keeps interleaved parent and subagent continuations in the same scope', async () => {
+		const captured: IByokLmChatRequest[] = [];
+		const parentInitial = [{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Parent' }] }];
+		const subagentInitial = [{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Subagent' }] }];
+		const replay = (input: object[], callId: string) => [
+			...input,
+			{ type: 'function_call', call_id: callId, name: 'tool', arguments: '{}' },
+			{ type: 'function_call_output', call_id: callId, output: 'done' },
+		];
+
+		await withProxy(
+			async request => {
+				captured.push(request);
+				if (captured.length <= 2) {
+					const trajectory = captured.length === 1 ? 'parent' : 'subagent';
+					return {
+						responseId: `resp_${trajectory}`,
+						output: [{ type: 'function_call', callId: `call_${trajectory}`, name: 'tool', argumentsJson: '{}' }],
+					};
+				}
+				return { output: [{ type: 'message', content: [{ type: 'text', text: 'done' }] }] };
+			},
+			async handle => {
+				for (const input of [
+					parentInitial,
+					subagentInitial,
+					replay(parentInitial, 'call_parent'),
+					replay(subagentInitial, 'call_subagent'),
+				]) {
+					const response = await fetch(responsesUrl(handle, 'acme'), {
+						method: 'POST',
+						headers: authHeaders(handle),
+						body: JSON.stringify({ model: 'm', input }),
+					});
+					assert.strictEqual(response.status, 200);
+					await response.text();
+				}
+			},
+		);
+
+		assert.deepStrictEqual(captured.map(request => ({
+			previousResponseId: request.previousResponseId,
+			input: request.input,
+		})), [
+			{ previousResponseId: undefined, input: [{ type: 'message', role: 'user', content: [{ type: 'text', text: 'Parent' }] }] },
+			{ previousResponseId: undefined, input: [{ type: 'message', role: 'user', content: [{ type: 'text', text: 'Subagent' }] }] },
+			{ previousResponseId: 'resp_parent', input: [{ type: 'function_call_output', callId: 'call_parent', output: 'done' }] },
+			{ previousResponseId: 'resp_subagent', input: [{ type: 'function_call_output', callId: 'call_subagent', output: 'done' }] },
+		]);
+	});
+
+	test('preserves full replay when multiple pending responses match', async () => {
+		const captured: IByokLmChatRequest[] = [];
+		const replayedInput = [
+			{ type: 'function_call', call_id: 'call_shared', name: 'tool', arguments: '{}' },
+			{ type: 'function_call_output', call_id: 'call_shared', output: 'done' },
+		];
+
+		await withProxy(
+			async request => {
+				captured.push(request);
+				return captured.length <= 2
+					? { responseId: `resp_${captured.length}`, output: [{ type: 'function_call', callId: 'call_shared', name: 'tool', argumentsJson: '{}' }] }
+					: { output: [{ type: 'message', content: [{ type: 'text', text: 'done' }] }] };
+			},
+			async handle => {
+				for (const input of [[], [], replayedInput]) {
+					const response = await fetch(responsesUrl(handle, 'acme'), {
+						method: 'POST',
+						headers: authHeaders(handle),
+						body: JSON.stringify({ model: 'm', input }),
+					});
+					assert.strictEqual(response.status, 200);
+					await response.text();
+				}
+			},
+		);
+
+		assert.deepStrictEqual({
+			previousResponseId: captured[2]?.previousResponseId,
+			input: captured[2]?.input,
+		}, {
+			previousResponseId: undefined,
+			input: [
+				{ type: 'function_call', callId: 'call_shared', name: 'tool', argumentsJson: '{}' },
+				{ type: 'function_call_output', callId: 'call_shared', output: 'done' },
+			],
+		});
+	});
+
 	test('bounds abandoned tool continuations while preserving recent state', async () => {
 		const captured: IByokLmChatRequest[] = [];
 		const maximumPendingContinuations = 256;
@@ -450,7 +540,7 @@ suite('ByokLmProxyService', () => {
 				};
 
 				// Sessions can disappear after receiving a tool call. Fill the proxy,
-				// refresh its oldest entry, then overflow it with one abandoned session.
+				// add another candidate in its oldest scope, then overflow it.
 				for (let index = 0; index < maximumPendingContinuations; index++) {
 					await post(index, []);
 				}
