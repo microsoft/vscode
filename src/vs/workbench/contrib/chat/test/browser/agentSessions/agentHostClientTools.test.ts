@@ -21,7 +21,7 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { AgentSession, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, CopilotSemanticSearchEnabledSettingId, SEMANTIC_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/semanticSearchConstants.js';
+import { CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, CLIENT_SEMANTIC_SEARCH_TOOL_ID, CopilotSemanticSearchEnabledSettingId, SEMANTIC_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/toolSearchConstants.js';
 import { isChatAction, isSessionAction, type ActionEnvelope, type ChatAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createDefaultChatSummary, ChatInputResponseKind, MessageKind, SessionLifecycle, SessionStatus, createSessionState, StateComponents, parseDefaultChatUri, ToolCallCancellationReason, type ChatState, type SessionState, type SessionSummary, type RootState, type ToolInput } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -184,7 +184,7 @@ suite('AgentHostClientTools', () => {
 
 	test('gates semantic search for Copilot sessions', async () => {
 		const semanticSearchTool: IToolData = {
-			id: 'copilot_searchCodebase',
+			id: CLIENT_SEMANTIC_SEARCH_TOOL_ID,
 			toolReferenceName: CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME,
 			displayName: 'Search Codebase',
 			modelDescription: 'Semantically searches the workspace',
@@ -238,6 +238,65 @@ suite('AgentHostClientTools', () => {
 			remoteEnabledNames: [SEMANTIC_SEARCH_TOOL_NAME, 'readFile'],
 			remoteDisabledNames: ['readFile'],
 			otherNames: [CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, 'readFile'],
+		});
+	});
+
+	test('reserves semantic-search names for the Copilot contribution', async () => {
+		const semanticSearchTool: IToolData = {
+			id: CLIENT_SEMANTIC_SEARCH_TOOL_ID,
+			toolReferenceName: CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME,
+			displayName: 'Search Codebase',
+			modelDescription: 'Semantically searches the workspace',
+			source: ToolDataSource.Internal,
+		};
+		const collidingCodebaseTool: IToolData = {
+			...semanticSearchTool,
+			id: 'other.codebase',
+			displayName: 'Other Codebase',
+		};
+		const collidingSemanticSearchTool: IToolData = {
+			...semanticSearchTool,
+			id: 'other.semanticSearch',
+			toolReferenceName: SEMANTIC_SEARCH_TOOL_NAME,
+			displayName: 'Other Semantic Search',
+		};
+		const readFileTool: IToolData = {
+			id: 'vscode.readFile',
+			toolReferenceName: 'readFile',
+			displayName: 'Read File',
+			modelDescription: 'Reads a file',
+			source: ToolDataSource.Internal,
+		};
+		const tools = [semanticSearchTool, collidingCodebaseTool, collidingSemanticSearchTool, readFileTool];
+		const toolSet = new class extends mock<IToolSet>() {
+			override readonly id = 'search';
+			override readonly deprecated = false;
+			override getTools(): Iterable<IToolData> {
+				return tools;
+			}
+		};
+		const { service, setSemanticSearchEnabled } = createActiveClientService(
+			constObservable(tools),
+			constObservable([toolSet]),
+		);
+		const localRegistration = disposables.add(service.registerForAgent(AGENT_HOST_COPILOT_CLI_SESSION_TYPE));
+		const localScope = disposables.add(localRegistration.acquireScope([]));
+		const remoteRegistration = disposables.add(service.registerForAgent(REMOTE_COPILOT_CLI_SESSION_TYPE));
+		const remoteScope = disposables.add(remoteRegistration.acquireScope([]));
+		await localScope.whenResolved();
+		await remoteScope.whenResolved();
+
+		const disabled = localScope.tools.get().map(tool => tool.name);
+		setSemanticSearchEnabled(true);
+
+		assert.deepStrictEqual({
+			disabled,
+			localEnabled: localScope.tools.get().map(tool => tool.name),
+			remoteEnabled: remoteScope.tools.get().map(tool => tool.name),
+		}, {
+			disabled: ['readFile'],
+			localEnabled: [SEMANTIC_SEARCH_TOOL_NAME, 'readFile'],
+			remoteEnabled: [SEMANTIC_SEARCH_TOOL_NAME, 'readFile'],
 		});
 	});
 
@@ -922,7 +981,7 @@ suite('AgentHostClientTools', () => {
 		};
 
 		const testCodebaseTool: IToolData = {
-			id: 'copilot_searchCodebase',
+			id: CLIENT_SEMANTIC_SEARCH_TOOL_ID,
 			toolReferenceName: CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME,
 			displayName: 'Search Codebase',
 			modelDescription: 'Semantically searches the workspace',

@@ -1050,6 +1050,33 @@ suite('CopilotSessionLauncher resume config', () => {
 		store.dispose();
 	});
 
+	test('does not fall back to built-in semantic search when filters remove the client override', async () => {
+		const store = new DisposableStore();
+		const snapshot = { tools: [{ name: SEMANTIC_SEARCH_TOOL_NAME }], plugins: [], mcpServers: {} };
+		const builtinOnly = await buildResumeConfig(
+			createLauncher(store, { modelCapabilityOverrides: { '*': { availableTools: [`builtin:${SEMANTIC_SEARCH_TOOL_NAME}`] } } }),
+			undefined,
+			snapshot,
+		);
+		const customExcluded = await buildResumeConfig(
+			createLauncher(store, { modelCapabilityOverrides: { '*': { excludedTools: [`custom:${SEMANTIC_SEARCH_TOOL_NAME}`] } } }),
+			undefined,
+			snapshot,
+		);
+
+		assert.deepStrictEqual(
+			[
+				[builtinOnly.availableTools, builtinOnly.excludedTools],
+				[customExcluded.availableTools, customExcluded.excludedTools],
+			],
+			[
+				[[`builtin:${SEMANTIC_SEARCH_TOOL_NAME}`], [`builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]],
+				[undefined, [`custom:${SEMANTIC_SEARCH_TOOL_NAME}`, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]],
+			]
+		);
+		store.dispose();
+	});
+
 	test('forwards a configured override on resume and leaves the effort untouched otherwise', async () => {
 		const store = new DisposableStore();
 		const model: ModelSelection = { id: 'gpt-5', config: { thinkingLevel: 'medium' } };
