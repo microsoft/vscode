@@ -13,7 +13,7 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { affectsAgentHostProviderPreference, IAgentHostService, protectedResourcesRequireGitHubCopilotSignIn, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { inWindowAgentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -122,6 +122,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 	private readonly _isSessionsWindow: boolean;
 	private readonly _enableSmokeTestDriver: boolean;
+	private readonly _connectionAuthority: string;
 	private _initialized = false;
 	private readonly _enablementStore = this._register(new MutableDisposable<DisposableStore>());
 	private _authenticationGeneration = 0;
@@ -147,6 +148,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		super();
 		this._isSessionsWindow = environmentService.isSessionsWindow;
 		this._enableSmokeTestDriver = !!environmentService.enableSmokeTestDriver;
+		this._connectionAuthority = inWindowAgentHostAuthority(environmentService.remoteAuthority);
 
 		this._register(autorun(reader => {
 			const enabled = this._agentHostEnablementService.enabled.read(reader);
@@ -176,7 +178,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		}
 		this._initialized = true;
 		this._promptCacheNotification = this._register(this._instantiationService.createInstance(AgentHostPromptCacheNotification));
-		this._register(this._agentHostFileSystemService.registerAuthority(LOCAL_AGENT_HOST_AUTHORITY, this._agentHostService));
+		this._register(this._agentHostFileSystemService.registerAuthority(this._connectionAuthority, this._agentHostService));
 
 		// React to root state changes (agent discovery / removal)
 		this._register(this._agentHostService.rootState.onDidChange(rootState => {
@@ -342,7 +344,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			fullName: agent.displayName,
 			description: agent.description,
 			connection: this._agentHostService,
-			connectionAuthority: LOCAL_AGENT_HOST_AUTHORITY,
+			connectionAuthority: this._connectionAuthority,
 			onSessionMaterialized: resource => this._chatSessionsService.notifySessionMaterialized?.(resource),
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(resources),
 			promptCacheNotification: this._promptCacheNotification,

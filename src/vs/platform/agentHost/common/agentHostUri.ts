@@ -62,8 +62,17 @@ interface IAgentHostUriMeta {
  *   the URI authority (from {@link agentHostAuthority}).
  */
 export function toAgentHostUri(originalUri: URI, connectionAuthority: string): URI {
-	if (connectionAuthority === 'local' && originalUri.scheme === Schemas.file) {
-		return originalUri;
+	if (originalUri.scheme === Schemas.file) {
+		if (connectionAuthority === LOCAL_AGENT_HOST_AUTHORITY) {
+			return originalUri;
+		}
+		// A remote window reaches the host's files through its own remote
+		// connection, which loads images and opens the same editor the
+		// workspace already uses.
+		const windowRemote = windowRemoteAuthorityOf(connectionAuthority);
+		if (windowRemote) {
+			return originalUri.with({ scheme: Schemas.vscodeRemote, authority: windowRemote });
+		}
 	}
 
 	const meta: IAgentHostUriMeta = {
@@ -154,10 +163,28 @@ export function agentHostAuthority(address: string): string {
 }
 
 /**
- * Authority of the in-process agent host. It always runs on the same
- * machine — and therefore the same operating system — as the client.
+ * Authority of the in-process agent host of a local window, where it shares
+ * the client's filesystem and operating system.
  */
 export const LOCAL_AGENT_HOST_AUTHORITY = 'local';
+
+/**
+ * Authority of the in-process agent host of a window whose remote authority is
+ * `remoteAuthority`. The authority names whose filesystem the host's paths are
+ * on, which for a remote window is the remote machine rather than the client.
+ */
+export function inWindowAgentHostAuthority(remoteAuthority: string | undefined): string {
+	return remoteAuthority ? `${LOCAL_AGENT_HOST_AUTHORITY}+${remoteAuthority}` : LOCAL_AGENT_HOST_AUTHORITY;
+}
+
+/**
+ * The window remote authority encoded by {@link inWindowAgentHostAuthority},
+ * or `undefined` for any other connection.
+ */
+export function windowRemoteAuthorityOf(connectionAuthority: string): string | undefined {
+	const prefix = `${LOCAL_AGENT_HOST_AUTHORITY}+`;
+	return connectionAuthority.startsWith(prefix) ? connectionAuthority.slice(prefix.length) : undefined;
+}
 
 /**
  * Fallback label formatter for {@link AGENT_HOST_SCHEME} URIs of hosts
