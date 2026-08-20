@@ -162,6 +162,10 @@ class MockSessionStore implements ISessionsManagementService {
 		return this._sessions.get(resource.toString());
 	}
 
+	async resolveSessionResource(resource: URI): Promise<URI> {
+		return resource;
+	}
+
 	getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined {
 		for (const session of this._sessions.values()) {
 			const chat = session.chats.get().find(c => c.resource.toString() === resource.toString());

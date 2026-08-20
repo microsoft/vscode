@@ -17,7 +17,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { hash } from '../../../../../base/common/hash.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, thenIfNotDisposed } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, thenIfNotDisposed, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
@@ -52,6 +52,7 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { SaveReason } from '../../../../common/editor.js';
 import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { checkModeOption } from '../../common/chat.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../common/participants/chatAgents.js';
@@ -371,6 +372,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 	private inputContainer!: HTMLElement;
 	private focusedInputDOM!: HTMLElement;
+	private editorOverflowWidgetsDomNode: HTMLElement | undefined;
 	private editorOptions!: ChatEditorOptions;
 	private readonly readOnlyBanner: ChatReadOnlyBanner | undefined;
 
@@ -551,6 +553,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IAgentHostCustomizationService private readonly _agentHostCustomizationService: IAgentHostCustomizationService,
 		@IAgentHostNewSessionFolderService private readonly _agentHostNewSessionFolderService: IAgentHostNewSessionFolderService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 
@@ -980,6 +983,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const renderInputToolbarBelowInput = this.viewOptions.renderInputToolbarBelowInput ?? false;
 
 		this.container = dom.append(parent, $('.interactive-session'));
+		this.editorOverflowWidgetsDomNode = this.viewOptions.editorOverflowWidgetsDomNode;
+		if (!this.editorOverflowWidgetsDomNode) {
+			const editorOverflowWidgetsDomNode = this.layoutService.getContainer(dom.getWindow(parent)).appendChild($('.chat-editor-overflow.monaco-editor'));
+			this.editorOverflowWidgetsDomNode = editorOverflowWidgetsDomNode;
+			this._register(toDisposable(() => editorOverflowWidgetsDomNode.remove()));
+		}
 		this.welcomeMessageContainer = dom.append(this.container, $('.chat-welcome-view-container', { style: 'display: none' }));
 		this._register(dom.addStandardDisposableListener(this.welcomeMessageContainer, dom.EventType.CLICK, () => this.focusInput()));
 
@@ -1979,6 +1988,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				styles: {
 					listForeground: this.styles.listForeground,
 					listBackground: this.styles.listBackground,
+					listShadow: this.styles.listShadow,
 				},
 				currentChatMode: () => this.input.currentModeKind,
 				filter: this.viewOptions.filter ? { filter: this.viewOptions.filter.bind(this.viewOptions) } : undefined,
@@ -1987,16 +1997,31 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				location: this.location,
 				getSelectedModelRequestOptions: () => this.getSelectedModelRequestOptions(),
 				getCurrentModeInfo: () => this.input.currentModeInfo,
+				getEditingValue: () => this.input.inputEditor.getValue(),
 			}
 		));
 
 		// Wire up ChatWidget-specific list widget events
 		this._register(this.listWidget.onDidClickRequest(async item => {
+			// If the click came from a sticky scroll row, scroll to reveal the real
+			// element and use its template so editing works on the actual row.
+			if (dom.findParentWithClass(item.rowContainer, 'monaco-tree-sticky-row') && isRequestVM(item.currentElement)) {
+				this.listWidget.reveal(item.currentElement, 0);
+				const realTemplate = this.listWidget.getTemplateDataForRequestId(item.currentElement.id);
+				if (realTemplate) {
+					this.clickedRequest(realTemplate);
+				}
+				return;
+			}
 			this.clickedRequest(item);
 		}));
 
 		this._register(this.listWidget.onDidRerender(item => {
 			if (isRequestVM(item.currentElement) && this.configurationService.getValue<string>('chat.editRequests') !== 'input') {
+				// Don't move the input into sticky scroll rows
+				if (dom.findParentWithClass(item.rowContainer, 'monaco-tree-sticky-row')) {
+					return;
+				}
 				if (!item.rowContainer.contains(this.inputContainer)) {
 					item.requestTimestampContainer.before(this.inputContainer);
 				}
@@ -2324,7 +2349,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				telemetrySource: 'chatWidget',
 				...this.viewOptions.menus
 			},
-			editorOverflowWidgetsDomNode: this.viewOptions.editorOverflowWidgetsDomNode,
+			editorOverflowWidgetsDomNode: this.editorOverflowWidgetsDomNode,
 			enableImplicitContext: this.viewOptions.enableImplicitContext,
 			renderWorkingSet: this.viewOptions.enableWorkingSet === 'explicit',
 			supportsChangingModes: this.viewOptions.supportsChangingModes,

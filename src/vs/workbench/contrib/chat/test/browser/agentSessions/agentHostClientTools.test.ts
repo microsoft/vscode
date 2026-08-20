@@ -2016,15 +2016,13 @@ suite('AgentHostClientTools', () => {
 				'the initial snapshot invocation should be completed, not orphaned');
 		});
 
-		test('auto-denies an unclaimed session confirmation after the grace period', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		test('does not auto-deny an unclaimed session confirmation', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { handler, connection } = createHandlerWithMocks(disposables, []);
 			const sessionResource = URI.parse('agent-host-copilot:/session-1');
 			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
 			const subagentChat = buildSubagentChatUri(backendSession, 'task-call-1');
 			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
 
-			// No turn observer ever renders this confirmation, so nothing can
-			// answer it; the watcher denies it once the grace window expires.
 			connection.applySessionAction(URI.parse(backendSession), {
 				type: ActionType.SessionInputNeededSet,
 				request: {
@@ -2043,32 +2041,16 @@ suite('AgentHostClientTools', () => {
 			});
 			await timeout(UNOBSERVED_CLIENT_TOOL_GRACE_MS + 1);
 
-			assert.deepStrictEqual(
-				connection.dispatchedActions
-					.filter(entry => entry.action.type === ActionType.ChatToolCallConfirmed && entry.action.toolCallId === 'powershell-call-1')
-					.map(entry => ({ channel: entry.channel, action: entry.action })),
-				[{
-					channel: subagentChat,
-					action: {
-						type: ActionType.ChatToolCallConfirmed,
-						turnId: 'subagent-turn-1',
-						toolCallId: 'powershell-call-1',
-						approved: false,
-						reason: ToolCallCancellationReason.Denied,
-					},
-				}],
-			);
+			assert.strictEqual(connection.dispatchedActions.some(entry => entry.action.type === ActionType.ChatToolCallConfirmed && entry.action.toolCallId === 'powershell-call-1'), false);
 		}));
 
-		test('cancels an unclaimed chat input request after the grace period', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		test('does not cancel an unclaimed chat input request', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { handler, connection } = createHandlerWithMocks(disposables, []);
 			const sessionResource = URI.parse('agent-host-copilot:/session-1');
 			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
 			const subagentChat = buildSubagentChatUri(backendSession, 'task-call-1');
 			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
 
-			// No turn observer renders this elicitation, so nothing can answer
-			// it; the watcher cancels it once the grace window expires.
 			connection.applySessionAction(URI.parse(backendSession), {
 				type: ActionType.SessionInputNeededSet,
 				request: {
@@ -2078,21 +2060,9 @@ suite('AgentHostClientTools', () => {
 					request: { id: 'elicit-1', message: 'Pick one', questions: [] },
 				},
 			});
-			await timeout(5001);
+			await timeout(UNOBSERVED_CLIENT_TOOL_GRACE_MS + 1);
 
-			assert.deepStrictEqual(
-				connection.dispatchedActions
-					.filter(entry => entry.action.type === ActionType.ChatInputCompleted)
-					.map(entry => ({ channel: entry.channel, action: entry.action })),
-				[{
-					channel: subagentChat,
-					action: {
-						type: ActionType.ChatInputCompleted,
-						requestId: 'elicit-1',
-						response: ChatInputResponseKind.Cancel,
-					},
-				}],
-			);
+			assert.strictEqual(connection.dispatchedActions.some(entry => entry.action.type === ActionType.ChatInputCompleted), false);
 		}));
 
 		test('does not cancel a chat input request a turn observer is rendering', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -2139,16 +2109,13 @@ suite('AgentHostClientTools', () => {
 			await timeout(0);
 		}));
 
-		test('cancels an unclaimed MCP authentication tool call after the grace period', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		test('does not cancel an unclaimed MCP authentication tool call', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { handler, connection } = createHandlerWithMocks(disposables, []);
 			const sessionResource = URI.parse('agent-host-copilot:/session-1');
 			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
 			const subagentChat = buildSubagentChatUri(backendSession, 'task-call-1');
 			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
 
-			// No turn observer renders this auth-required MCP tool call, so
-			// nobody can drive authentication; the watcher cancels it once the
-			// grace window expires.
 			connection.applySessionAction(URI.parse(backendSession), {
 				type: ActionType.SessionInputNeededSet,
 				request: {
@@ -2168,26 +2135,9 @@ suite('AgentHostClientTools', () => {
 					},
 				},
 			});
-			await timeout(5001);
+			await timeout(UNOBSERVED_CLIENT_TOOL_GRACE_MS + 1);
 
-			assert.deepStrictEqual(
-				connection.dispatchedActions
-					.filter(entry => entry.action.type === ActionType.ChatToolCallComplete && entry.action.toolCallId === 'mcp-call-1')
-					.map(entry => ({ channel: entry.channel, action: entry.action })),
-				[{
-					channel: subagentChat,
-					action: {
-						type: ActionType.ChatToolCallComplete,
-						turnId: 'subagent-turn-1',
-						toolCallId: 'mcp-call-1',
-						result: {
-							success: false,
-							pastTenseMessage: 'Cancelled tool call',
-							error: { message: 'MCP authentication was cancelled', code: 'cancelled' },
-						},
-					},
-				}],
-			);
+			assert.strictEqual(connection.dispatchedActions.some(entry => entry.action.type === ActionType.ChatToolCallComplete && entry.action.toolCallId === 'mcp-call-1'), false);
 		}));
 
 		test('does not cancel an MCP authentication tool call a turn observer is rendering', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

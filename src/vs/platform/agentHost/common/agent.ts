@@ -1032,6 +1032,8 @@ export interface IAgentChatAdoptionResult {
 	readonly adopted: boolean;
 	/** Whether the chat was a genuine legacy adoption candidate. */
 	readonly eligible: boolean;
+	/** Whether the chat already has Agent Host metadata, i.e. it is ours regardless of adoption. */
+	readonly native?: boolean;
 }
 
 /**
@@ -1182,6 +1184,9 @@ export interface IAgent {
 
 	/** Optional managed-settings snapshot for providers with an enterprise policy surface. */
 	getManagedSettingsDiagnostics?(): Promise<IAgentHostManagedSettingsSnapshot>;
+
+	/** Return the provider-owned state file for a session, when one exists. */
+	getSessionStateFile?(session: URI): Promise<URI | undefined>;
 
 	/** Add provider-owned diagnostics to an Agent Host debug-log staging directory. */
 	collectDebugLogs?(session: URI | undefined, outputDirectory: URI): Promise<boolean>;

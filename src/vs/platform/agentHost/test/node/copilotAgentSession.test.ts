@@ -38,6 +38,7 @@ import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js
 import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { TerminalClaimKind } from '../../common/state/protocol/state.js';
+import { toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
 import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
@@ -86,6 +87,7 @@ class MockCopilotSession {
 	readonly gitHubCredentialUpdates: Array<{ credentials?: { type: 'token'; host: string; token: string } }> = [];
 	gitHubCredentialUpdateResult = { success: true, copilotUserResolved: true };
 	gitHubCredentialUpdateError: Error | undefined;
+	readonly collectLogsCalls: Parameters<CopilotSession['rpc']['debug']['collectLogs']>[0][] = [];
 	readonly experimentalModeUpdates: boolean[] = [];
 	experimentalModeUpdateSuccess = true;
 	sandboxConfigUpdateSuccess = true;
@@ -253,6 +255,15 @@ class MockCopilotSession {
 	}
 
 	readonly rpc = {
+		debug: {
+			collectLogs: async (params: Parameters<CopilotSession['rpc']['debug']['collectLogs']>[0]) => {
+				this.collectLogsCalls.push(params);
+				const { destination } = params;
+				return destination.kind === 'directory'
+					? { kind: 'directory' as const, path: destination.outputDirectory, entries: [] }
+					: { kind: 'archive' as const, path: destination.outputPath, entries: [] };
+			},
+		},
 		mode: {
 			get: async () => ({ mode: 'interactive' as const }),
 			set: async (params: { mode: 'interactive' | 'plan' | 'autopilot' }) => {
@@ -972,6 +983,17 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 
 // ---- Tests ------------------------------------------------------------------
 
+/**
+ * The exact read-only reminder the Copilot session builds for host-created
+ * snapshot attachments (mirrors `_snapshotReadonlyReminder`). Used to assert the
+ * main-turn `additionalContext` and the steering `<reminder>` note.
+ */
+function expectedSnapshotReadonlyNote(paths: string[]): string {
+	return 'The following attached files are read-only snapshots of content the user shared '
+		+ '(pasted text, an unsaved editor, or a diff view) and must not be edited:\n'
+		+ paths.map(path => `- ${path}`).join('\n');
+}
+
 suite('CopilotAgentSession', () => {
 
 	const disposables = new DisposableStore();
@@ -1014,6 +1036,22 @@ suite('CopilotAgentSession', () => {
 			result: { success: true, copilotUserResolved: true },
 			updates: [{ credentials: { type: 'token', host: 'github.com', token: 'updated-token' } }],
 		});
+	});
+
+	test('collects SDK debug logs without process logs', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		const outputDirectory = URI.file('/tmp/agent-host-debug');
+
+		await session.collectDebugLogs(outputDirectory, true);
+		await session.collectDebugLogs(outputDirectory, false);
+
+		assert.deepStrictEqual(mockSession.collectLogsCalls, [{
+			destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
+			include: { events: true, processLogs: false, shellLogs: true },
+		}, {
+			destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
+			include: { events: false, processLogs: false, shellLogs: false },
+		}]);
 	});
 
 	suite('CopilotSessionWrapper', () => {
@@ -1448,6 +1486,120 @@ suite('CopilotAgentSession', () => {
 				displayName: 'file:test.js',
 			}],
 		}]);
+	});
+
+	test('sends a host-created text snapshot as a read-only file reference with a read-only additionalContext note (#331154)', async () => {
+		const snapshotUri = URI.file('/data/attachments/id/Pasted text #1.txt');
+		const { session, mockSession } = await createAgentSession(disposables);
+
+		await session.send('trim this', [{
+			type: MessageAttachmentKind.Resource,
+			label: 'Pasted text #1',
+			displayKind: 'document',
+			uri: snapshotUri.toString(),
+			_meta: toHostSnapshotAttachmentMeta('text/plain'),
+		}]);
+
+		// The snapshot is sent as an ordinary file (path preserved, plain display name) so the model can
+		// read it on demand; the read-only signal rides the user-prompt-submitted additionalContext
+		// (the runtime renders it as a <system_reminder>), and the message text is left unchanged.
+		assert.deepStrictEqual({
+			sendRequests: mockSession.sendRequests,
+			additionalContext: session.handleUserPromptSubmitted(),
+		}, {
+			sendRequests: [{
+				prompt: 'trim this',
+				attachments: [{ type: 'file', path: snapshotUri.fsPath, displayName: 'Pasted text #1' }],
+			}],
+			additionalContext: { additionalContext: expectedSnapshotReadonlyNote([snapshotUri.fsPath]) },
+		});
+	});
+
+	test('sends a snapshotted selection through the selection path so the model keeps the selected text, with a read-only note (#331154)', async () => {
+		const snapshotUri = URI.file('/data/attachments/id/snap.txt');
+		const { session, mockSession } = await createAgentSession(disposables, {
+			fileContents: {
+				[snapshotUri.toString()]: 'line0\nhello world\nline2',
+			},
+		});
+
+		await session.send('what is here?', [{
+			type: MessageAttachmentKind.Resource,
+			label: 'snap.txt',
+			displayKind: 'selection',
+			uri: snapshotUri.toString(),
+			selection: { range: { start: { line: 1, character: 0 }, end: { line: 1, character: 5 } } },
+			_meta: toHostSnapshotAttachmentMeta(undefined),
+		}]);
+
+		// A snapshotted selection stays on the selection path so the model still receives the selected
+		// text and range; the read-only signal rides the additionalContext note, not the attachment shape.
+		assert.deepStrictEqual({
+			sendRequests: mockSession.sendRequests,
+			additionalContext: session.handleUserPromptSubmitted(),
+		}, {
+			sendRequests: [{
+				prompt: 'what is here?',
+				attachments: [{
+					type: 'selection',
+					filePath: snapshotUri.fsPath,
+					displayName: 'snap.txt',
+					text: 'hello',
+					selection: { start: { line: 1, character: 0 }, end: { line: 1, character: 5 } },
+				}],
+			}],
+			additionalContext: { additionalContext: expectedSnapshotReadonlyNote([snapshotUri.fsPath]) },
+		});
+	});
+
+	test('keeps a non-text binary snapshot as a read-only file reference (#331154)', async () => {
+		const snapshotUri = URI.file('/data/attachments/id/document.pdf');
+		const { session, mockSession } = await createAgentSession(disposables);
+
+		await session.send('summarize', [{
+			type: MessageAttachmentKind.Resource,
+			label: 'document.pdf',
+			displayKind: 'document',
+			uri: snapshotUri.toString(),
+			_meta: toHostSnapshotAttachmentMeta('application/pdf'),
+		}]);
+
+		assert.deepStrictEqual({
+			sendRequests: mockSession.sendRequests,
+			additionalContext: session.handleUserPromptSubmitted(),
+		}, {
+			sendRequests: [{
+				prompt: 'summarize',
+				attachments: [{ type: 'file', path: snapshotUri.fsPath, displayName: 'document.pdf' }],
+			}],
+			additionalContext: { additionalContext: expectedSnapshotReadonlyNote([snapshotUri.fsPath]) },
+		});
+	});
+
+	test('sends a snapshotted image as a read-only file reference (#331154)', async () => {
+		const snapshotUri = URI.file('/data/attachments/id/Pasted Image.png');
+		const { session, mockSession } = await createAgentSession(disposables);
+
+		await session.send('what is in this image?', [{
+			type: MessageAttachmentKind.Resource,
+			label: 'Pasted Image',
+			displayKind: 'image',
+			uri: snapshotUri.toString(),
+			_meta: toHostSnapshotAttachmentMeta('image/png'),
+		}]);
+
+		// The runtime materializes the image from its on-disk path, so it is sent as a file reference
+		// rather than an inline blob; the read-only signal rides the additionalContext note.
+		assert.deepStrictEqual({
+			sendRequests: mockSession.sendRequests,
+			additionalContext: session.handleUserPromptSubmitted(),
+		}, {
+			sendRequests: [{
+				prompt: 'what is in this image?',
+				attachments: [{ type: 'file', path: snapshotUri.fsPath, displayName: 'Pasted Image' }],
+			}],
+			additionalContext: { additionalContext: expectedSnapshotReadonlyNote([snapshotUri.fsPath]) },
+		});
 	});
 
 	test('sends paste simple attachments as text blobs', async () => {
@@ -4044,7 +4196,7 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(mockSession.sendRequests, []);
 		});
 
-		test('syncs permission mode when the session approval level changes', async () => {
+		test('defers an idle session approval change until the next turn', async () => {
 			const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables, {
 				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
 			});
@@ -4053,8 +4205,16 @@ suite('CopilotAgentSession', () => {
 
 			fireSessionConfigChange({ [SessionConfigKey.AutoApprove]: 'default' });
 			await timeout(0);
+			const beforeTurn = [...mockSession.permissionModeSetCalls];
+			await session.send('hello', undefined, 'turn-1');
 
-			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['auto', 'off']);
+			assert.deepStrictEqual({
+				beforeTurn,
+				afterTurn: mockSession.permissionModeSetCalls,
+			}, {
+				beforeTurn: ['auto'],
+				afterTurn: ['auto', 'off'],
+			});
 		});
 
 		test('keeps sandbox enabled when the session approval level changes', async () => {
@@ -4102,6 +4262,7 @@ suite('CopilotAgentSession', () => {
 		test('syncs permission mode when root approval configuration changes', async () => {
 			const { session, mockSession, setRootValue, fireRootConfigChange } = await createAgentSession(disposables);
 			await session.syncPermissionMode('turn-start');
+			session.resetTurnState('active-turn');
 			setRootValue(AgentHostGlobalAutoApproveEnabledConfigKey, true);
 
 			fireRootConfigChange();
@@ -4115,6 +4276,7 @@ suite('CopilotAgentSession', () => {
 				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
 			});
 			await session.syncPermissionMode('turn-start');
+			session.resetTurnState('active-turn');
 			mockSession.permissionModeSetSuccess = false;
 			setConfigValue(SessionConfigKey.AutoApprove, 'default');
 
@@ -4127,6 +4289,7 @@ suite('CopilotAgentSession', () => {
 		test('aborts when a live sandbox update fails', async () => {
 			const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables);
 			await session.syncPermissionMode('turn-start');
+			session.resetTurnState('active-turn');
 			mockSession.sandboxConfigUpdateSuccess = false;
 			setConfigValue(SessionConfigKey.AutoApprove, 'autoApprove');
 
@@ -4195,32 +4358,6 @@ suite('CopilotAgentSession', () => {
 			await session.send('hello', undefined, 'turn-1');
 
 			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), { enabled: false });
-		});
-
-		test('server-managed sandbox enablement skips host updates and removal restores the local setting', async () => {
-			const { session, mockSession } = await createAgentSession(disposables);
-
-			session.setManagedSandboxEnabled(true);
-			await timeout(0);
-			const managedEnabled = mockSession.sandboxConfigUpdates.at(-1);
-
-			session.setManagedSandboxEnabled(false);
-			await timeout(0);
-			const managedDisabled = mockSession.sandboxConfigUpdates.at(-1);
-
-			session.setManagedSandboxEnabled(undefined);
-			await timeout(0);
-			const localRestored = mockSession.sandboxConfigUpdates.at(-1);
-
-			assert.deepStrictEqual({
-				managedEnabled,
-				managedDisabled,
-				localRestored,
-			}, {
-				managedEnabled: buildSandboxConfigForSdk('linux', undefined, true),
-				managedDisabled: undefined,
-				localRestored: { enabled: false },
-			});
 		});
 
 		test('per-request sandbox: left untouched when the custom terminal tool is enabled', async () => {
@@ -4438,6 +4575,7 @@ suite('CopilotAgentSession', () => {
 
 			const { session: initialSession, mockSession: initialMockSession, setConfigValue: setInitialConfigValue, fireSessionConfigChange: fireInitialSessionConfigChange } = await createAgentSession(disposables, { configValues: { ...configValues } });
 			await initialSession.syncPermissionMode('turn-start');
+			initialSession.resetTurnState('active-turn');
 			setInitialConfigValue(SessionConfigKey.AutoApprove, 'default');
 			fireInitialSessionConfigChange({ [SessionConfigKey.AutoApprove]: 'default' });
 			await timeout(0);
@@ -4449,6 +4587,7 @@ suite('CopilotAgentSession', () => {
 				configValues: { ...configValues },
 			});
 			await peerSession.syncPermissionMode('turn-start');
+			peerSession.resetTurnState('active-turn');
 			setPeerConfigValue(SessionConfigKey.AutoApprove, 'default');
 			// Config changes are always emitted keyed by the owning session URI
 			// (the default here), never by this peer chat's own `resource`.
@@ -4506,6 +4645,39 @@ suite('CopilotAgentSession', () => {
 					type: 'file',
 					path: imageUri.fsPath,
 					displayName: 'Pasted Image',
+				}],
+				mode: 'immediate',
+			}]);
+		});
+
+		test('sends a host-created text snapshot in a steering message as a read-only file reference with a <reminder> note (#331154)', async () => {
+			const snapshotUri = URI.file('/session/attachments/pasted.txt');
+			const { session, mockSession } = await createAgentSession(disposables);
+
+			await session.sendSteering({
+				id: 'steer-text',
+				message: {
+					text: 'use this',
+					origin: { kind: MessageKind.User },
+					attachments: [{
+						type: MessageAttachmentKind.Resource,
+						uri: snapshotUri.toString(),
+						label: 'Pasted text #1',
+						displayKind: 'document',
+						_meta: toHostSnapshotAttachmentMeta('text/plain'),
+					}],
+				},
+			});
+
+			// Steering can't use the additionalContext hook, so the read-only note is folded into the
+			// steering prompt as a <reminder> block (stripped from the bubble, forwarded to the model);
+			// the attachment keeps its plain display name.
+			assert.deepStrictEqual(mockSession.sendRequests, [{
+				prompt: `use this\n\n<reminder>\n${expectedSnapshotReadonlyNote([snapshotUri.fsPath])}\n</reminder>`,
+				attachments: [{
+					type: 'file',
+					path: snapshotUri.fsPath,
+					displayName: 'Pasted text #1',
 				}],
 				mode: 'immediate',
 			}]);
