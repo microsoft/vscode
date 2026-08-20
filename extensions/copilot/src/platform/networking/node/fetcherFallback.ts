@@ -28,6 +28,9 @@ export async function fetchWithFallbacks(availableFetchers: readonly IFetcher[],
 			if (fetcher === availableFetchers[0]) {
 				firstResult = result;
 			}
+			if ('response' in result && !result.response.ok) {
+				return { response: result.response };
+			}
 			if (!result.ok) {
 				const fetcherId = fetcher.getUserAgentLibrary();
 				if ('response' in result) {
