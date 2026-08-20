@@ -4964,7 +4964,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(session!.workspace.get(), undefined);
 	}));
 
-	test('Last Turn Changes keeps live chat edits until the host provides finalized changes', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('Last Turn Changes uses live chat edits before the host changeset updates', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const workingDirectory = URI.file('/repo');
 		agentHost.addSession(createSession('live-turn-changes', { summary: 'Live Turn Changes', workingDirectory }));
 		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
@@ -5063,25 +5063,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 		const whileComputing = changeset?.changes.get().map(change => isIChatSessionFileChange2(change) ? change.uri.toString() : change.modifiedUri.toString());
 		agentHost.setChangesetState(changesetUri, { status: ChangesetStatus.Ready, files: [] });
-		const afterEmptyReady = changeset?.changes.get().map(change => isIChatSessionFileChange2(change) ? change.uri.toString() : change.modifiedUri.toString());
-		const finalizedFile = URI.file('/repo/final.ts');
-		agentHost.setChangesetState(changesetUri, {
-			status: ChangesetStatus.Ready,
-			files: [{
-				id: finalizedFile.toString(),
-				edit: {
-					before: { uri: finalizedFile.toString(), content: { uri: 'session-db:///before/final.ts' } },
-					after: { uri: finalizedFile.toString(), content: { uri: finalizedFile.toString() } },
-					diff: { added: 2, removed: 1 },
-				},
-			}],
-		});
-		const afterFinalizedChanges = changeset?.changes.get().map(change => isIChatSessionFileChange2(change) ? change.uri.toString() : change.modifiedUri.toString());
+		const afterReady = changeset?.changes.get().map(change => isIChatSessionFileChange2(change) ? change.uri.toString() : change.modifiedUri.toString());
 
-		assert.deepStrictEqual({ whileComputing, afterEmptyReady, afterFinalizedChanges }, {
+		assert.deepStrictEqual({ whileComputing, afterReady }, {
 			whileComputing: [changedFile.toString()],
-			afterEmptyReady: [changedFile.toString()],
-			afterFinalizedChanges: [finalizedFile.toString()],
+			afterReady: [],
 		});
 	}));
 

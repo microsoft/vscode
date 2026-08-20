@@ -248,7 +248,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 				return undefined;
 			}
 			const changesetState = this.changesetStateObs.read(reader).read(reader);
-			return changesetState && !(changesetState instanceof Error) && changesetState.status === ChangesetStatus.Ready && changesetState.files.length > 0
+			return changesetState && !(changesetState instanceof Error) && changesetState.status === ChangesetStatus.Ready
 				? undefined
 				: lastValue;
 		});
