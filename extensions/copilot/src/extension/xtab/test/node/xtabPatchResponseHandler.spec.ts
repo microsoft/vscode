@@ -85,6 +85,21 @@ describe('XtabCustomDiffPatchResponseHandler', () => {
 		expect(patches).toEqual(patchText.trim());
 	});
 
+	it.each([
+		['legacy no-edit response', '<NO_EDIT>'],
+		['no-edit sentinel', '<no_edit/>'],
+		['no-edit sentinel with surrounding whitespace', ' \t<no_edit/>  '],
+	])('should normalize %s to no patches', async (_name, response) => {
+		expect(await collectPatches(response)).toEqual('');
+	});
+
+	it('should preserve the no-edit sentinel when it is patch content', async () => {
+		const patchText = `file1.txt:10
+-Old line
++<no_edit/>`;
+		expect(await collectPatches(patchText)).toEqual(patchText);
+	});
+
 	it('should parse a simple patch correctly', async () => {
 		const patchText = `/absolutePath/to/my_file.ts:1
 -Old line 1
@@ -623,6 +638,27 @@ another_file.js:
 				undefined,
 				new TestLogService(),
 				DuplicateAdditionsMode.TrimDuplicate,
+			);
+
+			expect(edits).toHaveLength(0);
+			expect(returnValue).toBeInstanceOf(NoNextEditReason.NoSuggestions);
+		});
+
+		it('returns NoSuggestions when the model produces the no-edit sentinel', async () => {
+			const docId = DocumentId.create('file:///test.ts');
+			const documentBeforeEdits = new CurrentDocument(new StringText('a\nb\n'), new Position(1, 1));
+
+			async function* makeStream(): AsyncGenerator<string> {
+				yield '<no_edit/>';
+			}
+
+			const { edits, returnValue } = await consumeHandleResponse(
+				makeStream(),
+				documentBeforeEdits,
+				docId,
+				undefined,
+				undefined,
+				new TestLogService(),
 			);
 
 			expect(edits).toHaveLength(0);
