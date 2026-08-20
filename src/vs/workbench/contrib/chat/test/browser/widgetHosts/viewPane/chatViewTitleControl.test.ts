@@ -55,8 +55,8 @@ suite('ChatViewTitleControl', () => {
 		));
 		const resizeObserver = TestResizeObserver.instance;
 		assert.ok(resizeObserver);
-		let heightChangeCount = 0;
-		disposables.add(control.onDidChangeHeight(() => heightChangeCount++));
+		const observedHeights: number[] = [];
+		disposables.add(control.onDidChangeHeight(() => observedHeights.push(control.getHeight())));
 
 		resizeObserver.fire(22);
 		resizeObserver.fire(22);
@@ -64,11 +64,11 @@ suite('ChatViewTitleControl', () => {
 
 		assert.deepStrictEqual({
 			height: control.getHeight(),
-			heightChangeCount,
+			observedHeights,
 			observedBox: resizeObserver.observedBox
 		}, {
 			height: 0,
-			heightChangeCount: 2,
+			observedHeights: [22, 0],
 			observedBox: 'border-box'
 		});
 	});
