@@ -318,6 +318,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	private readonly _lastFetchedPluginsStore: ObservableMemento<IStoredLastFetchedPlugins>;
 	private readonly _marketplacesWithUpdates = observableValue<ReadonlySet<string>>('marketplacesWithUpdates', new Set());
 	private readonly _updateCheckDelayer = this._register(new ThrottledDelayer<void>(PLUGIN_UPDATE_CHECK_INTERVAL_MS));
+	private _updateChecksInitialized = false;
 	private _updateCheckRunning = false;
 
 	readonly onDidChangeMarketplaces: Event<void>;
@@ -408,6 +409,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		);
 
 		this._register(runWhenGlobalIdle(() => {
+			this._updateChecksInitialized = true;
 			this._scheduleUpdateCheck();
 			this._register(Event.filter(
 				_configurationService.onDidChangeConfiguration,
@@ -415,7 +417,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 					|| e.affectsConfiguration(ChatConfiguration.ExtraMarketplaces)
 					|| e.affectsConfiguration(ChatConfiguration.StrictMarketplaces),
 			)(() => {
-				this.clearUpdatesAvailable();
+				this._marketplacesWithUpdates.set(new Set(), undefined);
 				this._scheduleUpdateCheck(0);
 			}));
 			this._register(this._meteredConnectionService.onDidChangeIsConnectionMetered(isMetered => {
@@ -441,12 +443,17 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	}
 
 	clearUpdatesAvailable(marketplaceIds?: ReadonlySet<string>): void {
-		if (!marketplaceIds) {
-			this._marketplacesWithUpdates.set(new Set(), undefined);
-			return;
-		}
-		const remaining = new Set([...this._marketplacesWithUpdates.get()].filter(id => !marketplaceIds.has(id)));
+		const remaining = marketplaceIds
+			? new Set([...this._marketplacesWithUpdates.get()].filter(id => !marketplaceIds.has(id)))
+			: new Set<string>();
 		this._marketplacesWithUpdates.set(remaining, undefined);
+
+		if (remaining.size === 0
+			&& this._updateChecksInitialized
+			&& !this._updateCheckRunning
+			&& !this._updateCheckDelayer.isTriggered()) {
+			this._scheduleUpdateCheck();
+		}
 	}
 
 	async fetchMarketplacePlugins(token: CancellationToken, marketplaceIds?: ReadonlySet<string>, options?: IFetchMarketplacePluginsOptions): Promise<IMarketplacePlugin[]> {
@@ -831,8 +838,10 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	 */
 	private _scheduleUpdateCheck(delayOverride?: number): void {
 		this._updateCheckDelayer.cancel();
+
 		if (this._store.isDisposed
 			|| this._meteredConnectionService.isConnectionMetered
+			|| this._marketplacesWithUpdates.get().size > 0
 			|| !this._hasAutoUpdateEnabledMarketplace()) {
 			return;
 		}
