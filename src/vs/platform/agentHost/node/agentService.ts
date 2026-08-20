@@ -2163,6 +2163,8 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/** Tracks the migrate-legacy setting so the config listener acts only on transitions. */
 	private _lastMigrateLegacyEnabled = false;
+	/** Adoptable keys retracted in this window; re-enabling also recovers earlier ones from the catalog. */
+	private readonly _retractedAdoptableKeys = new Set<string>();
 
 	private _isMigrateLegacyEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostMigrateLegacyCopilotCliEnabledConfigKey) === true;
@@ -2180,7 +2182,12 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		this._lastMigrateLegacyEnabled = enabled;
 		if (enabled) {
-			return; // turning on re-surfaces through the normal discovery / list path
+			// Discovery skips chats already in the registry, so it cannot re-announce
+			// what disabling retracted — restore them from the registry instead.
+			this._sessionListReconciliation = this._sessionListReconciliation
+				.then(() => this._resurfaceAdoptableSessions())
+				.catch(error => this._logService.warn('[AgentService] Re-surfacing adoptable legacy sessions failed', error));
+			return;
 		}
 		for (const key of [...this._announcedSurfacedKeys]) {
 			if (this._stateManager.getSessionState(key)) {
@@ -2191,7 +2198,36 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			this._announcedSurfacedKeys.delete(key);
 			this._broadcastExternalSessions.delete(key);
+			this._retractedAdoptableKeys.add(key);
 			this._stateManager.retractSurfacedSession(key);
+		}
+	}
+
+	/**
+	 * Re-announces adoptable-legacy sessions that are not currently surfaced —
+	 * those this window retracted, plus any the catalog still reports as adoptable,
+	 * so rows retracted before a restart are recovered too.
+	 */
+	private async _resurfaceAdoptableSessions(): Promise<void> {
+		if (!this._isMigrateLegacyEnabled()) {
+			return;
+		}
+		for (const metadata of await this.listSessions()) {
+			const key = metadata.session.toString();
+			if (this._announcedSurfacedKeys.has(key) || this._stateManager.getSessionState(key)) {
+				this._retractedAdoptableKeys.delete(key);
+				continue;
+			}
+			if (!this._retractedAdoptableKeys.has(key) && !readSessionEhcliAdoptable(metadata._meta)) {
+				continue;
+			}
+			const provider = AgentSession.provider(metadata.session);
+			if (provider) {
+				await this._announceSurfacedSession(metadata, provider);
+			}
+			if (this._announcedSurfacedKeys.has(key) || this._stateManager.getSessionState(key)) {
+				this._retractedAdoptableKeys.delete(key);
+			}
 		}
 	}
 
@@ -4670,6 +4706,16 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 		const adopted = adoption.adopted;
+
+		// A session the registry does not know is only restorable when it is ours:
+		// either an adoptable legacy chat, or one that already has Agent Host
+		// metadata whose registry entry was lost. `external` defaults to false for
+		// unknown sessions, so without this an external chat (e.g. one the GitHub app
+		// created, hidden while `showExternalSessions` is `none`) would be
+		// materialized here and thereby claimed away from the extension host's list.
+		if (!registeredSession && migrateLegacyEnabled && agent.ensureChatAdopted && !adoption.eligible && !adoption.native) {
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session is not an adoptable legacy chat: ${sessionStr}`);
+		}
 
 		// From here the whole restore is wrapped so `migrated` is reported only
 		// after every required step succeeds, and any failure after a successful

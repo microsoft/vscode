@@ -3483,6 +3483,38 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('an adoptable chat retracted by disabling migration is re-surfaced when it is re-enabled', async () => {
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			svc.registerProvider(agent);
+			svc.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+			await svc.listSessions();
+
+			const session = AgentSession.uri('copilot', 'toggled-adoptable');
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
+			agent.fireDiscoveredChats([{ ...discoveredChat(session, false), _meta: withSessionEhcliAdoptable(undefined) }]);
+			for (let i = 0; i < 50 && !svc.stateManager.getSurfacedSessionSummary(session.toString()); i++) {
+				await timeout(0);
+			}
+			const afterFirstEnable = !!svc.stateManager.getSurfacedSessionSummary(session.toString());
+
+			svc.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: false });
+			await timeout(0);
+			const whileDisabled = !!svc.stateManager.getSurfacedSessionSummary(session.toString());
+
+			// Discovery skips chats already in the registry, so re-enabling must restore
+			// them from the registry rather than waiting for another discovery pass.
+			svc.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+			for (let i = 0; i < 50 && !svc.stateManager.getSurfacedSessionSummary(session.toString()); i++) {
+				await timeout(0);
+			}
+
+			assert.deepStrictEqual(
+				{ afterFirstEnable, whileDisabled, afterReEnable: !!svc.stateManager.getSurfacedSessionSummary(session.toString()) },
+				{ afterFirstEnable: true, whileDisabled: false, afterReEnable: true },
+			);
+		});
+
 		test('rediscovering a registered chat with different provenance performs no per-session database I/O', async () => {
 			const perSession = createPerSessionDataService();
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
@@ -7100,6 +7132,27 @@ suite('AgentService (node dispatcher)', () => {
 				{ adoptCalls: agent.adoptCalls, restored: !!localService.stateManager.getSessionState(sessionStr) },
 				{ adoptCalls: 1, restored: true },
 			);
+		});
+
+		test('does not materialize state for an unregistered chat that is not adoptable', async () => {
+			// An external chat (e.g. created by the GitHub app) is hidden while
+			// `showExternalSessions` is `none`, so it is absent from the registered
+			// list. Restoring it would write `agentSessionData/<id>` and thereby claim
+			// it away from the extension host's own Copilot CLI list.
+			class NotAdoptableAgent extends MockAgent {
+				constructor() { super('copilot'); }
+				async ensureChatAdopted(_chat: URI, _context: URI | IAgentChatContext): Promise<IAgentChatAdoptionResult> {
+					return { adopted: false, eligible: false };
+				}
+			}
+
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.registerProvider(disposables.add(new NotAdoptableAgent()));
+			localService.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+
+			const session = AgentSession.uri('copilot', 'external-chat');
+			await assert.rejects(() => localService.restoreSession(session), /not an adoptable legacy chat/);
+			assert.strictEqual(localService.stateManager.getSessionState(session.toString()), undefined);
 		});
 
 		test('a passive read/archive action does not adopt a surfaced legacy session (listing must not migrate)', async () => {
