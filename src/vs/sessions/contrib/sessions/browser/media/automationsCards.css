@@ -320,14 +320,32 @@
 	margin-bottom: 8px;
 }
 
+.automations-history-group-runs {
+	margin: 0 var(--vscode-spacing-size100);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+	overflow: hidden;
+}
+
+.automations-history-group-runs .automations-run-session-list .monaco-list-row.session-list-inset-row {
+	margin: 0;
+	width: 100%;
+	border-radius: 0;
+}
+
+.automations-history-group-runs .automations-temporary-run:not(:first-child),
+.automations-history-group-runs .automations-run-session-list:not(:empty) .monaco-list-row:not(:first-child),
+.automations-history-group-runs .automations-temporary-runs:not(:empty) + .automations-run-session-list:not(:empty) {
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
+}
+
 .automations-temporary-runs:empty {
 	display: none;
 }
 
 .automations-temporary-run {
 	height: 54px;
-	margin: 0 var(--vscode-spacing-size100);
-	width: calc(100% - var(--vscode-spacing-size200));
+	width: 100%;
 }
 
 .hc-black .automations-card,
