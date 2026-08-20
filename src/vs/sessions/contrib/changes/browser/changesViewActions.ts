@@ -333,7 +333,7 @@ MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, {
 	command: {
 		id: TOGGLE_DIFF_SIDE_BY_SIDE,
 		title: localize('preferSideBySideDiff', "Prefer Side by Side Diff"),
-		tooltip: localize('preferSideBySideDiff.tooltip', "Uses side-by-side layout when space allows."),
+		tooltip: localize('preferSideBySideDiff.tooltip', "Uses inline layout when space is limited unless screen reader optimized mode is enabled."),
 		icon: Codicon.diffSidebyside,
 		toggled: {
 			condition: ContextKeyExpr.or(

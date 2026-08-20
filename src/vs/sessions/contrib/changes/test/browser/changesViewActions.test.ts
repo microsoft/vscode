@@ -194,7 +194,7 @@ suite('Changes View Actions', () => {
 			group: '1_diff',
 			order: 20,
 			icon: Codicon.diffSidebyside.id,
-			tooltip: 'Uses side-by-side layout when space allows.',
+			tooltip: 'Uses inline layout when space is limited unless screen reader optimized mode is enabled.',
 			toggledTitle: 'Prefer Inline Diff',
 			toggledTooltip: 'Always uses inline layout.',
 			toggledOnSharedPreference: true,
