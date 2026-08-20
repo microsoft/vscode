@@ -14,7 +14,7 @@ import { joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AGENT_PLUGIN_SCHEMA } from '../../../../../../platform/agentPlugins/common/agentPluginParser.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IFileService, IFileSystemWatcher } from '../../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -683,26 +683,27 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 
 	const marketplaceRef = parseMarketplaceReference('microsoft/plugins')!;
 
-	function makePlugin(name: string, source: string): IMarketplacePlugin {
+	function makePlugin(name: string, source: string, reference = marketplaceRef): IMarketplacePlugin {
 		return {
 			name,
 			description: `${name} description`,
 			version: '1.0.0',
 			source,
 			sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: source } as const,
-			marketplace: marketplaceRef.displayLabel,
-			marketplaceReference: marketplaceRef,
+			marketplace: reference.displayLabel,
+			marketplaceReference: reference,
 			marketplaceType: MarketplaceType.Copilot,
 		};
 	}
 
 	function createService(options?: {
+		configurationService?: TestConfigurationService;
 		meteredConnectionService?: IMeteredConnectionService;
 		pluginRepositoryService?: Partial<IAgentPluginRepositoryService>;
 	}): PluginMarketplaceService {
 		const instantiationService = store.add(new TestInstantiationService());
 
-		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+		instantiationService.stub(IConfigurationService, options?.configurationService ?? new TestConfigurationService({
 			[ChatConfiguration.PluginMarketplaces]: ['microsoft/plugins'],
 			[ChatConfiguration.PluginsEnabled]: true,
 		}));
@@ -860,6 +861,79 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual({ fetchCount, maxActiveFetches }, { fetchCount: 1, maxActiveFetches: 1 });
+	});
+
+	test('configuration changes during a check queue one rerun without overlapping fetches', async () => {
+		let runIdle: ((idle: IdleDeadline) => void) | undefined;
+		store.add(installFakeRunWhenIdle((_target, runner) => {
+			runIdle = runner;
+			return Disposable.None;
+		}));
+		const skippedRef = parseMarketplaceReference('microsoft/skipped')!;
+		const deferredRef = parseMarketplaceReference('microsoft/deferred')!;
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.PluginMarketplaces]: [skippedRef.canonicalId, deferredRef.canonicalId],
+			[ChatConfiguration.PluginsEnabled]: true,
+			[ChatConfiguration.StrictMarketplaces]: [{ source: 'github', repo: 'microsoft/deferred' }],
+		});
+		const firstFetch = new DeferredPromise<boolean>();
+		const fetched: string[] = [];
+		let activeFetches = 0;
+		let maxActiveFetches = 0;
+		const service = createService({
+			configurationService,
+			pluginRepositoryService: {
+				fetchRepository: async reference => {
+					fetched.push(reference.canonicalId);
+					activeFetches++;
+					maxActiveFetches = Math.max(maxActiveFetches, activeFetches);
+					try {
+						return fetched.length === 1 ? await firstFetch.p : false;
+					} finally {
+						activeFetches--;
+					}
+				},
+			},
+		});
+		service.addInstalledPlugin(
+			URI.file('/agent-plugins/github.com/microsoft/skipped/plugin'),
+			makePlugin('skipped', 'plugin', skippedRef),
+		);
+		service.addInstalledPlugin(
+			URI.file('/agent-plugins/github.com/microsoft/deferred/plugin'),
+			makePlugin('deferred', 'plugin', deferredRef),
+		);
+
+		assert.ok(runIdle);
+		runIdle({ didTimeout: false, timeRemaining: () => 50 });
+		await timeout(0);
+		assert.deepStrictEqual(fetched, [deferredRef.canonicalId]);
+
+		await configurationService.setUserConfiguration(ChatConfiguration.StrictMarketplaces, [
+			{ source: 'github', repo: 'microsoft/skipped' },
+			{ source: 'github', repo: 'microsoft/deferred' },
+		]);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([ChatConfiguration.StrictMarketplaces]),
+			change: { keys: [ChatConfiguration.StrictMarketplaces], overrides: [] },
+			affectsConfiguration: key => key === ChatConfiguration.StrictMarketplaces,
+		} satisfies IConfigurationChangeEvent);
+		await timeout(0);
+		assert.deepStrictEqual({ fetched, maxActiveFetches }, { fetched: [deferredRef.canonicalId], maxActiveFetches: 1 });
+
+		firstFetch.complete(false);
+		for (let i = 0; i < 5 && fetched.length < 3; i++) {
+			await timeout(0);
+		}
+
+		assert.deepStrictEqual({
+			fetched,
+			maxActiveFetches,
+		}, {
+			fetched: [deferredRef.canonicalId, skippedRef.canonicalId, deferredRef.canonicalId],
+			maxActiveFetches: 1,
+		});
 	});
 
 	test('removeInstalledPlugin removes plugin from installedPlugins and metadata', () => {

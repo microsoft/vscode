@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { runWhenGlobalIdle } from '../../../../../base/common/async.js';
+import { runWhenGlobalIdle, ThrottledDelayer } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { parse as parseJSONC } from '../../../../../base/common/json.js';
@@ -316,8 +316,8 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	private readonly _trustedMarketplacesStore: ObservableMemento<readonly string[]>;
 	private readonly _lastFetchedPluginsStore: ObservableMemento<IStoredLastFetchedPlugins>;
 	private readonly _marketplacesWithUpdates = observableValue<ReadonlySet<string>>('marketplacesWithUpdates', new Set());
-	private _updateCheckTimer: ReturnType<typeof setTimeout> | undefined;
-	private _updateCheckPromise: Promise<void> | undefined;
+	private readonly _updateCheckDelayer = this._register(new ThrottledDelayer<void>(PLUGIN_UPDATE_CHECK_INTERVAL_MS));
+	private _updateCheckRunning = false;
 
 	readonly onDidChangeMarketplaces: Event<void>;
 
@@ -415,12 +415,12 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 					|| e.affectsConfiguration(ChatConfiguration.StrictMarketplaces),
 			)(() => {
 				this.clearUpdatesAvailable();
-				this._scheduleUpdateCheck();
+				this._scheduleUpdateCheck(0);
 			}));
 			this._register(this._meteredConnectionService.onDidChangeIsConnectionMetered(isMetered => {
 				if (isMetered) {
-					this._clearUpdateCheckTimer();
-				} else {
+					this._updateCheckDelayer.cancel();
+				} else if (!this._updateCheckRunning && !this._updateCheckDelayer.isTriggered()) {
 					this._scheduleUpdateCheck();
 				}
 			}));
@@ -437,11 +437,6 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 				this._hydratePluginMetadata(unhydrated);
 			}
 		}));
-	}
-
-	override dispose(): void {
-		this._clearUpdateCheckTimer();
-		super.dispose();
 	}
 
 	clearUpdatesAvailable(marketplaceIds?: ReadonlySet<string>): void {
@@ -834,10 +829,8 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	 * whenever the auto-update config or metered connection state changes.
 	 */
 	private _scheduleUpdateCheck(delayOverride?: number): void {
-		this._clearUpdateCheckTimer();
-
+		this._updateCheckDelayer.cancel();
 		if (this._store.isDisposed
-			|| this._updateCheckPromise
 			|| this._meteredConnectionService.isConnectionMetered
 			|| !this._hasAutoUpdateEnabledMarketplace()) {
 			return;
@@ -851,30 +844,17 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		const elapsed = Date.now() - lastCheck;
 		const delay = delayOverride ?? Math.max(0, PLUGIN_UPDATE_CHECK_INTERVAL_MS - elapsed);
 
-		this._updateCheckTimer = setTimeout(() => { void this._runUpdateCheck(); }, delay);
-	}
-
-	private _clearUpdateCheckTimer(): void {
-		if (this._updateCheckTimer !== undefined) {
-			clearTimeout(this._updateCheckTimer);
-			this._updateCheckTimer = undefined;
-		}
-	}
-
-	private _runUpdateCheck(): Promise<void> {
-		this._updateCheckTimer = undefined;
-		if (this._updateCheckPromise) {
-			return this._updateCheckPromise;
-		}
-
-		const promise = this._doRunUpdateCheck().finally(() => {
-			if (this._updateCheckPromise === promise) {
-				this._updateCheckPromise = undefined;
-				this._scheduleUpdateCheck(PLUGIN_UPDATE_CHECK_INTERVAL_MS);
+		void this._updateCheckDelayer.trigger(async () => {
+			this._updateCheckRunning = true;
+			try {
+				await this._doRunUpdateCheck();
+			} finally {
+				this._updateCheckRunning = false;
+				if (!this._updateCheckDelayer.isTriggered()) {
+					this._scheduleUpdateCheck(PLUGIN_UPDATE_CHECK_INTERVAL_MS);
+				}
 			}
-		});
-		this._updateCheckPromise = promise;
-		return promise;
+		}, delay);
 	}
 
 	private async _doRunUpdateCheck(): Promise<void> {
