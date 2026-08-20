@@ -278,9 +278,9 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 				// (e.g. file missing), keep the original line with the error.
 				let isExternal = false;
 				try {
-					isExternal = await this.instantiationService.invokeFunction(accessor =>
+					({ needsConfirmation: isExternal } = await this.instantiationService.invokeFunction(accessor =>
 						isFileExternalAndNeedsConfirmation(accessor, uri, this._inputContext, { readOnly: true, workingDirectory })
-					);
+					));
 				} catch {
 					// isFileExternalAndNeedsConfirmation throws for nonexistent files;
 					// treat that as "not external" so the original line is preserved.
