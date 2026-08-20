@@ -27,6 +27,7 @@ export const workbenchDesktop = [
 	createModuleDescription('vs/platform/terminal/node/ptyHostMain'),
 	createModuleDescription('vs/platform/agentHost/node/agentHostMain'),
 	createModuleDescription('vs/platform/agentHost/node/diffWorkerMain'),
+	createModuleDescription('vs/platform/virtualMachines/node/virtualMachinesDaemonMain'),
 	createModuleDescription('vs/workbench/api/node/extensionHostProcess'),
 	createModuleDescription('vs/workbench/workbench.desktop.main'),
 	createModuleDescription('vs/sessions/sessions.desktop.main')
