@@ -28,7 +28,7 @@ The Agents Window workbench (`Workbench` in `sessions/browser/workbench.ts`) pro
 
 The **Sessions Part** is the primary content surface. It hosts an internal grid of one or more **Session Views** (left-to-right) — see [§4 Sessions Part](#4-sessions-part) for the visibility model.
 
-Editors open as modal overlays via `ModalEditorPart`. The main editor part exists in the workbench grid but is hidden by default.
+The Agents window defaults `workbench.editor.useModal` to `some`: editors that require a modal open via `ModalEditorPart`, while ordinary editors open in the main editor part. The main editor part exists in the workbench grid but is hidden until needed.
 
 ### 2.1 Parts
 
@@ -206,6 +206,8 @@ A `SessionView` ([browser/parts/sessionView.ts](src/vs/sessions/browser/parts/se
 
 The header is centered and capped to 990px via its own CSS class (`.chat-composite-bar.session-header-bar` in [chatCompositeBar.css](src/vs/sessions/browser/parts/media/chatCompositeBar.css)); `SessionView` measures the header's reported height and lays the chat groups grid out below it. The chat groups grid is laid out at full session width so each group's scrollable viewport (and scrollbar) stays flush to the far-right edge; only the inner chat content (message/input cards, via `.interactive-item-container`, capped to 950px in [browser/media/style.css](src/vs/sessions/browser/media/style.css)) is width-constrained and centered via CSS. The scroll-to-bottom button follows the trailing edge of this centered content column rather than the full-width viewport edge. Each constrained message row is also the positioning context for request overlays such as steering-message actions, keeping those controls anchored to the message instead of the full-width scroll viewport.
 
+Session metadata defaults to a second header row containing workspace, aggregate changes, pull requests, issues, and Chats. When `chat.agentSessions.showSessionMetadataInInput` is enabled, that row is removed: aggregate changes, pull requests, and issues join the horizontally scrollable pill row above the input; Chats moves into the title toolbar with its existing visibility rules; and read-only workspace metadata appears inline after the session title. Last-turn status pills remain available after the turn completes in this placement. The artifacts pill merges the artifacts the agent recorded with the previewable files the session wrote outside its workspace, de-duplicated by resource with the agent's entries winning; a single artifact opens directly, while several collapse into an `N Artifacts` pill whose dropdown groups them by type. Right-clicking the row — on a pill or the empty space beside it — offers the pill visibility menu: `Hide <pill>` for the pill under the cursor, then the kinds the session has data for, then the kinds it does not, separated into those three groups. Changes is never listed because it always shows once it has data. Customizations and Subagents start hidden and are turned on from this menu; choices persist across windows. The pills opt into `allowContextMenu` so the toolbar does not swallow the right-click per item. The customizations pill is chat-scoped rather than session-scoped and always summarizes — one customization still reads `1 Customization` — with a dropdown grouped by customization type that reveals the picked entry in the customizations editor. The shared `ChatPillsWidget` lives in the workbench layer and consumes observable pill descriptors; the artifacts and customizations pills share one `ChatSectionPillActionViewItem` configured by presentation options. Sessions owns the adapters from session state and menus so the workbench layer never imports Sessions.
+
 **Composer clipping.** Monaco measures its host from `clientWidth`, which includes padding. The new-session editor therefore expresses its horizontal inset with margin so its scrollable element remains inside the clipped input surface; the running-session editor's rounded working-state clip extends through the input's trailing padding so the full scrollbar remains visible.
 
 **Pitfall:** absolute request overlays must not remain positioned against the full-width `.interactive-session` after message rows are independently constrained. Make the constrained row their positioning context or hover actions drift into the viewport gutter. Request rows must also override the tree's `.monaco-tl-contents { overflow: hidden; }`, otherwise controls positioned above the request are clipped at the row boundary.
@@ -275,13 +277,14 @@ On phone-class viewports the Sessions Part is replaced by `MobileSessionsPart` (
 
 ---
 
-## 5. Editor Modal
+## 5. Editor Presentation
 
-Editors open as modal overlays rather than occupying grid space. The configuration `workbench.editor.useModal: 'all'` redirects all editor opens (without an explicit preferred group) to `ModalEditorPart`.
+The Agents window defaults `workbench.editor.useModal` to `some`. Editors that require a modal, such as Settings and Keyboard Shortcuts, open in `ModalEditorPart`; ordinary editors open in the main editor part.
 
 | Trigger | Behavior |
 |---------|----------|
-| Editor opens (no explicit group) | Opens in modal overlay |
+| Ordinary editor opens (no explicit group) | Opens in the main editor part |
+| Editor requiring a modal opens | Opens in modal overlay |
 | All editors closed / Escape / backdrop click | Modal closes and is disposed |
 
 When the editor part is shown in the grid (not as a modal), its title toolbar (`MenuId.EditorTitleLayout`, right of the tabs) hosts layout actions registered in `contrib/editor/browser/editor.contribution.ts`, ordered left-to-right as: open in modal editor, **maximize / restore editor area**, a single **Toggle Details** action for the auxiliary bar (labelled "Toggle Secondary Side Bar" in the non-single-pane layout), and **close editor area**. The auxiliary-bar toggle sits to the right of maximize/restore because it changes the right-hand side of the layout. It reuses the core `workbench.action.toggleAuxiliaryBar` command (already registered in the agents window by the workbench auxiliary bar part, and available in the Command Palette under **View**) surfaced through two `when`-gated menu items in `browser/layoutActions.ts` so the icon flips without rendering a checked/highlighted state: the `right-panel-show` codicon shows when the auxiliary bar is hidden (`AuxiliaryBarVisibleContext` negated, click to show) and the `right-panel-hide` codicon shows when it is visible (click to hide). In the Agents-window tab strip, the editor-actions side first shrinks down to 50px before the tab scroller starts shrinking. When tab actions are placed on the left, tabs retain trailing spacing consistent with the modern editor tab style.
@@ -299,11 +302,11 @@ The Toggle Details action (Toggle Secondary Side Bar in the non-single-pane layo
 
 The main editor part can be explicitly revealed for workflows that target it directly.
 
-### Single-pane redesign (experimental — `sessions.layout.singlePaneDetailPanel`, default OFF)
+### Single-pane redesign (experimental — `sessions.layout.singlePaneDetailPanel`, default ON)
 
 > See [SINGLE_PANE_SCENARIOS.md](SINGLE_PANE_SCENARIOS.md) for the full scenario/state/transition catalog and the manual validation checklist.
 
-The entire third-pane redesign is gated behind the experimental setting `sessions.layout.singlePaneDetailPanel`, read **once at startup** (a window reload applies a change). When the setting is **off** (default) the Agents window renders exactly as documented above (auxiliary bar as its own grid column with its composite tab strip + title, the standard multi-diff Changes editor). When **on**, the third pane becomes a **single pane with one full-width editor title region**. It supports `workbench.editor.showTabs` values `multiple` and `single`; while the unsupported `none` value is configured, the Agents editor part conditionally enforces `single`. When only the docked Auxiliary Bar is visible and the editor area is hidden, it enforces `multiple` so every managed detail tab remains directly available.
+The entire third-pane redesign is gated behind the experimental setting `sessions.layout.singlePaneDetailPanel`, read **once at startup** (a window reload applies a change). When the setting is **on** (default), a non-phone Agents window uses a **single pane with one full-width editor title region**. Phone-class viewports always use the classic layout, regardless of the setting. When the setting is **off**, every Agents window also renders the classic layout documented above (auxiliary bar as its own grid column with its composite tab strip + title, the standard multi-diff Changes editor). The single-pane layout supports `workbench.editor.showTabs` values `multiple` and `single`; while the unsupported `none` value is configured, the Agents editor part conditionally enforces `single`. When only the docked Auxiliary Bar is visible and the editor area is hidden, it enforces `multiple` so every managed detail tab remains directly available.
 
 - The auxiliary bar is removed from the workbench grid and **docked inside the editor part** (absolutely positioned on the right, below the editor tab strip); the grid's top-right row becomes `Sessions | Editor`, and the editor part spans the editor + detail-panel width.
 - The editor group's **title region and header-hosted breadcrumbs span the full width**, while the editor content is inset on the right by the detail-panel width via the concrete `EditorPart.setContentRightInset(px)` method (`EditorPart`/`EditorGroupView`; not on the `IEditorPart` interface; `0` = no-op for all other layouts). The detail panel is always docked on the right, so no left margin is needed.

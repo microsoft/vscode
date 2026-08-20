@@ -21,7 +21,7 @@ import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ConfigurationTarget, type IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { ContentEncoding, ReconnectResultType } from '../../common/state/protocol/commands.js';
 import { ChatSourceKind } from '../../common/state/protocol/channels-chat/commands.js';
-import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
+import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/protocol/errors.js';
 import { PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from '../../common/state/protocol/version/registry.js';
 import { ActionType, type ChatTurnStartedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
 import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
@@ -34,7 +34,7 @@ import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/tel
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
 import { AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../common/agentHostManagedSettings.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
+import { AgentHostConfigurationSyncScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
 
 // Settings used to exercise declarative agent-host mirroring. Registered by this
@@ -46,6 +46,10 @@ const SYNC_SETTING_A = 'test.remoteAgentHostProtocolClient.syncA';
 const SYNC_CONFIG_KEY_A = 'testSyncValueA';
 const SYNC_SETTING_B = 'test.remoteAgentHostProtocolClient.syncB';
 const SYNC_CONFIG_KEY_B = 'testSyncValueB';
+const SYNC_LOCAL_SETTING = 'test.remoteAgentHostProtocolClient.syncLocal';
+const SYNC_LOCAL_CONFIG_KEY = 'testSyncLocal';
+const SYNC_AMBIENT_SETTING = 'test.remoteAgentHostProtocolClient.syncAmbient';
+const SYNC_AMBIENT_CONFIG_KEY = 'testSyncAmbient';
 
 const syncTestConfigurationNode = {
 	id: 'testRemoteAgentHostProtocolClientSync',
@@ -60,6 +64,16 @@ const syncTestConfigurationNode = {
 			type: 'boolean' as const,
 			default: false,
 			agentHost: { key: SYNC_CONFIG_KEY_B },
+		},
+		[SYNC_LOCAL_SETTING]: {
+			type: 'boolean' as const,
+			default: true,
+			agentHost: { key: SYNC_LOCAL_CONFIG_KEY, scope: AgentHostConfigurationSyncScope.Local },
+		},
+		[SYNC_AMBIENT_SETTING]: {
+			type: 'boolean' as const,
+			default: true,
+			agentHost: { key: SYNC_AMBIENT_CONFIG_KEY, scope: AgentHostConfigurationSyncScope.Ambient },
 		},
 	},
 };
@@ -135,6 +149,19 @@ function findLastManagedSettingsNotification(messages: readonly ProtocolTranspor
 /** The value forwarded for `configKey` in the first root-config notification carrying it. */
 function findRootConfigValue(messages: readonly ProtocolTransportMessage[], configKey: string): RootConfigValue {
 	return getRootConfig(findRootConfigNotification(messages, configKey))[configKey];
+}
+
+function findOptionalRootConfigValue(messages: readonly ProtocolTransportMessage[], configKey: string): RootConfigValue {
+	for (const message of messages) {
+		if (!hasKey(message, { method: true }) || message.method !== 'dispatchAction') {
+			continue;
+		}
+		const params = (message as JsonRpcNotification).params as ITestRootConfigNotificationParams | undefined;
+		if (params?.action?.type === ActionType.RootConfigChanged && params.action.config && hasKey(params.action.config, { [configKey]: true })) {
+			return params.action.config[configKey];
+		}
+	}
+	return undefined;
 }
 
 class TestProtocolTransport extends Disposable implements IProtocolTransport {
@@ -1100,6 +1127,37 @@ suite('RemoteAgentHostProtocolClient', () => {
 		});
 	});
 
+	test('applies local and ambient configuration scopes to the target Agent Host', async () => {
+		const local = createClientForIdentity(LOCAL_AGENT_HOST_RESOURCE_IDENTITY);
+		const remoteExtensionHost = createClientForIdentity('vscode-remote://ssh-remote+host');
+		const remote = createClient();
+
+		await Promise.all([
+			connectClient(local.client, local.transport),
+			connectClient(remoteExtensionHost.client, remoteExtensionHost.transport),
+			connectClient(remote.client, remote.transport),
+		]);
+
+		assert.deepStrictEqual({
+			local: {
+				local: findRootConfigValue(local.transport.sentMessages, SYNC_LOCAL_CONFIG_KEY),
+				ambient: findRootConfigValue(local.transport.sentMessages, SYNC_AMBIENT_CONFIG_KEY),
+			},
+			remoteExtensionHost: {
+				local: findOptionalRootConfigValue(remoteExtensionHost.transport.sentMessages, SYNC_LOCAL_CONFIG_KEY),
+				ambient: findRootConfigValue(remoteExtensionHost.transport.sentMessages, SYNC_AMBIENT_CONFIG_KEY),
+			},
+			remote: {
+				local: findOptionalRootConfigValue(remote.transport.sentMessages, SYNC_LOCAL_CONFIG_KEY),
+				ambient: findOptionalRootConfigValue(remote.transport.sentMessages, SYNC_AMBIENT_CONFIG_KEY),
+			},
+		}, {
+			local: { local: true, ambient: true },
+			remoteExtensionHost: { local: undefined, ambient: true },
+			remote: { local: undefined, ambient: undefined },
+		});
+	});
+
 	test('forwards the repo-info telemetry debug switch on connect and change', async () => {
 		const configurationService = new TestConfigurationService({ [DISABLE_REPO_INFO_TELEMETRY_SETTING_ID]: true });
 		const { client, transport } = createClient(disposables.add(new TestProtocolTransport()), createPermissionService(), undefined, new NullLogService(), configurationService);
@@ -1286,6 +1344,170 @@ suite('RemoteAgentHostProtocolClient', () => {
 		transport.fireMessage({ jsonrpc: '2.0', id: 1, error: { code: AhpErrorCodes.TurnInProgress, message: 'Turn in progress' } });
 
 		await assertRemoteProtocolError(resultPromise, { code: AhpErrorCodes.TurnInProgress, message: 'Turn in progress' });
+	});
+
+	test('collectDebugLogs maps the returned host resource', async () => {
+		const { client, transport } = createClient();
+		const session = URI.parse('copilotcli:/session-1');
+		const resultPromise = client.collectDebugLogs(session, 'archive');
+
+		assert.deepStrictEqual(transport.sentMessages[0], {
+			jsonrpc: '2.0',
+			id: 1,
+			method: 'vscode/collectAgentHostDebugLogs',
+			params: { session: session.toString(), kind: 'archive' },
+		});
+
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: 1,
+			result: { kind: 'archive', resource: 'file:///tmp/agent-host-debug.zip', providerLogsIncluded: true, size: 1024, uncompressedSize: 2048, entries: [{ path: 'agenthost.log', size: 2048 }] },
+		});
+		const result = await resultPromise;
+		assert.deepStrictEqual({
+			kind: result.kind,
+			providerLogsIncluded: result.providerLogsIncluded,
+			size: result.size,
+			uncompressedSize: result.uncompressedSize,
+			scheme: result.resource.scheme,
+			authority: result.resource.authority,
+			path: result.resource.path,
+			entries: result.entries,
+		}, {
+			kind: 'archive',
+			providerLogsIncluded: true,
+			size: 1024,
+			uncompressedSize: 2048,
+			scheme: 'vscode-agent-host',
+			authority: 'test.example__1234',
+			path: '/tmp/agent-host-debug.zip',
+			entries: [{ path: 'agenthost.log', size: 2048 }],
+		});
+	});
+
+	test('getSessionStateFile maps the returned host resource', async () => {
+		const { client, transport } = createClient();
+		const session = URI.parse('copilotcli:/session-1');
+		const resultPromise = client.getSessionStateFile(session);
+
+		assert.deepStrictEqual(transport.sentMessages[0], {
+			jsonrpc: '2.0',
+			id: 1,
+			method: 'vscode/getAgentHostSessionStateFile',
+			params: { session: session.toString() },
+		});
+
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: 1,
+			result: { resource: 'file:///state/sdk-session/events.jsonl' },
+		});
+
+		assert.strictEqual(
+			(await resultPromise)?.toString(),
+			'vscode-agent-host://test.example__1234/state/sdk-session/events.jsonl?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0',
+		);
+	});
+
+	test('getSessionStateFile rejects a non-file host resource', async () => {
+		const { client, transport } = createClient();
+		const resultPromise = client.getSessionStateFile(URI.parse('copilotcli:/session-1'));
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: 1,
+			result: { resource: 'vscode-userdata:/User/settings.json' },
+		});
+
+		await assertRemoteProtocolError(resultPromise, {
+			code: JsonRpcErrorCodes.InvalidParams,
+			message: 'Agent Host returned a non-file session state resource: vscode-userdata:/User/settings.json',
+		});
+	});
+
+	test('getSessionStateFile returns undefined when the host has no state file', async () => {
+		const { client, transport } = createClient();
+		const resultPromise = client.getSessionStateFile(URI.parse('copilotcli:/session-1'));
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: 1,
+			result: {},
+		});
+
+		assert.strictEqual(await resultPromise, undefined);
+	});
+
+	test('collectDebugLogs accepts an archive with a larger uncompressed size', async () => {
+		const { client, transport } = createClient();
+		const resultPromise = client.collectDebugLogs(URI.parse('copilotcli:/session-1'), 'archive');
+		const entrySize = 10 * 1024 * 1024;
+		transport.fireMessage({
+			jsonrpc: '2.0', id: 1,
+			result: {
+				kind: 'archive', resource: 'file:///tmp/agent-host-debug.zip', providerLogsIncluded: true,
+				size: 1024, uncompressedSize: entrySize * 2,
+				entries: [{ path: 'process.log', size: entrySize }, { path: 'events.jsonl', size: entrySize }],
+			},
+		});
+
+		assert.strictEqual((await resultPromise).uncompressedSize, entrySize * 2);
+	});
+
+	test('collectDebugLogs accepts a directory containing 30 MiB of rotated logs', async () => {
+		const { client, transport } = createClient();
+		const resultPromise = client.collectDebugLogs(URI.parse('copilotcli:/session-1'), 'directory');
+		const entrySize = 5 * 1024 * 1024;
+		const entries = Array.from({ length: 6 }, (_, index) => ({
+			path: index === 0 ? 'agenthost.log' : `agenthost.${index}.log`,
+			size: entrySize,
+		}));
+		transport.fireMessage({
+			jsonrpc: '2.0', id: 1,
+			result: {
+				kind: 'directory', resource: 'file:///tmp/agent-host-debug-logs', providerLogsIncluded: true,
+				size: entrySize * entries.length, uncompressedSize: entrySize * entries.length, entries,
+			},
+		});
+
+		assert.strictEqual((await resultPromise).uncompressedSize, 30 * 1024 * 1024);
+	});
+
+	test('collectDebugLogs rejects an unsafe or inconsistent artifact manifest', async () => {
+		const unsafe = createClient();
+		const unsafeResult = unsafe.client.collectDebugLogs(URI.parse('copilotcli:/session-1'), 'archive');
+		unsafe.transport.fireMessage({
+			jsonrpc: '2.0', id: 1,
+			result: { kind: 'archive', resource: 'file:///tmp/agent-host-debug.zip', providerLogsIncluded: true, size: 10, uncompressedSize: 10, entries: [{ path: '../secret', size: 10 }] },
+		});
+
+		const inconsistent = createClient();
+		const inconsistentResult = inconsistent.client.collectDebugLogs(URI.parse('copilotcli:/session-1'), 'archive');
+		inconsistent.transport.fireMessage({
+			jsonrpc: '2.0', id: 1,
+			result: { kind: 'archive', resource: 'file:///tmp/agent-host-debug.zip', providerLogsIncluded: true, size: 10, uncompressedSize: 10, entries: [{ path: 'agenthost.log', size: 9 }] },
+		});
+
+		assert.deepStrictEqual({
+			unsafe: await unsafeResult.then(() => 'resolved', error => error.message),
+			inconsistent: await inconsistentResult.then(() => 'resolved', error => error.message),
+		}, {
+			unsafe: 'Agent Host returned an invalid debug log artifact manifest entry',
+			inconsistent: 'Agent Host debug log artifact manifest size does not match its declared size',
+		});
+	});
+
+	test('collectDebugLogs rejects a non-file host resource', async () => {
+		const { client, transport } = createClient();
+		const resultPromise = client.collectDebugLogs(URI.parse('copilotcli:/session-1'), 'archive');
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: 1,
+			result: { kind: 'archive', resource: 'vscode-userdata:/User/settings.json', providerLogsIncluded: true, size: 10, uncompressedSize: 10, entries: [{ path: 'agenthost.log', size: 10 }] },
+		});
+
+		await assertRemoteProtocolError(resultPromise, {
+			code: JsonRpcErrorCodes.InvalidParams,
+			message: 'Agent Host returned a non-file debug log resource: vscode-userdata:/User/settings.json',
+		});
 	});
 
 	test('ping sends a JSON-RPC request and resolves on response', async () => {

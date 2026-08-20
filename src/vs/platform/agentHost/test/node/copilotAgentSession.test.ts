@@ -85,6 +85,7 @@ class MockCopilotSession {
 	readonly gitHubCredentialUpdates: Array<{ credentials?: { type: 'token'; host: string; token: string } }> = [];
 	gitHubCredentialUpdateResult = { success: true, copilotUserResolved: true };
 	gitHubCredentialUpdateError: Error | undefined;
+	readonly collectLogsCalls: Parameters<CopilotSession['rpc']['debug']['collectLogs']>[0][] = [];
 	readonly experimentalModeUpdates: boolean[] = [];
 	experimentalModeUpdateSuccess = true;
 	sandboxConfigUpdateSuccess = true;
@@ -252,6 +253,15 @@ class MockCopilotSession {
 	}
 
 	readonly rpc = {
+		debug: {
+			collectLogs: async (params: Parameters<CopilotSession['rpc']['debug']['collectLogs']>[0]) => {
+				this.collectLogsCalls.push(params);
+				const { destination } = params;
+				return destination.kind === 'directory'
+					? { kind: 'directory' as const, path: destination.outputDirectory, entries: [] }
+					: { kind: 'archive' as const, path: destination.outputPath, entries: [] };
+			},
+		},
 		mode: {
 			get: async () => ({ mode: 'interactive' as const }),
 			set: async (params: { mode: 'interactive' | 'plan' | 'autopilot' }) => {
@@ -1010,6 +1020,22 @@ suite('CopilotAgentSession', () => {
 			result: { success: true, copilotUserResolved: true },
 			updates: [{ credentials: { type: 'token', host: 'github.com', token: 'updated-token' } }],
 		});
+	});
+
+	test('collects SDK debug logs without process logs', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		const outputDirectory = URI.file('/tmp/agent-host-debug');
+
+		await session.collectDebugLogs(outputDirectory, true);
+		await session.collectDebugLogs(outputDirectory, false);
+
+		assert.deepStrictEqual(mockSession.collectLogsCalls, [{
+			destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
+			include: { events: true, processLogs: false, shellLogs: true },
+		}, {
+			destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
+			include: { events: false, processLogs: false, shellLogs: false },
+		}]);
 	});
 
 	suite('CopilotSessionWrapper', () => {
@@ -4204,51 +4230,6 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), { enabled: false });
 		});
 
-		test('server-managed sandbox enablement skips host updates and removal restores the local setting', async () => {
-			const { session, mockSession } = await createAgentSession(disposables);
-			session.resetTurnState('active-turn');
-
-			session.setManagedSandboxEnabled(true);
-			await timeout(0);
-			const managedEnabled = mockSession.sandboxConfigUpdates.at(-1);
-
-			session.setManagedSandboxEnabled(false);
-			await timeout(0);
-			const managedDisabled = mockSession.sandboxConfigUpdates.at(-1);
-
-			session.setManagedSandboxEnabled(undefined);
-			await timeout(0);
-			const localRestored = mockSession.sandboxConfigUpdates.at(-1);
-
-			assert.deepStrictEqual({
-				managedEnabled,
-				managedDisabled,
-				localRestored,
-			}, {
-				managedEnabled: buildSandboxConfigForSdk('linux', undefined, true),
-				managedDisabled: undefined,
-				localRestored: { enabled: false },
-			});
-		});
-
-		test('defers managed sandbox changes while idle and applies the latest value on the next turn', async () => {
-			const { session, mockSession } = await createAgentSession(disposables);
-
-			session.setManagedSandboxEnabled(true);
-			session.setManagedSandboxEnabled(undefined);
-			await timeout(0);
-			const whileIdle = [...mockSession.sandboxConfigUpdates];
-			await session.send('hello', undefined, 'turn-1');
-
-			assert.deepStrictEqual({
-				whileIdle,
-				afterTurnStart: mockSession.sandboxConfigUpdates,
-			}, {
-				whileIdle: [],
-				afterTurnStart: [{ enabled: false }],
-			});
-		});
-
 		test('per-request sandbox: left untouched when the custom terminal tool is enabled', async () => {
 			const { session, mockSession } = await createAgentSession(disposables, {
 				rootValues: {
@@ -6364,7 +6345,7 @@ suite('CopilotAgentSession', () => {
 
 		test('tool-call aggregate emits once with cancelled result across abort and idle', async () => {
 			const telemetryService = new CapturingTelemetryService();
-			const { session, mockSession } = await createAgentSession(disposables, {
+			const { session, mockSession, signals } = await createAgentSession(disposables, {
 				telemetryService,
 				clientSnapshot: { tools: [{ name: 'grep' }, { name: 'edit' }], plugins: [], mcpServers: {} },
 			});
@@ -6375,51 +6356,99 @@ suite('CopilotAgentSession', () => {
 				messageId: 'msg-tools',
 				content: '',
 				model: 'gpt-x',
+				apiCallId: 'api-tools',
 				toolRequests: [
 					{ toolCallId: 'tc-1', name: 'grep', arguments: {} },
 					{ toolCallId: 'tc-2', name: 'edit', arguments: {} },
 				],
-			} as SessionEventPayload<'assistant.message'>['data']);
+			} as SessionEventPayload<'assistant.message'>['data'], { id: 'evt-tools' });
 			mockSession.fire('assistant.message', {
 				messageId: 'msg-final',
 				content: 'done',
 				model: 'gpt-x',
-			} as SessionEventPayload<'assistant.message'>['data']);
+				apiCallId: 'api-final',
+			} as SessionEventPayload<'assistant.message'>['data'], { id: 'evt-final' });
 			mockSession.fire('abort', { reason: 'user_abort' } as SessionEventPayload<'abort'>['data']);
 			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
 
-			assert.deepStrictEqual(telemetryService.events.map(event => {
-				const data = event.data as Record<string, unknown>;
-				return {
-					eventName: event.eventName,
-					provider: data.provider,
-					requestId: data.requestId,
-					responseType: data.responseType,
-					toolCounts: data.toolCounts,
-					model: data.model,
-					numRequests: data.numRequests,
-					turnIndex: data.turnIndex,
-					messageCharLen: data.messageCharLen,
-					availableToolCount: data.availableToolCount,
-					totalToolCalls: data.totalToolCalls,
-					parallelToolCallRounds: data.parallelToolCallRounds,
-					parallelToolCallsTotal: data.parallelToolCallsTotal,
-				};
-			}), [{
-				eventName: 'toolCallDetails',
-				provider: 'copilot',
-				requestId: 'turn-tool-details',
-				responseType: 'cancelled',
-				toolCounts: JSON.stringify({ grep: 1, edit: 1 }),
+			assert.deepStrictEqual({
+				telemetry: telemetryService.events.map(event => {
+					const data = event.data as Record<string, unknown>;
+					return {
+						eventName: event.eventName,
+						provider: data.provider,
+						requestId: data.requestId,
+						responseType: data.responseType,
+						toolCounts: data.toolCounts,
+						model: data.model,
+						numRequests: data.numRequests,
+						turnIndex: data.turnIndex,
+						messageCharLen: data.messageCharLen,
+						availableToolCount: data.availableToolCount,
+						totalToolCalls: data.totalToolCalls,
+						parallelToolCallRounds: data.parallelToolCallRounds,
+						parallelToolCallsTotal: data.parallelToolCallsTotal,
+					};
+				}),
+				modelCalls: signals.filter(signal => signal.kind === 'model_call_completed').map(signal => ({
+					turnId: signal.kind === 'model_call_completed' ? signal.turnId : undefined,
+					modelCallId: signal.kind === 'model_call_completed' ? signal.modelCallId : undefined,
+				})),
+			}, {
+				telemetry: [{
+					eventName: 'toolCallDetails',
+					provider: 'copilot',
+					requestId: 'turn-tool-details',
+					responseType: 'cancelled',
+					toolCounts: JSON.stringify({ grep: 1, edit: 1 }),
+					model: 'gpt-x',
+					numRequests: 2,
+					turnIndex: 0,
+					messageCharLen: 11,
+					availableToolCount: 2,
+					totalToolCalls: 2,
+					parallelToolCallRounds: 1,
+					parallelToolCallsTotal: 2,
+				}],
+				modelCalls: [
+					{ turnId: 'turn-tool-details', modelCallId: 'api-tools' },
+					{ turnId: 'turn-tool-details', modelCallId: 'api-final' },
+				],
+			});
+		});
+
+		test('split assistant messages count as one model call', async () => {
+			const telemetryService = new CapturingTelemetryService();
+			const { session, mockSession, signals } = await createAgentSession(disposables, {
+				telemetryService,
+				clientSnapshot: { tools: [{ name: 'grep' }], plugins: [], mcpServers: {} },
+			});
+			session.resetTurnState('turn-split-message');
+			await session.send('hello agent', undefined, 'turn-split-message');
+			mockSession.fire('user.message', { content: 'hello agent' } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('assistant.message', {
+				messageId: 'msg-part-1',
+				content: 'reasoning',
 				model: 'gpt-x',
-				numRequests: 2,
-				turnIndex: 0,
-				messageCharLen: 11,
-				availableToolCount: 2,
-				totalToolCalls: 2,
-				parallelToolCallRounds: 1,
-				parallelToolCallsTotal: 2,
-			}]);
+				chunkIndex: 0,
+				chunkCount: 2,
+			} as SessionEventPayload<'assistant.message'>['data']);
+			mockSession.fire('assistant.message', {
+				messageId: 'msg-part-2',
+				content: 'answer',
+				model: 'gpt-x',
+				chunkIndex: 1,
+				chunkCount: 2,
+			} as SessionEventPayload<'assistant.message'>['data']);
+			mockSession.fire('session.idle', { aborted: false } as SessionEventPayload<'session.idle'>['data']);
+
+			assert.deepStrictEqual({
+				numRequests: (telemetryService.events.find(event => event.eventName === 'toolCallDetails')?.data as Record<string, unknown> | undefined)?.numRequests,
+				modelCallIds: signals.filter(signal => signal.kind === 'model_call_completed').map(signal => signal.kind === 'model_call_completed' ? signal.modelCallId : undefined),
+			}, {
+				numRequests: 1,
+				modelCallIds: ['msg-part-2'],
+			});
 		});
 
 		test('tool approval waits for permission outcome and falls back only at completion', async () => {

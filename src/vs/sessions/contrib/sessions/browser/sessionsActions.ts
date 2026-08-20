@@ -15,7 +15,7 @@ import { Action2, MenuRegistry, MenuId, registerAction2, MenuItemAction, Submenu
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { InputFocusedContext } from '../../../../platform/contextkey/common/contextkeys.js';
-import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -29,13 +29,14 @@ import { SessionsCategories } from '../../../common/categories.js';
 import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionShouldShowChatTabsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSubagentsContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { CLOSE_CHAT_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { SHOW_SESSION_METADATA_IN_CHAT_INPUT_SETTING } from '../../../common/sessionConfig.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ChatOriginKind, getChatCapabilities, getUntitledSessionTitle, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
 import { $, append, EventHelper, ModifierKeyEmitter, reset } from '../../../../base/browser/dom.js';
-import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { BaseActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
@@ -1326,12 +1327,14 @@ export class SessionConversationsActionViewItemContribution extends Disposable i
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 	) {
 		super();
-		this._register(actionViewItemService.register(Menus.SessionHeaderMeta, Menus.SessionConversations, (action, _options, instantiationService) => {
+		const provider = (action: IAction, _options: IActionViewItemOptions, instantiationService: IInstantiationService) => {
 			if (!(action instanceof SubmenuItemAction)) {
 				return undefined;
 			}
 			return instantiationService.createInstance(SessionConversationsActionViewItem, action);
-		}));
+		};
+		this._register(actionViewItemService.register(Menus.SessionHeaderMeta, Menus.SessionConversations, provider));
+		this._register(actionViewItemService.register(Menus.SessionBarToolbar, Menus.SessionConversations, provider));
 	}
 }
 
@@ -1339,19 +1342,34 @@ export class SessionConversationsActionViewItemContribution extends Disposable i
 // the Sessions workbench as an Action Widget dropdown. Selecting an entry opens
 // or focuses that chat.
 //
-// It is always rendered in the session header meta row, after the pills
-// (workspace folder / changes / pull request) as the meta toolbar's default
-// dropdown icon, independent of whether the chat tab strip is shown. It surfaces
-// once the session has more than one committed chat, or when the active chat has
-// subagents (a separate group at the bottom lists them) even if that is the only
-// committed chat.
+// It renders after the metadata pills by default, or after New Chat in the title
+// toolbar when session metadata is configured to appear above the input.
 MenuRegistry.appendMenuItem(Menus.SessionHeaderMeta, {
 	submenu: Menus.SessionConversations,
 	title: localize2('chatCompositeBar.conversations', "Chats"),
 	icon: Codicon.commentDiscussion,
 	group: 'navigation',
 	order: 100,
-	when: ContextKeyExpr.and(SessionIsCreatedContext, SessionIsArchivedContext.negate(), ContextKeyExpr.or(ContextKeyExpr.and(SessionSupportsMultipleChatsContext, SessionHasMultipleCommittedChatsContext), SessionActiveChatHasSubagentsContext)),
+	when: ContextKeyExpr.and(
+		SessionIsCreatedContext,
+		SessionIsArchivedContext.negate(),
+		ContextKeyExpr.or(ContextKeyExpr.and(SessionSupportsMultipleChatsContext, SessionHasMultipleCommittedChatsContext), SessionActiveChatHasSubagentsContext),
+		ContextKeyExpr.notEquals(`config.${SHOW_SESSION_METADATA_IN_CHAT_INPUT_SETTING}`, true),
+	),
+});
+
+MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
+	submenu: Menus.SessionConversations,
+	title: localize2('chatCompositeBar.conversations', "Chats"),
+	icon: Codicon.commentDiscussion,
+	group: 'navigation',
+	order: 1,
+	when: ContextKeyExpr.and(
+		SessionIsCreatedContext,
+		SessionIsArchivedContext.negate(),
+		ContextKeyExpr.or(ContextKeyExpr.and(SessionSupportsMultipleChatsContext, SessionHasMultipleCommittedChatsContext), SessionActiveChatHasSubagentsContext),
+		ContextKeyExpr.equals(`config.${SHOW_SESSION_METADATA_IN_CHAT_INPUT_SETTING}`, true),
+	),
 });
 
 /**

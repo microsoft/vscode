@@ -8,8 +8,6 @@ The sessions list is the primary navigation surface in the Agents Window. It occ
 
 The sessions list (`SessionsView` + `SessionsList`) displays user-facing sessions known to `ISessionsManagementService`. Sessions marked with `ISession.isAutomation` by their provider-owned run ledger are excluded before filtering and grouping. Other sessions are aggregated from all registered providers and shown in collapsible **sections**. The user can group, sort, filter, pin, and archive sessions. Selecting a session navigates to it.
 
-When `chat.omni.enabled` is enabled, the Sessions header includes a `Codicon.arrowCircleUpSparkle` action after **New Session** that toggles the Agents-only floating chat input window. The window routes through a provider-neutral Sessions adapter and is not registered in editor workbenches. Its New Session row uses the same recent-workspace/provider model as the welcome picker: Local/GitHub/Remote/custom tabs, workspace labels/descriptions/icons, provider `Select...` actions, search, restored selection, and exact provider identity are rendered in Omni's separate action-widget window.
-
 ### Key Files
 
 | File | Purpose |
@@ -197,7 +195,7 @@ The Open Pull Request action shared by the session context menu and header uses 
 
 | Menu | Constant | Where it appears | Use for |
 |------|----------|------------------|---------|
-| `SessionSectionToolbar` | `SessionSectionToolbarMenuId` | Toolbar on section headers (Pinned, workspace groups, Done) | Section-scoped actions like the workspace `DropdownWithPrimaryActionViewItem` whose fixed primary action is "New Session" and whose dropdown contains actions contributed to `Menus.SessionSectionNewSession`, including the GitHub-backed "Create Session from Pull Request" action. When that menu is empty, the toolbar renders the ordinary "New Session" action. The toolbar also contains the selected "Archive All"/"Mark All as Done" action. The Done section restores/unarchives sessions individually (or via multi-selection) rather than with a section-wide action. Section headers also show a collapsible chevron on hover/focus; while a section action dropdown is open, both the toolbar and chevron remain visible. The chevron uses the same ghost icon hover background token as toolbar icon buttons. |
+| `SessionSectionToolbar` | `SessionSectionToolbarMenuId` | Toolbar on section headers (Pinned, workspace groups, Done) | Section-scoped actions like the workspace `DropdownWithPrimaryActionViewItem` whose fixed primary action is "New Session" and whose dropdown contains actions contributed to `Menus.SessionSectionNewSession`, including the GitHub-backed "Create Session from Pull Request" action. When that menu is empty, the toolbar renders the ordinary "New Session" action. The toolbar also contains the selected "Archive All"/"Mark All as Done" action. The Done section restores/unarchives sessions individually (or via multi-selection) rather than with a section-wide action. Section headers also show a collapsible chevron on hover or keyboard focus; while a section action dropdown is open, both the toolbar and chevron remain visible. The chevron uses the same ghost icon hover background token as toolbar icon buttons. |
 
 ### Group Header Menu
 
