@@ -53,22 +53,23 @@ interface IAgentHostUriMeta {
 }
 
 /**
- * Wraps a remote URI into a {@link AGENT_HOST_SCHEME} URI that can be
- * resolved through the agent host filesystem provider.
+ * Maps a URI on the agent host into one the client can resolve. A remote
+ * window's `file:` URIs rebase onto {@link Schemas.vscodeRemote}; everything
+ * else wraps into a {@link AGENT_HOST_SCHEME} URI resolved through the agent
+ * host filesystem provider.
  *
  * @param originalUri The URI on the remote (e.g. `file:///path` or
  *   `agenthost-content:///sessionId/...`)
- * @param connectionAuthority The sanitized connection identifier used as
- *   the URI authority (from {@link agentHostAuthority}).
+ * @param connectionAuthority The connection identifier used as the URI
+ *   authority, from {@link agentHostAuthority} for a remote agent host or
+ *   {@link inWindowAgentHostAuthority} for the in-process one.
  */
 export function toAgentHostUri(originalUri: URI, connectionAuthority: string): URI {
 	if (originalUri.scheme === Schemas.file) {
 		if (connectionAuthority === LOCAL_AGENT_HOST_AUTHORITY) {
 			return originalUri;
 		}
-		// A remote window reaches the host's files through its own remote
-		// connection, which loads images and opens the same editor the
-		// workspace already uses.
+		// A remote window already reaches these files over its own connection.
 		const windowRemote = windowRemoteAuthorityOf(connectionAuthority);
 		if (windowRemote) {
 			return originalUri.with({ scheme: Schemas.vscodeRemote, authority: windowRemote });
@@ -174,7 +175,8 @@ export const LOCAL_AGENT_HOST_AUTHORITY = 'local';
  * on, which for a remote window is the remote machine rather than the client.
  */
 export function inWindowAgentHostAuthority(remoteAuthority: string | undefined): string {
-	return remoteAuthority ? `${LOCAL_AGENT_HOST_AUTHORITY}+${remoteAuthority}` : LOCAL_AGENT_HOST_AUTHORITY;
+	// Lowercased so the key survives URI serialization.
+	return remoteAuthority ? `${LOCAL_AGENT_HOST_AUTHORITY}+${remoteAuthority.toLowerCase()}` : LOCAL_AGENT_HOST_AUTHORITY;
 }
 
 /**

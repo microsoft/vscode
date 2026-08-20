@@ -204,6 +204,17 @@ suite('toAgentHostUri / fromAgentHostUri', () => {
 		assert.strictEqual(fromAgentHostUri(wrapped).toString(), original.toString());
 	});
 
+	test('a mixed case window authority survives a URI round trip', () => {
+		const authority = inWindowAgentHostAuthority('ssh-remote+MyHost');
+		const wrapped = toAgentHostUri(URI.from({ scheme: 'agenthost-content', path: '/snap/before' }), authority);
+		const reparsed = URI.parse(wrapped.toString());
+
+		// URI serialization lowercases the authority, and the filesystem provider
+		// looks its connections up by exact match.
+		assert.strictEqual(reparsed.authority, authority);
+		assert.strictEqual(windowRemoteAuthorityOf(reparsed.authority), 'ssh-remote+myhost');
+	});
+
 	test('a remote agent host is unaffected by the local encoding', () => {
 		assert.strictEqual(windowRemoteAuthorityOf('my-server'), undefined);
 		assert.strictEqual(toAgentHostUri(URI.file('/w/a.ts'), 'my-server').scheme, AGENT_HOST_SCHEME);
