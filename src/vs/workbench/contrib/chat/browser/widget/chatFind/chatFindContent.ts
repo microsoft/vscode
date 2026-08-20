@@ -49,11 +49,11 @@ function isErrorDetailsRendered(item: IChatResponseViewModel): boolean {
 }
 
 /**
- * Plaintext options for indexing. `parseListItemTokens` matters because a response commonly lists
+ * Plaintext options for indexing. `omitMarkdownSyntax` matters because a response commonly lists
  * its edits as markdown links, and only the label is rendered: without it the link target is
  * indexed too, producing matches that exist in no DOM node and so can never be revealed.
  */
-const FIND_PLAINTEXT_OPTIONS = { parseListItemTokens: true } as const;
+const FIND_PLAINTEXT_OPTIONS = { omitMarkdownSyntax: true } as const;
 
 /**
  * Restores the whitespace `renderAsPlaintext` trims off the ends of a part.

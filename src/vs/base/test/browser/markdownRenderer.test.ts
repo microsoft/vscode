@@ -461,7 +461,7 @@ suite('MarkdownRenderer', () => {
 			assert.strictEqual(renderAsPlaintext({ value: 'Use `<form>` tag' }), 'Use <form> tag');
 		});
 
-		test('reduces inline syntax inside list items when parseListItemTokens is set', () => {
+		test('reduces inline syntax inside list items when omitMarkdownSyntax is set', () => {
 			// A list item's content arrives as a text token carrying inline tokens. By default the
 			// item is emitted as raw source, so a link keeps its target; opting in reduces it to
 			// the text a reader actually sees.
@@ -472,13 +472,13 @@ suite('MarkdownRenderer', () => {
 				'Added [src/](/some/path/to/src)\nUses **bold** and `code`',
 				'default output is unchanged');
 			assert.strictEqual(
-				renderAsPlaintext(markdown, { parseListItemTokens: true }),
+				renderAsPlaintext(markdown, { omitMarkdownSyntax: true }),
 				'Added src/\nUses bold and code');
 		});
 
-		test('reduces inline syntax inside nested list items when parseListItemTokens is set', () => {
+		test('reduces inline syntax inside nested list items when omitMarkdownSyntax is set', () => {
 			const markdown = { value: '- outer\n    - inner [link](/target)' };
-			assert.strictEqual(renderAsPlaintext(markdown, { parseListItemTokens: true }), 'outer\ninner link');
+			assert.strictEqual(renderAsPlaintext(markdown, { omitMarkdownSyntax: true }), 'outer\ninner link');
 		});
 	});
 

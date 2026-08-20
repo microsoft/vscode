@@ -703,14 +703,15 @@ export function renderAsPlaintext(str: IMarkdownString | string, options?: {
 	/** Controls if we want to format empty links from "Link [](file)" to "Link file" */
 	readonly useLinkFormatter?: boolean;
 	/**
-	 * Controls whether inline markdown inside a list item is reduced to its text.
+	 * Controls whether markdown syntax is reduced to its text everywhere, rather than only where
+	 * the renderer already does so.
 	 *
-	 * By default a list item is emitted as its raw source, so markdown survives into the output —
-	 * most visibly a link's target, as in `- Added [src/](/some/path)`. Enable this for callers
-	 * that need the text a reader actually sees. Off by default because it changes long-standing
-	 * output for every caller.
+	 * By default a list item is emitted as its raw source, so inline syntax survives into the
+	 * output — a link keeps its target, as in `- Added [src/](/some/path)`, and `**bold**` keeps
+	 * its asterisks. Enable this for callers that need the text a reader actually sees. Off by
+	 * default because it changes long-standing output for every caller.
 	 */
-	readonly parseListItemTokens?: boolean;
+	readonly omitMarkdownSyntax?: boolean;
 }) {
 	if (typeof str === 'string') {
 		return str;
@@ -729,7 +730,7 @@ export function renderAsPlaintext(str: IMarkdownString | string, options?: {
 	if (options?.useLinkFormatter) {
 		renderer.link = linkFormatter;
 	}
-	if (options?.parseListItemTokens) {
+	if (options?.omitMarkdownSyntax) {
 		renderer.listitem = parsedListItem;
 		// A tight list item's content arrives as a block-level text token carrying the inline
 		// tokens, so the list item alone is not enough to reach the inline renderers.
@@ -833,13 +834,13 @@ const linkFormatter = ({ text, href }: marked.Tokens.Link): string => {
 
 /**
  * Renders a list item from its parsed tokens rather than its raw source, so inline markdown is
- * reduced to text the way it already is in a paragraph. Opt-in via `parseListItemTokens`.
+ * reduced to text the way it already is in a paragraph. Opt-in via `omitMarkdownSyntax`.
  */
 const parsedListItem = function (this: marked.Renderer, { tokens, loose }: marked.Tokens.ListItem): string {
 	return this.parser.parse(tokens, !!loose) + '\n';
 };
 
-/** Renders a block-level text token through its inline tokens. Opt-in via `parseListItemTokens`. */
+/** Renders a block-level text token through its inline tokens. Opt-in via `omitMarkdownSyntax`. */
 const parsedText = function (this: marked.Renderer, token: marked.Tokens.Text): string {
 	return token.tokens ? this.parser.parseInline(token.tokens) : token.text;
 };
