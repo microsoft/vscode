@@ -261,7 +261,14 @@ export class BrowserEditorFindContribution extends BrowserEditorContribution {
 	 * Show the find widget, optionally pre-populated with selected text from the browser view
 	 */
 	async showFind(): Promise<void> {
-		const selectedText = (await this.editor.model?.getSelectedText())?.trim();
+		const model = this.editor.model;
+		if (!model?.isInteractive) {
+			return;
+		}
+		const selectedText = (await model.getSelectedText())?.trim();
+		if (this.editor.model !== model || !model.isInteractive) {
+			return;
+		}
 		const textToReveal = selectedText && !/[\r\n]/.test(selectedText) ? selectedText : undefined;
 		this._findWidget.value.reveal(textToReveal);
 		this._findWidget.value.layout(this._findWidgetContainer.clientWidth);

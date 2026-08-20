@@ -165,7 +165,7 @@ export class BrowserView extends Disposable {
 		//            We just have to be careful to not show the view until a layout has happened in the correct location.
 		this._view.setBounds({ x: 0, y: 0, width: 1024, height: 768 });
 		this._view.setBackgroundColor('#FFFFFF');
-		this._interactionBlocker.setBackgroundColor('#80FFFFFF');
+		this._interactionBlocker.setBackgroundColor('#00000000');
 		this._interactionBlocker.setVisible(false);
 
 		this._ownerWindow = this.windowsMainService.getWindowById(owner.mainWindowId)!;
@@ -182,8 +182,12 @@ export class BrowserView extends Disposable {
 		}));
 
 		this._view.setVisible(false);
-		this._ownerWindow.win?.contentView.addChildView(this._view);
-		this._ownerWindow.win?.contentView.addChildView(this._interactionBlocker);
+		const ownerWindow = this._ownerWindow.win;
+		if (ownerWindow) {
+			this._currentWindow = this._ownerWindow;
+			ownerWindow.contentView.addChildView(this._view);
+			ownerWindow.contentView.addChildView(this._interactionBlocker);
+		}
 
 		this._view.webContents.setWindowOpenHandler((details) => {
 			const location = (() => {

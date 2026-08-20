@@ -10,11 +10,12 @@ import { ISashEvent, Orientation, OrthogonalEdge, Sash, SashState } from '../../
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { SelectBox } from '../../../../../base/browser/ui/selectBox/selectBox.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
@@ -172,7 +173,7 @@ class BrowserEmulationToolbar extends Disposable {
 
 		this._register(this._zoom.onDidSelect(e => {
 			const model = this._feature.model;
-			if (this._suppressChange || !model?.device) {
+			if (this._suppressChange || !model?.device || !model.isInteractive) {
 				return;
 			}
 			const scale = e.index === BrowserEmulationToolbar.AUTO_INDEX
@@ -286,7 +287,7 @@ class BrowserEmulationToolbar extends Disposable {
 
 	private _onDimensionInput(): void {
 		const model = this._feature.model;
-		if (this._suppressChange || !model?.device) {
+		if (this._suppressChange || !model?.device || !model.isInteractive) {
 			return;
 		}
 		const parse = (raw: string): number | undefined => {
@@ -311,7 +312,7 @@ class BrowserEmulationToolbar extends Disposable {
 
 	private _onDprInput(): void {
 		const model = this._feature.model;
-		if (this._suppressChange || !model?.device) {
+		if (this._suppressChange || !model?.device || !model.isInteractive) {
 			return;
 		}
 		const device = model.device;
@@ -366,6 +367,7 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 
 	private _eastSash: Sash | undefined;
 	private _southSash: Sash | undefined;
+	private _cancelResizeDrag: (() => void) | undefined;
 
 	constructor(
 		editor: BrowserEditor,
@@ -470,6 +472,9 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 		store.add(model.onDidChangeInteractivity(({ isInteractive }) => {
 			this._toolbar.setInteractive(isInteractive);
 			this._updateSashState();
+			if (!isInteractive) {
+				this._cancelResizeDrag?.();
+			}
 		}));
 		store.add(model.onDidChangeDevice(device => {
 			this._updateSashState();
@@ -491,6 +496,7 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 	override onModelDetached(): void {
 		// Editor input is being cleared — drop renderer-side state so a freshly
 		// reopened input starts without stale viewport overrides.
+		this._cancelResizeDrag?.();
 		this._scale = undefined;
 		this._toolbar.setInteractive(true);
 		this._toolbar.refresh();
@@ -527,14 +533,17 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 			return;
 		}
 		const model = this.editor.model;
+		if (!model?.isInteractive) {
+			return;
+		}
 		if (visible) {
-			if (model && !model.device) {
+			if (!model.device) {
 				void model.setDevice({ ...lastSettings.device });
 				this.setScale(lastSettings.scale);
 			}
 			this._setToolbarVisible(true);
 		} else {
-			void model?.setDevice(undefined);
+			void model.setDevice(undefined);
 			this._setToolbarVisible(false);
 		}
 	}
@@ -542,7 +551,7 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 	/** Apply a preset onto the current emulation, preserving the current scale. */
 	applyPreset(preset: IBrowserDevicePreset): void {
 		const model = this.editor.model;
-		if (!model) {
+		if (!model?.isInteractive) {
 			return;
 		}
 		void model.setDevice(preset.device ?? {});
@@ -551,7 +560,7 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 	/** Reset all device + scale overrides to defaults while keeping emulation engaged. */
 	resetAll(): void {
 		const model = this.editor.model;
-		if (!model) {
+		if (!model?.isInteractive) {
 			return;
 		}
 		void model.setDevice({});
@@ -561,7 +570,7 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 	/** Set the user agent on the current device. Empty / undefined = default. Engages emulation if not already active. */
 	setUserAgent(userAgent: string | undefined): void {
 		const model = this.editor.model;
-		if (!model) {
+		if (!model?.isInteractive) {
 			return;
 		}
 		const next = userAgent ? userAgent : undefined;
@@ -581,7 +590,7 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 	swapDimensions(): void {
 		const model = this.editor.model;
 		const device = model?.device;
-		if (!model || !device || (!device.width && !device.height)) {
+		if (!model?.isInteractive || !device || (!device.width && !device.height)) {
 			return;
 		}
 		void model.setDevice({ ...device, width: device.height, height: device.width });
@@ -590,7 +599,7 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 	/** Flip the mobile flag on the current device (drives touch + pointer media). Engages emulation if not already active. */
 	toggleMobile(): void {
 		const model = this.editor.model;
-		if (!model) {
+		if (!model?.isInteractive) {
 			return;
 		}
 		const device = model.device;
@@ -683,26 +692,28 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 			};
 		};
 
-		const onChange = (axis: 'x' | 'y', evt: ISashEvent) => {
-			if (!drag) {
-				return;
-			}
-			const device = this.editor.model?.device ?? {};
-			if (axis === 'x') {
-				const w = Math.max(50, Math.min(drag.paneW, drag.startContainerW + (evt.currentX - evt.startX) * 2));
-				void this.editor.model?.setDevice({ ...device, width: Math.max(50, Math.round(w / drag.scale)) });
-			} else {
-				const h = Math.max(50, Math.min(drag.paneH, drag.startContainerH + (evt.currentY - evt.startY) * 2));
-				void this.editor.model?.setDevice({ ...device, height: Math.max(50, Math.round(h / drag.scale)) });
-			}
-		};
-
 		const onEnd = () => {
-			if (!drag) {
-				return;
-			}
 			container.classList.remove('browser-container--dragging');
 			drag = undefined;
+		};
+		this._cancelResizeDrag = onEnd;
+
+		const onChange = (axis: 'x' | 'y', evt: ISashEvent) => {
+			const model = this.editor.model;
+			if (!drag || !model?.device || !model.isInteractive) {
+				if (!model?.isInteractive) {
+					onEnd();
+				}
+				return;
+			}
+			const device = model.device;
+			if (axis === 'x') {
+				const w = Math.max(50, Math.min(drag.paneW, drag.startContainerW + (evt.currentX - evt.startX) * 2));
+				void model.setDevice({ ...device, width: Math.max(50, Math.round(w / drag.scale)) });
+			} else {
+				const h = Math.max(50, Math.min(drag.paneH, drag.startContainerH + (evt.currentY - evt.startY) * 2));
+				void model.setDevice({ ...device, height: Math.max(50, Math.round(h / drag.scale)) });
+			}
 		};
 
 		this._register(eastSash.onDidStart(onStart));
@@ -717,7 +728,7 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 
 	private _resetAxis(axis: 'x' | 'y'): void {
 		const model = this.editor.model;
-		if (!model?.device) {
+		if (!model?.device || !model.isInteractive) {
 			return;
 		}
 		const device = model.device;
@@ -819,6 +830,21 @@ const DEFAULT_BROWSER_DEVICE_PRESETS: readonly IBrowserDevicePreset[] = [
 	},
 ];
 
+function cancelWhenNonInteractive(model: IBrowserViewModel): IDisposable & { readonly token: CancellationToken } {
+	const disposables = new DisposableStore();
+	const cancellation = disposables.add(new CancellationTokenSource());
+	disposables.add(model.onDidChangeInteractivity(({ isInteractive }) => {
+		if (!isInteractive) {
+			cancellation.cancel();
+		}
+	}));
+	disposables.add(model.onWillDispose(() => cancellation.cancel()));
+	return {
+		token: cancellation.token,
+		dispose: () => disposables.dispose(),
+	};
+}
+
 class PickBrowserDevicePresetAction extends Action2 {
 	static readonly ID = 'workbench.action.browser.pickDevicePreset';
 
@@ -841,6 +867,10 @@ class PickBrowserDevicePresetAction extends Action2 {
 		if (!support) {
 			return;
 		}
+		const model = support.model;
+		if (!model?.isInteractive) {
+			return;
+		}
 		const quickInputService = accessor.get(IQuickInputService);
 
 		type PresetItem = IQuickPickItem & { preset: IBrowserDevicePreset };
@@ -852,12 +882,17 @@ class PickBrowserDevicePresetAction extends Action2 {
 			preset: p,
 		}));
 
-		const picked = await quickInputService.pick(items, {
-			placeHolder: localize('browser.devicePresets.placeholder', "Select a device preset"),
-			matchOnDescription: true,
-		});
-		if (picked) {
-			support.applyPreset(picked.preset);
+		const cancellation = cancelWhenNonInteractive(model);
+		try {
+			const picked = await quickInputService.pick(items, {
+				placeHolder: localize('browser.devicePresets.placeholder', "Select a device preset"),
+				matchOnDescription: true,
+			}, cancellation.token);
+			if (picked && support.model === model && model.isInteractive) {
+				support.applyPreset(picked.preset);
+			}
+		} finally {
+			cancellation.dispose();
 		}
 	}
 }
@@ -893,15 +928,23 @@ class SetBrowserUserAgentAction extends Action2 {
 		if (!support) {
 			return;
 		}
-		const quickInputService = accessor.get(IQuickInputService);
-		const value = await quickInputService.input({
-			prompt: localize('browser.userAgent.prompt', "User agent string (leave empty for VS Code default)"),
-			value: support.userAgent ?? '',
-		});
-		if (value === undefined) {
+		const model = support.model;
+		if (!model?.isInteractive) {
 			return;
 		}
-		support.setUserAgent(value.trim() || undefined);
+		const quickInputService = accessor.get(IQuickInputService);
+		const cancellation = cancelWhenNonInteractive(model);
+		try {
+			const value = await quickInputService.input({
+				prompt: localize('browser.userAgent.prompt', "User agent string (leave empty for VS Code default)"),
+				value: support.userAgent ?? '',
+			}, cancellation.token);
+			if (value !== undefined && support.model === model && model.isInteractive) {
+				support.setUserAgent(value.trim() || undefined);
+			}
+		} finally {
+			cancellation.dispose();
+		}
 	}
 }
 MenuRegistry.appendMenuItem(MenuId.BrowserEmulationToolbar, {

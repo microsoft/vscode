@@ -29,6 +29,7 @@ import { ILayoutService } from '../../../../platform/layout/browser/layoutServic
 import { IAction } from '../../../../base/common/actions.js';
 import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
 
 export const CONTEXT_BROWSER_FOCUSED = new RawContextKey<boolean>('browserFocused', true, localize('browser.editorFocused', "Whether the browser editor is focused"));
 export const CONTEXT_BROWSER_HAS_URL = new RawContextKey<boolean>('browserHasUrl', false, localize('browser.hasUrl', "Whether the browser has a URL loaded"));
@@ -519,6 +520,7 @@ export class BrowserEditor extends EditorPane {
 		// Create browser container (stub element for positioning)
 		this._browserContainer = $('.browser-container');
 		this._browserContainer.tabIndex = 0; // make focusable
+		this._updateInteractivityAccessibility(true);
 		this._browserContainerWrapper.appendChild(this._browserContainer);
 
 		// Notify contributions that the container DOM is ready.
@@ -556,6 +558,7 @@ export class BrowserEditor extends EditorPane {
 
 		this._inputDisposables.clear();
 		this._isInteractiveContext.reset();
+		this._updateInteractivityAccessibility(true);
 
 		let model = input.model;
 		const isNew = !model;
@@ -579,6 +582,7 @@ export class BrowserEditor extends EditorPane {
 
 		this._model = model;
 		this._isInteractiveContext.set(model.isInteractive);
+		this._updateInteractivityAccessibility(model.isInteractive);
 		this._onDidChangeModel.fire({ model, isNew });
 
 		this._hasUrlContext.set(!!model.url);
@@ -590,12 +594,14 @@ export class BrowserEditor extends EditorPane {
 			if (this._model === model) {
 				this._model = undefined;
 				this._isInteractiveContext.reset();
+				this._updateInteractivityAccessibility(true);
 				this._onDidChangeModel.fire({ model: undefined, isNew: false });
 			}
 		}));
 
 		this._inputDisposables.add(model.onDidChangeInteractivity(({ isInteractive }) => {
 			this._isInteractiveContext.set(isInteractive);
+			this._updateInteractivityAccessibility(isInteractive, true);
 		}));
 
 		this._inputDisposables.add(this._model.onWillNavigate(() => {
@@ -648,6 +654,19 @@ export class BrowserEditor extends EditorPane {
 	ensureBrowserFocus(): void {
 		originalHtmlElementFocus.call(this._browserContainer);
 		this.window.document.getSelection()?.removeAllRanges();
+	}
+
+	private _updateInteractivityAccessibility(isInteractive: boolean, announce = false): void {
+		this._browserContainer.setAttribute('aria-label', isInteractive
+			? localize('browser.pageInteractive', "Browser page, interactive")
+			: localize('browser.pageViewOnly', "Browser page, view only"));
+		this._browserContainer.setAttribute('aria-disabled', String(!isInteractive));
+
+		if (announce && this.window.document.activeElement === this._browserContainer) {
+			status(isInteractive
+				? localize('browser.pageInteractionEnabled', "Browser page interaction enabled.")
+				: localize('browser.pageInteractionDisabled', "Browser page is view only."));
+		}
 	}
 
 	/**
@@ -781,6 +800,7 @@ export class BrowserEditor extends EditorPane {
 		this._hasUrlContext.reset();
 		this._hasErrorContext.reset();
 		this._isInteractiveContext.reset();
+		this._updateInteractivityAccessibility(true);
 
 		super.clearInput();
 	}
