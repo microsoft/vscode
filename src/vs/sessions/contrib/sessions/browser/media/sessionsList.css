@@ -437,9 +437,10 @@
 	position: relative;
 	gap: var(--vscode-spacing-size60);
 	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size120) var(--vscode-spacing-size60) var(--vscode-spacing-size360);
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-agents-fontSize-body2);
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-agents-fontSize-body1);
 	font-weight: var(--vscode-agents-fontWeight-regular);
+	line-height: 17px;
 
 	&::before {
 		content: '';
