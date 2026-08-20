@@ -187,12 +187,14 @@ suite('Sessions list context menus', () => {
 			instantiationService.stub(IContextMenuService, contextMenuService);
 		});
 		const opened: { chat: IChat; preserveFocus: boolean; sideBySide: boolean }[] = [];
+		const openedToSide: IChat[] = [];
 		const container = harness.createContainer();
 		const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 			grouping: () => SessionsGrouping.Date,
 			sorting: () => SessionsSorting.Created,
 			onSessionOpen: () => { },
 			onChatOpen: (_session, chat, preserveFocus, sideBySide) => opened.push({ chat, preserveFocus, sideBySide }),
+			onChatOpenToSide: (_session, chat) => openedToSide.push(chat),
 		}));
 		list.layout(300, 400);
 		const chatRows = [...container.querySelectorAll<HTMLElement>('.session-chat-item')];
@@ -209,11 +211,13 @@ suite('Sessions list context menus', () => {
 			peerActionIds: peerActions.map(action => action.id),
 			readOnlyActionIds: readOnlyActions.map(action => action.id),
 			opened,
+			openedToSide,
 			deletedChats: harness.managementService.deletedChats,
 		}, {
 			peerActionIds: ['sessions.list.openChatToSide', 'vs.actions.separator', 'sessions.list.deleteChat'],
 			readOnlyActionIds: ['sessions.list.openChatToSide'],
-			opened: [{ chat: peer, preserveFocus: false, sideBySide: true }],
+			opened: [],
+			openedToSide: [peer],
 			deletedChats: [{ session, chatResource: peer.resource }],
 		});
 	});

@@ -192,11 +192,7 @@ function getSessionListChats(session: ISession, reader?: IReader): readonly ICha
 		chat.origin?.kind !== ChatOriginKind.SideChat &&
 		chat.interactivity.read(reader) !== ChatInteractivity.Hidden
 	);
-	if (chats.length <= 1) {
-		return [];
-	}
-	const sessionTitle = session.title.read(reader).trim();
-	return getChatTitle(chats[0], reader) === sessionTitle ? chats.slice(1) : chats;
+	return chats.length > 1 ? chats : [];
 }
 
 function isSessionGroupItem(item: SessionListItem): item is ISessionGroupItem {
@@ -390,7 +386,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 				element.chat.resource,
 			);
 		}));
-		template.elementDisposables.add(this.hoverService.setupDelayedHover(template.container, () => ({
+		template.elementDisposables.add(this.hoverService.setupDelayedHover(template.title.element, () => ({
 			content: getChatTitle(element.chat),
 		}), { groupId: 'sessions-list' }));
 	}
@@ -2011,6 +2007,7 @@ export interface ISessionsListControlOptions {
 	 */
 	canOpenSession?(session: ISession): Promise<boolean>;
 	onChatOpen?(session: ISession, chat: IChat, preserveFocus: boolean, sideBySide: boolean): void;
+	onChatOpenToSide?(session: ISession, chat: IChat): void;
 }
 
 /**
@@ -3322,12 +3319,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private showChatContextMenu(element: ISessionChatItem, anchor: ITreeContextMenuEvent<SessionListItem | null>['anchor']): void {
 		const actions: IAction[] = [];
-		const onChatOpen = this.options.onChatOpen;
-		if (onChatOpen) {
+		const onChatOpenToSide = this.options.onChatOpenToSide;
+		if (onChatOpenToSide) {
 			actions.push(toAction({
 				id: 'sessions.list.openChatToSide',
 				label: localize('openChatToSide', "Open to the Side"),
-				run: () => onChatOpen(element.session, element.chat, false, true),
+				run: () => onChatOpenToSide(element.session, element.chat),
 			}));
 		}
 		if (getChatCapabilities(element.chat, element.session, undefined).canDelete) {

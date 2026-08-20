@@ -872,7 +872,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('hides the first chat when its title matches the session title', () => {
+		test('shows the first chat when its title matches the session title', () => {
 			const main = createChat('Session');
 			const peer = createChat('Peer chat', ChatOriginKind.User);
 			const base = createTestSession('Session').session;
@@ -889,7 +889,7 @@ suite('Sessions - SessionsList', () => {
 				chats: chatRowTitles(container),
 				hasChevron: container.querySelector('.session-chat-chevron')?.classList.contains('collapsible'),
 			}, {
-				chats: ['Peer chat'],
+				chats: ['Session', 'Peer chat'],
 				hasChevron: true,
 			});
 		});
