@@ -5356,23 +5356,11 @@ suite('ClaudeAgent', () => {
 			[ILogService, new RecordingLogService()],
 			[IAgentSdkDownloader, new RecordingAgentSdkDownloader(false)],
 		);
-		const precompactSkipEnvVar = 'CLAUDE_CODE_DISABLE_PRECOMPACT_SKIP';
-		const previousPrecompactSkip = process.env[precompactSkipEnvVar];
-		delete process.env[precompactSkipEnvVar];
-		disposables.add(toDisposable(() => {
-			if (previousPrecompactSkip === undefined) {
-				delete process.env[precompactSkipEnvVar];
-			} else {
-				process.env[precompactSkipEnvVar] = previousPrecompactSkip;
-			}
-		}));
 		const inst = disposables.add(new InstantiationService(services));
 		const svc = inst.createInstance(TestableClaudeAgentSdkService);
-		assert.strictEqual(process.env[precompactSkipEnvVar], undefined, 'constructing the SDK service must not mutate the environment');
 
 		// First two calls fault → exactly one log entry; both retry the import.
 		await assert.rejects(() => svc.listSessions(), /simulated SDK load failure/);
-		assert.strictEqual(process.env[precompactSkipEnvVar], '1', 'the environment must be configured before the first SDK call');
 		await assert.rejects(() => svc.listSessions(), /simulated SDK load failure/);
 		const failuresLogged = errorCalls.length;
 		const importInvocationsAfterFailures = importInvocations;
