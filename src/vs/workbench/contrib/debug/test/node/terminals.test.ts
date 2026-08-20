@@ -118,4 +118,22 @@ suite('Debug - prepareCommand', () => {
 			prepareCommand('powershell', ['arg1', '>', '> hello.txt', '<', '<input.in'], false).trim(),
 			`& 'arg1' > '> hello.txt' < '<input.in'`);
 	});
+
+	test('powershell - quotes environment values', () => {
+		assert.deepStrictEqual(
+			[
+				prepareCommand('powershell', [], false, undefined, { SIMPLE: 'hello' }).trim(),
+				prepareCommand('powershell', [], false, undefined, { SPACES: 'hello world' }).trim(),
+				prepareCommand('powershell', [], false, undefined, { EMPTY: '' }).trim(),
+				prepareCommand('powershell', [], false, undefined, { QUOTE: 'hello\'world' }).trim(),
+				prepareCommand('powershell', [], false, undefined, { MULTI: 'it\'s \'ok\'' }).trim(),
+			],
+			[
+				'${env:SIMPLE}=\'hello\';',
+				'${env:SPACES}=\'hello world\';',
+				'${env:EMPTY}=\'\';',
+				'${env:QUOTE}=\'hello\'\'world\';',
+				'${env:MULTI}=\'it\'\'s \'\'ok\'\'\';',
+			]);
+	});
 });

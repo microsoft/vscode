@@ -103,7 +103,7 @@ export function prepareCommand(shell: string, args: string[], argsCanBeInterpret
 					if (value === null) {
 						command += `Remove-Item env:${key}; `;
 					} else {
-						command += `\${env:${key}}='${value}'; `;
+						command += `\${env:${key}}=${quote(value)}; `;
 					}
 				}
 			}
