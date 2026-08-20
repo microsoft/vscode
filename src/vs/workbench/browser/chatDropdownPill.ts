@@ -137,6 +137,12 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 		return entry?.tooltip ?? entry?.label ?? this._pillOptions.title;
 	}
 
+	protected override getAriaLabel(): string | undefined {
+		return this.isSummarized
+			? this._pillOptions.summaryAriaLabel(this.entries.length)
+			: this.entries.at(0)?.ariaLabel ?? super.getAriaLabel();
+	}
+
 	protected override onDidClickButton(): void {
 		if (!this.isSummarized) {
 			this.openEntry(this.entries.at(0));
@@ -180,6 +186,8 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 					group: { title: '', ...(entry.icon ? { icon: entry.icon } : {}) },
 					...(entry.resource ? { iconClasses: getIconClasses(this._modelService, this._languageService, entry.resource, FileKind.FILE) } : {}),
 					...(entry.toolbarActions?.length ? { toolbarActions: [...entry.toolbarActions] } : {}),
+					ariaDescription: entry.ariaDescription,
+					hover: entry.hover,
 					item: entry,
 				});
 			}
@@ -243,4 +251,3 @@ export function createChatSectionPill(
 		? { action, createActionViewItem: viewItemOptions => new ChatResourcePillActionViewItem(action, viewItemOptions, singleResourceEntry, resourceLabels) }
 		: { action, createActionViewItem: viewItemOptions => instantiationService.createInstance(ChatDropdownPillActionViewItem, action, viewItemOptions, sections, options) });
 }
-

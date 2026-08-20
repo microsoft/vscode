@@ -15,6 +15,7 @@ import { autorun, derived, IObservable } from '../../base/common/observable.js';
 import { ThemeIcon } from '../../base/common/themables.js';
 import { URI } from '../../base/common/uri.js';
 import { localize } from '../../nls.js';
+import type { IActionListItemHover } from '../../platform/actionWidget/browser/actionList.js';
 import { IContextMenuService } from '../../platform/contextview/browser/contextView.js';
 import { defaultButtonStyles } from '../../platform/theme/browser/defaultStyles.js';
 import './media/chatPills.css';
@@ -43,6 +44,12 @@ export interface IChatPillEntry {
 	readonly resource?: URI;
 	/** Actions shown at the trailing edge of the entry's dropdown row. */
 	readonly toolbarActions?: readonly IAction[];
+	/** Accessible name used when this entry is rendered as the pill itself. */
+	readonly ariaLabel?: string;
+	/** Plain-text description of the content shown beside the dropdown entry. */
+	readonly ariaDescription?: string;
+	/** Content shown beside the entry while it is focused or hovered. */
+	readonly hover?: IActionListItemHover;
 	/** Tooltip for the pill when this is the only entry. */
 	readonly tooltip?: string;
 	open(): void;
