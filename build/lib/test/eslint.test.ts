@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { suite, test } from 'node:test';
-import { getEslintFilePatterns, shouldErrorOnUnmatchedPattern } from '../../eslint.ts';
+import { getEslintConcurrency, getEslintFilePatterns, shouldErrorOnUnmatchedPattern } from '../../eslint.ts';
 import { eslintFilter } from '../../filters.ts';
 
 suite('eslint', () => {
@@ -25,5 +25,12 @@ suite('eslint', () => {
 			shouldErrorOnUnmatchedPattern([]),
 			shouldErrorOnUnmatchedPattern(['src/vs/base/common/arrays.ts']),
 		], [false, true]);
+	});
+
+	test('caps worker concurrency', () => {
+		assert.deepStrictEqual([
+			getEslintConcurrency([]),
+			getEslintConcurrency(['src/vs/base/common/arrays.ts']),
+		], [4, 'off']);
 	});
 });
