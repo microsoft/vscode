@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { CancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
+import { CancellationError, isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, dispose, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
@@ -100,6 +100,13 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		if (token.isCancellationRequested || (isAgentHostEligible && !resolution)) {
 			resolution?.modelRef.dispose();
 			throw new CancellationError();
+		}
+		// Re-check after the await: a second controller for the same file (e.g. a split
+		// editor) can pass the check above and resolve concurrently, and the loser would
+		// otherwise overwrite the map entry the winner owns.
+		if (this.#sessions.has(uri)) {
+			resolution?.modelRef.dispose();
+			throw new Error('Session already exists');
 		}
 		const chatModelRef = resolution?.modelRef ?? this.#chatService.startNewLocalSession(ChatAgentLocation.EditorInline, { canUseTools: false /* SEE https://github.com/microsoft/vscode/issues/279946 */ });
 		const chatModel = chatModelRef.object;
@@ -213,6 +220,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 				if (isDisposed) {
 					return;
 				}
+
 				if (!response.isComplete) {
 					const responseStore = new DisposableStore();
 					try {
@@ -232,7 +240,14 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 					}
 				}
 			} catch (error) {
-				onUnexpectedError(error);
+				// Preparation failed, so the file is not locked and there is no review
+				// baseline. Cancel the request rather than letting the agent write unguarded.
+				if (!isDisposed) {
+					void this.#chatService.cancelCurrentRequestForSession(chatModel.sessionResource, 'inlineChatBeginTurnFailed');
+				}
+				if (!isCancellationError(error)) {
+					onUnexpectedError(error);
+				}
 			} finally {
 				if (beganTurn && !isDisposed) {
 					try {

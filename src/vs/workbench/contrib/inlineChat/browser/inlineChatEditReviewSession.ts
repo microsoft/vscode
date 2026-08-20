@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -64,9 +65,15 @@ export class InlineChatEditReviewSession extends Disposable implements IChatEdit
 
 		try {
 			if (this._textFileService.isDirty(this._targetUri)) {
-				await this._textFileService.save(this._targetUri);
+				// A cancelled save leaves the buffer dirty. Proceeding would let the agent
+				// write to disk and `endTurn`'s revert would then discard the user's unsaved
+				// changes, so treat it as a cancelled turn instead.
+				const saved = await this._textFileService.save(this._targetUri);
 				if (this._store.isDisposed) {
 					return;
+				}
+				if (!saved) {
+					throw new CancellationError();
 				}
 			}
 
@@ -230,7 +237,10 @@ export class InlineChatEditReviewSession extends Disposable implements IChatEdit
 			this._initialContents.set(edit.uri, initialContent);
 		}
 
-		await this._getOrCreateEntry(edit.uri, telemetryInfo, initialContent, true);
+		// A created file must be tracked as such: rejecting it deletes the file, whereas a
+		// `Modified` entry would only restore empty content and leave the file behind.
+		const editKind = edit.editKind === 'create' ? ChatEditKind.Created : ChatEditKind.Modified;
+		await this._getOrCreateEntry(edit.uri, telemetryInfo, initialContent, true, editKind);
 		if (this._store.isDisposed) {
 			return;
 		}
@@ -263,7 +273,7 @@ export class InlineChatEditReviewSession extends Disposable implements IChatEdit
 		}
 	}
 
-	private async _getOrCreateEntry(resource: URI, telemetryInfo: IModifiedEntryTelemetryInfo, initialContent: string, startExternalEdit = false): Promise<ChatEditingModifiedDocumentEntry | undefined> {
+	private async _getOrCreateEntry(resource: URI, telemetryInfo: IModifiedEntryTelemetryInfo, initialContent: string, startExternalEdit = false, editKind = ChatEditKind.Modified): Promise<ChatEditingModifiedDocumentEntry | undefined> {
 		const existingEntry = this._entries.get(resource);
 		if (existingEntry) {
 			if (telemetryInfo.requestId !== existingEntry.telemetryInfo.requestId) {
@@ -286,7 +296,7 @@ export class InlineChatEditReviewSession extends Disposable implements IChatEdit
 			ref,
 			{ collapse: (_tx: ITransaction | undefined) => { } },
 			telemetryInfo,
-			ChatEditKind.Modified,
+			editKind,
 			initialContent,
 		));
 		if (startExternalEdit) {

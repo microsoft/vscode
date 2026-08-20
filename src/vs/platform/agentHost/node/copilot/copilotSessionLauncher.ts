@@ -754,6 +754,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			!plugin.disabledMcpServers?.includes(server.name)
 			&& isMcpServerExplicitlyProjected(plugin, server)
 		));
+		// An ephemeral session skips the explicit enumeration (and its file I/O). The SDK can
+		// still discover agents from `pluginDirectories`; suppressing that too would also drop
+		// skills and instructions, so it is left alone.
 		const customAgents = plan.isEphemeral ? [] : await toSdkSessionCustomAgents(plugins, plan.resolvedAgentName, this._fileService);
 		const skillDirectories = toSdkSkillDirectories(pluginsWithoutDirs.flatMap(p => p.skills));
 		const instructionDirectories = toSdkInstructionDirectories(plugins.flatMap(p => p.instructions));

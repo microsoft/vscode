@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { waitForState } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -41,6 +42,8 @@ suite('InlineChatEditReviewSession', () => {
 	let seededContents: ResourceMap<string>;
 	let beforeContents: ResourceMap<string>;
 	let models: ResourceMap<ITextModel>;
+	let dirtyResources: ResourceSet;
+	let cancelSave: boolean;
 
 	interface ITestChatResponse extends IChatResponseModel {
 		addExternalEdit(edit: IChatExternalEdit): void;
@@ -90,6 +93,8 @@ suite('InlineChatEditReviewSession', () => {
 		seededContents = new ResourceMap<string>();
 		beforeContents = new ResourceMap<string>();
 		models = new ResourceMap<ITextModel>();
+		dirtyResources = new ResourceSet();
+		cancelSave = false;
 
 		const textModelService = new class extends mock<ITextModelService>() {
 			override async createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
@@ -109,10 +114,10 @@ suite('InlineChatEditReviewSession', () => {
 				}
 			}();
 			override isDirty(_resource: URI): boolean {
-				return false;
+				return dirtyResources.has(_resource);
 			}
-			override async save(resource: URI): Promise<URI> {
-				return resource;
+			override async save(resource: URI): Promise<URI | undefined> {
+				return cancelSave ? undefined : resource;
 			}
 		}();
 		const filesConfigurationService = new class extends mock<IFilesConfigurationService>() {
@@ -285,6 +290,40 @@ suite('InlineChatEditReviewSession', () => {
 		await beginAndEnd('after', response);
 
 		assert.deepStrictEqual(session.entries.get().map(entry => entry.modifiedURI.toString()), [targetUri.toString()]);
+	});
+
+	test('does not lock or edit when the pre-turn save is cancelled', async () => {
+		// A cancelled save leaves the buffer dirty. Proceeding would let the agent write to
+		// disk and the end-of-turn revert would discard the user's unsaved work.
+		seededContents.set(targetUri, 'before');
+		dirtyResources.add(targetUri);
+		cancelSave = true;
+
+		const response = createResponse();
+		await assert.rejects(() => session.beginTurn(response), err => isCancellationError(err));
+
+		assert.deepStrictEqual({
+			entryCount: session.entries.get().length,
+			locksLeftHeld: readonlyUpdates.filter(update => update.value !== 'reset').length,
+		}, { entryCount: 0, locksLeftHeld: 0 });
+	});
+
+	test('tracks a created off-target file as created so rejecting deletes it', async () => {
+		const createdUri = URI.parse('test:/created.ts');
+		seededContents.set(targetUri, 'before');
+		seededContents.set(createdUri, 'generated\n');
+		const response = createResponse([{
+			kind: 'externalEdit',
+			uri: createdUri,
+			editKind: 'create',
+		}]);
+
+		await session.beginTurn(response);
+		const entry = await waitForState(session.entries.map(entries => entries.find(candidate => candidate.modifiedURI.toString() === createdUri.toString())));
+		await session.endTurn(response);
+
+		const created = entry as ChatEditingModifiedDocumentEntry;
+		assert.strictEqual(created.createdInRequestId, created.telemetryInfo.requestId);
 	});
 
 	test('skips renamed external edits', async () => {
