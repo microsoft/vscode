@@ -81,19 +81,24 @@ function assertRuntimePackage(dir: string, target: string, expectedRef: string):
 }
 
 /**
- * Converts the eight target artifacts into the package layout consumed by npm:
+ * Converts selected target artifacts into the package layout consumed by npm:
  * one thin `@github/copilot` loader plus one full JS/native package per target.
+ * The loader retains all optional dependencies so separate subset runs at the
+ * same immutable version can publish the remaining platform packages later.
  */
-export function assembleRuntimePackages(artifactsDir: string, outputDir: string, version: string, runtimeRef: string, vscodeSource: VscodeSourceMetadata): string[] {
+export function assembleRuntimePackages(artifactsDir: string, outputDir: string, version: string, runtimeRef: string, vscodeSource: VscodeSourceMetadata, targets: readonly string[] = copilotPlatforms): string[] {
 	assertSourceVersion(version);
 	fs.rmSync(outputDir, { recursive: true, force: true });
 	fs.mkdirSync(outputDir, { recursive: true });
 
-	const optionalDependencies: Record<string, string> = {};
+	const optionalDependencies = Object.fromEntries(copilotPlatforms.map(target => [`@github/copilot-${target}`, version]));
 	let mainSource: string | undefined;
 	const packageDirs: string[] = [];
 
-	for (const target of copilotPlatforms) {
+	for (const target of targets) {
+		if (!copilotPlatforms.includes(target)) {
+			throw new Error(`[copilot-source-publish] Unsupported runtime target ${target}.`);
+		}
 		const artifactDir = path.join(artifactsDir, runtimeArtifactName(target));
 		assertRuntimePackage(artifactDir, target, runtimeRef);
 		mainSource ??= artifactDir;
@@ -130,7 +135,6 @@ export function assembleRuntimePackages(artifactsDir: string, outputDir: string,
 			manifest.libc = [libc];
 		}
 		writeManifest(packageDir, manifest);
-		optionalDependencies[packageName] = version;
 		packageDirs.push(packageDir);
 	}
 

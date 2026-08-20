@@ -13,6 +13,18 @@ interface ProductBuildRequest {
 		readonly VSCODE_PUBLISH: boolean;
 		readonly VSCODE_RELEASE: boolean;
 		readonly VSCODE_RUN_ARTIFACT_SANITY_TESTS: boolean;
+		readonly VSCODE_BUILD_WIN32: boolean;
+		readonly VSCODE_BUILD_WIN32_ARM64: boolean;
+		readonly VSCODE_BUILD_LINUX: boolean;
+		readonly VSCODE_BUILD_LINUX_SNAP: boolean;
+		readonly VSCODE_BUILD_LINUX_ARM64: boolean;
+		readonly VSCODE_BUILD_LINUX_ARMHF: boolean;
+		readonly VSCODE_BUILD_ALPINE: boolean;
+		readonly VSCODE_BUILD_ALPINE_ARM64: boolean;
+		readonly VSCODE_BUILD_MACOS: boolean;
+		readonly VSCODE_BUILD_MACOS_ARM64: boolean;
+		readonly VSCODE_BUILD_MACOS_UNIVERSAL: boolean;
+		readonly VSCODE_BUILD_WEB: boolean;
 	};
 }
 
@@ -32,6 +44,11 @@ interface QueueOptions {
 	readonly registry: string;
 	readonly publish: boolean;
 	readonly release: boolean;
+	readonly windows: boolean;
+	readonly linux: boolean;
+	readonly alpine: boolean;
+	readonly macos: boolean;
+	readonly web: boolean;
 }
 
 function requiredEnv(name: string): string {
@@ -68,6 +85,18 @@ export function createProductBuildRequest(options: QueueOptions): ProductBuildRe
 			VSCODE_PUBLISH: options.publish,
 			VSCODE_RELEASE: options.release,
 			VSCODE_RUN_ARTIFACT_SANITY_TESTS: !options.publish,
+			VSCODE_BUILD_WIN32: options.windows,
+			VSCODE_BUILD_WIN32_ARM64: options.windows,
+			VSCODE_BUILD_LINUX: options.linux,
+			VSCODE_BUILD_LINUX_SNAP: options.linux,
+			VSCODE_BUILD_LINUX_ARM64: options.linux,
+			VSCODE_BUILD_LINUX_ARMHF: options.linux,
+			VSCODE_BUILD_ALPINE: options.alpine,
+			VSCODE_BUILD_ALPINE_ARM64: options.alpine,
+			VSCODE_BUILD_MACOS: options.macos,
+			VSCODE_BUILD_MACOS_ARM64: options.macos,
+			VSCODE_BUILD_MACOS_UNIVERSAL: options.macos,
+			VSCODE_BUILD_WEB: options.web,
 		},
 	};
 }
@@ -121,6 +150,11 @@ async function main(): Promise<void> {
 		registry: requiredEnv('NPM_REGISTRY'),
 		publish: booleanEnv('VSCODE_PUBLISH', false),
 		release: booleanEnv('VSCODE_RELEASE', false),
+		windows: booleanEnv('VSCODE_BUILD_WINDOWS', true),
+		linux: booleanEnv('VSCODE_BUILD_LINUX', true),
+		alpine: booleanEnv('VSCODE_BUILD_ALPINE', true),
+		macos: booleanEnv('VSCODE_BUILD_MACOS', true),
+		web: booleanEnv('VSCODE_BUILD_WEB', true),
 	});
 	const buildsUrl = `${collectionUri}${project}/_apis/build/builds`;
 	const build = await adoRequest<BuildResponse>(`${buildsUrl}?api-version=7.1`, token, {

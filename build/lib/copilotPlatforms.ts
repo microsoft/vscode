@@ -17,3 +17,25 @@ export const copilotPlatforms = [
 	'linuxmusl-arm64', 'linuxmusl-x64',
 	'win32-arm64', 'win32-x64',
 ];
+
+/** Operating-system groups supported by the Copilot source pipeline. */
+export interface CopilotPlatformSelection {
+	readonly windows: boolean;
+	readonly linux: boolean;
+	readonly alpine: boolean;
+	readonly macos: boolean;
+}
+
+/** Expands operating-system groups into publishable Copilot runtime targets. */
+export function selectedCopilotPlatforms(selection: CopilotPlatformSelection): string[] {
+	const selected = copilotPlatforms.filter(target =>
+		(selection.windows && target.startsWith('win32-')) ||
+		(selection.linux && target.startsWith('linux-')) ||
+		(selection.alpine && target.startsWith('linuxmusl-')) ||
+		(selection.macos && target.startsWith('darwin-'))
+	);
+	if (selected.length === 0) {
+		throw new Error('[copilot-source] At least one runtime operating system must be selected.');
+	}
+	return selected;
+}

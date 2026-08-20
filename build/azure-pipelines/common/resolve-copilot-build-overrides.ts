@@ -5,8 +5,23 @@
 
 import * as path from 'path';
 import { readCopilotBuildOverrides } from './copilotSource.ts';
+import { selectedCopilotPlatforms } from '../../lib/copilotPlatforms.ts';
+
+function booleanEnv(name: string): boolean {
+	const value = (process.env[name] ?? '').trim().toLowerCase();
+	if (value !== 'true' && value !== 'false') {
+		throw new Error(`[copilot-source] ${name} must be true or false.`);
+	}
+	return value === 'true';
+}
 
 const root = path.join(import.meta.dirname, '../../..');
+selectedCopilotPlatforms({
+	windows: booleanEnv('VSCODE_BUILD_WINDOWS'),
+	linux: booleanEnv('VSCODE_BUILD_LINUX'),
+	alpine: booleanEnv('VSCODE_BUILD_ALPINE'),
+	macos: booleanEnv('VSCODE_BUILD_MACOS'),
+});
 const overrides = readCopilotBuildOverrides(root);
 if (!overrides) {
 	throw new Error('[copilot-source] package.json contains no Copilot buildOverrides. Add both Copilot package refs before running the Copilot source pipeline.');

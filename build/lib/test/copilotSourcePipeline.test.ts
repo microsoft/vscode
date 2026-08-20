@@ -13,7 +13,7 @@ import { sourceNpmrc } from '../../azure-pipelines/common/configure-copilot-sour
 import { assertCommitSha, copilotSourceVersion, createVscodeSourceMetadata, readCopilotBuildOverrides, RUNTIME_NPM_NAME, SDK_NPM_NAME, type VscodeSourceMetadata } from '../../azure-pipelines/common/copilotSource.ts';
 import { assembleRuntimePackages } from '../../azure-pipelines/common/copilotSourcePublish.ts';
 import { createProductBuildRequest } from '../../azure-pipelines/common/queue-copilot-product-build.ts';
-import { copilotPlatforms } from '../copilotPlatforms.ts';
+import { copilotPlatforms, selectedCopilotPlatforms } from '../copilotPlatforms.ts';
 import { pnpmVersion, runtimeArtifactName } from '../copilotRuntimeSource.ts';
 
 const RUNTIME_REF = 'a'.repeat(40);
@@ -119,18 +119,40 @@ suite('Copilot source pipeline', () => {
 		});
 	});
 
+	test('selects runtime targets by operating system', () => {
+		assert.deepStrictEqual({
+			windows: selectedCopilotPlatforms({ windows: true, linux: false, alpine: false, macos: false }),
+			linux: selectedCopilotPlatforms({ windows: false, linux: true, alpine: false, macos: false }),
+			alpine: selectedCopilotPlatforms({ windows: false, linux: false, alpine: true, macos: false }),
+			none: errorMessage(() => selectedCopilotPlatforms({ windows: false, linux: false, alpine: false, macos: false })),
+		}, {
+			windows: ['win32-arm64', 'win32-x64'],
+			linux: ['linux-arm64', 'linux-x64'],
+			alpine: ['linuxmusl-arm64', 'linuxmusl-x64'],
+			none: '[copilot-source] At least one runtime operating system must be selected.',
+		});
+	});
+
 	test('downloads every runtime artifact by name', () => {
 		const pipeline = fs.readFileSync(PIPELINE_PATH, 'utf8');
 		const downloadedArtifacts = [...pipeline.matchAll(/^\s+artifact: (copilot_runtime_\w+)$/gm)].map(match => match[1]);
+		const runtimeFlags = ['WINDOWS', 'LINUX', 'ALPINE', 'MACOS'];
+		const productFlags = [...runtimeFlags, 'WEB'];
 
 		assert.deepStrictEqual({
 			downloadedArtifacts,
 			hasSourceParameters: /COPILOT_(?:SDK|RUNTIME)_SOURCE_REF\s*\n\s*displayName:/.test(pipeline),
 			hasProductBranchParameter: /name: VSCODE_PRODUCT_SOURCE_BRANCH/.test(pipeline),
+			declaresProductFlags: productFlags.every(flag => pipeline.includes(`name: VSCODE_BUILD_${flag}`)),
+			gatesRuntimeJobsAndDownloads: runtimeFlags.every(flag =>
+				[...pipeline.matchAll(new RegExp(`if eq\\(parameters\\.VSCODE_BUILD_${flag}, true\\)`, 'g'))].length === 2
+			),
 		}, {
 			downloadedArtifacts: copilotPlatforms.map(runtimeArtifactName),
 			hasSourceParameters: false,
 			hasProductBranchParameter: false,
+			declaresProductFlags: true,
+			gatesRuntimeJobsAndDownloads: true,
 		});
 	});
 
@@ -275,6 +297,31 @@ suite('Copilot source pipeline', () => {
 		});
 	});
 
+	test('assembles a runtime subset with a complete loader manifest', () => {
+		for (const target of copilotPlatforms) {
+			writeRuntimeArtifact(target);
+		}
+
+		const version = '0.0.0-vscode.123';
+		const output = path.join(workspace, 'subset-packages');
+		const targets = selectedCopilotPlatforms({ windows: true, linux: false, alpine: false, macos: false });
+		const packageDirs = assembleRuntimePackages(path.join(workspace, 'artifacts'), output, version, RUNTIME_REF, {
+			vscodeCommit: VSCODE_COMMIT,
+			sourceCommit: RUNTIME_REF,
+			sourceVersion: '1.0.79',
+			sourceBuildId: '123',
+		}, targets);
+		const mainManifest = JSON.parse(fs.readFileSync(path.join(output, 'copilot', 'package.json'), 'utf8'));
+
+		assert.deepStrictEqual({
+			packages: packageDirs.map(packageDir => path.basename(packageDir)),
+			optionalDependencies: mainManifest.optionalDependencies,
+		}, {
+			packages: ['win32-arm64', 'win32-x64', 'copilot'],
+			optionalDependencies: Object.fromEntries(copilotPlatforms.map(target => [`@github/copilot-${target}`, version])),
+		});
+	});
+
 	test('creates package provenance from the root manifest', () => {
 		const root = path.join(workspace, 'root');
 		writeRootPackage(root);
@@ -312,6 +359,11 @@ suite('Copilot source pipeline', () => {
 			registry: 'https://example.test/npm/',
 			publish: false,
 			release: false,
+			windows: true,
+			linux: false,
+			alpine: true,
+			macos: false,
+			web: true,
 		}), {
 			definition: { id: 111 },
 			sourceBranch: 'refs/heads/feature/copilot-source',
@@ -322,6 +374,18 @@ suite('Copilot source pipeline', () => {
 				VSCODE_PUBLISH: false,
 				VSCODE_RELEASE: false,
 				VSCODE_RUN_ARTIFACT_SANITY_TESTS: true,
+				VSCODE_BUILD_WIN32: true,
+				VSCODE_BUILD_WIN32_ARM64: true,
+				VSCODE_BUILD_LINUX: false,
+				VSCODE_BUILD_LINUX_SNAP: false,
+				VSCODE_BUILD_LINUX_ARM64: false,
+				VSCODE_BUILD_LINUX_ARMHF: false,
+				VSCODE_BUILD_ALPINE: true,
+				VSCODE_BUILD_ALPINE_ARM64: true,
+				VSCODE_BUILD_MACOS: false,
+				VSCODE_BUILD_MACOS_ARM64: false,
+				VSCODE_BUILD_MACOS_UNIVERSAL: false,
+				VSCODE_BUILD_WEB: true,
 			},
 		});
 	});
