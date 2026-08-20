@@ -380,6 +380,48 @@ suite('ByokLmProxyService', () => {
 		});
 	});
 
+	test('preserves full stateless replay when no resumable provider state is reported', async () => {
+		const captured: IByokLmChatRequest[] = [];
+		const initialInput = [{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Use the tool.' }] }];
+		const replayedInput = [
+			...initialInput,
+			{ type: 'function_call', call_id: 'call_1', name: 'tool', arguments: '{}' },
+			{ type: 'function_call_output', call_id: 'call_1', output: 'done' },
+		];
+
+		await withProxy(
+			async request => {
+				captured.push(request);
+				return captured.length === 1
+					? { output: [{ type: 'function_call', callId: 'call_1', name: 'tool', argumentsJson: '{}' }] }
+					: { output: [{ type: 'message', content: [{ type: 'text', text: 'done' }] }] };
+			},
+			async handle => {
+				for (const input of [initialInput, replayedInput]) {
+					const response = await fetch(responsesUrl(handle, 'acme'), {
+						method: 'POST',
+						headers: authHeaders(handle),
+						body: JSON.stringify({ model: 'm', input }),
+					});
+					assert.strictEqual(response.status, 200);
+					await response.text();
+				}
+			},
+		);
+
+		assert.deepStrictEqual({
+			previousResponseId: captured[1]?.previousResponseId,
+			input: captured[1]?.input,
+		}, {
+			previousResponseId: undefined,
+			input: [
+				{ type: 'message', role: 'user', content: [{ type: 'text', text: 'Use the tool.' }] },
+				{ type: 'function_call', callId: 'call_1', name: 'tool', argumentsJson: '{}' },
+				{ type: 'function_call_output', callId: 'call_1', output: 'done' },
+			],
+		});
+	});
+
 	test('bounds abandoned tool continuations while preserving recent state', async () => {
 		const captured: IByokLmChatRequest[] = [];
 		const maximumPendingContinuations = 256;
