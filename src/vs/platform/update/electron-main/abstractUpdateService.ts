@@ -21,7 +21,7 @@ import { IRequestService } from '../../request/common/request.js';
 import { StorageScope, StorageTarget } from '../../storage/common/storage.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { AvailableForDownload, DisablementReason, IUpdateService, State, StateType, UpdateType } from '../common/update.js';
+import { AvailableForDownload, DisablementReason, IUpdate, IUpdateService, State, StateType, UpdateType } from '../common/update.js';
 
 const LAST_KNOWN_VERSION_STORAGE_KEY = 'abstractUpdateService/lastKnownVersion';
 
@@ -209,6 +209,8 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 			return;
 		}
 
+		await this.meteredConnectionService.whenConnectionStateInitialized;
+
 		// React to runtime `update.mode`/policy changes so switching to/from `none` applies without a restart.
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('update.mode')) {
@@ -265,8 +267,8 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 
 		// One-time platform init, gated behind updates being enabled so a pending update is never resumed under `none`.
 		if (!this._postInitialized) {
-			this._postInitialized = true;
 			await this.postInitialize();
+			this._postInitialized = true;
 		}
 
 		this.scheduleAccordingToMode(updateMode);
@@ -310,14 +312,21 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 
 	private scheduleAccordingToMode(updateMode: 'none' | 'manual' | 'start' | 'default'): void {
 		this.scheduler.clear();
-		if (this.state.type === StateType.Idle) {
-			this.setDeferred(false);
-		}
 
 		if (updateMode === 'manual') {
 			this.logService.info('update#ctor - manual checks only; automatic updates are disabled by user preference');
 			return;
 		}
+
+		if (this._state.deferred && !this.meteredConnectionService.isConnectionMetered) {
+			this.resumeAutomaticUpdates();
+			return;
+		}
+
+		if (this.state.type !== StateType.Idle) {
+			return;
+		}
+		this.setDeferred(false);
 
 		if (updateMode === 'start') {
 			this.logService.info('update#ctor - startup checks only; automatic updates are disabled by user preference');
@@ -331,7 +340,7 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 	}
 
 	private resumeAutomaticUpdates(): void {
-		if (this._disabledPermanently || !this.quality) {
+		if (this._disabledPermanently || !this._postInitialized || !this.quality) {
 			return;
 		}
 
@@ -498,6 +507,16 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 		void this.downloadUpdate(false);
 	}
 
+	protected deferAutomaticDownload(update: IUpdate, explicit: boolean): boolean {
+		if (explicit || !this.meteredConnectionService.isConnectionMetered) {
+			return false;
+		}
+
+		this.logService.info('update#deferAutomaticDownload - deferring download because connection is metered');
+		this.setState(State.AvailableForDownload(update), { deferred: true });
+		return true;
+	}
+
 	async applyUpdate(): Promise<void> {
 		this.logService.trace('update#applyUpdate, state = ', this.state.type);
 
@@ -555,9 +574,7 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 			return false;
 		}
 
-		if (!explicit && this.meteredConnectionService.isConnectionMetered) {
-			this.setDeferred(true);
-			this.logService.info('update#checkForOverwriteUpdates - skipping automatic check because connection is metered');
+		if (this.deferOverwriteCheckIfMetered(explicit)) {
 			return false;
 		}
 
@@ -583,6 +600,10 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 		}
 
 		if (isLatest === false && this.state.type === StateType.Ready) {
+			if (this.deferOverwriteCheckIfMetered(explicit)) {
+				return false;
+			}
+
 			this.logService.info('update#readyStateCheck: newer update available, restarting update machinery');
 
 			try {
@@ -593,6 +614,10 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 				return false;
 			}
 
+			if (this.deferOverwriteCheckIfMetered(explicit)) {
+				return false;
+			}
+
 			this._overwrite = true;
 			this.setState(State.Overwriting(this.state.update, explicit));
 			this.doCheckForUpdates(explicit, pendingUpdateCommit);
@@ -600,6 +625,16 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 		}
 
 		return false;
+	}
+
+	private deferOverwriteCheckIfMetered(explicit: boolean): boolean {
+		if (explicit || !this.meteredConnectionService.isConnectionMetered) {
+			return false;
+		}
+
+		this.setDeferred(true);
+		this.logService.info('update#checkForOverwriteUpdates - deferring overwrite because connection is metered');
+		return true;
 	}
 
 	async isLatestVersion(commit?: string, token: CancellationToken = CancellationToken.None): Promise<boolean | undefined> {

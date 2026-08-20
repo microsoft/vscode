@@ -45,4 +45,4 @@ export class NativeMeteredConnectionService extends AbstractMeteredConnectionSer
 	}
 }
 
-registerSingleton(IMeteredConnectionService, new SyncDescriptor(NativeMeteredConnectionService, [getIsBrowserConnectionMetered], true));
+registerSingleton(IMeteredConnectionService, new SyncDescriptor(NativeMeteredConnectionService, [getIsBrowserConnectionMetered], false));
