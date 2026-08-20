@@ -63,11 +63,11 @@ export class ViewImageTool implements ICopilotTool<IViewImageParams> {
 		const uri = resolveToolInputPath(options.input.filePath, this.promptPathRepresentationService);
 		this.assertImageFile(uri);
 
-		const isExternal = await this.instantiationService.invokeFunction(
+		const { needsConfirmation } = await this.instantiationService.invokeFunction(
 			accessor => isFileExternalAndNeedsConfirmation(accessor, uri, this._promptContext, { readOnly: true, workingDirectory: options.workingDirectory })
 		);
 
-		if (isExternal) {
+		if (needsConfirmation) {
 			await this.instantiationService.invokeFunction(
 				accessor => assertFileNotContentExcluded(accessor, uri)
 			);

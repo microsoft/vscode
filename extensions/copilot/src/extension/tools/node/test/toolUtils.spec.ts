@@ -3,7 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it, suite, test } from 'vitest';
+import * as fs from 'fs';
+import { tmpdir } from 'os';
+import * as path from 'path';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, suite, test } from 'vitest';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { InMemoryConfigurationService } from '../../../../platform/configuration/test/common/inMemoryConfigurationService';
 import { ICustomInstructionsService } from '../../../../platform/customInstructions/common/customInstructionsService';
@@ -18,6 +21,7 @@ import { WorkingDirectory } from '../../../../platform/workspace/common/workingD
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { ResourceSet } from '../../../../util/vs/base/common/map';
 import { posix } from '../../../../util/vs/base/common/path';
+import { isWindows } from '../../../../util/vs/base/common/platform';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
@@ -25,7 +29,7 @@ import { ChatVariablesCollection, CustomizationsIndexId } from '../../../prompt/
 import { IBuildPromptContext } from '../../../prompt/common/intents';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
 import { encodeUrlHostname } from '../../common/toolUtils';
-import { assertFileOkForTool, inputGlobToPattern, isDirExternalAndNeedsConfirmation, isFileExternalAndNeedsConfirmation } from '../toolUtils';
+import { assertFileOkForTool, inputGlobToPattern, isDirExternalAndNeedsConfirmation, isExternalSymlinkedFile, isFileExternalAndNeedsConfirmation } from '../toolUtils';
 
 class TestIgnoreService extends NullIgnoreService {
 	private readonly _ignoredUris = new Set<string>();
@@ -159,7 +163,7 @@ suite('toolUtils - additionalReadAccessPaths', () => {
 
 	describe('isFileExternalAndNeedsConfirmation', () => {
 		test('workspace file does not need confirmation', async () => {
-			expect(await invokeIsFileExternalAndNeedsConfirmation(URI.file('/workspace/file.ts'))).toBe(false);
+			expect(await invokeIsFileExternalAndNeedsConfirmation(URI.file('/workspace/file.ts'))).toEqual({ needsConfirmation: false, realPath: undefined });
 		});
 
 		test('external file that does not exist throws', async () => {
@@ -174,17 +178,17 @@ suite('toolUtils - additionalReadAccessPaths', () => {
 
 		test('non-existent workspace file does not need confirmation', async () => {
 			// Non-existent files within the workspace should also not trigger confirmation
-			expect(await invokeIsFileExternalAndNeedsConfirmation(URI.file('/workspace/nonexistent.ts'))).toBe(false);
+			expect(await invokeIsFileExternalAndNeedsConfirmation(URI.file('/workspace/nonexistent.ts'))).toEqual({ needsConfirmation: false, realPath: undefined });
 		});
 
 		test('external file under additional paths with readOnly does not need confirmation', async () => {
 			await configService.setConfig(ConfigKey.AdditionalReadAccessPaths, ['/external']);
-			expect(await invokeIsFileExternalAndNeedsConfirmation(URI.file('/external/file.ts'), true)).toBe(false);
+			expect(await invokeIsFileExternalAndNeedsConfirmation(URI.file('/external/file.ts'), true)).toEqual({ needsConfirmation: false, realPath: undefined });
 		});
 
 		test('nested file under additional paths with readOnly does not need confirmation', async () => {
 			await configService.setConfig(ConfigKey.AdditionalReadAccessPaths, ['/external']);
-			expect(await invokeIsFileExternalAndNeedsConfirmation(URI.file('/external/deep/nested/file.ts'), true)).toBe(false);
+			expect(await invokeIsFileExternalAndNeedsConfirmation(URI.file('/external/deep/nested/file.ts'), true)).toEqual({ needsConfirmation: false, realPath: undefined });
 		});
 
 		test('external file under additional paths without readOnly throws when file does not exist', async () => {
@@ -256,7 +260,7 @@ suite('toolUtils - additionalReadAccessPaths', () => {
 		});
 
 		test('isFileExternalAndNeedsConfirmation: file within workingDirectory is not external', async () => {
-			expect(await invokeIsFileExternalWithWd(URI.file('/my-project/src/file.ts'))).toBe(false);
+			expect(await invokeIsFileExternalWithWd(URI.file('/my-project/src/file.ts'))).toEqual({ needsConfirmation: false, realPath: undefined });
 		});
 
 		test('isFileExternalAndNeedsConfirmation: workspace file is external when workingDirectory is set', async () => {
@@ -383,7 +387,7 @@ suite('toolUtils - external file existence', () => {
 	test('external file that exists needs confirmation', async () => {
 		// Mock an external file that actually exists
 		mockFs.mockFile(URI.file('/external/existing-file.ts'), 'content');
-		expect(await invokeIsFileExternalAndNeedsConfirmation(URI.file('/external/existing-file.ts'))).toBe(true);
+		expect(await invokeIsFileExternalAndNeedsConfirmation(URI.file('/external/existing-file.ts'))).toEqual({ needsConfirmation: true, realPath: undefined });
 	});
 
 	test('external file that does not exist throws', async () => {
@@ -395,12 +399,117 @@ suite('toolUtils - external file existence', () => {
 	test('workspace file does not need confirmation even if it exists', async () => {
 		// Mock a workspace file
 		mockFs.mockFile(URI.file('/workspace/file.ts'), 'content');
-		expect(await invokeIsFileExternalAndNeedsConfirmation(URI.file('/workspace/file.ts'))).toBe(false);
+		expect(await invokeIsFileExternalAndNeedsConfirmation(URI.file('/workspace/file.ts'))).toEqual({ needsConfirmation: false, realPath: undefined });
 	});
 
 	test('workspace file does not need confirmation even if it does not exist', async () => {
 		// Non-existent workspace file
-		expect(await invokeIsFileExternalAndNeedsConfirmation(URI.file('/workspace/nonexistent.ts'))).toBe(false);
+		expect(await invokeIsFileExternalAndNeedsConfirmation(URI.file('/workspace/nonexistent.ts'))).toEqual({ needsConfirmation: false, realPath: undefined });
+	});
+});
+
+describe.skipIf(isWindows)('isExternalSymlinkedFile', () => {
+	let temporaryDirectory: string;
+	let workspaceDirectory: string;
+	let externalDirectory: string;
+
+	beforeEach(() => {
+		temporaryDirectory = fs.mkdtempSync(path.join(tmpdir(), 'toolutils-symlink-'));
+		workspaceDirectory = fs.realpathSync(fs.mkdtempSync(path.join(temporaryDirectory, 'workspace-')));
+		externalDirectory = fs.realpathSync(fs.mkdtempSync(path.join(temporaryDirectory, 'external-')));
+	});
+
+	afterEach(() => {
+		fs.rmSync(temporaryDirectory, { recursive: true, force: true });
+	});
+
+	function getFolder(uri: URI): URI | undefined {
+		const workspaceUri = URI.file(workspaceDirectory);
+		return uri.fsPath === workspaceDirectory || uri.fsPath.startsWith(`${workspaceDirectory}${path.sep}`) ? workspaceUri : undefined;
+	}
+
+	async function invokeIsFileExternal(uri: URI) {
+		const services = createExtensionUnitTestingServices();
+		services.define(IWorkspaceService, new SyncDescriptor(
+			TestWorkspaceService,
+			[[URI.file(workspaceDirectory)], []]
+		));
+		const accessor = services.createTestingAccessor();
+		try {
+			return await accessor.get(IInstantiationService).invokeFunction(acc => isFileExternalAndNeedsConfirmation(acc, uri));
+		} finally {
+			accessor.dispose();
+		}
+	}
+
+	test('returns true when the file symlink points outside the workspace', async () => {
+		const externalFile = path.join(externalDirectory, 'external.txt');
+		const symlinkedFile = path.join(workspaceDirectory, 'linked.txt');
+		fs.writeFileSync(externalFile, 'content');
+		fs.symlinkSync(externalFile, symlinkedFile);
+
+		await expect(isExternalSymlinkedFile(URI.file(symlinkedFile), getFolder)).resolves.toBe(true);
+	});
+
+	test('returns the real path when a workspace symlink points outside the workspace', async () => {
+		const externalFile = path.join(externalDirectory, 'external.txt');
+		const symlinkedFile = path.join(workspaceDirectory, 'linked.txt');
+		fs.writeFileSync(externalFile, 'content');
+		fs.symlinkSync(externalFile, symlinkedFile);
+
+		await expect(invokeIsFileExternal(URI.file(symlinkedFile))).resolves.toEqual({
+			needsConfirmation: true,
+			realPath: URI.file(externalFile),
+		});
+	});
+
+	test('returns true when a parent directory symlink points outside the workspace', async () => {
+		const externalFile = path.join(externalDirectory, 'external.txt');
+		const symlinkedDirectory = path.join(workspaceDirectory, 'linked');
+		fs.writeFileSync(externalFile, 'content');
+		fs.symlinkSync(externalDirectory, symlinkedDirectory, 'dir');
+
+		await expect(isExternalSymlinkedFile(URI.file(path.join(symlinkedDirectory, 'external.txt')), getFolder)).resolves.toBe(true);
+	});
+
+	test('returns true for a nonexistent file under a parent directory symlink that points outside the workspace', async () => {
+		const symlinkedDirectory = path.join(workspaceDirectory, 'linked');
+		fs.symlinkSync(externalDirectory, symlinkedDirectory, 'dir');
+
+		await expect(isExternalSymlinkedFile(URI.file(path.join(symlinkedDirectory, 'missing.txt')), getFolder)).resolves.toBe(true);
+	});
+
+	test('returns false when the symlink target is inside the workspace', async () => {
+		const targetFile = path.join(workspaceDirectory, 'target.txt');
+		const symlinkedFile = path.join(workspaceDirectory, 'linked.txt');
+		fs.writeFileSync(targetFile, 'content');
+		fs.symlinkSync(targetFile, symlinkedFile);
+
+		await expect(isExternalSymlinkedFile(URI.file(symlinkedFile), getFolder)).resolves.toBe(false);
+	});
+
+	test('returns false when the file is not a symlink', async () => {
+		const file = path.join(workspaceDirectory, 'file.txt');
+		fs.writeFileSync(file, 'content');
+
+		await expect(isExternalSymlinkedFile(URI.file(file), getFolder)).resolves.toBe(false);
+	});
+
+	test('returns false when the workspace folder itself is symlinked', async () => {
+		const symlinkedWorkspace = path.join(temporaryDirectory, 'workspace-link');
+		const workspaceFile = path.join(workspaceDirectory, 'file.txt');
+		fs.writeFileSync(workspaceFile, 'content');
+		fs.symlinkSync(workspaceDirectory, symlinkedWorkspace, 'dir');
+		const symlinkedWorkspaceUri = URI.file(symlinkedWorkspace);
+
+		await expect(isExternalSymlinkedFile(
+			URI.file(path.join(symlinkedWorkspace, 'file.txt')),
+			uri => uri.fsPath.startsWith(`${symlinkedWorkspace}${path.sep}`) ? symlinkedWorkspaceUri : undefined
+		)).resolves.toBe(false);
+	});
+
+	test('returns false when the file does not exist', async () => {
+		await expect(isExternalSymlinkedFile(URI.file(path.join(workspaceDirectory, 'missing.txt')), getFolder)).resolves.toBe(false);
 	});
 });
 
