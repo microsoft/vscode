@@ -1511,26 +1511,38 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
-	test('sends a snapshot with a selection as a read-only file reference without leaking a selection filePath (#331154)', async () => {
+	test('sends a snapshotted selection through the selection path so the model keeps the selected text, with a read-only note (#331154)', async () => {
 		const snapshotUri = URI.file('/data/attachments/id/snap.txt');
-		const { session, mockSession } = await createAgentSession(disposables);
+		const { session, mockSession } = await createAgentSession(disposables, {
+			fileContents: {
+				[snapshotUri.toString()]: 'line0\nhello world\nline2',
+			},
+		});
 
 		await session.send('what is here?', [{
 			type: MessageAttachmentKind.Resource,
 			label: 'snap.txt',
 			displayKind: 'selection',
 			uri: snapshotUri.toString(),
-			selection: { range: { start: { line: 1, character: 0 }, end: { line: 1, character: 4 } } },
+			selection: { range: { start: { line: 1, character: 0 }, end: { line: 1, character: 5 } } },
 			_meta: toHostSnapshotAttachmentMeta(undefined),
 		}]);
 
+		// A snapshotted selection stays on the selection path so the model still receives the selected
+		// text and range; the read-only signal rides the additionalContext note, not the attachment shape.
 		assert.deepStrictEqual({
 			sendRequests: mockSession.sendRequests,
 			additionalContext: session.handleUserPromptSubmitted(),
 		}, {
 			sendRequests: [{
 				prompt: 'what is here?',
-				attachments: [{ type: 'file', path: snapshotUri.fsPath, displayName: 'snap.txt' }],
+				attachments: [{
+					type: 'selection',
+					filePath: snapshotUri.fsPath,
+					displayName: 'snap.txt',
+					text: 'hello',
+					selection: { start: { line: 1, character: 0 }, end: { line: 1, character: 5 } },
+				}],
 			}],
 			additionalContext: { additionalContext: expectedSnapshotReadonlyNote([snapshotUri.fsPath]) },
 		});

@@ -14,9 +14,10 @@ import { MessageAttachmentKind, type MessageAttachment } from '../state/protocol
  *
  * Such snapshots are **read-only context** — the model should consume their content, not edit
  * the copy. Providers use {@link isHostSnapshotAttachment} / {@link readHostSnapshotAttachmentMeta}
- * to present them without an editable path (Copilot) or to annotate the path as read-only
- * (Codex/Claude). The `contentType` is preserved because the on-disk `Resource` no longer carries
- * the original MIME type.
+ * to signal read-only: Copilot still sends the file path (so the model can read it on demand) but
+ * conveys the read-only intent out-of-band on the prompt (an `additionalContext` / `<reminder>`
+ * note), while Codex/Claude annotate the path reference inline as read-only. The `contentType` is
+ * preserved because the on-disk `Resource` no longer carries the original MIME type.
  */
 export const HostSnapshotAttachmentMetadataKey = 'vscode.agentHost.snapshotAttachment';
 

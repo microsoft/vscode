@@ -44,7 +44,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { resolveCopilotConfigSlashCommandOnSend } from '../../common/copilotConfigSlashCommands.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS, streamingToolDisplayText } from '../../common/streamingToolCallDisplay.js';
 import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAttachment } from '../../common/meta/agentFeedbackAttachments.js';
-import { isHostSnapshotAttachment, readHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
+import { isHostSnapshotAttachment } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment, type ToolCallContributor } from '../../common/state/protocol/state.js';
@@ -2492,17 +2492,12 @@ export class CopilotAgentSession extends Disposable {
 		const uri = URI.parse(attachment.uri);
 		const path = uri.scheme === 'file' ? uri.fsPath : uri.toString();
 		const displayName = attachment.label ?? path;
-		// A host-created snapshot (pasted content, unsaved editor, git: diff, …) is a read-only copy the
-		// host wrote so the agent can read content it can't otherwise fetch by path. Send it as an
-		// ordinary file so the model can read it on demand (and the runtime can materialize a snapshotted
-		// image from the path). The read-only signal is carried on the prompt instead — `additionalContext`
-		// for the main turn and a `<reminder>` note for steering (see `_snapshotReadonlyReminder`) — because
-		// the runtime drops a file attachment's `displayName` for text snapshots, rendering only the path in
-		// `<tagged_files>` (#331154). The interactive attachments-dir write-deny is the enforcement backstop.
-		const snapshotMeta = readHostSnapshotAttachmentMeta(attachment);
-		if (snapshotMeta) {
-			return { type: 'file' as const, path, displayName };
-		}
+		// A host-created snapshot (pasted content, unsaved editor, git: diff, …) is shaped like any other
+		// resource here (file or selection). Its read-only signal is carried separately on the prompt — via
+		// `additionalContext` on the main turn and a `<reminder>` note on steering (see
+		// `_snapshotReadonlyReminder`) — because the runtime drops a file attachment's `displayName` for text
+		// snapshots, rendering only the path in `<tagged_files>` (#331154). Selected snapshots therefore keep
+		// the selection path below so the model still receives the selected text and range.
 		if (attachment.selection) {
 			try {
 				const text = await this._readSelectedText(uri, attachment.selection.range);

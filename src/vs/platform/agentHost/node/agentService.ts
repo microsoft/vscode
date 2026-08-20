@@ -4538,11 +4538,11 @@ export class AgentService extends Disposable implements IAgentService {
 		if (action.type !== ActionType.ChatTurnStarted && action.type !== ActionType.ChatPendingMessageSet) {
 			return false;
 		}
-		const attachmentsRootStr = this._attachmentsRoot(sessionURI).toString();
+		const attachmentsRoot = this._attachmentsRoot(sessionURI);
 		return !!action.message.attachments?.some(a =>
-			this._isRewritableAttachment(a, attachmentsRootStr) || this._isUntaggedSnapshotResource(a, attachmentsRootStr));
+			this._isRewritableAttachment(a, attachmentsRoot) || this._isUntaggedSnapshotResource(a, attachmentsRoot));
 	}
-	private _isRewritableAttachment(attachment: MessageAttachment, attachmentsRootStr: string): boolean {
+	private _isRewritableAttachment(attachment: MessageAttachment, attachmentsRoot: URI): boolean {
 		if (attachment.type === MessageAttachmentKind.EmbeddedResource) {
 			return true;
 		}
@@ -4552,7 +4552,7 @@ export class AgentService extends Disposable implements IAgentService {
 			if (attachment.displayKind === 'directory') {
 				return false;
 			}
-			if (attachment.uri.startsWith(attachmentsRootStr)) {
+			if (this._isUnderAttachmentsRoot(attachment.uri, attachmentsRoot)) {
 				return false;
 			}
 			return true;
@@ -4567,11 +4567,21 @@ export class AgentService extends Disposable implements IAgentService {
 	 * not be re-snapshotted, but it must still be tagged so downstream providers treat it as
 	 * read-only rather than an editable file (#331154).
 	 */
-	private _isUntaggedSnapshotResource(attachment: MessageAttachment, attachmentsRootStr: string): boolean {
+	private _isUntaggedSnapshotResource(attachment: MessageAttachment, attachmentsRoot: URI): boolean {
 		return attachment.type === MessageAttachmentKind.Resource
 			&& attachment.displayKind !== 'directory'
-			&& attachment.uri.startsWith(attachmentsRootStr)
+			&& this._isUnderAttachmentsRoot(attachment.uri, attachmentsRoot)
 			&& !isHostSnapshotAttachment(attachment);
+	}
+
+	/**
+	 * Whether an attachment URI points at the session attachments directory or a descendant. Uses URI
+	 * containment (not a string-prefix check) so a sibling such as `.../attachments-backup/file` is not
+	 * matched, and — on case-insensitive filesystems — a real snapshot whose path casing differs is
+	 * still recognised. Mirrors the write-deny classifier (`isSessionAttachmentPath`).
+	 */
+	private _isUnderAttachmentsRoot(attachmentUri: string, attachmentsRoot: URI): boolean {
+		return extUriBiasedIgnorePathCase.isEqualOrParent(URI.parse(attachmentUri), attachmentsRoot);
 	}
 
 	private _attachmentsRoot(sessionURI: string): URI {
@@ -4597,15 +4607,14 @@ export class AgentService extends Disposable implements IAgentService {
 			return action;
 		}
 		const attachmentsRoot = this._attachmentsRoot(channel);
-		const attachmentsRootStr = attachmentsRoot.toString();
-		const rewritten = await Promise.all(attachments.map(a => this._rewriteSingleAttachment(a, attachmentsRoot, attachmentsRootStr, clientId)));
+		const rewritten = await Promise.all(attachments.map(a => this._rewriteSingleAttachment(a, attachmentsRoot, clientId)));
 		return {
 			...action,
 			message: { ...action.message, attachments: rewritten },
 		};
 	}
 
-	private async _rewriteSingleAttachment(attachment: MessageAttachment, attachmentsRoot: URI, attachmentsRootStr: string, clientId: string): Promise<MessageAttachment> {
+	private async _rewriteSingleAttachment(attachment: MessageAttachment, attachmentsRoot: URI, clientId: string): Promise<MessageAttachment> {
 		try {
 			if (attachment.type === MessageAttachmentKind.EmbeddedResource) {
 				const bytes = decodeBase64(attachment.data).buffer;
@@ -4616,10 +4625,10 @@ export class AgentService extends Disposable implements IAgentService {
 				// A snapshot re-attached from our own attachments folder (e.g. the user opened the
 				// copy, or implicit context captured it) must still be tagged read-only so providers
 				// don't treat it as an editable file (#331154), but must not be re-snapshotted.
-				if (this._isUntaggedSnapshotResource(attachment, attachmentsRootStr)) {
+				if (this._isUntaggedSnapshotResource(attachment, attachmentsRoot)) {
 					return this._tagSnapshotAttachment(attachment, getMediaMime(URI.parse(attachment.uri).path));
 				}
-				if (this._isRewritableAttachment(attachment, attachmentsRootStr)) {
+				if (this._isRewritableAttachment(attachment, attachmentsRoot)) {
 					const originalUri = URI.parse(attachment.uri);
 					// If the attachment references a file that already exists on the agent
 					// host side, leave it untouched rather than snapshotting a client copy (#319314).
