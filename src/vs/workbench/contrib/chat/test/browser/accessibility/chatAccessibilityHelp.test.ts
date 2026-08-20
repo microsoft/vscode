@@ -52,6 +52,7 @@ suite('Chat Accessibility Help', () => {
 			petMovement: helpText.includes('Drag it around the chat with the mouse') && helpText.includes('left and right arrows to make it hop'),
 			petHopping: helpText.includes('make it hop along the input until it reaches an edge'),
 			petThrowing: helpText.includes('flick it in any direction') && helpText.includes('gravity pulls it down') && helpText.includes('Hold Shift with the left or right arrow to throw it toward a wall'),
+			petShaking: helpText.includes('Shaking it aggressively from side to side while dragging it also makes it dizzy') && helpText.includes('drops out of your grip'),
 			petRevival: helpText.includes('a despawn effect appears at the bottom') && helpText.includes('a respawn effect appears at the top') && helpText.includes('automatically returns to the input'),
 			petScale: helpText.includes('position and selected size are shared across chats and windows') && helpText.includes('remembered after you restart'),
 		}, {
@@ -61,6 +62,7 @@ suite('Chat Accessibility Help', () => {
 			petMovement: true,
 			petHopping: true,
 			petThrowing: true,
+			petShaking: true,
 			petRevival: true,
 			petScale: true,
 		});
