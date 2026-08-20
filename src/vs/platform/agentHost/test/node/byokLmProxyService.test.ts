@@ -57,8 +57,8 @@ suite('ByokLmProxyService', () => {
 		return `${handle.providerBaseUrl(vendor)}/responses`;
 	}
 
-	function authHeaders(handle: IByokLmProxyHandle): Record<string, string> {
-		return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${handle.nonce}.${sessionId}` };
+	function authHeaders(handle: IByokLmProxyHandle, selectedSessionId = sessionId): Record<string, string> {
+		return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${handle.nonce}.${selectedSessionId}` };
 	}
 
 	test('serves the unauthenticated health check', async () => {
@@ -296,6 +296,88 @@ suite('ByokLmProxyService', () => {
 			},
 			{ type: 'custom_tool_call_output', callId: 'call_1', output: 'Done!' },
 		]);
+	});
+
+	test('recovers only the exact scoped tool continuation without overriding explicit state', async () => {
+		const captured: IByokLmChatRequest[] = [];
+		const initialInput = [{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Use both tools.' }] }];
+		const outputs = [
+			{ type: 'function_call_output', call_id: 'function_1', output: 'Rain' },
+			{ type: 'custom_tool_call_output', call_id: 'custom_1', output: 'Applied patch.' },
+		];
+		const replayedInput = [
+			...initialInput,
+			{ type: 'function_call', call_id: 'function_1', name: 'get_weather', arguments: '{}' },
+			{ type: 'custom_tool_call', call_id: 'custom_1', name: 'apply_patch', input: '*** Begin Patch\n*** End Patch' },
+			...outputs,
+		];
+
+		await withProxy(
+			async request => {
+				captured.push(request);
+				if (captured.length === 1) {
+					return {
+						responseId: 'resp_provider_1',
+						output: [
+							{ type: 'function_call', callId: 'function_1', name: 'get_weather', argumentsJson: '{}' },
+							{ type: 'custom_tool_call', callId: 'custom_1', name: 'apply_patch', input: '*** Begin Patch\n*** End Patch' },
+						],
+					};
+				}
+				if (captured.length === 6) {
+					return { responseId: 'resp_provider_2', output: [{ type: 'message', content: [{ type: 'text', text: 'done' }] }] };
+				}
+				return { output: [], error: 'not a valid continuation' };
+			},
+			async handle => {
+				const post = (vendor: string, model: string, requestSessionId: string, input: unknown, previousResponseId?: string) => fetch(responsesUrl(handle, vendor), {
+					method: 'POST',
+					headers: authHeaders(handle, requestSessionId),
+					body: JSON.stringify({ model, input, ...(previousResponseId ? { previous_response_id: previousResponseId } : {}) }),
+				});
+
+				let response = await post('acme', 'm', sessionId, initialInput);
+				assert.strictEqual(response.status, 200);
+				await response.text();
+
+				response = await post('acme', 'm', sessionId, replayedInput, 'resp_explicit');
+				assert.strictEqual(response.status, 502);
+				await response.text();
+
+				for (const [vendor, model, requestSessionId] of [
+					['acme', 'm', 'sess-2'],
+					['other', 'm', sessionId],
+					['acme', 'other-model', sessionId],
+				]) {
+					response = await post(vendor, model, requestSessionId, replayedInput);
+					assert.strictEqual(response.status, 502);
+					await response.text();
+				}
+
+				response = await post('acme', 'm', sessionId, replayedInput);
+				assert.strictEqual(response.status, 200);
+				await response.text();
+
+				response = await post('acme', 'm', sessionId, replayedInput);
+				assert.strictEqual(response.status, 502);
+				await response.text();
+			},
+		);
+
+		assert.strictEqual(captured[1]?.previousResponseId, 'resp_explicit');
+		assert.deepStrictEqual(captured.slice(2, 5).map(request => request.previousResponseId), [undefined, undefined, undefined]);
+		assert.deepStrictEqual({
+			previousResponseId: captured[5]?.previousResponseId,
+			input: captured[5]?.input,
+			clearedPreviousResponseId: captured[6]?.previousResponseId,
+		}, {
+			previousResponseId: 'resp_provider_1',
+			input: [
+				{ type: 'function_call_output', callId: 'function_1', output: 'Rain' },
+				{ type: 'custom_tool_call_output', callId: 'custom_1', output: 'Applied patch.' },
+			],
+			clearedPreviousResponseId: undefined,
+		});
 	});
 
 	test('decodes a url-encoded vendor path segment', async () => {
