@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import fs from 'node:fs';
+import path from 'node:path';
 import * as ts from 'typescript';
 
 // ============================================================================
@@ -229,6 +231,58 @@ export function analyzeLocalizeCalls(
 				value: args[1].getText()
 			};
 		});
+}
+
+function collectTypeScriptFiles(inputPath: string): string[] {
+	const stat = fs.statSync(inputPath);
+	if (stat.isFile()) {
+		return inputPath.endsWith('.ts') && !inputPath.endsWith('.d.ts') ? [inputPath] : [];
+	}
+
+	const result: string[] = [];
+	for (const entry of fs.readdirSync(inputPath, { withFileTypes: true })) {
+		const entryPath = path.join(inputPath, entry.name);
+		if (entry.isDirectory()) {
+			result.push(...collectTypeScriptFiles(entryPath));
+		} else if (entry.isFile() && entry.name.endsWith('.ts') && !entry.name.endsWith('.d.ts')) {
+			result.push(entryPath);
+		}
+	}
+	return result;
+}
+
+function formatDuration(milliseconds: number): string {
+	return `${(milliseconds / 1_000).toFixed(3)}s`;
+}
+
+function main(): void {
+	const inputPath = path.resolve(process.argv[2] ?? 'src');
+	if (!fs.existsSync(inputPath)) {
+		throw new Error(`Path does not exist: ${inputPath}`);
+	}
+
+	const loadStart = performance.now();
+	const files = collectTypeScriptFiles(inputPath).sort((a, b) => a.localeCompare(b));
+	const sources = files.map(file => fs.readFileSync(file, 'utf8'));
+	const loadDuration = performance.now() - loadStart;
+
+	let localizeCalls = 0;
+	let localize2Calls = 0;
+	const analysisStart = performance.now();
+	for (const source of sources) {
+		localizeCalls += analyzeLocalizeCalls(source, 'localize').length;
+		localize2Calls += analyzeLocalizeCalls(source, 'localize2').length;
+	}
+	const analysisDuration = performance.now() - analysisStart;
+
+	console.log(`Analyzed ${files.length} TypeScript files.`);
+	console.log(`Found ${localizeCalls} localize calls and ${localize2Calls} localize2 calls.`);
+	console.log(`Loading: ${formatDuration(loadDuration)}`);
+	console.log(`Analysis: ${formatDuration(analysisDuration)}`);
+}
+
+if (import.meta.main) {
+	main();
 }
 
 // ============================================================================

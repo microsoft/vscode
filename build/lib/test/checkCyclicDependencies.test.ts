@@ -8,7 +8,7 @@ import { suite, test, beforeEach, afterEach } from 'node:test';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { Graph, collectJsFiles, processFile, normalize } from '../checkCyclicDependencies.ts';
+import { Graph, collectJsFiles, processFile, processFiles, normalize } from '../checkCyclicDependencies.ts';
 
 suite('checkCyclicDependencies', () => {
 
@@ -124,14 +124,16 @@ suite('checkCyclicDependencies', () => {
 			assert.ok(files.some(f => f.endsWith('c.js')));
 		});
 
-		test('processFile adds edges for relative imports', () => {
-			fs.writeFileSync(path.join(tmpDir, 'a.js'), 'import { x } from "./b";');
+		test('processFile adds edges for relative module references', () => {
+			fs.writeFileSync(path.join(tmpDir, 'a.js'), 'import { x } from "./b"; export { y } from "./c"; import("./d.js");');
 			fs.writeFileSync(path.join(tmpDir, 'b.js'), '');
+			fs.writeFileSync(path.join(tmpDir, 'c.js'), '');
+			fs.writeFileSync(path.join(tmpDir, 'd.js'), '');
 			const graph = new Graph();
 			processFile(path.join(tmpDir, 'a.js'), graph);
 			const aNode = graph.lookup(normalize(path.join(tmpDir, 'a.js')));
 			assert.ok(aNode);
-			assert.strictEqual(aNode.outgoing.size, 1);
+			assert.deepStrictEqual([...aNode.outgoing.keys()].map(file => path.basename(file)).sort(), ['b.js', 'c.js', 'd.js']);
 		});
 
 		test('processFile skips non-relative imports', () => {
@@ -155,9 +157,7 @@ suite('checkCyclicDependencies', () => {
 			fs.writeFileSync(path.join(tmpDir, 'b.js'), 'import { y } from "./a";');
 			const files = collectJsFiles(tmpDir);
 			const graph = new Graph();
-			for (const file of files) {
-				processFile(file, graph);
-			}
+			processFiles(files, graph);
 			const allNormalized = files.map(normalize);
 			const cycles = graph.findCycles(allNormalized);
 			const hasCycle = Array.from(cycles.values()).some(c => c !== undefined);
@@ -169,9 +169,7 @@ suite('checkCyclicDependencies', () => {
 			fs.writeFileSync(path.join(tmpDir, 'b.js'), '');
 			const files = collectJsFiles(tmpDir);
 			const graph = new Graph();
-			for (const file of files) {
-				processFile(file, graph);
-			}
+			processFiles(files, graph);
 			const allNormalized = files.map(normalize);
 			const cycles = graph.findCycles(allNormalized);
 			for (const [, cycle] of cycles) {

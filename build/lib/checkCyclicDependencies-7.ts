@@ -5,7 +5,8 @@
 
 import fs from 'fs';
 import path from 'path';
-import * as ts from 'typescript';
+import { API } from '@typescript/native/unstable/sync';
+import { isStringLiteralLikeNode, type SourceFile } from '@typescript/native/unstable/ast';
 
 // --- Graph (extracted from build/lib/tsb/utils.ts) ---
 
@@ -99,20 +100,17 @@ export function collectJsFiles(dir: string): string[] {
 	return results;
 }
 
-export function processFile(filename: string, graph: Graph): void {
-	const content = fs.readFileSync(filename, 'utf-8');
-	const info = ts.preProcessFile(content, true);
-
-	for (const ref of info.importedFiles) {
-		if (!ref.fileName.startsWith('.')) {
+function processSourceFile(filename: string, sourceFile: SourceFile, graph: Graph): void {
+	for (const importNode of sourceFile.imports) {
+		if (!isStringLiteralLikeNode(importNode) || !importNode.text.startsWith('.')) {
 			continue; // skip node_modules
 		}
-		if (ref.fileName.endsWith('.css')) {
+		if (importNode.text.endsWith('.css')) {
 			continue;
 		}
 
 		const dir = path.dirname(filename);
-		let resolvedPath = path.resolve(dir, ref.fileName);
+		let resolvedPath = path.resolve(dir, importNode.text);
 		if (resolvedPath.endsWith('.js')) {
 			resolvedPath = resolvedPath.slice(0, -3);
 		}
@@ -126,10 +124,33 @@ export function processFile(filename: string, graph: Graph): void {
 	}
 }
 
-export function processFiles(files: string[], graph: Graph): void {
-	for (const file of files) {
-		processFile(file, graph);
+export function processFiles(filenames: readonly string[], graph: Graph): void {
+	if (filenames.length === 0) {
+		return;
 	}
+
+	const api = new API({ cwd: path.dirname(filenames[0]) });
+	try {
+		const snapshot = api.updateSnapshot({ openFiles: [...filenames] });
+		try {
+			for (const filename of filenames) {
+				const project = snapshot.getDefaultProjectForFile(filename);
+				const sourceFile = project?.program.getSourceFile(filename);
+				if (!sourceFile) {
+					throw new Error(`Unable to parse '${filename}'.`);
+				}
+				processSourceFile(filename, sourceFile, graph);
+			}
+		} finally {
+			snapshot.dispose();
+		}
+	} finally {
+		api.close();
+	}
+}
+
+export function processFile(filename: string, graph: Graph): void {
+	processFiles([filename], graph);
 }
 
 function main(): void {
@@ -147,7 +168,6 @@ function main(): void {
 
 	const files = collectJsFiles(rootDir);
 	const graph = new Graph();
-
 	processFiles(files, graph);
 
 	const allNormalized = files.map(normalize).sort((a, b) => a.localeCompare(b));
