@@ -138,6 +138,13 @@ editor workbench opens its standard multi-diff presentation; the Agents Window
 registers `SessionsChatResponseFileChangesService` to select its canonical
 Changes editor. Providers expose the data but do not choose the presentation.
 
+### Artifacts and customizations
+
+Sessions may expose artifacts recorded by the agent. These are session-scoped.
+Chats may expose the customizations used or read during their turns; these are
+chat-scoped. Providers that cannot determine either may omit the corresponding
+observable.
+
 ## Provider contract
 
 `ISessionsProvider` is defined in
@@ -159,6 +166,11 @@ Catalog events distinguish added, removed, and changed facades. Facade
 replacement is a separate `onDidReplaceSession` lifecycle notification; the
 management service also translates it into an ordinary catalog refresh. Mutable
 fields on a facade remain observable.
+
+A provider that supersedes sessions from another provider may implement
+`resolveSessionResource`. Open paths use this hook to redirect persisted or
+linked resources before lookup. Providers decline unfamiliar resources, in
+which case callers retain the original resource.
 
 ### Drafts
 

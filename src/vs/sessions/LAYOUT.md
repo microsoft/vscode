@@ -79,11 +79,16 @@ closing, and reordering views operate through `ISessionsService`.
 
 The Agents Window supports two presentation families:
 
+The single-pane layout is the default on non-phone viewports when its startup
+setting is enabled. Phone viewports always use the classic layout. The selection
+is made during workbench creation and requires a reload when the setting changes.
+
 ### Classic layout
 
 The Editor is a workbench-grid part and may be hidden independently of the
-Sessions Part and Auxiliary Bar. Modal editor presentation may overlay the
-session surface without changing the underlying workbench topology.
+Sessions Part and Auxiliary Bar. Ordinary editors open in that main Editor;
+editors that require modal presentation use `ModalEditorPart` without changing
+the underlying workbench topology.
 
 ### Single-pane detail layout
 

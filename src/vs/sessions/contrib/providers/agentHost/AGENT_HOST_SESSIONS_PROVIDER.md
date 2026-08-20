@@ -81,6 +81,12 @@ Provider-specific metadata such as pull-request provenance, changesets, agent
 configuration, and external visibility is translated inside this provider.
 Shared Sessions code consumes only provider-neutral fields and capabilities.
 
+Agent-recorded artifacts are persisted with the session and projected through
+`ISession.artifacts`. Pull request and issue artifacts that shared GitHub
+surfaces can represent are promoted into the existing GitHub metadata without
+duplicating them. Customizations used or read by the agent are derived per chat
+and projected through `IChat.customizations`.
+
 ## Draft and send lifecycle
 
 `NewSession` represents an untitled draft before the backend session is
@@ -110,6 +116,11 @@ replaces cached state through the normal catalog lifecycle.
 External sessions remain provider-owned domain objects. Visibility and
 interactivity fields determine whether shared Sessions surfaces present them;
 shared code does not infer visibility from Agent Host URI formats.
+
+Host-owned background activities remain independent of client visibility. Agent
+Merge monitoring prevents an enabled session from idle eviction while work is
+active, resumes eligible sessions after host startup, and releases that
+retention when monitoring ends.
 
 ## Local and remote boundary
 

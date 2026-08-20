@@ -119,6 +119,11 @@ currently active session, and switching the active session can update the
 editor's harness and project context. A transient project-root override takes
 precedence while it is set.
 
+The management-editor command may select a section, target a session type, and
+reveal a URI-addressable customization. Operations that migrate files bind
+destination resolution and confirmation to their initiating session and stop if
+the active session changes.
+
 Provider-backed items retain provider identity through the shared contract.
 Shared widgets must not import or branch on provider implementations.
 

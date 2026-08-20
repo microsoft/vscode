@@ -2427,6 +2427,30 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(listController.items.length, 0);
 		});
 
+		test('refresh preserves the last successful snapshot on failure and accepts complete empty', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+			const store = createSessionListStore(disposables, instantiationService, agentHostService);
+			const controller = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot', store, undefined, 'local'));
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'preserved'), startTime: 1000, modifiedTime: 2000, summary: 'Preserved session' });
+			await controller.refresh(CancellationToken.None);
+
+			agentHostService.listSessions = async () => { throw new Error('catalog unavailable'); };
+			store.resetCache();
+			await controller.refresh(CancellationToken.None);
+			const afterFailure = controller.items.map(item => item.label);
+
+			agentHostService.listSessions = async () => [];
+			store.resetCache();
+			await controller.refresh(CancellationToken.None);
+			assert.deepStrictEqual({
+				afterFailure,
+				afterCompleteEmpty: controller.items.map(item => item.label),
+			}, {
+				afterFailure: ['Preserved session'],
+				afterCompleteEmpty: [],
+			});
+		});
+
 		test('refresh marks archived sessions as archived items', async () => {
 			const { listController, agentHostService } = createContribution(disposables);
 
