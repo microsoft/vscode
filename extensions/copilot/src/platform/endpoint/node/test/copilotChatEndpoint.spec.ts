@@ -294,7 +294,7 @@ describe('CopilotChatEndpoint - Chat Completions token parameter (#328418)', () 
 	it.each([
 		{ modelId: 'mbe_agent_gpt5_4_oai', family: 'gpt-5.4', displayName: 'custom GPT-5 model', customModel: true },
 		{ modelId: 'custom-claude', family: 'claude-sonnet-4', displayName: 'custom non-GPT model', customModel: true }
-	])('sends max_completion_tokens by default for $displayName', ({ modelId, family, displayName, customModel }) => {
+	])('preserves max_tokens by default for $displayName', ({ modelId, family, displayName, customModel }) => {
 		const endpoint = createEndpoint(modelId, family, displayName, customModel);
 		const body = endpoint.createRequestBody({
 			...createTestOptions([{
@@ -310,8 +310,8 @@ describe('CopilotChatEndpoint - Chat Completions token parameter (#328418)', () 
 			max_tokens: body.max_tokens,
 			max_completion_tokens: body.max_completion_tokens
 		}).toEqual({
-			max_tokens: undefined,
-			max_completion_tokens: 256000
+			max_tokens: 256000,
+			max_completion_tokens: undefined
 		});
 	});
 
@@ -328,8 +328,8 @@ describe('CopilotChatEndpoint - Chat Completions token parameter (#328418)', () 
 		});
 	});
 
-	it('sends max_tokens when configured for compatibility', () => {
-		mockServices.configurationService.setConfig(ConfigKey.Advanced.ChatCompletionsTokenParameter, 'max_tokens');
+	it('sends max_completion_tokens when enabled', () => {
+		mockServices.configurationService.setConfig(ConfigKey.Advanced.ChatCompletionsTokenParameter, 'max_completion_tokens');
 		const endpoint = createEndpoint('custom-model', 'custom-family', 'Custom Model');
 		const body = endpoint.createRequestBody({
 			...createTestOptions([{
@@ -345,13 +345,12 @@ describe('CopilotChatEndpoint - Chat Completions token parameter (#328418)', () 
 			max_tokens: body.max_tokens,
 			max_completion_tokens: body.max_completion_tokens
 		}).toEqual({
-			max_tokens: 4096,
-			max_completion_tokens: undefined
+			max_tokens: undefined,
+			max_completion_tokens: 4096
 		});
 	});
 
-	it('replaces an explicitly provided max_completion_tokens with max_tokens when configured for compatibility', () => {
-		mockServices.configurationService.setConfig(ConfigKey.Advanced.ChatCompletionsTokenParameter, 'max_tokens');
+	it('replaces an explicitly provided max_completion_tokens with max_tokens by default', () => {
 		const endpoint = createEndpoint('custom-model', 'custom-family', 'Custom Model');
 		const body: IEndpointBody = {
 			max_completion_tokens: 4096
