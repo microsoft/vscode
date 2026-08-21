@@ -938,6 +938,7 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 				path: URI.file(wtPath),
 				commitish: 'main',
 				newBranchName: 'agents/test-origin-start-point',
+				preferRemoteBranch: true,
 				track: false,
 			});
 			const stat = await fs.stat(join(wtPath, 'upstream.txt'));
