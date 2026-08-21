@@ -165,6 +165,37 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 		});
 	});
 
+	test('treats adjacent fixed-width injected texts as separate atomic spans', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('', '');
+		const lineBreakData = getLineBreakData(factory, 4, 5, 2, WrappingIndent.None, 'normal', false, 'abcdef', null, [
+			new LineInjectedText(0, 1, 4, { content: 'x', widthInEm: 0.5 }, 0),
+			new LineInjectedText(0, 1, 4, { content: 'y', widthInEm: 1 }, 1)
+		]);
+
+		assert.deepStrictEqual({
+			breakOffsets: lineBreakData?.breakOffsets,
+			breakOffsetsVisibleColumn: lineBreakData?.breakOffsetsVisibleColumn
+		}, {
+			breakOffsets: [4, 8],
+			breakOffsetsVisibleColumn: [4, 9]
+		});
+	});
+
+	test('keeps fixed-width injected text wider than the wrap column atomic', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('', '');
+		const lineBreakData = getLineBreakData(factory, 4, 5, 2, WrappingIndent.None, 'normal', false, 'abcdef', null, [
+			new LineInjectedText(0, 1, 4, { content: 'x', widthInEm: 3 }, 0)
+		]);
+
+		assert.deepStrictEqual({
+			breakOffsets: lineBreakData?.breakOffsets,
+			breakOffsetsVisibleColumn: lineBreakData?.breakOffsetsVisibleColumn
+		}, {
+			breakOffsets: [3, 4, 7],
+			breakOffsetsVisibleColumn: [3, 9, 12]
+		});
+	});
+
 	function assertLineBreakDataEqual(a: ModelLineProjectionData | null, b: ModelLineProjectionData | null): void {
 		if (!a || !b) {
 			assert.deepStrictEqual(a, b);

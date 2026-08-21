@@ -10,15 +10,18 @@ import { IEditorConstructionOptions } from '../../../../../editor/browser/config
 import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { EditorExtensionsRegistry, IEditorContributionDescription } from '../../../../../editor/browser/editorExtensions.js';
 import { Range } from '../../../../../editor/common/core/range.js';
-import { DocumentColorProvider } from '../../../../../editor/common/languages.js';
+import { DocumentColorProvider, InlayHintsProvider } from '../../../../../editor/common/languages.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { ColorDetector } from '../../../../../editor/contrib/colorPicker/browser/colorDetector.js';
 import '../../../../../editor/contrib/colorPicker/browser/colorPickerContribution.js';
 import '../../../../../editor/contrib/colorPicker/browser/colorPicker.css';
+import { IInlayHintsCache, InlayHintsController } from '../../../../../editor/contrib/inlayHints/browser/inlayHintsController.js';
+import '../../../../../editor/contrib/inlayHints/browser/inlayHintsContribution.js';
 import { InlineProgressManager } from '../../../../../editor/contrib/inlineProgress/browser/inlineProgress.js';
-import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup, ServiceRegistration } from '../fixtureUtils.js';
 
 const colorDetectorContribution = EditorExtensionsRegistry.getSomeEditorContributions([ColorDetector.ID])[0];
+const inlayHintsContribution = EditorExtensionsRegistry.getSomeEditorContributions([InlayHintsController.ID])[0];
 
 async function renderColorDecorators(context: ComponentFixtureContext): Promise<void> {
 	const { editor } = createEditor(
@@ -58,6 +61,36 @@ async function renderInlineProgress(context: ComponentFixtureContext): Promise<v
 	await timeout(0);
 }
 
+async function renderInlayHints(context: ComponentFixtureContext): Promise<void> {
+	const { editor } = createEditor(
+		context,
+		'const value = computeResult();',
+		'typescript',
+		[inlayHintsContribution],
+		{ inlayHints: { enabled: 'on', fontSize: 12 } },
+		languageFeaturesService => context.disposableStore.add(languageFeaturesService.inlayHintsProvider.register('*', new class implements InlayHintsProvider {
+			provideInlayHints() {
+				return {
+					hints: [{
+						label: ': number',
+						position: { lineNumber: 1, column: 12 },
+						paddingLeft: true,
+						paddingRight: true,
+					}],
+					dispose() { }
+				};
+			}
+		})),
+		registration => registration.defineInstance(IInlayHintsCache, {
+			_serviceBrand: undefined,
+			get: () => undefined,
+			set: () => { },
+		})
+	);
+	editor.getContribution(InlayHintsController.ID);
+	await timeout(50);
+}
+
 function renderFixedWidthWrapping(context: ComponentFixtureContext): void {
 	const { editor } = createEditor(
 		context,
@@ -94,14 +127,18 @@ function createEditor(
 	languageId: string,
 	contributions: IEditorContributionDescription[] = [],
 	options: IEditorConstructionOptions = {},
-	registerLanguageFeatures?: (languageFeaturesService: ILanguageFeaturesService) => void
+	registerLanguageFeatures?: (languageFeaturesService: ILanguageFeaturesService) => void,
+	registerServices?: (registration: ServiceRegistration) => void
 ) {
 	const { container, disposableStore, theme } = context;
 	container.style.width = '420px';
 	container.style.height = '120px';
 	container.style.border = '1px solid var(--vscode-editorWidget-border)';
 
-	const instantiationService = createEditorServices(disposableStore, { colorTheme: theme });
+	const instantiationService = createEditorServices(disposableStore, {
+		colorTheme: theme,
+		additionalServices: registerServices,
+	});
 	const languageFeaturesService = instantiationService.get(ILanguageFeaturesService);
 	registerLanguageFeatures?.(languageFeaturesService);
 	const model = disposableStore.add(createTextModel(
@@ -136,14 +173,22 @@ function createEditor(
 export default defineThemedFixtureGroup({ path: 'editor/' }, {
 	ColorDecorators: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['Three CSS declarations appear on separate lines. Each hexadecimal color is preceded by a square swatch whose fill matches the value. Every swatch is the same size, has a visible contrasting border, and is vertically aligned with its line of text.'],
 		render: renderColorDecorators,
 	}),
 	InlineProgress: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['A single TypeScript statement appears on one line. A small inline progress placeholder separates the equals sign from await without changing the line height or vertical alignment.'],
 		render: renderInlineProgress,
+	}),
+	InlayHints: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['A single TypeScript statement contains a muted : number inlay hint after value. Narrow, equal-width spaces separate the hint from the source text on both sides, and all content stays on one baseline.'],
+		render: renderInlayHints,
 	}),
 	FixedWidthWrapping: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['Proportional-font text wraps to three lines: alpha, beta gamma, and delta epsilon. The invisible fixed-width injection after alpha occupies enough horizontal space to move beta to the second line without creating visible content or horizontal overflow.'],
 		render: renderFixedWidthWrapping,
 	}),
 });
