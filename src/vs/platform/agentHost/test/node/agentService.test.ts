@@ -6677,7 +6677,10 @@ suite('AgentService (node dispatcher)', () => {
 
 				let rejected: unknown;
 				const restore = svc.restoreSession(session).catch(err => { rejected = err; });
-				await advanceUntil(() => agent.listChatsToMigrateCalls > 0);
+				// The gated catalogue migration starts from `registerProvider`, so waiting
+				// on it alone would sample the counters before restore's own (independent)
+				// metadata read has landed.
+				await advanceUntil(() => agent.listChatsToMigrateCalls > 0 && agent.getChatMetadataCalls > 0);
 				const beforeGate = {
 					metadataRead: agent.getChatMetadataCalls,
 					hydrated: !!svc.stateManager.getSessionState(session.toString()),
@@ -6706,7 +6709,9 @@ suite('AgentService (node dispatcher)', () => {
 
 				let rejected: unknown;
 				const restore = svc.restoreSession(session).catch(err => { rejected = err; });
-				await advanceUntil(() => agent.listChatsToMigrateCalls > 0);
+				// Wait until restore is parked on the catalogue: deleting before it reads
+				// metadata would trip the early tombstone check instead of the one after.
+				await advanceUntil(() => agent.listChatsToMigrateCalls > 0 && agent.getChatMetadataCalls > 0);
 				await svc.disposeSession(session);
 				agent.migrationGate.complete();
 				await restore;
