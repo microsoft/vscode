@@ -106,25 +106,6 @@
 		margin-left: auto;
 	}
 
-	.monaco-button.chat-tool-carousel-dismiss-button {
-		min-width: 22px;
-		width: 22px;
-		height: 22px;
-		padding: 0;
-		border: none !important;
-		box-shadow: none !important;
-		background: transparent !important;
-		color: var(--vscode-icon-foreground) !important;
-		cursor: pointer;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
-
-	.monaco-button.chat-tool-carousel-dismiss-button:hover {
-		background: var(--vscode-toolbar-hoverBackground) !important;
-	}
-
 	button:focus,
 	.monaco-button:focus {
 		outline: none !important;
@@ -134,44 +115,6 @@
 	.chat-tool-carousel-nav-arrows {
 		display: flex;
 		align-items: center;
-	}
-
-	.monaco-button.chat-tool-carousel-nav-arrow {
-		min-width: 22px;
-		width: 22px;
-		height: 22px;
-		padding: 0;
-		border: none !important;
-		box-shadow: none !important;
-		background: transparent !important;
-		color: var(--vscode-foreground) !important;
-	}
-
-	.monaco-button.chat-tool-carousel-nav-arrow:hover:not(.disabled) {
-		background: var(--vscode-toolbar-hoverBackground) !important;
-	}
-
-	.monaco-button.chat-tool-carousel-nav-arrow.disabled {
-		opacity: 0.4;
-	}
-
-	.monaco-button.chat-tool-carousel-header-button {
-		min-width: 22px;
-		width: 22px;
-		height: 22px;
-		padding: 0;
-		border: none !important;
-		box-shadow: none !important;
-		background: transparent !important;
-		color: var(--vscode-icon-foreground) !important;
-		cursor: pointer;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
-
-	.monaco-button.chat-tool-carousel-header-button:hover:not(.disabled) {
-		background: var(--vscode-toolbar-hoverBackground) !important;
 	}
 
 	&.chat-tool-carousel-content-expanded {

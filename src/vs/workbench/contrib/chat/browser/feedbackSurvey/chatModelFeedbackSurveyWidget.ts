@@ -18,6 +18,7 @@ import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../platf
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatModelFeedbackSurveyStepKind, IChatModelFeedbackSurveyTextStep } from '../../common/feedbackSurvey/chatModelFeedbackSurveyConfig.js';
 import { IChatResponseViewModel } from '../../common/model/chatViewModel.js';
+import { CHAT_CARD_HEADER_CLASS, CHAT_CARD_LARGE_CLASS, CHAT_CARD_TITLE_CLASS, createChatCardIconButton } from '../widget/chatCard.js';
 import { ChatModelFeedbackSurveyStatus, IChatModelFeedbackSurveyService, IChatModelFeedbackSurveyState } from './chatModelFeedbackSurveyService.js';
 import './media/chatModelFeedbackSurvey.css';
 
@@ -149,9 +150,9 @@ export class ChatModelFeedbackSurveyWidget extends Disposable {
 			return;
 		}
 
-		const panel = dom.append(this.container, dom.$('.chat-feedback-survey-container'));
-		const header = dom.append(panel, dom.$('.chat-feedback-survey-header'));
-		const title = dom.append(header, dom.$('.chat-feedback-survey-title'));
+		const panel = dom.append(this.container, dom.$(`.chat-feedback-survey-container.${CHAT_CARD_LARGE_CLASS}`));
+		const header = dom.append(panel, dom.$(`.chat-feedback-survey-header.${CHAT_CARD_HEADER_CLASS}`));
+		const title = dom.append(header, dom.$(`.chat-feedback-survey-title.${CHAT_CARD_TITLE_CLASS}`));
 		title.textContent = state.isSubmitted
 			? localize('chat.feedbackSurvey.acknowledgement', "Thanks, your feedback has been recorded.")
 			: step.title;
@@ -192,11 +193,11 @@ export class ChatModelFeedbackSurveyWidget extends Disposable {
 
 	private renderCloseButton(header: HTMLElement): Button {
 		const label = localize('chat.feedbackSurvey.dismiss', "Dismiss Survey");
-		const close = this.renderDisposables.add(new Button(header, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
-		close.label = `$(${Codicon.closeSmall.id})`;
-		close.element.classList.add('chat-feedback-survey-close');
-		close.element.setAttribute('aria-label', label);
-		this.renderDisposables.add(this.hoverService.setupDelayedHover(close.element, { content: label }));
+		const close = createChatCardIconButton(this.renderDisposables, header, this.hoverService, {
+			icon: Codicon.closeSmall,
+			ariaLabel: label,
+			hoverContent: label,
+		});
 		this.renderDisposables.add(close.onDidClick(() => this.dismiss()));
 		return close;
 	}

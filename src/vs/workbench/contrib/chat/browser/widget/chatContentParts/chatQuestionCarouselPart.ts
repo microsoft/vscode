@@ -42,6 +42,7 @@ import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { getChatMarkdownRenderOptions } from '../chatContentMarkdownRenderer.js';
+import { CHAT_CARD_HEADER_CLASS, CHAT_CARD_LARGE_CLASS, CHAT_CARD_TITLE_CLASS, createChatCardIconButton } from '../chatCard.js';
 import './media/chatQuestionCarousel.css';
 
 const PREVIOUS_QUESTION_ACTION_ID = 'workbench.action.chat.previousQuestion';
@@ -166,7 +167,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	) {
 		super();
 
-		this.domNode = dom.$('.chat-question-carousel-container');
+		this.domNode = dom.$(`.chat-question-carousel-container.${CHAT_CARD_LARGE_CLASS}`);
 		this.domNode.classList.toggle('chat-question-carousel-conversation', carousel.answerPresentation === 'conversation');
 		this.domNode.id = generateUuid();
 		this._inChatQuestionCarouselContextKey = ChatContextKeys.inChatQuestionCarousel.bindTo(this._contextKeyService);
@@ -232,20 +233,22 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this._headerActionsContainer = dom.$('.chat-question-header-actions');
 
 		const collapseToggleTitle = localize('chat.questionCarousel.collapseTitle', 'Collapse Questions');
-		const collapseButton = interactiveStore.add(new Button(this._headerActionsContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+		const collapseButton = createChatCardIconButton(interactiveStore, this._headerActionsContainer, this._hoverService, {
+			ariaLabel: collapseToggleTitle,
+		});
 		collapseButton.element.classList.add('chat-question-collapse-toggle');
-		collapseButton.element.setAttribute('aria-label', collapseToggleTitle);
 		this._collapseButton = collapseButton;
 
 		// Close/skip button (X) - placed in header row, only shown when allowSkip is true
 		if (carousel.allowSkip) {
 			this._closeButtonContainer = dom.$('.chat-question-close-container');
 			const skipAllTitle = localize('chat.questionCarousel.skipAllTitle', 'Skip all questions');
-			const skipAllButton = interactiveStore.add(new Button(this._closeButtonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
-			skipAllButton.label = `$(${Codicon.closeSmall.id})`;
+			const skipAllButton = createChatCardIconButton(interactiveStore, this._closeButtonContainer, this._hoverService, {
+				icon: Codicon.closeSmall,
+				ariaLabel: skipAllTitle,
+				hoverContent: skipAllTitle,
+			});
 			skipAllButton.element.classList.add('chat-question-close');
-			skipAllButton.element.setAttribute('aria-label', skipAllTitle);
-			interactiveStore.add(this._hoverService.setupDelayedHover(skipAllButton.element, { content: skipAllTitle }));
 			this._skipAllButton = skipAllButton;
 		}
 
@@ -257,11 +260,12 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			const focusTerminalAriaLabel = kbLabel
 				? localize('chat.questionCarousel.focusTerminalAriaLabel', 'Focus Terminal ({0})', kbLabel)
 				: focusTerminalTitle;
-			const focusTerminalButton = interactiveStore.add(new Button(this._focusTerminalButtonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
-			focusTerminalButton.label = `$(${Codicon.terminal.id})`;
+			const focusTerminalButton = createChatCardIconButton(interactiveStore, this._focusTerminalButtonContainer, this._hoverService, {
+				icon: Codicon.terminal,
+				ariaLabel: focusTerminalAriaLabel,
+				hoverContent: focusTerminalTitle,
+			});
 			focusTerminalButton.element.classList.add('chat-question-focus-terminal');
-			focusTerminalButton.element.setAttribute('aria-label', focusTerminalAriaLabel);
-			interactiveStore.add(this._hoverService.setupDelayedHover(focusTerminalButton.element, { content: focusTerminalTitle }));
 			interactiveStore.add(focusTerminalButton.onDidClick(() => this._focusTerminal()));
 
 			// Dismiss the carousel when the user types directly in the terminal,
@@ -776,7 +780,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		}
 
 		const headerRow = dom.$('.chat-question-header-row');
-		const titleRow = dom.$('.chat-question-title-row');
+		const titleRow = dom.$(`.chat-question-title-row.${CHAT_CARD_HEADER_CLASS}`);
 
 		// Render carousel-level message if present (e.g. from MCP elicitation)
 		if (this.carousel.message && this._currentIndex === 0) {
@@ -789,7 +793,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		const questionText = getDisplayedQuestionText(question);
 		if (questionText) {
-			const title = dom.$('.chat-question-title');
+			const title = dom.$(`.chat-question-title.${CHAT_CARD_TITLE_CLASS}`);
 			const messageContent = this.getQuestionText(questionText);
 			title.setAttribute('aria-label', messageContent);
 
@@ -928,20 +932,24 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			const arrowsContainer = dom.$('.chat-question-nav-arrows');
 
 			const previousLabel = this.getLabelWithKeybinding(localize('previous', 'Previous'), PREVIOUS_QUESTION_ACTION_ID);
-			const prevButton = interactiveStore.add(new Button(arrowsContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+			const prevButton = createChatCardIconButton(interactiveStore, arrowsContainer, this._hoverService, {
+				icon: Codicon.chevronLeft,
+				ariaLabel: previousLabel,
+				hoverContent: previousLabel,
+				variant: 'strong',
+			});
 			prevButton.element.classList.add('chat-question-nav-arrow', 'chat-question-nav-prev');
-			prevButton.label = `$(${Codicon.chevronLeft.id})`;
-			prevButton.element.setAttribute('aria-label', previousLabel);
-			interactiveStore.add(this._hoverService.setupDelayedHover(prevButton.element, { content: previousLabel }));
 			interactiveStore.add(prevButton.onDidClick(() => this.navigate(-1)));
 			this._prevButton = prevButton;
 
 			const nextLabel = this.getLabelWithKeybinding(localize('next', 'Next'), NEXT_QUESTION_ACTION_ID);
-			const nextButton = interactiveStore.add(new Button(arrowsContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+			const nextButton = createChatCardIconButton(interactiveStore, arrowsContainer, this._hoverService, {
+				icon: Codicon.chevronRight,
+				ariaLabel: nextLabel,
+				hoverContent: nextLabel,
+				variant: 'strong',
+			});
 			nextButton.element.classList.add('chat-question-nav-arrow', 'chat-question-nav-next');
-			nextButton.label = `$(${Codicon.chevronRight.id})`;
-			nextButton.element.setAttribute('aria-label', nextLabel);
-			interactiveStore.add(this._hoverService.setupDelayedHover(nextButton.element, { content: nextLabel }));
 			interactiveStore.add(nextButton.onDidClick(() => this.navigate(1)));
 			this._nextButton = nextButton;
 
