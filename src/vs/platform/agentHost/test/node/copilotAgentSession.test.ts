@@ -3481,19 +3481,30 @@ suite('CopilotAgentSession', () => {
 		]);
 	});
 
-	test('drops usage for an unmapped subagent identity', async () => {
+	test('keeps unmapped subagent usage in root inclusive totals without direct attribution', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 
 		session.resetTurnState('turn-root');
-		const usageCountBefore = getActions(signals).filter(action => action.type === ActionType.ChatUsage).length;
 		mockSession.fire('assistant.usage', {
 			model: 'gpt-5.5',
 			inputTokens: 100,
 			outputTokens: 20,
+			copilotUsage: { totalNanoAiu: 400_000_000, tokenDetails: [] },
 		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'unknown-agent' });
-		const usageCountAfter = getActions(signals).filter(action => action.type === ActionType.ChatUsage).length;
 
-		assert.strictEqual(usageCountAfter, usageCountBefore);
+		const usageSignals = signals.filter((signal): signal is IAgentActionSignal =>
+			signal.kind === 'action' && signal.action.type === ActionType.ChatUsage
+		);
+		assert.strictEqual(usageSignals.some(signal => signal.parentToolCallId !== undefined), false);
+		const rootUsage = usageSignals.at(-1)?.action;
+		assert.ok(rootUsage?.type === ActionType.ChatUsage);
+		const meta = rootUsage.usage._meta as UsageInfoMeta | undefined;
+		assert.deepStrictEqual(meta?.turnTokenTotals, [
+			{ model: 'gpt-5.5', inputTokens: 100, cachedTokens: 0, outputTokens: 20 },
+		]);
+		assert.deepStrictEqual(meta?.copilotUsage, { totalNanoAiu: 400_000_000 });
+		assert.strictEqual(meta?.directTurnTokenTotals, undefined);
+		assert.strictEqual(meta?.directCopilotUsage, undefined);
 	});
 
 	test('routes legacy parentToolCallId usage to the child direct bucket', async () => {
@@ -3519,6 +3530,17 @@ suite('CopilotAgentSession', () => {
 			{ model: 'gpt-5.5', inputTokens: 9, cachedTokens: 0, outputTokens: 3 },
 		]);
 		assert.deepStrictEqual(meta?.directCopilotUsage, { totalNanoAiu: 400_000_000 });
+		const rootUsage = signals.find((signal): signal is IAgentActionSignal =>
+			signal.kind === 'action'
+			&& signal.parentToolCallId === undefined
+			&& signal.action.type === ActionType.ChatUsage
+		);
+		assert.ok(rootUsage?.action.type === ActionType.ChatUsage);
+		const rootMeta = rootUsage.action.usage._meta as UsageInfoMeta | undefined;
+		assert.deepStrictEqual(rootMeta?.turnTokenTotals, [
+			{ model: 'gpt-5.5', inputTokens: 9, cachedTokens: 0, outputTokens: 3 },
+		]);
+		assert.deepStrictEqual(rootMeta?.copilotUsage, { totalNanoAiu: 400_000_000 });
 	});
 
 	test('attributes subagent compaction to the child direct bucket', async () => {

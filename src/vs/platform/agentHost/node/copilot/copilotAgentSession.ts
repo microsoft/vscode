@@ -4823,10 +4823,14 @@ export class CopilotAgentSession extends Disposable {
 			// needs only the subagent's own running component total emitted to its
 			// child session (via `parentToolCallId`) for the subagent tool to show
 			// its own cost.
-			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e) ?? e.data.parentToolCallId;
-			if (e.agentId && !parentToolCallId) {
-				this._logService.warn(`[Copilot:${sessionId}] Dropping assistant.usage for unknown subagent agentId=${e.agentId}`);
-				return;
+			const mappedParentToolCallId = this._parentToolCallIdForSubagentEvent(e);
+			const parentToolCallId = mappedParentToolCallId ?? e.data.parentToolCallId;
+			const isUnmappedSubagent = !!e.agentId && !parentToolCallId;
+			if (!mappedParentToolCallId && e.data.parentToolCallId && this._currentTurn) {
+				this._rootTurnIdBySubagentToolCallId.set(e.data.parentToolCallId, this._currentTurn.id);
+			}
+			if (isUnmappedSubagent) {
+				this._logService.warn(`[Copilot:${sessionId}] Unable to attribute direct assistant.usage for unknown subagent agentId=${e.agentId}; retaining inclusive root usage`);
 			}
 			if (!parentToolCallId && !e.agentId) {
 				this._promptCacheRefreshGeneration++;
@@ -4843,7 +4847,7 @@ export class CopilotAgentSession extends Disposable {
 			// present at runtime. Forward the per-category snapshots on `_meta` so the client can keep the
 			// account quota UI current. Mirrors the extension-host CLI path, which feeds these into its quota service.
 			const quotaSnapshots = normalizeQuotaSnapshots((e.data as unknown as Record<string, unknown>).quotaSnapshots);
-			const turn = this._owningRootTurn(parentToolCallId);
+			const turn = isUnmappedSubagent ? this._currentTurn : this._owningRootTurn(parentToolCallId);
 
 			if (typeof e.data.model === 'string' && e.data.model) {
 				this._lastSeenModelId = e.data.model;
@@ -4869,7 +4873,7 @@ export class CopilotAgentSession extends Disposable {
 			// subagent call counts toward the turn under its own model without
 			// being counted twice by the parent and subagent emits below.
 			turn?.addTokenTotals(eventContext.model, eventContext);
-			const directUsage = this._directUsageFor(parentToolCallId, true);
+			const directUsage = isUnmappedSubagent ? undefined : this._directUsageFor(parentToolCallId, true);
 			directUsage?.add(eventContext.model, eventContext, copilotUsage?.totalNanoAiu);
 
 			// Builds a usage object carrying the given context's tokens/model plus
@@ -4925,7 +4929,7 @@ export class CopilotAgentSession extends Disposable {
 			// Parent turn aggregate: a subagent event must not replace the parent
 			// turn's own model/context-token usage, so preserve the parent's context.
 			if (turn) {
-				const parentContext = parentToolCallId ? (turn.parentContextUsage ?? {}) : eventContext;
+				const parentContext = (parentToolCallId || isUnmappedSubagent) ? (turn.parentContextUsage ?? {}) : eventContext;
 				const parentUsage = buildUsage(parentContext, this._parentCopilotUsageMeta(), true, undefined);
 				lastParentUsage = parentUsage;
 				lastParentUsageTurnId = this._turnId;
