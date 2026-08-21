@@ -177,11 +177,11 @@ export interface ISessionsService {
 
 	/**
 	 * Whether the given session may be opened, honoring workspace trust. When the
-	 * session requires workspace trust and the folder it runs in is not trusted,
-	 * this surfaces VS Code's standard workspace-trust request and resolves to
-	 * `false` if the user declines — so callers can gate the act of opening a
-	 * session from the list, leaving the current session (or the empty
-	 * new-session slot) untouched when trust is refused.
+	 * session requires workspace trust and any folder it runs in is not trusted,
+	 * this surfaces VS Code's standard workspace-trust request for each such folder
+	 * and resolves to `false` if the user declines any — so callers can gate the
+	 * act of opening a session from the list, leaving the current session (or the
+	 * empty new-session slot) untouched when trust is refused.
 	 */
 	canOpenSession(session: ISession): Promise<boolean>;
 
@@ -827,25 +827,28 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (!workspace?.requiresWorkspaceTrust) {
 			return true;
 		}
-		const folder = workspace.folders[0];
-		if (!folder) {
-			return true;
+		// Every folder the session operates in must be trusted before it opens, not
+		// just the primary one: the agent — and its tasks, terminals and other
+		// tooling — can run against any of the session's working directories, so we
+		// make no assumptions about the non-primary folders being harmless. Check
+		// all in parallel (fast path when already trusted), then surface VS Code's
+		// standard workspace-trust dialog for each untrusted folder in turn.
+		// Declining any leaves the current session (or empty new-session slot)
+		// untouched. Run from this imperative open path (not the reactive mount),
+		// the prompt fires once per open and cannot loop.
+		const folders = workspace.folders.map(folder => folder.workingDirectory);
+		const trustInfos = await Promise.all(folders.map(folder => this.workspaceTrustManagementService.getUriTrustInfo(folder)));
+		const untrustedFolders = folders.filter((_, index) => !trustInfos[index].trusted);
+		for (const folder of untrustedFolders) {
+			const trusted = await this.workspaceTrustRequestService.requestResourcesTrust({
+				uri: folder,
+				message: localize('sessionsService.trustFolderMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
+			});
+			if (!trusted) {
+				return false;
+			}
 		}
-		// Only the mounted folder (index 0) governs window trust; any additional
-		// working directories are gated at agent-operation time by the send-side
-		// trust check, and a cold session persists only its primary folder.
-		if ((await this.workspaceTrustManagementService.getUriTrustInfo(folder.workingDirectory)).trusted) {
-			return true;
-		}
-		// The folder is untrusted: surface VS Code's standard workspace-trust
-		// request. Opening proceeds only if the user grants trust; declining
-		// leaves the current session (or empty new-session slot) untouched. Run
-		// from this imperative open path (not the reactive mount), the prompt
-		// fires once per open and cannot loop.
-		return !!await this.workspaceTrustRequestService.requestResourcesTrust({
-			uri: folder.workingDirectory,
-			message: localize('sessionsService.trustFolderMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
-		});
+		return true;
 	}
 
 	showSession(sessionResource: URI, options?: { preserveFocus?: boolean }): void {
