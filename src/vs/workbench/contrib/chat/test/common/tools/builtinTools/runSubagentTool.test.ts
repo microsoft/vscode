@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
@@ -21,8 +23,9 @@ import { Target } from '../../../../common/promptSyntax/promptTypes.js';
 import { MockPromptsService } from '../../promptSyntax/service/mockPromptsService.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 import { IToolInvocation, ToolProgress } from '../../../../common/tools/languageModelToolsService.js';
-import { IChatModel, IChatRequestModeInstructions } from '../../../../common/model/chatModel.js';
+import { IChatModel, IChatRequestModeInstructions, Response } from '../../../../common/model/chatModel.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
+import { annotateSpecialMarkdownContent, extractCodeblockUrisFromText } from '../../../../common/widget/annotations.js';
 
 suite('RunSubagentTool', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -912,6 +915,173 @@ suite('RunSubagentTool', () => {
 					return true;
 				}
 			);
+		});
+	});
+
+	suite('edit progress rendering', () => {
+		const countTokens = async () => 0;
+		const noProgress: ToolProgress = { report() { } };
+
+		test('isolates interleaved edits and parent markdown into separate merge domains', async () => {
+			const response = testDisposables.add(new Response([]));
+			const firstEditEmitted = new DeferredPromise<void>();
+			const secondAgentEmitted = new DeferredPromise<void>();
+			const editUris = {
+				first: URI.parse('file:///workspace/first.ts'),
+				second: URI.parse('file:///workspace/second.ts'),
+				third: URI.parse('file:///workspace/third.ts'),
+			};
+			const acceptedProgress: IChatProgress[] = [];
+			const rawEditEmissions: { subAgentInvocationId: string; parts: IChatProgress[] }[] = [];
+			const emitEdit = (subAgentInvocationId: string, progress: (parts: IChatProgress[]) => void, uri: URI) => {
+				const start = acceptedProgress.length;
+				progress([{ kind: 'codeblockUri', uri, isEdit: true }]);
+				rawEditEmissions.push({ subAgentInvocationId, parts: acceptedProgress.slice(start) });
+			};
+			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
+			const mockChatAgentService: Pick<IChatAgentService, 'getDefaultAgent' | 'invokeAgent'> = {
+				getDefaultAgent() {
+					return { id: 'default-agent' } as IChatAgentService extends { getDefaultAgent(...args: infer _A): infer R } ? NonNullable<R> : never;
+				},
+				async invokeAgent(_id: string, request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void): Promise<IChatAgentResult> {
+					const subAgentInvocationId = request.subAgentInvocationId;
+					if (!subAgentInvocationId) {
+						throw new Error('Expected a subagent invocation ID');
+					}
+					if (subAgentInvocationId === 'subagent-a') {
+						emitEdit(subAgentInvocationId, progress, editUris.first);
+						firstEditEmitted.complete();
+						await secondAgentEmitted.p;
+						emitEdit(subAgentInvocationId, progress, editUris.third);
+					} else {
+						await firstEditEmitted.p;
+						emitEdit(subAgentInvocationId, progress, editUris.second);
+						secondAgentEmitted.complete();
+					}
+					return {};
+				},
+			};
+			const request = { id: 'request-1' };
+			let undoStopCount = 0;
+			const mockChatService: Pick<IChatService, 'getSession'> = {
+				getSession() {
+					return {
+						getRequests: () => [request],
+						acceptResponseProgress: (_request: unknown, progress: IChatProgress) => {
+							acceptedProgress.push(progress);
+							if (progress.kind === 'codeblockUri' && progress.isEdit) {
+								// ChatModel.acceptResponseProgress adds an undo stop before every edit marker.
+								response.updateContent({ kind: 'undoStop', id: `undo-${++undoStopCount}` }, true);
+							}
+							if (progress.kind === 'markdownContent' || progress.kind === 'codeblockUri') {
+								response.updateContent(progress);
+							}
+						},
+					} as unknown as IChatModel;
+				},
+			};
+			const mockInstantiationService: Pick<IInstantiationService, 'createInstance'> = {
+				createInstance(..._args: never[]): { collect: () => Promise<void> } {
+					return { collect: async () => { } };
+				},
+			};
+			const tool = testDisposables.add(new RunSubagentTool(
+				mockChatAgentService as IChatAgentService,
+				mockChatService as IChatService,
+				mockToolsService,
+				{} as ILanguageModelsService,
+				new NullLogService(),
+				new TestConfigurationService(),
+				new MockPromptsService(),
+				mockInstantiationService as IInstantiationService,
+				{} as IProductService,
+			));
+			const sessionResource = URI.parse('test://session/edit-progress');
+			const createInvocation = (callId: string): IToolInvocation => ({
+				callId,
+				chatStreamToolCallId: callId,
+				toolId: RunSubagentTool.Id,
+				parameters: { prompt: 'edit files', description: 'test edits' },
+				context: { sessionResource },
+				userSelectedTools: { runSubagent: true },
+			} as IToolInvocation);
+
+			await Promise.all([
+				tool.invoke(createInvocation('subagent-a'), countTokens, noProgress, CancellationToken.None),
+				tool.invoke(createInvocation('subagent-b'), countTokens, noProgress, CancellationToken.None),
+			]);
+			response.updateContent({ kind: 'markdownContent', content: new MarkdownString('```text\nparent output\n```\n') });
+
+			const rendered = annotateSpecialMarkdownContent(response.value);
+			const markdownParts = rendered.filter(part => part.kind === 'markdownContent');
+			const editParts = markdownParts
+				.map(part => ({ part, extracted: extractCodeblockUrisFromText(part.content.value) }))
+				.filter((entry): entry is typeof entry & { extracted: NonNullable<typeof entry.extracted> } => !!entry.extracted)
+				.sort((a, b) => a.extracted.uri.path.localeCompare(b.extracted.uri.path));
+			const mergeKeys = editParts.map(({ part }) => part.content.baseUri?.toString());
+			const normalizedRawEmissions = rawEditEmissions.map(emission => ({
+				subAgentInvocationId: emission.subAgentInvocationId,
+				parts: emission.parts.map(part => {
+					if (part.kind === 'markdownContent') {
+						const baseUri = part.content.baseUri ? URI.from(part.content.baseUri) : undefined;
+						return {
+							kind: part.kind,
+							value: part.content.value,
+							mergeKey: baseUri ? `${baseUri.scheme}:${baseUri.path.replace(/\/[0-9a-f-]{36}$/, '/<edit-uuid>')}` : undefined,
+						};
+					}
+					return part.kind === 'codeblockUri'
+						? { kind: part.kind, uri: part.uri.toString(), subAgentInvocationId: part.subAgentInvocationId }
+						: { kind: part.kind };
+				}),
+			}));
+
+			assert.deepStrictEqual({
+				rawEditEmissions: normalizedRawEmissions,
+				edits: editParts.map(({ part, extracted }) => ({
+					uri: extracted.uri.toString(),
+					subAgentInvocationId: extracted.subAgentInvocationId,
+					textWithoutMarker: extracted.textWithoutResult,
+					mergeKeyScheme: part.content.baseUri?.scheme,
+					mergeKeyPath: part.content.baseUri ? URI.from(part.content.baseUri).path.replace(/\/[0-9a-f-]{36}$/, '/<edit-uuid>') : undefined,
+				})),
+				uniqueMergeKeys: new Set(mergeKeys).size,
+				parentMarkdown: markdownParts.find(part => !extractCodeblockUrisFromText(part.content.value))?.content.value,
+			}, {
+				rawEditEmissions: [
+					{
+						subAgentInvocationId: 'subagent-a',
+						parts: [
+							{ kind: 'markdownContent', value: '```\n', mergeKey: 'vscode-subagent-edit:/subagent-a/<edit-uuid>' },
+							{ kind: 'codeblockUri', uri: editUris.first.toString(), subAgentInvocationId: 'subagent-a' },
+							{ kind: 'markdownContent', value: '\n```\n\n', mergeKey: 'vscode-subagent-edit:/subagent-a/<edit-uuid>' },
+						],
+					},
+					{
+						subAgentInvocationId: 'subagent-b',
+						parts: [
+							{ kind: 'markdownContent', value: '```\n', mergeKey: 'vscode-subagent-edit:/subagent-b/<edit-uuid>' },
+							{ kind: 'codeblockUri', uri: editUris.second.toString(), subAgentInvocationId: 'subagent-b' },
+							{ kind: 'markdownContent', value: '\n```\n\n', mergeKey: 'vscode-subagent-edit:/subagent-b/<edit-uuid>' },
+						],
+					},
+					{
+						subAgentInvocationId: 'subagent-a',
+						parts: [
+							{ kind: 'markdownContent', value: '```\n', mergeKey: 'vscode-subagent-edit:/subagent-a/<edit-uuid>' },
+							{ kind: 'codeblockUri', uri: editUris.third.toString(), subAgentInvocationId: 'subagent-a' },
+							{ kind: 'markdownContent', value: '\n```\n\n', mergeKey: 'vscode-subagent-edit:/subagent-a/<edit-uuid>' },
+						],
+					},
+				],
+				edits: [
+					{ uri: editUris.first.toString(), subAgentInvocationId: 'subagent-a', textWithoutMarker: '```\n\n```\n\n', mergeKeyScheme: 'vscode-subagent-edit', mergeKeyPath: '/subagent-a/<edit-uuid>' },
+					{ uri: editUris.second.toString(), subAgentInvocationId: 'subagent-b', textWithoutMarker: '```\n\n```\n\n', mergeKeyScheme: 'vscode-subagent-edit', mergeKeyPath: '/subagent-b/<edit-uuid>' },
+					{ uri: editUris.third.toString(), subAgentInvocationId: 'subagent-a', textWithoutMarker: '```\n\n```\n\n', mergeKeyScheme: 'vscode-subagent-edit', mergeKeyPath: '/subagent-a/<edit-uuid>' },
+				],
+				uniqueMergeKeys: 3,
+				parentMarkdown: '```text\nparent output\n```\n',
+			});
 		});
 	});
 
