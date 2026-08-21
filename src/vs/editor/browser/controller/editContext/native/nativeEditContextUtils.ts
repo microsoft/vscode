@@ -63,6 +63,7 @@ export class FocusTracker extends Disposable {
 	public focus(): void {
 		this._domNode.focus();
 		this.refreshFocusState();
+		setTimeout(() => this.refreshFocusState(), 0);
 	}
 
 	public refreshFocusState(): void {
