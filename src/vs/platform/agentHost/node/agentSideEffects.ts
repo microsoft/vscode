@@ -304,6 +304,7 @@ export class AgentSideEffects extends Disposable {
 			copilotApiService: this._options.copilotApiService,
 			isActiveAgentTitleGenerationEnabled: () => this._agentConfigService.getRootValue(platformRootSchema, AgentHostActiveAgentTitleGenerationConfigKey) === true,
 		}));
+		this._register(this._stateManager.onDidSnapshotDefaultChatTitle(event => this._persistDefaultChatTitleSnapshot(event.session, event.chat, event.title)));
 		this._localCommands = this._register(instantiationService.createInstance(
 			AgentHostLocalCommands,
 			this._stateManager,
@@ -1720,13 +1721,16 @@ export class AgentSideEffects extends Disposable {
 			}
 			case ActionType.SessionTitleChanged: {
 				if (chatChannel) {
-					// The rename targeted a specific chat (default or additional),
-					// not the whole session. Route it to a per-chat title update so
-					// the session title stays independent.
 					this._stateManager.updateChatTitle(sessionChannel, chatChannel, action.title);
 					this._persistSessionFlag(sessionChannel, customChatTitleMetadataKey(chatChannel), action.title);
 					this._persistSessionFlag(sessionChannel, customChatTitleSourceMetadataKey(chatChannel), AGENT_HOST_TITLE_SOURCE_USER);
 					this._titleController.markTitleRenamed(sessionChannel, chatChannel);
+					if (isDefaultChatUri(chatChannel)) {
+						this._stateManager.dispatchServerAction(sessionChannel, action);
+						this._persistSessionFlag(sessionChannel, SESSION_CUSTOM_TITLE_KEY, action.title);
+						this._persistSessionFlag(sessionChannel, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_USER);
+						this._titleController.markTitleRenamed(sessionChannel);
+					}
 					break;
 				}
 				this._persistSessionFlag(channel, SESSION_CUSTOM_TITLE_KEY, action.title);
@@ -1925,6 +1929,34 @@ export class AgentSideEffects extends Disposable {
 	 */
 	private _persistSessionFlag(session: ProtocolURI, key: string, value: string): void {
 		persistSessionMetadata(this._options.sessionDataService, this._logService, session, key, value);
+	}
+
+	private _persistDefaultChatTitleSnapshot(session: ProtocolURI, chat: ProtocolURI, title: string): void {
+		const ref = (() => {
+			try {
+				return this._options.sessionDataService.openDatabase(URI.parse(session));
+			} catch (error) {
+				this._logService.warn('[AgentSideEffects] Failed to open session database for default chat title snapshot', error);
+				return undefined;
+			}
+		})();
+		if (!ref) {
+			return;
+		}
+		const persist = async () => {
+			if (this._stateManager.getChatState(chat)?.title !== title) {
+				return;
+			}
+			const titleKey = customChatTitleMetadataKey(chat);
+			await ref.object.setMetadataValuesIfAbsent(
+				titleKey,
+				{ [titleKey]: title },
+				{ [customChatTitleSourceMetadataKey(chat)]: SESSION_CUSTOM_TITLE_SOURCE_KEY },
+			);
+		};
+		void persist().catch(error => {
+			this._logService.warn('[AgentSideEffects] Failed to persist default chat title snapshot', error);
+		}).finally(() => ref.dispose());
 	}
 
 	/**
