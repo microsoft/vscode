@@ -328,12 +328,12 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 				session: replacement,
 				discard: async () => {
 					targetProvider.deleteNewSession(replacement.sessionId);
-					await this._devContainerAgentHostService.disconnect(sourceWorkspace);
+					await target.release();
 				},
 			};
 		} catch (error) {
 			targetProvider.deleteNewSession(replacement.sessionId);
-			await this._devContainerAgentHostService.disconnect(sourceWorkspace);
+			await target.release();
 			throw error;
 		}
 	}

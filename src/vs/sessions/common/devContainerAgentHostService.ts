@@ -34,6 +34,8 @@ export interface IDevContainerAgentHostConnector {
 export interface IDevContainerAgentHostTarget {
 	readonly providerId: string;
 	readonly workspaceUri: URI;
+	/** Release this caller's ownership of the shared workspace connection. */
+	release(): Promise<void>;
 }
 
 export const IDevContainerAgentHostService = createDecorator<IDevContainerAgentHostService>('devContainerAgentHostService');

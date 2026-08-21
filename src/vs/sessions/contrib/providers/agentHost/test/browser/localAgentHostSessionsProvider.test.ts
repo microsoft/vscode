@@ -3002,7 +3002,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const targetProviderId = 'agenthost-devcontainer';
 		const state: { provider?: LocalAgentHostSessionsProvider; replacement?: ISession } = {};
 		let connectedWorkspace: URI | undefined;
-		let disconnectedWorkspace: URI | undefined;
+		let releaseCalls = 0;
 		const trustedTargetUris: string[] = [];
 		const deletedTargetDrafts: string[] = [];
 		const transferredConfig: [string, unknown][] = [];
@@ -3049,10 +3049,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 			}
 			override async connect(workspaceUri: URI) {
 				connectedWorkspace = workspaceUri;
-				return { providerId: targetProviderId, workspaceUri: remoteWorkspace };
-			}
-			override async disconnect(workspaceUri: URI): Promise<void> {
-				disconnectedWorkspace = workspaceUri;
+				return {
+					providerId: targetProviderId,
+					workspaceUri: remoteWorkspace,
+					release: async () => { releaseCalls++; },
+				};
 			}
 		}();
 		const provider = createProvider(disposables, agentHost, undefined, {
@@ -3090,7 +3091,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			preparedSessionId: prepared.session.sessionId,
 			transferredConfig,
 			deletedTargetDrafts,
-			disconnectedWorkspace: disconnectedWorkspace?.toString(),
+			releaseCalls,
 			trustedTargetUris,
 		}, {
 			available: true,
@@ -3099,7 +3100,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			preparedSessionId: replacement.sessionId,
 			transferredConfig: [['mode', 'interactive']],
 			deletedTargetDrafts: [replacement.sessionId],
-			disconnectedWorkspace: 'file:///home/user/project',
+			releaseCalls: 1,
 			trustedTargetUris: [remoteWorkspace.toString()],
 		});
 	});

@@ -179,11 +179,19 @@ suite('Dev Container Agent Host Service', () => {
 
 		const first = await service.connect(sourceWorkspace, CancellationToken.None);
 		const second = await service.connect(sourceWorkspace, CancellationToken.None);
-		await service.disconnect(sourceWorkspace);
+		await first.release();
+		await first.release();
+		const afterFirstRelease = {
+			removedAddress: remoteAgentHostService.removedAddress,
+			connectionDisposed: connection.disposed,
+			transportDisposed,
+		};
+		await second.release();
 
 		assert.deepStrictEqual({
-			target: first,
-			reusedTarget: second === first,
+			target: { providerId: first.providerId, workspaceUri: first.workspaceUri },
+			reusedConnection: second.providerId === first.providerId && second.workspaceUri.toString() === first.workspaceUri.toString(),
+			afterFirstRelease,
 			connectorCalls,
 			entry: remoteAgentHostService.addedEntry,
 			provider: service.provider && {
@@ -202,7 +210,12 @@ suite('Dev Container Agent Host Service', () => {
 				providerId: `agenthost-${agentHostAuthority(address)}`,
 				workspaceUri: remoteWorkspace,
 			},
-			reusedTarget: true,
+			reusedConnection: true,
+			afterFirstRelease: {
+				removedAddress: undefined,
+				connectionDisposed: false,
+				transportDisposed: false,
+			},
 			connectorCalls: 1,
 			entry: {
 				name: 'Source Dev Container',
@@ -224,6 +237,54 @@ suite('Dev Container Agent Host Service', () => {
 			},
 			registeredProviders: [],
 			removedAddress: address,
+			connectionDisposed: true,
+			transportDisposed: true,
+		});
+	});
+
+	test('disconnect forces teardown while a connection lease is held', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const remoteAgentHostService = store.add(new TestRemoteAgentHostService());
+		const sessionsProvidersService = store.add(new TestSessionsProvidersService());
+		const service = store.add(new TestDevContainerAgentHostService(
+			instantiationService,
+			remoteAgentHostService,
+			sessionsProvidersService,
+		));
+
+		const sourceWorkspace = URI.file('/source');
+		const address = 'devcontainer:source';
+		const connection = new TestAgentConnection();
+		let transportDisposed = false;
+		store.add(service.registerConnector({
+			isAvailable: async () => true,
+			connect: async () => ({
+				address,
+				name: 'Source Dev Container',
+				connection,
+				transportDisposable: toDisposable(() => transportDisposed = true),
+				workspaceUri: URI.from({
+					scheme: AGENT_HOST_SCHEME,
+					authority: agentHostAuthority(address),
+					path: '/workspaces/source',
+				}),
+			}),
+		}));
+
+		const target = await service.connect(sourceWorkspace, CancellationToken.None);
+		await service.disconnect(sourceWorkspace);
+		await target.release();
+
+		assert.deepStrictEqual({
+			removedAddress: remoteAgentHostService.removedAddress,
+			providerDisposed: service.provider?.disposed,
+			registeredProviders: sessionsProvidersService.getProviders(),
+			connectionDisposed: connection.disposed,
+			transportDisposed,
+		}, {
+			removedAddress: address,
+			providerDisposed: true,
+			registeredProviders: [],
 			connectionDisposed: true,
 			transportDisposed: true,
 		});
