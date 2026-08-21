@@ -44,7 +44,7 @@ import {
 	selectGatewayFallbackAfterRejection,
 	TunnelFailoverTracker,
 } from '../../../../../platform/agentHost/common/tunnelGatewaySelection.js';
-import { RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
+import { AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { agentsWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
 import { TunnelRelayTransport } from '../../../../../platform/agentHost/electron-browser/tunnelRelayTransport.js';
 
@@ -203,7 +203,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 		// Build relay transport + protocol client. If construction itself
 		// fails (rare — would mean the AHP logger or transport ctor threw)
 		// tear the just-opened main-side relay down before propagating.
-		let protocolClient: RemoteAgentHostProtocolClient;
+		let protocolClient: AgentHostProtocolClient;
 		try {
 			const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
 			const logger = ahpLoggingEnabled ? this._instantiationService.createInstance(
@@ -212,7 +212,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 			) : undefined;
 			const transport = new TunnelRelayTransport(result.connectionId, this._mainService, logger);
 			protocolClient = this._instantiationService.createInstance(
-				RemoteAgentHostProtocolClient, result.address, transport, undefined, undefined, agentsWindowAgentHostClientInfo,
+				AgentHostProtocolClient, result.address, transport, undefined, undefined, agentsWindowAgentHostClientInfo,
 			);
 		} catch (err) {
 			this._logService.error(`${LOG_PREFIX} Connection setup failed`, err);

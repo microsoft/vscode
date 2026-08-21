@@ -17,7 +17,7 @@ import { createDecorator, IInstantiationService } from '../../instantiation/comm
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
 import { AgentHostAhpJsonlLoggingSettingId } from '../common/agentService.js';
 import { WSLRelayTransport } from './wslRelayTransport.js';
-import { RemoteAgentHostProtocolClient } from '../browser/remoteAgentHostProtocolClient.js';
+import { AgentHostProtocolClient } from '../browser/agentHostProtocolClient.js';
 import { agentsWindowAgentHostClientInfo } from '../common/agentHostClientInfo.js';
 import {
 	IWSLRemoteAgentHostService,
@@ -35,7 +35,7 @@ export const IWSLRelayClientFactory = createDecorator<IWSLRelayClientFactory>('w
 
 export interface IWSLRelayClientFactory {
 	readonly _serviceBrand: undefined;
-	createClient(mainService: IWSLRemoteAgentHostMainService, connectionId: string, address: string): RemoteAgentHostProtocolClient;
+	createClient(mainService: IWSLRemoteAgentHostMainService, connectionId: string, address: string): AgentHostProtocolClient;
 }
 
 export class WSLRelayClientFactory implements IWSLRelayClientFactory {
@@ -47,14 +47,14 @@ export class WSLRelayClientFactory implements IWSLRelayClientFactory {
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 	) { }
 
-	createClient(mainService: IWSLRemoteAgentHostMainService, connectionId: string, address: string): RemoteAgentHostProtocolClient {
+	createClient(mainService: IWSLRemoteAgentHostMainService, connectionId: string, address: string): AgentHostProtocolClient {
 		const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
 		const logger = ahpLoggingEnabled ? this._instantiationService.createInstance(
 			AhpJsonlLogger,
 			{ logsHome: this._environmentService.logsHome, connectionId, transport: 'wsl' },
 		) : undefined;
 		const transport = this._instantiationService.createInstance(WSLRelayTransport, connectionId, mainService, logger);
-		return this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address, transport, undefined, undefined, agentsWindowAgentHostClientInfo);
+		return this._instantiationService.createInstance(AgentHostProtocolClient, address, transport, undefined, undefined, agentsWindowAgentHostClientInfo);
 	}
 }
 
@@ -186,7 +186,7 @@ export class WSLRemoteAgentHostService extends Disposable implements IWSLRemoteA
 			this._onDidChangeConnections.fire();
 		}
 
-		let protocolClient: RemoteAgentHostProtocolClient | undefined;
+		let protocolClient: AgentHostProtocolClient | undefined;
 		let handle: WSLAgentHostConnectionHandle | undefined;
 		let registeredHandle = false;
 		try {

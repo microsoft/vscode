@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
+import { AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { agentsWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { deriveConnectionToken } from '../../../../../platform/agentHost/common/tunnelAgentHostConnector.js';
@@ -160,7 +160,7 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 		const transport = new TunnelConnectionTransport(connection, this._logService);
 		const address = `${TUNNEL_ADDRESS_PREFIX}${tunnelId}`;
 		const protocolClient = this._instantiationService.createInstance(
-			RemoteAgentHostProtocolClient, address, transport, undefined, undefined, agentsWindowAgentHostClientInfo,
+			AgentHostProtocolClient, address, transport, undefined, undefined, agentsWindowAgentHostClientInfo,
 		);
 
 		// Keep an incompatible handshake from tearing down the relay: the
@@ -278,7 +278,7 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 
 /**
  * Adapts an {@link ITunnelConnection} (embedder-provided) into an
- * {@link IProtocolTransport} for {@link RemoteAgentHostProtocolClient}.
+ * {@link IProtocolTransport} for {@link AgentHostProtocolClient}.
  *
  * The connection is already established by the time this adapter is created,
  * so there is no `connect()` method — the protocol client skips that step.

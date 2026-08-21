@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
+import { AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { agentsWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { IRemoteAgentHostLocationPreferenceService } from '../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
@@ -233,7 +233,7 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 		}
 		const transport = new BrowserTunnelConnectionTransport(result.connectionId, this._connector, this._logService);
 		const protocolClient = this._instantiationService.createInstance(
-			RemoteAgentHostProtocolClient, result.address, transport, undefined, undefined, agentsWindowAgentHostClientInfo,
+			AgentHostProtocolClient, result.address, transport, undefined, undefined, agentsWindowAgentHostClientInfo,
 		);
 
 		let status: RemoteAgentHostConnectionStatus = RemoteAgentHostConnectionStatus.connected;
