@@ -20,13 +20,14 @@ export interface IMeteredConnectionService {
 	 * Whether the current network connection is metered.
 	 * Always returns `false` if the `network.meteredConnection` setting is `off`.
 	 * Always returns `true` if the `network.meteredConnection` setting is `on`.
+	 * Implementations may conservatively return `true` until {@link whenInitialized} resolves.
 	 */
 	readonly isConnectionMetered: boolean;
 
 	/**
-	 * Resolves once the initial connection state is available, when initialization is asynchronous.
+	 * Resolves once the initial connection state is available.
 	 */
-	readonly whenConnectionStateInitialized?: Promise<void>;
+	readonly whenInitialized: Promise<void>;
 
 	/**
 	 * Event that fires when the metered connection status changes.
@@ -42,6 +43,8 @@ export type MeteredConnectionSettingValue = 'on' | 'off' | 'auto';
  */
 export abstract class AbstractMeteredConnectionService extends Disposable implements IMeteredConnectionService {
 	declare readonly _serviceBrand: undefined;
+
+	public readonly whenInitialized = Promise.resolve();
 
 	private readonly _onDidChangeIsConnectionMetered = this._register(new Emitter<boolean>());
 	public readonly onDidChangeIsConnectionMetered = this._onDidChangeIsConnectionMetered.event;

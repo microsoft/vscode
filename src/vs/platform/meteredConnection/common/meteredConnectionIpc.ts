@@ -28,10 +28,12 @@ export class MeteredConnectionChannelClient extends Disposable implements IMeter
 	private readonly _onDidChangeIsConnectionMetered = this._register(new Emitter<boolean>());
 	public readonly onDidChangeIsConnectionMetered = this._onDidChangeIsConnectionMetered.event;
 
-	private _isConnectionMetered = false;
+	private _isConnectionMetered = true;
 	public get isConnectionMetered(): boolean {
 		return this._isConnectionMetered;
 	}
+
+	public readonly whenInitialized: Promise<void>;
 
 	constructor(channel: IChannel) {
 		super();
@@ -45,11 +47,15 @@ export class MeteredConnectionChannelClient extends Disposable implements IMeter
 			}
 		}));
 
-		channel.call<boolean>(MeteredConnectionCommand.IsConnectionMetered).then(value => {
-			if (!receivedEvent && this._isConnectionMetered !== value) {
+		this.whenInitialized = channel.call<boolean>(MeteredConnectionCommand.IsConnectionMetered).then(value => {
+			if (!receivedEvent) {
 				this._isConnectionMetered = value;
-				this._onDidChangeIsConnectionMetered.fire(value);
 			}
-		}, onUnexpectedError);
+		}, error => {
+			onUnexpectedError(error);
+			if (!receivedEvent) {
+				this._isConnectionMetered = false;
+			}
+		});
 	}
 }

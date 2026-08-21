@@ -742,7 +742,9 @@ export class CodeApplication extends Disposable {
 
 		// Metered connection telemetry
 		appInstantiationService.invokeFunction(accessor => {
-			(accessor.get(IMeteredConnectionService) as MeteredConnectionMainService).setTelemetryService(accessor.get(ITelemetryService));
+			const meteredConnectionService = accessor.get(IMeteredConnectionService) as MeteredConnectionMainService;
+			meteredConnectionService.setTelemetryService(accessor.get(ITelemetryService));
+			meteredConnectionService.start();
 		});
 
 		// Auth Handler

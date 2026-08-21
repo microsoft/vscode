@@ -9,6 +9,8 @@ declare module 'vscode' {
 		/**
 		 * Whether the current network connection is metered (such as mobile data or tethering).
 		 * Always returns `false` if the `network.meteredConnection` setting is set to `off`.
+		 * May conservatively return `true` during extension host initialization before the operating system state is
+		 * available. {@link onDidChangeMeteredConnection} fires if initialization corrects the value.
 		 */
 		export const isMeteredConnection: boolean;
 

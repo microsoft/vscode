@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
@@ -55,7 +56,7 @@ suite('NativeMeteredConnectionService', () => {
 		};
 
 		const service = store.add(new NativeMeteredConnectionService(mainProcessService));
-		await timeout(0);
+		await service.whenInitialized;
 
 		assert.deepStrictEqual({
 			calls: channel.calls,
@@ -78,11 +79,62 @@ suite('NativeMeteredConnectionService', () => {
 			}
 		};
 		const service = store.add(new NativeMeteredConnectionService(mainProcessService));
+		let initialized = false;
+		void service.whenInitialized.then(() => initialized = true);
+
+		await timeout(0);
+		assert.strictEqual(initialized, false);
 
 		channel.fire(true);
 		initialState.complete(false);
-		await timeout(0);
+		await service.whenInitialized;
+
+		assert.deepStrictEqual({
+			initialized,
+			isConnectionMetered: service.isConnectionMetered,
+		}, {
+			initialized: true,
+			isConnectionMetered: true,
+		});
+	});
+
+	test('uses a conservative pending state without firing an initial change event', async () => {
+		const initialState = new DeferredPromise<boolean>();
+		const channel = store.add(new TestChannel(initialState.p));
+		const mainProcessService = new class extends mock<IMainProcessService>() {
+			override getChannel(): IChannel {
+				return channel;
+			}
+		};
+		const service = store.add(new NativeMeteredConnectionService(mainProcessService));
+		const changes: boolean[] = [];
+		store.add(service.onDidChangeIsConnectionMetered(value => changes.push(value)));
 
 		assert.strictEqual(service.isConnectionMetered, true);
+
+		initialState.complete(false);
+		await service.whenInitialized;
+
+		assert.deepStrictEqual({
+			isConnectionMetered: service.isConnectionMetered,
+			changes,
+		}, {
+			isConnectionMetered: false,
+			changes: [],
+		});
+	});
+
+	test('falls back to unmetered when the initial state request fails', async () => {
+		const channel = store.add(new TestChannel(Promise.reject(new CancellationError())));
+		const mainProcessService = new class extends mock<IMainProcessService>() {
+			override getChannel(): IChannel {
+				return channel;
+			}
+		};
+		const service = store.add(new NativeMeteredConnectionService(mainProcessService));
+
+		assert.strictEqual(service.isConnectionMetered, true);
+		await service.whenInitialized;
+		assert.strictEqual(service.isConnectionMetered, false);
 	});
 });

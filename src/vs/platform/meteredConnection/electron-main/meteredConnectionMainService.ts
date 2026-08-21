@@ -32,7 +32,8 @@ export class MeteredConnectionMainService extends AbstractMeteredConnectionServi
 	private readonly monitorFactory: MonitorFactory;
 	private readonly initialized = new DeferredPromise<void>();
 	private readonly initializationTimeout: number;
-	readonly whenConnectionStateInitialized = this.initialized.p;
+	private started = false;
+	override readonly whenInitialized = this.initialized.p;
 
 	constructor(
 		options: Options | undefined,
@@ -45,53 +46,64 @@ export class MeteredConnectionMainService extends AbstractMeteredConnectionServi
 	}
 
 	public setTelemetryService(telemetryService: ITelemetryService): void {
-		const shouldInitialize = this.telemetryService === undefined;
 		this.telemetryService = telemetryService;
-		if (shouldInitialize) {
+	}
+
+	public start(): void {
+		if (!this.started) {
+			this.started = true;
 			void this.initialize();
 		}
 	}
 
+	override dispose(): void {
+		this.initialized.complete();
+		super.dispose();
+	}
+
 	private async initialize(): Promise<void> {
+		const initialization = this.doInitialize().catch(error => {
+			this.logService.error('MeteredConnectionMainService#initialize - Failed to initialize native metered connection monitoring', error);
+		});
 		try {
-			const monitor = await this.monitorFactory();
-			if (this._store.isDisposed) {
-				monitor.dispose();
-				return;
-			}
-			this._register(monitor);
-
-			let receivedChange = false;
-			this._register(monitor.onDidChange(state => {
-				receivedChange = true;
-				this.updateState(state);
-			}));
-
-			const initialStateHandled = monitor.ready.then(state => {
-				if (!receivedChange && !this._store.isDisposed) {
-					this.updateState(state);
-				}
-				return true;
-			});
-
-			await raceTimeout(initialStateHandled, this.initializationTimeout, () => {
+			await raceTimeout(initialization, this.initializationTimeout, () => {
 				this.logService.warn(`MeteredConnectionMainService#initialize - Native metered connection monitoring did not initialize within ${this.initializationTimeout}ms`);
 			});
-		} catch (error) {
-			this.logService.error('MeteredConnectionMainService#initialize - Failed to initialize native metered connection monitoring', error);
 		} finally {
 			this.initialized.complete();
 		}
 	}
 
-	private updateState(state: MeteredConnectionState): void {
+	private async doInitialize(): Promise<void> {
+		const monitor = await this.monitorFactory();
+		if (this._store.isDisposed) {
+			monitor.dispose();
+			return;
+		}
+		this._register(monitor);
+
+		let receivedDefinitiveChange = false;
+		this._register(monitor.onDidChange(state => {
+			receivedDefinitiveChange = this.updateState(state) || receivedDefinitiveChange;
+		}));
+
+		const state = await monitor.ready;
+		if (!receivedDefinitiveChange && !this._store.isDisposed) {
+			this.updateState(state);
+		}
+	}
+
+	private updateState(state: MeteredConnectionState): boolean {
 		try {
 			if (state.status === 'unknown') {
 				this.logService.info(`MeteredConnectionMainService#updateState - Metered connection state is unknown (source: ${state.source}, reason: ${state.reason ?? 'unspecified'})`);
+				return false;
 			}
 			this.setIsUnderlyingConnectionMetered(state.status === 'metered');
+			return true;
 		} catch (error) {
 			this.logService.error('MeteredConnectionMainService#updateState - Failed to apply native metered connection state', error);
+			return false;
 		}
 	}
 

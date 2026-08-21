@@ -11,6 +11,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { MeteredConnectionCommand } from '../../common/meteredConnectionIpc.js';
+import { MeteredConnectionChannel } from '../../electron-main/meteredConnectionChannel.js';
 import { MeteredConnectionMainService } from '../../electron-main/meteredConnectionMainService.js';
 
 class TestMeteredConnectionMonitor implements MeteredConnectionMonitor {
@@ -46,8 +48,9 @@ suite('MeteredConnectionMainService', () => {
 		const monitor = new TestMeteredConnectionMonitor();
 		const service = store.add(new MeteredConnectionMainService({ monitorFactory: async () => monitor }, configurationService, new NullLogService()));
 		service.setTelemetryService(NullTelemetryService);
+		service.start();
 		let initialized = false;
-		void service.whenConnectionStateInitialized.then(() => initialized = true);
+		void service.whenInitialized.then(() => initialized = true);
 
 		await timeout(0);
 		assert.strictEqual(initialized, false);
@@ -56,7 +59,7 @@ suite('MeteredConnectionMainService', () => {
 			status: 'metered',
 			source: 'windows-network-cost-manager',
 		});
-		await service.whenConnectionStateInitialized;
+		await service.whenInitialized;
 
 		assert.deepStrictEqual({
 			initialized,
@@ -73,6 +76,7 @@ suite('MeteredConnectionMainService', () => {
 		const monitor = new TestMeteredConnectionMonitor();
 		const service = store.add(new MeteredConnectionMainService({ monitorFactory: async () => monitor }, configurationService, new NullLogService()));
 		service.setTelemetryService(NullTelemetryService);
+		service.start();
 		const changes: boolean[] = [];
 		store.add(service.onDidChangeIsConnectionMetered(state => changes.push(state)));
 
@@ -81,7 +85,7 @@ suite('MeteredConnectionMainService', () => {
 			source: 'linux-network-manager',
 			details: { meteredState: 'no' },
 		});
-		await service.whenConnectionStateInitialized;
+		await service.whenInitialized;
 		monitor.setState({
 			status: 'metered',
 			source: 'linux-network-manager',
@@ -97,9 +101,34 @@ suite('MeteredConnectionMainService', () => {
 			isConnectionMetered: service.isConnectionMetered,
 			changes,
 		}, {
-			isConnectionMetered: false,
-			changes: [true, false],
+			isConnectionMetered: true,
+			changes: [true],
 		});
+	});
+
+	test('channel initial state waits for native initialization', async () => {
+		const configurationService = new TestConfigurationService();
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const monitor = new TestMeteredConnectionMonitor();
+		const service = store.add(new MeteredConnectionMainService({ monitorFactory: async () => monitor }, configurationService, new NullLogService()));
+		service.setTelemetryService(NullTelemetryService);
+		service.start();
+		const channel = new MeteredConnectionChannel(service);
+		let resolved = false;
+		const initialState = channel.call(undefined, MeteredConnectionCommand.IsConnectionMetered).then(value => {
+			resolved = true;
+			return value;
+		});
+
+		await timeout(0);
+		assert.strictEqual(resolved, false);
+
+		monitor.setInitialState({
+			status: 'metered',
+			source: 'windows-network-cost-manager',
+		});
+
+		assert.strictEqual(await initialState, true);
 	});
 
 	test('completes initialization on timeout and accepts the late native state', async () => {
@@ -111,8 +140,9 @@ suite('MeteredConnectionMainService', () => {
 			initializationTimeout: 0,
 		}, configurationService, new NullLogService()));
 		service.setTelemetryService(NullTelemetryService);
+		service.start();
 
-		await service.whenConnectionStateInitialized;
+		await service.whenInitialized;
 		monitor.setInitialState({
 			status: 'metered',
 			source: 'macos-network-framework',
@@ -124,6 +154,52 @@ suite('MeteredConnectionMainService', () => {
 		assert.strictEqual(service.isConnectionMetered, true);
 	});
 
+	test('initialization timeout includes monitor creation', async () => {
+		const configurationService = new TestConfigurationService();
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const monitor = new TestMeteredConnectionMonitor();
+		const monitorPromise = new DeferredPromise<MeteredConnectionMonitor>();
+		const service = store.add(new MeteredConnectionMainService({
+			monitorFactory: () => monitorPromise.p,
+			initializationTimeout: 0,
+		}, configurationService, new NullLogService()));
+		service.setTelemetryService(NullTelemetryService);
+		service.start();
+
+		await service.whenInitialized;
+		monitorPromise.complete(monitor);
+		monitor.setInitialState({
+			status: 'metered',
+			source: 'windows-network-cost-manager',
+		});
+		await timeout(0);
+
+		assert.strictEqual(service.isConnectionMetered, true);
+	});
+
+	test('definitive ready state is applied after an unknown change', async () => {
+		const configurationService = new TestConfigurationService();
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const monitor = new TestMeteredConnectionMonitor();
+		const service = store.add(new MeteredConnectionMainService({ monitorFactory: async () => monitor }, configurationService, new NullLogService()));
+		service.setTelemetryService(NullTelemetryService);
+		service.start();
+		await timeout(0);
+
+		monitor.setState({
+			status: 'unknown',
+			source: 'unsupported',
+			reason: 'serviceUnavailable',
+		});
+		monitor.setInitialState({
+			status: 'metered',
+			source: 'windows-network-cost-manager',
+		});
+		await service.whenInitialized;
+
+		assert.strictEqual(service.isConnectionMetered, true);
+	});
+
 	test('disposes a monitor created after the service was disposed', async () => {
 		const configurationService = new TestConfigurationService();
 		store.add(configurationService.onDidChangeConfigurationEmitter);
@@ -131,11 +207,23 @@ suite('MeteredConnectionMainService', () => {
 		const monitorPromise = new DeferredPromise<MeteredConnectionMonitor>();
 		const service = store.add(new MeteredConnectionMainService({ monitorFactory: () => monitorPromise.p }, configurationService, new NullLogService()));
 		service.setTelemetryService(NullTelemetryService);
+		service.start();
 
 		service.dispose();
 		monitorPromise.complete(monitor);
-		await service.whenConnectionStateInitialized;
+		await service.whenInitialized;
+		await timeout(0);
 
 		assert.strictEqual(monitor.disposeCount, 1);
+	});
+
+	test('dispose completes initialization before start', async () => {
+		const configurationService = new TestConfigurationService();
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const service = new MeteredConnectionMainService(undefined, configurationService, new NullLogService());
+
+		service.dispose();
+
+		await service.whenInitialized;
 	});
 });

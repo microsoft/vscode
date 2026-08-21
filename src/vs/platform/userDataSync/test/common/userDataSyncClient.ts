@@ -102,7 +102,7 @@ export class UserDataSyncClient extends Disposable {
 		await configurationService.initialize();
 		this.instantiationService.stub(IConfigurationService, configurationService);
 
-		this.instantiationService.stub(IMeteredConnectionService, { isConnectionMetered: false, onDidChangeIsConnectionMetered: new Emitter<boolean>().event });
+		this.instantiationService.stub(IMeteredConnectionService, { isConnectionMetered: false, whenInitialized: Promise.resolve(), onDidChangeIsConnectionMetered: new Emitter<boolean>().event });
 
 		this.instantiationService.stub(IRequestService, this.testServer);
 
