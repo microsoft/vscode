@@ -499,6 +499,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			}
 			const cursors = { ...readScheduleCursors(current._meta) };
 			let automation = current;
+			let claimedForAutomation = false;
 			for (const trigger of current.definition.triggers) {
 				if (trigger.kind !== AutomationTriggerKind.Schedule) {
 					continue;
@@ -518,10 +519,17 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 						nextRuns.set(run.resource, run);
 						automation = withRunSummary(automation, nextRuns);
 						claimed.push({ run, definition: automation.definition });
+						claimedForAutomation = true;
 					}
 					scheduledFor = nextAutomationCronOccurrence(trigger.schedule.expression, trigger.schedule.timeZone, now);
 				}
 				cursors[trigger.id] = scheduledFor.toISOString();
+				if (claimedForAutomation) {
+					// One-non-terminal-run-per-Automation invariant. Other due
+					// triggers keep their cursors untouched and are re-evaluated
+					// on the next tick, so a second past-due firing isn't lost.
+					break;
+				}
 			}
 			const nextAutomation: AutomationState = {
 				...automation,

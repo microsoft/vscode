@@ -529,6 +529,7 @@ suite('AgentHostAutomationService', () => {
 		});
 		const session = URI.parse('mock:/hung-session');
 		const started = new DeferredPromise<void>();
+
 		const service = createService({
 			createSession: async () => {
 				stateManager.createSession({
@@ -633,6 +634,7 @@ suite('AgentHostAutomationService', () => {
 	test('failed linked-session cancellation leaves the run non-terminal', async () => {
 		const session = URI.parse('mock:/uncancelled-session');
 		const started = new DeferredPromise<void>();
+
 		const service = createService({
 			createSession: async () => {
 				stateManager.createSession({
@@ -699,6 +701,7 @@ suite('AgentHostAutomationService', () => {
 
 		const session = URI.parse('mock:/scheduled-session');
 		const started = new DeferredPromise<void>();
+
 		const service = createService({
 			createSession: async () => {
 				stateManager.createSession({
@@ -742,6 +745,165 @@ suite('AgentHostAutomationService', () => {
 			primarySession: session.toString(),
 			nextRunIsFuture: true,
 			serviceAvailable: true,
+		});
+	});
+
+	test('claims at most one schedule trigger per Automation per tick and defers the rest', async () => {
+		const now = new Date();
+		const firstScheduledFor = new Date(now.getTime() - 3 * 60_000).toISOString();
+		const secondScheduledFor = new Date(now.getTime() - 2 * 60_000).toISOString();
+		const automationResource = 'ahp-automation:/multi-trigger';
+		const multiTriggerDefinition: AutomationDefinition = {
+			...definition(),
+			triggers: [
+				{
+					id: 'first-trigger',
+					kind: AutomationTriggerKind.Schedule,
+					schedule: { expression: '* * * * *', timeZone: 'UTC' },
+					misfirePolicy: AutomationMisfirePolicy.RunOnce,
+				},
+				{
+					id: 'second-trigger',
+					kind: AutomationTriggerKind.Schedule,
+					schedule: { expression: '*/2 * * * *', timeZone: 'UTC' },
+					misfirePolicy: AutomationMisfirePolicy.RunOnce,
+				},
+			],
+		};
+		storageService.set('automations', {
+			catalog: {
+				automations: [{
+					resource: automationResource,
+					definition: multiTriggerDefinition,
+					nextRunAt: firstScheduledFor,
+					runs: [],
+					operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
+					createdAt: now.toISOString(),
+					modifiedAt: now.toISOString(),
+					_meta: {
+						'vscode.scheduleCursors': {
+							'first-trigger': firstScheduledFor,
+							'second-trigger': secondScheduledFor,
+						},
+					},
+				}],
+			},
+			runs: [],
+			manualRunRequests: [],
+			migration: { status: 'complete', completedAt: now.toISOString() },
+		});
+		await storageService.whenIdle();
+
+		const session = URI.parse('mock:/multi-trigger-session');
+		const started = new DeferredPromise<void>();
+
+		createService({
+			createSession: async () => {
+				stateManager.createSession({
+					resource: session.toString(),
+					provider: 'mock',
+					title: '',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+				});
+				return session;
+			},
+			startSession: async () => {
+				await started.complete();
+			},
+		});
+		await started.p;
+
+		const automation = stateManager.getAutomationCatalogState()?.automations[0];
+		const cursors = automation?._meta?.['vscode.scheduleCursors'] as Record<string, string> | undefined;
+		assert.deepStrictEqual({
+			runsClaimed: automation?.runs.length,
+			claimedTriggerId: automation?.runs[0]?.origin.kind === AutomationRunOriginKind.Trigger ? automation.runs[0].origin.triggerId : undefined,
+			firstCursorAdvanced: cursors ? Date.parse(cursors['first-trigger']) > now.getTime() : false,
+			secondCursorUnchanged: cursors?.['second-trigger'] === secondScheduledFor,
+		}, {
+			runsClaimed: 1,
+			claimedTriggerId: 'first-trigger',
+			firstCursorAdvanced: true,
+			secondCursorUnchanged: true,
+		});
+	});
+
+	test('Skip-catch-up on the first trigger does not consume the per-tick claim slot', async () => {
+		const now = new Date();
+		const stale = new Date(now.getTime() - 10 * 60_000).toISOString();
+		const dueRecently = new Date(now.getTime() - 30_000).toISOString();
+		const automationResource = 'ahp-automation:/skip-first';
+		const multiTriggerDefinition: AutomationDefinition = {
+			...definition(),
+			triggers: [
+				{
+					id: 'stale-skip-trigger',
+					kind: AutomationTriggerKind.Schedule,
+					schedule: { expression: '* * * * *', timeZone: 'UTC' },
+					misfirePolicy: AutomationMisfirePolicy.Skip,
+				},
+				{
+					id: 'due-run-trigger',
+					kind: AutomationTriggerKind.Schedule,
+					schedule: { expression: '*/2 * * * *', timeZone: 'UTC' },
+					misfirePolicy: AutomationMisfirePolicy.RunOnce,
+				},
+			],
+		};
+		storageService.set('automations', {
+			catalog: {
+				automations: [{
+					resource: automationResource,
+					definition: multiTriggerDefinition,
+					nextRunAt: stale,
+					runs: [],
+					operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
+					createdAt: now.toISOString(),
+					modifiedAt: now.toISOString(),
+					_meta: {
+						'vscode.scheduleCursors': {
+							'stale-skip-trigger': stale,
+							'due-run-trigger': dueRecently,
+						},
+					},
+				}],
+			},
+			runs: [],
+			manualRunRequests: [],
+			migration: { status: 'complete', completedAt: now.toISOString() },
+		});
+		await storageService.whenIdle();
+
+		const session = URI.parse('mock:/skip-first-session');
+		const started = new DeferredPromise<void>();
+
+		createService({
+			createSession: async () => {
+				stateManager.createSession({
+					resource: session.toString(),
+					provider: 'mock',
+					title: '',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+				});
+				return session;
+			},
+			startSession: async () => {
+				await started.complete();
+			},
+		});
+		await started.p;
+
+		const automation = stateManager.getAutomationCatalogState()?.automations[0];
+		assert.deepStrictEqual({
+			runsClaimed: automation?.runs.length,
+			claimedTriggerId: automation?.runs[0]?.origin.kind === AutomationRunOriginKind.Trigger ? automation.runs[0].origin.triggerId : undefined,
+		}, {
+			runsClaimed: 1,
+			claimedTriggerId: 'due-run-trigger',
 		});
 	});
 
