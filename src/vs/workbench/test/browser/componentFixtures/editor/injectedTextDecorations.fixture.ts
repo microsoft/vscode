@@ -68,6 +68,7 @@ function renderFixedWidthWrapping(context: ComponentFixtureContext): void {
 			fontFamily: 'Arial, sans-serif',
 			wordWrap: 'wordWrapColumn',
 			wordWrapColumn: 12,
+			wrappingStrategy: 'advanced',
 			wrappingIndent: 'none',
 		}
 	);
