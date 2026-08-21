@@ -1232,6 +1232,50 @@ suite('AgentHostClientTools', () => {
 			});
 		});
 
+		test('coalesces ready variants that differ only in approval while input is pending', async () => {
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+			const sessionResource = URI.parse('agent-host-copilot:/session-1');
+			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+			const chatURI = URI.parse(buildDefaultChatUri(backendSession));
+			const inputURI = URI.parse('session-db:/tool-input-race');
+			const toolInput = { uri: inputURI.toString(), contentType: 'application/json' };
+			const inputRead = new DeferredPromise<{ data: string; encoding: ContentEncoding }>();
+			connection.resourceReadResponses.set(inputURI.toString(), inputRead.p);
+
+			applyReferencedRunTask(connection, chatURI, toolInput, ToolCallConfirmationReason.NotNeeded);
+			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+
+			// Both readies arrive while the referenced input is still resolving, so
+			// neither attempt has reached markInvocationStarted.
+			for (const confirmed of [ToolCallConfirmationReason.NotNeeded, ToolCallConfirmationReason.Setting]) {
+				applyRunningClientExecution(connection, chatURI.toString(), 'turn-1', {
+					toolCallId: 'tool-call-1',
+					toolName: 'runTask',
+					displayName: 'Run Task',
+					invocationMessage: 'Run Task',
+					toolInput,
+					confirmed,
+				});
+				await timeout(0);
+			}
+			assert.strictEqual(toolsService.invokedToolCalls.length, 0, 'nothing runs while the input is unresolved');
+
+			inputRead.complete({ data: '{"task":"race"}', encoding: ContentEncoding.Utf8 });
+			for (let tick = 0; tick < 10; tick++) { await timeout(0); }
+
+			assert.deepStrictEqual({
+				reads: connection.resourceReadUris.length,
+				raceInvocations: toolsService.invokedToolCalls.map(call => call.parameters),
+				raceCompletions: connection.dispatchedActions.filter(entry => isChatAction(entry.action)
+					&& entry.action.type === ActionType.ChatToolCallComplete
+					&& entry.action.toolCallId === 'tool-call-1').length,
+			}, {
+				reads: 1,
+				raceInvocations: [{ task: 'race' }],
+				raceCompletions: 1,
+			});
+		});
+
 		test('settles local and protocol state when referenced input cannot be read', async () => {
 			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
 			const sessionResource = URI.parse('agent-host-copilot:/session-1');

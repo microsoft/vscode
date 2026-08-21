@@ -2399,7 +2399,20 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							request,
 							contextSessionResource,
 							execution.source.token,
-							() => requestGeneration === generation && (invocationStarted || equals(request$.read(undefined), request)),
+							() => {
+								if (requestGeneration !== generation) {
+									return false;
+								}
+								if (invocationStarted) {
+									return true;
+								}
+								// Judge staleness the way the coalescing check above does, or an
+								// approval-only change strands the attempt it declined to restart.
+								const current = request$.read(undefined);
+								return current.kind === SessionInputRequestKind.ToolClientExecution
+									&& current.clientId === this._config.connection.clientId
+									&& executionSignature(current) === inFlightSignature;
+							},
 							() => {
 								if (requestGeneration === generation) {
 									invocationStarted = true;
