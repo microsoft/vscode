@@ -38,6 +38,23 @@
 	min-width: 0;
 }
 
+.monaco-workbench .part > .title:has(.start-debug-action-item) > .title-label {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.monaco-workbench .part > .title:has(.start-debug-action-item) > .title-label h2 {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.monaco-workbench .part > .composite.title:has(.start-debug-action-item) > .title-actions {
+	flex: none;
+	min-width: 26px;
+}
+
 .monaco-workbench .monaco-action-bar .actions-container > .action-item.start-debug-action-item {
 	min-width: 0;
 	flex-shrink: 1;
@@ -314,7 +331,7 @@
 }
 
 .debug-pane .watch-expression .expression {
-	flex : 1;
+	flex: 1;
 }
 
 .debug-pane .debug-variables .scope .error {
@@ -324,6 +341,7 @@
 	font-family: var(--monaco-monospace-font);
 	font-weight: normal;
 }
+
 .debug-view-content .monaco-tl-contents .highlight {
 	color: unset !important;
 	background-color: var(--vscode-list-filterMatchBackground);
@@ -346,7 +364,7 @@
 }
 
 .debug-pane .debug-breakpoints .breakpoint-folder,
-.debug-pane .debug-breakpoints .exception  {
+.debug-pane .debug-breakpoints .exception {
 	margin-left: 0;
 }
 
@@ -388,6 +406,7 @@
 	text-overflow: ellipsis;
 	overflow: hidden;
 }
+
 .debug-pane .debug-breakpoints .breakpoint > .file-path,
 .debug-pane .debug-breakpoints .breakpoint > .condition {
 	opacity: 0.7;
