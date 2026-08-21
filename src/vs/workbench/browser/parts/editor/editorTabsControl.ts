@@ -119,8 +119,6 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	private readonly editorActionsDisposables = this._register(new DisposableStore());
 	/** Whether the editor-actions toolbar currently has any actions (drives the layout-actions separator). */
 	private editorActionsToolbarHasActions = false;
-	private addTabControlHasActions = false;
-	private addTabControlHasTrailingSeparator = false;
 
 	protected editorLayoutActionsSeparator: HTMLElement | undefined;
 	protected editorLayoutActionsToolbarContainer: HTMLElement | undefined;
@@ -219,10 +217,9 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.handleEditorLayoutActionsToolBarVisibility(this.editorLayoutActionsToolbarContainer);
 	}
 
-	protected createAddTabControl(parent: HTMLElement, menuId: MenuId, before?: HTMLElement, trailingSeparator = false): HTMLElement {
+	protected createAddTabControl(parent: HTMLElement, menuId: MenuId, before?: HTMLElement): HTMLElement {
 		const container = $('.tabs-bar-add-tab');
 		parent.insertBefore(container, before ?? null);
-		this.addTabControlHasTrailingSeparator = trailingSeparator;
 
 		const menu = this._register(this.menuService.createMenu(menuId, this.contextKeyService));
 		const getActions = () => getFlatActionBarActions(menu.getActions({ shouldForwardArgs: true }));
@@ -238,15 +235,12 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		}));
 		const toolbar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, container, {
 			ariaLabel: localize('ariaLabelAddTab', "Add Tab"),
-			trailingSeparator,
 			actionViewItemProvider: action => action === addTabAction ? dropdown : undefined
 		}));
 		toolbar.setActions([addTabAction]);
 
 		const updateVisibility = () => {
-			this.addTabControlHasActions = getActions().length > 0;
-			container.classList.toggle('hidden', !this.addTabControlHasActions);
-			this.updateEditorLayoutActionsSeparator();
+			container.classList.toggle('hidden', getActions().length === 0);
 		};
 		updateVisibility();
 		this._register(menu.onDidChange(updateVisibility));
@@ -258,8 +252,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		const hasLayoutActions = (this.editorLayoutActionsToolbar?.getItemsLength() ?? 0) > 0;
 		if (this.editorLayoutActionsSeparator) {
 			setVisibility(hasLayoutActions
-				&& !this.addTabControlHasTrailingSeparator
-				&& (this.editorActionsToolbarHasActions || this.addTabControlHasActions), this.editorLayoutActionsSeparator);
+				&& this.editorActionsToolbarHasActions, this.editorLayoutActionsSeparator);
 		}
 	}
 
