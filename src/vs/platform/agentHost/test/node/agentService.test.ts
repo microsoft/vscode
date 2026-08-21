@@ -36,6 +36,7 @@ import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js'
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
+import { GitRefType } from '../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
@@ -783,6 +784,7 @@ suite('AgentService (node dispatcher)', () => {
 				[SessionConfigKey.WorktreeBranchPrefix]: 'users/test/',
 				[SessionConfigKey.WorktreeIncludeFiles]: ['.env'],
 				[SessionConfigKey.WorktreeBranchTrack]: false,
+				[SessionConfigKey.WorktreeCreateNewBranch]: false,
 				providerSetting: 'selected',
 			},
 		});
@@ -800,6 +802,7 @@ suite('AgentService (node dispatcher)', () => {
 				[SessionConfigKey.WorktreeBranchPrefix]: 'users/test/',
 				[SessionConfigKey.WorktreeIncludeFiles]: ['.env'],
 				[SessionConfigKey.WorktreeBranchTrack]: false,
+				[SessionConfigKey.WorktreeCreateNewBranch]: false,
 				providerSetting: 'completion',
 			},
 			property: 'providerSetting',
@@ -822,6 +825,7 @@ suite('AgentService (node dispatcher)', () => {
 				branchPrefix: selected.values[SessionConfigKey.WorktreeBranchPrefix],
 				includeFiles: selected.values[SessionConfigKey.WorktreeIncludeFiles],
 				branchTrack: selected.values[SessionConfigKey.WorktreeBranchTrack],
+				createNewBranch: selected.values[SessionConfigKey.WorktreeCreateNewBranch],
 				providerSetting: selected.values.providerSetting,
 			},
 			folder: {
@@ -844,7 +848,7 @@ suite('AgentService (node dispatcher)', () => {
 				agentMergeController: { lastPromptFingerprint: 'fingerprint' },
 				providerSetting: 'initial',
 			},
-			selected: { isolation: 'worktree', branch: 'feature/config', branchPrefix: 'users/test/', includeFiles: ['.env'], branchTrack: false, providerSetting: 'selected' },
+			selected: { isolation: 'worktree', branch: 'feature/config', branchPrefix: 'users/test/', includeFiles: ['.env'], branchTrack: false, createNewBranch: false, providerSetting: 'selected' },
 			folder: { isolation: 'folder', branch: 'feature', providerSetting: 'folder' },
 		});
 	});
@@ -12341,6 +12345,107 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(state?.workingDirectories?.[0], worktreeDir.toString());
 		});
 
+		test('pending worktree session defers git state and branch changes until materialization', async () => {
+			class ProvisionalWorktreeAgent extends MockAgent {
+				private readonly _onDidMaterializeChat = new Emitter<IAgentMaterializeChatEvent>();
+				override readonly onDidMaterializeChat = this._onDidMaterializeChat.event;
+				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+					createChat: (chat, context, options) => createProvisionalChat(base, chat, context, options),
+				}));
+
+				materialize(session: URI, workingDirectory: URI): void {
+					this._onDidMaterializeChat.fire({
+						chat: URI.parse(buildDefaultChatUri(session)),
+						workingDirectories: [workingDirectory],
+						project: undefined,
+					});
+				}
+
+				override dispose(): void {
+					this._onDidMaterializeChat.dispose();
+					super.dispose();
+				}
+			}
+
+			const sourceDir = URI.file('/source/repo');
+			const worktreeDir = URI.file('/source/repo.worktrees/feature');
+			const gitStateCalls: Array<{ resource: string; baseBranch: string | undefined }> = [];
+			const diffCalls: string[] = [];
+			const gitService = createNoopGitService();
+			gitService.getRepositoryRoot = async () => sourceDir;
+			gitService.revParse = async () => 'head';
+			gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'origin/main' });
+			gitService.getCurrentBranch = async () => 'main';
+			gitService.getBranches = async () => [{ ref: 'refs/heads/main', name: 'main', kind: GitRefType.Head }];
+			gitService.getSessionGitState = async (resource, baseBranch) => {
+				gitStateCalls.push({ resource: resource.toString(), baseBranch });
+				return { branchName: 'feature', baseBranchName: 'main' };
+			};
+			gitService.computeSessionFileDiffs = async resource => {
+				diffCalls.push(resource.toString());
+				return [];
+			};
+
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			const isolation = disposables.add(new WorktreeIsolation(
+				{ generateBranchName: async () => { throw new Error('should not generate a branch'); } },
+				gitService,
+				new TestCopilotApiService(),
+				nullSessionDataService,
+				new NullLogService(),
+			));
+			localService.setWorktreeIsolation(isolation);
+			const agent = new ProvisionalWorktreeAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			localService.registerProvider(agent);
+
+			const session = await localService.createSession({
+				provider: agent.id,
+				workingDirectories: [sourceDir],
+				config: {
+					[SessionConfigKey.Isolation]: 'worktree',
+					[SessionConfigKey.Branch]: 'feature',
+					[SessionConfigKey.WorktreeCreateNewBranch]: false,
+				},
+			});
+			const branchChangeset = buildBranchChangesetUri(session.toString());
+			localService.addSubscriber(URI.parse(branchChangeset), 'client-1');
+			await timeout(0);
+
+			const beforeMaterialization = {
+				workingDirectory: localService.stateManager.getSessionState(session.toString())?.workingDirectories?.[0],
+				gitStateCalls: [...gitStateCalls],
+				diffCalls: [...diffCalls],
+			};
+
+			isolation.clearPending(AgentSession.id(session));
+			agent.materialize(session, worktreeDir);
+			for (let i = 0; i < 20 && (gitStateCalls.length === 0 || diffCalls.length === 0); i++) {
+				await timeout(0);
+			}
+
+			assert.deepStrictEqual({
+				beforeMaterialization,
+				afterMaterialization: {
+					workingDirectory: localService.stateManager.getSessionState(session.toString())?.workingDirectories?.[0],
+					gitStateCalls,
+					diffCalls: [...new Set(diffCalls)],
+				},
+			}, {
+				beforeMaterialization: {
+					workingDirectory: sourceDir.toString(),
+					gitStateCalls: [],
+					diffCalls: [],
+				},
+				afterMaterialization: {
+					workingDirectory: worktreeDir.toString(),
+					gitStateCalls: [{ resource: worktreeDir.toString(), baseBranch: undefined }],
+					diffCalls: [worktreeDir.toString()],
+				},
+			});
+			localService.unsubscribe(URI.parse(branchChangeset), 'client-1');
+		});
+
 		test('_resolveWorkingDirectoryBeforeSend returns the full set (index 0 + tail), or undefined when unset', async () => {
 			const resolver = service as unknown as {
 				_resolveWorkingDirectoryBeforeSend: (p: { session: string; chat: string; turnId: string; prompt: string }) => Promise<readonly URI[] | undefined>;
@@ -12450,6 +12555,63 @@ suite('AgentService (node dispatcher)', () => {
 					diagnostic: 'git worktree exited with code 128: git-lfs filter-process: git-lfs: command not found',
 				},
 			});
+		});
+
+		test('first-send selected branch checkout failure does not fall back to the original folder', async () => {
+			const sourceDir = URI.file(mkdtempSync(`${tmpdir()}/agent-worktree-checkout-failure-`));
+			disposables.add(toDisposable(() => {
+				rmSync(sourceDir.fsPath, { recursive: true, force: true });
+				rmSync(getWorktreesRoot(sourceDir).fsPath, { recursive: true, force: true });
+			}));
+			const sessionDataService = createSessionDataService(new TestSessionDatabase());
+			const gitService = createNoopGitService();
+			gitService.getRepositoryRoot = async () => sourceDir;
+			gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
+			gitService.branchExists = async () => true;
+			gitService.addWorktree = async () => {
+				throw new Error('feature is already checked out');
+			};
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			const isolation = disposables.add(new WorktreeIsolation(
+				{ generateBranchName: async () => { throw new Error('should not generate a branch'); } },
+				gitService,
+				new TestCopilotApiService(),
+				sessionDataService,
+				new NullLogService(),
+			));
+			localService.setWorktreeIsolation(isolation);
+
+			const session = AgentSession.uri('copilot', 'worktree-checkout-failure');
+			const sessionResource = session.toString();
+			const chat = buildDefaultChatUri(sessionResource);
+			localService.stateManager.restoreSession({
+				resource: sessionResource,
+				provider: 'copilot',
+				title: 'Worktree checkout failure',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+				project: undefined,
+				workingDirectories: [sourceDir.toString()],
+			}, []);
+			localService.stateManager.setSessionConfig(sessionResource, {
+				schema: { type: 'object', properties: {} },
+				values: {
+					[SessionConfigKey.Isolation]: 'worktree',
+					[SessionConfigKey.Branch]: 'feature',
+					[SessionConfigKey.WorktreeCreateNewBranch]: false,
+				},
+			});
+			isolation.notePending(AgentSession.id(session));
+
+			const resolver = localService as unknown as {
+				_resolveWorkingDirectoryBeforeSend: (params: { session: string; chat: string; turnId: string; prompt: string }) => Promise<readonly URI[] | undefined>;
+			};
+			await assert.rejects(
+				resolver._resolveWorkingDirectoryBeforeSend({ session: sessionResource, chat, turnId: 'turn-1', prompt: 'test' }),
+				/feature is already checked out/,
+			);
+			assert.strictEqual(isolation.isWorkingDirectoryPending(AgentSession.id(session)), false);
 		});
 
 		test('first-send worktree fallback warns when no repository root is resolved', async () => {
