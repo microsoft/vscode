@@ -59,6 +59,7 @@ suite('Edit Telemetry', () => {
 			sourceRequestId: undefined,
 		};
 
+		aiEditTelemetryService.createSuggestionId({ ...baseData, isAgentHostSession: true });
 		aiEditTelemetryService.handleCodeAccepted({ ...baseData, acceptanceMethod: 'accept', isAgentHostSession: true });
 		aiEditTelemetryService.handleCodeRejected({ ...baseData, rejectionMethod: 'reject', isAgentHostSession: false });
 
@@ -66,6 +67,7 @@ suite('Edit Telemetry', () => {
 			eventName: event.eventName,
 			isAgentHostSession: event.data?.isAgentHostSession,
 		})), [
+			{ eventName: 'editTelemetry.codeSuggested', isAgentHostSession: true },
 			{ eventName: 'editTelemetry.codeAccepted', isAgentHostSession: true },
 			{ eventName: 'editTelemetry.codeRejected', isAgentHostSession: false },
 		]);

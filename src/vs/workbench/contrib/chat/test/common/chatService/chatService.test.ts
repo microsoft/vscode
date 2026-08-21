@@ -10,7 +10,6 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
-import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mockObject } from '../../../../../../base/test/common/mock.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
@@ -2110,8 +2109,9 @@ suite('ChatService', () => {
 		const telemetryEvents: { readonly name: string; readonly isAgentHostSession: boolean }[] = [];
 		class TestTelemetryService extends NullTelemetryServiceShape {
 			override publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(name?: string, data?: StrictPropertyCheck<T, E>): void {
-				if ((name === 'chatEditHunk' || name === 'chatEditSession') && data && hasKey(data, { isAgentHostSession: true }) && typeof data.isAgentHostSession === 'boolean') {
-					telemetryEvents.push({ name, isAgentHostSession: data.isAgentHostSession });
+				const isAgentHostSession = data && typeof data === 'object' ? Reflect.get(data, 'isAgentHostSession') : undefined;
+				if ((name === 'chatEditHunk' || name === 'chatEditSession') && typeof isAgentHostSession === 'boolean') {
+					telemetryEvents.push({ name, isAgentHostSession });
 				}
 			}
 		}

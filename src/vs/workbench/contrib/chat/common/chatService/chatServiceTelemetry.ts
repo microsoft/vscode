@@ -14,7 +14,7 @@ import { isImageVariableEntry } from '../attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../constants.js';
 import { ILanguageModelsService } from '../languageModels.js';
 import { chatSessionResourceToId, getChatSessionType } from '../model/chatUri.js';
-import { isAgentHostTarget } from '../chatSessionsService.js';
+import { isAgentHostSessionResource } from '../chatSessionsService.js';
 import { isRemoteAgentHostSessionType, parseRemoteAgentHostHarness } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 
 type ChatSessionModeEvent = {
@@ -428,7 +428,7 @@ function getChatSessionTypeForTelemetry(sessionResource: URI): string {
 }
 
 function getIsAgentHostSessionForTelemetry(sessionResource: URI): boolean {
-	return isAgentHostTarget(getChatSessionType(sessionResource));
+	return isAgentHostSessionResource(sessionResource);
 }
 
 /**
