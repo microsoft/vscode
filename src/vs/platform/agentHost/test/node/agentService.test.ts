@@ -2965,7 +2965,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 		}
 
-		function createExternalSessionService(sessionDataService = createSessionDataService(), orchestratorDatabase?: IAgentHostDatabase): AgentService {
+		function createExternalSessionService(sessionDataService = createSessionDataService(), orchestratorDatabase?: IAgentHostDatabase, copilotApiService?: ICopilotApiService): AgentService {
 			return disposables.add(createTestAgentService(
 				new NullLogService(),
 				fileService,
@@ -2975,7 +2975,7 @@ suite('AgentService (node dispatcher)', () => {
 				undefined,
 				undefined,
 				undefined,
-				undefined,
+				copilotApiService,
 				undefined,
 				[],
 				undefined,
@@ -3001,6 +3001,13 @@ suite('AgentService (node dispatcher)', () => {
 
 		async function waitForSessionListReconciliation(service: AgentService): Promise<void> {
 			await (service as unknown as { _sessionListReconciliation: Promise<void> })._sessionListReconciliation;
+		}
+
+		async function waitForUtilityCalls(copilotApiService: TestCopilotApiService, count: number): Promise<void> {
+			for (let i = 0; i < 20 && copilotApiService.utilityCalls.length < count; i++) {
+				await new Promise(resolve => setTimeout(resolve, 5));
+			}
+			assert.strictEqual(copilotApiService.utilityCalls.length, count, 'expected exactly this many title generations');
 		}
 
 		function exposeListedSessions(service: AgentService, sessions: readonly IAgentSessionMetadata[]): void {
@@ -3082,13 +3089,13 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = createExternalSessionService();
 			const agent = disposables.add(new TimedExternalAgent('copilot'));
 			const stale = agent.addSession('stale', now - 30 * day - 1);
-			const fresh = agent.addSession('fresh', now - 30 * day + 60_000);
+			const fresh = agent.addSession('fresh', now - 29 * day);
 			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.Last30Days, 1);
 			await waitForSessionListReconciliation(svc);
 			svc.registerProvider(agent);
 			await (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats(agent, [
 				{ chat: URI.parse(buildDefaultChatUri(stale)), startTime: now - 30 * day - 1, modifiedTime: now - 30 * day - 1, external: true },
-				{ chat: URI.parse(buildDefaultChatUri(fresh)), startTime: now - 30 * day + 60_000, modifiedTime: now - 30 * day + 60_000, external: true },
+				{ chat: URI.parse(buildDefaultChatUri(fresh)), startTime: now - 29 * day, modifiedTime: now - 29 * day, external: true },
 			]);
 
 			const listed = (await svc.listSessions()).map(session => AgentSession.id(session.session)).sort();
@@ -3102,6 +3109,47 @@ suite('AgentService (node dispatcher)', () => {
 				registered: [fresh.toString()],
 			});
 			assert.ok(!registered.has(stale.toString()));
+		});
+
+		test('defers titling the two most recently updated untitled external sessions until startup settled', async () => {
+			const now = Date.now();
+			const copilotApiService = new TestCopilotApiService();
+			const svc = createExternalSessionService(createPerSessionDataService().service, undefined, copilotApiService);
+			const agent = disposables.add(new TimedExternalAgent('copilot'));
+			const oldest = agent.addSession('oldest', now - 3000);
+			const middle = agent.addSession('middle', now - 2000);
+			const newest = agent.addSession('newest', now - 1000);
+			agent.chats.getMessages = async (chat: URI) => [{
+				id: 'turn-1',
+				state: TurnState.Complete,
+				message: { text: `prompt of ${chat.toString()}`, origin: { kind: MessageKind.User } },
+				responseParts: [],
+				usage: undefined,
+			}];
+			svc.registerProvider(agent);
+			await svc.authenticate({
+				resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource,
+				scopes: GITHUB_COPILOT_PROTECTED_RESOURCE.scopes_supported,
+				token: 'gh-token',
+			});
+
+			await (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats(agent, [
+				discoveredChat(oldest, true, now - 3000),
+				discoveredChat(middle, true, now - 2000),
+				discoveredChat(newest, true, now - 1000),
+			]);
+			const callsBeforeStartupSettled = copilotApiService.utilityCalls.length;
+			await svc.listSessions();
+			svc.markStartupComplete();
+			await svc.whenDeferredWorkSettled();
+			await waitForUtilityCalls(copilotApiService, 2);
+
+			const titled = [oldest, middle, newest].filter(session => copilotApiService.utilityCalls.some(
+				call => call.request.messages.some(message => message.content.includes(`prompt of ${buildDefaultChatUri(session)}`))));
+			assert.deepStrictEqual({ callsBeforeStartupSettled, titled: titled.map(session => AgentSession.id(session)) }, {
+				callsBeforeStartupSettled: 0,
+				titled: ['middle', 'newest'],
+			});
 		});
 
 		testWithExternalSessionClock('prune removes stale external sessions but keeps adoptable-legacy sessions', async () => {

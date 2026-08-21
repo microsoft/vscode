@@ -424,6 +424,35 @@ export class AgentHostSessionTitleController extends Disposable {
 		dispatch(title);
 	}
 
+	/**
+	 * Generates a title for an external session whose provider surfaced it
+	 * without one, from the user's first prompt. Such a session usually has no
+	 * live state (it is materialized when opened), so the generated title is
+	 * persisted and pushed onto its surfaced summary. A session that already
+	 * carries a persisted title keeps it; a rename during generation cancels it.
+	 */
+	async generateExternalSessionTitle(session: ProtocolURI, userPrompt: string): Promise<void> {
+		if (this._isEphemeralSession(session) || await this._readPersistedTitleMetadata(session, SESSION_CUSTOM_TITLE_KEY)) {
+			return;
+		}
+		this._generateTitleSoon(
+			session,
+			{ content: userPrompt, isConversation: false, gitHubReferenceSource: userPrompt },
+			'',
+			title => this._applyExternalSessionTitle(session, title),
+			() => true,
+			title => this._persistAutoTitle(session, undefined, title),
+		);
+	}
+
+	private _applyExternalSessionTitle(session: ProtocolURI, title: string): void {
+		if (this._stateManager.getSessionState(session)) {
+			this._applySeedTitle(session, undefined, title);
+		} else {
+			this._applyTitle(session, title, t => this._stateManager.updateSurfacedSessionTitle(session, t));
+		}
+	}
+
 	cancelTitleGeneration(session: ProtocolURI): void {
 		this._cancelTitleGeneration(session);
 	}
@@ -468,7 +497,7 @@ export class AgentHostSessionTitleController extends Disposable {
 			return undefined;
 		}
 		const sourceKey = independentChat ? customChatTitleSourceMetadataKey(independentChat) : SESSION_CUSTOM_TITLE_SOURCE_KEY;
-		const source = await this._readPersistedTitleSource(channel, sourceKey);
+		const source = await this._readPersistedTitleMetadata(channel, sourceKey);
 		if (source === AGENT_HOST_TITLE_SOURCE_USER || source === AGENT_HOST_TITLE_SOURCE_AGENT) {
 			this.markTitleRenamed(channel, independentChat);
 			return undefined;
@@ -810,7 +839,7 @@ export class AgentHostSessionTitleController extends Disposable {
 		return this._stateManager.isEphemeralSession(channel);
 	}
 
-	private async _readPersistedTitleSource(session: ProtocolURI, key: string): Promise<string | undefined> {
+	private async _readPersistedTitleMetadata(session: ProtocolURI, key: string): Promise<string | undefined> {
 		try {
 			const ref = await this._options.sessionDataService.tryOpenDatabase?.(URI.parse(session));
 			if (!ref) {
@@ -822,7 +851,7 @@ export class AgentHostSessionTitleController extends Disposable {
 				ref.dispose();
 			}
 		} catch (err) {
-			this._logService.warn(`[AgentHostSessionTitleController] Failed to read title source '${key}'`, err);
+			this._logService.warn(`[AgentHostSessionTitleController] Failed to read title metadata '${key}'`, err);
 			return undefined;
 		}
 	}

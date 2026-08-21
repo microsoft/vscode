@@ -461,6 +461,10 @@ async function startAgentHost(): Promise<void> {
 		logService.error('Failed to start WebSocket server', err);
 	});
 
+	// Every ingress is wired: deferred maintenance may run once a client has
+	// also been served its first session listing.
+	agentService.markStartupComplete();
+
 	process.once('exit', () => {
 		agentService.dispose();
 		logService.dispose();
