@@ -13,6 +13,7 @@ import { Action, IAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { IButton } from '../../../../../base/browser/ui/button/button.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -831,6 +832,29 @@ suite('Automation branch picker', () => {
 			sessionTypeError: undefined,
 			branchError: undefined,
 		});
+	});
+
+	test('disables Save while the composer draft is loading', () => {
+		const state = createFormState({ isolationMode: 'workspace', branch: undefined });
+		const validation: IValidationState = {
+			nameError: undefined,
+			promptError: undefined,
+			folderError: undefined,
+			sessionTypeError: undefined,
+			branchError: undefined,
+		};
+		const form = document.createElement('form');
+		const button = upcastPartial<IButton>({ enabled: true });
+
+		updateSaveButtonState(button, state, validation, form, () => 'prompt', () => undefined, /* isLoading */ true);
+		const whileLoading = button.enabled;
+		updateSaveButtonState(button, state, validation, form, () => 'prompt', () => undefined, /* isLoading */ false);
+		const whenReady = button.enabled;
+		// A ready draft with an invalid form still keeps Save disabled.
+		updateSaveButtonState(button, state, validation, form, () => '', () => undefined, /* isLoading */ false);
+		const whenInvalid = button.enabled;
+
+		assert.deepStrictEqual({ whileLoading, whenReady, whenInvalid }, { whileLoading: false, whenReady: true, whenInvalid: false });
 	});
 
 	test('hides repository controls for workspace-less targets', async () => {

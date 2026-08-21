@@ -37,7 +37,6 @@ import { defaultCheckboxStyles, defaultInputBoxStyles, defaultSelectBoxStyles } 
 import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
 import { IWorkspacePickerItem, WorkspacePicker } from '../../chat/browser/sessionWorkspacePicker.js';
 import { BranchPicker, IBranchPickerBranch } from '../../chat/browser/branchPicker.js';
-import { MobileSessionTypePicker } from '../../chat/browser/mobile/mobileSessionTypePicker.js';
 import { isMobilePickerSheetTarget } from '../../../browser/parts/mobile/mobilePickerSheet.js';
 import { ISession, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../services/sessions/common/session.js';
 import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
@@ -45,14 +44,17 @@ import { AutomationInterval } from '../../../../workbench/contrib/chat/common/au
 import { DAYS_OF_WEEK } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
-import { ChatAgentLocation, isChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
-import { AgentSessionTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { IChatWidget, ISessionTypePickerDelegate } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
-import { isModeConsideredBuiltIn } from '../../../../workbench/contrib/chat/browser/widget/input/modePickerActionItem.js';
+import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { AutomationIsolationModel, normalizeAutomationBranchNames } from '../common/isolationGroupModel.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { VisibleSession } from '../../../services/sessions/browser/visibleSessions.js';
+import { setActiveSessionContextKeys } from '../../../services/sessions/common/sessionContextKeys.js';
+import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
+import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
+import { SessionConfigKey } from '../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { INewChatInputSendRequest, NewChatInputWidget } from '../../chat/browser/newChatInput.js';
 import { showMobileWorkspacePickerSheet, shouldUseMobileWorkspacePickerSheet } from '../../chat/browser/mobile/mobileWorkspacePickerSheet.js';
 
 const $ = DOM.$;
@@ -198,6 +200,8 @@ interface IRenderFormHandle {
 	readonly getPermissionLevel: () => string | undefined;
 	readonly getModelId: () => string | undefined;
 	readonly getBranch: () => string | undefined;
+	/** True while the embedded composer's draft session is still resolving. */
+	readonly loading: IObservable<boolean>;
 	readonly waitForAutomationSessionSync: () => Promise<void>;
 	readonly getFocusableElements: () => readonly HTMLElement[];
 }
@@ -714,35 +718,6 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 	}
 }
 
-/**
- * Renders a dialog-owned picker into a chat input secondary-toolbar slot. The
- * picker instance is owned by the dialog (registered on its disposables); this
- * view item only injects the picker's DOM into the toolbar container via the
- * supplied {@link renderPicker} callback.
- */
-class AutomationPickerActionViewItem extends BaseActionViewItem {
-	private readonly visibilityWatch = this._register(new MutableDisposable<IDisposable>());
-
-	constructor(
-		action: IAction,
-		private readonly renderPicker: (container: HTMLElement) => void,
-		private readonly visible: IObservable<boolean> | undefined,
-		options?: IBaseActionViewItemOptions,
-	) {
-		super(undefined, action, options);
-	}
-
-	override render(container: HTMLElement): void {
-		super.render(container);
-		DOM.clearNode(container);
-		this.renderPicker(container);
-		const visible = this.visible;
-		this.visibilityWatch.value = visible ? autorun(reader => {
-			setAutomationControlVisible(container, visible.read(reader));
-		}) : undefined;
-	}
-}
-
 registerAction2(class OpenAutomationsHarnessChipAction extends Action2 {
 	constructor() {
 		super({
@@ -815,6 +790,7 @@ export function renderForm(
 	logService: ILogService,
 	productService: IProductService,
 	sessionsManagementService: ISessionsManagementService,
+	sessionsProvidersService: ISessionsProvidersService,
 	workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	initialPrompt: string,
 	initialMode: string | undefined,
@@ -901,41 +877,9 @@ export function renderForm(
 		applyIntervalVisibility();
 	}));
 
-	// The picker is authoritative for the session type
 	const isolationModel = new AutomationIsolationModel(state);
-	const workspaceControlsVisible = derived(reader => !isolationModel.isQuickChatObs.read(reader));
-	const sessionTypePicker = disposables.add(instantiationService.createInstance(MobileSessionTypePicker, constObservable<ISession | undefined>(undefined), { persistSelection: false, telemetrySource: 'AutomationSessionTypePicker', showChevron: false }));
-	sessionTypePicker.setQuickChatSource(isolationModel.isQuickChatObs);
-	sessionTypePicker.setFolderSource(isolationModel.folderUriObs, {
-		initialPick: state.sessionTypeId
-			? { providerId: state.providerId, sessionTypeId: state.sessionTypeId }
-			: undefined,
-		preserveUnavailableInitialPick: true,
-	});
-	// The dialog has no session, so the input part reads the active session type from the picker via this delegate.
-	const onDidChangeSessionType = disposables.add(new Emitter<AgentSessionTarget>());
+	// The dialog has no session; the session-type picker is authoritative.
 	const onDidChangeSessionTarget = disposables.add(new Emitter<void>());
-	const sessionTypeDelegate: ISessionTypePickerDelegate = {
-		getActiveSessionProvider: () => sessionTypePicker.modelTargetChatSessionType.get(),
-		onDidChangeActiveSessionProvider: onDidChangeSessionType.event,
-	};
-	const syncStateFromPicker = () => {
-		const pick = sessionTypePicker.selectedPick;
-		state.providerId = pick?.providerId;
-		state.sessionTypeId = pick?.sessionTypeId;
-		onDidChangeSessionTarget.fire();
-	};
-	disposables.add(autorun(reader => {
-		const modelTarget = sessionTypePicker.modelTargetChatSessionType.read(reader);
-		if (modelTarget) {
-			onDidChangeSessionType.fire(modelTarget);
-		}
-	}));
-	// Seed state from the picker's initial default (edit: saved type; create: folder default).
-	syncStateFromPicker();
-	// Covers both explicit user picks and recomputes (e.g. an agent host
-	// advertising its session types after the dialog opened), so the saved
-	// automation always matches the chip the picker displays.
 
 	const workspacePicker = disposables.add(instantiationService.createInstance(MobileAutomationsWorkspacePicker, {
 		restoreFromSessions: false,
@@ -950,6 +894,103 @@ export function renderForm(
 		(folderUri, preferredProviderId) => canSelectAutomationWorkspace(folderUri, preferredProviderId, sessionsManagementService, workspaceTrustRequestService),
 		error => logService.error('[AutomationDialog] Failed to synchronize the automation session draft.', error),
 	));
+
+	const promptRow = DOM.append(form, $('.automation-form-row'));
+	DOM.append(promptRow, $('span.automation-form-label', undefined, localize('automation.form.prompt', "Prompt")));
+	const promptHost = DOM.append(promptRow, $('.automation-form-prompt-host.interactive-session'));
+
+	// Scoped context keys bound to the automation draft so the embedded
+	// composer's provider control toolbars (mode/model/permissions/isolation/
+	// branch) evaluate their `when` clauses against the draft session.
+	const scopedContextKeyService = disposables.add(contextKeyService.createScoped(promptHost));
+	ChatContextKeys.location.bindTo(scopedContextKeyService).set(ChatAgentLocation.Chat);
+	ChatContextKeys.inChatSession.bindTo(scopedContextKeyService).set(true);
+	ChatContextKeys.inAutomationsDialog.bindTo(scopedContextKeyService).set(true);
+	IsNewChatSessionContext.bindTo(scopedContextKeyService).set(true);
+	const scopedInstantiationService = disposables.add(
+		instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]))
+	);
+
+	// Wrap the current automation draft ISession as an IActiveSession for the
+	// composer. Recreated (and the previous one disposed) whenever the draft
+	// identity changes.
+	const automationActiveSession = derived<IActiveSession | undefined>(reader => {
+		const draft = sessionsManagementService.automationSession.read(reader);
+		return draft ? reader.store.add(new VisibleSession(draft, draft.mainChat.read(reader))) : undefined;
+	});
+	disposables.add(autorun(reader => {
+		setActiveSessionContextKeys(automationActiveSession.read(reader), scopedContextKeyService, reader);
+	}));
+
+	// Reads isolation/branch selected in the provider's repository-config
+	// picker back off the draft. A minimal bridge until the provider-owned
+	// configuration snapshot lands.
+	const readDraftRepositoryConfig = (): { isolationMode: string | undefined; branch: string | undefined } => {
+		const draft = sessionsManagementService.automationSession.get();
+		if (!draft || draft.isQuickChat?.get()) {
+			return { isolationMode: undefined, branch: undefined };
+		}
+		const provider = sessionsProvidersService.getProvider(draft.providerId);
+		if (!provider || !isAgentHostProvider(provider)) {
+			return { isolationMode: undefined, branch: undefined };
+		}
+		const values = provider.getSessionConfig(draft.sessionId)?.values;
+		const isolation = values?.[SessionConfigKey.Isolation];
+		const rawBranch = values?.[SessionConfigKey.Branch];
+		return {
+			isolationMode: isolation === 'worktree' ? 'worktree' : isolation === 'folder' ? 'workspace' : undefined,
+			branch: typeof rawBranch === 'string' ? rawBranch : undefined,
+		};
+	};
+
+	const loading = derived(reader => automationActiveSession.read(reader)?.loading.read(reader) ?? false);
+
+	const chatInput = disposables.add(scopedInstantiationService.createInstance(NewChatInputWidget, {
+		session: automationActiveSession,
+		getContextFolderUri: () => isolationModel.folderUriObs.get(),
+		// The dialog commits via its own button; the composer never sends.
+		sendRequest: async (_request: INewChatInputSendRequest) => false,
+		canSendRequest: constObservable(false),
+		loading,
+		historyKey: constObservable(undefined),
+		placeholder: localize('automation.form.prompt.placeholder', "Describe what you want to automate"),
+		renderSendButton: false,
+		renderSessionTypePickerInControls: false,
+		hideAttachments: true,
+		suppressNotices: true,
+		disableDraftPersistence: true,
+		sessionTypePickerOptions: { persistSelection: false, telemetrySource: 'AutomationSessionTypePicker', showChevron: false },
+		renderExtraControls: (container: HTMLElement) => {
+			// Order: session type, then workspace. Provider mode/permission
+			// pickers follow (NewSessionControl), then the provider repo/folder
+			// picker (NewSessionRepositoryConfig) on the trailing edge.
+			chatInput.sessionTypePicker.render(container, { className: 'sessions-chat-session-type-picker' });
+			const workspaceSlot = DOM.append(container, $('.chat-input-picker-item'));
+			workspacePicker.render(workspaceSlot);
+		},
+	}));
+
+	// Reuse the composer's own session-type picker rather than building a second
+	// one. Drive it from the automation target (folder / quick chat) so it can
+	// select the harness before any session exists.
+	const sessionTypePicker = chatInput.sessionTypePicker;
+	sessionTypePicker.setQuickChatSource(isolationModel.isQuickChatObs);
+	sessionTypePicker.setFolderSource(isolationModel.folderUriObs, {
+		initialPick: state.sessionTypeId
+			? { providerId: state.providerId, sessionTypeId: state.sessionTypeId }
+			: undefined,
+		preserveUnavailableInitialPick: true,
+	});
+
+	const syncStateFromPicker = () => {
+		const pick = sessionTypePicker.selectedPick;
+		state.providerId = pick?.providerId;
+		state.sessionTypeId = pick?.sessionTypeId;
+		onDidChangeSessionTarget.fire();
+	};
+	// Seed state from the picker's initial default (edit: saved type; create: folder default).
+	syncStateFromPicker();
+
 	const updateAutomationSessionTarget = () => {
 		const folderUri = isolationModel.folderUriObs.get();
 		const pick = sessionTypePicker.selectedPick;
@@ -967,6 +1008,9 @@ export function renderForm(
 			automationSessionDraftSynchronizer.update({ kind: 'workspace', folderUri, providerId: pick.providerId, sessionTypeId: pick.sessionTypeId });
 		}
 	};
+	// Covers both explicit user picks and recomputes (e.g. an agent host
+	// advertising its session types after the dialog opened), so the saved
+	// automation always matches the chip the picker displays.
 	disposables.add(sessionTypePicker.onDidChangeSelectedPick(() => {
 		syncStateFromPicker();
 		updateAutomationSessionTarget();
@@ -995,210 +1039,19 @@ export function renderForm(
 		revalidate();
 	}));
 
-	const promptRow = DOM.append(form, $('.automation-form-row'));
-	DOM.append(promptRow, $('span.automation-form-label', undefined, localize('automation.form.prompt', "Prompt")));
-	const promptHost = DOM.append(promptRow, $('.automation-form-prompt-host.interactive-session'));
-
-	const chatInputStyles: IChatInputStyles = {
-		overlayBackground: 'var(--vscode-input-background)',
-		listForeground: 'var(--vscode-foreground)',
-		listBackground: 'var(--vscode-input-background)',
-	};
-	let automationIsolationAction: IAction | undefined;
-	const overflowIsolationItem = disposables.add(new MutableDisposable<AutomationIsolationGroupActionViewItem>());
-
-	const chatInputOptions: IChatInputPartOptions = {
-		renderFollowups: false,
-		renderInputToolbarBelowInput: false,
-		renderWorkingSet: false,
-		enableImplicitContext: false,
-		supportsChangingModes: true,
-		hideCustomChatModes: true,
-		suppressModePreferredModel: true,
-		suppressModelPersistence: true,
-		menus: {
-			executeToolbar: MenuId.AutomationsDialogInput,
-			telemetrySource: 'automations.dialog',
-		},
-		widgetViewKindTag: 'automations-dialog',
-		// A scheduling form, not a chat about to be sent: keep promos out.
-		isTransientChat: true,
-		inputEditorMinLines: 3,
-		// The dialog renders the composer flush with its form column (the
-		// `.interactive-input-part` margin is zeroed in CSS), so there is no
-		// outer horizontal gutter. Without this, ChatInputPart would still
-		// reserve the default 24px margin and lay the editor out too narrow,
-		// leaving its scrollbar floating ~24px in from the right wall.
-		inputPartHorizontalPadding: 0,
-		sessionTypePickerDelegate: sessionTypeDelegate,
-		secondaryToolbarOverflowActionHandler: (actionId, anchor) => {
-			if (actionId === AUTOMATIONS_HARNESS_CHIP_ACTION_ID) {
-				sessionTypePicker.showPicker(anchor);
-				return true;
-			}
-			if (actionId === AUTOMATIONS_WORKSPACE_PICKER_ACTION_ID) {
-				workspacePicker.showPicker(false, anchor);
-				return true;
-			}
-			if (actionId === AUTOMATIONS_ISOLATION_GROUP_ACTION_ID && automationIsolationAction) {
-				const item = instantiationService.createInstance(
-					AutomationIsolationGroupActionViewItem,
-					automationIsolationAction,
-					state,
-					isolationModel,
-					isolationModel.folderUriObs,
-					onDidChangeSessionTarget.event,
-					revalidate,
-					undefined,
-					workspaceControlsVisible,
-				);
-				overflowIsolationItem.value = item;
-				item.render(DOM.$('.automation-overflow-isolation-picker'));
-				item.showPicker(anchor);
-				return true;
-			}
-			return false;
-		},
-		secondaryToolbarActionViewItemProvider: (action, itemOptions) => {
-			if (action.id === AUTOMATIONS_HARNESS_CHIP_ACTION_ID) {
-				return new AutomationPickerActionViewItem(action, container => sessionTypePicker.render(container), undefined, itemOptions);
-			}
-			if (action.id === AUTOMATIONS_WORKSPACE_PICKER_ACTION_ID) {
-				return new AutomationPickerActionViewItem(action, container => {
-					container.classList.add('chat-input-picker-item');
-					workspacePicker.render(container);
-				}, undefined, itemOptions);
-			}
-			if (action.id === AUTOMATIONS_ISOLATION_GROUP_ACTION_ID) {
-				automationIsolationAction = action;
-				const item = instantiationService.createInstance(
-					AutomationIsolationGroupActionViewItem,
-					action,
-					state,
-					isolationModel,
-					isolationModel.folderUriObs,
-					onDidChangeSessionTarget.event,
-					revalidate,
-					itemOptions,
-					workspaceControlsVisible,
-				);
-				return item;
-			}
-			return undefined;
-		},
-	};
-
-	// Minimal subset of IChatWidget needed by ChatInputPart in dialog context
-	type IMinimalChatWidget = Pick<IChatWidget, 'onDidChangeViewModel' | 'viewModel' | 'contribs' | 'location' | 'viewContext' | 'lockToCodingAgent' | 'unlockFromCodingAgent'>;
-
-	const stubWidget: IMinimalChatWidget = {
-		onDidChangeViewModel: Event.None,
-		viewModel: undefined,
-		contribs: [],
-		location: ChatAgentLocation.Chat,
-		viewContext: {},
-		lockToCodingAgent: () => { },
-		unlockFromCodingAgent: () => { },
-	};
-
-	// Bind context keys required by chat input toolbar `when` clauses.
-	const scopedContextKeyService = disposables.add(contextKeyService.createScoped(promptHost));
-	ChatContextKeys.location.bindTo(scopedContextKeyService).set(ChatAgentLocation.Chat);
-	ChatContextKeys.inChatSession.bindTo(scopedContextKeyService).set(true);
-	ChatContextKeys.inAutomationsDialog.bindTo(scopedContextKeyService).set(true);
-	const scopedInstantiationService = disposables.add(
-		instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]))
-	);
-
-	const chatInput = disposables.add(
-		scopedInstantiationService.createInstance(ChatInputPart, ChatAgentLocation.Chat, chatInputOptions, chatInputStyles, false),
-	);
-	chatInput.render(promptHost, initialPrompt, stubWidget as IChatWidget);
-	chatInput.inputEditor.updateOptions({ placeholder: localize('automation.form.prompt.placeholder', "Describe what you want to automate") });
-
-	if (initialMode) {
-		const getUnfilteredInitialMode = () => {
-			const modes = chatInput.currentChatModesObs.get();
-			return modes.findModeById(initialMode) ?? modes.findModeByName(initialMode);
-		};
-		const isHiddenCustomInitialMode = () => {
-			const mode = getUnfilteredInitialMode();
-			return !!mode && chatInputOptions.hideCustomChatModes && !isModeConsideredBuiltIn(mode, productService);
-		};
-
-		if (isHiddenCustomInitialMode()) {
-			logService.trace(`[AutomationDialog] Skipping hidden custom initial mode "${initialMode}". Falling back to the default mode.`);
-		} else {
-			chatInput.setChatMode(initialMode, /* storeSelection */ false);
-		}
-		// Retry on cold-start when extension-contributed modes arrive late.
-		if (chatInput.currentModeObs.get().id !== initialMode && !isHiddenCustomInitialMode()) {
-			const baseline = chatInput.currentModeObs.get().id;
-			const retry = disposables.add(new MutableDisposable<IDisposable>());
-			const tryApply = () => {
-				if (chatInput.currentModeObs.get().id !== baseline) {
-					retry.clear();
-					return;
-				}
-				if (isHiddenCustomInitialMode()) {
-					logService.trace(`[AutomationDialog] Skipping hidden custom initial mode "${initialMode}" after modes updated. Falling back to the default mode.`);
-					retry.clear();
-					return;
-				}
-				const modes = chatInput.currentChatModesObs.get();
-				if (modes.findModeById(initialMode) || modes.findModeByName(initialMode)) {
-					chatInput.setChatMode(initialMode, /* storeSelection */ false);
-					if (chatInput.currentModeObs.get().id === initialMode) {
-						retry.clear();
-					}
-				}
-			};
-			retry.value = autorun(reader => {
-				const modes = chatInput.currentChatModesObs.read(reader);
-				reader.store.add(modes.onDidChange(tryApply));
-				tryApply();
-			});
-		}
-	}
-	if (initialPermissionLevel && isChatPermissionLevel(initialPermissionLevel)) {
-		chatInput.setPermissionLevel(initialPermissionLevel);
-	}
-	// On edit, apply the saved model with late-arrival retry if needed.
-	chatInput.resetLanguageModelToDefault();
-
-	const resolveInitialModelId = () => initialModelId ? resolveAutomationModelIdentifier(
-		languageModelsService,
-		initialModelId,
-		state.sessionTypeId,
-		sessionTypePicker.modelTargetChatSessionType.get(),
-	) : undefined;
-	const resolvedInitialModelId = resolveInitialModelId();
-	if (resolvedInitialModelId && !chatInput.switchModelByIdentifier(resolvedInitialModelId, /* storeSelection */ false)) {
-		const baseline = chatInput.selectedLanguageModel.get()?.identifier;
-		const retry = disposables.add(new MutableDisposable<IDisposable>());
-		retry.value = Event.any(
-			languageModelsService.onDidChangeLanguageModels,
-			Event.fromObservableLight(sessionTypePicker.modelTargetChatSessionType),
-		)(() => {
-			if (chatInput.selectedLanguageModel.get()?.identifier !== baseline) {
-				retry.clear();
-				return;
-			}
-			const modelIdentifier = resolveInitialModelId();
-			if (modelIdentifier && chatInput.switchModelByIdentifier(modelIdentifier, /* storeSelection */ false)) {
-				retry.clear();
-			}
-		});
+	chatInput.render(promptHost, promptHost);
+	if (initialPrompt) {
+		chatInput.inputEditor?.setValue(initialPrompt);
 	}
 
-	disposables.add(chatInput.inputEditor.onDidChangeModelContent(() => {
+	disposables.add(chatInput.inputEditor?.onDidChangeModelContent(() => {
 		revalidate();
-	}));
+	}) ?? { dispose: () => { } });
 
-	chatInput.layout(580);
+	chatInput.layout(0, 580);
 	queueMicrotask(() => {
 		if (!disposables.isDisposed) {
-			chatInput.layout(580);
+			chatInput.layout(0, 580);
 		}
 	});
 
@@ -1206,7 +1059,7 @@ export function renderForm(
 		for (const entry of entries) {
 			const width = entry.contentRect.width;
 			if (width > 0) {
-				chatInput.layout(width);
+				chatInput.layout(0, width);
 			}
 		}
 	}, DOM.getWindow(promptHost)));
@@ -1231,14 +1084,19 @@ export function renderForm(
 	}));
 
 	return {
-		getPrompt: () => chatInput.inputEditor.getValue(),
-		getMode: () => chatInput.currentModeObs.get().id,
-		getPermissionLevel: () => chatInput.currentPermissionLevelObs.get(),
-		getModelId: () => chatInput.selectedLanguageModel.get()?.identifier,
-		getBranch: () => isolationModel.persistedBranch,
-		waitForAutomationSessionSync: () => {
+		getPrompt: () => chatInput.inputEditor?.getValue() ?? '',
+		// TODO(phase5): read mode/permission from the provider draft snapshot.
+		getMode: () => automationActiveSession.get()?.mode.get()?.id,
+		getPermissionLevel: () => initialPermissionLevel,
+		getModelId: () => automationActiveSession.get()?.modelId.get(),
+		getBranch: () => readDraftRepositoryConfig().branch,
+		loading,
+		waitForAutomationSessionSync: async () => {
 			updateAutomationSessionTarget();
-			return automationSessionDraftSynchronizer.waitForSync();
+			await automationSessionDraftSynchronizer.waitForSync();
+			// Bridge isolation from the provider draft into the form state so
+			// `createAutomationTarget` produces the correct target at Save.
+			state.isolationMode = readDraftRepositoryConfig().isolationMode;
 		},
 		getFocusableElements: () => {
 			// eslint-disable-next-line no-restricted-syntax -- the dialog owns this form subtree and supplies its dynamic focus order.
@@ -1285,6 +1143,7 @@ export function updateSaveButtonState(
 	form: HTMLElement,
 	getPrompt: () => string,
 	getBranch: () => string | undefined,
+	isLoading = false,
 ): void {
 	validation.nameError = state.name.trim() === ''
 		? localize('automation.form.nameRequired', "Name is required.")
@@ -1305,7 +1164,9 @@ export function updateSaveButtonState(
 
 	const valid = !validation.nameError && !validation.promptError && !validation.folderError && !validation.sessionTypeError && !validation.branchError;
 	if (saveButton) {
-		saveButton.enabled = valid;
+		// Also gate on the composer's draft still resolving, so a save can't
+		// commit before the provider config (model, isolation/branch) is ready.
+		saveButton.enabled = valid && !isLoading;
 	}
 	form.classList.toggle('automation-form-invalid', !valid);
 }
