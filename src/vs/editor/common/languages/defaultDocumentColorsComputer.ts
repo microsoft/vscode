@@ -7,6 +7,12 @@ import { IPosition } from '../core/position.js';
 import { IRange } from '../core/range.js';
 import { IColor, IColorInformation } from '../languages.js';
 
+// Matches oklab(L a b) / oklab(L a b / alpha) and oklch(L C H) / oklch(L C H / alpha).
+// Lightness accepts percentage or unitless number; components accept signed decimals with
+// optional percentage; hue optionally carries a `deg` suffix. Matching is intentionally
+// lenient on spacing — the value is handed to Color.Format.CSS.parseOK* for strict parsing.
+const OKLAB_OR_OKLCH_REGEX = /\b(oklab|oklch)\(\s*[+-]?(?:\d+\.?\d*|\.\d+)%?\s+[+-]?(?:\d+\.?\d*|\.\d+)%?\s+[+-]?(?:\d+\.?\d*|\.\d+)(?:deg)?\s*(?:\/\s*[+-]?(?:\d+\.?\d*|\.\d+)%?\s*)?\)/gi;
+
 export interface IDocumentColorComputerTarget {
 	getValue(): string;
 	positionAt(offset: number): IPosition;
@@ -90,6 +96,20 @@ function _findHSLColorInformation(range: IRange | undefined, matches: RegExpMatc
 	};
 }
 
+function _findOKColorInformation(range: IRange | undefined, css: string, scheme: 'oklab' | 'oklch') {
+	if (!range) {
+		return;
+	}
+	const parsed = scheme === 'oklab' ? Color.Format.CSS.parseOKLab(css) : Color.Format.CSS.parseOKLCh(css);
+	if (!parsed) {
+		return;
+	}
+	return {
+		range: range,
+		color: _toIColor(parsed.rgba.r, parsed.rgba.g, parsed.rgba.b, parsed.rgba.a)
+	};
+}
+
 function _findMatches(model: IDocumentColorComputerTarget | string, regex: RegExp): RegExpMatchArray[] {
 	if (typeof model === 'string') {
 		return [...model.matchAll(regex)];
@@ -137,6 +157,21 @@ function computeColors(model: IDocumentColorComputerTarget): IColorInformation[]
 			}
 		}
 	}
+
+	// Detect CSS Color Level 4 oklab() / oklch() separately — their grammar differs
+	// enough from legacy rgb/hsl that piggy-backing on the validation regex above would
+	// hurt readability. Parsing the whole function string via Color.Format.CSS keeps
+	// this cheap and in sync with the serializer used for the color picker cycle.
+	const okMatches = _findMatches(model, OKLAB_OR_OKLCH_REGEX);
+	for (const match of okMatches) {
+		const css = match[0];
+		const scheme = (match[1] || '').toLowerCase() as 'oklab' | 'oklch';
+		const colorInformation = _findOKColorInformation(_findRange(model, match), css, scheme);
+		if (colorInformation) {
+			result.push(colorInformation);
+		}
+	}
+
 	return result;
 }
 
