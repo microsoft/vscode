@@ -406,18 +406,8 @@ export class PullRequestQueryService implements IPullRequestQuery {
 	}
 
 	/**
-	 * Loads the check rollup, dropping the workflow-name subselection when the
-	 * host refuses it.
-	 *
-	 * `CheckRun.checkSuite` is non-nullable, so an authorization failure on the
-	 * GitHub Actions data it exposes — most commonly SAML SSO enforcement on the
-	 * owning organization — fails the whole fragment rather than that one field.
-	 * Checks would then never load, and Agent Merge cannot evaluate a pull
-	 * request without them. Workflow names are only informational, so a refusal
-	 * drops them and keeps the checks themselves. The decision is remembered per
-	 * repository so the fragment does not pay for a rejected request on every
-	 * poll. Only the rollup request is retried, so a refusal raised by any other
-	 * request cannot be misread as this one.
+	 * Loads the check rollup, dropping the workflow-name subselection for a
+	 * repository whose host refuses it so the rest of the checks stay readable.
 	 */
 	private async _fetchCheckRollupWithWorkflowNames(
 		ref: PullRequestRef,
@@ -442,17 +432,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		}
 	}
 
-	/**
-	 * Loads the check suites expected for the head commit, tolerating a host
-	 * that refuses them.
-	 *
-	 * These suites are supplementary, and they read the same organization
-	 * protected GitHub Actions data that can refuse the rollup, so letting a
-	 * refusal fail the fragment would leave checks unreadable for the same
-	 * reason. Reporting them absent and incomplete keeps the checks themselves
-	 * usable and matches how every caller that does not request them is already
-	 * served.
-	 */
+	/** Loads the expected check suites, reporting them absent and incomplete when the host refuses them. */
 	private async _fetchExpectedCheckSuitesWhenPermitted(
 		ref: PullRequestRef,
 		headSha: string,

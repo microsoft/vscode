@@ -15,7 +15,7 @@ import { IGitHubService } from '../../github/common/githubService.js';
 import { PullRequestRef, PullRequestSnapshot, PullRequestSubscription } from '../../github/common/githubPullRequestService.js';
 import { GitHubRequestError } from '../../github/common/githubTransport.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentMergeConfigKey, AgentMergeConfiguration, AgentMergePromptContext, AgentMergeRepairAction, AgentMergeSessionState, AgentMergeTarget, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, evaluateAgentMerge, readAgentMergeSessionState, resolveAgentMergeConfiguration } from '../common/agentMerge.js';
+import { AgentMergeConfigKey, AgentMergeConfiguration, AgentMergePromptContext, AgentMergeRepairAction, AgentMergeSessionState, AgentMergeTarget, agentMergeGateFragments, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, evaluateAgentMerge, readAgentMergeSessionState, resolveAgentMergeConfiguration } from '../common/agentMerge.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { deriveGitHubEndpoints } from '../common/githubEndpoints.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
@@ -31,17 +31,9 @@ const snapshotDebounce = 30_000;
 const backstopInterval = 10 * 60_000;
 const maximumRepeatedPromptCount = 3;
 const maximumTotalPromptCount = 6;
-/**
- * How long one unchanged indeterminate cause may persist before Agent Merge
- * gives up. Generous enough to outlast slow refreshes and the failure backoff,
- * while keeping a permanently unreadable pull request from idling forever.
- */
+/** How long one unchanged indeterminate cause may persist before Agent Merge gives up. */
 const maximumIndeterminateDuration = 30 * 60_000;
-/**
- * How long a gap between indeterminate observations may be before the budget
- * window restarts. Evaluation pauses for the duration of a turn and stops
- * entirely while the host sleeps, and neither should count as time spent stuck.
- */
+/** How long a gap between indeterminate observations may be before the budget window restarts. */
 const indeterminateObservationGap = 2 * backstopInterval;
 
 export interface IAgentMergeControllerOptions {
@@ -68,6 +60,8 @@ class AgentMergeRuntime extends Disposable {
 	didRefreshForMissingBranch = false;
 	/** The unchanged indeterminate cause being timed out, if any. */
 	indeterminate: { readonly cause: string; readonly since: number; observedAt: number } | undefined;
+	/** The refused fragment a credential was last requested for, if any. */
+	reportedCredentialFailure: string | undefined;
 
 	constructor(
 		readonly session: string,
@@ -340,14 +334,7 @@ export class AgentMergeController extends Disposable {
 					return;
 				}
 				if (error instanceof GitHubRequestError && (error.kind === 'authentication' || error.kind === 'authorization')) {
-					this._stateManager.emitAuthRequired({
-						resource: this._gitHubEndpointService.getRepoResource(),
-						reason: AuthRequiredReason.Required,
-					});
-					if (error.kind === 'authorization') {
-						const organization = this._organizationForSession(session);
-						this._logService.warn(`[AgentMergeController] GitHub refused the signed-in account access it needs${organization ? ` to ${organization}` : ''}${isSamlEnforcementError(error) ? '; the token must be SSO-authorized for that organization' : ''}: session=${session}`);
-					}
+					this._requestGitHubAuthorization(session, error.kind, error.message);
 				}
 				this._logService.error(error, `[AgentMergeController] Evaluation failed: session=${session}, kind=${githubErrorKind(error)}`);
 				this._runtimes.get(session)?.backstopScheduler.schedule();
@@ -434,9 +421,11 @@ export class AgentMergeController extends Disposable {
 		this._logGateResult(session, gate);
 		if (gate.kind !== 'indeterminate') {
 			runtime.indeterminate = undefined;
+			runtime.reportedCredentialFailure = undefined;
 		}
 		switch (gate.kind) {
 			case 'indeterminate':
+				this._reportBlockedCredential(session, runtime, snapshot);
 				if (this._isIndeterminateBudgetExhausted(session, runtime, gate.cause)) {
 					this._disable(session, agentMerge, `the pull request state could not be evaluated for ${Math.round(maximumIndeterminateDuration / 60_000)} minutes: ${gate.reason}`);
 					return;
@@ -807,17 +796,42 @@ export class AgentMergeController extends Disposable {
 	}
 
 	/**
+	 * Asks the client for a credential that can read the bound pull request,
+	 * naming the organization to authorize when GitHub reports SAML enforcement.
+	 */
+	private _requestGitHubAuthorization(session: string, kind: 'authentication' | 'authorization', message: string): void {
+		this._stateManager.emitAuthRequired({
+			resource: this._gitHubEndpointService.getRepoResource(),
+			reason: AuthRequiredReason.Required,
+		});
+		const organization = this._organizationForSession(session);
+		const remedy = isSamlEnforcementError(message) && organization
+			? `; the credential must be SSO-authorized for ${organization}`
+			: '';
+		this._logService.warn(`[AgentMergeController] GitHub refused the credential (${kind})${remedy}: session=${session}`);
+	}
+
+	/**
+	 * Requests a credential when a fragment the gate needs was refused by
+	 * GitHub, which only the first refresh of a subscription reports by throwing.
+	 */
+	private _reportBlockedCredential(session: string, runtime: AgentMergeRuntime, snapshot: PullRequestSnapshot): void {
+		const blocked = firstCredentialFailure(snapshot);
+		if (!blocked) {
+			runtime.reportedCredentialFailure = undefined;
+			return;
+		}
+		if (runtime.reportedCredentialFailure === blocked.id) {
+			return;
+		}
+		runtime.reportedCredentialFailure = blocked.id;
+		this._requestGitHubAuthorization(session, blocked.kind, blocked.message);
+	}
+
+	/**
 	 * Reports whether one unchanged indeterminate cause has persisted past its
-	 * budget.
-	 *
-	 * Indeterminate is the only gate outcome that neither acts nor stops, so
-	 * without a budget a pull request whose state can never be read keeps a
-	 * session resident indefinitely with nothing to show for it. The budget
-	 * measures continuously observed time: evaluation is suspended while a turn
-	 * runs, and the host can be asleep for hours, so a gap between observations
-	 * restarts the window rather than counting toward it. Timing the cause
-	 * rather than counting evaluations keeps the budget stable however often
-	 * snapshots change.
+	 * budget, measured over continuously observed time so a turn or a sleeping
+	 * host cannot exhaust it.
 	 */
 	private _isIndeterminateBudgetExhausted(session: string, runtime: AgentMergeRuntime, cause: string): boolean {
 		const now = Date.now();
@@ -989,12 +1003,18 @@ function githubErrorKind(error: unknown): string {
 		: error instanceof Error ? error.name : typeof error;
 }
 
-/**
- * Detects the SAML single sign-on refusal GitHub returns for organizations that
- * enforce it, which is fixed by authorizing the token for the organization
- * rather than by signing in again.
- */
-export function isSamlEnforcementError(error: GitHubRequestError): boolean {
-	const messages = [error.message, ...(error.graphQLErrors ?? []).map(graphQLError => graphQLError.message ?? '')];
-	return messages.some(message => message.toLowerCase().includes('saml enforcement'));
+/** Detects the SAML single sign-on refusal GitHub returns for organizations that enforce it. */
+export function isSamlEnforcementError(message: string): boolean {
+	return message.toLowerCase().includes('saml enforcement');
+}
+
+/** Finds the first fragment the gate needs that GitHub refused to serve. */
+export function firstCredentialFailure(snapshot: PullRequestSnapshot): { readonly id: string; readonly kind: 'authentication' | 'authorization'; readonly message: string } | undefined {
+	for (const fragment of agentMergeGateFragments) {
+		const error = snapshot[fragment].error;
+		if (error?.kind === 'authentication' || error?.kind === 'authorization') {
+			return { id: `${fragment}:${error.kind}`, kind: error.kind, message: error.message };
+		}
+	}
+	return undefined;
 }

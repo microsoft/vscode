@@ -390,15 +390,21 @@ function isCompleteHeadFragment(snapshot: PullRequestSnapshot, fragment: 'checks
 	return state.status === 'ready' && state.complete && state.value !== undefined && state.headSha === headSha;
 }
 
-type EvaluatedFragment = 'topLevelComments' | 'submittedReviews' | 'reviewThreads' | 'checks' | 'mergeability';
+const conversationFragments = ['topLevelComments', 'submittedReviews', 'reviewThreads'] as const;
+const headFragments = ['checks', 'mergeability'] as const;
+
+type EvaluatedFragment = typeof conversationFragments[number] | typeof headFragments[number];
+
+/** Fragments the gate must be able to read before it can decide anything. */
+export const agentMergeGateFragments = ['core', ...conversationFragments, ...headFragments] as const;
 
 function firstIncompleteFragment(snapshot: PullRequestSnapshot, headSha: string): EvaluatedFragment | undefined {
-	for (const fragment of ['topLevelComments', 'submittedReviews', 'reviewThreads'] as const) {
+	for (const fragment of conversationFragments) {
 		if (!isCompleteFragment(snapshot, fragment)) {
 			return fragment;
 		}
 	}
-	for (const fragment of ['checks', 'mergeability'] as const) {
+	for (const fragment of headFragments) {
 		if (!isCompleteHeadFragment(snapshot, fragment, headSha)) {
 			return fragment;
 		}
@@ -406,14 +412,7 @@ function firstIncompleteFragment(snapshot: PullRequestSnapshot, headSha: string)
 	return undefined;
 }
 
-/**
- * Names the fragment holding evaluation back, and why.
- *
- * Every fragment shares one indeterminate outcome, so without this a permanent
- * failure and an ordinary in-flight refresh are indistinguishable in the logs.
- * `reason` carries the volatile detail worth logging, while `cause` stays
- * stable for as long as the same condition persists so callers can time it.
- */
+/** Describes why a fragment blocks evaluation, with a `cause` that stays stable while the condition lasts. */
 function describeIncompleteFragment(snapshot: PullRequestSnapshot, fragment: EvaluatedFragment): { readonly reason: string; readonly cause: string } {
 	const state = snapshot[fragment];
 	if (state.error) {

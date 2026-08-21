@@ -691,10 +691,7 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 			case 'reviewThreads':
 				return visible ? this._policy.conversationVisible : this._policy.conversationBackground;
 			case 'checks': {
-				// An errored fragment carries no trustworthy pending signal: a value
-				// that never loaded reads as pending, and one left over from an
-				// earlier poll may be arbitrarily stale. Either would otherwise hold
-				// the fast pending cadence for as long as the failure lasts.
+				// An errored fragment carries no trustworthy pending signal.
 				const checks = entry.snapshot.get().checks;
 				return checks.status !== 'error' && checksPending(checks.value)
 					? visible ? this._policy.checksPendingVisible : this._policy.checksPendingBackground
