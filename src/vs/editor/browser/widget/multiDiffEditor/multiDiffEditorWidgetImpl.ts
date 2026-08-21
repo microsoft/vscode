@@ -24,6 +24,7 @@ import { ISelection, Selection } from '../../../common/core/selection.js';
 import { IDiffEditor } from '../../../common/editorCommon.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { ICodeEditor } from '../../editorBrowser.js';
+import { observableCodeEditor } from '../../observableCodeEditor.js';
 import { ObservableElementSizeObserver } from '../diffEditor/utils.js';
 import { DiffEditorItemTemplate, TemplateData } from './diffEditorItemTemplate.js';
 import { IDocumentDiffItem } from './model.js';
@@ -132,15 +133,29 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 				const viewModels = vm.items.read(reader);
 				const map = new Map<DocumentDiffItemViewModel, VirtualizedViewItem>();
 				const items = viewModels.map(d => {
+					const saveViewState = (state: IMultiDiffDocState) => {
+						if (this._viewModel.read(undefined) === vm) {
+							const key = d.getKey();
+							this._documentViewStates.set(key, {
+								collapsed: state.collapsed,
+								selections: state.selections ?? this._documentViewStates.get(key)?.selections,
+							});
+						}
+					};
 					const item = reader.store.add(new VirtualizedViewItem(d, this._objectPool, this.scrollLeft, delta => {
 						this._scrollableElement.setScrollPosition({ scrollTop: this._scrollableElement.getScrollPosition().scrollTop + delta });
-					}));
-					const data = this._lastDocStates?.[item.getKey()];
-					if (data) {
-						transaction(tx => {
-							item.setViewState(data, tx);
+					}, saveViewState));
+					this._applyDocumentViewStateOnce(item);
+					reader.store.add(autorun(reader => {
+						const editor = item.template.read(reader)?.editor;
+						const editorSelections = editor
+							? observableCodeEditor(editor.getModifiedEditor()).selections.read(reader) ?? undefined
+							: undefined;
+						saveViewState({
+							collapsed: item.viewModel.collapsed.read(reader),
+							selections: editorSelections ?? item.viewModel.lastTemplateData.read(reader).selections,
 						});
-					}
+					}));
 					map.set(d, item);
 					return item;
 				});
@@ -162,8 +177,6 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		));
 
 		this._contextKeyService.createKey(EditorContextKeys.inMultiDiffEditor.key, true);
-
-		this._lastDocStates = {};
 
 		this._register(autorunWithStore((reader, store) => {
 			const viewModel = this._viewModel.read(reader);
@@ -329,7 +342,9 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	 * previous model's state for overlapping diff keys.
 	 */
 	public clearPendingRestorationState(): void {
-		this._lastDocStates = undefined;
+		this._documentViewStates.clear();
+		this._documentViewStateModel = undefined;
+		this._initializedDocumentViewModels = new WeakSet();
 		this._lastActiveDiffItemKey = undefined;
 		this._pendingScrollState = undefined;
 	}
@@ -392,8 +407,10 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		};
 	}
 
-	/** This accounts for documents that are not loaded yet. */
-	private _lastDocStates: IMultiDiffEditorViewState['docStates'];
+	/** Latest state per document, seeded from restored state and updated from live view models. */
+	private _documentViewStates = new Map<string, IMultiDiffDocState>();
+	private _documentViewStateModel: MultiDiffEditorViewModel | undefined;
+	private _initializedDocumentViewModels = new WeakSet<DocumentDiffItemViewModel>();
 
 	/**
 	 * The active diff item to restore once the documents are loaded. Restoring it
@@ -408,17 +425,18 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	public setViewState(viewState: IMultiDiffEditorViewState, tx?: ITransaction): void {
 		this.setScrollState(viewState.scrollState);
 
-		this._lastDocStates = viewState.docStates;
+		const viewModel = this._viewModel.get();
+		if (this._documentViewStateModel !== viewModel) {
+			this._documentViewStateModel = viewModel;
+			this._initializedDocumentViewModels = new WeakSet();
+		}
+		this._documentViewStates = new Map(Object.entries(viewState.docStates ?? {}));
 		this._lastActiveDiffItemKey = viewState.activeDiffItemKey;
 
 		const applyDocStates = (tx: ITransaction) => {
-			if (viewState.docStates) {
-				for (const i of this._viewItems.get()) {
-					const state = viewState.docStates[i.getKey()];
-					if (state) {
-						i.setViewState(state, tx);
-					}
-				}
+			for (const item of this._viewItems.get()) {
+				this._applyDocumentViewStateOnce(item, tx);
+				this._documentViewStates.set(item.getKey(), item.getViewState());
 			}
 		};
 		if (tx) {
@@ -430,9 +448,26 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		// If the documents are already loaded, restore the active item now (this
 		// overrides the first-change selection the init autorun may have made);
 		// otherwise the init autorun restores it once loading completes.
-		const viewModel = this._viewModel.get();
 		if (viewModel) {
 			this._restorePendingActiveDiffItem(viewModel, viewModel.items.get());
+		}
+	}
+
+	private _applyDocumentViewStateOnce(item: VirtualizedViewItem, tx?: ITransaction): void {
+		if (this._initializedDocumentViewModels.has(item.viewModel)) {
+			return;
+		}
+
+		this._initializedDocumentViewModels.add(item.viewModel);
+		const state = this._documentViewStates.get(item.getKey());
+		if (!state) {
+			return;
+		}
+
+		if (tx) {
+			item.setViewState(state, tx);
+		} else {
+			transaction(tx => item.setViewState(state, tx));
 		}
 	}
 
@@ -645,6 +680,7 @@ class VirtualizedViewItem extends Disposable {
 		private readonly _objectPool: ObjectPool<TemplateData, DiffEditorItemTemplate>,
 		private readonly _scrollLeft: IObservable<number>,
 		private readonly _deltaScrollVertical: (delta: number) => void,
+		private readonly _saveViewState: (state: IMultiDiffDocState) => void,
 	) {
 		super();
 
@@ -670,6 +706,7 @@ class VirtualizedViewItem extends Disposable {
 
 	override dispose(): void {
 		this._clear();
+		this._saveViewState(this.getViewState());
 		super.dispose();
 	}
 
@@ -738,12 +775,9 @@ class VirtualizedViewItem extends Disposable {
 		let ref = this._templateRef.get();
 		if (!ref) {
 			ref = this._objectPool.getUnusedObj(new TemplateData(this.viewModel, this._deltaScrollVertical));
-			this._templateRef.set(ref, undefined);
-
 			const selections = this.viewModel.lastTemplateData.get().selections;
-			if (selections) {
-				ref.object.editor.setSelections(selections);
-			}
+			ref.object.editor.setSelections(selections ?? [new Selection(1, 1, 1, 1)]);
+			this._templateRef.set(ref, undefined);
 		}
 		ref.object.render(verticalSpace, width, offset, viewPort);
 	}
