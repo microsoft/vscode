@@ -493,7 +493,26 @@ export class NotificationTemplateRenderer extends Disposable {
 
 		// Close (unless progress is showing)
 		if (!notification.hasProgress) {
-			actions.push(NotificationTemplateRenderer.closeNotificationAction);
+			const primaryActions = notification.actions?.primary;
+			if (isNonEmptyArray(primaryActions)) {
+				// When the notification has action buttons, the X (close) button should
+				// invoke the last primary action (typically a cancel/dismiss choice) so
+				// that alerts with choices are not silently discarded without any action.
+				const lastPrimary = primaryActions[primaryActions.length - 1];
+				actions.push(toAction({
+					id: NotificationTemplateRenderer.closeNotificationAction.id,
+					label: NotificationTemplateRenderer.closeNotificationAction.label,
+					class: NotificationTemplateRenderer.closeNotificationAction.class,
+					run: () => {
+						this.actionRunner.run(lastPrimary, notification);
+						if (!(lastPrimary instanceof ChoiceAction) || !lastPrimary.keepOpen) {
+							notification.close();
+						}
+					}
+				}));
+			} else {
+				actions.push(NotificationTemplateRenderer.closeNotificationAction);
+			}
 		}
 
 		this.template.toolbar.clear();
