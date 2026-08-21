@@ -76,6 +76,24 @@ function Get-UsableNode([string]$repoPath) {
 	throw "Node.js $requiredVersion or newer is required on PATH. $setupMessage"
 }
 
+function Get-SourceSharedDataDir([string]$repoPath) {
+	if ($env:CODE_OSS_DEV_AUTHED_SHARED_DATA_DIR) {
+		return $env:CODE_OSS_DEV_AUTHED_SHARED_DATA_DIR
+	}
+
+	# Mirrors IEnvironmentService.appSharedDataHome: ~/<product.sharedDataFolderName>
+	$folderName = '.vscode-oss-shared'
+	$productJson = Join-Path $repoPath 'product.json'
+	if (Test-Path -LiteralPath $productJson -PathType Leaf) {
+		$product = Get-Content -LiteralPath $productJson -Raw | ConvertFrom-Json
+		if ($product.PSObject.Properties['sharedDataFolderName']) {
+			$folderName = $product.sharedDataFolderName
+		}
+	}
+
+	return Join-Path $env:USERPROFILE $folderName
+}
+
 function Get-FreePort {
 	$listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
 	try {
@@ -190,14 +208,13 @@ function Assert-AuthCriticalProfileFiles([string]$destination) {
 	}
 }
 
-function Test-SourceHasGitHubAuthenticationSecret([string]$node, [string]$source, [string]$temporaryDb) {
-	$sourceDb = Join-Path $source 'User\globalStorage\state.vscdb'
-	if (-not (Test-Path -LiteralPath $sourceDb -PathType Leaf)) {
-		return $null
+function Test-DbHasGitHubAuthenticationSecret([string]$node, [string]$db, [string]$temporaryDb) {
+	if (-not (Test-Path -LiteralPath $db -PathType Leaf)) {
+		return $false
 	}
 
 	try {
-		[IO.File]::Copy($sourceDb, $temporaryDb, $true)
+		[IO.File]::Copy($db, $temporaryDb, $true)
 		$script = @'
 import { DatabaseSync } from 'node:sqlite';
 
@@ -223,6 +240,33 @@ try {
 	} finally {
 		Remove-Item -LiteralPath $temporaryDb -Force -ErrorAction SilentlyContinue
 	}
+}
+
+function Test-SourceHasGitHubAuthenticationSecret([string]$node, [string]$source, [string]$sharedSource, [string]$temporaryDb) {
+	# On Windows the GitHub session is APPLICATION_SHARED scoped, so it lives in
+	# the shared-data-dir rather than the profile - see useSharedStorage in
+	# src/vs/platform/secrets/common/secrets.ts. Older profiles may still hold it
+	# in globalStorage, and both directories get copied, so either one counts.
+	$databases = @(
+		(Join-Path $sharedSource 'sharedStorage\state.vscdb'),
+		(Join-Path $source 'User\globalStorage\state.vscdb')
+	)
+
+	$undetermined = $false
+	foreach ($db in $databases) {
+		$result = Test-DbHasGitHubAuthenticationSecret $node $db $temporaryDb
+		if ($result -eq $true) {
+			return $true
+		}
+		if ($null -eq $result) {
+			$undetermined = $true
+		}
+	}
+
+	if ($undetermined) {
+		return $null
+	}
+	return $false
 }
 
 function Get-JsoncCodeMask([string]$text) {
@@ -306,11 +350,11 @@ function Ensure-SimpleDialogSetting([string]$settingsFile) {
 
 	$lastBrace = $maskedText.LastIndexOf('}')
 	if ($lastBrace -eq -1) {
-		throw "settings.json has no closing brace — refusing to clobber it: $settingsFile"
+		throw "settings.json has no closing brace - refusing to clobber it: $settingsFile"
 	}
 	$firstBrace = $maskedText.IndexOf('{')
 	if ($firstBrace -eq -1 -or $firstBrace -ge $lastBrace) {
-		throw "settings.json has no opening brace — refusing to clobber it: $settingsFile"
+		throw "settings.json has no opening brace - refusing to clobber it: $settingsFile"
 	}
 
 	# Whether a leading comma is needed depends only on real content, so decide
@@ -471,7 +515,18 @@ try {
 	$logFile = Join-Path $runDir 'code.log'
 	New-Item -ItemType Directory -Force -Path $runDir, $sharedDataDir | Out-Null
 	[IO.File]::WriteAllText($logFile, '', [Text.UTF8Encoding]::new($false))
-	$hasGitHubAuthenticationSecret = Test-SourceHasGitHubAuthenticationSecret $node $sourceUserDataDir (Join-Path $runDir 'auth-preflight.vscdb')
+	$sourceSharedDataDir = Get-SourceSharedDataDir $repo
+	if (Test-Path -LiteralPath $sourceSharedDataDir -PathType Container) {
+		# On Windows the GitHub session is APPLICATION_SHARED scoped, so it lives here
+		# and not in the profile - see useSharedStorage in
+		# src/vs/platform/secrets/common/secrets.ts. Without this copy the launched
+		# instance always prompts for sign-in.
+		Write-LaunchError "[launch.ps1] copying shared data: $sourceSharedDataDir -> $sharedDataDir"
+		Copy-ProfileDirectory $sourceSharedDataDir $sharedDataDir $false
+	} else {
+		Write-LaunchError "[launch.ps1] no shared-data-dir at $sourceSharedDataDir; the launched instance will prompt you to sign in"
+	}
+	$hasGitHubAuthenticationSecret = Test-SourceHasGitHubAuthenticationSecret $node $sourceUserDataDir $sourceSharedDataDir (Join-Path $runDir 'auth-preflight.vscdb')
 	if ($hasGitHubAuthenticationSecret -eq $false) {
 		Write-LaunchError "[launch.ps1] WARNING: source profile $sourceUserDataDir has no stored GitHub session; the launched instance will prompt you to sign in."
 		Write-LaunchError 'To fix once and for all, launch Code OSS directly against the source profile (no copy), sign in, then close it:'
