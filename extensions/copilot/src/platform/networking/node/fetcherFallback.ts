@@ -23,13 +23,39 @@ export async function fetchWithFallbacks(availableFetchers: readonly IFetcher[],
 		let firstResult: { ok: boolean; response: Response } | { ok: false; err: any } | undefined;
 		const updatedKnownBadFetchers = new Set<string>();
 		let lastError: string | undefined;
+		const useFallbackFetcher = (fetcher: IFetcher, response: Response) => {
+			logService.info(`FetcherService: using ${fetcher.getUserAgentLibrary()} from now on`);
+			/* __GDPR__
+				"fetcherFallback" : {
+					"owner": "chrmarti",
+					"comment": "Sent when the fetcher service switches to a fallback fetcher due to the primary fetcher failing",
+					"newFetcher": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The name of the fetcher that is now being used" },
+					"knownBadFetchers": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Comma-separated list of fetchers that are known to be failing" },
+					"knownBadFetchersCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of fetchers that are known to be failing" },
+					"lastError": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The last error encountered, containing fetcher ID, status code and error message" }
+				}
+			*/
+			telemetryService?.sendTelemetryEvent('fetcherFallback', { github: true, microsoft: true }, {
+				newFetcher: fetcher.getUserAgentLibrary(),
+				knownBadFetchers: Array.from(updatedKnownBadFetchers).join(','),
+				lastError,
+			}, {
+				knownBadFetchersCount: updatedKnownBadFetchers.size,
+			});
+			const updatedFetchers = availableFetchers.slice();
+			updatedFetchers.splice(updatedFetchers.indexOf(fetcher), 1);
+			updatedFetchers.unshift(fetcher);
+			return { response, updatedFetchers, updatedKnownBadFetchers };
+		};
 		for (const fetcher of availableFetchers) {
 			const result = await tryFetch(fetcher, url, options, logService);
 			if (fetcher === availableFetchers[0]) {
 				firstResult = result;
 			}
 			if ('response' in result && !result.response.ok) {
-				return { response: result.response };
+				return fetcher === availableFetchers[0]
+					? { response: result.response }
+					: useFallbackFetcher(fetcher, result.response);
 			}
 			if (!result.ok) {
 				const fetcherId = fetcher.getUserAgentLibrary();
@@ -46,28 +72,7 @@ export async function fetchWithFallbacks(availableFetchers: readonly IFetcher[],
 				if (retry.ok) {
 					return { response: retry.response };
 				}
-				logService.info(`FetcherService: using ${fetcher.getUserAgentLibrary()} from now on`);
-				/* __GDPR__
-					"fetcherFallback" : {
-						"owner": "chrmarti",
-						"comment": "Sent when the fetcher service switches to a fallback fetcher due to the primary fetcher failing",
-						"newFetcher": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The name of the fetcher that is now being used" },
-						"knownBadFetchers": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Comma-separated list of fetchers that are known to be failing" },
-						"knownBadFetchersCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of fetchers that are known to be failing" },
-						"lastError": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The last error encountered, containing fetcher ID, status code and error message" }
-					}
-				*/
-				telemetryService?.sendTelemetryEvent('fetcherFallback', { github: true, microsoft: true }, {
-					newFetcher: fetcher.getUserAgentLibrary(),
-					knownBadFetchers: Array.from(updatedKnownBadFetchers).join(','),
-					lastError,
-				}, {
-					knownBadFetchersCount: updatedKnownBadFetchers.size,
-				});
-				const updatedFetchers = availableFetchers.slice();
-				updatedFetchers.splice(updatedFetchers.indexOf(fetcher), 1);
-				updatedFetchers.unshift(fetcher);
-				return { response: result.response, updatedFetchers, updatedKnownBadFetchers };
+				return useFallbackFetcher(fetcher, result.response);
 			}
 			return { response: result.response };
 		}

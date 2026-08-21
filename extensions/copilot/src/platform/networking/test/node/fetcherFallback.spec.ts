@@ -61,12 +61,16 @@ suite('FetcherFallback Test Suite', function () {
 		assert.deepStrictEqual(json, JSON.parse(someJSON));
 	});
 
-	test.each([401, 429, 503])('HTTP %i response does not fall back', async status => {
+	test.each([
+		{ status: 401, fetchers: ['electron-fetch', 'node-fetch', 'node-http'] },
+		{ status: 429, fetchers: ['node-fetch', 'electron-fetch', 'node-http'] },
+		{ status: 503, fetchers: ['node-http', 'electron-fetch', 'node-fetch'] },
+	])('HTTP $status response from $fetchers.0 does not fall back', async ({ status, fetchers }) => {
 		const serverResponse = createFakeResponse(status, someHTML);
 		const fetcherSpec = [
-			{ name: 'electron-fetch', response: serverResponse },
-			{ name: 'node-fetch', response: createFakeResponse(200, someJSON) },
-			{ name: 'node-http', response: createFakeResponse(200, someJSON) },
+			{ name: fetchers[0], response: serverResponse },
+			{ name: fetchers[1], response: createFakeResponse(200, someJSON) },
+			{ name: fetchers[2], response: createFakeResponse(200, someJSON) },
 		];
 		const testFetchers = createTestFetchers(fetcherSpec);
 		const { response, updatedFetchers, updatedKnownBadFetchers } = await fetchWithFallbacks(testFetchers.fetchers, 'https://example.com', { callSite: 'test', expectJSON: true, retryFallbacks: true }, knownBadFetchers, configurationService, logService, telemetryService, experimentationService);
@@ -78,12 +82,34 @@ suite('FetcherFallback Test Suite', function () {
 			updatedFetchers,
 			updatedKnownBadFetchers,
 		}, {
-			calls: ['electron-fetch'],
+			calls: [fetchers[0]],
 			responseIsUnchanged: true,
 			responseStatus: status,
 			responseText: someHTML,
 			updatedFetchers: undefined,
 			updatedKnownBadFetchers: undefined,
+		});
+	});
+
+	test('HTTP error from fallback fetcher preserves fallback state', async function () {
+		const serverResponse = createFakeResponse(503, someJSON);
+		const fetcherSpec = [
+			{ name: 'electron-fetch', response: new Error('fetcher1 error') },
+			{ name: 'node-fetch', response: serverResponse },
+			{ name: 'node-http', response: createFakeResponse(200, someJSON) },
+		];
+		const testFetchers = createTestFetchers(fetcherSpec);
+		const { response, updatedFetchers, updatedKnownBadFetchers } = await fetchWithFallbacks(testFetchers.fetchers, 'https://example.com', { callSite: 'test', expectJSON: true, retryFallbacks: true }, knownBadFetchers, configurationService, logService, telemetryService, experimentationService);
+		assert.deepStrictEqual({
+			calls: testFetchers.calls.map(c => c.name),
+			responseIsUnchanged: response === serverResponse,
+			updatedFetchers: updatedFetchers?.map(fetcher => fetcher.getUserAgentLibrary()),
+			updatedKnownBadFetchers: Array.from(updatedKnownBadFetchers ?? []),
+		}, {
+			calls: ['electron-fetch', 'node-fetch'],
+			responseIsUnchanged: true,
+			updatedFetchers: ['node-fetch', 'electron-fetch', 'node-http'],
+			updatedKnownBadFetchers: ['electron-fetch'],
 		});
 	});
 
