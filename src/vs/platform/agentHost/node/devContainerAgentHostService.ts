@@ -11,6 +11,7 @@ import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
 import { FileAccess } from '../../../base/common/network.js';
 import { join } from '../../../base/common/path.js';
+import { findExecutable } from '../../../base/node/processes.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { vLiteral, vObj, vString } from '../../../base/common/validation.js';
 import { localize } from '../../../nls.js';
@@ -97,6 +98,7 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 	private readonly _connectionTokenSources = new Map<string, CancellationTokenSource>();
 	private _nativeRequire: NodeJS.Require | undefined;
 	private _shellEnvironment: Promise<typeof process.env> | undefined;
+	private _dockerAvailable: Promise<boolean> | undefined;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -372,6 +374,13 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 
 	protected _reportOutput(connectionId: string, data: string): void {
 		this._onDidOutput.fire({ connectionId, data });
+	}
+
+	isDockerAvailable(): Promise<boolean> {
+		this._dockerAvailable ??= this._resolveShellEnvironment()
+			.then(environment => findExecutable('docker', undefined, undefined, environment))
+			.then(executable => executable !== undefined);
+		return this._dockerAvailable;
 	}
 
 	protected _spawnDevContainer(

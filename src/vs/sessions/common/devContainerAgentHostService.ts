@@ -25,6 +25,8 @@ export interface IDevContainerAgentHostConnection {
 
 /** Creates a Dev Container and connects to its Agent Host. */
 export interface IDevContainerAgentHostConnector {
+	/** Whether the workspace has a supported configuration and Docker is available. */
+	isAvailable(workspaceUri: URI): Promise<boolean>;
 	connect(workspaceUri: URI, token: CancellationToken): Promise<IDevContainerAgentHostConnection>;
 }
 
@@ -41,6 +43,8 @@ export interface IDevContainerAgentHostService {
 	readonly _serviceBrand: undefined;
 
 	registerConnector(connector: IDevContainerAgentHostConnector): IDisposable;
+	/** Whether the registered connector can launch this workspace. */
+	isAvailable(workspaceUri: URI): Promise<boolean>;
 	connect(workspaceUri: URI, token: CancellationToken): Promise<IDevContainerAgentHostTarget>;
 	disconnect(workspaceUri: URI): Promise<void>;
 }

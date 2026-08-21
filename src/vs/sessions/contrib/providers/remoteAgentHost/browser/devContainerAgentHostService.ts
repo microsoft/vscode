@@ -60,6 +60,10 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		});
 	}
 
+	isAvailable(workspaceUri: URI): Promise<boolean> {
+		return this._connector?.isAvailable(workspaceUri) ?? Promise.resolve(false);
+	}
+
 	connect(workspaceUri: URI, token: CancellationToken): Promise<IDevContainerAgentHostTarget> {
 		const key = getComparisonKey(workspaceUri);
 		const active = this._activeConnections.get(key);

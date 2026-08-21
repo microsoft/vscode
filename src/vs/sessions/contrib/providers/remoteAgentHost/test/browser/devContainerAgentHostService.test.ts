@@ -163,6 +163,7 @@ suite('Dev Container Agent Host Service', () => {
 		let transportDisposed = false;
 		let connectorCalls = 0;
 		const connector: IDevContainerAgentHostConnector = {
+			isAvailable: async () => true,
 			connect: async () => {
 				connectorCalls++;
 				return {
@@ -251,6 +252,7 @@ suite('Dev Container Agent Host Service', () => {
 			workspaceUri: URI;
 		}>();
 		store.add(service.registerConnector({
+			isAvailable: async () => true,
 			connect: async (_workspaceUri, token) => {
 				connectorToken = token;
 				return result.p;
@@ -304,6 +306,7 @@ suite('Dev Container Agent Host Service', () => {
 		const connection = new TestAgentConnection();
 		let transportDisposed = false;
 		store.add(service.registerConnector({
+			isAvailable: async () => true,
 			connect: async () => ({
 				address,
 				name: 'Source Dev Container',

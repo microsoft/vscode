@@ -26,10 +26,27 @@ import { ISharedProcessService } from '../../../../../platform/ipc/electron-brow
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../../workbench/services/output/common/output.js';
 import { IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
+
+/** Returns whether a local workspace can be launched as a Dev Container. */
+export async function isDevContainerWorkspaceAvailable(
+	workspaceUri: URI,
+	fileService: IFileService,
+	mainService: IDevContainerAgentHostMainService,
+): Promise<boolean> {
+	if (workspaceUri.scheme !== Schemas.file) {
+		return false;
+	}
+	const hasConfiguration = await Promise.all([
+		fileService.exists(URI.joinPath(workspaceUri, '.devcontainer', 'devcontainer.json')),
+		fileService.exists(URI.joinPath(workspaceUri, '.devcontainer.json')),
+	]);
+	return hasConfiguration.some(exists => exists) && await mainService.isDockerAvailable();
+}
 
 class DevContainerOutputWriter extends Disposable {
 	private readonly _channelId: string;
@@ -78,10 +95,15 @@ class DevContainerAgentHostConnector implements IDevContainerAgentHostConnector 
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IOutputService private readonly _outputService: IOutputService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		this._mainService = ProxyChannel.toService<IDevContainerAgentHostMainService>(
 			sharedProcessService.getChannel(DEV_CONTAINER_AGENT_HOST_CHANNEL),
 		);
+	}
+
+	async isAvailable(workspaceUri: URI): Promise<boolean> {
+		return isDevContainerWorkspaceAvailable(workspaceUri, this._fileService, this._mainService);
 	}
 
 	async connect(workspaceUri: URI, token: CancellationToken): Promise<IDevContainerAgentHostConnection> {

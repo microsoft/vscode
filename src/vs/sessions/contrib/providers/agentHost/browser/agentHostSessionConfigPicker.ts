@@ -499,7 +499,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		}
 		if (isPhoneLayout(this._layoutService)) {
 			this._devContainerCheckbox.clear();
-		} else if (provider.isDevContainerEnabled && provider.setDevContainerEnabled) {
+		} else if (provider.isDevContainerAvailable?.(session.sessionId) && provider.isDevContainerEnabled && provider.setDevContainerEnabled) {
 			this._renderDevContainerCheckbox(provider, session.sessionId);
 		} else {
 			this._devContainerCheckbox.clear();
@@ -622,6 +622,11 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				enabled => provider.setDevContainerEnabled?.(sessionId, enabled),
 			);
 			this._devContainerCheckbox.value = control;
+		}
+		const isolationSlot = this._isolationCheckbox.value?.slot;
+		if (this._container && isolationSlot?.parentElement === this._container) {
+			this._container.insertBefore(control.slot, isolationSlot.nextSibling);
+		} else {
 			this._container?.prepend(control.slot);
 		}
 		control.update(provider.isDevContainerEnabled?.(sessionId) === true, false, false, undefined);

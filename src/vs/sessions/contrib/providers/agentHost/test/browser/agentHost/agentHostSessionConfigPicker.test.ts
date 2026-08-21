@@ -94,7 +94,7 @@ function makeNoGitConfig(): ResolveSessionConfigResult {
  * provider (not the picker) owns the seeded schema, so a picker recreated by a
  * toolbar rebuild still reads the seeded chips from here.
  */
-class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChangeSessionConfig' | 'getSessionConfig' | 'getCreateSessionConfig' | 'isSessionConfigResolving' | 'setSessionConfigValue' | 'getSessionConfigCompletions' | 'isDevContainerEnabled' | 'setDevContainerEnabled'> {
+class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChangeSessionConfig' | 'getSessionConfig' | 'getCreateSessionConfig' | 'isSessionConfigResolving' | 'setSessionConfigValue' | 'getSessionConfigCompletions' | 'isDevContainerAvailable' | 'isDevContainerEnabled' | 'setDevContainerEnabled'> {
 	readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
 	readonly onDidChangeSessionConfig: Event<string>;
 	config: ResolveSessionConfigResult = makeRepoConfig('main');
@@ -102,6 +102,7 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	isNew = true;
 	setSessionConfigValueCalls = 0;
 	devContainerEnabled = false;
+	devContainerAvailable = true;
 	/** Completions returned by `getSessionConfigCompletions`, e.g. for the dynamic branch picker. */
 	completions: readonly SessionConfigValueItem[] = [];
 
@@ -114,6 +115,7 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	isSessionConfigResolving() { return this.resolving; }
 	async setSessionConfigValue(): Promise<void> { this.setSessionConfigValueCalls++; }
 	async getSessionConfigCompletions(): Promise<readonly SessionConfigValueItem[]> { return this.completions; }
+	isDevContainerAvailable(): boolean { return this.devContainerAvailable; }
 	isDevContainerEnabled(): boolean { return this.devContainerEnabled; }
 	setDevContainerEnabled(_sessionId: string, enabled: boolean): void { this.devContainerEnabled = enabled; }
 
@@ -274,7 +276,7 @@ suite('Agent Host Session Config Picker', () => {
 		assert.strictEqual(branchLabel(second.container), 'dev', 'branch label reflects the resolved value');
 	});
 
-	test('renders a Dev Container checkbox immediately before New Worktree and updates the draft', () => {
+	test('renders a Dev Container checkbox immediately after New Worktree and updates the draft', () => {
 		const services = setupServices(store);
 		const { provider } = services;
 		const { container } = renderPicker(store, services);
@@ -285,16 +287,44 @@ suite('Agent Host Session Config Picker', () => {
 
 		assert.deepStrictEqual({
 			labels: Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-config-checkbox .sessions-chat-dropdown-label')).map(label => label.textContent),
-			devContainerImmediatelyPrecedesWorktree: devContainer.nextElementSibling === worktree,
+			worktreeImmediatelyPrecedesDevContainer: worktree.nextElementSibling === devContainer,
 			devContainerChecked: devContainer.querySelector('.monaco-checkbox')?.getAttribute('aria-checked'),
 			devContainerEnabled: provider.devContainerEnabled,
 			setSessionConfigValueCalls: provider.setSessionConfigValueCalls,
 		}, {
-			labels: ['Dev Container', 'New Worktree'],
-			devContainerImmediatelyPrecedesWorktree: true,
+			labels: ['New Worktree', 'Dev Container'],
+			worktreeImmediatelyPrecedesDevContainer: true,
 			devContainerChecked: 'true',
 			devContainerEnabled: true,
 			setSessionConfigValueCalls: 0,
+		});
+	});
+
+	test('does not render Dev Container when the draft workspace is unavailable', () => {
+		const services = setupServices(store);
+		services.provider.devContainerAvailable = false;
+		const { container } = renderPicker(store, services);
+
+		assert.strictEqual(devContainerSlot(container), null);
+	});
+
+	test('keeps Worktree left of Dev Container when availability resolves later', () => {
+		const services = setupServices(store);
+		services.provider.devContainerAvailable = false;
+		const { container } = renderPicker(store, services);
+
+		services.provider.devContainerAvailable = true;
+		services.provider.set(makeRepoConfig('main'), false);
+		services.provider.set(makeRepoConfig('dev'), false);
+
+		const worktree = isolationSlot(container)!;
+		const devContainer = devContainerSlot(container)!;
+		assert.deepStrictEqual({
+			labels: Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-config-checkbox .sessions-chat-dropdown-label')).map(label => label.textContent),
+			worktreeImmediatelyPrecedesDevContainer: worktree.nextElementSibling === devContainer,
+		}, {
+			labels: ['New Worktree', 'Dev Container'],
+			worktreeImmediatelyPrecedesDevContainer: true,
 		});
 	});
 

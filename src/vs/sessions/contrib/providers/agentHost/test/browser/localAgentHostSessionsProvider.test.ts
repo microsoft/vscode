@@ -3015,6 +3015,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 			}
 		}();
 		const devContainerAgentHostService = new class extends mock<IDevContainerAgentHostService>() {
+			override async isAvailable(): Promise<boolean> {
+				return true;
+			}
 			override async connect(workspaceUri: URI) {
 				connectedWorkspace = workspaceUri;
 				return { providerId: targetProviderId, workspaceUri: remoteWorkspace };
@@ -3034,6 +3037,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		state.provider = provider;
 		const source = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
 		await waitForSessionConfig(provider, source.sessionId, config => config?.values.mode === 'interactive');
+		await timeout(0);
 		const replacementResource = URI.parse('remote-devcontainer-copilot:///replacement');
 		const replacementChat = { ...source.mainChat.get(), resource: replacementResource };
 		const replacement = {
@@ -3051,6 +3055,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await prepared.discard?.();
 
 		assert.deepStrictEqual({
+			available: provider.isDevContainerAvailable(source.sessionId),
 			enabled: provider.isDevContainerEnabled(source.sessionId),
 			connectedWorkspace: connectedWorkspace?.toString(),
 			preparedSessionId: prepared.session.sessionId,
@@ -3059,6 +3064,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			disconnectedWorkspace: disconnectedWorkspace?.toString(),
 			trustedTargetUris,
 		}, {
+			available: true,
 			enabled: true,
 			connectedWorkspace: 'file:///home/user/project',
 			preparedSessionId: replacement.sessionId,

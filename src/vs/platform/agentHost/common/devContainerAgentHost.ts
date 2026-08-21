@@ -40,6 +40,8 @@ export interface IDevContainerAgentHostMainService extends IRelayChannel {
 	/** Streaming stdout and stderr from Dev Container CLI processes. */
 	readonly onDidOutput: Event<IDevContainerAgentHostOutput>;
 
+	/** Whether Docker can be resolved from the user's shell environment. */
+	isDockerAvailable(): Promise<boolean>;
 	connect(config: IDevContainerAgentHostConfig): Promise<IDevContainerAgentHostConnectResult>;
 	disconnect(connectionId: string): Promise<void>;
 }

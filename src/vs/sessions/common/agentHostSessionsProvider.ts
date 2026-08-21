@@ -99,6 +99,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 
 	// -- Dev Container drafts (optional, local provider only) --
 
+	/** Whether this draft's workspace supports Dev Container execution. */
+	isDevContainerAvailable?(sessionId: string): boolean;
 	/** Whether this draft should be prepared on a Dev Container Agent Host. */
 	isDevContainerEnabled?(sessionId: string): boolean;
 	/** Set whether this draft should run on a Dev Container Agent Host. */
