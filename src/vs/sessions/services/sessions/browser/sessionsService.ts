@@ -786,6 +786,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	async openSession(sessionResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
+		this.logService.trace(`[SessionsView] openSession requested uri=${sessionResource.toString()}`);
 		// Claim the open before resolving: resolution can take seconds for a legacy
 		// Copilot CLI resource, and a newer open must win regardless of which
 		// resolution finishes first.

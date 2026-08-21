@@ -187,6 +187,31 @@ export function computePullRequestIcon(state: GitHubPullRequestState | 'draft', 
 	}
 }
 
+/** Coarse pull request state, recoverable from the icon carried on session GitHub info. */
+export type PullRequestStatus = 'open' | 'closed' | 'merged' | 'draft';
+
+/**
+ * Inverse of {@link computePullRequestIcon}: recovers the coarse pull request
+ * status from an icon. Returns `undefined` when the icon is missing or is not
+ * one of the known pull request icons (i.e. the state was never resolved).
+ */
+export function getPullRequestStatusFromIcon(icon: ThemeIcon | undefined): PullRequestStatus | undefined {
+	switch (icon?.id) {
+		case Codicon.gitPullRequestDone.id:
+			return 'merged';
+		case Codicon.gitPullRequestClosed.id:
+			return 'closed';
+		case Codicon.gitPullRequestDraft.id:
+			return 'draft';
+		case Codicon.gitPullRequest.id:
+		case Codicon.gitPullRequestError.id:
+		case Codicon.gitPullRequestComment.id:
+			return 'open';
+		default:
+			return undefined;
+	}
+}
+
 //#endregion
 
 //#region Issues

@@ -49,9 +49,7 @@ class ViewAllChangesAction extends Action2 {
 			title: localize2('agentSessions.changes', 'Changes'),
 			icon: Codicon.diffMultiple,
 			f1: false,
-			// Diff stats shown in the session header meta row
-			// (vs/sessions/browser/parts/sessionHeader.ts). Rendered with a
-			// custom action view item that shows the live +/- counts.
+			// Metadata pill rendered with live +/- counts.
 			menu: {
 				id: Menus.SessionHeaderMeta,
 				group: 'navigation',
@@ -233,10 +231,8 @@ interface IDiffStats {
 }
 
 /**
- * Renders the {@link ViewAllChangesAction} menu item contributed into {@link Menus.SessionHeaderMeta}
- * (the session header meta row) as a `<diff-icon> <n> files +insertions -deletions` pill. It extends the
- * generic {@link ChatPillActionViewItem} (so the icon and label render consistently with other
- * meta actions) and appends the session's live aggregate diff stats. Activating the item runs the
+ * Renders the {@link ViewAllChangesAction} as a `<diff-icon> <n> files +insertions -deletions`
+ * metadata pill. It appends the session's live aggregate diff stats. Activating the item runs the
  * action, which opens the multi-file diff editor.
  *
  * The stats are read from the {@link ISessionContext} so the correct per-session changes
@@ -332,9 +328,7 @@ export class ViewAllChangesActionViewItem extends ChatPillActionViewItem {
 }
 
 /**
- * Registers the {@link ViewAllChangesActionViewItem} for the diff-stats action in the
- * session header meta toolbar. Registering it here (rather than in the core session header)
- * keeps the rendering of the changes-owned action co-located with the action itself.
+ * Registers the {@link ViewAllChangesActionViewItem} for the diff-stats metadata pill.
  */
 class ViewAllChangesActionViewItemContribution extends Disposable implements IWorkbenchContribution {
 
@@ -345,11 +339,7 @@ class ViewAllChangesActionViewItemContribution extends Disposable implements IWo
 	) {
 		super();
 
-		// The action view item service only notifies toolbars of a factory via
-		// the event passed to register(), not on registration itself. A session
-		// header restored with existing changes may create its meta toolbar
-		// before this contribution runs, so announce the factory once right
-		// after registering to make those toolbars re-render and pick it up.
+		// Announce the factory after registration so existing metadata pills re-render.
 		const onDidRegister = this._register(new Emitter<void>());
 		this._register(actionViewItemService.register(Menus.SessionHeaderMeta, ViewAllChangesAction.ID, (action, options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
