@@ -26,7 +26,8 @@ import { Event } from '../../../../util/vs/base/common/event';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { createExtensionTestingServices } from '../../../test/vscode-node/services';
 import { buildUtilityAliasModelInfo, CopilotLanguageModelWrapper, LanguageModelAccess } from '../languageModelAccess';
-import { buildReasoningEffortSchemaProperty, formatPricingLabel, normalizeTokenPrices, pickDefaultReasoningEffort } from '../../common/languageModelAccess';
+import { buildAutoModeTierSchemaProperty, buildReasoningEffortSchemaProperty, formatPricingLabel, normalizeTokenPrices, pickDefaultReasoningEffort } from '../../common/languageModelAccess';
+import { defaultAutoModeTier, selectableAutoModeTiers } from '../../../../platform/endpoint/common/autoModeTiers';
 
 
 suite('CopilotLanguageModelWrapper', () => {
@@ -674,6 +675,23 @@ suite('reasoning effort schema', () => {
 		assert.strictEqual(prop.default, 'low', 'expected first advertised level, never undefined');
 		assert.deepStrictEqual(prop.enum, ['low', 'high']);
 		assert.strictEqual(prop.group, 'navigation');
+	});
+});
+
+suite('auto mode tier schema', () => {
+	// The picker renders `title` as the group header and `enumItemLabels` as the
+	// rows, so this descriptor is the user-visible wording for Auto routing. The
+	// tier values stay the wire enum the service expects.
+	test('names the group "Optimize for" and labels the selectable tiers', () => {
+		assert.deepStrictEqual(buildAutoModeTierSchemaProperty(selectableAutoModeTiers, defaultAutoModeTier), {
+			type: 'string',
+			title: 'Optimize for',
+			enum: ['eco', 'balanced', 'max'],
+			enumItemLabels: ['Efficiency', 'Balance', 'Intelligence'],
+			enumDescriptions: ['Cheaper models for everyday tasks', 'Balances capability and cost', 'Most capable models, higher cost'],
+			default: 'balanced',
+			group: 'navigation',
+		});
 	});
 });
 
