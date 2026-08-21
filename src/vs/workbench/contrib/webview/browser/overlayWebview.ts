@@ -149,7 +149,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		this._show(targetWindow);
 
 		if (this._anchorState) {
-			this.overlayLayout.setAnchorElement(this._anchorState.anchorElement, { clippingContainer: this._anchorState.clippingContainer });
+			this.setAnchorElement(this._anchorState.anchorElement, this._anchorState.clippingContainer);
 		}
 
 		if (oldOwner !== owner) {
@@ -200,6 +200,14 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		this._anchorState = { anchorElement, clippingContainer };
 		// Force the overlay layout to be created if it doesn't exist
 		this.overlayLayout.setAnchorElement(anchorElement, { clippingContainer });
+
+		const part = anchorElement.closest('.part');
+		for (const edge of ['left', 'right', 'top', 'bottom']) {
+			const isOuterEdge = part?.classList.contains(`floating-part-outer-${edge}`)
+				|| part?.classList.contains(`floating-editor-outer-${edge}`)
+				|| false;
+			this.overlayLayout.content.classList.toggle(`webview-overlay-outer-${edge}`, isOuterEdge);
+		}
 	}
 
 	private _show(targetWindow: CodeWindow) {

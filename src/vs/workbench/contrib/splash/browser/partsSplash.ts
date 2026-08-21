@@ -104,6 +104,7 @@ export class PartsSplash {
 				windowBorder: this._layoutService.hasMainWindowBorder(),
 				windowBorderRadius: this._layoutService.getMainWindowBorderRadius(),
 				modernUI: this._layoutService.isFloatingPanelsEnabled(),
+				modernUICompact: this._layoutService.isModernUICompact(),
 				partBounds: this._layoutService.isFloatingPanelsEnabled() ? {
 					sideBar: this._getPartBounds(Parts.SIDEBAR_PART),
 					auxiliaryBar: this._getPartBounds(Parts.AUXILIARYBAR_PART),

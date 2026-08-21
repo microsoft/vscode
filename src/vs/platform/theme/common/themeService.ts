@@ -251,6 +251,7 @@ export interface IPartsSplash {
 		windowBorder: boolean;
 		windowBorderRadius: string | undefined;
 		modernUI: boolean;
+		modernUICompact: boolean;
 		partBounds: {
 			sideBar: { top: number; left: number; width: number; height: number } | undefined;
 			auxiliaryBar: { top: number; left: number; width: number; height: number } | undefined;

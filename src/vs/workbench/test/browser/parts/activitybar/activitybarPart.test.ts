@@ -12,7 +12,7 @@ import { TestStorageService } from '../../../common/workbenchTestServices.js';
 import { TestHostService, TestLayoutService } from '../../workbenchTestServices.js';
 import { ActivitybarPart } from '../../../../browser/parts/activitybar/activitybarPart.js';
 import { IViewSize } from '../../../../../base/browser/ui/grid/grid.js';
-import { LayoutSettings, Parts, Position } from '../../../../services/layout/browser/layoutService.js';
+import { COMPACT_FLOATING_PANEL_OUTER_MARGIN, LayoutSettings, ModernUIDensity, Parts, Position } from '../../../../services/layout/browser/layoutService.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { IPaneCompositePart } from '../../../../browser/parts/paneCompositePart.js';
@@ -51,8 +51,10 @@ class StubPaneCompositePart implements IPaneCompositePart {
 
 class TestFloatingPanelsLayoutService extends TestLayoutService {
 	floatingPanelsEnabled = false;
+	modernUICompact = false;
 	sideBarPosition = Position.LEFT;
 	override isFloatingPanelsEnabled(): boolean { return this.floatingPanelsEnabled; }
+	override isModernUICompact(): boolean { return this.modernUICompact; }
 	override getSideBarPosition(): Position { return this.sideBarPosition; }
 }
 
@@ -74,16 +76,18 @@ suite('ActivitybarPart', () => {
 		disposables.clear();
 	});
 
-	function createActivitybarPart(compact: boolean, floatingPanelsEnabled = false, sideBarPosition = Position.LEFT, colors: { [id: string]: string | undefined } = {}): { part: ActivitybarPart; configService: TestConfigurationService; layoutService: TestFloatingPanelsLayoutService; hostService: TestHostService } {
+	function createActivitybarPart(compact: boolean, floatingPanelsEnabled = false, sideBarPosition = Position.LEFT, colors: { [id: string]: string | undefined } = {}, modernUICompact = false): { part: ActivitybarPart; configService: TestConfigurationService; layoutService: TestFloatingPanelsLayoutService; hostService: TestHostService } {
 		const configService = new TestConfigurationService({
 			[LayoutSettings.ACTIVITY_BAR_COMPACT]: compact,
 			[LayoutSettings.MODERN_UI]: floatingPanelsEnabled,
+			[LayoutSettings.MODERN_UI_DENSITY]: modernUICompact ? ModernUIDensity.Compact : ModernUIDensity.Default,
 		});
 		const storageService = disposables.add(new TestStorageService());
 		const themeService = new TestThemeService(new TestColorTheme(colors));
 		const layoutService = new TestFloatingPanelsLayoutService();
 		const hostService = new TestHostService();
 		layoutService.floatingPanelsEnabled = floatingPanelsEnabled;
+		layoutService.modernUICompact = modernUICompact;
 		layoutService.sideBarPosition = sideBarPosition;
 
 		// Override isVisible to return false so that create() does not call show()
@@ -209,6 +213,18 @@ suite('ActivitybarPart', () => {
 		);
 	});
 
+	test('compact Modern UI density reserves the connected cluster perimeter and rail padding', () => {
+		const { part } = createActivitybarPart(false, true, Position.LEFT, {}, true);
+
+		assert.deepStrictEqual(
+			{ min: part.minimumWidth, max: part.maximumWidth },
+			{
+				min: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + COMPACT_FLOATING_PANEL_OUTER_MARGIN * 2,
+				max: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + COMPACT_FLOATING_PANEL_OUTER_MARGIN * 2,
+			}
+		);
+	});
+
 	// --- Configuration change: dimension update ----------------------------
 
 	test('toggling compact via config changes width constraints', () => {
@@ -284,6 +300,24 @@ suite('ActivitybarPart', () => {
 		assert.strictEqual(part.minimumWidth, ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 2);
 	});
 
+	test('fires onDidChange(undefined) when Modern UI density changes', () => {
+		const { part, configService, layoutService } = createActivitybarPart(false, true);
+		const events: (IViewSize | undefined)[] = [];
+		disposables.add(part.onDidChange(e => events.push(e)));
+
+		layoutService.modernUICompact = true;
+		configService.setUserConfiguration(LayoutSettings.MODERN_UI_DENSITY, ModernUIDensity.Compact);
+		fireConfigChange(configService, LayoutSettings.MODERN_UI_DENSITY);
+
+		assert.deepStrictEqual({
+			events,
+			minimumWidth: part.minimumWidth,
+		}, {
+			events: [undefined],
+			minimumWidth: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + COMPACT_FLOATING_PANEL_OUTER_MARGIN * 2,
+		});
+	});
+
 	// --- CSS custom properties on element -----------------------------------
 
 	test('updateCompactStyle sets correct CSS custom properties in default mode', () => {
@@ -323,6 +357,23 @@ suite('ActivitybarPart', () => {
 		assert.strictEqual(el.style.getPropertyValue('--activity-bar-action-height'), `${ActivitybarPart.FLOATING_ACTION_HEIGHT}px`);
 		assert.strictEqual(el.style.getPropertyValue('--activity-bar-icon-size'), `${ActivitybarPart.ICON_SIZE}px`);
 		assert.strictEqual(el.classList.contains('compact'), false);
+	});
+
+	test('updateCompactStyle sets compact Modern UI density properties', () => {
+		const { part } = createActivitybarPart(false, true, Position.LEFT, {}, true);
+		const element = document.createElement('div');
+		fixture.appendChild(element);
+		part.create(element);
+
+		assert.deepStrictEqual({
+			width: element.style.getPropertyValue('--activity-bar-width'),
+			actionHeight: element.style.getPropertyValue('--activity-bar-action-height'),
+			iconSize: element.style.getPropertyValue('--activity-bar-icon-size'),
+		}, {
+			width: `${ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH}px`,
+			actionHeight: `${ActivitybarPart.FLOATING_ACTION_HEIGHT}px`,
+			iconSize: `${ActivitybarPart.ICON_SIZE}px`,
+		});
 	});
 
 	test('toggling compact updates CSS custom properties on element', () => {
@@ -392,8 +443,8 @@ suite('ActivitybarPart', () => {
 	// --- layout: floating panels gutter reservation -------------------------
 
 	// The part has no title, header or footer, so the content area ends up exactly the height `layout()` reserved.
-	function layoutContentHeight(visibleParts: Parts[], floatingPanelsEnabled = true): number {
-		const { part, layoutService } = createActivitybarPart(false, floatingPanelsEnabled);
+	function layoutContentHeight(visibleParts: Parts[], floatingPanelsEnabled = true, modernUICompact = false): number {
+		const { part, layoutService } = createActivitybarPart(false, floatingPanelsEnabled, Position.LEFT, {}, modernUICompact);
 		const el = document.createElement('div');
 		fixture.appendChild(el);
 		part.create(el);
@@ -435,6 +486,21 @@ suite('ActivitybarPart', () => {
 			statusBarHidden: 300 - margin * 2,
 			bothEdgesExposed: 300 - margin * 2 - margin * 2,
 			floatingPanelsDisabled: 300,
+		});
+	});
+
+	test('compact density aligns the activity bar bottom gutter with the panel cluster', () => {
+		const outerMargin = COMPACT_FLOATING_PANEL_OUTER_MARGIN;
+		assert.deepStrictEqual({
+			titleAndStatusBarVisible: layoutContentHeight([Parts.TITLEBAR_PART, Parts.STATUSBAR_PART], true, true),
+			titleBarHidden: layoutContentHeight([Parts.STATUSBAR_PART], true, true),
+			statusBarHidden: layoutContentHeight([Parts.TITLEBAR_PART], true, true),
+			bothEdgesExposed: layoutContentHeight([], true, true),
+		}, {
+			titleAndStatusBarVisible: 300 - outerMargin,
+			titleBarHidden: 300 - outerMargin * 2,
+			statusBarHidden: 300 - outerMargin,
+			bothEdgesExposed: 300 - outerMargin * 2,
 		});
 	});
 

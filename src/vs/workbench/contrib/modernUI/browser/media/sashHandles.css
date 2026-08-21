@@ -69,6 +69,11 @@
 	opacity: 0;
 }
 
+/* Compact cards meet edge-to-edge, so the persistent grips are unnecessary. */
+.modern-ui.modern-ui-compact .monaco-sash:not(.disabled)::after {
+	content: none;
+}
+
 /* Only mark boundaries between top-level parts. Sashes inside a part (editor
  * splits, tree/view resizers) live within `.part`, so suppress their grip. */
 .modern-ui .part .monaco-sash::after {

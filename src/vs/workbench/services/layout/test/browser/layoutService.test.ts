@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, getFloatingEditorVerticalMargins, getFloatingOuterEdgeOwners, getFloatingPaneCompositeHorizontalMargins, getFloatingPaneCompositeVerticalMargins, getFloatingSidebarSiblingToEditorStatus, isFloatingTopEdgeExposed, type PanelAlignment, Parts, Position } from '../../browser/layoutService.js';
+import { COMPACT_FLOATING_PANEL_MARGIN, COMPACT_FLOATING_PANEL_OUTER_MARGIN, FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, getFloatingEditorVerticalMargins, getFloatingOuterEdgeOwners, getFloatingPaneCompositeHorizontalMargins, getFloatingPaneCompositeVerticalMargins, getFloatingPanelMargin, getFloatingPanelOuterMargin, getFloatingSidebarSiblingToEditorStatus, isFloatingTopEdgeExposed, type PanelAlignment, Parts, Position } from '../../browser/layoutService.js';
 import { TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
 
 suite('LayoutService - isFloatingTopEdgeExposed', () => {
@@ -46,15 +46,22 @@ suite('LayoutService - floating panel spacing', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('uses a 4px inter-card gap', () => {
+	test('uses density-specific inter-card gaps', () => {
+		const compactLayoutService = new TestLayoutService();
+		compactLayoutService.isModernUICompact = () => true;
+
 		assert.deepStrictEqual({
 			leadingMargin: FLOATING_PANEL_MARGIN,
 			trailingMargin: FLOATING_PANEL_INNER_MARGIN,
 			gap: FLOATING_PANEL_MARGIN + FLOATING_PANEL_INNER_MARGIN,
+			compactMargin: getFloatingPanelMargin(compactLayoutService),
+			compactOuterMargin: getFloatingPanelOuterMargin(compactLayoutService),
 		}, {
 			leadingMargin: 4,
 			trailingMargin: 0,
 			gap: 4,
+			compactMargin: COMPACT_FLOATING_PANEL_MARGIN,
+			compactOuterMargin: 4,
 		});
 	});
 });
@@ -65,11 +72,13 @@ suite('LayoutService - getFloatingOuterEdgeOwners', () => {
 
 	class ConfigurableLayoutService extends TestLayoutService {
 		floatingPanelsEnabled = true;
+		modernUICompact = false;
 		sideBarPosition = Position.LEFT;
 		panelPosition = Position.BOTTOM;
 		visibleParts = new Set<Parts>();
 
 		override isFloatingPanelsEnabled(): boolean { return this.floatingPanelsEnabled; }
+		override isModernUICompact(): boolean { return this.modernUICompact; }
 		override getSideBarPosition(): Position { return this.sideBarPosition; }
 		override getPanelPosition(): Position { return this.panelPosition; }
 		override isVisible(part: Parts): boolean { return this.visibleParts.has(part); }
@@ -89,6 +98,10 @@ suite('LayoutService - getFloatingOuterEdgeOwners', () => {
 			// Default full layout (side bar left): activity bar hugs the left edge (no owner),
 			// the secondary side bar owns the right edge.
 			defaultFull: owners(s => { s.visibleParts = new Set([Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.AUXILIARYBAR_PART]); }),
+
+			// Compact density includes the Activity Bar in the connected cluster.
+			compactFull: owners(s => { s.modernUICompact = true; s.visibleParts = new Set([Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.AUXILIARYBAR_PART]); }),
+			compactFullSideBarRight: owners(s => { s.modernUICompact = true; s.sideBarPosition = Position.RIGHT; s.visibleParts = new Set([Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.AUXILIARYBAR_PART]); }),
 
 			// Maximized aux bar with the activity bar in its default (visible) position: the
 			// activity bar still hugs the left edge, the aux bar owns the right edge.
@@ -121,6 +134,8 @@ suite('LayoutService - getFloatingOuterEdgeOwners', () => {
 		assert.deepStrictEqual(actual, {
 			disabled: { left: undefined, right: undefined },
 			defaultFull: { left: undefined, right: Parts.AUXILIARYBAR_PART },
+			compactFull: { left: Parts.ACTIVITYBAR_PART, right: Parts.AUXILIARYBAR_PART },
+			compactFullSideBarRight: { left: Parts.AUXILIARYBAR_PART, right: Parts.ACTIVITYBAR_PART },
 			maximizedAuxWithActivityBar: { left: undefined, right: Parts.AUXILIARYBAR_PART },
 			maximizedAuxNoActivityBar: { left: Parts.AUXILIARYBAR_PART, right: Parts.AUXILIARYBAR_PART },
 			maximizedAuxNoActivityBarSideBarRight: { left: Parts.AUXILIARYBAR_PART, right: Parts.AUXILIARYBAR_PART },
@@ -138,18 +153,26 @@ suite('LayoutService - getFloatingPaneCompositeHorizontalMargins', () => {
 
 	class HorizontalMarginLayoutService extends TestLayoutService {
 		floatingPanelsEnabled = true;
+		modernUICompact = false;
 		sideBarPosition = Position.LEFT;
+		panelPosition = Position.BOTTOM;
+		panelAlignment: PanelAlignment = 'center';
 		visibleParts = new Set<Parts>();
 
 		override isFloatingPanelsEnabled(): boolean { return this.floatingPanelsEnabled; }
+		override isModernUICompact(): boolean { return this.modernUICompact; }
 		override getSideBarPosition(): Position { return this.sideBarPosition; }
+		override getPanelPosition(): Position { return this.panelPosition; }
+		override getPanelAlignment(): PanelAlignment { return this.panelAlignment; }
 		override isVisible(part: Parts): boolean { return this.visibleParts.has(part); }
 	}
 
-	function margins(partId: Parts, visibleParts: Parts[], sideBarPosition = Position.LEFT): { left: number; right: number } {
+	function margins(partId: Parts, visibleParts: Parts[], sideBarPosition = Position.LEFT, compact = false, panelAlignment: PanelAlignment = 'center'): { left: number; right: number } {
 		const service = new HorizontalMarginLayoutService();
 		service.sideBarPosition = sideBarPosition;
 		service.visibleParts = new Set(visibleParts);
+		service.modernUICompact = compact;
+		service.panelAlignment = panelAlignment;
 		return getFloatingPaneCompositeHorizontalMargins(service, partId);
 	}
 
@@ -158,10 +181,18 @@ suite('LayoutService - getFloatingPaneCompositeHorizontalMargins', () => {
 			activityBarLeft: margins(Parts.AUXILIARYBAR_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.AUXILIARYBAR_PART]),
 			activityBarRight: margins(Parts.AUXILIARYBAR_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.AUXILIARYBAR_PART], Position.RIGHT),
 			secondarySideBarOnly: margins(Parts.AUXILIARYBAR_PART, [Parts.AUXILIARYBAR_PART]),
+			compactSecondarySideBarOnly: margins(Parts.AUXILIARYBAR_PART, [Parts.AUXILIARYBAR_PART], Position.LEFT, true),
+			compactPrimarySideBarLeft: margins(Parts.SIDEBAR_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART], Position.LEFT, true),
+			compactPrimarySideBarRight: margins(Parts.SIDEBAR_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART], Position.RIGHT, true),
+			compactJustifiedPanel: margins(Parts.PANEL_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART], Position.LEFT, true, 'justify'),
 		}, {
 			activityBarLeft: { left: 4, right: 8 },
 			activityBarRight: { left: 8, right: 0 },
 			secondarySideBarOnly: { left: 8, right: 8 },
+			compactSecondarySideBarOnly: { left: COMPACT_FLOATING_PANEL_OUTER_MARGIN, right: COMPACT_FLOATING_PANEL_OUTER_MARGIN },
+			compactPrimarySideBarLeft: { left: COMPACT_FLOATING_PANEL_MARGIN, right: FLOATING_PANEL_INNER_MARGIN },
+			compactPrimarySideBarRight: { left: COMPACT_FLOATING_PANEL_MARGIN, right: FLOATING_PANEL_INNER_MARGIN },
+			compactJustifiedPanel: { left: COMPACT_FLOATING_PANEL_OUTER_MARGIN, right: COMPACT_FLOATING_PANEL_OUTER_MARGIN },
 		});
 	});
 });
@@ -221,11 +252,13 @@ suite('LayoutService - getFloatingSidebarSiblingToEditorStatus', () => {
  */
 class VerticalMarginLayoutService extends TestLayoutService {
 	floatingPanelsEnabled = true;
+	modernUICompact = false;
 	panelPosition = Position.BOTTOM;
 	panelAlignment: PanelAlignment = 'center';
 	visibleParts = new Set<Parts>([Parts.TITLEBAR_PART, Parts.STATUSBAR_PART, Parts.EDITOR_PART]);
 
 	override isFloatingPanelsEnabled(): boolean { return this.floatingPanelsEnabled; }
+	override isModernUICompact(): boolean { return this.modernUICompact; }
 	override getPanelPosition(): Position { return this.panelPosition; }
 	override getPanelAlignment(): PanelAlignment { return this.panelAlignment; }
 	override isVisible(part: Parts): boolean { return this.visibleParts.has(part); }
@@ -303,6 +336,31 @@ suite('LayoutService - getFloatingPaneCompositeVerticalMargins', () => {
 			disabled: { top: 0, bottom: 0 },
 		});
 	});
+
+	test('compact density keeps internal seams flush and reserves the outer cluster gutter', () => {
+		assert.deepStrictEqual({
+			atWindowEdges: margins(Parts.PANEL_PART, service => {
+				service.modernUICompact = true;
+				service.panelPosition = Position.LEFT;
+				service.visibleParts.add(Parts.PANEL_PART);
+				service.visibleParts.delete(Parts.TITLEBAR_PART);
+				service.visibleParts.delete(Parts.STATUSBAR_PART);
+			}),
+			betweenTitleAndStatusBars: margins(Parts.PANEL_PART, service => {
+				service.modernUICompact = true;
+				service.panelPosition = Position.LEFT;
+				service.visibleParts.add(Parts.PANEL_PART);
+			}),
+			betweenEditorAndStatusBar: margins(Parts.PANEL_PART, service => {
+				service.modernUICompact = true;
+				service.visibleParts.add(Parts.PANEL_PART);
+			}),
+		}, {
+			atWindowEdges: { top: COMPACT_FLOATING_PANEL_OUTER_MARGIN, bottom: COMPACT_FLOATING_PANEL_OUTER_MARGIN },
+			betweenTitleAndStatusBars: { top: FLOATING_PANEL_INNER_MARGIN, bottom: COMPACT_FLOATING_PANEL_OUTER_MARGIN },
+			betweenEditorAndStatusBar: { top: COMPACT_FLOATING_PANEL_MARGIN, bottom: COMPACT_FLOATING_PANEL_OUTER_MARGIN },
+		});
+	});
 });
 
 suite('LayoutService - getFloatingEditorVerticalMargins', () => {
@@ -351,6 +409,22 @@ suite('LayoutService - getFloatingEditorVerticalMargins', () => {
 			statusBarHidden: { top: inner, bottom: outer },
 			bottomPanelStatusBarHidden: { top: inner, bottom: inner },
 			disabled: { top: 0, bottom: 0 },
+		});
+	});
+
+	test('compact density attaches to title chrome and preserves the lower perimeter gutter', () => {
+		assert.deepStrictEqual({
+			betweenTitleAndStatusBars: margins(service => {
+				service.modernUICompact = true;
+			}),
+			atWindowEdges: margins(service => {
+				service.modernUICompact = true;
+				service.visibleParts.delete(Parts.TITLEBAR_PART);
+				service.visibleParts.delete(Parts.STATUSBAR_PART);
+			}),
+		}, {
+			betweenTitleAndStatusBars: { top: FLOATING_PANEL_INNER_MARGIN, bottom: COMPACT_FLOATING_PANEL_OUTER_MARGIN },
+			atWindowEdges: { top: COMPACT_FLOATING_PANEL_OUTER_MARGIN, bottom: COMPACT_FLOATING_PANEL_OUTER_MARGIN },
 		});
 	});
 });

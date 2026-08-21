@@ -127,11 +127,15 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 	 * the matching padding is applied in `floatingPanels.css`.
 	 */
 	static readonly FLOATING_BOTTOM_PADDING = 6;
+	static readonly COMPACT_DENSITY_FLOATING_BOTTOM_PADDING = 4;
 
 	//#region IView
 
 	private get floatingBottomPadding(): number {
-		return this.getId() === Parts.STATUSBAR_PART && this.layoutService.isFloatingPanelsEnabled() ? StatusbarPart.FLOATING_BOTTOM_PADDING : 0;
+		if (this.getId() !== Parts.STATUSBAR_PART || !this.layoutService.isFloatingPanelsEnabled()) {
+			return 0;
+		}
+		return this.layoutService.isModernUICompact() ? StatusbarPart.COMPACT_DENSITY_FLOATING_BOTTOM_PADDING : StatusbarPart.FLOATING_BOTTOM_PADDING;
 	}
 
 	readonly minimumWidth: number = 0;
@@ -223,7 +227,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		// part height) for the main status bar only: signal the grid that the size
 		// constraint changed.
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (this.getId() === Parts.STATUSBAR_PART && e.affectsConfiguration(LayoutSettings.MODERN_UI)) {
+			if (this.getId() === Parts.STATUSBAR_PART && (e.affectsConfiguration(LayoutSettings.MODERN_UI) || e.affectsConfiguration(LayoutSettings.MODERN_UI_DENSITY))) {
 				this._onDidChange.fire(undefined);
 				if (this.element) {
 					this.updateStyles();

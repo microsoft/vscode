@@ -9,7 +9,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Part } from '../../part.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position, FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, isFloatingTopEdgeExposed } from '../../../services/layout/browser/layoutService.js';
+import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position, FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, getFloatingPanelMargin, getFloatingPanelOuterMargin, isFloatingTopEdgeExposed } from '../../../services/layout/browser/layoutService.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ToggleSidebarPositionAction, ToggleSidebarVisibilityAction } from '../../actions/layoutActions.js';
@@ -80,7 +80,10 @@ export class ActivitybarPart extends Part {
 	/** The intrinsic activity bar width (excludes any floating gutter). */
 	private get baseWidth(): number {
 		if (this.layoutService.isFloatingPanelsEnabled()) {
-			return this._isCompact ? ActivitybarPart.FLOATING_COMPACT_ACTIVITYBAR_WIDTH : ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH;
+			if (this._isCompact) {
+				return ActivitybarPart.FLOATING_COMPACT_ACTIVITYBAR_WIDTH;
+			}
+			return ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH;
 		}
 		return this._isCompact ? ActivitybarPart.COMPACT_ACTIVITYBAR_WIDTH : ActivitybarPart.ACTIVITYBAR_WIDTH;
 	}
@@ -90,7 +93,10 @@ export class ActivitybarPart extends Part {
 		if (this._isCompact) {
 			return ActivitybarPart.COMPACT_ACTION_HEIGHT;
 		}
-		return this.layoutService.isFloatingPanelsEnabled() ? ActivitybarPart.FLOATING_ACTION_HEIGHT : ActivitybarPart.ACTION_HEIGHT;
+		if (this.layoutService.isFloatingPanelsEnabled()) {
+			return ActivitybarPart.FLOATING_ACTION_HEIGHT;
+		}
+		return ActivitybarPart.ACTION_HEIGHT;
 	}
 
 	private get floatingHorizontalGutter(): number {
@@ -98,8 +104,14 @@ export class ActivitybarPart extends Part {
 			return 0;
 		}
 
-		return ActivitybarPart.FLOATING_MARGIN * 2
-			+ (this.layoutService.getSideBarPosition() === Position.RIGHT ? FLOATING_PANEL_MARGIN : 0);
+		if (this.layoutService.isModernUICompact()) {
+			// Reserve the cluster perimeter plus the rail's internal horizontal padding.
+			return getFloatingPanelOuterMargin(this.layoutService) * 2;
+		}
+
+		const margin = getFloatingPanelMargin(this.layoutService);
+		return margin * 2
+			+ (this.layoutService.getSideBarPosition() === Position.RIGHT ? margin : 0);
 	}
 
 	private readonly compositeBar = this._register(new MutableDisposable<PaneCompositeBar>());
@@ -132,7 +144,7 @@ export class ActivitybarPart extends Part {
 
 			// Floating panels changes the reserved left/bottom gutter (and therefore
 			// the fixed part width): signal the grid that the size constraint changed.
-			if (e.affectsConfiguration(LayoutSettings.MODERN_UI)) {
+			if (e.affectsConfiguration(LayoutSettings.MODERN_UI) || e.affectsConfiguration(LayoutSettings.MODERN_UI_DENSITY)) {
 				this.updateCompactStyle();
 				this.recreateCompositeBar();
 				this._onDidChange.fire(undefined);
@@ -319,9 +331,13 @@ export class ActivitybarPart extends Part {
 			return { top: 0, bottom: 0 };
 		}
 
+		const margin = getFloatingPanelMargin(this.layoutService);
+		const outerMargin = getFloatingPanelOuterMargin(this.layoutService);
 		return {
-			top: isFloatingTopEdgeExposed(this.layoutService, mainWindow) ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_INNER_MARGIN,
-			bottom: this.layoutService.isVisible(Parts.STATUSBAR_PART, mainWindow) ? FLOATING_PANEL_MARGIN : FLOATING_PANEL_MARGIN * 2
+			top: isFloatingTopEdgeExposed(this.layoutService, mainWindow) ? outerMargin : FLOATING_PANEL_INNER_MARGIN,
+			bottom: this.layoutService.isModernUICompact()
+				? outerMargin
+				: this.layoutService.isVisible(Parts.STATUSBAR_PART, mainWindow) ? margin : outerMargin
 		};
 	}
 

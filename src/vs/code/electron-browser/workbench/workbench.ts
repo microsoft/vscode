@@ -91,8 +91,9 @@
 		if (data?.layoutInfo) {
 			const { layoutInfo, colorInfo } = data;
 			const modernUI = layoutInfo.modernUI === true;
-			const floatingMargin = 4;
-			const floatingOuterMargin = floatingMargin * 2;
+			const floatingMargin = layoutInfo.modernUICompact === true ? 0 : 4;
+			const floatingOuterMargin = layoutInfo.modernUICompact === true ? 4 : floatingMargin * 2;
+			const floatingStatusBarMargin = modernUI ? 4 : 0;
 			const floatingBorderWidth = 1;
 
 			const splash = document.createElement('div');
@@ -146,7 +147,7 @@
 			const applyFloatingCardStyles = (element: HTMLElement, backgroundColor: string | undefined) => {
 				element.style.boxSizing = 'border-box';
 				element.style.border = `${floatingBorderWidth}px solid ${colorInfo.agentsPanelBorder ?? colorInfo.editorGroupBorder ?? 'transparent'}`;
-				element.style.borderRadius = '8px';
+				element.style.borderRadius = layoutInfo.modernUICompact === true ? '0' : '8px';
 				element.style.backgroundColor = backgroundColor ?? colorInfo.editorBackground ?? colorInfo.background;
 				element.style.overflow = 'hidden';
 			};
@@ -230,15 +231,15 @@
 				} else if (layoutInfo.sideBarSide === 'left') {
 					setBounds(sideDiv, {
 						top: contentTop,
-						bottom: modernUI ? contentBottom + floatingMargin : contentBottom,
-						left: layoutInfo.activityBarWidth + (modernUI ? floatingMargin : 0),
+						bottom: contentBottom + floatingStatusBarMargin,
+						left: layoutInfo.activityBarWidth + (modernUI && layoutInfo.modernUICompact !== true ? Math.max(floatingMargin, floatingOuterMargin) : 0),
 						width: modernUI ? Math.max(0, layoutInfo.sideBarWidth - floatingOuterMargin - floatingBorderWidth * 2) : layoutInfo.sideBarWidth
 					});
 				} else {
 					setBounds(sideDiv, {
 						top: contentTop,
-						bottom: modernUI ? contentBottom + floatingMargin : contentBottom,
-						right: layoutInfo.activityBarWidth + (modernUI ? floatingMargin : 0),
+						bottom: contentBottom + floatingStatusBarMargin,
+						right: layoutInfo.activityBarWidth + (modernUI && layoutInfo.modernUICompact !== true ? Math.max(floatingMargin, floatingOuterMargin) : 0),
 						width: modernUI ? Math.max(0, layoutInfo.sideBarWidth - floatingOuterMargin - floatingBorderWidth * 2) : layoutInfo.sideBarWidth
 					});
 				}
@@ -274,14 +275,14 @@
 				} else if (layoutInfo.sideBarSide === 'left') {
 					setBounds(auxSideDiv, {
 						top: contentTop,
-						bottom: modernUI ? contentBottom + floatingMargin : contentBottom,
+						bottom: contentBottom + floatingStatusBarMargin,
 						right: modernUI ? floatingOuterMargin : 0,
 						width: modernUI ? Math.max(0, layoutInfo.auxiliaryBarWidth - floatingOuterMargin - floatingMargin - floatingBorderWidth * 2) : layoutInfo.auxiliaryBarWidth
 					});
 				} else {
 					setBounds(auxSideDiv, {
 						top: contentTop,
-						bottom: modernUI ? contentBottom + floatingMargin : contentBottom,
+						bottom: contentBottom + floatingStatusBarMargin,
 						left: modernUI ? floatingOuterMargin : 0,
 						width: modernUI ? Math.max(0, layoutInfo.auxiliaryBarWidth - floatingOuterMargin - floatingMargin - floatingBorderWidth * 2) : layoutInfo.auxiliaryBarWidth
 					});
@@ -319,7 +320,7 @@
 					const editorRight = (layoutInfo.sideBarSide === 'left' ? layoutInfo.auxiliaryBarWidth : layoutInfo.activityBarWidth + layoutInfo.sideBarWidth) + floatingMargin;
 					setBounds(editorDiv, {
 						top: contentTop,
-						bottom: contentBottom + floatingMargin,
+						bottom: contentBottom + floatingStatusBarMargin,
 						left: editorLeft,
 						right: editorRight
 					});
