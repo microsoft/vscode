@@ -58,6 +58,7 @@ import { IAgentConfigurationService } from '../../node/agentConfigurationService
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
+import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../common/sandboxConfigSchema.js';
 import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
@@ -7996,6 +7997,75 @@ suite('CopilotAgentSession', () => {
 			toolSet.set(clientId, snapshot.tools);
 			return toolSet;
 		};
+
+		test('semantic search overrides the built-in tool and is never deferred', async () => {
+			const semanticSearchSnapshot: IActiveClientSnapshot = {
+				tools: [{
+					name: SEMANTIC_SEARCH_TOOL_NAME,
+					description: 'Semantically searches the workspace',
+					inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
+				}],
+				plugins: [],
+				mcpServers: {},
+			};
+			const { runtime } = await createAgentSession(disposables, { clientSnapshot: semanticSearchSnapshot });
+			const [tool] = runtime.createClientSdkTools(true);
+
+			assert.deepStrictEqual({
+				name: tool.name,
+				defer: tool.defer,
+				overridesBuiltInTool: tool.overridesBuiltInTool,
+				skipPermission: tool.skipPermission,
+			}, {
+				name: SEMANTIC_SEARCH_TOOL_NAME,
+				defer: 'never',
+				overridesBuiltInTool: true,
+				skipPermission: true,
+			});
+		});
+
+		test('semantic search becomes ready without an SDK permission callback', async () => {
+			const semanticSearchSnapshot: IActiveClientSnapshot = {
+				tools: [{
+					name: SEMANTIC_SEARCH_TOOL_NAME,
+					description: 'Semantically searches the workspace',
+					inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
+				}],
+				plugins: [],
+				mcpServers: {},
+			};
+			const activeClientToolSet = new ActiveClientToolSet();
+			activeClientToolSet.set('test-client', semanticSearchSnapshot.tools);
+			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, {
+				clientSnapshot: semanticSearchSnapshot,
+				activeClientToolSet,
+			});
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-semantic-search',
+				toolName: SEMANTIC_SEARCH_TOOL_NAME,
+				arguments: { query: 'tool routing' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			const readySignal = signals.find(s => isAction(s, ActionType.ChatToolCallReady));
+			assert.ok(readySignal && isAction(readySignal, ActionType.ChatToolCallReady));
+			const readyAction = readySignal.action as ChatToolCallReadyAction;
+			assert.deepStrictEqual({
+				contributor: readyAction.contributor,
+				confirmed: readyAction.confirmed,
+			}, {
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'test-client' },
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+
+			const handlerPromise = invokeClientToolHandler(runtime.createClientSdkTools()[0], 'tc-semantic-search', { query: 'tool routing' });
+			session.handleClientToolCallComplete('tc-semantic-search', {
+				success: true,
+				pastTenseMessage: 'Searched codebase',
+				content: [{ type: ToolResultContentType.Text, text: 'result text' }],
+			});
+			assert.strictEqual((await handlerPromise).textResultForLlm, 'result text');
+		});
 
 		test('client tool started with no connected client fails immediately', async () => {
 			// No activeClientState is provided, so the session seeds one with

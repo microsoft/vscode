@@ -19,6 +19,7 @@ import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeModelFamilyAlias,
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels, type ReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
+import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import type { ModelSelection, ToolDefinition } from '../../common/state/protocol/state.js';
 import { RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import type { ActiveClientToolSet } from '../activeClientState.js';
@@ -780,14 +781,17 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const availableTools = getToolFilterOverride(availableToolsOverride, 'availableTools', modelId, this._logService, plan.sessionId);
 		const excludedTools = getToolFilterOverride(excludedToolsOverride, 'excludedTools', modelId, this._logService, plan.sessionId);
 		const sdkAvailableTools = toSdkToolFilterPatterns(availableTools);
-		const sdkExcludedTools = plan.isEphemeral
+		const configuredSdkExcludedTools = plan.isEphemeral
 			? [...(toSdkToolFilterPatterns(excludedTools) ?? []), ...EPHEMERAL_DISABLED_COPILOT_TOOLS]
 			: toSdkToolFilterPatterns(excludedTools);
+		const clientToolNames = filterClientToolNames(clientToolNamesFromSnapshot(plan.snapshot), availableTools, excludedTools);
+		const sdkExcludedTools = clientToolNames.has(SEMANTIC_SEARCH_TOOL_NAME)
+			? configuredSdkExcludedTools
+			: [...new Set([...(configuredSdkExcludedTools ?? []), `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`])];
 		const modelCapabilitiesOverride = resolveModelCapabilityOverrideField(capabilityOverrides, model?.id, 'modelCapabilities', (value): value is Record<string, unknown> => isObject(value), () => {
 			this._logService.warn(`[Copilot:${plan.sessionId}] Ignoring invalid 'modelCapabilities' capability override for '${modelId}'; expected an object`);
 		});
 		const modelCapabilities = getModelCapabilitiesOverride(modelCapabilitiesOverride, modelId, this._logService, plan.sessionId);
-		const clientToolNames = filterClientToolNames(clientToolNamesFromSnapshot(plan.snapshot), availableTools, excludedTools);
 		// Host-side routing only — the prompt contributor and the tool-search gate
 		// below. The wire model stays the selected one, so the session still runs
 		// on the real model with the aliased family's prompt and tool profile.

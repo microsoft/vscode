@@ -41,6 +41,7 @@ import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta, type IToolSearchCandidate } from '../../common/meta/agentToolCallMeta.js';
 import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { resolveCopilotConfigSlashCommandOnSend } from '../../common/copilotConfigSlashCommands.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS, streamingToolDisplayText } from '../../common/streamingToolCallDisplay.js';
 import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAttachment } from '../../common/meta/agentFeedbackAttachments.js';
@@ -90,6 +91,21 @@ type GitHubCredentialsUpdateResult = Awaited<ReturnType<CopilotSession['rpc']['g
 type McpAuthHandler = NonNullable<SessionConfig['onMcpAuthRequest']>;
 type McpAuthRequest = Parameters<McpAuthHandler>[0];
 type McpAuthResult = Awaited<ReturnType<McpAuthHandler>>;
+
+interface IClientToolSdkPolicy {
+	readonly overridesBuiltInTool?: true;
+	readonly skipPermission?: true;
+}
+
+const DEFAULT_CLIENT_TOOL_SDK_POLICY: IClientToolSdkPolicy = {};
+const CLIENT_TOOL_SDK_POLICIES: ReadonlyMap<string, IClientToolSdkPolicy> = new Map([
+	[SEMANTIC_SEARCH_TOOL_NAME, { overridesBuiltInTool: true, skipPermission: true }],
+]);
+
+function getClientToolSdkPolicy(toolName: string): IClientToolSdkPolicy {
+	return CLIENT_TOOL_SDK_POLICIES.get(toolName) ?? DEFAULT_CLIENT_TOOL_SDK_POLICY;
+}
+
 interface CopilotExitPlanModeResponse extends ExitPlanModeResult {
 	readonly autoApproveEdits?: ExitPlanModeCompletedData['autoApproveEdits'];
 }
@@ -1644,11 +1660,13 @@ export class CopilotAgentSession extends Disposable {
 			const defer: 'auto' | 'never' | undefined = toolSearchActive
 				? (NON_DEFERRED_CLIENT_TOOL_NAMES.has(def.name) ? 'never' : 'auto')
 				: undefined;
+			const sdkPolicy = getClientToolSdkPolicy(def.name);
 			return {
 				name: def.name,
 				description: def.description ?? '',
 				parameters: def.inputSchema ?? { type: 'object' as const, properties: {} },
 				defer,
+				...sdkPolicy,
 				handler: this._guarded(async (_args: Record<string, unknown>, { toolCallId }) => {
 					try {
 						return await this._pendingClientToolCalls.register(toolCallId);
@@ -4323,9 +4341,10 @@ export class CopilotAgentSession extends Disposable {
 			if (isToolSearch && clientToolAutoApproved) {
 				meta.autoApproveBySetting = true;
 			}
+			const sdkPolicy = getClientToolSdkPolicy(e.data.toolName);
 			const shouldWaitForClientToolReady = contributor?.kind === ToolCallContributorKind.Client
 				&& !isAgentCoordinationTool(e.data.toolName)
-				&& (isToolSearch || !clientToolAutoApproved);
+				&& (isToolSearch || (!sdkPolicy.skipPermission && !clientToolAutoApproved));
 			if (shouldWaitForClientToolReady) {
 				return;
 			}

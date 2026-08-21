@@ -21,6 +21,7 @@ import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHos
 import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import type { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels } from '../../common/reasoningEffort.js';
+import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { CustomizationType, McpServerStatus, type ModelSelection } from '../../common/state/protocol/state.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
@@ -518,7 +519,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeManagedSettings: { permissions: managedSettingsPermissions },
 				ephemeralMcpServers: {},
 				ephemeralDisabledMcpServers: ['azure', 'disabled-workspace-server', 'github', 'native-plugin-server', 'synced-server'],
-				ephemeralExcludedTools: ['task'],
+				ephemeralExcludedTools: ['task', `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 			});
 		} finally {
 			sessions.dispose();
@@ -1013,6 +1014,24 @@ suite('CopilotSessionLauncher resume config', () => {
 		return (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean } }> })._buildSessionConfig(plan, runtime);
 	}
 
+	test('exposes only the client semantic-search override', async () => {
+		const store = new DisposableStore();
+		const snapshot = { tools: [{ name: SEMANTIC_SEARCH_TOOL_NAME }], plugins: [], mcpServers: {} };
+		const disabled = await buildResumeConfig(createLauncher(store, {}), undefined, { tools: [], plugins: [], mcpServers: {} });
+		const enabled = await buildResumeConfig(createLauncher(store, {}), undefined, snapshot);
+		const filtered = await buildResumeConfig(
+			createLauncher(store, { modelCapabilityOverrides: { '*': { excludedTools: [`custom:${SEMANTIC_SEARCH_TOOL_NAME}`] } } }),
+			undefined,
+			snapshot,
+		);
+
+		assert.deepStrictEqual(
+			[disabled.excludedTools, enabled.excludedTools, filtered.excludedTools],
+			[[`builtin:${SEMANTIC_SEARCH_TOOL_NAME}`], undefined, [`custom:${SEMANTIC_SEARCH_TOOL_NAME}`, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]],
+		);
+		store.dispose();
+	});
+
 	test('forwards a configured override on resume and leaves the effort untouched otherwise', async () => {
 		const store = new DisposableStore();
 		const model: ModelSelection = { id: 'gpt-5', config: { thinkingLevel: 'medium' } };
@@ -1054,7 +1073,7 @@ suite('CopilotSessionLauncher resume config', () => {
 
 		assert.deepStrictEqual(
 			[config.reasoningEffort, config.excludedTools],
-			['high', ['mcp:*']]
+			['high', ['mcp:*', `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]]
 		);
 		store.dispose();
 	});
@@ -1096,7 +1115,7 @@ suite('CopilotSessionLauncher resume config', () => {
 				undefined,
 				{
 					availableTools: ['custom:*'],
-					excludedTools: ['mcp:*'],
+					excludedTools: ['mcp:*', `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 					modelCapabilities: { supports: { vision: true } },
 				},
 				undefined,
@@ -1119,7 +1138,7 @@ suite('CopilotSessionLauncher resume config', () => {
 
 		assert.deepStrictEqual(
 			[config.availableTools, config.excludedTools],
-			[[RUNTIME_TOOL_SEARCH_TOOL_NAME], [`custom:${RUNTIME_TOOL_SEARCH_TOOL_NAME}`]]
+			[[RUNTIME_TOOL_SEARCH_TOOL_NAME], [`custom:${RUNTIME_TOOL_SEARCH_TOOL_NAME}`, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]]
 		);
 		store.dispose();
 	});
