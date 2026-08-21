@@ -16,7 +16,7 @@ import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/tel
 import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession, IAgent } from '../../common/agent.js';
+import { AgentSession, IAgent, type AgentModelCallFinishedOutcome } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import type { SessionMode } from '../../common/agentHostSchema.js';
@@ -161,6 +161,20 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 
 	function fireModelCallCompleted(turnId: string, modelCallId: string, chatUri = defaultChatUri): void {
 		agent.fireProgress({ kind: 'model_call_completed', resource: URI.parse(chatUri), turnId, modelCallId });
+	}
+
+	function fireModelCallFinished(turnId: string, modelCallId: string, dispatchDurationMs: number, outcome: AgentModelCallFinishedOutcome, containsBuiltInFileEditRequest?: boolean, parentToolCallId?: string): void {
+		agent.fireProgress({
+			kind: 'model_call_finished',
+			resource: URI.parse(defaultChatUri),
+			turnId,
+			modelCallId,
+			dispatchDurationMs,
+			outcome,
+			containsBuiltInFileEditRequest,
+			editClassifierVersion: 1,
+			parentToolCallId,
+		});
 	}
 
 	function completedEvents(): { eventName: string; data: unknown }[] {
@@ -308,6 +322,55 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		assert.strictEqual((completedEvents()[0].data as Record<string, unknown>).modelCallCount, 2);
 	});
 
+	test('sums dispatched attempts through the first accepted edit request', () => {
+		setupSession();
+		startTurn('turn-first-edit');
+
+		fireModelCallFinished('turn-first-edit', 'call-error', 120, 'error');
+		fireModelCallFinished('turn-first-edit', 'call-rejected', 80, 'rejected');
+		fireModelCallFinished('turn-first-edit', 'call-read', 200, 'success', false);
+		fireModelCallFinished('turn-first-edit', 'call-edit', 300, 'success', true);
+		fireModelCallFinished('turn-first-edit', 'call-after-edit', 500, 'success', false);
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-first-edit', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.strictEqual(data.timeToFirstEdit, 700);
+		assert.strictEqual(data.timeToFirstEditClassifierVersion, 1);
+		assert.strictEqual(data.modelCallCount, 0);
+	});
+
+	test('deduplicates model-call attempts and leaves time to first edit absent when no edit is requested', () => {
+		setupSession();
+		startTurn('turn-no-edit');
+
+		fireModelCallFinished('turn-no-edit', 'call-1', 100, 'cancelled');
+		fireModelCallFinished('turn-no-edit', 'call-1', 100, 'cancelled');
+		fireModelCallFinished('turn-no-edit', 'call-2', 200, 'success', false);
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-no-edit', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.strictEqual(data.timeToFirstEdit, undefined);
+		assert.strictEqual(data.timeToFirstEditClassifierVersion, undefined);
+	});
+
+	test('does not attribute a stale model-call attempt to the active turn', () => {
+		setupSession();
+		startTurn('turn-finished-old');
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-finished-old', duration: 1000 });
+		startTurn('turn-finished-active');
+
+		fireModelCallFinished('turn-finished-old', 'late-edit', 100, 'success', true);
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-finished-active', duration: 1000 });
+
+		assert.deepStrictEqual(completedEvents().map(event => {
+			const data = event.data as Record<string, unknown>;
+			return { turnId: data.turnId, timeToFirstEdit: data.timeToFirstEdit };
+		}), [
+			{ turnId: 'turn-finished-old', timeToFirstEdit: undefined },
+			{ turnId: 'turn-finished-active', timeToFirstEdit: undefined },
+		]);
+	});
+
 	test('does not attribute a stale model response to the active turn', () => {
 		setupSession();
 		startTurn('turn-old');
@@ -364,6 +427,42 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		}), [
 			{ isSubagentSession: true, modelCallCount: 1 },
 			{ isSubagentSession: false, modelCallCount: 0 },
+		]);
+	});
+
+	test('attributes subagent model-call attempt durations only to the subagent turn', () => {
+		setupSession();
+		startTurn('turn-parent-finished');
+		const subagentChatUri = buildSubagentChatUri(sessionUri, 'call-subagent-finished');
+		stateManager.addChat(sessionKey, subagentChatUri);
+		fire({
+			type: ActionType.ChatToolCallStart,
+			turnId: 'turn-parent-finished',
+			toolCallId: 'call-subagent-finished',
+			toolName: 'task',
+			displayName: 'Task',
+		});
+		agent.fireProgress({
+			kind: 'subagent_started',
+			chat: URI.parse(defaultChatUri),
+			toolCallId: 'call-subagent-finished',
+			agentName: 'explore',
+			agentDisplayName: 'Explore',
+		});
+
+		const subagentTurnId = stateManager.getActiveTurnId(subagentChatUri);
+		assert.ok(subagentTurnId);
+		fireModelCallFinished('turn-parent-finished', 'subagent-call-1', 150, 'error', undefined, 'call-subagent-finished');
+		fireModelCallFinished('turn-parent-finished', 'subagent-call-2', 250, 'success', true, 'call-subagent-finished');
+		fire({ type: ActionType.ChatTurnComplete, turnId: subagentTurnId, duration: 1000 }, subagentChatUri);
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-parent-finished', duration: 1000 });
+
+		assert.deepStrictEqual(completedEvents().map(event => {
+			const data = event.data as Record<string, unknown>;
+			return { isSubagentSession: data.isSubagentSession, timeToFirstEdit: data.timeToFirstEdit };
+		}), [
+			{ isSubagentSession: true, timeToFirstEdit: 400 },
+			{ isSubagentSession: false, timeToFirstEdit: undefined },
 		]);
 	});
 
