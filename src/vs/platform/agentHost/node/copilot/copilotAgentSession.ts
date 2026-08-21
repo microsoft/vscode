@@ -610,7 +610,6 @@ class CopilotTurn extends Disposable {
 	/**
 	 * Resolves with this turn's SDK event id once recorded via
 	 * {@link completeEventId}, or rejects on disposal if it never was.
-	 * Backs {@link CopilotAgentSession.waitForTurnEventId}.
 	 */
 	public get eventId() {
 		return this._eventId.p;
@@ -5669,24 +5668,30 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
+	 * Resolves the exclusive SDK event boundary for a fork after {@link turnId}.
+	 */
+	async getForkBoundaryEventId(turnId: string): Promise<string | undefined> {
+		const activeTurn = this._currentTurn.value;
+		const activeTurnId = activeTurn?.id;
+		const activeTurnEventId = activeTurnId !== turnId ? activeTurn?.eventId : undefined;
+		const persistedEventId = await this._databaseRef.object.getNextTurnEventId(turnId);
+		if (persistedEventId || !activeTurnEventId) {
+			return persistedEventId;
+		}
+
+		this._logService.info(`[Copilot:${this.sessionId}] Fork boundary after turn ${turnId} is active turn ${activeTurnId}; waiting for its SDK event id`);
+		try {
+			return await activeTurnEventId;
+		} catch (err) {
+			throw new Error(`its next turn (${activeTurnId}) never produced an SDK event id: ${getErrorMessage(err)}`);
+		}
+	}
+
+	/**
 	 * Returns the SDK event ID associated with the given protocol turn.
 	 */
 	getTurnEventId(turnId: string): Promise<string | undefined> {
 		return this._databaseRef.object.getTurnEventId(turnId);
-	}
-
-	/**
-	 * Resolves once `turnId`'s SDK event id is recorded, throwing if it
-	 * isn't (or is no longer) the active turn. Rejects if the active turn
-	 * ends without one — {@link CopilotTurn.dispose} guarantees one of the
-	 * two always happens, so no timeout is needed.
-	 */
-	async waitForTurnEventId(turnId: string): Promise<string> {
-		const turn = this._currentTurn.value;
-		if (!turn || turn.id !== turnId) {
-			throw new Error(`Turn ${turnId} is not the currently active turn in session ${this.sessionId}`);
-		}
-		return turn.eventId;
 	}
 
 	/**

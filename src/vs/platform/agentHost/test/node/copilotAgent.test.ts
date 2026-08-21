@@ -5911,26 +5911,22 @@ suite('CopilotAgent', () => {
 			}
 
 			function makeForkSource(options: {
-				readonly nextTurnEventId?: string;
-				readonly activeTurnId?: string;
-				readonly waitForTurnEventId?: (turnId: string) => Promise<string>;
-			}): { source: CopilotAgentSession; waitCalls: string[] } {
-				const waitCalls: string[] = [];
+				readonly boundaryEventId?: string;
+				readonly getForkBoundaryEventId?: (turnId: string) => Promise<string | undefined>;
+			}): { source: CopilotAgentSession; boundaryCalls: string[] } {
+				const boundaryCalls: string[] = [];
 				const source = {
 					sessionId: 'source-sdk-session',
 					sessionUri: AgentSession.uri('copilotcli', 'fork-sdk-source'),
-					currentTurnId: options.activeTurnId,
 					getMessages: async (): Promise<readonly Turn[]> => [sourceTurn],
-					getNextTurnEventId: async (_turnId: string): Promise<string | undefined> => options.nextTurnEventId,
-					waitForTurnEventId: async (turnId: string): Promise<string> => {
-						waitCalls.push(turnId);
-						if (!options.waitForTurnEventId) {
-							throw new Error('waitForTurnEventId should not be called');
-						}
-						return options.waitForTurnEventId(turnId);
+					getForkBoundaryEventId: async (turnId: string): Promise<string | undefined> => {
+						boundaryCalls.push(turnId);
+						return options.getForkBoundaryEventId
+							? options.getForkBoundaryEventId(turnId)
+							: options.boundaryEventId;
 					},
 				} as unknown as CopilotAgentSession;
-				return { source, waitCalls };
+				return { source, boundaryCalls };
 			}
 
 			function forkSdkChat(agent: CopilotAgent, client: CopilotClient, source: CopilotAgentSession): Promise<{ sessionId: string; inheritedTurnId: string | undefined }> {
@@ -5940,13 +5936,13 @@ suite('CopilotAgent', () => {
 			test('omits the SDK boundary when there is no next turn', async () => {
 				const agent = createTestAgent(disposables);
 				const forkCalls: ForkRequest[] = [];
-				const { source, waitCalls } = makeForkSource({});
+				const { source, boundaryCalls } = makeForkSource({});
 				try {
 					await forkSdkChat(agent, makeForkClient(forkCalls), source);
 
-					assert.deepStrictEqual({ forkCalls, waitCalls }, {
+					assert.deepStrictEqual({ forkCalls, boundaryCalls }, {
 						forkCalls: [{ sessionId: 'source-sdk-session' }],
-						waitCalls: [],
+						boundaryCalls: ['source-turn'],
 					});
 				} finally {
 					await disposeAgent(agent);
@@ -5956,25 +5952,24 @@ suite('CopilotAgent', () => {
 			test('uses an already-resolved SDK boundary without waiting', async () => {
 				const agent = createTestAgent(disposables);
 				const forkCalls: ForkRequest[] = [];
-				const { source, waitCalls } = makeForkSource({ nextTurnEventId: 'next-turn-event' });
+				const { source, boundaryCalls } = makeForkSource({ boundaryEventId: 'next-turn-event' });
 				try {
 					await forkSdkChat(agent, makeForkClient(forkCalls), source);
 
-					assert.deepStrictEqual({ forkCalls, waitCalls }, {
+					assert.deepStrictEqual({ forkCalls, boundaryCalls }, {
 						forkCalls: [{ sessionId: 'source-sdk-session', toEventId: 'next-turn-event' }],
-						waitCalls: [],
+						boundaryCalls: ['source-turn'],
 					});
 				} finally {
 					await disposeAgent(agent);
 				}
 			});
 
-			test('waits for an active next turn SDK boundary before forking', async () => {
+			test('waits for the source session to resolve the SDK boundary before forking', async () => {
 				const agent = createTestAgent(disposables);
 				const forkCalls: ForkRequest[] = [];
-				const { source, waitCalls } = makeForkSource({
-					activeTurnId: 'active-next-turn',
-					waitForTurnEventId: async () => {
+				const { source, boundaryCalls } = makeForkSource({
+					getForkBoundaryEventId: async () => {
 						await timeout(5);
 						return 'active-next-turn-event';
 					},
@@ -5982,9 +5977,9 @@ suite('CopilotAgent', () => {
 				try {
 					await forkSdkChat(agent, makeForkClient(forkCalls), source);
 
-					assert.deepStrictEqual({ forkCalls, waitCalls }, {
+					assert.deepStrictEqual({ forkCalls, boundaryCalls }, {
 						forkCalls: [{ sessionId: 'source-sdk-session', toEventId: 'active-next-turn-event' }],
-						waitCalls: ['active-next-turn'],
+						boundaryCalls: ['source-turn'],
 					});
 				} finally {
 					await disposeAgent(agent);
@@ -5994,9 +5989,8 @@ suite('CopilotAgent', () => {
 			test('fails the fork when an active next turn never produces an SDK boundary', async () => {
 				const agent = createTestAgent(disposables);
 				const forkCalls: ForkRequest[] = [];
-				const { source, waitCalls } = makeForkSource({
-					activeTurnId: 'active-next-turn',
-					waitForTurnEventId: async () => { throw new Error('boom'); },
+				const { source, boundaryCalls } = makeForkSource({
+					getForkBoundaryEventId: async () => { throw new Error('its next turn (active-next-turn) never produced an SDK event id: boom'); },
 				});
 				let error: Error | undefined;
 				try {
@@ -6009,11 +6003,11 @@ suite('CopilotAgent', () => {
 					assert.deepStrictEqual({
 						error: error?.message,
 						forkCalls,
-						waitCalls,
+						boundaryCalls,
 					}, {
 						error: '[Copilot] fork: failed to resolve fork boundary for turn source-turn in source session source-sdk-session because its next turn (active-next-turn) never produced an SDK event id: boom',
 						forkCalls: [],
-						waitCalls: ['active-next-turn'],
+						boundaryCalls: ['source-turn'],
 					});
 				} finally {
 					await disposeAgent(agent);

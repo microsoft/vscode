@@ -3923,22 +3923,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		const inheritedTurnIndex = sourceTurnIndex === -1 ? sourceTurns.length - 1 : sourceTurnIndex;
 		const inheritedTurnId = sourceTurns[inheritedTurnIndex]?.id;
-		// toEventId is exclusive — omitting it includes all events. `getNextTurnEventId`
-		// mirrors a column populated once the next turn's `user.message` streams back,
-		// so `undefined` is ambiguous between "no next turn" and "next turn active,
-		// event id not in yet". `currentTurnId` disambiguates; wait for its event id
-		// rather than silently including it in the fork.
-		let toEventId = await sourceEntry.getNextTurnEventId(turnId);
-		if (!toEventId) {
-			const activeTurnId = sourceEntry.currentTurnId;
-			if (activeTurnId && activeTurnId !== turnId) {
-				this._logService.info(`[Copilot] fork: turn ${turnId}'s next turn (${activeTurnId}) is still active in source session ${sourceEntry.sessionId}; waiting for its SDK event id before forking`);
-				try {
-					toEventId = await sourceEntry.waitForTurnEventId(activeTurnId);
-				} catch (err) {
-					throw new Error(`[Copilot] fork: failed to resolve fork boundary for turn ${turnId} in source session ${sourceEntry.sessionId} because its next turn (${activeTurnId}) never produced an SDK event id: ${getErrorMessage(err)}`);
-				}
-			}
+		// toEventId is exclusive; omitting it includes all events.
+		let toEventId: string | undefined;
+		try {
+			toEventId = await sourceEntry.getForkBoundaryEventId(turnId);
+		} catch (err) {
+			throw new Error(`[Copilot] fork: failed to resolve fork boundary for turn ${turnId} in source session ${sourceEntry.sessionId} because ${getErrorMessage(err)}`);
 		}
 		const forkResult = await client.rpc.sessions.fork({
 			sessionId: sourceEntry.sessionId,
