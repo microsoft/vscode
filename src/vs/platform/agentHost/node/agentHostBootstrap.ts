@@ -53,6 +53,7 @@ import { registerPendingEditContentProvider } from './copilot/pendingEditContent
 import { SessionDataService } from './sessionDataService.js';
 import { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
+import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
 
 export interface IAgentHostNetworkServices {
 	readonly proxyResolver: IAgentHostProxyResolver;
@@ -124,6 +125,7 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		[ISessionDataService, sessionDataService],
 		[IProductService, productService],
 	);
+	services.set(IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService()));
 	const networkServices = registerAgentHostNetworkServices(services, logService, disposables);
 	const proxyResolver = networkServices.proxyResolver;
 	const fetchFn = proxyResolver.fetch.bind(proxyResolver);

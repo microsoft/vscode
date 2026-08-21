@@ -23,6 +23,7 @@ import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { AgentService } from '../../node/agentService.js';
 import { createAgentService } from '../../node/agentServiceComposition.js';
 import { ICopilotApiService } from '../../node/shared/copilotApiService.js';
+import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 
 export function createTestAgentService(
 	logService: ILogService,
@@ -41,6 +42,7 @@ export function createTestAgentService(
 	orchestratorDatabase?: IAgentHostDatabase,
 ): AgentService {
 	const effectiveFileMonitorService = fileMonitorService ?? new AgentHostFileMonitorService(fileService, logService);
+	const clientConnectionService = new AgentHostClientConnectionService();
 	const proxyResolver: IAgentHostProxyResolver = {
 		_serviceBrand: undefined,
 		onDidRegisterConnection: Event.None,
@@ -60,6 +62,7 @@ export function createTestAgentService(
 		[ITelemetryService, telemetryService],
 		[IAgentHostFileMonitorService, effectiveFileMonitorService],
 		[IAgentHostProxyResolver, proxyResolver],
+		[IAgentHostClientConnectionService, clientConnectionService],
 	);
 	const instantiationService = new InstantiationService(services, /*strict*/ true);
 	const options = {
@@ -77,7 +80,7 @@ export function createTestAgentService(
 		fetchFn,
 		logService,
 		productService,
-		fileMonitorService ? [instantiationService] : [effectiveFileMonitorService, instantiationService],
+		fileMonitorService ? [clientConnectionService, instantiationService] : [effectiveFileMonitorService, clientConnectionService, instantiationService],
 	);
 	return service;
 }

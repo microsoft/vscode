@@ -7,7 +7,7 @@ import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEv
 import type { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../telemetry/common/telemetryUtils.js';
 import { hash } from '../../../base/common/hash.js';
-import { AgentSession } from '../common/agent.js';
+import { AgentSession, type AgentTurnProviderCallState, type AgentTurnProviderSessionState, type IAgentTurnDiagnosticSnapshot } from '../common/agent.js';
 import type { SessionMode } from '../common/agentHostSchema.js';
 import { getTelemetryChatSessionId } from '../common/agentTelemetryCorrelation.js';
 import { readAgentErrorTelemetryMeta } from '../common/meta/agentErrorMeta.js';
@@ -162,6 +162,8 @@ export type AgentHostTurnResult = 'success' | 'error' | 'cancelled';
 export type AgentHostModelTelemetryKind = 'trusted' | 'byok' | 'unknown';
 type AgentHostModelSelectionKind = 'default' | 'auto' | 'explicit';
 export type AgentHostTurnFailureStage = 'validation' | 'workingDirectory' | 'modelSelection' | 'sendMessage' | 'provider';
+export type AgentHostInitiatorClientConnectionState = 'connected' | 'disconnected' | 'unknown';
+export type AgentHostProviderDiagnosticState = 'available' | 'error' | 'missingChat' | 'missingTurn' | 'unavailable' | 'unsupported';
 
 interface IAgentHostTurnAttributedReport {
 	clientContext?: IAgentHostClientTelemetryContext;
@@ -353,6 +355,11 @@ export interface IAgentHostTurnHungEvent extends IAgentHostInitiatorTelemetry {
 	hadAnyProgress: boolean;
 	lastActivityKind: AgentHostTurnActivityTelemetryKind;
 	currentStage: AgentHostTurnFailureStage;
+	providerDiagnosticState: AgentHostProviderDiagnosticState;
+	providerCallState?: AgentTurnProviderCallState;
+	providerTurnStarted?: boolean;
+	providerSessionState?: AgentTurnProviderSessionState;
+	initiatorClientConnectionState: AgentHostInitiatorClientConnectionState;
 	blockedOn: SessionInputRequestKind | undefined;
 	toolId: string | undefined;
 	toolSourceKind: string | undefined;
@@ -375,6 +382,11 @@ export type IAgentHostTurnHungClassification = IAgentHostInitiatorClassification
 	hadAnyProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether any turn activity at all was observed before the watchdog fired.' };
 	lastActivityKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'A bounded category for the last observed turn activity, preserving the AHP action namespace and action name without slash-like syntax. Values are none, other, or categories such as chat.delta and chat.toolCallReady.' };
 	currentStage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded turn stage active when the hang watchdog fired.' };
+	providerDiagnosticState: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether bounded provider diagnostics were available, unsupported, unavailable, failed, or missing the expected chat or turn.' };
+	providerCallState?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the provider call had not started, was pending, resolved, or rejected when the hang watchdog fired.' };
+	providerTurnStarted?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the provider reported that its turn started before the hang watchdog fired.' };
+	providerSessionState?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded provider session state when the hang watchdog fired.' };
+	initiatorClientConnectionState: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the client that initiated the turn was still connected when the hang watchdog fired, or unknown when the client could not be identified.' };
 	blockedOn: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The kind of outstanding user-blocking session input request, when there is one. Client tool execution is not counted, since it is delegated work rather than a prompt.' };
 	toolId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the tool the turn appears to be stuck on. When hangReason is waitingOnUser this is the tool gated by the blocking request, which is exact; when it is runningTool this is the longest-running in-flight tool call, which is a best guess when several are running. Undefined when no tool explains the hang.' };
 	toolSourceKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the stuck tool is provided by the agent host, an MCP server, or a client.' };
@@ -396,6 +408,9 @@ export interface IAgentHostTurnHungReport extends IAgentHostTurnAttributedReport
 	hadAnyProgress: boolean;
 	lastActivityKind: string;
 	currentStage: AgentHostTurnFailureStage;
+	providerDiagnosticState: AgentHostProviderDiagnosticState;
+	providerDiagnosticSnapshot: IAgentTurnDiagnosticSnapshot | undefined;
+	initiatorClientConnectionState: AgentHostInitiatorClientConnectionState;
 	blockedOn: SessionInputRequestKind | undefined;
 	toolId: string | undefined;
 	toolSourceKind: string | undefined;
@@ -1191,6 +1206,13 @@ export class AgentHostTelemetryReporter {
 			hadAnyProgress: report.hadAnyProgress,
 			lastActivityKind: normalizeTurnActivityKind(report.lastActivityKind),
 			currentStage: report.currentStage,
+			providerDiagnosticState: report.providerDiagnosticState,
+			...(report.providerDiagnosticSnapshot?.state === 'available' ? {
+				providerCallState: report.providerDiagnosticSnapshot.providerCallState,
+				providerTurnStarted: report.providerDiagnosticSnapshot.providerTurnStarted,
+				providerSessionState: report.providerDiagnosticSnapshot.providerSessionState,
+			} : {}),
+			initiatorClientConnectionState: report.initiatorClientConnectionState,
 			blockedOn: report.blockedOn,
 			toolId: report.toolId,
 			toolSourceKind: report.toolSourceKind,

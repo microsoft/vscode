@@ -66,7 +66,7 @@ import {
 } from '../common/otlp/otlpLogEmitter.js';
 import { isFileResourceRead } from '../common/resourceReadLogging.js';
 import type { Implementation } from '../common/state/protocol/common/commands.js';
-import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, AgentHostClientConnectionTelemetryTracker } from './agentHostClientConnectionTelemetry.js';
+import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, IAgentHostClientConnectionService, type IAgentHostClientConnectionSource } from './agentHostClientConnectionService.js';
 import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
 import { isAgentHostTelemetryService } from './agentHostTelemetryService.js';
 
@@ -208,7 +208,6 @@ interface IConnectedClient {
 	readonly protocolVersion: string;
 	readonly transport: IProtocolTransport;
 	readonly connectionStopWatch: StopWatch;
-	readonly telemetryTransportToken: object;
 	readonly isReconnect: boolean;
 	telemetryConnectionActive: boolean;
 	/**
@@ -257,6 +256,7 @@ interface IActiveClientRecord {
 
 interface IGraceClientRecord {
 	readonly state: 'grace';
+	readonly seenConnection: boolean;
 	readonly clientInfo: Implementation | undefined;
 	readonly telemetryContext: IAgentHostClientTelemetryContext | undefined;
 	readonly protocolVersion: string | undefined;
@@ -310,8 +310,6 @@ function classifyChannel(channel: string): ChannelSubscription | undefined {
 export interface IProtocolServerConfig {
 	/** Process launcher that owns this agent host. */
 	readonly hostLaunchKind?: AgentHostLaunchKind;
-	/** Process-wide client count tracker shared by every listener in this host. */
-	readonly connectionTelemetryTracker?: AgentHostClientConnectionTelemetryTracker;
 
 	/** Default directory returned to clients during the initialize handshake. */
 	readonly defaultDirectory?: string;
@@ -348,7 +346,7 @@ export interface IProtocolServerConfig {
  * messages to the agent service, and broadcasts actions/notifications
  * to subscribed clients.
  */
-export class ProtocolServerHandler extends Disposable {
+export class ProtocolServerHandler extends Disposable implements IAgentHostClientConnectionSource {
 
 	/**
 	 * Per-client records keyed by clientId. Holds both connected clients
@@ -359,7 +357,6 @@ export class ProtocolServerHandler extends Disposable {
 	private readonly _clients = new Map<string, IClientRecord>();
 	private readonly _replayBuffer: ActionEnvelope[] = [];
 	private readonly _telemetryReporter: AgentHostTelemetryReporter;
-	private readonly _connectionTelemetryTracker: AgentHostClientConnectionTelemetryTracker;
 	private readonly _managedSettingsOwnerId = generateUuid();
 
 	private readonly _onDidChangeConnectionCount = this._register(new Emitter<number>());
@@ -376,10 +373,11 @@ export class ProtocolServerHandler extends Disposable {
 		@ILogService private readonly _logService: ILogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IAgentHostManagedSettingsService private readonly _managedSettingsService: IAgentHostManagedSettingsService,
+		@IAgentHostClientConnectionService private readonly _clientConnections: IAgentHostClientConnectionService,
 	) {
 		super();
 		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
-		this._connectionTelemetryTracker = this._config.connectionTelemetryTracker ?? this._register(new AgentHostClientConnectionTelemetryTracker());
+		this._register(this._clientConnections.registerSource(this));
 
 		this._register(this._server.onConnection(transport => {
 			this._handleNewConnection(transport);
@@ -550,6 +548,7 @@ export class ProtocolServerHandler extends Disposable {
 						this._logService.info(`[ProtocolServer] Client disconnected: ${client.clientId}, subscriptions=${subscriptionCount}`);
 						this._clients.set(client.clientId, {
 							state: 'grace',
+							seenConnection: true,
 							clientInfo: record.clientInfo,
 							telemetryContext: client.telemetryContext,
 							protocolVersion: client.protocolVersion,
@@ -600,7 +599,6 @@ export class ProtocolServerHandler extends Disposable {
 
 		const previousRecord = this._clients.get(params.clientId);
 		this._applyClientTelemetryLevel(params._meta);
-		const telemetryTransportToken = {};
 		const initializationDisposables = disposables.add(new DisposableStore());
 		const telemetryContext = this._createClientTelemetryContext(params.clientInfo, params._meta, transport);
 		const client: IConnectedClient = {
@@ -610,8 +608,7 @@ export class ProtocolServerHandler extends Disposable {
 			protocolVersion: negotiated,
 			transport,
 			connectionStopWatch: StopWatch.create(true),
-			telemetryTransportToken,
-			isReconnect: this._connectionTelemetryTracker.hasSeenClient(params.clientId),
+			isReconnect: this._clientConnections.hasSeenClient(params.clientId),
 			telemetryConnectionActive: false,
 			subscriptions: new Map(),
 			disposables,
@@ -631,8 +628,8 @@ export class ProtocolServerHandler extends Disposable {
 				}
 			}
 
-			const counts = this._connectionTelemetryTracker.connect(params.clientId, telemetryTransportToken);
 			client.telemetryConnectionActive = true;
+			const counts = this._clientConnections.getConnectionCounts(params.clientId);
 			if (previousRecord?.state === 'grace') {
 				previousRecord.disconnectTimeouts.dispose();
 			}
@@ -644,6 +641,7 @@ export class ProtocolServerHandler extends Disposable {
 				clientImplementationName: client.clientInfo?.name,
 				clientImplementationVersion: client.clientInfo?.version,
 				protocolVersion: client.protocolVersion,
+				isReconnect: client.isReconnect,
 				...counts,
 			});
 
@@ -751,7 +749,7 @@ export class ProtocolServerHandler extends Disposable {
 		const priorProtocolVersion = existingRecord.state === 'active'
 			? existingRecord.connections.at(-1)?.protocolVersion
 			: existingRecord.protocolVersion;
-		const telemetryTransportToken = {};
+		const isReconnect = this._clientConnections.hasSeenClient(params.clientId);
 		const initializationDisposables = disposables.add(new DisposableStore());
 		const client: IConnectedClient = {
 			clientId: params.clientId,
@@ -760,8 +758,7 @@ export class ProtocolServerHandler extends Disposable {
 			protocolVersion: priorProtocolVersion ?? PROTOCOL_VERSION,
 			transport,
 			connectionStopWatch: StopWatch.create(true),
-			telemetryTransportToken,
-			isReconnect: true,
+			isReconnect,
 			telemetryConnectionActive: false,
 			subscriptions: new Map(),
 			disposables,
@@ -780,8 +777,8 @@ export class ProtocolServerHandler extends Disposable {
 			const canReplay = params.lastSeenServerSeq >= oldestBuffered;
 			const responsePromise = this._restoreReconnectSubscriptions(client, params, canReplay);
 
-			const counts = this._connectionTelemetryTracker.connect(params.clientId, telemetryTransportToken);
 			client.telemetryConnectionActive = true;
+			const counts = this._clientConnections.getConnectionCounts(params.clientId);
 			if (existingRecord.state === 'grace') {
 				existingRecord.disconnectTimeouts.dispose();
 			}
@@ -793,6 +790,7 @@ export class ProtocolServerHandler extends Disposable {
 				clientImplementationName: client.clientInfo?.name,
 				clientImplementationVersion: client.clientInfo?.version,
 				protocolVersion: client.protocolVersion,
+				isReconnect: client.isReconnect,
 				...counts,
 			});
 
@@ -1127,6 +1125,7 @@ export class ProtocolServerHandler extends Disposable {
 		}
 		const created: IGraceClientRecord = {
 			state: 'grace',
+			seenConnection: false,
 			clientInfo: undefined,
 			telemetryContext: undefined,
 			protocolVersion: undefined,
@@ -1174,6 +1173,34 @@ export class ProtocolServerHandler extends Disposable {
 		return false;
 	}
 
+	hasSeenClient(clientId: string): boolean {
+		const record = this._clients.get(clientId);
+		return record?.state === 'active'
+			? record.connections.some(connection => connection.telemetryConnectionActive)
+			: record?.seenConnection === true
+			&& record.lastSeenAt >= Date.now() - AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION;
+	}
+
+	isClientConnected(clientId: string): boolean {
+		const record = this._clients.get(clientId);
+		return record?.state === 'active'
+			&& record.connections.some(connection => connection.telemetryConnectionActive);
+	}
+
+	getConnectedClientTransportCounts(): ReadonlyMap<string, number> {
+		const result = new Map<string, number>();
+		for (const [clientId, record] of this._clients) {
+			if (record.state !== 'active') {
+				continue;
+			}
+			const count = record.connections.filter(connection => connection.telemetryConnectionActive).length;
+			if (count > 0) {
+				result.set(clientId, count);
+			}
+		}
+		return result;
+	}
+
 	/** Number of clients that currently have a live connection. */
 	private get _connectedClientCount(): number {
 		let count = 0;
@@ -1211,7 +1238,7 @@ export class ProtocolServerHandler extends Disposable {
 			return;
 		}
 		client.telemetryConnectionActive = false;
-		const counts = this._connectionTelemetryTracker.disconnect(client.clientId, client.telemetryTransportToken);
+		const counts = this._clientConnections.getConnectionCounts(client.clientId);
 		this._telemetryReporter.clientConnection({
 			action: 'disconnected',
 			context: client.telemetryContext,
@@ -1241,6 +1268,7 @@ export class ProtocolServerHandler extends Disposable {
 			if (record.state === 'grace'
 				&& record.disconnectTimeouts.size === 0
 				&& record.lastSeenAt < cutoff) {
+				record.disconnectTimeouts.dispose();
 				this._clients.delete(clientId);
 			}
 		}

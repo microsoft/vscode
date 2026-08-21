@@ -33,7 +33,7 @@ import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo, Agent
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { iterateOtlpLogRecords, OtlpLogEmitter } from '../../common/otlp/otlpLogEmitter.js';
 import { MessagePortProtocolServer } from '../../node/messagePortProtocolServer.js';
-import { AgentHostClientConnectionTelemetryTracker } from '../../node/agentHostClientConnectionTelemetry.js';
+import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 
@@ -121,9 +121,13 @@ class TestTelemetryService implements ITelemetryService {
 	readonly devDeviceId = 'device';
 	readonly firstSessionDate = 'first-session';
 	readonly events: { eventName: string; data: unknown }[] = [];
+	throwOnClientConnection = false;
 
 	publicLog(): void { }
 	publicLog2(eventName?: string, data?: unknown): void {
+		if (this.throwOnClientConnection && eventName === 'agentHost.clientConnection') {
+			throw new Error('client connection telemetry failed');
+		}
 		if (eventName) {
 			this.events.push({ eventName, data });
 		}
@@ -323,6 +327,7 @@ suite('ProtocolServerHandler', () => {
 	let logService: CountingLogService;
 	let telemetryService: TestTelemetryService;
 	let agentHostTelemetryService: AgentHostTelemetryService;
+	let clientConnections: AgentHostClientConnectionService;
 
 	const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
 	const defaultChatUri = buildDefaultChatUri(sessionUri);
@@ -365,6 +370,7 @@ suite('ProtocolServerHandler', () => {
 		logService = new CountingLogService();
 		telemetryService = new TestTelemetryService();
 		agentHostTelemetryService = disposables.add(new AgentHostTelemetryService(telemetryService));
+		clientConnections = disposables.add(new AgentHostClientConnectionService());
 		disposables.add(agentService);
 		disposables.add(handler = new ProtocolServerHandler(
 			agentService,
@@ -375,6 +381,7 @@ suite('ProtocolServerHandler', () => {
 			logService,
 			agentHostTelemetryService,
 			managedSettingsService,
+			clientConnections,
 		));
 	});
 
@@ -781,6 +788,7 @@ suite('ProtocolServerHandler', () => {
 			logService,
 			NullTelemetryService,
 			managedSettingsService,
+			clientConnections,
 		));
 		const transport = new MockProtocolTransport();
 		localServer.simulateConnection(transport);
@@ -1951,7 +1959,7 @@ suite('ProtocolServerHandler', () => {
 
 	test('reports process-wide client counts across protocol listeners', () => {
 		const localDisposables = disposables.add(new DisposableStore());
-		const tracker = localDisposables.add(new AgentHostClientConnectionTelemetryTracker());
+		const tracker = localDisposables.add(new AgentHostClientConnectionService());
 		const firstServer = localDisposables.add(new MockProtocolServer());
 		const secondServer = localDisposables.add(new MockProtocolServer());
 		const handlers: ProtocolServerHandler[] = [];
@@ -1960,11 +1968,12 @@ suite('ProtocolServerHandler', () => {
 				agentService,
 				stateManager,
 				listener,
-				{ hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess, connectionTelemetryTracker: tracker },
+				{ hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess },
 				localDisposables.add(new AgentHostFileSystemProvider()),
 				logService,
 				telemetryService,
 				managedSettingsService,
+				tracker,
 			)));
 		}
 
@@ -1992,22 +2001,54 @@ suite('ProtocolServerHandler', () => {
 		]);
 	});
 
+	test('deduplicates one client connected through multiple protocol listeners', () => {
+		const localDisposables = disposables.add(new DisposableStore());
+		const tracker = localDisposables.add(new AgentHostClientConnectionService());
+		const listeners = [
+			localDisposables.add(new MockProtocolServer()),
+			localDisposables.add(new MockProtocolServer()),
+		];
+		for (const listener of listeners) {
+			localDisposables.add(new ProtocolServerHandler(
+				agentService,
+				stateManager,
+				listener,
+				{ hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess },
+				localDisposables.add(new AgentHostFileSystemProvider()),
+				logService,
+				telemetryService,
+				managedSettingsService,
+				tracker,
+			));
+			const transport = new MockProtocolTransport();
+			listener.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', {
+				protocolVersions: [PROTOCOL_VERSION],
+				clientId: 'shared-client',
+			}));
+		}
+
+		assert.deepStrictEqual(tracker.getConnectionCounts('shared-client'), {
+			connectedClientCount: 1,
+			connectedTransportCount: 2,
+			clientTransportCount: 2,
+		});
+	});
+
 	test('expires disconnected client reconnect history', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const tracker = disposables.add(new AgentHostClientConnectionTelemetryTracker(100));
-			const firstTransport = {};
-			assert.strictEqual(tracker.connect('client', firstTransport).isReconnect, false);
-			tracker.disconnect('client', firstTransport);
-			assert.strictEqual(tracker.hasSeenClient('client'), true);
+			const firstTransport = connectClient('client');
+			firstTransport.simulateClose();
+			assert.strictEqual(clientConnections.hasSeenClient('client'), true);
 
-			await new Promise(resolve => setTimeout(resolve, 101));
+			await new Promise(resolve => setTimeout(resolve, AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION + 1));
 
 			assert.deepStrictEqual({
-				hasSeenClient: tracker.hasSeenClient('client'),
-				isReconnect: tracker.connect('client', {}).isReconnect,
+				hasSeenClient: clientConnections.hasSeenClient('client'),
+				isClientConnected: clientConnections.isClientConnected('client'),
 			}, {
 				hasSeenClient: false,
-				isReconnect: false,
+				isClientConnected: false,
 			});
 		});
 	});
@@ -2025,6 +2066,7 @@ suite('ProtocolServerHandler', () => {
 			logService,
 			localTelemetry,
 			managedSettingsService,
+			clientConnections,
 		));
 		const counts: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => counts.push(count)));
@@ -2042,10 +2084,58 @@ suite('ProtocolServerHandler', () => {
 			counts,
 			events: localTelemetry.events,
 			responseCode,
+			hasSeenClient: clientConnections.hasSeenClient('failed-client'),
+			isClientConnected: clientConnections.isClientConnected('failed-client'),
+			connectionCounts: clientConnections.getConnectionCounts('failed-client'),
 		}, {
 			counts: [],
 			events: [],
 			responseCode: JSON_RPC_INTERNAL_ERROR,
+			hasSeenClient: false,
+			isClientConnected: false,
+			connectionCounts: {
+				connectedClientCount: 0,
+				connectedTransportCount: 0,
+				clientTransportCount: 0,
+			},
+		});
+	});
+
+	test('rolls back authoritative connection state when connected telemetry throws', () => {
+		const localDisposables = disposables.add(new DisposableStore());
+		const localServer = localDisposables.add(new MockProtocolServer());
+		const localTelemetry = new TestTelemetryService();
+		localTelemetry.throwOnClientConnection = true;
+		localDisposables.add(new ProtocolServerHandler(
+			agentService,
+			stateManager,
+			localServer,
+			{ hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess },
+			localDisposables.add(new AgentHostFileSystemProvider()),
+			logService,
+			localTelemetry,
+			managedSettingsService,
+			clientConnections,
+		));
+		const transport = new MockProtocolTransport(AgentHostTransportKind.WebSocket);
+		localServer.simulateConnection(transport);
+
+		transport.simulateMessage(request(1, 'initialize', {
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: 'telemetry-failed-client',
+		}));
+		transport.simulateClose();
+
+		assert.deepStrictEqual({
+			isClientConnected: clientConnections.isClientConnected('telemetry-failed-client'),
+			counts: clientConnections.getConnectionCounts('telemetry-failed-client'),
+		}, {
+			isClientConnected: false,
+			counts: {
+				connectedClientCount: 0,
+				connectedTransportCount: 0,
+				clientTransportCount: 0,
+			},
 		});
 	});
 
@@ -2062,6 +2152,7 @@ suite('ProtocolServerHandler', () => {
 			logService,
 			localTelemetry,
 			managedSettingsService,
+			clientConnections,
 		));
 		const counts: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => counts.push(count)));
@@ -3169,6 +3260,7 @@ suite('ProtocolServerHandler', () => {
 			logService,
 			NullTelemetryService,
 			managedSettingsService,
+			clientConnections,
 		));
 		const secondTransport = new MockProtocolTransport();
 		secondServer.simulateConnection(secondTransport);
@@ -3273,6 +3365,7 @@ suite('ProtocolServerHandler', () => {
 			logService,
 			NullTelemetryService,
 			managedSettingsService,
+			clientConnections,
 		));
 		const counts: number[] = [];
 		localDisposables.add(combinedHandler.onDidChangeConnectionCount(count => counts.push(count)));
@@ -3411,6 +3504,7 @@ suite('ProtocolServerHandler', () => {
 				new NullLogService(),
 				NullTelemetryService,
 				managedSettingsService,
+				clientConnections,
 			));
 		});
 
@@ -3582,6 +3676,7 @@ suite('ProtocolServerHandler', () => {
 				new NullLogService(),
 				NullTelemetryService,
 				managedSettingsService,
+				clientConnections,
 			));
 		});
 

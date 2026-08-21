@@ -35,7 +35,7 @@ import { gitHubMcpServerUrl } from '../../common/githubEndpoints.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
-import { AgentSession, AgentSignal, AuthenticateParams, IMcpNotification, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
+import { AgentSession, AgentSignal, AuthenticateParams, IMcpNotification, type AgentTurnProviderCallState, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot } from '../../common/agent.js';
 import { META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta, type IToolSearchCandidate } from '../../common/meta/agentToolCallMeta.js';
@@ -506,6 +506,8 @@ interface IMcpLifecycleLogInfo {
 class CopilotTurn {
 
 	private _state: CopilotTurnState = 'pending';
+	private _providerCallState: AgentTurnProviderCallState = 'notStarted';
+	private _providerTurnStarted = false;
 	private readonly _stopWatch = StopWatch.create(false);
 
 	/**
@@ -617,6 +619,13 @@ class CopilotTurn {
 	get isPending(): boolean { return this._state === 'pending'; }
 	get isRunning(): boolean { return this._state === 'running'; }
 	get duration(): number { return Math.max(0, this._stopWatch.elapsed()); }
+	get providerCallState(): AgentTurnProviderCallState { return this._providerCallState; }
+	get providerTurnStarted(): boolean { return this._providerTurnStarted; }
+
+	markProviderCallPending(): void { this._providerCallState = 'pending'; }
+	markProviderCallResolved(): void { this._providerCallState = 'resolved'; }
+	markProviderCallRejected(): void { this._providerCallState = 'rejected'; }
+	markProviderTurnStarted(): void { this._providerTurnStarted = true; }
 
 	/** Transition `pending → running` on the first SDK event. No-op once running/finished. */
 	markRunning(): void {
@@ -758,6 +767,19 @@ export class CopilotAgentSession extends Disposable {
 	get hasActiveTurn(): boolean { return this._currentTurn !== undefined; }
 	get chatUri(): URI { return this._chatChannelUri; }
 	get currentTurnId(): string | undefined { return this._currentTurn?.id; }
+
+	getTurnDiagnosticSnapshot(turnId: string): IAgentTurnDiagnosticSnapshot | undefined {
+		const turn = this._currentTurn?.id === turnId ? this._currentTurn : undefined;
+		if (!turn) {
+			return undefined;
+		}
+		return {
+			state: 'available',
+			providerCallState: turn.providerCallState,
+			providerTurnStarted: turn.providerTurnStarted,
+			providerSessionState: this._wrapper.lifecycleState,
+		};
+	}
 	get currentTurnClientType(): AgentHostClientType { return this._currentTurn?.clientType ?? AgentHostClientType.Unknown; }
 	get currentTurnClientContext(): IAgentHostClientTelemetryContext | undefined { return this._currentTurn?.clientContext; }
 
@@ -2342,7 +2364,15 @@ export class CopilotAgentSession extends Disposable {
 
 		await this._prepareSdkTurn(mode);
 		const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.resourceUri.toString());
-		await this._otelService.withTraceContext(traceContext, () => this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined }));
+		const sendingTurn = this._currentTurn;
+		sendingTurn?.markProviderCallPending();
+		try {
+			await this._otelService.withTraceContext(traceContext, () => this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined }));
+			sendingTurn?.markProviderCallResolved();
+		} catch (error) {
+			sendingTurn?.markProviderCallRejected();
+			throw error;
+		}
 		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
 	}
 
@@ -2389,9 +2419,12 @@ export class CopilotAgentSession extends Disposable {
 		}
 		const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.resourceUri.toString());
 		let result: { started: boolean };
+		startingTurn.markProviderCallPending();
 		try {
 			result = await this._otelService.withTraceContext(traceContext, () => this._wrapper.session.rpc.fleet.start(rest ? { prompt: rest } : {}));
+			startingTurn.markProviderCallResolved();
 		} catch (err) {
+			startingTurn.markProviderCallRejected();
 			// A terminal `session.idle` already ended this turn while the RPC was in
 			// flight — idle is authoritative, so never emit a second terminal action.
 			if (!startingTurn || this._currentTurn !== startingTurn) {
@@ -5499,6 +5532,7 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		this._register(wrapper.onTurnStart(e => {
+			this._currentTurn?.markProviderTurnStarted();
 			this._currentTurn?.markRunning();
 			this._logService.trace(`[Copilot:${sessionId}] Turn started: ${e.data.turnId}`);
 			if (!e.agentId) {

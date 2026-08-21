@@ -42,7 +42,6 @@ import { AgentModelRefreshScheduler, MODEL_REFRESH_INTERVAL_MS } from './agentMo
 import { AgentHostClaudeAgentEnabledEnvVar, AgentHostClaudeSdkRootEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostCodexAgentSdkRootEnvVar, isAgentEnabled } from '../common/agentService.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
-import { AgentHostClientConnectionTelemetryTracker } from './agentHostClientConnectionTelemetry.js';
 import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFileSystemProvider.js';
 import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
 import { resolveServerUrls } from './serverUrls.js';
@@ -295,8 +294,6 @@ async function main(): Promise<void> {
 
 	const clientFileSystemProvider = disposables.add(new AgentHostClientFileSystemProvider());
 	disposables.add(fileService.registerProvider(AGENT_CLIENT_SCHEME, clientFileSystemProvider));
-	const connectionTelemetryTracker = disposables.add(new AgentHostClientConnectionTelemetryTracker());
-
 	// Wire up protocol handler
 	disposables.add(instantiationService.createInstance(
 		ProtocolServerHandler,
@@ -305,7 +302,6 @@ async function main(): Promise<void> {
 		wsServer,
 		{
 			hostLaunchKind: AgentHostLaunchKind.VSCodeCLI,
-			connectionTelemetryTracker,
 			defaultDirectory: URI.file(os.homedir()).toString(),
 			completionTriggerCharacters: agentService.completionTriggerCharacters,
 			terminalCommandPrefix: BANG_COMMAND_PREFIX,

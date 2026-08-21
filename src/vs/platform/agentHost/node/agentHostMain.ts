@@ -28,7 +28,6 @@ import { ByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
 import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
-import { AgentHostClientConnectionTelemetryTracker } from './agentHostClientConnectionTelemetry.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { MessagePortProtocolServer } from './messagePortProtocolServer.js';
 import { cleanupLocalAgentHostEndpointMetadataSync, cleanupLocalAgentHostEndpointSocketSync, createLocalAgentHostEndpointMetadata, prepareLocalAgentHostEndpointMetadataDirectory, prepareLocalAgentHostEndpointSocketDirectory, publishLocalAgentHostEndpointMetadata, type ILocalAgentHostEndpointMetadata } from './localAgentHostMetadata.js';
@@ -110,7 +109,6 @@ async function startAgentHost(): Promise<void> {
 	let byokLmBridgeRegistry: ByokLmBridgeRegistry;
 	let proxyResolver!: IAgentHostProxyResolver;
 	const hostLaunchKind = readAgentHostLaunchKind(process.env[AgentHostLaunchKindEnvVar]);
-	const connectionTelemetryTracker = disposables.add(new AgentHostClientConnectionTelemetryTracker());
 	try {
 		byokLmBridgeRegistry = new ByokLmBridgeRegistry();
 		const runtime = await createAgentHostRuntime({
@@ -220,7 +218,6 @@ async function startAgentHost(): Promise<void> {
 		// MessagePort + the external endpoint, which each get their own handler).
 		const localProtocolHandlerConfig = {
 			hostLaunchKind,
-			connectionTelemetryTracker,
 			defaultDirectory: URI.file(os.homedir()).toString(),
 			completionTriggerCharacters: agentService.completionTriggerCharacters,
 			terminalCommandPrefix: BANG_COMMAND_PREFIX,
@@ -366,7 +363,6 @@ async function startAgentHost(): Promise<void> {
 				wsServer,
 				{
 					hostLaunchKind,
-					connectionTelemetryTracker,
 					defaultDirectory: URI.file(os.homedir()).toString(),
 					completionTriggerCharacters: agentService.completionTriggerCharacters,
 					terminalCommandPrefix: BANG_COMMAND_PREFIX,
@@ -452,7 +448,6 @@ async function startAgentHost(): Promise<void> {
 		otlpLogEmitter,
 		protocolIngressDisposables,
 		hostLaunchKind,
-		connectionTelemetryTracker,
 		count => connectionCountEmitter.fire(count),
 		handler => protocolHandlers.push(handler),
 	);
@@ -545,7 +540,6 @@ async function startWebSocketServer(
 	otlpLogEmitter: OtlpLogEmitter,
 	disposables: DisposableStore,
 	hostLaunchKind: AgentHostLaunchKind,
-	connectionTelemetryTracker: AgentHostClientConnectionTelemetryTracker,
 	onConnectionCountChanged: (count: number) => void,
 	onProtocolHandlerCreated: (handler: ProtocolServerHandler) => void,
 ): Promise<void> {
@@ -590,7 +584,6 @@ async function startWebSocketServer(
 		wsServer,
 		{
 			hostLaunchKind,
-			connectionTelemetryTracker,
 			defaultDirectory: URI.file(os.homedir()).toString(),
 			completionTriggerCharacters: agentService.completionTriggerCharacters,
 			terminalCommandPrefix: BANG_COMMAND_PREFIX,
