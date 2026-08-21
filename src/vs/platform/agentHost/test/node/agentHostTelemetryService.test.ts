@@ -101,7 +101,7 @@ class TestRestrictedSink implements IAgentHostRestrictedTelemetry {
 suite('AgentHostTelemetryService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function createFactoryService(telemetryLevelArg: string | undefined, telemetryLevelEnvironment: string | undefined, internalTelemetryEnvironment?: string): Promise<IAgentHostTelemetryService> {
+	async function createFactoryService(telemetryLevelArg: string | undefined, telemetryLevelEnvironment: string | undefined): Promise<IAgentHostTelemetryService> {
 		const localDisposables = disposables.add(new DisposableStore());
 		const logService = new NullLogService();
 		const fileService = localDisposables.add(new FileService(logService));
@@ -128,7 +128,6 @@ suite('AgentHostTelemetryService', () => {
 			logService,
 			disposables: localDisposables,
 			readTelemetryLevelEnvironment: () => telemetryLevelEnvironment,
-			readInternalTelemetryEnvironment: () => internalTelemetryEnvironment,
 		});
 	}
 
@@ -139,16 +138,14 @@ suite('AgentHostTelemetryService', () => {
 			createFactoryService('invalid', 'all'),
 			createFactoryService('all', 'invalid'),
 			createFactoryService(undefined, undefined),
-			createFactoryService(undefined, undefined, 'true'),
 		]);
 
-		assert.deepStrictEqual(services.map(service => ({ telemetryLevel: service.telemetryLevel, msftInternal: service.msftInternal })), [
-			{ telemetryLevel: TelemetryLevel.NONE, msftInternal: undefined },
-			{ telemetryLevel: TelemetryLevel.NONE, msftInternal: undefined },
-			{ telemetryLevel: TelemetryLevel.NONE, msftInternal: undefined },
-			{ telemetryLevel: TelemetryLevel.NONE, msftInternal: undefined },
-			{ telemetryLevel: TelemetryLevel.USAGE, msftInternal: undefined },
-			{ telemetryLevel: TelemetryLevel.USAGE, msftInternal: true },
+		assert.deepStrictEqual(services.map(service => service.telemetryLevel), [
+			TelemetryLevel.NONE,
+			TelemetryLevel.NONE,
+			TelemetryLevel.NONE,
+			TelemetryLevel.NONE,
+			TelemetryLevel.USAGE,
 		]);
 	});
 

@@ -22,9 +22,6 @@ export const AgentHostMachineIdEnvKey = 'VSCODE_AGENT_HOST_MACHINE_ID';
 export const AgentHostSqmIdEnvKey = 'VSCODE_AGENT_HOST_SQM_ID';
 export const AgentHostDevDeviceIdEnvKey = 'VSCODE_AGENT_HOST_DEV_DEVICE_ID';
 
-/** Parent-resolved internal status, including the `telemetry.internalTesting` override. */
-export const AgentHostInternalTelemetryEnvKey = 'VSCODE_AGENT_HOST_INTERNAL_TELEMETRY';
-
 /**
  * Fallback launch contract for custom SSH/WSL agent-host commands. Managed launchers pass
  * `--telemetry-level`, but custom commands are executed verbatim and may not accept VS Code CLI

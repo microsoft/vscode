@@ -128,7 +128,7 @@ suite('WSL Remote Agent Host Helpers', () => {
 				remoteAgentHostCommand: './start-agent-host',
 			});
 
-			assert.strictEqual(script, 'export VSCODE_AGENT_HOST_TELEMETRY_LEVEL=off VSCODE_AGENT_HOST_INTERNAL_TELEMETRY=false && ./start-agent-host');
+			assert.strictEqual(script, 'export VSCODE_AGENT_HOST_TELEMETRY_LEVEL=off && ./start-agent-host');
 		});
 	});
 });
