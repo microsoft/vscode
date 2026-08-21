@@ -121,7 +121,7 @@ export class NewBrowserTabAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const browserViewWorkbenchService = accessor.get(IBrowserViewWorkbenchService);
 		const editorService = accessor.get(IEditorService);
-		const browserInput = browserViewWorkbenchService.getOrCreateLazy(generateUuid(), {});
+		const browserInput = browserViewWorkbenchService.getOrCreateLazy({ id: generateUuid() });
 
 		await editorService.openEditor(browserInput);
 	}

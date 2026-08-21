@@ -46,6 +46,8 @@ const MAX_TITLE_LENGTH = 30;
 export interface IBrowserEditorInputData extends IBrowserEditorViewState {
 	readonly id: string;
 	readonly associatedResource?: URI;
+	/** Whether the tab came from the default localhost link opener. Not serialized. */
+	readonly isDefaultLinkOpen?: boolean;
 }
 
 /**
@@ -136,7 +138,10 @@ export class BrowserEditorInput extends EditorInput {
 		this._modelStore.add(this._model.onDidChangeTitle(() => this._onDidChangeLabel.fire()));
 		this._modelStore.add(this._model.onDidChangeFavicon(() => this._onDidChangeLabel.fire()));
 		this._modelStore.add(this._model.onDidChangeLoadingState(() => this._onDidChangeLabel.fire()));
-		this._modelStore.add(this._model.onDidNavigate(() => this._onDidChangeLabel.fire()));
+		this._modelStore.add(this._model.onDidNavigate(() => {
+			this._initialData = { ...this._initialData, title: undefined, favicon: undefined };
+			this._onDidChangeLabel.fire();
+		}));
 
 		this._onDidChangeLabel.fire();
 		this._onDidResolveModel.fire(model);
@@ -160,18 +165,15 @@ export class BrowserEditorInput extends EditorInput {
 	}
 
 	get url(): string | undefined {
-		// Use model URL if available, otherwise fall back to initial data
-		return this._model ? this._model.url : this._initialData.url;
+		return this._model?.url || this._initialData.url;
 	}
 
 	get title(): string | undefined {
-		// Use model title if available, otherwise fall back to initial data
-		return this._model ? this._model.title : this._initialData.title;
+		return this._model?.title || this._initialData.title;
 	}
 
 	get favicon(): string | undefined {
-		// Use model favicon if available, otherwise fall back to initial data
-		return this._model ? this._model.favicon : this._initialData.favicon;
+		return this._model?.favicon ?? this._initialData.favicon;
 	}
 
 	/**
@@ -191,7 +193,6 @@ export class BrowserEditorInput extends EditorInput {
 		if (this._model) {
 			void this._model.loadURL(destination, options);
 		} else {
-			// If the model isn't created yet, update the initial data so that the URL is correct when the model is created
 			this._initialData = {
 				id: this._id,
 				url: destination
@@ -235,7 +236,6 @@ export class BrowserEditorInput extends EditorInput {
 	override getIcon(): ThemeIcon | URI | undefined {
 		const defaultIcon = this._associatedResource ? undefined : Codicon.globe;
 
-		// Use model data if available, otherwise fall back to initial data
 		if (this._model) {
 			if (this._model.loading) {
 				const color = this.themeService.getColorTheme().getColor(TAB_ACTIVE_FOREGROUND);
@@ -244,9 +244,7 @@ export class BrowserEditorInput extends EditorInput {
 			if (this._model.favicon) {
 				return URI.parse(this._model.favicon);
 			}
-			return defaultIcon;
 		}
-		// Model not created yet, use initial data if available
 		if (this._initialData.favicon) {
 			return URI.parse(this._initialData.favicon);
 		}
@@ -254,8 +252,7 @@ export class BrowserEditorInput extends EditorInput {
 	}
 
 	override getName(): string {
-		const hasTitle = this._model ? !!this._model.title : !!this._initialData.title;
-		if (hasTitle) {
+		if (this.title) {
 			return truncate(this.title!, MAX_TITLE_LENGTH);
 		}
 
@@ -264,9 +261,8 @@ export class BrowserEditorInput extends EditorInput {
 	}
 
 	override getTitle(verbosity = Verbosity.MEDIUM): string {
-		const hasTitle = this._model ? !!this._model.title : !!this._initialData.title;
 		const description = this.getDescription(verbosity);
-		const title = hasTitle ? `${this.title} (${description})` : description;
+		const title = this.title ? `${this.title} (${description})` : description;
 		return title || BrowserEditorInput.DEFAULT_LABEL;
 	}
 
@@ -345,11 +341,13 @@ export class BrowserEditorInput extends EditorInput {
 
 		return this.instantiationService.invokeFunction((accessor) => {
 			const browserViewWorkbenchService = accessor.get(IBrowserViewWorkbenchService);
-			return browserViewWorkbenchService.getOrCreateLazy(generateUuid(), {
+			return browserViewWorkbenchService.getOrCreateLazy({
+				id: generateUuid(),
 				url: this.url,
 				title: this.title,
-				favicon: this.favicon
-			}, this._associatedResource);
+				favicon: this.favicon,
+				associatedResource: this._associatedResource
+			});
 		});
 	}
 
@@ -446,11 +444,13 @@ export class BrowserEditorSerializer implements IEditorSerializer {
 			const data: IBrowserEditorInputData = JSON.parse(serializedEditor);
 			return instantiationService.invokeFunction((accessor) => {
 				const browserViewWorkbenchService = accessor.get(IBrowserViewWorkbenchService);
-				return browserViewWorkbenchService.getOrCreateLazy(data.id, {
+				return browserViewWorkbenchService.getOrCreateLazy({
+					id: data.id,
 					url: data.url,
 					title: data.title,
-					favicon: data.favicon
-				}, URI.revive(data.associatedResource));
+					favicon: data.favicon,
+					associatedResource: URI.revive(data.associatedResource)
+				});
 			});
 		} catch {
 			return undefined;
