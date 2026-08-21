@@ -222,6 +222,7 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 			const sourceRemoval = await sourceStore.removeAutomationSnapshotIfUnchanged(snapshot);
 			switch (sourceRemoval.kind) {
 				case 'removed':
+					await destinationStore.acknowledgeAutomationSnapshotImported?.(snapshot);
 					return;
 				case 'missing':
 					await this.rollbackAutomationSnapshotIfUnchanged(destinationStore, snapshot);

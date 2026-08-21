@@ -14,7 +14,7 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY } from '../../../../../../platform/agentHost/common/automationMigration.js';
+import { AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY } from '../../../../../../platform/agentHost/common/automationMigration.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, MessageKind, type AutomationCatalogState, type AutomationState, type RootState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -109,11 +109,15 @@ class TestAutomationConnection {
 				return;
 			}
 			const timestamp = new Date().toISOString();
+			const isPending = !!(action.definition._meta && action.definition._meta[AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]);
+			const operations = isPending
+				? [AutomationOperation.Update, AutomationOperation.Remove]
+				: [AutomationOperation.Update, AutomationOperation.Remove, ...(this._migrationComplete ? [AutomationOperation.Run] : [])];
 			const automation = {
 				resource: action.resource,
 				definition: action.definition,
 				runs: [],
-				operations: [AutomationOperation.Update, AutomationOperation.Remove, ...(this._migrationComplete ? [AutomationOperation.Run] : [])],
+				operations,
 				createdAt: timestamp,
 				modifiedAt: timestamp,
 			};
@@ -130,9 +134,18 @@ class TestAutomationConnection {
 			if (!current) {
 				throw new Error(`Missing Automation: ${action.resource}`);
 			}
+			const definition = { ...current.definition, ...action.changes };
+			const isPending = !!(definition._meta && definition._meta[AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]);
+			// Recompute Run permission based on the (possibly toggled) pending
+			// flag so tests observe the state transitions the host performs.
+			const withoutRun = current.operations.filter(op => op !== AutomationOperation.Run);
+			const operations = isPending || !this._migrationComplete
+				? withoutRun
+				: [...withoutRun, AutomationOperation.Run];
 			const automation = {
 				...current,
-				definition: { ...current.definition, ...action.changes },
+				definition,
+				operations,
 				modifiedAt: new Date().toISOString(),
 			};
 			this._catalog = {
@@ -739,6 +752,162 @@ suite('AgentHostAutomationStore', () => {
 		}, {
 			result: { kind: 'alreadyPresent' },
 			name: 'Changed during migration',
+		});
+	});
+
+	test('publicly importing an unacknowledged snapshot stages pending and withholds host Run', async () => {
+		const connection = new TestAutomationConnection(true);
+		disposables.add(connection);
+		const storage = disposables.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, undefined, new NullLogService(), storage, NullTelemetryService, automationStorage));
+
+		await store.importAutomationSnapshot(archivedSnapshot('pending', 'run-pending'));
+
+		const createAction = connection.dispatched.find(entry => entry.action.type === ActionType.AutomationCreateRequested)?.action;
+		const pendingMeta = createAction?.type === ActionType.AutomationCreateRequested
+			? createAction.definition._meta?.[AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]
+			: undefined;
+		assert.deepStrictEqual({
+			pendingMeta,
+			canRun: store.canRunAutomation('pending'),
+		}, {
+			pendingMeta: true,
+			canRun: false,
+		});
+	});
+
+	test('re-importing the same unacknowledged snapshot keeps the pending flag applied', async () => {
+		const connection = new TestAutomationConnection(true);
+		disposables.add(connection);
+		const storage = disposables.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, undefined, new NullLogService(), storage, NullTelemetryService, automationStorage));
+		const snapshot = archivedSnapshot('pending-retry', 'run-retry');
+		await store.importAutomationSnapshot(snapshot);
+
+		await store.importAutomationSnapshot(snapshot);
+
+		assert.deepStrictEqual({
+			canRun: store.canRunAutomation('pending-retry'),
+		}, {
+			canRun: false,
+		});
+	});
+
+	test('a durable legacy removal clears the pending flag and restores Run authority', async () => {
+		const connection = new TestAutomationConnection(false);
+		disposables.add(connection);
+		const storage = disposables.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		const legacy = disposables.add(new AutomationStore(providerAutomationStorageKey('local-agent-host'), storage, new NullLogService(), NullTelemetryService, automationStorage));
+		await legacy.createAutomation({
+			name: 'Scheduled review',
+			prompt: 'Review changes.',
+			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+		});
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, legacy, undefined, new NullLogService(), storage, NullTelemetryService, automationStorage));
+
+		await store.completeMigration();
+
+		const migratedId = store.automations.get()[0]?.id ?? '';
+		assert.deepStrictEqual({
+			legacyAutomations: legacy.automations.get(),
+			canRun: store.canRunAutomation(migratedId),
+			isHostOwned: store.isSchedulingOwnedByHost(migratedId),
+		}, {
+			legacyAutomations: [],
+			canRun: true,
+			isHostOwned: true,
+		});
+	});
+
+	test('a stranded pending row is drained when the legacy source no longer holds it', async () => {
+		const connection = new TestAutomationConnection(true);
+		disposables.add(connection);
+		const storage = disposables.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		// No legacy source: models a cross-provider transfer that removed the
+		// row before the AHP import could be acknowledged.
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, undefined, new NullLogService(), storage, NullTelemetryService, automationStorage));
+		await store.importAutomationSnapshot(archivedSnapshot('stranded', 'run-stranded'));
+		assert.strictEqual(store.canRunAutomation('stranded'), false);
+
+		await store.completeMigration();
+
+		assert.deepStrictEqual({
+			canRun: store.canRunAutomation('stranded'),
+			isHostOwned: store.isSchedulingOwnedByHost('stranded'),
+		}, {
+			canRun: true,
+			isHostOwned: true,
+		});
+	});
+
+	test('acknowledgeAutomationSnapshotImported clears pending and restores Run authority', async () => {
+		const connection = new TestAutomationConnection(true);
+		disposables.add(connection);
+		const storage = disposables.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, undefined, new NullLogService(), storage, NullTelemetryService, automationStorage));
+		const snapshot = archivedSnapshot('retargeted', 'run-retargeted');
+		await store.upsertAutomationSnapshot(snapshot);
+		assert.strictEqual(store.canRunAutomation('retargeted'), false);
+
+		await store.acknowledgeAutomationSnapshotImported(snapshot);
+
+		assert.deepStrictEqual({
+			canRun: store.canRunAutomation('retargeted'),
+			isHostOwned: store.isSchedulingOwnedByHost('retargeted'),
+		}, {
+			canRun: true,
+			isHostOwned: true,
+		});
+	});
+
+	test('acknowledgeAutomationSnapshotImported is a no-op when the row is not pending', async () => {
+		const connection = new TestAutomationConnection(false);
+		disposables.add(connection);
+		const storage = disposables.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, undefined, new NullLogService(), storage, NullTelemetryService, automationStorage));
+
+		await store.acknowledgeAutomationSnapshotImported(archivedSnapshot('absent', 'run-absent'));
+
+		assert.strictEqual(store.canRunAutomation('absent'), false);
+	});
+
+	test('a failed durable legacy removal keeps the pending flag set until the next drain succeeds', async () => {
+		const connection = disposables.add(new TestAutomationConnection(false));
+		const storage = disposables.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		const legacy = disposables.add(new PausedRemovalAutomationStore(providerAutomationStorageKey('local-agent-host'), storage, new NullLogService(), NullTelemetryService, automationStorage));
+		const initial = await legacy.createAutomation({
+			name: 'Retry me',
+			prompt: 'Review changes.',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+		});
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, legacy, undefined, new NullLogService(), storage, NullTelemetryService, automationStorage));
+		const migration = store.completeMigration();
+		await legacy.removalStarted.p;
+
+		// Meanwhile the legacy row mutates so the paused CAS remove will fail
+		// with a conflict once resumed. Migration retries and succeeds on the
+		// snapshot's updated value; the pending flag stays set through the
+		// failed attempt and only clears once removal actually goes through.
+		await legacy.updateAutomation(initial.id, { name: 'Mutated during migration' });
+		await legacy.resumeRemoval.complete();
+		await migration;
+
+		const migratedId = store.automations.get()[0]?.id ?? '';
+		assert.deepStrictEqual({
+			legacyAutomations: legacy.automations.get(),
+			canRun: store.canRunAutomation(migratedId),
+		}, {
+			legacyAutomations: [],
+			canRun: true,
 		});
 	});
 

@@ -12,7 +12,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY, AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY, AGENT_HOST_LEGACY_AUTOMATION_META_KEY } from '../../common/automationMigration.js';
+import { AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY, AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY, AGENT_HOST_LEGACY_AUTOMATION_META_KEY } from '../../common/automationMigration.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationDefinition } from '../../common/state/protocol/channels-automation/state.js';
 import { AutomationRunOriginKind, AutomationRunStatus, type AutomationRunState } from '../../common/state/protocol/channels-automation-run/state.js';
@@ -968,5 +968,213 @@ suite('AgentHostAutomationService', () => {
 			count: 51,
 			cursor: undefined,
 		});
+	});
+
+	test('a create staged as an import-pending row is never granted Run authority', async () => {
+		const service = createService();
+		await service.completeMigration();
+		await service.handleCreate({
+			type: ActionType.AutomationCreateRequested,
+			resource: 'ahp-automation:/pending-import',
+			definition: {
+				...definition(),
+				_meta: { [AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]: true },
+			},
+		});
+
+		await assert.rejects(service.runAutomation({
+			channel: 'ahp-automations://',
+			automation: 'ahp-automation:/pending-import',
+			requestId: 'pending-request',
+		}), /not available/i);
+		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.automations[0].operations, [
+			AutomationOperation.Update,
+			AutomationOperation.Remove,
+		]);
+	});
+
+	test('clearing the import-pending flag restores Run and Remove authority', async () => {
+		const service = createService();
+		await service.completeMigration();
+		await service.handleCreate({
+			type: ActionType.AutomationCreateRequested,
+			resource: 'ahp-automation:/pending-import',
+			definition: {
+				...definition(),
+				_meta: { [AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]: true },
+			},
+		});
+		await service.handleUpdate({
+			type: ActionType.AutomationUpdateRequested,
+			resource: 'ahp-automation:/pending-import',
+			changes: { _meta: {} },
+		});
+
+		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.automations[0].operations, [
+			AutomationOperation.Update,
+			AutomationOperation.Remove,
+			AutomationOperation.Run,
+		]);
+	});
+
+	test('completeMigration withholds Run and Remove from pending imports', async () => {
+		const service = createService();
+		await service.handleCreate({
+			type: ActionType.AutomationCreateRequested,
+			resource: 'ahp-automation:/pending-import',
+			definition: {
+				...definition(),
+				_meta: { [AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]: true },
+			},
+		});
+		await service.handleCreate({
+			type: ActionType.AutomationCreateRequested,
+			resource: 'ahp-automation:/clean-import',
+			definition: definition(),
+		});
+
+		await service.completeMigration();
+
+		const automations = stateManager.getAutomationCatalogState()?.automations ?? [];
+		const byResource = new Map(automations.map(automation => [automation.resource, automation.operations]));
+		assert.deepStrictEqual({
+			pending: byResource.get('ahp-automation:/pending-import'),
+			clean: byResource.get('ahp-automation:/clean-import'),
+		}, {
+			pending: [AutomationOperation.Update],
+			clean: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
+		});
+	});
+
+	test('re-enabling automations still withholds Run from a pending import', async () => {
+		const service = createService();
+		await service.completeMigration();
+		await service.handleCreate({
+			type: ActionType.AutomationCreateRequested,
+			resource: 'ahp-automation:/pending-import',
+			definition: {
+				...definition(),
+				_meta: { [AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]: true },
+			},
+		});
+		stateManager.dispatchServerAction(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: false },
+		});
+		await service.handleConfigurationChanged();
+		stateManager.dispatchServerAction(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: true },
+		});
+		await service.handleConfigurationChanged();
+
+		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.automations[0].operations, [
+			AutomationOperation.Update,
+			AutomationOperation.Remove,
+		]);
+	});
+
+	test('the scheduler skips a persisted pending row on restart', async () => {
+		const now = new Date();
+		const scheduledFor = new Date(now.getTime() - 2 * 60_000).toISOString();
+		const scheduledDefinition: AutomationDefinition = {
+			...definition(),
+			triggers: [{
+				id: 'weekday-review',
+				kind: AutomationTriggerKind.Schedule,
+				schedule: { expression: '* * * * *', timeZone: 'UTC' },
+				misfirePolicy: AutomationMisfirePolicy.RunOnce,
+			}],
+			_meta: { [AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]: true },
+		};
+		storageService.set('automations', {
+			catalog: {
+				automations: [{
+					resource: 'ahp-automation:/pending-scheduled',
+					definition: scheduledDefinition,
+					nextRunAt: scheduledFor,
+					runs: [],
+					// Post-fix persisted state: no Run because the row is
+					// still import-pending. The scheduler must respect this.
+					operations: [AutomationOperation.Update],
+					createdAt: now.toISOString(),
+					modifiedAt: now.toISOString(),
+					_meta: {
+						'vscode.scheduleCursors': { 'weekday-review': scheduledFor },
+						[AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]: true,
+					},
+				}],
+			},
+			runs: [],
+			manualRunRequests: [],
+			migration: { status: 'complete', completedAt: now.toISOString() },
+		});
+		await storageService.whenIdle();
+
+		let createCalls = 0;
+		const service = createService({
+			createSession: async () => {
+				createCalls++;
+				return URI.parse('mock:/should-not-start');
+			},
+		});
+		await service.completeMigration();
+
+		const automation = stateManager.getAutomationCatalogState()?.automations[0];
+		assert.deepStrictEqual({
+			createCalls,
+			operations: automation?.operations,
+			runCount: automation?.runs.length,
+		}, {
+			createCalls: 0,
+			operations: [AutomationOperation.Update],
+			runCount: 0,
+		});
+	});
+
+	test('run recovery on restart skips a pending row even if a run was persisted', async () => {
+		const now = new Date();
+		const scheduledDefinition: AutomationDefinition = {
+			...definition(),
+			_meta: { [AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]: true },
+		};
+		const pendingRun: AutomationRunState = {
+			resource: 'ahp-automation-run:/pending-run',
+			automation: 'ahp-automation:/pending-import',
+			origin: { kind: AutomationRunOriginKind.Manual },
+			lifecycle: { status: AutomationRunStatus.Pending, createdAt: now.toISOString() },
+			sessions: [],
+		};
+		storageService.set('automations', {
+			catalog: {
+				automations: [{
+					resource: 'ahp-automation:/pending-import',
+					definition: scheduledDefinition,
+					runs: [pendingRun],
+					// Post-fix persisted state should not include Run because
+					// the item is still pending. The recovery gate must respect
+					// that even though a Pending run is on disk.
+					operations: [AutomationOperation.Update],
+					createdAt: now.toISOString(),
+					modifiedAt: now.toISOString(),
+					_meta: { [AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]: true },
+				}],
+			},
+			runs: [pendingRun],
+			manualRunRequests: [],
+			migration: { status: 'complete', completedAt: now.toISOString() },
+		});
+		await storageService.whenIdle();
+
+		let createCalls = 0;
+		const service = createService({
+			createSession: async () => {
+				createCalls++;
+				return URI.parse('mock:/should-not-start');
+			},
+		});
+		await service.completeMigration();
+
+		assert.strictEqual(createCalls, 0);
 	});
 });

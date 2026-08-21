@@ -117,6 +117,12 @@ export interface ISessionsProviderAutomations extends IAutomationStore {
 	upsertAutomationSnapshot(snapshot: IAutomation): Promise<void>;
 	/** Removes a snapshot only when the currently stored Automation and runs still match it. */
 	removeAutomationSnapshotIfUnchanged(expected: IAutomation): Promise<IGuardedAutomationSnapshotRemovalResult>;
+	/**
+	 * Signals that an imported snapshot's source row has been durably removed and the destination
+	 * store may release any staging holds (e.g. the pending-import flag that suppresses scheduling
+	 * authority until the source is gone).
+	 */
+	acknowledgeAutomationSnapshotImported?(snapshot: IAutomation): Promise<void>;
 	/** Finalizes any authority migration after all snapshots have been imported and verified. */
 	completeMigration?(): Promise<void>;
 }

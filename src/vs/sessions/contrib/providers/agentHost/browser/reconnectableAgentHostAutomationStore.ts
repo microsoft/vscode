@@ -165,6 +165,10 @@ export class ReconnectableAgentHostAutomationStore extends Disposable implements
 		return this._requireAgentHostStore().removeAutomationSnapshotIfUnchanged(expected);
 	}
 
+	acknowledgeAutomationSnapshotImported(snapshot: IAutomation): Promise<void> {
+		return this._requireAgentHostStore().acknowledgeAutomationSnapshotImported(snapshot);
+	}
+
 	recordRunStart(automationId: string, trigger: AutomationRunTrigger, leaderWindowId: number): Promise<IAutomationRunClaim> {
 		return this._requireOperationalStore().recordRunStart(automationId, trigger, leaderWindowId);
 	}

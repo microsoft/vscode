@@ -12,8 +12,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
-import { AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY, AGENT_HOST_LEGACY_AUTOMATION_META_KEY } from '../../../../../platform/agentHost/common/automationMigration.js';
-import { isAgentHostAutomationCatalogMigrated, isAgentHostLegacyAutomationImport, readAgentHostLegacyAutomationProjectionMeta, type IAgentHostLegacyAutomationProjectionMeta } from '../../../../../platform/agentHost/common/meta/automationMeta.js';
+import { AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY, AGENT_HOST_LEGACY_AUTOMATION_META_KEY } from '../../../../../platform/agentHost/common/automationMigration.js';
+import { isAgentHostAutomationCatalogMigrated, isAgentHostLegacyAutomationImport, isAgentHostLegacyAutomationImportPending, readAgentHostLegacyAutomationProjectionMeta, type IAgentHostLegacyAutomationProjectionMeta } from '../../../../../platform/agentHost/common/meta/automationMeta.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { type IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -150,7 +150,13 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	}
 
 	isSchedulingOwnedByHost(automationId: string): boolean {
-		return this._ready.get() && this._findAutomationState(automationId) !== undefined;
+		if (!this._ready.get()) {
+			return false;
+		}
+		const state = this._findAutomationState(automationId);
+		return state !== undefined
+			&& !isAgentHostLegacyAutomationImportPending(state.definition)
+			&& state.operations.includes(AutomationOperation.Run);
 	}
 
 	canRunAutomation(automationId: string): boolean {
@@ -243,21 +249,32 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	}
 
 	async importAutomationSnapshot(snapshot: IAutomation): Promise<IAutomationSnapshotImportResult> {
+		return this._importAutomationSnapshot(snapshot, true);
+	}
+
+	private async _importAutomationSnapshot(snapshot: IAutomation, importPending: boolean): Promise<IAutomationSnapshotImportResult> {
 		const existing = this._findAutomationState(snapshot.automation.id);
 		if (existing) {
 			const current = this._requireProjectedAutomation(existing);
 			if (serializeAutomationEditableState(current) !== serializeAutomationEditableState(snapshot.automation)) {
 				if (isAgentHostLegacyAutomationImport(existing.definition)) {
-					await this._replaceDescriptor(snapshot.automation, true);
+					await this._replaceDescriptor(snapshot.automation, true, importPending);
 					await this._archiveRuns(snapshot.runs);
 					return { kind: 'alreadyPresent' };
 				}
 				return { kind: 'conflict', current: { automation: current, runs: this._projectRunsFor(existing.resource) } };
 			}
+			// Editable state matches, but if the caller is staging pending and
+			// the existing definition is not already pending, re-dispatch so the
+			// meta flag lands. Otherwise a retry after a lost dispatch would
+			// leave Run authority granted on a not-yet-drained legacy row.
+			if (importPending && !isAgentHostLegacyAutomationImportPending(existing.definition)) {
+				await this._replaceDescriptor(snapshot.automation, true, importPending);
+			}
 			await this._archiveRuns(snapshot.runs);
 			return { kind: 'alreadyPresent' };
 		}
-		await this._createDescriptor(snapshot.automation, true);
+		await this._createDescriptor(snapshot.automation, true, importPending);
 		await this._archiveRuns(snapshot.runs);
 		this._logService.info(`[AgentHostAutomationStore] Migrated Automation definition: resource=${automationResource(snapshot.automation.id)}, legacyRunsRetained=${snapshot.runs.length}.`);
 		return { kind: 'inserted' };
@@ -265,9 +282,9 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 
 	async upsertAutomationSnapshot(snapshot: IAutomation): Promise<void> {
 		if (this._findAutomationState(snapshot.automation.id)) {
-			await this._replaceDescriptor(snapshot.automation, true);
+			await this._replaceDescriptor(snapshot.automation, true, true);
 		} else {
-			await this._createDescriptor(snapshot.automation, true);
+			await this._createDescriptor(snapshot.automation, true, true);
 		}
 		await this._archiveRuns(snapshot.runs);
 	}
@@ -283,6 +300,14 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		}
 		await this.deleteAutomation(expected.automation.id);
 		return { kind: 'removed' };
+	}
+
+	async acknowledgeAutomationSnapshotImported(snapshot: IAutomation): Promise<void> {
+		const current = this._findAutomationState(snapshot.automation.id);
+		if (!current || !isAgentHostLegacyAutomationImportPending(current.definition)) {
+			return;
+		}
+		await this._clearImportPending(snapshot.automation.id);
 	}
 
 	async recordRunStart(automationId: string, trigger: AutomationRunTrigger, _leaderWindowId: number): Promise<IAutomationRunClaim> {
@@ -429,6 +454,10 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			});
 			await this._waitForMigrationCompletion();
 			this._requireLegacySourceDrained();
+			// Sweep any stragglers whose pending flag never cleared. This
+			// covers reconnect races and cross-provider transfers that stage
+			// pending without a subsequent acknowledgement path.
+			await this._drainPendingImports();
 			this._ready.set(true, undefined);
 			const durationMs = Date.now() - startedAt;
 			this._logService.info(`[AgentHostAutomationStore] Automation migration completed: discovered=${discovered.length}, migrated=${resources.length}, failed=0, durationMs=${durationMs}.`);
@@ -477,17 +506,65 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		}
 		let snapshot: IAutomation = { automation: initialAutomation, runs: source.runsFor(initialAutomation.id).get() };
 		for (let attempt = 0; attempt < 3; attempt++) {
-			const result = await this.importAutomationSnapshot(snapshot);
+			const result = await this._importAutomationSnapshot(snapshot, true);
 			if (result.kind === 'conflict') {
 				throw new Error(`Automation conflicts with the Agent Host catalogue: ${automationResource(initialAutomation.id)}`);
 			}
 			const removal = await source.removeAutomationSnapshotIfUnchanged(snapshot);
 			if (removal.kind === 'removed' || removal.kind === 'missing') {
+				// Legacy row is durably gone. Clear the pending flag so the
+				// host can grant Run authority now that no other authority
+				// owns the source.
+				await this._clearImportPending(initialAutomation.id);
 				return;
 			}
 			snapshot = removal.current;
 		}
 		throw new Error(`Automation kept changing while migrating: ${automationResource(initialAutomation.id)}`);
+	}
+
+	private async _clearImportPending(automationId: string): Promise<void> {
+		const current = this._findAutomationState(automationId);
+		if (!current || !isAgentHostLegacyAutomationImportPending(current.definition)) {
+			return;
+		}
+		const projected = this._projectAutomation(current);
+		if (!projected) {
+			return;
+		}
+		await this._replaceDescriptor(projected, isAgentHostLegacyAutomationImport(current.definition), false);
+	}
+
+	private async _drainPendingImports(): Promise<void> {
+		const catalog = this._catalog.value;
+		if (!catalog || catalog instanceof Error) {
+			return;
+		}
+		const pending = catalog.automations.filter(automation => isAgentHostLegacyAutomationImportPending(automation.definition));
+		for (const automation of pending) {
+			if (this._store.isDisposed) {
+				throw new CancellationError();
+			}
+			const id = automationId(automation.resource);
+			const legacyEntry = this._legacySource?.getAutomation(id);
+			try {
+				if (legacyEntry) {
+					await this._migrateLegacySourceAutomation(legacyEntry);
+				} else {
+					// Stranded pending row: the legacy source row was removed
+					// by another authority (e.g., a cross-provider transfer)
+					// without acknowledging the AHP import. Clear the flag so
+					// the host can start scheduling the automation.
+					await this._clearImportPending(id);
+				}
+			} catch (error) {
+				if (isCancellationError(error) || this._store.isDisposed) {
+					throw new CancellationError();
+				}
+				const message = error instanceof Error ? error.message : String(error);
+				this._logService.error(`[AgentHostAutomationStore] Failed to drain pending Automation import: id=${id}, error=${message}`);
+			}
+		}
 	}
 
 	private _projectAutomations(): IAutomationDescriptor[] {
@@ -630,9 +707,9 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		return automation;
 	}
 
-	private async _createDescriptor(descriptor: IAutomationDescriptor, imported = false): Promise<AutomationState> {
+	private async _createDescriptor(descriptor: IAutomationDescriptor, imported = false, importPending?: boolean): Promise<AutomationState> {
 		const resource = automationResource(descriptor.id);
-		const definition = this._definitionFromDescriptor(descriptor, undefined, imported);
+		const definition = this._definitionFromDescriptor(descriptor, undefined, imported, importPending);
 		const state = await this._dispatchAndWait(
 			{ type: ActionType.AutomationCreateRequested, resource, definition },
 			catalog => catalog.automations.some(automation => automation.resource === resource),
@@ -643,13 +720,13 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		return state;
 	}
 
-	private async _replaceDescriptor(descriptor: IAutomationDescriptor, imported = false): Promise<AutomationState> {
+	private async _replaceDescriptor(descriptor: IAutomationDescriptor, imported = false, importPending?: boolean): Promise<AutomationState> {
 		const resource = automationResource(descriptor.id);
 		const current = this._findAutomationState(descriptor.id);
 		if (!current) {
 			throw new Error(`Automation does not exist: ${descriptor.id}`);
 		}
-		const definition = this._definitionFromDescriptor(descriptor, current.definition, imported);
+		const definition = this._definitionFromDescriptor(descriptor, current.definition, imported, importPending);
 		const state = await this._dispatchAndWait(
 			{
 				type: ActionType.AutomationUpdateRequested,
@@ -666,8 +743,21 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			catalog => {
 				const state = catalog.automations.find(automation => automation.resource === resource);
 				const projected = this._projectAutomation(state);
-				return projected !== undefined
-					&& serializeAutomationEditableState(projected) === serializeAutomationEditableState(descriptor);
+				if (projected === undefined
+					|| serializeAutomationEditableState(projected) !== serializeAutomationEditableState(descriptor)) {
+					return false;
+				}
+				// The pending flag lives on definition._meta, which the
+				// editable-state comparison does not observe. Force the wait
+				// to also see the intended pending state so a caller that
+				// depends on the flag being (un)set doesn't race the host.
+				if (importPending === true) {
+					return isAgentHostLegacyAutomationImportPending(state!.definition);
+				}
+				if (importPending === false) {
+					return !isAgentHostLegacyAutomationImportPending(state!.definition);
+				}
+				return true;
 			},
 		);
 		if (!state) {
@@ -676,7 +766,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		return state;
 	}
 
-	private _definitionFromDescriptor(descriptor: IAutomationDescriptor, existing?: AutomationDefinition, imported = false): AutomationDefinition {
+	private _definitionFromDescriptor(descriptor: IAutomationDescriptor, existing?: AutomationDefinition, imported = false, importPending?: boolean): AutomationDefinition {
 		const config = { ...existing?.session.config };
 		setOptional(config, SessionConfigKey.Mode, descriptor.mode);
 		setOptional(config, SessionConfigKey.AutoApprove, descriptor.permissionLevel);
@@ -694,6 +784,16 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			nextRunAt: descriptor.nextRunAt,
 			modelId: descriptor.modelId,
 		};
+		const meta: Record<string, unknown> = {
+			...existing?._meta,
+			[AGENT_HOST_LEGACY_AUTOMATION_META_KEY]: projection,
+			...((imported || isAgentHostLegacyAutomationImport(existing)) ? { [AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY]: true } : {}),
+		};
+		if (importPending === true) {
+			meta[AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY] = true;
+		} else if (importPending === false) {
+			delete meta[AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY];
+		}
 		return {
 			title: descriptor.name,
 			message: { text: descriptor.prompt, origin: { kind: MessageKind.Automation } },
@@ -707,11 +807,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			},
 			enabled: descriptor.enabled,
 			triggers: scheduleTrigger(descriptor.schedule),
-			_meta: {
-				...existing?._meta,
-				[AGENT_HOST_LEGACY_AUTOMATION_META_KEY]: projection,
-				...((imported || isAgentHostLegacyAutomationImport(existing)) ? { [AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY]: true } : {}),
-			},
+			_meta: meta,
 		};
 	}
 
