@@ -500,6 +500,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			keybindings: this._getKeybindings(),
 			aiFeaturesDisabled: !this.contextKeyService.contextMatchesRules(ChatContextKeys.enabled),
 			maxHistoryEntries: this.configurationService.getValue<number>(BrowserMaxHistoryEntriesSettingId),
+			remoteProxyEnabled: this.willUseRemoteProxy(),
 			proxyInfo: this._remoteProxyInfo,
 			trustedFileRoots: this._getTrustedFileRoots(),
 			trustAllFiles: !this.workspaceTrustEnablementService.isWorkspaceTrustEnabled(),

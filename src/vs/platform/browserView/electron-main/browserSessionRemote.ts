@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { ITunnelProxyInfo } from '../../tunnel/common/tunnelProxy.js';
 import { BrowserViewStorageScope } from '../common/browserView.js';
@@ -36,12 +37,12 @@ export interface IBrowserSessionRemote {
 	 */
 	readonly whenReady: Promise<void>;
 	/**
-	 * Acquire a reference to the tunnel proxy on behalf of {@link viewId}
-	 * and apply {@link proxyInfo} to the Electron session. Pass `undefined`
-	 * to release the reference (non-remote view). Refcounted by
+	 * Acquire a reference to the tunnel proxy on behalf of {@link viewId}.
+	 * When {@link useRemoteProxy} is true and {@link proxyInfo} is not available yet,
+	 * navigation waits until the proxy information arrives. Refcounted by
 	 * {@link viewId}.
 	 */
-	acquire(viewId: string, proxyInfo: ITunnelProxyInfo | undefined): void;
+	acquire(viewId: string, useRemoteProxy: boolean, proxyInfo: ITunnelProxyInfo | undefined): void;
 	/**
 	 * Release the reference acquired for {@link viewId}. Clears the proxy
 	 * and resets the Electron session when the last reference is released.
@@ -69,6 +70,7 @@ export class BrowserSessionRemote implements IBrowserSessionRemote {
 
 	private _proxy: ITunnelProxyInfo | undefined;
 	private _readyPromise: Promise<void> = Promise.resolve();
+	private _pendingReady: DeferredPromise<void> | undefined;
 
 	/** Live references held by view id; the proxy is cleared at zero. */
 	private readonly _viewIds = new Set<string>();
@@ -96,13 +98,18 @@ export class BrowserSessionRemote implements IBrowserSessionRemote {
 		return this._readyPromise;
 	}
 
-	acquire(viewId: string, proxyInfo: ITunnelProxyInfo | undefined): void {
-		if (!proxyInfo || this._session.storageScope === BrowserViewStorageScope.Global) {
+	acquire(viewId: string, useRemoteProxy: boolean, proxyInfo: ITunnelProxyInfo | undefined): void {
+		if (!useRemoteProxy || this._session.storageScope === BrowserViewStorageScope.Global) {
 			this.release(viewId);
 			return;
 		}
 		this._viewIds.add(viewId);
-		this._setProxy(proxyInfo);
+		if (proxyInfo) {
+			this._setProxy(proxyInfo);
+		} else if (!this._pendingReady) {
+			this._pendingReady = new DeferredPromise<void>();
+			this._readyPromise = this._pendingReady.p;
+		}
 	}
 
 	release(viewId: string): void {
@@ -115,12 +122,23 @@ export class BrowserSessionRemote implements IBrowserSessionRemote {
 	}
 
 	private _setProxy(info: ITunnelProxyInfo | undefined): void {
-		if (sameProxyInfo(this._proxy, info)) {
+		if (sameProxyInfo(this._proxy, info) && !this._pendingReady) {
 			return;
 		}
 		const wasRemote = this._proxy !== undefined;
 		this._proxy = info;
-		this._readyPromise = this._applyProxy();
+		const pendingReady = this._pendingReady;
+		this._pendingReady = undefined;
+		const applyPromise = this._applyProxy();
+		if (pendingReady) {
+			this._readyPromise = pendingReady.p;
+			void applyPromise.then(
+				() => pendingReady.complete(),
+				error => pendingReady.error(error)
+			);
+		} else {
+			this._readyPromise = applyPromise;
+		}
 		if (info) {
 			this._onDidStart.fire();
 		} else if (wasRemote) {

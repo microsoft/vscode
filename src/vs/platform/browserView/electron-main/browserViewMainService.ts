@@ -376,7 +376,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 	async updateWindowConfiguration(windowId: number, config: IBrowserViewWindowConfiguration): Promise<void> {
 		const oldConfig = this._windowConfigurations.get(windowId);
 		const didThemeChange = !equals(oldConfig?.theme, config.theme);
-		const didProxyChange = !equals(oldConfig?.proxyInfo, config.proxyInfo);
+		const didProxyChange = oldConfig?.remoteProxyEnabled !== config.remoteProxyEnabled || !equals(oldConfig?.proxyInfo, config.proxyInfo);
 
 		this._windowConfigurations.set(windowId, config);
 		this._ensureWindowCloseSubscription(windowId);
@@ -387,7 +387,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 					view.inspector.setTheme(config.theme);
 				}
 				if (didProxyChange) {
-					view.session.remote.acquire(view.id, config.proxyInfo);
+					view.session.remote.acquire(view.id, config.remoteProxyEnabled, config.proxyInfo);
 				}
 				if (typeof config.maxHistoryEntries === 'number') {
 					view.session.history.setMaxEntries(config.maxHistoryEntries);
@@ -442,7 +442,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		}
 
 		// Hold a ref to the tunnel proxy for as long as this view is alive.
-		browserSession.remote.acquire(id, windowConfiguration?.proxyInfo);
+		browserSession.remote.acquire(id, windowConfiguration?.remoteProxyEnabled === true, windowConfiguration?.proxyInfo);
 
 		const view = this.instantiationService.createInstance(
 			BrowserView,

@@ -159,11 +159,13 @@ export interface IBrowserViewWindowConfiguration {
 	readonly aiFeaturesDisabled?: boolean;
 	/** Maximum number of entries to retain per browser session history. */
 	readonly maxHistoryEntries?: number;
+	/** Whether this window's browser views intend to use the remote tunnel proxy. */
+	readonly remoteProxyEnabled: boolean;
 	/**
 	 * Resolved tunnel-proxy credentials for the window's remote browser views,
 	 * produced by the window's local node extension host (which hosts the HTTPS
-	 * tunnel proxy). `undefined` until the proxy has started, or when no proxy
-	 * is used. Applied to the Electron sessions of the window's remote views.
+	 * tunnel proxy). `undefined` until the enabled proxy has started, or when no
+	 * proxy is used. Applied to the Electron sessions of the window's remote views.
 	 */
 	readonly proxyInfo?: ITunnelProxyInfo;
 	/**
