@@ -240,7 +240,7 @@ export class SessionChatInputToolbar extends Disposable {
 		pills.element.classList.add('show-file-icons');
 		this._content.appendChild(pills.element);
 
-		// Kinds the session reports data for; the others cannot be toggled.
+		// Kinds the session reports data for; the others are listed in a separate group.
 		const kindsWithData = derived(reader => {
 			const kinds = new Set<SessionChatPillKind>();
 			for (const pill of candidatePills.read(reader)) {
@@ -281,7 +281,6 @@ export class SessionChatInputToolbar extends Disposable {
 						id: `sessions.chatPills.toggle.${entry.kind}`,
 						label: entry.label,
 						checked: entry.checked,
-						enabled: entry.enabled,
 						run: () => visibility.toggle(entry.kind),
 					});
 
