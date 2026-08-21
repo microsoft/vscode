@@ -1,7 +1,7 @@
 {
 	"name": "@vscode/chat-lib",
 	"version": "0.0.0",
-	"description": "Chat and inline editing SDK extracted from VS Code Copilot Chat",
+	"description": "Chat and inline editing SDK extracted from the VS Code Copilot Chat extension",
 	"main": "dist/src/main.js",
 	"types": "dist/src/main.d.ts",
 	"author": "Microsoft Corporation",
