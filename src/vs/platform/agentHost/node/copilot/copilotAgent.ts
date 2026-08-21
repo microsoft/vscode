@@ -4052,9 +4052,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		const inheritedTurnIndex = sourceTurnIndex === -1 ? sourceTurns.length - 1 : sourceTurnIndex;
 		const inheritedTurnId = sourceTurns[inheritedTurnIndex]?.id;
-		// toEventId is exclusive — events before it are included. If there's no
-		// next turn, omit it to include all events.
-		const toEventId = await sourceEntry.getNextTurnEventId(turnId);
+		// toEventId is exclusive; omitting it includes all events.
+		let toEventId: string | undefined;
+		try {
+			toEventId = await sourceEntry.getForkBoundaryEventId(turnId);
+		} catch (err) {
+			throw new Error(`[Copilot] fork: failed to resolve fork boundary for turn ${turnId} in source session ${sourceEntry.sessionId} because ${getErrorMessage(err)}`);
+		}
 		const forkResult = await client.rpc.sessions.fork({
 			sessionId: sourceEntry.sessionId,
 			...(toEventId ? { toEventId } : {}),
