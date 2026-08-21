@@ -167,6 +167,9 @@ suite('git smoke test', function () {
 			const [commitLog] = await repository.log({ maxEntries: 1 });
 
 			assert.strictEqual(commitLog.message, expectCommitMessage);
+
+			const commit = await repository.getCommit(commitLog.hash);
+			assert.strictEqual(commit.message, expectCommitMessage);
 		} finally {
 			// Clean up without masking the original failure
 			if (fs.existsSync(commitMessageFile)) {
