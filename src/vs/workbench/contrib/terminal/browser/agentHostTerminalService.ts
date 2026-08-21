@@ -11,6 +11,7 @@ import { localize } from '../../../../nls.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { ITerminalLogService } from '../../../../platform/terminal/common/terminal.js';
 import { AgentHostPty } from './agentHostPty.js';
 import { AgentHostOutputChannel } from './agentHostOutputChannel.js';
 import { AhpTerminalCommandSource } from './ahpTerminalCommandSource.js';
@@ -42,6 +43,16 @@ export interface IAgentHostTerminalProfileInfo {
 	readonly address: string;
 }
 
+/**
+ * Tracks the {@link AgentHostPty} produced by one terminal creation's
+ * `customPtyImplementation` factory. The factory can legitimately run after
+ * the terminal instance was disposed (the process launch is driven
+ * asynchronously once the instance's xterm is ready), so — unlike
+ * `MutableDisposable`, which silently leaks a value set after disposal —
+ * setting a pty on a disposed registration disposes the pty locally without
+ * sending `disposeTerminal` to the host, and never touches the active pty map
+ * (a stale registration must not overwrite or delete a replacement's entry).
+ */
 interface IAgentHostPtyRegistration extends IDisposable {
 	setPty(pty: AgentHostPty): void;
 }
@@ -130,6 +141,7 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
 		super();
 	}
@@ -309,7 +321,7 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 						const pty = new AgentHostPty(id, connection, terminalUri, {
 							name,
 							cwd: options?.cwd,
-						});
+						}, this._logService);
 						if (cols > 0 && rows > 0) {
 							pty.resize(cols, rows);
 						}
@@ -368,7 +380,7 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 				customPtyImplementation: (id, cols, rows) => {
 					const pty = new AgentHostPty(id, connection, terminalUri, {
 						attachOnly: true,
-					});
+					}, this._logService);
 					if (cols > 0 && rows > 0) {
 						pty.resize(cols, rows);
 					}
@@ -403,6 +415,7 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 		return instance;
 	}
 
+	/** Creates the registration that owns the pty produced for {@link key}. */
 	private _createPtyRegistration(key: string, clientId: string): IAgentHostPtyRegistration {
 		let pty: AgentHostPty | undefined;
 		let isDisposed = false;
@@ -428,6 +441,10 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 		};
 	}
 
+	/**
+	 * Ties the registration's lifetime to the terminal instance so the local
+	 * pty is disposed even on paths that never call `shutdown()`.
+	 */
 	private _registerInstancePtyCleanup(instance: ITerminalInstance, key: string, ptyRegistration: IAgentHostPtyRegistration): void {
 		const cleanup = () => {
 			if (this._revivedInstances.get(key) === instance) {
@@ -461,7 +478,7 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 						// Update the clientId to the new connection
 						entry.clientId = newConnection.clientId;
 					} else {
-						console.warn(`[AgentHostTerminalService] Failed to reconnect terminal: ${key}`);
+						this._logService.warn(`[AgentHostTerminalService] Failed to reconnect terminal: ${key}`);
 					}
 				})
 			);
