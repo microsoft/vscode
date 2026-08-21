@@ -20,7 +20,7 @@ import { hasKey } from '../../../base/common/types.js';
 import { localize } from '../../../nls.js';
 import { FileChangeType, FileOperationResult, IFileChange, IFileService, toFileOperationResult, type FileChangesEvent } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, AgentSession, AgentSignal, IAgent, type IAgentAdoptedWorktree, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDiscoveredChat, IAgentHostAuthTokenRequest, IAgentHostNetworkEndpoint, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, IMcpNotification, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
+import { AgentProvider, AgentSession, AgentSignal, IAgent, type IAgentAdoptedWorktree, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDiscoveredChat, IAgentHostAuthTokenRequest, IAgentHostNetworkEndpoint, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, IMcpNotification, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
 import { AgentHostSessionReleaseGraceMsEnvVar, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
@@ -116,6 +116,7 @@ type AgentHostLegacyMigrationEvent = {
 	hasWorktree: boolean;
 	workingDirectoryCount: number;
 	errorMessage: string | undefined;
+	reason: string;
 };
 
 type AgentHostLegacyMigrationClassification = {
@@ -128,6 +129,7 @@ type AgentHostLegacyMigrationClassification = {
 	hasWorktree: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the migrated session ran in a pre-existing git worktree that was bridged during adoption.' };
 	workingDirectoryCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of working directories associated with the migrated session.' };
 	errorMessage: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'Error message when the migration failed; absent for migrated/skipped outcomes.' };
+	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Why adoption ended as it did: adopted, alreadyNative, notLegacyChat, workingDirectoryMissing, or unknown. Separates a skipped session that was never ours from one whose working directory vanished, which need different fixes.' };
 	owner: 'vijayupadya';
 	comment: 'Tracks one-time adopt-on-open migration of legacy extension-host Copilot CLI sessions into the agent host to measure attempt, success, failure, and skipped rates.';
 };
@@ -4745,7 +4747,7 @@ export class AgentService extends Disposable implements IAgentService {
 		provider: string,
 		outcome: AgentHostLegacyMigrationEvent['outcome'],
 		startTime: number,
-		extra: { turnCount?: number; hasProject?: boolean; hasWorktree?: boolean; workingDirectoryCount?: number; errorMessage?: string },
+		extra: { turnCount?: number; hasProject?: boolean; hasWorktree?: boolean; workingDirectoryCount?: number; errorMessage?: string; reason?: AgentChatAdoptionReason },
 	): void {
 		this._telemetryService.publicLog2<AgentHostLegacyMigrationEvent, AgentHostLegacyMigrationClassification>('agentHost.legacyCopilotCliMigration', {
 			provider,
@@ -4757,6 +4759,7 @@ export class AgentService extends Disposable implements IAgentService {
 			hasWorktree: extra.hasWorktree ?? false,
 			workingDirectoryCount: extra.workingDirectoryCount ?? 0,
 			errorMessage: extra.errorMessage,
+			reason: extra.reason ?? 'unknown',
 		});
 	}
 
@@ -4822,6 +4825,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// created, hidden while `showExternalSessions` is `none`) would be
 		// materialized here and thereby claimed away from the extension host's list.
 		if (!registeredSession && migrateLegacyEnabled && agent.ensureChatAdopted && !adoption.eligible && !adoption.native) {
+			this._logService.info(`[AgentService] restore refused for unregistered ${sessionStr}: not an adoptable legacy chat (reason=${adoption.reason ?? 'unknown'})`);
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session is not an adoptable legacy chat: ${sessionStr}`);
 		}
 
@@ -4845,15 +4849,17 @@ export class AgentService extends Disposable implements IAgentService {
 			const facts = await this._restoreSessionState(agent, session, sessionStr, adopted, external, registeredSession?.source ?? 'restore', awaitCatalogReadable, !!registeredSession, adoption.worktree);
 			await this._restoreAnnotations(session);
 			if (adopted) {
-				this._reportLegacyMigration(agent.id, 'migrated', migrationStartTime, facts);
+				this._reportLegacyMigration(agent.id, 'migrated', migrationStartTime, { ...facts, reason: adoption.reason });
 			} else if (adoption.eligible) {
 				// Migrate setting on and a genuine legacy candidate, but not adopted
 				// this pass (e.g. its on-disk working directory could not be resolved).
-				this._reportLegacyMigration(agent.id, 'skipped', migrationStartTime, { hasProject: facts.hasProject, workingDirectoryCount: facts.workingDirectoryCount });
+				this._logService.info(`[AgentService] legacy session ${sessionStr} was a migration candidate but was not adopted (reason=${adoption.reason ?? 'unknown'})`);
+				this._reportLegacyMigration(agent.id, 'skipped', migrationStartTime, { hasProject: facts.hasProject, workingDirectoryCount: facts.workingDirectoryCount, reason: adoption.reason });
 			}
 		} catch (err) {
 			if (adopted) {
-				this._reportLegacyMigration(agent.id, 'failed', migrationStartTime, { errorMessage: toErrorMessage(err) });
+				this._logService.error(`[AgentService] legacy session ${sessionStr} was adopted but its restore failed; it is registered so it surfaces with an error rather than disappearing`, err);
+				this._reportLegacyMigration(agent.id, 'failed', migrationStartTime, { errorMessage: toErrorMessage(err), reason: adoption.reason });
 			}
 			throw err;
 		}

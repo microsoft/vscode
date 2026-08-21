@@ -3159,12 +3159,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// existence — to avoid falsely treating an empty DB as migrated.
 			const existing = await this._readStoredSessionMetadata(session);
 			if (existing?.workingDirectory) {
-				return { adopted: false, eligible: false, native: true }; // already native / adopted
+				this._logService.trace(`[Copilot] Adoption skipped for ${sessionId}: already has Agent Host metadata (cwd=${existing.workingDirectory.fsPath})`);
+				return { adopted: false, eligible: false, native: true, reason: 'alreadyNative' };
 			}
 			// Only migrate legacy EH Copilot CLI sessions — never other Copilot SDK
 			// sessions (standalone CLI, Local agent, …) that share `~/.copilot`.
 			if (!(await this._isExtensionHostCliSession(sessionId))) {
-				return { adopted: false, eligible: false };
+				this._logService.info(`[Copilot] Adoption declined for ${sessionId}: not a legacy extension-host Copilot CLI chat (no VS Code marker in its SDK session directory)`);
+				return { adopted: false, eligible: false, reason: 'notLegacyChat' };
 			}
 			const client = await this._ensureClient();
 			const sdkMetadata = await client.getSessionMetadata(sessionId).catch(() => undefined);
@@ -3182,9 +3184,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (!workingDirectory) {
 				// An eligible legacy session whose on-disk working directory could not
 				// be resolved: a genuine migration candidate that did not migrate.
-				return { adopted: false, eligible: true };
+				this._logService.warn(`[Copilot] Adoption skipped for ${sessionId}: no usable working directory (sdk='${sdkWorkingDirectory ?? '(none)'}' exists=${sdkWorkingDirectory ? await this._isExistingDirectory(sdkWorkingDirectory) : false}, no recorded worktree, no marker fallback). The session stays on the legacy provider.`);
+				return { adopted: false, eligible: true, reason: 'workingDirectoryMissing' };
 			}
-			this._logService.info(`[Copilot] Adopting legacy session ${sessionId} in place (reusing on-disk events.jsonl)`);
+			this._logService.info(`[Copilot] Adopting legacy session ${sessionId} in place (reusing on-disk events.jsonl): cwd=${workingDirectory.fsPath}${adoptedWorktree ? ` worktree=${adoptedWorktree.worktreePath.fsPath} branch=${adoptedWorktree.branchName} base=${adoptedWorktree.baseBranch ?? '(none)'} repo=${adoptedWorktree.repositoryRoot.fsPath} (checkout missing, will be recreated on resume)` : ''}`);
 			// Resolve the project from the SDK-derived cwd (authoritative) — the
 			// caller may not have supplied a working directory (e.g. the chat
 			// editor), so we cannot trust a hint.
@@ -3202,7 +3205,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// "Creating worktree…".
 			await this._storeSessionMetadata(session, undefined, workingDirectory, [workingDirectory], workingDirectory, project, project !== undefined, { [SessionConfigKey.Isolation]: 'folder' }, customTitle, /* markRead */ true, archived, /* ehcliAdopted */ true);
 			await this._adoptLegacyTurnUsage(session, sessionId);
-			return { adopted: true, eligible: true, ...(adoptedWorktree ? { worktree: adoptedWorktree } : {}) };
+			this._logService.info(`[Copilot] Adopted legacy session ${sessionId}: project=${project ? project.uri.fsPath : '(unresolved)'} archived=${archived} customTitle=${customTitle !== undefined} worktreeBridged=${!!adoptedWorktree}`);
+			return { adopted: true, eligible: true, reason: 'adopted', ...(adoptedWorktree ? { worktree: adoptedWorktree } : {}) };
 		});
 	}
 

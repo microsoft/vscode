@@ -922,6 +922,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 	 * directory, which is what {@link adoptExistingWorktreeMetadata} requires.
 	 */
 	async recordAdoptedWorktreeMetadata(sessionUri: URI, metadata: { readonly branchName: string; readonly baseBranch: string | undefined; readonly worktreePath: URI; readonly repositoryRoot: URI }): Promise<void> {
+		this._logService.info(`[${this._logLabel}:${AgentSession.id(sessionUri)}] Recorded adopted worktree metadata: worktree='${metadata.worktreePath.fsPath}' branch='${metadata.branchName}' base='${metadata.baseBranch ?? '(none)'}' repo='${metadata.repositoryRoot.fsPath}'`);
 		await this._writeWorktreeMetadata(sessionUri, metadata);
 	}
 
