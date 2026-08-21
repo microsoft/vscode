@@ -91,6 +91,7 @@ function createEditor(
 			glyphMargin: false,
 			lineNumbers: 'off',
 			minimap: { enabled: false },
+			renderLineHighlight: 'none',
 			scrollBeyondLastLine: false,
 			scrollbar: { horizontal: 'hidden', vertical: 'hidden' },
 			wordWrap: 'off',
