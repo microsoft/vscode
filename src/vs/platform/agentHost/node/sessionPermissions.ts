@@ -325,6 +325,26 @@ export class SessionPermissionManager extends Disposable {
 		return undefined;
 	}
 
+	/**
+	 * Whether a write targets a file under the session attachments directory. Those files are
+	 * host-created **read-only snapshots** of client/derived content (pasted text/images, unsaved
+	 * editors, `git:` diff views); the model must never edit the copy (#331154).
+	 *
+	 * {@link _handleToolReady} hard-denies such writes when a provider raises an interactive
+	 * `pending_confirmation` (the auto-approve checks in {@link getAutoApproval} would otherwise
+	 * approve first). Note this only fires for the interactive / managed-approval flow — providers
+	 * that auto-approve upstream (Copilot SDK `'on'`, Claude bypass/acceptEdits, or Codex, which never
+	 * routes through the host permission layer) don't reach it, so the read-only presentation is the
+	 * primary defense there.
+	 */
+	isForbiddenSnapshotWrite(e: IToolApprovalEvent, sessionKey: ProtocolURI): boolean {
+		if (e.permissionKind !== 'write' || !e.permissionPath) {
+			return false;
+		}
+		const sessionUri = URI.parse(isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey);
+		return isSessionAttachmentPath(this._sessionDataService, sessionUri, e.permissionPath);
+	}
+
 	/** Whether adding a persistent terminal auto-approve rule can suppress future prompts for this shell event. */
 	isAutoApproveRuleResolvable(e: IToolApprovalEvent, sessionKey: ProtocolURI): boolean {
 		if (e.permissionKind !== 'shell' || !e.toolInput || e.requestSandboxBypass || !e.shellLanguage) {

@@ -424,7 +424,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 
 		await runWithFakedTimers({}, async () => {
 			for (const item of cases) {
-				tracker.turnStarted('mock', item.session, 'turn', undefined, undefined, undefined, undefined);
+				tracker.turnStarted('mock', item.session, 'turn', undefined, undefined, 'default', undefined, undefined);
 				tracker.setCurrentStage(item.session, 'turn', item.stage);
 			}
 			await timeout(TURN_HANG_THRESHOLD_MS);

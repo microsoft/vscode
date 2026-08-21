@@ -13,7 +13,7 @@ import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
-import { GitRefType, IAgentHostGitService } from '../../../common/agentHostGitService.js';
+import { GitRefType, IAgentHostGitService, type IAddWorktreeOptions } from '../../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, MessageKind, ResponsePartKind, TurnState, type Turn } from '../../../common/state/sessionState.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from '../../../node/shared/agentBranchNameGenerator.js';
@@ -45,7 +45,7 @@ suite('WorktreeIsolation', () => {
 	let repoRoot: URI;
 	let worktreesRoot: URI;
 	let db: TestSessionDatabase;
-	let addWorktreeCalls: { worktree: URI; branchName: string; startPoint: string; track: boolean }[];
+	let addWorktreeCalls: IAddWorktreeOptions[];
 	let addExistingCalls: { worktree: URI; branchName: string }[];
 	let removeCalls: { worktree: URI; force: boolean }[];
 	let copyIncludeCalls: { repositoryRoot: URI; worktree: URI; globs: readonly string[] }[];
@@ -71,9 +71,9 @@ suite('WorktreeIsolation', () => {
 			],
 			branchExists: async () => branchExists,
 			hasUncommittedChanges: async () => hasUncommittedChanges,
-			addWorktree: async (_root, worktree, branch, startPoint, track) => {
-				addWorktreeCalls.push({ worktree, branchName: branch, startPoint, track });
-				mkdirSync(worktree.fsPath, { recursive: true });
+			addWorktree: async (_root, options) => {
+				addWorktreeCalls.push(options);
+				mkdirSync(options.path.fsPath, { recursive: true });
 			},
 			copyWorktreeIncludeFiles: async (repositoryRoot, worktree, globs) => {
 				copyIncludeCalls.push({ repositoryRoot, worktree, globs: [...globs] });
@@ -152,17 +152,17 @@ suite('WorktreeIsolation', () => {
 		const noCommits = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: undefined });
 
 		assert.deepStrictEqual({
-			noRepo: { enum: noRepo.isolationProperty.protocol.enum, value: noRepo.isolationValue, branch: noRepo.branchProperty, prefix: noRepo.worktreeBranchPrefixProperty, includeFiles: noRepo.worktreeIncludeFilesProperty, branchTrack: noRepo.worktreeBranchTrackProperty },
-			repoWorktree: { enum: repoWorktree.isolationProperty.protocol.enum, value: repoWorktree.isolationValue, branchDefault: repoWorktree.branchDefault, branchReadOnly: repoWorktree.branchProperty?.protocol.readOnly, prefixReadOnly: repoWorktree.worktreeBranchPrefixProperty?.protocol.readOnly, includeFilesReadOnly: repoWorktree.worktreeIncludeFilesProperty?.protocol.readOnly, branchTrackReadOnly: repoWorktree.worktreeBranchTrackProperty?.protocol.readOnly },
+			noRepo: { enum: noRepo.isolationProperty.protocol.enum, value: noRepo.isolationValue, branch: noRepo.branchProperty, prefix: noRepo.worktreeBranchPrefixProperty, includeFiles: noRepo.worktreeIncludeFilesProperty, branchTrack: noRepo.worktreeBranchTrackProperty, createNewBranch: noRepo.worktreeCreateNewBranchProperty },
+			repoWorktree: { enum: repoWorktree.isolationProperty.protocol.enum, value: repoWorktree.isolationValue, branchDefault: repoWorktree.branchDefault, branchReadOnly: repoWorktree.branchProperty?.protocol.readOnly, prefixReadOnly: repoWorktree.worktreeBranchPrefixProperty?.protocol.readOnly, includeFilesReadOnly: repoWorktree.worktreeIncludeFilesProperty?.protocol.readOnly, branchTrackReadOnly: repoWorktree.worktreeBranchTrackProperty?.protocol.readOnly, createNewBranchReadOnly: repoWorktree.worktreeCreateNewBranchProperty?.protocol.readOnly },
 			repoWorktreeSelected: { branchDefault: repoWorktreeSelected.branchDefault, branchValue: repoWorktreeSelected.branchValue, branchEnum: repoWorktreeSelected.branchProperty?.protocol.enum },
-			repoFolder: { value: repoFolder.isolationValue, branchDefault: repoFolder.branchDefault, branchReadOnly: repoFolder.branchProperty?.protocol.readOnly, hasPrefix: !!repoFolder.worktreeBranchPrefixProperty, hasIncludeFiles: !!repoFolder.worktreeIncludeFilesProperty, hasBranchTrack: !!repoFolder.worktreeBranchTrackProperty },
-			noCommits: { enum: noCommits.isolationProperty.protocol.enum, value: noCommits.isolationValue, branch: noCommits.branchProperty, prefix: noCommits.worktreeBranchPrefixProperty, includeFiles: noCommits.worktreeIncludeFilesProperty, branchTrack: noCommits.worktreeBranchTrackProperty },
+			repoFolder: { value: repoFolder.isolationValue, branchDefault: repoFolder.branchDefault, branchReadOnly: repoFolder.branchProperty?.protocol.readOnly, hasPrefix: !!repoFolder.worktreeBranchPrefixProperty, hasIncludeFiles: !!repoFolder.worktreeIncludeFilesProperty, hasBranchTrack: !!repoFolder.worktreeBranchTrackProperty, hasCreateNewBranch: !!repoFolder.worktreeCreateNewBranchProperty },
+			noCommits: { enum: noCommits.isolationProperty.protocol.enum, value: noCommits.isolationValue, branch: noCommits.branchProperty, prefix: noCommits.worktreeBranchPrefixProperty, includeFiles: noCommits.worktreeIncludeFilesProperty, branchTrack: noCommits.worktreeBranchTrackProperty, createNewBranch: noCommits.worktreeCreateNewBranchProperty },
 		}, {
-			noRepo: { enum: ['folder'], value: 'folder', branch: undefined, prefix: undefined, includeFiles: undefined, branchTrack: undefined },
-			repoWorktree: { enum: ['folder', 'worktree'], value: 'worktree', branchDefault: 'main', branchReadOnly: false, prefixReadOnly: true, includeFilesReadOnly: true, branchTrackReadOnly: true },
+			noRepo: { enum: ['folder'], value: 'folder', branch: undefined, prefix: undefined, includeFiles: undefined, branchTrack: undefined, createNewBranch: undefined },
+			repoWorktree: { enum: ['folder', 'worktree'], value: 'worktree', branchDefault: 'main', branchReadOnly: false, prefixReadOnly: true, includeFilesReadOnly: true, branchTrackReadOnly: true, createNewBranchReadOnly: true },
 			repoWorktreeSelected: { branchDefault: 'main', branchValue: 'feature', branchEnum: ['main'] },
-			repoFolder: { value: 'folder', branchDefault: 'feature', branchReadOnly: true, hasPrefix: true, hasIncludeFiles: true, hasBranchTrack: true },
-			noCommits: { enum: ['folder'], value: 'folder', branch: undefined, prefix: undefined, includeFiles: undefined, branchTrack: undefined },
+			repoFolder: { value: 'folder', branchDefault: 'feature', branchReadOnly: true, hasPrefix: true, hasIncludeFiles: true, hasBranchTrack: true, hasCreateNewBranch: true },
+			noCommits: { enum: ['folder'], value: 'folder', branch: undefined, prefix: undefined, includeFiles: undefined, branchTrack: undefined, createNewBranch: undefined },
 		});
 	});
 
@@ -197,11 +197,54 @@ suite('WorktreeIsolation', () => {
 		assert.deepStrictEqual({
 			branchDefault: config.branchDefault,
 			branchEnum: config.branchProperty?.protocol.enum,
-			startPoint: addWorktreeCalls[0]?.startPoint,
+			startPoint: addWorktreeCalls[0]?.commitish,
 		}, {
 			branchDefault: 'main',
 			branchEnum: ['main'],
 			startPoint: 'origin/main',
+		});
+	});
+
+	test('checks out an existing selected branch and uses the default branch as the diff base', async () => {
+		const gitService = createGitService();
+		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'origin/main' });
+		const isolation = createIsolation(disposables, {
+			gitService,
+			branchNameGenerator: { generateBranchName: async () => { throw new Error('should not generate a branch'); } },
+		});
+
+		const worktree = await isolation.resolveWorkingDirectory({
+			sessionUri,
+			sessionId,
+			workingDirectory: repoRoot,
+			config: {
+				[SessionConfigKey.Isolation]: 'worktree',
+				[SessionConfigKey.Branch]: 'feature',
+				[SessionConfigKey.WorktreeBranchTrack]: true,
+				[SessionConfigKey.WorktreeCreateNewBranch]: false,
+			},
+		});
+
+		assert.deepStrictEqual({
+			worktree: worktree?.toString(),
+			addWorktreeArgs: addWorktreeCalls.map(call => ({
+				commitish: call.commitish,
+				newBranchName: call.newBranchName,
+				track: call.track,
+				preferRemoteBranch: call.preferRemoteBranch,
+			})),
+			branchName: await db.getMetadata('copilot.worktree.branchName'),
+			diffBaseBranch: await db.getMetadata('agentHost.diffBaseBranch'),
+		}, {
+			worktree: URI.joinPath(worktreesRoot, 'feature').toString(),
+			addWorktreeArgs: [{
+				commitish: 'feature',
+				newBranchName: undefined,
+				track: true,
+				preferRemoteBranch: false,
+			}],
+			branchName: 'feature',
+			diffBaseBranch: 'origin/main',
 		});
 	});
 
@@ -218,7 +261,7 @@ suite('WorktreeIsolation', () => {
 		assert.deepStrictEqual({
 			returnedWorktree: first!.toString(),
 			addWorktreeCallCount: addWorktreeCalls.length,
-			addWorktreeArgs: addWorktreeCalls.map(c => ({ worktree: c.worktree.toString(), branchName: c.branchName, startPoint: c.startPoint })),
+			addWorktreeArgs: addWorktreeCalls.map(c => ({ worktree: c.path.toString(), branchName: c.newBranchName, startPoint: c.commitish })),
 			metaBranch: meta?.branchName,
 			metaWorktree: meta?.worktreePath?.toString(),
 			metaRepo: meta?.repositoryRoot?.toString(),
@@ -246,10 +289,10 @@ suite('WorktreeIsolation', () => {
 		let addWorktreeRoot: URI | undefined;
 		gitService.getRepositoryRoot = async () => checkoutRoot;
 		gitService.getWorktreeRoots = async () => [repoRoot, checkoutRoot];
-		gitService.addWorktree = async (repositoryRoot, worktree, branch, startPoint, track) => {
+		gitService.addWorktree = async (repositoryRoot, options) => {
 			addWorktreeRoot = repositoryRoot;
-			addWorktreeCalls.push({ worktree, branchName: branch, startPoint, track });
-			mkdirSync(worktree.fsPath, { recursive: true });
+			addWorktreeCalls.push(options);
+			mkdirSync(options.path.fsPath, { recursive: true });
 		};
 		const isolation = createIsolation(disposables, { gitService });
 		const includeFiles = ['.env'];
@@ -309,14 +352,14 @@ suite('WorktreeIsolation', () => {
 
 	test('resolveWorkingDirectory names each creation phase, rounding percentages down and debouncing updates', async () => {
 		const gitService = createGitService();
-		gitService.addWorktree = async (_root, worktree, branch, startPoint, track, onProgress) => {
-			addWorktreeCalls.push({ worktree, branchName: branch, startPoint, track });
-			mkdirSync(worktree.fsPath, { recursive: true });
-			onProgress?.({ filesDone: 7, filesTotal: 800 });
-			onProgress?.({ filesDone: 96, filesTotal: 800 });
-			onProgress?.({ filesDone: 100, filesTotal: 800 });
+		gitService.addWorktree = async (_root, options) => {
+			addWorktreeCalls.push(options);
+			mkdirSync(options.path.fsPath, { recursive: true });
+			options.onProgress?.({ filesDone: 7, filesTotal: 800 });
+			options.onProgress?.({ filesDone: 96, filesTotal: 800 });
+			options.onProgress?.({ filesDone: 100, filesTotal: 800 });
 			await timeout(50);
-			onProgress?.({ filesDone: 800, filesTotal: 800 });
+			options.onProgress?.({ filesDone: 800, filesTotal: 800 });
 		};
 		gitService.copyWorktreeIncludeFiles = async (_root, _worktree, _globs, onProgress) => {
 			onProgress?.({ filesDone: 1, filesTotal: 4 });
@@ -368,7 +411,7 @@ suite('WorktreeIsolation', () => {
 		});
 
 		assert.deepStrictEqual({
-			branchName: addWorktreeCalls[0]?.branchName,
+			branchName: addWorktreeCalls[0]?.newBranchName,
 			worktree: resolved?.toString(),
 		}, {
 			branchName: 'agents/add-feature-12345678',
@@ -402,7 +445,7 @@ suite('WorktreeIsolation', () => {
 
 		assert.deepStrictEqual({
 			branchExistsCalls,
-			branchName: addWorktreeCalls[0]?.branchName,
+			branchName: addWorktreeCalls[0]?.newBranchName,
 			worktree: resolved?.toString(),
 		}, {
 			branchExistsCalls: 2,
@@ -421,13 +464,15 @@ suite('WorktreeIsolation', () => {
 		gitService.getRepositoryRoot = async workingDirectory => workingDirectory;
 		gitService.getWorktreeRoots = async () => [repoRoot, checkoutRootA, checkoutRootB];
 		gitService.branchExists = async (_repositoryRoot, candidate) => existingBranches.has(candidate);
-		gitService.addWorktree = async (_repositoryRoot, worktree, candidate, startPoint, track) => {
+		gitService.addWorktree = async (_repositoryRoot, options) => {
 			activeAddWorktrees++;
 			maxActiveAddWorktrees = Math.max(maxActiveAddWorktrees, activeAddWorktrees);
 			await timeout(10);
-			addWorktreeCalls.push({ worktree, branchName: candidate, startPoint, track });
-			existingBranches.add(candidate);
-			mkdirSync(worktree.fsPath, { recursive: true });
+			addWorktreeCalls.push(options);
+			if (options.newBranchName) {
+				existingBranches.add(options.newBranchName);
+			}
+			mkdirSync(options.path.fsPath, { recursive: true });
 			activeAddWorktrees--;
 		};
 		const isolation = createIsolation(disposables, {
@@ -443,7 +488,7 @@ suite('WorktreeIsolation', () => {
 
 		assert.deepStrictEqual({
 			maxActiveAddWorktrees,
-			branchNames: addWorktreeCalls.map(call => call.branchName),
+			branchNames: addWorktreeCalls.map(call => call.newBranchName),
 			worktrees: worktrees.map(worktree => worktree?.toString()),
 		}, {
 			maxActiveAddWorktrees: 1,
@@ -529,6 +574,25 @@ suite('WorktreeIsolation', () => {
 		assert.deepStrictEqual(outcomes, {
 			missingWorktreeRecreated: missingWorktree.toString(),
 			existingWorktreeUsedUnchanged: existingWorktree.toString(),
+			recreatedWorktrees: [{ worktree: missingWorktree.toString(), branchName: 'feature/x' }],
+		});
+	});
+
+	test('resolveWorkingDirectoryForResume recreates a missing live worktree from legacy metadata', async () => {
+		const isolation = createIsolation(disposables);
+		const missingWorktree = URI.joinPath(worktreesRoot, 'missing-legacy-live-worktree');
+		await Promise.all([
+			db.setMetadata('copilot.worktree.branchName', 'feature/x'),
+			db.setMetadata('copilot.workingDirectory', missingWorktree.toString()),
+		]);
+
+		const resolved = await isolation.resolveWorkingDirectoryForResume(sessionUri, sessionId, missingWorktree);
+
+		assert.deepStrictEqual({
+			resolved: resolved.toString(),
+			recreatedWorktrees: addExistingCalls.map(call => ({ worktree: call.worktree.toString(), branchName: call.branchName })),
+		}, {
+			resolved: missingWorktree.toString(),
 			recreatedWorktrees: [{ worktree: missingWorktree.toString(), branchName: 'feature/x' }],
 		});
 	});

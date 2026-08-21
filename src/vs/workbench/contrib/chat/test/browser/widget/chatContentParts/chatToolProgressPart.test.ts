@@ -9,7 +9,7 @@ import { Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { IRenderedMarkdown, MarkdownRenderOptions, renderAsPlaintext, renderMarkdown } from '../../../../../../../base/browser/markdownRenderer.js';
-import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
@@ -97,7 +97,7 @@ suite('ChatToolProgressSubPart', () => {
 		source?: ToolDataSourceType;
 		toolId?: string;
 		isComplete?: boolean;
-		invocationMessage?: string;
+		invocationMessage?: string | IMarkdownString;
 	} = {}): IChatToolInvocationSerialized {
 		return {
 			presentation: undefined,
@@ -118,7 +118,7 @@ suite('ChatToolProgressSubPart', () => {
 	function createToolInvocation(options: {
 		source?: ToolDataSourceType;
 		toolId?: string;
-		invocationMessage?: string;
+		invocationMessage?: string | IMarkdownString;
 		progressMessage?: string;
 	} = {}): IChatToolInvocation {
 		const source = options.source ?? ToolDataSource.Internal;
@@ -546,6 +546,28 @@ suite('ChatToolProgressSubPart', () => {
 		));
 
 		assert.strictEqual(part.domNode.querySelector('.codicon-loading'), null);
+	});
+
+	test('renders markdown file pills in regular tool messages', () => {
+		const invocationMessage = new MarkdownString('Edit [](claudeAgent.ts)');
+		invocationMessage.baseUri = URI.file('/workspace/');
+		const tool = createToolInvocation({ toolId: 'edit', invocationMessage });
+		const markdownRenderer: IMarkdownRenderer = {
+			render: (markdown, options) => renderMarkdown(markdown, options),
+		};
+
+		const part = disposables.add(instantiationService.createInstance(
+			ChatToolProgressSubPart,
+			tool,
+			createRenderContext(false),
+			markdownRenderer,
+			new Set<string>()
+		));
+
+		assert.strictEqual(
+			part.domNode.querySelector<HTMLElement>('.chat-inline-anchor-widget .icon-label')?.textContent,
+			'claudeAgent.ts'
+		);
 	});
 
 	test('does not add shimmer styling for non-MCP tool progress', () => {

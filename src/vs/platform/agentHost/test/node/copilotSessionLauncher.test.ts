@@ -17,11 +17,11 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { AgentHostByokModelsEnabledConfigKey, type SchemaValues } from '../../common/agentHostSchema.js';
-import { AgentHostByokModelsEnabledEnvVar } from '../../common/agentService.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import type { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels } from '../../common/reasoningEffort.js';
+import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { CustomizationType, McpServerStatus, type ModelSelection } from '../../common/state/protocol/state.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
@@ -331,8 +331,6 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 	});
 
 	test('does not synthesize BYOK session config while root configuration disables it', async () => {
-		const previousEnvValue = process.env[AgentHostByokModelsEnabledEnvVar];
-		delete process.env[AgentHostByokModelsEnabledEnvVar];
 		const store = new DisposableStore();
 		const proxy = fakeProxyService();
 		const registry = new ByokLmBridgeRegistry();
@@ -344,11 +342,6 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 			assert.deepStrictEqual({ config, proxyStarts: proxy.starts }, { config: {}, proxyStarts: 0 });
 		} finally {
 			store.dispose();
-			if (previousEnvValue === undefined) {
-				delete process.env[AgentHostByokModelsEnabledEnvVar];
-			} else {
-				process.env[AgentHostByokModelsEnabledEnvVar] = previousEnvValue;
-			}
 		}
 	});
 });
@@ -461,6 +454,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 		try {
 			sessions.add(await launcher.launch(createPlan, testRuntime));
 			sessions.add(await launcher.launch(resumePlan, testRuntime));
+			sessions.add(await launcher.launch({ ...createPlan, isEphemeral: true }, testRuntime));
 
 			assert.deepStrictEqual({
 				createClientName: createConfigs[0].clientName,
@@ -483,6 +477,9 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeHasExitPlanHandler: typeof resumeConfigs[0].onExitPlanModeRequest === 'function',
 				resumeLargeOutput: resumeConfigs[0].largeOutput,
 				resumeManagedSettings: resumeConfigs[0].managedSettings,
+				ephemeralMcpServers: createConfigs[1].mcpServers,
+				ephemeralDisabledMcpServers: createConfigs[1].disabledMcpServers,
+				ephemeralExcludedTools: createConfigs[1].excludedTools,
 			}, {
 				createClientName: 'vscode-agent-host',
 				createGitHubMcpToolConfig: { disableFormDeferral: true },
@@ -520,6 +517,9 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeHasExitPlanHandler: true,
 				resumeLargeOutput: { maxSizeBytes: 8192 },
 				resumeManagedSettings: { permissions: managedSettingsPermissions },
+				ephemeralMcpServers: {},
+				ephemeralDisabledMcpServers: ['azure', 'disabled-workspace-server', 'github', 'native-plugin-server', 'synced-server'],
+				ephemeralExcludedTools: ['task', `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 			});
 		} finally {
 			sessions.dispose();
@@ -1014,6 +1014,24 @@ suite('CopilotSessionLauncher resume config', () => {
 		return (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean } }> })._buildSessionConfig(plan, runtime);
 	}
 
+	test('exposes only the client semantic-search override', async () => {
+		const store = new DisposableStore();
+		const snapshot = { tools: [{ name: SEMANTIC_SEARCH_TOOL_NAME }], plugins: [], mcpServers: {} };
+		const disabled = await buildResumeConfig(createLauncher(store, {}), undefined, { tools: [], plugins: [], mcpServers: {} });
+		const enabled = await buildResumeConfig(createLauncher(store, {}), undefined, snapshot);
+		const filtered = await buildResumeConfig(
+			createLauncher(store, { modelCapabilityOverrides: { '*': { excludedTools: [`custom:${SEMANTIC_SEARCH_TOOL_NAME}`] } } }),
+			undefined,
+			snapshot,
+		);
+
+		assert.deepStrictEqual(
+			[disabled.excludedTools, enabled.excludedTools, filtered.excludedTools],
+			[[`builtin:${SEMANTIC_SEARCH_TOOL_NAME}`], undefined, [`custom:${SEMANTIC_SEARCH_TOOL_NAME}`, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]],
+		);
+		store.dispose();
+	});
+
 	test('forwards a configured override on resume and leaves the effort untouched otherwise', async () => {
 		const store = new DisposableStore();
 		const model: ModelSelection = { id: 'gpt-5', config: { thinkingLevel: 'medium' } };
@@ -1055,7 +1073,7 @@ suite('CopilotSessionLauncher resume config', () => {
 
 		assert.deepStrictEqual(
 			[config.reasoningEffort, config.excludedTools],
-			['high', ['mcp:*']]
+			['high', ['mcp:*', `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]]
 		);
 		store.dispose();
 	});
@@ -1097,7 +1115,7 @@ suite('CopilotSessionLauncher resume config', () => {
 				undefined,
 				{
 					availableTools: ['custom:*'],
-					excludedTools: ['mcp:*'],
+					excludedTools: ['mcp:*', `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 					modelCapabilities: { supports: { vision: true } },
 				},
 				undefined,
@@ -1120,7 +1138,7 @@ suite('CopilotSessionLauncher resume config', () => {
 
 		assert.deepStrictEqual(
 			[config.availableTools, config.excludedTools],
-			[[RUNTIME_TOOL_SEARCH_TOOL_NAME], [`custom:${RUNTIME_TOOL_SEARCH_TOOL_NAME}`]]
+			[[RUNTIME_TOOL_SEARCH_TOOL_NAME], [`custom:${RUNTIME_TOOL_SEARCH_TOOL_NAME}`, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]]
 		);
 		store.dispose();
 	});

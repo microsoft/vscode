@@ -77,7 +77,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		private readonly _dimension: IObservable<Dimension | undefined>,
 		private readonly _viewModel: IObservable<MultiDiffEditorViewModel | undefined>,
 		private readonly _workbenchUIElementFactory: IWorkbenchUIElementFactory,
-		private readonly _renderSideBySide: IObservable<boolean | undefined>,
+		private readonly _diffLayoutOptions: IObservable<IDiffEditorOptions | undefined>,
 		private readonly _diffEditorOptions: IDiffEditorOptions | undefined,
 		@IContextKeyService private readonly _parentContextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _parentInstantiationService: IInstantiationService,
@@ -108,11 +108,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		]);
 		this._sizeObserver = this._register(new ObservableElementSizeObserver(this._element, undefined));
 		this._optionsOverride = derived(this, reader => {
-			const renderSideBySide = this._renderSideBySide.read(reader);
-			// Also pin `useInlineViewWhenSpaceIsLimited` off so the toggle deterministically
-			// controls inline vs. side-by-side regardless of the available width.
-			const options: IDiffEditorOptions = renderSideBySide === undefined ? {} : { renderSideBySide, useInlineViewWhenSpaceIsLimited: false };
-			return { ...this._diffEditorOptions, ...options };
+			return { ...this._diffEditorOptions, ...this._diffLayoutOptions.read(reader) };
 		});
 		this._objectPool = this._register(new ObjectPool<TemplateData, DiffEditorItemTemplate>((data) => {
 			const template = this._instantiationService.createInstance(
@@ -191,7 +187,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 
 		const ctxRenderSideBySide = this._parentContextKeyService.createKey<boolean>(EditorContextKeys.multiDiffEditorRenderSideBySide.key, true);
 		this._register(autorun((reader) => {
-			const renderSideBySide = this._renderSideBySide.read(reader);
+			const renderSideBySide = this._diffLayoutOptions.read(reader)?.renderSideBySide;
 			if (renderSideBySide !== undefined) {
 				ctxRenderSideBySide.set(renderSideBySide);
 			}

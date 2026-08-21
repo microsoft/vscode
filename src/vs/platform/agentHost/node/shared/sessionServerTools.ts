@@ -5,10 +5,12 @@
 
 import type { Mutable } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
 import { AgentSession, type AgentProvider, type IAgentCreateSessionConfig, type IAgentModelInfo, type IAgentSessionMetadata } from '../../common/agent.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
-import { buildChatUri, buildDefaultChatUri, getInlineToolInput, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionGitState, readSessionGitHubState, ResponsePartKind, ToolCallStatus, TurnState, type Message, type ModelSelection, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
+import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
+import { buildChatUri, buildDefaultChatUri, getInlineToolInput, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionGitState, readSessionGitHubState, readSessionOrchestration, ResponsePartKind, ToolCallStatus, TurnState, type ISessionOrchestration, type Message, type ModelSelection, type ResponsePart, type SessionIdleNotification, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -49,22 +51,27 @@ const listSessionsInputSchema: ToolDefinition['inputSchema'] = {
 			items: { type: 'string', enum: [...listSessionsStatusValues] },
 			description: 'Only return sessions whose status matches one of these (e.g. `inputNeeded` for sessions awaiting a reply, `inProgress` for running ones, `archived` for sessions marked Done/completed — implies `includeArchived`). Omit to return every status.',
 		},
-		workspace: { type: 'string', description: 'Only return sessions whose working directory is this folder — an absolute path or a workspace URI.' },
+		workspace: { type: 'string', description: 'Only return sessions for this project name, project URI, or working directory path/URI.' },
 		withChanges: { type: 'boolean', description: 'When true, only return sessions that have pending worktree changes.' },
 		unread: { type: 'boolean', description: 'When true, only return sessions with updates the user has not seen yet.' },
 		withPullRequest: { type: 'boolean', description: 'When true, only return sessions that have a linked GitHub pull request.' },
 		includeArchived: { type: 'boolean', description: 'Whether to include archived sessions. Defaults to false; set true to also return archived sessions.' },
 		createdAfter: { type: 'string', description: 'Only return sessions created at or after this time (ISO-8601 timestamp, e.g. `2025-01-31T00:00:00Z`).' },
 		createdBefore: { type: 'string', description: 'Only return sessions created at or before this time (ISO-8601 timestamp).' },
+		parentSession: { type: 'string', description: 'Only return sessions created by this parent session URI or open-session link.' },
+		label: { type: 'string', description: 'Only return sessions with this orchestration label.' },
 	},
 };
 
 const createSessionInputSchema: ToolDefinition['inputSchema'] = {
 	type: 'object',
 	properties: {
-		workspace: { type: 'string', description: 'Absolute folder path, workspace URI, or a working directory from an existing session.' },
+		workspace: { type: 'string', description: 'Unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Use `create_chat` instead when the work should share the current session\'s workspace and changes.' },
 		prompt: { type: 'string', description: 'Initial prompt to send to the new session.' },
 		model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model.' },
+		coordinateWithCreator: { type: 'boolean', description: 'Allow the child to identify and contact the session that created it. Set false for an independent child that must not send messages or create chats in its creator. Defaults to true.' },
+		notifyOnIdle: { type: 'string', enum: ['once', 'always'], description: 'Wake the creator when the child needs input, becomes idle, or errors, either once or after every work cycle.' },
+		label: { type: 'string', description: 'Optional label used to group and filter related child sessions.' },
 	},
 	required: ['workspace', 'prompt'],
 };
@@ -129,8 +136,8 @@ const getSessionContextInputSchema: ToolDefinition['inputSchema'] = {
 	required: ['session'],
 };
 
-/** Protocol tool definitions for the session-management server tools. */
-export const sessionServerToolDefinitions: ToolDefinition[] = [
+/** Server tool definitions for session management. */
+export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: SessionServerToolName.ListSessions,
 		title: 'List Sessions',
@@ -148,21 +155,21 @@ export const sessionServerToolDefinitions: ToolDefinition[] = [
 	{
 		name: SessionServerToolName.CreateSession,
 		title: 'Create Session',
-		description: 'Create a session in a workspace and start it with an initial prompt. The UI shows a "Session Created" confirmation with a button to open it, so reply with a single short sentence confirming the session was created and do NOT print the session URL or tell the user to click a button.',
+		description: 'Create an independently scoped session and start it with an initial prompt. Use this when work needs a separate workspace, worktree or branch, provider, or lifecycle. For parallel subtasks that should share one workspace and aggregate diff, prefer `create_chat`. The UI shows a "Session Created" confirmation with a button to open it, so reply with a single short sentence confirming the session was created and do NOT print the session URL or tell the user to click a button.',
 		inputSchema: createSessionInputSchema,
 		annotations: { readOnlyHint: false },
 	},
 	{
 		name: SessionServerToolName.CreateChat,
 		title: 'Create Chat',
-		description: 'Add a new chat to an existing session and start it with an initial prompt. Omit `session` to add the chat to the current session; otherwise pass a session URI from `list_sessions`. Optionally pass a `model` to use for the chat (defaults to the current chat\'s model). The UI shows a "Chat Created" confirmation with a button to open the session, so reply with a single short sentence and do NOT print the session URL or tell the user to click a button.',
+		description: 'Add a new chat to an existing session and start it with an initial prompt. Prefer this for parallel subtasks that should remain part of one user-visible unit of work, sharing the session\'s workspace, lifecycle, and aggregate diff. Omit `session` to add the chat to the current session; otherwise pass a session URI from `list_sessions`. Optionally pass a `model` to use for the chat (defaults to the current chat\'s model). The UI shows a "Chat Created" confirmation with a button to open the session, so reply with a single short sentence and do NOT print the session URL or tell the user to click a button.',
 		inputSchema: createChatInputSchema,
 		annotations: { readOnlyHint: false },
 	},
 	{
 		name: SessionServerToolName.RenameChat,
 		title: 'Rename Chat',
-		description: 'Rename one specific chat so it is easy to find later. When a session has only its default chat, renaming that chat also names the session. Once the session has multiple chats, only the targeted chat is renamed. Use a short, human-friendly chat name in sentence case (1-4 words). Pass an `agent-host-session://` session or chat link to target another chat, or omit `chat` to rename the chat in which this tool is running. Name a fresh chat once its scope is clear, typically soon after `create_chat` or early in that chat. Call this tool again whenever the user explicitly asks to rename the chat; every invocation replaces the current title.',
+		description: 'Rename one specific chat so it is easy to find later. Renaming the default chat also names its owning session, while peer-chat titles remain independent. Use a short, human-friendly chat name in sentence case (1-4 words). Pass an `agent-host-session://` session or chat link to target another chat, or omit `chat` to rename the chat in which this tool is running. Name a fresh chat once its scope is clear, typically soon after `create_chat` or early in that chat. Call this tool again whenever the user explicitly asks to rename the chat; every invocation replaces the current title.',
 		inputSchema: renameChatInputSchema,
 		annotations: { readOnlyHint: false },
 	},
@@ -199,12 +206,18 @@ interface ICreateSessionArgs {
 	readonly workspace?: unknown;
 	readonly prompt?: unknown;
 	readonly model?: unknown;
+	readonly coordinateWithCreator?: unknown;
+	readonly notifyOnIdle?: unknown;
+	readonly label?: unknown;
 }
 
 export interface IResolvedCreateSessionArgs {
 	readonly workspace: URI;
 	readonly prompt: string;
 	readonly model?: IAgentModelInfo;
+	readonly coordinateWithCreator: boolean;
+	readonly notifyOnIdle?: SessionIdleNotification;
+	readonly label?: string;
 }
 
 /** Minimal dependency surface needed by the session server-tool group. */
@@ -226,6 +239,7 @@ export interface ISessionServerToolAccessor {
 	readonly getSessionSpawnDepth: (session: URI) => number;
 	/** Records the spawn depth of a freshly-created session so its own `create_session` calls can enforce the recursion limit. */
 	readonly setSessionSpawnDepth: (session: URI, depth: number) => void;
+	readonly setSessionOrchestration: (session: URI, orchestration: ISessionOrchestration) => Promise<void>;
 }
 
 export interface IRenameTitleResult {
@@ -271,8 +285,12 @@ interface ISerializedSession {
 	/** Human-readable description of what the session is currently doing. */
 	readonly activity?: string;
 	readonly workingDirectory?: string;
+	/** Every working-directory URI when the session has more than one. */
+	readonly workingDirectories?: readonly string[];
 	/** Display name of the session's project/workspace. */
 	readonly project?: string;
+	/** Configured project root URI, which may differ from a transient working directory. */
+	readonly projectUri?: string;
 	/** `true` when the session has updates the user has not yet seen. */
 	readonly unread?: boolean;
 	/** ISO-8601 timestamp of when the session was created. */
@@ -288,6 +306,10 @@ interface ISerializedSession {
 	}[];
 	readonly git?: ISerializedGitState;
 	readonly github?: ISerializedGitHubState;
+	readonly parentSession?: string;
+	readonly creator?: string;
+	readonly label?: string;
+	readonly notifyOnIdle?: SessionIdleNotification;
 }
 
 function getRequiredString(value: unknown, field: string, toolName: string): string {
@@ -365,15 +387,30 @@ function parseWorkspaceUri(workspace: string): URI | undefined {
 }
 
 function resolveWorkspace(workspace: string, sessions: readonly IAgentSessionMetadata[]): URI {
+	const parsed = parseWorkspaceUri(workspace);
 	for (const session of sessions) {
-		const match = session.workingDirectories?.find(d => d.toString() === workspace || d.fsPath === workspace);
-		if (match) {
-			return match;
+		for (const candidate of [session.project?.uri, ...(session.workingDirectories ?? [])]) {
+			if (candidate && parsed && isEqual(candidate, parsed)) {
+				return candidate;
+			}
 		}
 	}
-	const parsed = parseWorkspaceUri(workspace);
+
+	const projects: { readonly uri: URI; readonly displayName: string }[] = [];
+	for (const session of sessions) {
+		const project = session.project;
+		if (project?.displayName.toLowerCase() === workspace.toLowerCase() && !projects.some(candidate => isEqual(candidate.uri, project.uri))) {
+			projects.push(project);
+		}
+	}
+	if (projects.length === 1) {
+		return projects[0].uri;
+	}
+	if (projects.length > 1) {
+		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: workspace "${workspace}" is ambiguous; use one of these project URIs: ${projects.map(project => project.uri.toString()).join(', ')}.`);
+	}
 	if (!parsed) {
-		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: workspace must match a known session workingDirectory, an absolute path, or a valid URI string.`);
+		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: workspace must match a unique known project name, project URI, working directory, absolute path, or valid URI string.`);
 	}
 	return parsed;
 }
@@ -395,10 +432,22 @@ export function getCreateSessionArgs(rawArgs: unknown, sessions: readonly IAgent
 	const workspace = getRequiredString(args.workspace, 'workspace', SessionServerToolName.CreateSession);
 	const prompt = getRequiredString(args.prompt, 'prompt', SessionServerToolName.CreateSession);
 	const modelName = getOptionalString(args.model, 'model', SessionServerToolName.CreateSession);
+	const coordinateWithCreator = getOptionalBoolean(args.coordinateWithCreator, 'coordinateWithCreator', SessionServerToolName.CreateSession) ?? true;
+	const label = getOptionalString(args.label, 'label', SessionServerToolName.CreateSession);
+	let notifyOnIdle: SessionIdleNotification | undefined;
+	if (args.notifyOnIdle !== undefined) {
+		if (args.notifyOnIdle !== 'once' && args.notifyOnIdle !== 'always') {
+			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: notifyOnIdle must be once or always.`);
+		}
+		notifyOnIdle = args.notifyOnIdle;
+	}
 	return {
 		workspace: resolveWorkspace(workspace, sessions),
 		prompt,
 		model: resolveModel(modelName, models),
+		coordinateWithCreator,
+		...(notifyOnIdle !== undefined ? { notifyOnIdle } : {}),
+		...(label !== undefined ? { label } : {}),
 	};
 }
 
@@ -455,6 +504,8 @@ export interface IListSessionsArgs {
 	readonly createdAfter?: number;
 	/** Upper bound on session creation time, in epoch milliseconds. */
 	readonly createdBefore?: number;
+	readonly parentSession?: string;
+	readonly label?: string;
 }
 
 function getOptionalBoolean(value: unknown, field: string, toolName: string): boolean | undefined {
@@ -483,7 +534,7 @@ function getOptionalTimestamp(value: unknown, field: string, toolName: string): 
 
 /** Validates and normalizes the optional `list_sessions` filter arguments. */
 export function getListSessionsArgs(rawArgs: unknown): IListSessionsArgs {
-	const args = (rawArgs ?? {}) as { session?: unknown; status?: unknown; workspace?: unknown; withChanges?: unknown; unread?: unknown; withPullRequest?: unknown; includeArchived?: unknown; createdAfter?: unknown; createdBefore?: unknown };
+	const args = (rawArgs ?? {}) as { session?: unknown; status?: unknown; workspace?: unknown; withChanges?: unknown; unread?: unknown; withPullRequest?: unknown; includeArchived?: unknown; createdAfter?: unknown; createdBefore?: unknown; parentSession?: unknown; label?: unknown };
 
 	let status: Set<string> | undefined;
 	if (args.status !== undefined) {
@@ -507,6 +558,8 @@ export function getListSessionsArgs(rawArgs: unknown): IListSessionsArgs {
 		includeArchived: getOptionalBoolean(args.includeArchived, 'includeArchived', SessionServerToolName.ListSessions),
 		createdAfter: getOptionalTimestamp(args.createdAfter, 'createdAfter', SessionServerToolName.ListSessions),
 		createdBefore: getOptionalTimestamp(args.createdBefore, 'createdBefore', SessionServerToolName.ListSessions),
+		parentSession: getOptionalString(args.parentSession, 'parentSession', SessionServerToolName.ListSessions),
+		label: getOptionalString(args.label, 'label', SessionServerToolName.ListSessions),
 	};
 }
 
@@ -529,30 +582,44 @@ function sessionIsUnread(session: IAgentSessionMetadata): boolean {
 	return session.status !== undefined && !isSessionStatusRead(session.status);
 }
 
-/** Whether any of a session's working directories matches the given folder (absolute path or URI). */
+/** Whether a session's project or any working directory matches the given workspace selector. */
 function sessionMatchesWorkspace(session: IAgentSessionMetadata, workspace: string): boolean {
-	const dirs = session.workingDirectories;
-	if (!dirs || dirs.length === 0) {
-		return false;
+	if (session.project?.displayName.toLowerCase() === workspace.toLowerCase()) {
+		return true;
 	}
 	const parsed = parseWorkspaceUri(workspace);
-	// Any-root membership: a session matches when the folder is any of its
-	// working directories, not only the primary.
-	return dirs.some(dir =>
-		dir.toString() === workspace
-		|| dir.fsPath === workspace
-		|| (!!parsed && parsed.toString() === dir.toString()));
+	return parsed !== undefined
+		&& [session.project?.uri, ...(session.workingDirectories ?? [])].some(candidate => candidate !== undefined && isEqual(candidate, parsed));
 }
 
 /** Applies the {@link IListSessionsArgs} filters to a set of sessions. */
-export function filterSessions(sessions: readonly IAgentSessionMetadata[], args: IListSessionsArgs): readonly IAgentSessionMetadata[] {
+export function filterSessions(sessions: readonly IAgentSessionMetadata[], args: IListSessionsArgs, viewerSession?: string): readonly IAgentSessionMetadata[] {
 	// A direct `session` lookup returns just that session, bypassing the other
 	// filters (including the default archived exclusion).
 	if (args.session !== undefined) {
 		const target = parseOpenSessionLinkUri(args.session)?.toString() ?? args.session;
 		return sessions.filter(session => session.session.toString() === target);
 	}
+	const requestedParent = args.parentSession !== undefined
+		? parseOpenSessionLinkUri(args.parentSession)?.toString() ?? args.parentSession
+		: undefined;
+	const viewerCanSeeRequestedParent = requestedParent === undefined || viewerSession === undefined || viewerSession === requestedParent
+		|| sessions.some(session => {
+			const orchestration = readSessionOrchestration(session._meta);
+			return session.session.toString() === viewerSession
+				&& orchestration?.parentSession === requestedParent
+				&& orchestration.coordinateWithCreator;
+		});
 	return sessions.filter(session => {
+		const orchestration = readSessionOrchestration(session._meta);
+		if (requestedParent !== undefined) {
+			if (!viewerCanSeeRequestedParent || orchestration?.parentSession !== requestedParent) {
+				return false;
+			}
+		}
+		if (args.label !== undefined && orchestration?.label !== args.label) {
+			return false;
+		}
 		if (args.status) {
 			const names = describeSessionStatusNames(session);
 			if (!names.some(name => args.status!.has(name))) {
@@ -614,17 +681,28 @@ function serializeGitHubState(session: IAgentSessionMetadata): ISerializedGitHub
 	return Object.keys(result).length > 0 ? result : undefined;
 }
 
-function serializeSession(session: IAgentSessionMetadata): ISerializedSession {
+function serializeSession(session: IAgentSessionMetadata, viewerSession?: string): ISerializedSession {
 	const git = serializeGitState(session);
 	const github = serializeGitHubState(session);
 	const status = describeSessionStatus(session);
+	const orchestration = readSessionOrchestration(session._meta);
+	const canSeeParent = orchestration !== undefined && (viewerSession === undefined
+		|| viewerSession === orchestration.parentSession
+		|| (viewerSession === session.session.toString() && orchestration.coordinateWithCreator));
+	const canSeeCreator = orchestration !== undefined && orchestration.coordinateWithCreator && (viewerSession === undefined
+		|| viewerSession === orchestration.creatorSession
+		|| viewerSession === session.session.toString());
 	return {
 		session: session.session.toString(),
 		...(session.summary !== undefined ? { title: session.summary } : {}),
 		...(status !== undefined ? { status } : {}),
 		...(session.activity !== undefined ? { activity: session.activity } : {}),
 		...(session.workingDirectories?.[0] !== undefined ? { workingDirectory: session.workingDirectories[0].toString() } : {}),
+		...(session.workingDirectories !== undefined && session.workingDirectories.length > 1
+			? { workingDirectories: session.workingDirectories.map(directory => directory.toString()) }
+			: {}),
 		...(session.project !== undefined ? { project: session.project.displayName } : {}),
+		...(session.project !== undefined ? { projectUri: session.project.uri.toString() } : {}),
 		...(sessionIsUnread(session) ? { unread: true } : {}),
 		...(session.startTime > 0 ? { createdAt: new Date(session.startTime).toISOString() } : {}),
 		...(session.modifiedTime > 0 ? { modifiedAt: new Date(session.modifiedTime).toISOString() } : {}),
@@ -639,12 +717,18 @@ function serializeSession(session: IAgentSessionMetadata): ISerializedSession {
 		} : {}),
 		...(git !== undefined ? { git } : {}),
 		...(github !== undefined ? { github } : {}),
+		...(orchestration !== undefined ? {
+			...(canSeeParent ? { parentSession: orchestration.parentSession } : {}),
+			...(canSeeCreator ? { creator: orchestration.creatorSession } : {}),
+			...(orchestration.label !== undefined ? { label: orchestration.label } : {}),
+			...(orchestration.notifyOnIdle !== undefined ? { notifyOnIdle: orchestration.notifyOnIdle } : {}),
+		} : {}),
 	};
 }
 
 /** Serializes session metadata into the compact tool-result JSON payload. */
-export function serializeSessions(sessions: readonly IAgentSessionMetadata[]): string {
-	return JSON.stringify({ sessions: sessions.map(serializeSession) });
+export function serializeSessions(sessions: readonly IAgentSessionMetadata[], viewerSession?: string): string {
+	return JSON.stringify({ sessions: sessions.map(session => serializeSession(session, viewerSession)) });
 }
 
 export interface ICreateSessionResult {
@@ -679,6 +763,15 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 	};
 	const session = await accessor.createSession(config);
 	accessor.setSessionSpawnDepth(session, parentDepth + 1);
+	if (currentSession) {
+		await accessor.setSessionOrchestration(session, {
+			parentSession: currentSession.toString(),
+			creatorSession: currentSession.toString(),
+			coordinateWithCreator: args.coordinateWithCreator,
+			...(args.notifyOnIdle !== undefined ? { notifyOnIdle: args.notifyOnIdle } : {}),
+			...(args.label !== undefined ? { label: args.label } : {}),
+		});
+	}
 	const chat = URI.parse(buildDefaultChatUri(session));
 	await accessor.startPrompt(session, chat, args.prompt);
 	return { session: session.toString(), chat: chat.toString(), openLink: buildOpenSessionLinkUri(session) };
@@ -750,11 +843,22 @@ export function getCreateChatArgs(rawArgs: unknown, sessions: readonly IAgentSes
 	return { session, prompt, ...(title !== undefined ? { title } : {}), ...(model !== undefined ? { model } : {}) };
 }
 
+function assertCanCoordinateWithTarget(sessions: readonly IAgentSessionMetadata[], source: URI, target: URI, toolName: SessionServerToolName): void {
+	const sourceMetadata = sessions.find(candidate => candidate.session.toString() === source.toString());
+	const orchestration = readSessionOrchestration(sourceMetadata?._meta);
+	if (orchestration && !orchestration.coordinateWithCreator && orchestration.creatorSession === target.toString()) {
+		throw new Error(`Invalid ${toolName} input: this session is not allowed to coordinate with its creator.`);
+	}
+}
+
 /** Adds a chat to a session, sends its initial prompt, and returns the created channels. */
 export async function applyCreateChatTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, source?: URI): Promise<ICreateChatResult> {
 	const sessions = await accessor.listSessions();
 	const currentSession = source ? currentSessionUri(source.toString()) : undefined;
 	const args = getCreateChatArgs(rawArgs, sessions, accessor.getModels(), currentSession);
+	if (currentSession) {
+		assertCanCoordinateWithTarget(sessions, currentSession, args.session, SessionServerToolName.CreateChat);
+	}
 	const defaults = source ? accessor.getCreationDefaults(source) : undefined;
 	const targetProvider = AgentSession.provider(args.session);
 	const model = args.model !== undefined ? { id: args.model.id } : targetProvider === defaults?.provider ? defaults?.model : undefined;
@@ -933,6 +1037,10 @@ export function getSendMessageArgs(rawArgs: unknown, sessions: readonly IAgentSe
 export async function applySendMessageTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, currentChannel?: ProtocolURI): Promise<string> {
 	const sessions = await accessor.listSessions();
 	const { session, chat, chatId, message } = getSendMessageArgs(rawArgs, sessions);
+	if (currentChannel) {
+		const source = currentSessionUri(currentChannel);
+		assertCanCoordinateWithTarget(sessions, source, session, SessionServerToolName.SendMessage);
+	}
 	if (currentChannel && chat.toString() === URI.parse(currentChannel).toString()) {
 		throw new Error(`Invalid ${SessionServerToolName.SendMessage} input: refusing to send a message to the current chat.`);
 	}
@@ -1132,7 +1240,7 @@ export function serializeCurrentSession(currentSession: URI, sessions: readonly 
 	return JSON.stringify({
 		session: currentSession.toString(),
 		openLink: buildOpenSessionLinkUri(currentSession),
-		...(meta ? serializeSession(meta) : {}),
+		...(meta ? serializeSession(meta, currentSession.toString()) : {}),
 	});
 }
 
@@ -1247,7 +1355,10 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 			const currentChannel = context.chatUri;
 			switch (toolName) {
 				case SessionServerToolName.ListSessions:
-					return serializeSessions(filterSessions(await accessor.listSessions(), getListSessionsArgs(rawArgs)));
+					{
+						const viewerSession = currentSessionUri(currentChannel).toString();
+						return serializeSessions(filterSessions(await accessor.listSessions(), getListSessionsArgs(rawArgs), viewerSession), viewerSession);
+					}
 				case SessionServerToolName.GetCurrentSession:
 					return serializeCurrentSession(currentSessionUri(currentChannel), await accessor.listSessions());
 				case SessionServerToolName.CreateSession: {

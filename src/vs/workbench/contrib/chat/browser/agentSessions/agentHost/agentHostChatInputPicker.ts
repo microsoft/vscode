@@ -12,15 +12,16 @@ import { Delayer } from '../../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IActionListOptions, ActionListItemKind, IActionListDelegate, IActionListItem, IActionListItemInlineToggle } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { getCodexApprovalsPickerListOptions } from '../../../../../../platform/agentHost/browser/codexApprovalsPicker.js';
+import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostCopilotSandboxSettingId, getAgentHostCopilotSandboxSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
-import { getAgentHostCopilotManagedSandboxEnabled } from '../../../../../../platform/agentHost/common/sandboxConfigSchema.js';
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
@@ -370,6 +371,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
 	) {
 		super();
 
@@ -390,8 +392,11 @@ export class AgentHostChatInputPicker extends Disposable {
 				this._refreshTrigger();
 			}
 		}));
-		this._register(this._agentHostService.rootState.onDidChange(() => this._refreshTrigger()));
 		this._reattach();
+		this._register(autorun(reader => {
+			this._agentHostEnablementService.managedSandboxEnforced.read(reader);
+			this._refreshTrigger();
+		}));
 	}
 
 	private _registerInitialResolveCts(): MutableDisposable<CancellationTokenSource> {
@@ -709,19 +714,11 @@ export class AgentHostChatInputPicker extends Disposable {
 	}
 
 	private _isSandboxingEnabled(): boolean {
-		const managedEnabled = this._getManagedSandboxEnabled();
-		if (managedEnabled !== undefined) {
-			return managedEnabled;
+		if (this._agentHostEnablementService.managedSandboxEnforced.get()) {
+			return true;
 		}
 		const settingId = this._getSandboxSettingId();
 		return settingId !== undefined && isAgentSandboxEnabledValue(this._configurationService.getValue<AgentSandboxEnabledSettingValue>(settingId));
-	}
-
-	private _getManagedSandboxEnabled(): boolean | undefined {
-		const rootState = this._agentHostService.rootState.value;
-		return rootState && !(rootState instanceof Error)
-			? getAgentHostCopilotManagedSandboxEnabled(rootState.config)
-			: undefined;
 	}
 
 	private _getSandboxStandaloneToggle(): IActionListItemInlineToggle | undefined {
@@ -729,15 +726,18 @@ export class AgentHostChatInputPicker extends Disposable {
 		if (this._property !== SessionConfigKey.AutoApprove || !this._isSandboxToggleSettingEnabled() || !settingId) {
 			return undefined;
 		}
-		const managedEnabled = this._getManagedSandboxEnabled();
+		const managed = this._agentHostEnablementService.managedSandboxEnforced.get();
 		return {
 			label: localize('agentHostChatInputPicker.defaultSandboxToggle', "Sandboxing for terminal"),
-			title: managedEnabled === undefined
-				? localize('agentHostChatInputPicker.defaultSandboxToggleTitle', "Run terminal commands inside a sandbox that restricts file system and network access")
-				: localize('agentHostChatInputPicker.managedSandboxToggleTitle', "Sandboxing is managed by your organization"),
+			title: managed
+				? localize('agentHostChatInputPicker.managedSandboxToggleTitle', "Sandboxing is managed by your organization")
+				: localize('agentHostChatInputPicker.defaultSandboxToggleTitle', "Run terminal commands inside a sandbox that restricts file system and network access"),
 			checked: this._isSandboxingEnabled(),
-			disabled: managedEnabled !== undefined,
+			disabled: managed,
 			onChange: checked => {
+				if (this._agentHostEnablementService.managedSandboxEnforced.get()) {
+					return;
+				}
 				const target = checked ? AgentSandboxEnabledValue.On : AgentSandboxEnabledValue.Off;
 				void this._configurationService.updateValue(settingId, target);
 			},

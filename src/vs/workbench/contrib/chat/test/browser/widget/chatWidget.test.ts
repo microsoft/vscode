@@ -13,9 +13,8 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { SaveReason } from '../../../../../common/editor.js';
 import { ISaveAllEditorsOptions, ISaveEditorsResult } from '../../../../../services/editor/common/editorService.js';
 import { TestEditorService } from '../../../../../test/browser/workbenchTestServices.js';
-import { acceptAndAwaitSentRequest, ChatWidget, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatTip, shouldShowChatWelcome } from '../../../browser/widget/chatWidget.js';
-import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
-import { ChatSendResult, ChatSendResultSent, IChatSendRequestData } from '../../../common/chatService/chatService.js';
+import { acceptAndAwaitSentRequest, ChatWidget, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatTip, shouldShowChatWelcome, shouldUnlockChatPetQueueOrSteeringMessage, shouldUnlockChatPetRequestRevision } from '../../../browser/widget/chatWidget.js';
+import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatSendRequestData } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../common/constants.js';
 import { ChatRequestSlashCommandPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
 import { observePromptTimelineHostWidth } from '../../../browser/promptTimeline/promptTimelineWidgetContrib.js';
@@ -121,57 +120,6 @@ suite('ChatWidget', () => {
 		});
 	});
 
-	test('reasserts custom submit pending after the dictation finalization boundary', async () => {
-		const events: string[] = [];
-		const widget = {
-			_readOnly: false,
-			input: {
-				hasPendingProgrammaticModelSelection: false,
-				setSubmitPending: (pending: boolean, routing?: boolean) => events.push(`pending:${pending}:${routing ?? pending}`),
-			},
-			viewOptions: { submitHandler: () => true },
-			inputEditor: {},
-			viewModel: undefined,
-			_acceptInput: async () => {
-				events.push('accept');
-				return undefined;
-			},
-		};
-		const acceptInput = ChatWidget.prototype.acceptInput as unknown as (this: typeof widget) => Promise<undefined>;
-
-		await acceptInput.call(widget);
-
-		assert.deepStrictEqual(events, [
-			'pending:true:true',
-			'pending:true:true',
-			'accept',
-		]);
-	});
-
-	test('refreshes the execute toolbar only when submit pending state changes', () => {
-		const contextKey = (initialValue: boolean) => {
-			let value = initialValue;
-			return {
-				get: () => value,
-				set: (newValue: boolean) => value = newValue,
-			};
-		};
-		let refreshes = 0;
-		const inputPart = {
-			inputSubmitPending: contextKey(false),
-			inputRouting: contextKey(false),
-			executeToolbar: { refresh: () => refreshes++ },
-		};
-		const setSubmitPending = ChatInputPart.prototype.setSubmitPending as unknown as (this: typeof inputPart, pending: boolean, routing?: boolean) => void;
-
-		setSubmitPending.call(inputPart, false);
-		setSubmitPending.call(inputPart, true, true);
-		setSubmitPending.call(inputPart, true, true);
-		setSubmitPending.call(inputPart, false);
-
-		assert.strictEqual(refreshes, 2);
-	});
-
 	test('transcript overlays suppress the welcome state', () => {
 		assert.deepStrictEqual({
 			unavailable: shouldShowChatWelcome(undefined, false),
@@ -193,6 +141,25 @@ suite('ChatWidget', () => {
 			shouldShowChatTip(0, false, false),
 			shouldShowChatTip(0, false, true),
 		], [true, false]);
+	});
+
+	test('only unlocks request revision for edited user submissions', () => {
+		assert.deepStrictEqual([
+			shouldUnlockChatPetRequestRevision(false, false),
+			shouldUnlockChatPetRequestRevision(false, true),
+			shouldUnlockChatPetRequestRevision(true, false),
+			shouldUnlockChatPetRequestRevision(true, true),
+		], [false, false, false, true]);
+	});
+
+	test('only unlocks queue or steering for queued user submissions', () => {
+		assert.deepStrictEqual([
+			shouldUnlockChatPetQueueOrSteeringMessage(false, undefined),
+			shouldUnlockChatPetQueueOrSteeringMessage(true, undefined),
+			shouldUnlockChatPetQueueOrSteeringMessage(false, ChatRequestQueueKind.Queued),
+			shouldUnlockChatPetQueueOrSteeringMessage(true, ChatRequestQueueKind.Queued),
+			shouldUnlockChatPetQueueOrSteeringMessage(true, ChatRequestQueueKind.Steering),
+		], [false, false, false, true, true]);
 	});
 
 	test('identifies only leading silent execute-immediately slash commands', () => {
@@ -334,7 +301,7 @@ suite('ChatWidget - acceptAndAwaitSentRequest', () => {
 		const deferred = new DeferredPromise<ChatSendResult>();
 		let accepted = 0;
 
-		const pending = acceptAndAwaitSentRequest({ kind: 'queued', requestId: 'queued-request', deferred: deferred.p }, () => accepted++);
+		const pending = acceptAndAwaitSentRequest({ kind: 'queued', deferred: deferred.p }, () => accepted++);
 		// The queued request has not run yet, so `pending` is still unresolved here.
 		const acceptedWhileQueued = accepted === 1;
 
@@ -360,7 +327,7 @@ suite('ChatWidget - acceptAndAwaitSentRequest', () => {
 		const deferred = new DeferredPromise<ChatSendResult>();
 		let accepted = 0;
 
-		const pending = acceptAndAwaitSentRequest({ kind: 'queued', requestId: 'queued-request', deferred: deferred.p }, () => accepted++);
+		const pending = acceptAndAwaitSentRequest({ kind: 'queued', deferred: deferred.p }, () => accepted++);
 		await deferred.complete({ kind: 'rejected', reason: 'Session is read-only' });
 
 		assert.deepStrictEqual({ accepted, sent: await pending }, { accepted: 1, sent: undefined });

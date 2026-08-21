@@ -29,8 +29,15 @@ import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvid
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { AgentHostGitService } from '../../node/agentHostGitService.js';
 
-function createGitService(disposables: Pick<DisposableStore, 'add'>): AgentHostGitService {
-	const logService = new NullLogService();
+class TestLogService extends NullLogService {
+	readonly warnings: string[] = [];
+
+	override warn(message: string): void {
+		this.warnings.push(message);
+	}
+}
+
+function createGitService(disposables: Pick<DisposableStore, 'add'>, logService: NullLogService = new NullLogService()): AgentHostGitService {
 	const fileService = disposables.add(new FileService(logService));
 	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(logService))));
 	const env: Partial<INativeEnvironmentService> = { tmpDir: URI.file(tmpdir()) };
@@ -54,10 +61,12 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 
 	let tmpRoot: string | undefined;
 	let svc: AgentHostGitService | undefined;
+	let logService: TestLogService;
 
 	setup(() => {
 		tmpRoot = undefined;
-		svc = createGitService(disposables);
+		logService = new TestLogService();
+		svc = createGitService(disposables, logService);
 	});
 
 	teardown(() => {
@@ -150,6 +159,18 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		});
 	});
 
+	(hasGit ? test : test.skip)('does not warn when the default remote-tracking ref is missing', async () => {
+		const dir = initRepo();
+
+		assert.deepStrictEqual({
+			defaultBranch: await svc!.getDefaultBranch(URI.file(dir)),
+			warnings: logService.warnings,
+		}, {
+			defaultBranch: undefined,
+			warnings: [],
+		});
+	});
+
 	(hasGit ? test : test.skip)('falls back to the local branch when the default remote-tracking ref is missing', async () => {
 		const dir = initRepo();
 		cp.execFileSync('git', ['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main'], { cwd: dir, stdio: 'pipe' });
@@ -169,6 +190,20 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		assert.ok(result);
 		assert.strictEqual(result.uncommittedChanges, 2);
 		assert.strictEqual(result.hasGitHubRemote, false);
+	});
+
+	(hasGit ? test : test.skip)('reports no state at all when the status probe fails', async () => {
+		const dir = initRepo({ remote: 'https://github.com/owner/repo.git' });
+		const before = await svc!.getSessionGitState(URI.file(dir));
+		// The repository root is cached from the call above, so the probes still
+		// run against a repository that can no longer answer them — the same
+		// shape a probe takes when it times out under load. A partial state
+		// would be persisted over the branch this session still depends on.
+		rmDirWithRetry(join(dir, '.git'));
+
+		const after = await svc!.getSessionGitState(URI.file(dir));
+
+		assert.deepStrictEqual({ before: before?.branchName, after }, { before: 'main', after: undefined });
 	});
 
 	(hasGit ? test : test.skip)('reports outgoingChanges relative to base branch when local branch has no upstream', async () => {
@@ -308,6 +343,23 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 			rename: { before: 'old.txt', after: 'new.txt' },
 			fresh: 'fresh.txt',
 		});
+	});
+
+	(hasGit ? test : test.skip)('ignores an index addition deleted from the worktree during temp-index staging', async () => {
+		const fs = await import('fs/promises');
+		const { dir, run } = initRepo();
+		await fs.writeFile(join(dir, 'tracked.txt'), 'tracked\n');
+		run('add', '.');
+		run('commit', '-q', '-m', 'init');
+
+		await fs.writeFile(join(dir, 'deleted-addition.txt'), 'temporary\n');
+		run('add', 'deleted-addition.txt');
+		await fs.unlink(join(dir, 'deleted-addition.txt'));
+		await fs.writeFile(join(dir, 'fresh.txt'), 'fresh\n');
+
+		const result = await svc!.computeSessionFileDiffs(URI.file(dir), { sessionUri: 'copilot:/s' });
+
+		assert.deepStrictEqual(result?.map(diff => URI.parse(diff.after?.uri ?? diff.before!.uri).path.split('/').pop()), ['fresh.txt']);
 	});
 
 	(hasGit && !isWindows ? test : test.skip)('returns undefined when temp-index staging fails', async () => {
@@ -694,12 +746,97 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		}
 	});
 
+	(hasGit ? test : test.skip)('addWorktree attaches a worktree without creating a new branch', async () => {
+		const dir = initRepo();
+		cp.execFileSync('git', ['branch', 'feature'], { cwd: dir, env, stdio: 'pipe' });
+		const wtPath = join(dir, '..', `wt-${Date.now()}`);
+		try {
+			await svc!.addWorktree(URI.file(dir), {
+				path: URI.file(wtPath),
+				commitish: 'feature',
+				track: false,
+			});
+
+			assert.strictEqual(cp.execFileSync('git', ['branch', '--show-current'], { cwd: wtPath, env, encoding: 'utf8' }).trim(), 'feature');
+		} finally {
+			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
+			rmDirWithRetry(wtPath);
+		}
+	});
+
+	(hasGit ? test : test.skip)('addWorktree preserves tracking when attaching an existing branch', async () => {
+		const dir = initRepo();
+		const remotePath = join(dir, 'remote.git');
+		cp.execFileSync('git', ['init', '--bare', '-q', remotePath], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['remote', 'add', 'origin', remotePath], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['push', '-q', 'origin', 'main'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['branch', 'feature'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['push', '-q', '--set-upstream', 'origin', 'feature'], { cwd: dir, env, stdio: 'pipe' });
+		const wtPath = join(dir, '..', `wt-${Date.now()}`);
+		try {
+			await svc!.addWorktree(URI.file(dir), {
+				path: URI.file(wtPath),
+				commitish: 'feature',
+				track: true,
+			});
+
+			assert.deepStrictEqual({
+				branch: cp.execFileSync('git', ['branch', '--show-current'], { cwd: wtPath, env, encoding: 'utf8' }).trim(),
+				upstream: cp.execFileSync('git', ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}'], { cwd: wtPath, env, encoding: 'utf8' }).trim(),
+			}, {
+				branch: 'feature',
+				upstream: 'origin/feature',
+			});
+		} finally {
+			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
+			rmDirWithRetry(wtPath);
+		}
+	});
+
+	(hasGit ? test : test.skip)('addWorktree automatically tracks a remote branch when creating its local branch', async () => {
+		const dir = initRepo();
+		const remotePath = join(dir, 'remote.git');
+		cp.execFileSync('git', ['init', '--bare', '-q', remotePath], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['remote', 'add', 'origin', remotePath], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['checkout', '-q', '-b', 'feature'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['commit', '-q', '--allow-empty', '-m', 'feature'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['push', '-q', 'origin', 'feature'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['checkout', '-q', 'main'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['branch', '-D', 'feature'], { cwd: dir, env, stdio: 'pipe' });
+		const wtPath = join(dir, '..', `wt-${Date.now()}`);
+		try {
+			await svc!.addWorktree(URI.file(dir), {
+				path: URI.file(wtPath),
+				commitish: 'feature',
+				newBranchName: 'feature',
+				track: true,
+				preferRemoteBranch: true,
+			});
+
+			assert.deepStrictEqual({
+				branch: cp.execFileSync('git', ['branch', '--show-current'], { cwd: wtPath, env, encoding: 'utf8' }).trim(),
+				upstream: cp.execFileSync('git', ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}'], { cwd: wtPath, env, encoding: 'utf8' }).trim(),
+			}, {
+				branch: 'feature',
+				upstream: 'origin/feature',
+			});
+		} finally {
+			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
+			rmDirWithRetry(wtPath);
+		}
+	});
+
 	(hasGit ? test : test.skip)('removeWorktree preserves dirty work unless forced', async () => {
 		const dir = initRepo();
 		const fs = await import('fs/promises');
 		const wtPath = join(dir, '..', `wt-dirty-${Date.now()}`);
 		try {
-			await svc!.addWorktree(URI.file(dir), URI.file(wtPath), 'agents/dirty-worktree', 'main');
+			await svc!.addWorktree(URI.file(dir), {
+				path: URI.file(wtPath),
+				commitish: 'main',
+				newBranchName: 'agents/dirty-worktree',
+				track: false,
+			});
 			await fs.writeFile(join(wtPath, 'untracked.txt'), 'keep me');
 
 			let safeRemovalFailed = false;
@@ -733,7 +870,12 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		const suffix = `wt-prune-${Date.now()}`;
 		const wtPath = join(dir, '..', suffix);
 		try {
-			await svc!.addWorktree(URI.file(dir), URI.file(wtPath), 'agents/prune-worktree', 'main');
+			await svc!.addWorktree(URI.file(dir), {
+				path: URI.file(wtPath),
+				commitish: 'main',
+				newBranchName: 'agents/prune-worktree',
+				track: false,
+			});
 			// Reproduce the CI teardown race: the working tree directory is gone
 			// but git still holds the `.git/worktrees/<id>` admin entry, so a plain
 			// `git worktree remove` fails — removeWorktree must fall back to prune.
@@ -763,7 +905,12 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		const wtPath = join(dir, '..', suffix);
 		let worktreeLocked = false;
 		try {
-			await svc!.addWorktree(URI.file(dir), URI.file(wtPath), 'agents/leak-worktree', 'main');
+			await svc!.addWorktree(URI.file(dir), {
+				path: URI.file(wtPath),
+				commitish: 'main',
+				newBranchName: 'agents/leak-worktree',
+				track: false,
+			});
 			cp.execFileSync('git', ['worktree', 'lock', wtPath], { cwd: dir, env, stdio: 'pipe' });
 			worktreeLocked = true;
 			// A locked missing worktree makes prune exit 0 while retaining the admin entry on every OS.
@@ -794,7 +941,12 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		const suffix = `wt-orphan-${Date.now()}`;
 		const wtPath = join(dir, '..', suffix);
 		try {
-			await svc!.addWorktree(URI.file(dir), URI.file(wtPath), 'agents/orphan-worktree', 'main');
+			await svc!.addWorktree(URI.file(dir), {
+				path: URI.file(wtPath),
+				commitish: 'main',
+				newBranchName: 'agents/orphan-worktree',
+				track: false,
+			});
 			// De-register the worktree (delete git's admin entries) while leaving the working-tree directory in place.
 			const adminRoot = join(dir, '.git', 'worktrees');
 			for (const entry of readdirSync(adminRoot)) {
@@ -844,7 +996,13 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 
 		const wtPath = join(dir, '..', `wt-${Date.now()}`);
 		try {
-			await svc!.addWorktree(URI.file(dir), URI.file(wtPath), 'agents/test-origin-start-point', 'main');
+			await svc!.addWorktree(URI.file(dir), {
+				path: URI.file(wtPath),
+				commitish: 'main',
+				newBranchName: 'agents/test-origin-start-point',
+				preferRemoteBranch: true,
+				track: false,
+			});
 			const stat = await fs.stat(join(wtPath, 'upstream.txt'));
 			assert.ok(stat.isFile(), 'worktree should start from origin/main, not stale local main');
 			assert.throws(() => cp.execFileSync('git', ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], { cwd: wtPath, env, stdio: 'pipe' }), /fatal:/);
@@ -889,7 +1047,12 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 
 		const wtPath = join(dir, '..', `wt-${Date.now()}`);
 		try {
-			await svc!.addWorktree(URI.file(dir), URI.file(wtPath), 'agents/include-files', 'main');
+			await svc!.addWorktree(URI.file(dir), {
+				path: URI.file(wtPath),
+				commitish: 'main',
+				newBranchName: 'agents/include-files',
+				track: false,
+			});
 			const progress: { filesDone: number; filesTotal: number }[] = [];
 			await svc!.copyWorktreeIncludeFiles(URI.file(dir), URI.file(wtPath), ['.env', 'secrets/**', 'partial/*.txt', 'app/**'], sample => progress.push(sample));
 

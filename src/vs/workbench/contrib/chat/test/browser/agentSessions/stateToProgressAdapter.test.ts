@@ -262,6 +262,8 @@ suite('stateToProgressAdapter', () => {
 					rewriteAgentHostLinkTarget('C:relative', 'my-host'),
 					rewriteAgentHostLinkTarget('git:foo', 'my-host'),
 					rewriteAgentHostLinkTarget('urn:isbn:123', 'my-host'),
+					rewriteAgentHostLinkTarget('agent-host-session://copilotcli/session-1', 'my-host'),
+					rewriteAgentHostLinkTarget('agent-host-session://copilotcli/session-1?chat=chat-2', 'my-host'),
 				],
 				[
 					'vscode-browser://example.com',
@@ -269,6 +271,8 @@ suite('stateToProgressAdapter', () => {
 					'C:relative',
 					'git:foo',
 					'urn:isbn:123',
+					'agent-host-session://copilotcli/session-1',
+					'agent-host-session://copilotcli/session-1?chat=chat-2',
 				],
 			);
 		});

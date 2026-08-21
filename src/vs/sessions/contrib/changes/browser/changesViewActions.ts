@@ -8,7 +8,6 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { observableFromEvent } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, IAction2Options, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -29,6 +28,7 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { OPEN_PULL_REQUEST_ACTION_ID } from '../../github/common/types.js';
 import { ActiveSessionContextKeys, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
 import { IChangesViewService } from '../common/changesViewService.js';
+import { SessionsDiffRenderSideBySideContext } from '../../editor/common/diffEditorOptionsService.js';
 import { CHANGES_HEADER_ACTIONS_ID } from './changesView.js';
 import { SessionChangesEditor } from './sessionChangesEditor.js';
 
@@ -325,22 +325,23 @@ registerAction2(ExpandAllSessionChangesDiffsAction);
 
 // The Agents window reuses the workbench `toggle.diff.renderSideBySide` command so a
 // user's keybinding for it carries over here (issue #324765). The sessions override of
-// IDiffEditorCommandsService flips the workspace `diffEditor.renderSideBySide` setting,
-// which the Changes editor observes.
+// IDiffEditorCommandsService updates the Changes editor's own preferred layout.
 
-// Primary header button with state-specific titles: "Show Side by Side Diff" when
-// currently inline, and (checked) "Show Inline Diff" when currently side by side.
+// The action changes the preferred layout. Side by side still falls back to inline
+// when the editor is narrow, so the label must not promise an immediate layout.
 MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, {
 	command: {
 		id: TOGGLE_DIFF_SIDE_BY_SIDE,
-		title: localize('showSideBySideDiff', "Show Side by Side Diff"),
+		title: localize('preferSideBySideDiff', "Prefer Side by Side Diff"),
+		tooltip: localize('preferSideBySideDiff.tooltip', "Uses inline layout when space is limited unless screen reader optimized mode is enabled."),
 		icon: Codicon.diffSidebyside,
 		toggled: {
 			condition: ContextKeyExpr.or(
-				ContextKeyExpr.and(singlePaneChangesEditorActive, EditorContextKeys.multiDiffEditorRenderSideBySide),
-				ContextKeyExpr.and(singlePaneFileDiffEditorActive, EditorContextKeys.diffEditorInlineMode.negate())
+				ContextKeyExpr.and(singlePaneChangesEditorActive, SessionsDiffRenderSideBySideContext),
+				ContextKeyExpr.and(singlePaneFileDiffEditorActive, SessionsDiffRenderSideBySideContext)
 			)!,
-			title: localize('showInlineDiff', "Show Inline Diff"),
+			title: localize('preferInlineDiff', "Prefer Inline Diff"),
+			tooltip: localize('preferInlineDiff.tooltip', "Always uses inline layout."),
 		},
 	},
 	group: '1_diff',
@@ -352,7 +353,7 @@ MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, {
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: TOGGLE_DIFF_SIDE_BY_SIDE,
-		title: localize2('toggleDiffView', "Toggle Diff View"),
+		title: localize2('togglePreferredDiffView', "Toggle Preferred Diff View"),
 		category: localize2('changes', "Changes"),
 	},
 	when: singlePaneDiffEditorTitleVisible

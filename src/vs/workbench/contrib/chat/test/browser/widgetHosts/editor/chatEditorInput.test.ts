@@ -14,9 +14,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
+import { IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
+import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IStorageService } from '../../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
 import { isResourceEditorInput } from '../../../../../../common/editor.js';
@@ -68,7 +70,9 @@ suite('ChatEditorInput', () => {
 			{} as IStorageService,
 			new NullLogService(),
 			new TestContextService(),
-			{ _serviceBrand: undefined, enabled: constObservable(false) },
+			{ _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false) },
+			{ ambientConnection: undefined } as unknown as IAgentHostConnectionsService,
+			NullTelemetryService,
 		);
 
 		try {
@@ -123,7 +127,9 @@ suite('ChatEditorInput', () => {
 			{} as IStorageService,
 			new NullLogService(),
 			new TestContextService(),
-			{ _serviceBrand: undefined, enabled: constObservable(false) },
+			{ _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false) },
+			{ ambientConnection: undefined } as unknown as IAgentHostConnectionsService,
+			NullTelemetryService,
 		);
 
 		try {
@@ -156,7 +162,7 @@ suite('ChatEditorInput', () => {
 		}]);
 		const storageService = store.add(new TestStorageService());
 		const workspaceContextService = new TestContextService();
-		const agentHostEnablementService = { _serviceBrand: undefined, enabled: constObservable(true) } satisfies IAgentHostEnablementService;
+		const agentHostEnablementService = { _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false) } satisfies IAgentHostEnablementService;
 
 		instantiationService.stub(IChatService, {});
 		instantiationService.stub(IDialogService, {});
@@ -205,7 +211,7 @@ suite('ChatEditorInput', () => {
 		instantiationService.set(IStorageService, store.add(new TestStorageService()));
 		instantiationService.set(ILogService, new NullLogService());
 		instantiationService.set(IWorkspaceContextService, new TestContextService());
-		instantiationService.set(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(agentHostEnabled) });
+		instantiationService.set(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(agentHostEnabled), managedSandboxEnforced: constObservable(false) });
 		return store.add(instantiationService.createInstance(ChatEditorInput, resource, {}));
 	}
 

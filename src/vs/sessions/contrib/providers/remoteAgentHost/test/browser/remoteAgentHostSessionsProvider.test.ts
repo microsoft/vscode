@@ -459,17 +459,19 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	// ---- Session listing via notifications -------
 
-	test('onDidChangeSessions fires when session added notification arrives', () => {
+	test('onDidChangeSessions fires when session added notification arrives', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const provider = createProvider(disposables, connection);
+		await timeout(0);
 		const changes: ISessionChangeEvent[] = [];
 		disposables.add(provider.onDidChangeSessions((e: ISessionChangeEvent) => changes.push(e)));
 
 		fireSessionAdded(connection, 'notif-1', { title: 'Notif Session' });
+		await timeout(100);
 
 		assert.strictEqual(changes.length, 1);
 		assert.strictEqual(changes[0].added.length, 1);
 		assert.strictEqual(changes[0].added[0].title.get(), 'Notif Session');
-	});
+	}));
 
 	test('session added notifications ingest any advertised agent provider', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		connection.setAgents([
@@ -491,30 +493,34 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		);
 	}));
 
-	test('session removed notification removes from cache', () => {
+	test('session removed notification removes from cache', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const provider = createProvider(disposables, connection);
+		await timeout(0);
 		fireSessionAdded(connection, 'to-remove', { title: 'Removed' });
 
 		const changes: ISessionChangeEvent[] = [];
 		disposables.add(provider.onDidChangeSessions((e: ISessionChangeEvent) => changes.push(e)));
 
 		fireSessionRemoved(connection, 'to-remove');
+		await timeout(100);
 
 		assert.strictEqual(changes.length, 1);
 		assert.strictEqual(changes[0].removed.length, 1);
-	});
+	}));
 
-	test('duplicate session added notification is ignored', () => {
+	test('duplicate session added notification is ignored', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const provider = createProvider(disposables, connection);
+		await timeout(0);
 		const changes: ISessionChangeEvent[] = [];
 		disposables.add(provider.onDidChangeSessions((e: ISessionChangeEvent) => changes.push(e)));
 
 		const timestamp = new Date(0).toISOString();
 		fireSessionAdded(connection, 'dup-sess', { title: 'Dup', createdAt: timestamp, modifiedAt: timestamp });
 		fireSessionAdded(connection, 'dup-sess', { title: 'Dup', createdAt: timestamp, modifiedAt: timestamp });
+		await timeout(100);
 
 		assert.strictEqual(changes.length, 1);
-	});
+	}));
 
 	test('uses project metadata as workspace group source', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const projectUri = URI.parse('vscode-agent-host://localhost__4321/home/user/vscode?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0');

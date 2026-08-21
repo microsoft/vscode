@@ -81,6 +81,7 @@
     "onStartupFinished",
     "onLanguageModelChat:copilot",
     "onUri",
+    "onCommand:_github.copilot.chat.reportModelFeedbackSurvey",
     "onFileSystem:ccreq",
     "onFileSystem:ccsettings"
   ],
@@ -160,7 +161,6 @@
         "icon": "$(folder)",
         "userDescription": "%copilot.codebase.tool.description%",
         "modelDescription": "Run a natural language search for relevant code or documentation comments from the user's current workspace. Returns relevant code snippets from the user's current workspace if it is large, or the full contents of the workspace if it is small.",
-        "when": "config.github.copilot.chat.semanticSearchTool.mode != disabled",
         "tags": [
           "codesearch",
           "vscode_codesearch"
@@ -3879,7 +3879,18 @@
               "default": true
             }
           },
-          "github.copilot.chat.languageContext.typescript.items": {
+          "github.copilot.chat.languageContext.typescript7.enabled": {
+            "type": "boolean",
+            "default": false,
+            "scope": "resource",
+            "tags": [
+              "experimental"
+            ],
+            "markdownDescription": "%github.copilot.chat.languageContext.typescript7.enabled%",
+            "agentsWindow": {
+              "default": false
+            }
+          },          "github.copilot.chat.languageContext.typescript.items": {
             "type": "string",
             "enum": [
               "minimal",
@@ -4126,25 +4137,6 @@
               "onExp"
             ]
           },
-          "github.copilot.chat.semanticSearchTool.mode": {
-            "type": "string",
-            "default": "enabled",
-            "enum": [
-              "enabled",
-              "disabled",
-              "preferred"
-            ],
-            "markdownEnumDescriptions": [
-              "%github.copilot.config.semanticSearchTool.mode.enabled%",
-              "%github.copilot.config.semanticSearchTool.mode.disabled%",
-              "%github.copilot.config.semanticSearchTool.mode.preferred%"
-            ],
-            "markdownDescription": "%github.copilot.config.semanticSearchTool.mode%",
-            "tags": [
-              "experimental",
-              "onExp"
-            ]
-          },
           "github.copilot.chat.anthropic.tools.websearch.enabled": {
             "type": "boolean",
             "default": false,
@@ -4341,6 +4333,23 @@
       {
         "id": "advanced",
         "properties": {
+          "github.copilot.chat.chatCompletionsTokenParameter": {
+            "type": "string",
+            "enum": [
+              "max_completion_tokens",
+              "max_tokens"
+            ],
+            "enumDescriptions": [
+              "%github.copilot.config.chatCompletionsTokenParameter.maxCompletionTokens%",
+              "%github.copilot.config.chatCompletionsTokenParameter.maxTokens%"
+            ],
+            "default": "max_tokens",
+            "markdownDescription": "%github.copilot.config.chatCompletionsTokenParameter%",
+            "tags": [
+              "advanced",
+              "onExp"
+            ]
+          },
           "github.copilot.chat.inlineEdits.xtabProvider.modelConfiguration": {
             "type": [
               "object",
@@ -7119,7 +7128,7 @@
     "esbuild@0.28.1": true,
     "keytar@7.9.0": true,
     "@playwright/browser-chromium@1.61.1": true,
-    "@vscode/vsce-sign@2.0.5": true,
+    "@vscode/vsce-sign@2.1.0": true,
     "protobufjs": false,
     "fsevents@2.3.3": true,
     "fsevents@2.3.2": true

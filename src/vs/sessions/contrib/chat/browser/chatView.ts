@@ -9,7 +9,7 @@ import { $, isHTMLElement, size } from '../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -278,10 +278,9 @@ export class ChatView extends AbstractChatView {
 				|| this.voiceSessionController.isConnecting.read(reader);
 			const target = this.voiceSessionController.targetSession.read(reader);
 			const hasDraftTarget = this.voiceSessionController.hasDraftTarget.read(reader);
-			const omniInputOpen = this.voiceSessionController.omniInputOpen.read(reader);
 			const current = this._currentChatResourceObs.read(reader);
 			const ownsVoice = !hasDraftTarget && (!target || (!!current && isEqual(target, current)));
-			this._voiceInitiatedHereKey.set(!omniInputOpen && active && voiceActive && ownsVoice);
+			this._voiceInitiatedHereKey.set(active && voiceActive && ownsVoice);
 		}));
 	}
 
@@ -383,6 +382,7 @@ export class ChatView extends AbstractChatView {
 
 		this._currentChatResource = resource;
 		this._currentChatResourceObs.set(resource, undefined);
+		this.logService.trace(`[ChatView] setChat start uri=${resource.toString()} session=${session?.resource.toString()}`);
 
 		// Cancel any in-flight load for the previous chat and start a fresh one.
 		this._loadCts.value?.cancel();
@@ -404,8 +404,10 @@ export class ChatView extends AbstractChatView {
 				if (isEqual(this._currentChatResource, resource)) {
 					this._widget.setLoading(false);
 				}
+				this.logService.trace(`[ChatView] setChat abandoned uri=${resource.toString()}`);
 				return;
 			}
+			this.logService.trace(`[ChatView] setChat model loaded uri=${resource.toString()}`);
 			this._modelRef.value = ref;
 			this._updateWidgetLockState(getChatSessionType(ref.object.sessionResource));
 			setModelPreservingInputTypedWhileLoading(this._widget, inputBeforeLoad, () => this._widget.setModel(ref.object));
@@ -419,9 +421,12 @@ export class ChatView extends AbstractChatView {
 			// Set AFTER `setModel` so observers see the attribute only once the
 			// inner widget is fully attached to the loaded model.
 			this.element.dataset.boundChatResource = resource.toString();
+			this.logService.trace(`[ChatView] setChat done uri=${resource.toString()}`);
 		}, err => {
 			if (!token.isCancellationRequested) {
-				this.logService.error('[ChatView] Failed to load chat model for chat', err);
+				this.logService.error(`[ChatView] Failed to load chat model for chat uri=${resource.toString()}`, err);
+			} else {
+				this.logService.trace(`[ChatView] setChat cancelled uri=${resource.toString()}`);
 			}
 			if (isEqual(this._currentChatResource, resource)) { // might have changed while we were waiting, only reset if it is still the same
 				this._currentChatResource = undefined;
@@ -525,9 +530,6 @@ export class ChatView extends AbstractChatView {
 		if (!inputContainerEl) {
 			return;
 		}
-		const isVoiceSurfaceActive = derived(this, reader =>
-			this._isActiveObs.read(reader) && !this.voiceSessionController.omniInputOpen.read(reader)
-		);
 		this._register(setupVoiceInputDecorations({
 			voiceSessionController: this.voiceSessionController,
 			ttsPlaybackService: this.ttsPlaybackService,
@@ -538,7 +540,7 @@ export class ChatView extends AbstractChatView {
 			accessibilityService: this.accessibilityService,
 		}, {
 			inputContainer: inputContainerEl,
-			isActive: isVoiceSurfaceActive,
+			isActive: this._isActiveObs,
 			getCurrentResource: () => this._currentChatResource,
 			currentVoiceInputResource: this.newChatVoiceTargetService.currentVoiceInputResource,
 		}));

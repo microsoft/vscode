@@ -799,13 +799,18 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}));
 
 		const dictationFocusKey = SessionsChatInputHasDictationFocus.bindTo(inputScopedContextKeyService);
+		// The composer is a chat input, so it carries the shared focus key that
+		// chat input keybindings such as paste as text are scoped to.
+		const inputHasFocusKey = ChatContextKeys.inputHasFocus.bindTo(inputScopedContextKeyService);
 		this._register(this._editor.onDidFocusEditorWidget(() => {
 			dictationFocusKey.set(true);
+			inputHasFocusKey.set(true);
 			activeDictationComposer = this;
 			this._onDidFocus.fire();
 		}));
 		this._register(this._editor.onDidBlurEditorWidget(() => {
 			dictationFocusKey.set(false);
+			inputHasFocusKey.set(false);
 			if (activeDictationComposer === this) {
 				activeDictationComposer = undefined;
 			}
@@ -1042,7 +1047,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			this.voiceSessionController.isConnecting.read(reader),
 			this.voiceSessionController.targetSession.read(reader),
 			this.voiceSessionController.hasDraftTarget.read(reader),
-			this.voiceSessionController.omniInputOpen.read(reader),
 		));
 
 		const action = toAction({
@@ -1159,7 +1163,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				this.voiceSessionController.isConnecting.get(),
 				this.voiceSessionController.targetSession.get(),
 				this.voiceSessionController.hasDraftTarget.get(),
-				this.voiceSessionController.omniInputOpen.get(),
 			);
 			const dict = this.voiceInputModeService.dictationAvailable.get();
 			const voice = this.voiceInputModeService.voiceAvailable.get();
@@ -1181,7 +1184,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			this.voiceSessionController.isConnecting.read(reader);
 			this.voiceSessionController.targetSession.read(reader);
 			this.voiceSessionController.hasDraftTarget.read(reader);
-			this.voiceSessionController.omniInputOpen.read(reader);
 			this.voiceInputModeService.dictationAvailable.read(reader);
 			this.voiceInputModeService.voiceAvailable.read(reader);
 			this.voiceInputModeService.handsFree.read(reader);

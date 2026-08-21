@@ -9,7 +9,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { IEditorService } from '../../editor/common/editorService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions, IPathData, IFileToOpen, IOpenedMainWindow, IOpenedAuxiliaryWindow, IRectangle } from '../../../../platform/window/common/window.js';
+import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions, IPathData, IFileToOpen, IOpenedMainWindow, IOpenedAuxiliaryWindow } from '../../../../platform/window/common/window.js';
 import { isResourceEditorInput, pathsToEditors } from '../../../common/editor.js';
 import { whenEditorClosed } from '../../../browser/editor.js';
 import { IWorkspace, IWorkspaceProvider } from '../../../browser/web.api.js';
@@ -583,15 +583,6 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 	async getCursorScreenPoint(): Promise<undefined> {
 		return undefined;
-	}
-
-	async getWindowPosition(targetWindow: Window): Promise<IRectangle> {
-		return {
-			x: targetWindow.screenX,
-			y: targetWindow.screenY,
-			width: targetWindow.outerWidth,
-			height: targetWindow.outerHeight,
-		};
 	}
 
 	getWindows(options: { includeAuxiliaryWindows: true }): Promise<Array<IOpenedMainWindow | IOpenedAuxiliaryWindow>>;

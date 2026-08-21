@@ -21,6 +21,7 @@ import type { IAgentSubscription } from '../../../../../../platform/agentHost/co
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState, type SessionSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -681,16 +682,18 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(provider.sessionTypes, []);
 	});
 
-	test('rebinds session types when Agent Host starts with a new root subscription', () => {
+	test('rebinds session types when Agent Host starts with a new root subscription', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		agentHost.clearRootState();
 		const provider = createProvider(disposables, agentHost);
 		let addedSessions = 0;
 		disposables.add(provider.onDidChangeSessions(event => addedSessions += event.added.length));
+		await timeout(0);
 
 		agentHost.replaceRootStateOnStart([
 			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
 		]);
 		fireSessionAdded(agentHost, 'after-rebind');
+		await timeout(100);
 
 		assert.deepStrictEqual({
 			sessionTypes: provider.sessionTypes.map(type => ({ id: type.id, label: type.label })),
@@ -701,15 +704,17 @@ suite('LocalAgentHostSessionsProvider', () => {
 			rootStateListenerCount: 1,
 			addedSessions: 1,
 		});
-	});
+	}));
 
-	test('does not duplicate listeners when Agent Host starts after listeners bind', () => {
+	test('does not duplicate listeners when Agent Host starts after listeners bind', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const provider = createProvider(disposables, agentHost);
 		let addedSessions = 0;
 		disposables.add(provider.onDidChangeSessions(event => addedSessions += event.added.length));
+		await timeout(0);
 
 		agentHost.fireAgentHostStart();
 		fireSessionAdded(agentHost, 'after-start');
+		await timeout(100);
 
 		assert.deepStrictEqual({
 			rootStateListenerCount: agentHost.rootStateListenerCount,
@@ -718,7 +723,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			rootStateListenerCount: 1,
 			addedSessions: 1,
 		});
-	});
+	}));
 
 	test('reports no session types when rootState advertises no agents', () => {
 		agentHost.setAgents([]);
@@ -898,20 +903,90 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	// ---- Session listing via notifications -------
 
-	test('onDidChangeSessions fires when session added notification arrives', () => {
+	test('batches session added and removed notifications', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+		fireSessionAdded(agentHost, 'remove-1');
+		fireSessionAdded(agentHost, 'remove-2');
+		fireSessionAdded(agentHost, 'replace');
+		const replacedSession = provider.getSessions().find(session => AgentSession.id(session.resource) === 'replace');
+
 		const changes: ISessionChangeEvent[] = [];
 		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
 
-		fireSessionAdded(agentHost, 'notif-1', { title: 'Notif Session' });
+		fireSessionAdded(agentHost, 'add-1');
+		fireSessionAdded(agentHost, 'add-2');
+		fireSessionAdded(agentHost, 'transient');
+		fireSessionRemoved(agentHost, 'remove-1');
+		fireSessionRemoved(agentHost, 'remove-2');
+		fireSessionRemoved(agentHost, 'transient');
+		fireSessionRemoved(agentHost, 'replace');
+		fireSessionAdded(agentHost, 'replace');
 
-		assert.strictEqual(changes.length, 1);
-		assert.strictEqual(changes[0].added.length, 1);
-		assert.strictEqual(changes[0].added[0].title.get(), 'Notif Session');
-	});
+		const eventCountBeforeDebounce = changes.length;
+		const cachedBeforeDebounce = provider.getSessions().map(session => AgentSession.id(session.resource)).sort();
+		await timeout(100);
 
-	test('session removed notification clears cache and metadata', () => {
+		assert.deepStrictEqual({
+			eventCountBeforeDebounce,
+			events: changes.map(change => ({
+				added: change.added.map(session => AgentSession.id(session.resource)).sort(),
+				removed: change.removed.map(session => AgentSession.id(session.resource)).sort(),
+				changed: change.changed.map(session => AgentSession.id(session.resource)).sort(),
+			})),
+			replacement: {
+				addedIsOriginal: changes[0]?.added.find(session => AgentSession.id(session.resource) === 'replace') === replacedSession,
+				removedIsOriginal: changes[0]?.removed.find(session => AgentSession.id(session.resource) === 'replace') === replacedSession,
+			},
+			cachedBeforeDebounce,
+		}, {
+			eventCountBeforeDebounce: 0,
+			events: [{
+				added: ['add-1', 'add-2', 'replace'],
+				removed: ['remove-1', 'remove-2', 'replace', 'transient'],
+				changed: [],
+			}],
+			replacement: {
+				addedIsOriginal: false,
+				removedIsOriginal: true,
+			},
+			cachedBeforeDebounce: ['add-1', 'add-2', 'replace'],
+		});
+	}));
+
+	test('immediate session changes flush pending notification batches', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
+
+		fireSessionAdded(agentHost, 'deleted-before-debounce');
+		const session = provider.getSessions().find(session => AgentSession.id(session.resource) === 'deleted-before-debounce');
+		assert.ok(session);
+		await provider.deleteSession(session.sessionId);
+		const eventsAfterDelete = changes.length;
+		await timeout(100);
+
+		assert.deepStrictEqual({
+			eventsAfterDelete,
+			events: changes.map(change => ({
+				added: change.added.map(session => AgentSession.id(session.resource)),
+				removed: change.removed.map(session => AgentSession.id(session.resource)),
+				changed: change.changed.map(session => AgentSession.id(session.resource)),
+			})),
+		}, {
+			eventsAfterDelete: 1,
+			events: [{
+				added: [],
+				removed: ['deleted-before-debounce'],
+				changed: [],
+			}],
+		});
+	}));
+
+	test('session removed notification clears cache and metadata', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
 		fireSessionAdded(agentHost, 'to-remove', { title: 'Removed' });
 		const metadata = Reflect.get(provider, '_metaByRawId') as Map<string, IAgentSessionMetadata>;
 
@@ -919,6 +994,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
 
 		fireSessionRemoved(agentHost, 'to-remove');
+		await timeout(100);
 
 		assert.deepStrictEqual({
 			removed: changes[0]?.removed.length,
@@ -929,19 +1005,21 @@ suite('LocalAgentHostSessionsProvider', () => {
 			session: undefined,
 			metadata: undefined,
 		});
-	});
+	}));
 
-	test('identical session added notification is ignored', () => {
+	test('identical session added notification is ignored', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
 		const changes: ISessionChangeEvent[] = [];
 		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
 
 		const timestamp = new Date(0).toISOString();
 		fireSessionAdded(agentHost, 'dup-sess', { title: 'Dup', createdAt: timestamp, modifiedAt: timestamp });
 		fireSessionAdded(agentHost, 'dup-sess', { title: 'Dup', createdAt: timestamp, modifiedAt: timestamp });
+		await timeout(100);
 
 		assert.strictEqual(changes.length, 1);
-	});
+	}));
 
 	test('removing non-existent session is no-op', () => {
 		const provider = createProvider(disposables, agentHost);
@@ -985,6 +1063,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		fireSessionSummaryChanged(agentHost, 'worktree-upsert', {
 			_meta: { git: { branchName: 'agents/worktree-session', baseBranchName: 'main' } },
 		});
+		await timeout(100);
 
 		const current = provider.getSessions()[0]!;
 		const currentWorkspace = current.workspace.get()!;
@@ -999,7 +1078,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			originalWorkingDirectory: originalWorkingDirectory.toString(),
 			workingDirectory: worktreeWorkingDirectory,
 			branchName: 'agents/worktree-session',
-			changedEvents: [[true], [true]],
+			changedEvents: [[true]],
 		});
 	}));
 
@@ -3197,6 +3276,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			values: {
 				[SessionConfigKey.Isolation]: 'worktree',
 				[SessionConfigKey.WorktreeBranchTrack]: true,
+				[SessionConfigKey.WorktreeCreateNewBranch]: false,
 				[SessionConfigKey.Branch]: 'feature/pull-request',
 			},
 		};
@@ -3204,6 +3284,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const setting = provider.setWorktreeConfiguration(session.sessionId, {
 			isolationMode: 'worktree',
 			worktreeBranchTrack: true,
+			worktreeCreateNewBranch: false,
 			branch: 'feature/pull-request',
 		});
 		await timeout(0);
@@ -3220,12 +3301,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 				{
 					[SessionConfigKey.Isolation]: 'worktree',
 					[SessionConfigKey.WorktreeBranchTrack]: true,
+					[SessionConfigKey.WorktreeCreateNewBranch]: false,
 					[SessionConfigKey.Branch]: 'feature/pull-request',
 				},
 			],
 			config: {
 				[SessionConfigKey.Isolation]: 'worktree',
 				[SessionConfigKey.WorktreeBranchTrack]: true,
+				[SessionConfigKey.WorktreeCreateNewBranch]: false,
 				[SessionConfigKey.Branch]: 'feature/pull-request',
 			},
 		});
@@ -3868,7 +3951,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
-	test('deleteSession does not remove a session twice when the host also notifies', async () => {
+	test('deleteSession does not remove a session twice when the host also notifies', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const provider = createProvider(disposables, agentHost);
 		fireSessionAdded(agentHost, 'delete-notified', { title: 'Delete Notified' });
 		const target = provider.getSessions().find(s => s.title.get() === 'Delete Notified');
@@ -3879,6 +3962,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		agentHost.onDisposeSession = session => fireSessionRemoved(agentHost, AgentSession.id(session));
 
 		await provider.deleteSession(target.sessionId);
+		await timeout(100);
 
 		assert.deepStrictEqual({
 			disposedSessions: agentHost.disposedSessions.length,
@@ -3889,7 +3973,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			removedEvents: 1,
 			session: undefined,
 		});
-	});
+	}));
 
 	test('deleteSessions disposes all sessions and removes them from cache', async () => {
 		const provider = createProvider(disposables, agentHost);
@@ -5861,6 +5945,107 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}, {
 			activePullRequest: 41,
 			pullRequests: [41],
+		});
+	}));
+
+	test('promotes GitHub pull request and issue artifacts into GitHub info', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const gitHubService = new class extends mock<IGitHubService>() {
+			private readonly _model = { pullRequest: constObservable(undefined) } as unknown as GitHubPullRequestModel;
+			override createPullRequestModelReference = () => new ImmortalReference(this._model);
+		}();
+
+		agentHost.addSession(createSession('pr-artifacts', { summary: 'Artifact Session', project: { uri: URI.parse('file:///repo'), displayName: 'repo' } }));
+		const provider = createProvider(disposables, agentHost, undefined, { gitHubService });
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'Artifact Session');
+		assert.ok(session);
+
+		provider.getSessionConfig(session.sessionId);
+		const meta = withSessionArtifacts(withSessionGitHubState(undefined, {
+			owner: 'owner',
+			repo: 'repo',
+			pullRequestUrls: ['https://github.com/owner/repo/pull/41'],
+			issueUrls: ['https://github.com/owner/repo/issues/1'],
+		}), [
+			{ id: 'a1', type: SessionArtifactType.PullRequest, label: 'Created', link: 'https://github.com/owner/repo/pull/50', isGitHub: true, createdByThisSession: true },
+			{ id: 'a2', type: SessionArtifactType.PullRequest, label: 'Referenced', link: 'https://github.com/owner/repo/pull/60', isGitHub: true, createdByThisSession: false },
+			{ id: 'a3', type: SessionArtifactType.PullRequest, label: 'Duplicate', link: 'https://github.com/owner/repo/pull/41/', isGitHub: true, createdByThisSession: false },
+			{ id: 'a4', type: SessionArtifactType.Issue, label: 'Issue', link: 'https://github.com/owner/repo/issues/7', isGitHub: true },
+			{ id: 'a5', type: SessionArtifactType.PullRequest, label: 'Elsewhere', link: 'https://gitlab.com/owner/repo/-/merge_requests/3', isGitHub: false, createdByThisSession: false },
+			{ id: 'a6', type: SessionArtifactType.File, label: 'Plan', uri: 'file:///repo/plan.md' },
+		]);
+		agentHost.setSessionState('pr-artifacts', 'copilotcli', {
+			provider: 'copilotcli', title: 'Artifact Session', status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			_meta: meta,
+		});
+
+		const gitHubInfo = session.workspace.get()!.folders[0]!.gitRepository!.gitHubInfo.get();
+		assert.deepStrictEqual({
+			activePullRequest: gitHubInfo?.pullRequest?.number,
+			pullRequests: gitHubInfo?.pullRequests?.map(pullRequest => pullRequest.number),
+			issues: gitHubInfo?.issues?.map(issue => issue.number),
+			artifacts: session.artifacts?.get().map(artifact => artifact.id),
+		}, {
+			activePullRequest: 50,
+			pullRequests: [50, 41, 60],
+			issues: [1, 7],
+			artifacts: ['a5', 'a6'],
+		});
+	}));
+
+	test('keeps a promoted artifact in the pill when GitHub info cannot surface it', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const gitHubService = new class extends mock<IGitHubService>() {
+			private readonly _model = { pullRequest: constObservable(undefined) } as unknown as GitHubPullRequestModel;
+			override createPullRequestModelReference = () => new ImmortalReference(this._model);
+		}();
+
+		agentHost.addSession(createSession('pr-unsurfaced', { summary: 'Unsurfaced Session', project: { uri: URI.parse('file:///repo'), displayName: 'repo' } }));
+		const provider = createProvider(disposables, agentHost, undefined, { gitHubService });
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'Unsurfaced Session');
+		assert.ok(session);
+
+		provider.getSessionConfig(session.sessionId);
+		// No repository at all, plus a reference belonging to another repository:
+		// neither can be polled, so both have to stay visible as artifacts.
+		agentHost.setSessionState('pr-unsurfaced', 'copilotcli', {
+			provider: 'copilotcli', title: 'Unsurfaced Session', status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			_meta: withSessionArtifacts(undefined, [
+				{ id: 'a1', type: SessionArtifactType.Issue, label: 'Orphan issue', link: 'https://github.com/owner/repo/issues/7', isGitHub: true },
+			]),
+		});
+		const withoutRepository = session.artifacts?.get().map(artifact => artifact.id);
+
+		agentHost.setSessionState('pr-unsurfaced', 'copilotcli', {
+			provider: 'copilotcli', title: 'Unsurfaced Session', status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			_meta: withSessionArtifacts(withSessionGitHubState(undefined, { owner: 'owner', repo: 'repo' }), [
+				{ id: 'a1', type: SessionArtifactType.Issue, label: 'Same repo', link: 'https://github.com/owner/repo/issues/7', isGitHub: true },
+				{ id: 'a2', type: SessionArtifactType.PullRequest, label: 'Other repo', link: 'https://github.com/other/project/pull/9', isGitHub: true, createdByThisSession: true },
+			]),
+		});
+		const gitHubInfo = session.workspace.get()!.folders[0]!.gitRepository!.gitHubInfo.get();
+
+		assert.deepStrictEqual({
+			withoutRepository,
+			foreignRepository: session.artifacts?.get().map(artifact => artifact.id),
+			issues: gitHubInfo?.issues?.map(issue => issue.number),
+			pullRequests: gitHubInfo?.pullRequests?.map(pullRequest => pullRequest.number),
+		}, {
+			withoutRepository: ['a1'],
+			foreignRepository: ['a2'],
+			issues: [7],
+			pullRequests: undefined,
 		});
 	}));
 

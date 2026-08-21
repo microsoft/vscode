@@ -54,7 +54,7 @@ const DICTATION_TOGGLE_COMMAND_ID = 'workbench.action.chat.toggleSpeechToText';
  */
 const VOICE_START_COMMAND_ID = 'agentsVoice.startVoiceInChat';
 
-async function retargetVoiceToCurrentSession(commandService: ICommandService, controller: IVoiceSessionController, window: Window & typeof globalThis): Promise<boolean> {
+async function retargetVoiceToCurrentSession(commandService: ICommandService, controller: IVoiceSessionController): Promise<boolean> {
 	const currentSession = await commandService.executeCommand<string | undefined>('_chat.voice.getCurrentSession');
 	if (!currentSession) {
 		return false;
@@ -62,9 +62,10 @@ async function retargetVoiceToCurrentSession(commandService: ICommandService, co
 	try {
 		const resource = URI.parse(currentSession);
 		if (resource.scheme === 'sessions-voice') {
-			controller.takeDraftInputOwnership(window);
+			controller.setDraftTarget();
 		} else {
-			controller.takeSessionInputOwnership(resource, window);
+			controller.setTargetSession(resource);
+			controller.activateSession(resource);
 		}
 		return true;
 	} catch {
@@ -174,9 +175,7 @@ export class ChatVoiceInputModeToggleListenAction extends Action2 {
 
 		this._holdActive = true;
 		try {
-			if (!controller.retainOmniInputOwnershipForBargeIn(win)) {
-				await retargetVoiceToCurrentSession(accessor.get(ICommandService), controller, win);
-			}
+			await retargetVoiceToCurrentSession(accessor.get(ICommandService), controller);
 			// Auto-connect on the first hold so users can start talking with one shortcut.
 			if (!controller.isConnected.get() && !controller.isConnecting.get()) {
 				await controller.connect(win);
@@ -313,15 +312,12 @@ export interface IVoiceInputModePillOptions {
 	readonly isDictationActive?: IObservable<boolean>;
 	/** Whether the shared Voice Mode transport belongs to this input. */
 	readonly isVoiceActive?: IObservable<boolean>;
-	/** Claim Voice Mode for this host instead of targeting the last focused chat session. */
-	readonly activateVoiceMode?: () => void | Promise<void>;
 }
 
 /**
- * A single segmented control in the chat input that hosts both voice input modes:
- * a Dictation segment (speech-to-text into the input) and a Voice Mode segment (live
- * conversational agent). Only one mode can be active at a time — activating one stops
- * the other. Both segments stay visible (when available) so users discover both modes.
+ * A single segmented control in the chat input that hosts Dictation and Voice Mode,
+ * including the connected-session listen or mute control. Only one input mode can be
+ * active at a time — activating one stops the other.
  */
 export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 
@@ -329,8 +325,10 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 	private _dictationCell: HTMLElement | undefined;
 	private _voiceCell: HTMLElement | undefined;
 	private _listenCell: HTMLElement | undefined;
+	private _muteCell: HTMLElement | undefined;
 	private _dictationIcon: HTMLElement | undefined;
 	private _listenIcon: HTMLElement | undefined;
+	private _muteIcon: HTMLElement | undefined;
 	private _voiceBars: HTMLElement | undefined;
 	private _voiceBarEls: HTMLElement[] = [];
 	private _barAnimationFrame: number | undefined;
@@ -364,6 +362,9 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		this._listenCell?.setAttribute('aria-label', this._listenCell.classList.contains('active')
 			? this._getLabelWithKeybinding(localize('voiceInputMode.stopListening', "Stop Listening"), ChatVoiceInputModeToggleListenAction.ID)
 			: this._getLabelWithKeybinding(localize('voiceInputMode.startListening', "Start Listening"), ChatVoiceInputModeToggleListenAction.ID));
+		this._muteCell?.setAttribute('aria-label', this._muteCell.classList.contains('active')
+			? localize('voiceInputMode.unmuteMicrophone', "Unmute Microphone")
+			: localize('voiceInputMode.muteMicrophone', "Mute Microphone"));
 	}
 
 	constructor(
@@ -401,12 +402,11 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		this._updateVoiceStateColors(container);
 		this._register(this.themeService.onDidColorThemeChange(() => this._updateVoiceStateColors(container)));
 
-		// A masked 2-slot viewport ("slot machine reel"). The reel holds three cells:
-		//   [ dictation ][ voice ][ listen ]
+		// A masked 2-slot viewport ("slot machine reel"). The reel holds four cells:
+		//   [ dictation ][ voice ][ listen ][ mute ]
 		// Disconnected → the reel shows slots 0..1 (dictation + voice-connect).
-		// Connected    → the reel slides left one slot to show slots 1..2, so the voice
-		//                cell takes the dictation cell's place (now animated + disconnect)
-		//                and the listen toggle slides in from the right.
+		// Connected    → the voice cell takes the dictation cell's place (now animated
+		//                + disconnect) and either listen or mute occupies the second slot.
 		const pill = dom.append(container, dom.$('.monaco-segmented-icon-toggle.chat-voice-input-mode'));
 		this._reel = dom.append(pill, dom.$('.monaco-segmented-icon-toggle-reel.chat-voice-input-mode-reel'));
 
@@ -509,6 +509,26 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		}));
 		this._registerActivationKeys(this._listenCell, () => this._onClickListen());
 
+		// --- Mute cell: microphone transport toggle for hands-free voice mode. ---
+		this._muteCell = dom.append(this._reel, dom.$('button.monaco-segmented-icon-toggle-cell.chat-voice-input-mode-cell.mute'));
+		this._muteCell.setAttribute('type', 'button');
+		this._muteCell.setAttribute('role', 'button');
+		this._muteIcon = dom.append(this._muteCell, dom.$('span.chat-voice-input-mode-icon'));
+		this._register(addMicButtonContextMenuListener(
+			this._muteCell,
+			() => getVoiceModeContextMenuActions(this.commandService, this.configurationService, this.keybindingService, VOICE_START_COMMAND_ID),
+			this.contextMenuService,
+		));
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this._muteCell,
+			() => this.voiceSessionController.isMuted.get()
+				? localize('voiceInputMode.unmuteMicrophone', "Unmute Microphone")
+				: localize('voiceInputMode.muteMicrophone', "Mute Microphone")));
+		this._register(dom.addDisposableListener(this._muteCell, dom.EventType.CLICK, e => {
+			dom.EventHelper.stop(e, true);
+			this._onClickMute();
+		}));
+		this._registerActivationKeys(this._muteCell, () => this._onClickMute());
+
 		// Dictation activity: scoped to chat so editor and terminal dictation do not
 		// animate this control.
 		const dictationActive = observableFromEvent(this,
@@ -560,30 +580,37 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 				listening = connected && voiceState === 'listening';
 				speaking = connected && voiceState === 'speaking';
 			}
-			const voiceLive = listening || speaking;
+			// While muted the mic isn't heard, so the audio-reactive listening state
+			// would misleadingly react to the user's voice; render the calm idle-on
+			// wave instead until unmuted. Speaking (the assistant) is unaffected.
+			// Only read the mute observable while connected, mirroring how the state
+			// observables above are only read when voice is active.
+			const muted = sim === undefined && connected && this.voiceSessionController.isMuted.read(reader);
+			const micListening = listening && !muted;
+			const voiceLive = micListening || speaking;
 			const voiceOn = connected || connecting;
 			this._voiceLive = voiceLive;
 			// First-use model download/load (real state only; simulations never prepare).
 			const dictationBusy = sim === undefined && isDictationActive && dictationPreparing.read(reader);
 
-			// The dedicated listen (start/stop speaking) toggle shows in manual
-			// (non-hands-free) connected voice mode. In hands-free mode the auto-listen
-			// loop drives listening, so there is no listen cell. It keys off `connected`
-			// rather than `voiceOn` so a connect/reconnect renders as a single-cell
-			// spinner instead of a spinner beside an inert listen button.
+			// Connected Voice Mode always has one session control: manual mode shows
+			// start/stop listening, while hands-free mode shows mute/unmute.
 			const showListen = connected && !handsFree;
+			const showMute = connected && handsFree;
 
 			// Presence of each cell. The housing is a constant size; the absent cell
 			// collapses its width to 0 (mask recenters) so icons slide into place.
 			//   - dictation: shown when NOT in voice mode (home menu / dictating)
 			//   - voice:     shown unless dictation is actively recording
 			//   - listen:    shown only in manual-connected voice mode
+			//   - mute:      shown only in hands-free connected voice mode
 			const dictationPresent = dictationAvailable && !voiceOn;
 			const voicePresent = voiceAvailable && !isDictating && !dictationBusy;
 			const listenPresent = showListen;
+			const mutePresent = showMute;
 
 			// Exactly one icon → single-icon view (the lone button fills the whole pill).
-			const presentCount = (dictationPresent ? 1 : 0) + (voicePresent ? 1 : 0) + (listenPresent ? 1 : 0);
+			const presentCount = (dictationPresent ? 1 : 0) + (voicePresent ? 1 : 0) + (listenPresent ? 1 : 0) + (mutePresent ? 1 : 0);
 			container.classList.toggle('connected', voiceOn);
 			container.classList.toggle('single', presentCount === 1);
 
@@ -628,7 +655,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			this._voiceCell!.classList.toggle('on', voiceOn);
 			this._voiceCell!.classList.toggle('connecting', connecting && !connected);
 			this._voiceCell!.classList.toggle('idle-on', voiceOn && !voiceLive);
-			this._voiceCell!.classList.toggle('listening', listening);
+			this._voiceCell!.classList.toggle('listening', micListening);
 			this._voiceCell!.classList.toggle('speaking', speaking);
 			this._voiceCell!.setAttribute('aria-pressed', String(voiceOn));
 			// Simulated hover (walkthrough only) mirrors the real :hover disconnect preview.
@@ -640,6 +667,12 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			this._listenCell!.classList.toggle('muted', !listening);
 			this._listenCell!.setAttribute('aria-pressed', String(listening));
 			this._listenIcon!.className = `chat-voice-input-mode-icon ${ThemeIcon.asClassName(listening ? Codicon.personVoiceFilledCompact : Codicon.personVoiceCompact)}`;
+
+			// Mute / unmute toggle: the glyph describes the action available.
+			this._muteCell!.classList.toggle('collapsed', !mutePresent);
+			this._muteCell!.classList.toggle('active', muted);
+			this._muteCell!.setAttribute('aria-pressed', String(muted));
+			this._muteIcon!.className = `chat-voice-input-mode-icon ${ThemeIcon.asClassName(muted ? Codicon.mic : Codicon.mute)}`;
 			this._updateAriaLabels();
 
 			// Audio-reactive bars only while live (and not hovering the disconnect preview).
@@ -789,20 +822,12 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		const targetWindow = getWindow(this._voiceCell);
 		if (controller.isConnected.get() || controller.isConnecting.get()) {
 			if (this._options?.isVoiceActive?.get() === false) {
-				if (this._options.activateVoiceMode) {
-					await this._options.activateVoiceMode();
-				} else {
-					await retargetVoiceToCurrentSession(this.commandService, controller, targetWindow);
-				}
+				await retargetVoiceToCurrentSession(this.commandService, controller);
 				return;
 			}
 			controller.disconnect();
 		} else {
-			if (this._options?.activateVoiceMode) {
-				await this._options.activateVoiceMode();
-			} else {
-				await retargetVoiceToCurrentSession(this.commandService, controller, targetWindow);
-			}
+			await retargetVoiceToCurrentSession(this.commandService, controller);
 			controller.connect(targetWindow).catch(() => { /* connect failures are surfaced/logged by the controller */ });
 		}
 	}
@@ -818,6 +843,13 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		} else {
 			controller.pttDown();
 			controller.pttUp();
+		}
+	}
+
+	private _onClickMute(): void {
+		const controller = this.voiceSessionController;
+		if (controller.isConnected.get()) {
+			controller.setMuted(!controller.isMuted.get());
 		}
 	}
 

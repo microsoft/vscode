@@ -11,9 +11,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentCreateSessionConfig, IAgentModelInfo, IAgentSessionMetadata } from '../../common/agent.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
-import { buildChatUri, buildDefaultChatUri, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, type ModelSelection, type ResponsePart, type ToolCallState, type Turn } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, withSessionOrchestration, type ISessionOrchestration, type ModelSelection, type ResponsePart, type ToolCallState, type Turn } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
+import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
 import {
 	applyCreateChatTool,
@@ -54,8 +55,9 @@ suite('SessionServerTools', () => {
 		return { sessionUri, chatUri: buildDefaultChatUri(sessionUri) };
 	}
 
-	function createAccessor(overrides?: Partial<ISessionServerToolAccessor> & { onCreate?: (config: IAgentCreateSessionConfig) => void; onPrompt?: (session: URI, chat: URI, prompt: string) => void; onCreateChat?: (session: URI, chat: URI, options?: { title?: string; model?: ModelSelection }) => void; onRenameChat?: (session: URI, chat: URI, title: string) => void; onDelete?: (session: URI) => void; depths?: Map<string, number> }): ISessionServerToolAccessor {
+	function createAccessor(overrides?: Partial<ISessionServerToolAccessor> & { onCreate?: (config: IAgentCreateSessionConfig) => void; onPrompt?: (session: URI, chat: URI, prompt: string) => void; onCreateChat?: (session: URI, chat: URI, options?: { title?: string; model?: ModelSelection }) => void; onRenameChat?: (session: URI, chat: URI, title: string) => void; onDelete?: (session: URI) => void; depths?: Map<string, number>; orchestrations?: Map<string, ISessionOrchestration> }): ISessionServerToolAccessor {
 		const depths = overrides?.depths ?? new Map<string, number>();
+		const orchestrations = overrides?.orchestrations ?? new Map<string, ISessionOrchestration>();
 		return {
 			isActiveAgentTitleGenerationEnabled: overrides?.isActiveAgentTitleGenerationEnabled ?? (() => true),
 			listSessions: overrides?.listSessions ?? (async () => [sessionMeta('s1', SessionStatus.InProgress, workspace)]),
@@ -71,11 +73,13 @@ suite('SessionServerTools', () => {
 			getChatContext: overrides?.getChatContext ?? (async () => undefined),
 			getSessionSpawnDepth: overrides?.getSessionSpawnDepth ?? (session => depths.get(session.toString()) ?? 0),
 			setSessionSpawnDepth: overrides?.setSessionSpawnDepth ?? ((session, depth) => { depths.set(session.toString(), depth); }),
+			setSessionOrchestration: overrides?.setSessionOrchestration ?? (async (session, orchestration) => { orchestrations.set(session.toString(), orchestration); }),
 		};
 	}
 
 	test('definitions and confirmation', () => {
 		assert.deepStrictEqual(sessionServerToolDefinitions.map(d => d.name), [SessionServerToolName.ListSessions, SessionServerToolName.GetCurrentSession, SessionServerToolName.CreateSession, SessionServerToolName.CreateChat, SessionServerToolName.RenameChat, SessionServerToolName.SendMessage, SessionServerToolName.GetSessionContext, SessionServerToolName.DeleteSession]);
+		assert.deepStrictEqual(sessionServerToolDefinitions.filter(definition => definition.enabledForEphemeralSessions).map(definition => definition.name), []);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.CreateSession), true);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.CreateChat), true);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.SendMessage), true);
@@ -84,12 +88,38 @@ suite('SessionServerTools', () => {
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.ListSessions), false);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.GetCurrentSession), false);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.GetSessionContext), false);
+		assert.strictEqual(sessionServerToolDefinitions.find(def => def.name === SessionServerToolName.CreateSession)?.inputSchema?.properties?.parentSession, undefined);
 		assert.deepStrictEqual(sessionServerToolDefinitions.slice(4, 5).map(def => ({ name: def.name, required: def.inputSchema?.required })), [
 			{ name: SessionServerToolName.RenameChat, required: ['title'] },
 		]);
 		assert.deepStrictEqual(sessionServerToolDefinitions.slice(4, 5).map(def => def.inputSchema?.properties?.title), [
 			{ type: 'string', maxLength: 200, description: 'Short, descriptive chat title, ideally 1-4 words.' },
 		]);
+		const renameDescription = sessionServerToolDefinitions.find(def => def.name === SessionServerToolName.RenameChat)?.description;
+		assert.ok(renameDescription?.includes('Renaming the default chat also names its owning session'));
+		assert.ok(renameDescription?.includes('peer-chat titles remain independent'));
+	});
+
+	test('ephemeral sessions advertise no default session-management tools', () => {
+		const stateManager = new AgentHostStateManager(new NullLogService());
+		const session = 'copilot:/ephemeral';
+		stateManager.createSession({
+			resource: session,
+			provider: 'copilot',
+			title: 'Ephemeral',
+			status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(),
+			modifiedAt: new Date(0).toISOString(),
+			_meta: withEphemeralSessionMeta(undefined, true),
+		});
+		const host = new AgentServerToolHost(stateManager, [
+			createSessionServerToolGroup(createAccessor()),
+		]);
+
+		host.advertise(session);
+
+		assert.deepStrictEqual(stateManager.getSessionState(session)?.serverTools, []);
+		stateManager.dispose();
 	});
 
 	test('new sessions use the current setting while materialized sessions keep their advertised tools', async () => {
@@ -209,12 +239,105 @@ suite('SessionServerTools', () => {
 				activity: 'Running tests',
 				workingDirectory: workspace.toString(),
 				project: 'app',
+				projectUri: workspace.toString(),
 				unread: true,
 				modifiedAt: new Date(1700000000000).toISOString(),
 				changes: { files: 1, additions: 2, deletions: 0 },
 				git: { branch: 'feature/x', baseBranch: 'main', ahead: 2, behind: 1, uncommittedChanges: 3 },
 				github: { owner: 'microsoft', repo: 'vscode', pullRequestUrl: 'https://github.com/microsoft/vscode/pull/1' },
 			}],
+		});
+	});
+
+	suite('orchestration metadata', () => {
+		test('serializeSessions and filters expose orchestration relationships', () => {
+			const child = {
+				...sessionMeta('child', SessionStatus.Idle, workspace),
+				_meta: withSessionOrchestration(undefined, {
+					parentSession: 'copilot:/parent',
+					creatorSession: 'copilot:/creator',
+					coordinateWithCreator: true,
+					notifyOnIdle: 'once',
+					label: 'research',
+				}),
+			};
+
+			assert.deepStrictEqual({
+				serialized: JSON.parse(serializeSessions([child])).sessions[0],
+				byParent: filterSessions([child], getListSessionsArgs({ parentSession: 'agent-host-session://copilot/parent' })).map(session => session.session.toString()),
+				byLabel: filterSessions([child], getListSessionsArgs({ label: 'research' })).map(session => session.session.toString()),
+			}, {
+				serialized: {
+					session: 'copilot:/child',
+					title: 'title-child',
+					status: 'idle',
+					workingDirectory: workspace.toString(),
+					parentSession: 'copilot:/parent',
+					creator: 'copilot:/creator',
+					label: 'research',
+					notifyOnIdle: 'once',
+				},
+				byParent: ['copilot:/child'],
+				byLabel: ['copilot:/child'],
+			});
+		});
+
+		test('serializeSessions hides a disabled creator relationship from the child', () => {
+			const child = {
+				...sessionMeta('child', SessionStatus.Idle, workspace),
+				_meta: withSessionOrchestration(undefined, {
+					parentSession: 'copilot:/parent',
+					creatorSession: 'copilot:/parent',
+					coordinateWithCreator: false,
+					label: 'private-child',
+				}),
+			};
+
+			assert.deepStrictEqual({
+				child: JSON.parse(serializeSessions([child], 'copilot:/child')).sessions[0],
+				parent: JSON.parse(serializeSessions([child], 'copilot:/parent')).sessions[0],
+				childFilter: filterSessions([child], getListSessionsArgs({ parentSession: 'copilot:/parent' }), 'copilot:/child'),
+				parentFilter: filterSessions([child], getListSessionsArgs({ parentSession: 'copilot:/parent' }), 'copilot:/parent').map(session => session.session.toString()),
+			}, {
+				child: {
+					session: 'copilot:/child',
+					title: 'title-child',
+					status: 'idle',
+					workingDirectory: workspace.toString(),
+					label: 'private-child',
+				},
+				parent: {
+					session: 'copilot:/child',
+					title: 'title-child',
+					status: 'idle',
+					workingDirectory: workspace.toString(),
+					parentSession: 'copilot:/parent',
+					label: 'private-child',
+				},
+				childFilter: [],
+				parentFilter: ['copilot:/child'],
+			});
+		});
+	});
+
+	test('serializeSessions preserves remote project roots and multiple working directories', () => {
+		const project = URI.parse('vscode-remote://ssh-remote+example/home/me/app');
+		const primary = URI.parse('vscode-remote://ssh-remote+example/home/me/app-worktree');
+		const secondary = URI.parse('vscode-remote://ssh-remote+example/home/me/shared');
+		const remote: IAgentSessionMetadata = {
+			...sessionMeta('remote', SessionStatus.Idle, primary),
+			workingDirectories: [primary, secondary],
+			project: { uri: project, displayName: 'Remote App' },
+		};
+
+		assert.deepStrictEqual(JSON.parse(serializeSessions([remote])).sessions[0], {
+			session: 'copilot:/remote',
+			title: 'title-remote',
+			status: 'idle',
+			workingDirectory: primary.toString(),
+			workingDirectories: [primary.toString(), secondary.toString()],
+			project: 'Remote App',
+			projectUri: project.toString(),
 		});
 	});
 
@@ -257,6 +380,36 @@ suite('SessionServerTools', () => {
 		assert.strictEqual(byId.model?.id, 'gpt-4o');
 		const byName = getCreateSessionArgs({ workspace: workspace.toString(), prompt: 'hi', model: 'GPT-4o' }, sessions, [model]);
 		assert.strictEqual(byName.model?.name, 'GPT-4o');
+		assert.strictEqual(byName.coordinateWithCreator, true);
+	});
+
+	test('getCreateSessionArgs resolves a unique project name to its configured root', () => {
+		const project = URI.parse('file:///workspace/vscode');
+		const worktree = URI.parse('file:///worktrees/pr-331525');
+		const sessions = [{
+			...sessionMeta('worktree', SessionStatus.Idle, worktree),
+			project: { uri: project, displayName: 'Visual Studio Code' },
+		}];
+
+		assert.deepStrictEqual({
+			byName: getCreateSessionArgs({ workspace: 'visual studio code', prompt: 'hi' }, sessions, []).workspace.toString(),
+			byProjectUri: getCreateSessionArgs({ workspace: project.toString(), prompt: 'hi' }, sessions, []).workspace.toString(),
+		}, {
+			byName: project.toString(),
+			byProjectUri: project.toString(),
+		});
+	});
+
+	test('getCreateSessionArgs reports ambiguous project names', () => {
+		const sessions = [
+			{ ...sessionMeta('one', SessionStatus.Idle, URI.parse('file:///worktrees/one')), project: { uri: URI.parse('file:///projects/one'), displayName: 'App' } },
+			{ ...sessionMeta('two', SessionStatus.Idle, URI.parse('file:///worktrees/two')), project: { uri: URI.parse('file:///projects/two'), displayName: 'App' } },
+		];
+
+		assert.throws(
+			() => getCreateSessionArgs({ workspace: 'app', prompt: 'hi' }, sessions, []),
+			/ambiguous; use one of these project URIs: file:\/\/\/projects\/one, file:\/\/\/projects\/two/i,
+		);
 	});
 
 	test('getCreateSessionArgs accepts an absolute filesystem path as workspace', () => {
@@ -278,7 +431,8 @@ suite('SessionServerTools', () => {
 		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
 		let created: IAgentCreateSessionConfig | undefined;
 		let prompted: { chat: URI; prompt: string } | undefined;
-		const accessor = createAccessor({ onCreate: c => { created = c; }, onPrompt: (_s, chat, prompt) => { prompted = { chat, prompt }; } });
+		const orchestrations = new Map<string, ISessionOrchestration>();
+		const accessor = createAccessor({ orchestrations, onCreate: c => { created = c; }, onPrompt: (_s, chat, prompt) => { prompted = { chat, prompt }; } });
 		const group = createSessionServerToolGroup(accessor);
 
 		const text = await group.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.CreateSession, { workspace: workspace.toString(), prompt: 'do it', model: 'gpt-4o' });
@@ -288,7 +442,34 @@ suite('SessionServerTools', () => {
 		assert.strictEqual(prompted?.chat.toString(), buildDefaultChatUri(URI.parse('copilot:/new')));
 		assert.ok(text.includes('agent-host-session://copilot/new'), 'result carries the open-session link for the pill');
 		assert.ok(!text.includes('copilot:/new'), 'result does not echo the raw backend session URI');
+		assert.deepStrictEqual(orchestrations.get('copilot:/new'), {
+			parentSession: 'copilot:/caller',
+			creatorSession: 'copilot:/caller',
+			coordinateWithCreator: true,
+		});
 		store.dispose();
+	});
+
+	test('create_session records explicit orchestration options', async () => {
+		const orchestrations = new Map<string, ISessionOrchestration>();
+		const sessions = [sessionMeta('caller', SessionStatus.InProgress, workspace)];
+		const accessor = createAccessor({ orchestrations, listSessions: async () => sessions });
+
+		await applyCreateSessionTool(accessor, {
+			workspace: workspace.toString(),
+			prompt: 'do it',
+			coordinateWithCreator: false,
+			notifyOnIdle: 'always',
+			label: 'research',
+		}, URI.parse('copilot:/caller'));
+
+		assert.deepStrictEqual(orchestrations.get('copilot:/new'), {
+			parentSession: 'copilot:/caller',
+			creatorSession: 'copilot:/caller',
+			coordinateWithCreator: false,
+			notifyOnIdle: 'always',
+			label: 'research',
+		});
 	});
 
 	test('create_session inherits the calling chat model and permission config', async () => {
@@ -352,6 +533,34 @@ suite('SessionServerTools', () => {
 		});
 	});
 
+	test('create_session uses a remote project root with a model from another provider', async () => {
+		const remoteProject = URI.parse('vscode-remote://ssh-remote+example/home/me/app');
+		const remoteWorktree = URI.parse('vscode-remote://ssh-remote+example/home/me/app-worktree');
+		const claudeModel: IAgentModelInfo = { provider: 'claude', id: 'claude-sonnet', name: 'Claude Sonnet', supportsVision: false };
+		let created: IAgentCreateSessionConfig | undefined;
+		const accessor = createAccessor({
+			listSessions: async () => [{
+				...sessionMeta('remote', SessionStatus.Idle, remoteWorktree),
+				project: { uri: remoteProject, displayName: 'Remote App' },
+			}],
+			getModels: () => [claudeModel],
+			getCreationDefaults: () => ({ provider: 'copilot', model: { id: 'gpt-4o' } }),
+			onCreate: config => { created = config; },
+		});
+
+		await applyCreateSessionTool(accessor, {
+			workspace: 'Remote App',
+			prompt: 'do it',
+			model: 'claude-sonnet',
+		}, URI.parse('copilot:/source'));
+
+		assert.deepStrictEqual(created, {
+			workingDirectories: [remoteProject],
+			provider: 'claude',
+			model: { id: 'claude-sonnet' },
+		});
+	});
+
 	test('list_sessions execute returns serialized sessions', async () => {
 		const store = new DisposableStore();
 		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
@@ -404,8 +613,30 @@ suite('SessionServerTools', () => {
 		store.dispose();
 	});
 
+	test('list_sessions filters by project name, project URI, and secondary working directory', () => {
+		const project = URI.parse('vscode-remote://ssh-remote+example/home/me/app');
+		const primary = URI.parse('vscode-remote://ssh-remote+example/home/me/app-worktree');
+		const secondary = URI.parse('vscode-remote://ssh-remote+example/home/me/shared');
+		const remote = {
+			...sessionMeta('remote', SessionStatus.Idle, primary),
+			workingDirectories: [primary, secondary],
+			project: { uri: project, displayName: 'Remote App' },
+		};
+		const sessions = [remote, sessionMeta('local', SessionStatus.Idle, workspace)];
+
+		assert.deepStrictEqual({
+			byProjectName: filterSessions(sessions, getListSessionsArgs({ workspace: 'remote app' })),
+			byProjectUri: filterSessions(sessions, getListSessionsArgs({ workspace: project.toString() })),
+			bySecondaryDirectory: filterSessions(sessions, getListSessionsArgs({ workspace: secondary.toString() })),
+		}, {
+			byProjectName: [remote],
+			byProjectUri: [remote],
+			bySecondaryDirectory: [remote],
+		});
+	});
+
 	test('getListSessionsArgs validates filter input', () => {
-		assert.deepStrictEqual(getListSessionsArgs({}), { session: undefined, status: undefined, workspace: undefined, withChanges: undefined, unread: undefined, withPullRequest: undefined, includeArchived: undefined, createdAfter: undefined, createdBefore: undefined });
+		assert.deepStrictEqual(getListSessionsArgs({}), { session: undefined, status: undefined, workspace: undefined, withChanges: undefined, unread: undefined, withPullRequest: undefined, includeArchived: undefined, createdAfter: undefined, createdBefore: undefined, parentSession: undefined, label: undefined });
 		assert.throws(() => getListSessionsArgs({ status: ['bogus'] }), /status/);
 		assert.throws(() => getListSessionsArgs({ withChanges: 'yes' }), /withChanges/);
 		assert.throws(() => getListSessionsArgs({ includeArchived: 'no' }), /includeArchived/);
@@ -740,6 +971,25 @@ suite('SessionServerTools', () => {
 
 		// Refuses messaging the exact current chat channel (self-loop guard).
 		await assert.rejects(() => applySendMessageTool(accessor, { session: 'copilot:/s1', message: 'loop' }, currentChannel), /current chat/);
+		const privateChild = {
+			...sessionMeta('child', SessionStatus.Idle, workspace),
+			_meta: withSessionOrchestration(undefined, {
+				parentSession: 'copilot:/s2',
+				creatorSession: 'copilot:/s2',
+				coordinateWithCreator: false,
+			}),
+		};
+		const privateAccessor = createAccessor({
+			listSessions: async () => [privateChild, sessionMeta('s2', SessionStatus.Idle, workspace)],
+		});
+		await assert.rejects(
+			() => applySendMessageTool(privateAccessor, { session: 'copilot:/s2', message: 'blocked' }, buildDefaultChatUri('copilot:/child')),
+			/not allowed to coordinate with its creator/,
+		);
+		await assert.rejects(
+			() => applyCreateChatTool(privateAccessor, { session: 'copilot:/s2', prompt: 'blocked' }, URI.parse(buildDefaultChatUri('copilot:/child'))),
+			/not allowed to coordinate with its creator/,
+		);
 		// Unknown session and missing session/message are rejected.
 		await assert.rejects(() => applySendMessageTool(accessor, { session: 'copilot:/nope', message: 'x' }, currentChannel), /known session/);
 		assert.throws(() => getSendMessageArgs({ message: 'x' }, []), /session/);

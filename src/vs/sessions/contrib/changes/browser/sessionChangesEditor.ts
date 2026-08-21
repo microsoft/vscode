@@ -13,7 +13,6 @@ import { URI } from '../../../../base/common/uri.js';
 import { IDiffEditor } from '../../../../editor/common/editorCommon.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
@@ -52,6 +51,7 @@ import { CheckboxActionViewItem } from '../../../../base/browser/ui/toggle/toggl
 import { defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { localize } from '../../../../nls.js';
 import { getChangesEditorFileStats } from './changesEditorLabels.js';
+import { IDiffEditorOptionsService } from '../../editor/common/diffEditorOptionsService.js';
 
 const HEADER_HEIGHT = 35;
 
@@ -199,9 +199,9 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChangesViewService private readonly changesViewService: IChangesViewService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
 		@ISessionChangesService private readonly sessionChangesService: ISessionChangesService,
+		@IDiffEditorOptionsService private readonly diffEditorOptionsService: IDiffEditorOptionsService,
 	) {
 		super(
 			SessionChangesEditor.ID,
@@ -254,16 +254,9 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			paneInstantiationService.createInstance(SessionChangesUIElementFactory, this._scopedChangesObs),
 			CHANGES_DIFF_EDITOR_OPTIONS,
 		));
-		this._applyRenderSideBySide();
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('diffEditor.renderSideBySide')) {
-				this._applyRenderSideBySide();
-			}
+		this._register(autorun(reader => {
+			this.widget?.setRenderSideBySide(this.diffEditorOptionsService.renderSideBySide.read(reader), { useInlineViewWhenSpaceIsLimited: true });
 		}));
-	}
-
-	private _applyRenderSideBySide(): void {
-		this.widget?.setRenderSideBySide(this.configurationService.getValue<boolean>('diffEditor.renderSideBySide') ?? true);
 	}
 
 	/**
