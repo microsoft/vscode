@@ -43,7 +43,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabl
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
 import { prepareSideChatPrompt, sliceSideChatTurns } from '../agentPeerChats.js';
-import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatAdoptionResult, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent } from '../../common/agent.js';
+import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
@@ -57,7 +57,7 @@ import type { ErrorInfo } from '../../common/state/protocol/common/state.js';
 import { ProtectedResourceMetadata, type AgentSelection, type ChildCustomizationType, type ConfigPropertySchema, type ConfigSchema, type CustomizationEnablement, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, AuthRequiredReason, type AuthRequiredParams, type SessionAction } from '../../common/state/sessionActions.js';
 import { areAdditionalWorkingDirectoriesEqual } from '../../common/state/sessionWorkingDirectories.js';
-import { AgentCustomization, CustomizationLoadStatus, CustomizationType, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, buildDefaultChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, isDefaultChatUri, withSessionEhcliAdoptable, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { AgentCustomization, CustomizationLoadStatus, CustomizationType, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, buildDefaultChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_READ_DB_KEY, isDefaultChatUri, withSessionEhcliAdoptable, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { getByokLmAgentModelId, resolveByokLmEnablement } from '../../common/agentHostByokLm.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.js';
@@ -581,7 +581,7 @@ interface IExtensionHostCliMarker {
 	/** Folder-mode repository root recorded by the extension host. */
 	readonly repositoryProperties?: { readonly repositoryPath?: string };
 	/** Worktree-mode checkout; `worktreePath` is the directory the session ran in. */
-	readonly worktreeProperties?: { readonly worktreePath?: string; readonly repositoryPath?: string };
+	readonly worktreeProperties?: { readonly worktreePath?: string; readonly repositoryPath?: string; readonly branchName?: string; readonly baseBranchName?: string };
 	readonly workspaceFolder?: { readonly folderPath?: string };
 }
 
@@ -3098,6 +3098,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return (await this._readExtensionHostCliMarker(sessionId))?.archived === true;
 	}
 
+	/** Whether `path` is a directory that still exists on disk. */
+	private async _isExistingDirectory(path: string): Promise<boolean> {
+		try {
+			return (await fs.stat(path)).isDirectory();
+		} catch {
+			return false;
+		}
+	}
+
 	/**
 	 * Working directory recorded in the extension host's own marker, used when the
 	 * SDK reports no `workingDirectory` for a legacy chat. The extension host
@@ -3108,15 +3117,32 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// Adoption is durable and one-way, so never persist a recorded path that no
 		// longer exists (a deleted worktree is the common case).
 		for (const candidate of extensionHostCliWorkingDirectoryPaths(await this._readExtensionHostCliMarker(sessionId))) {
-			try {
-				if ((await fs.stat(candidate)).isDirectory()) {
-					return URI.file(candidate);
-				}
-			} catch {
-				// Missing or unreadable; fall through to the next candidate.
+			if (await this._isExistingDirectory(candidate)) {
+				return URI.file(candidate);
 			}
 		}
 		return undefined;
+	}
+
+	/**
+	 * Worktree identity the extension host recorded, when its checkout is gone but
+	 * the repository remains. Resume recreates the worktree from this, matching how
+	 * a natively worktree-isolated session recovers.
+	 */
+	private async _extensionHostCliAdoptedWorktree(sessionId: string): Promise<IAgentAdoptedWorktree | undefined> {
+		const worktree = (await this._readExtensionHostCliMarker(sessionId))?.worktreeProperties;
+		if (!worktree?.worktreePath || !worktree.repositoryPath || !worktree.branchName) {
+			return undefined;
+		}
+		if (await this._isExistingDirectory(worktree.worktreePath) || !(await this._isExistingDirectory(worktree.repositoryPath))) {
+			return undefined;
+		}
+		return {
+			branchName: worktree.branchName,
+			baseBranch: worktree.baseBranchName,
+			worktreePath: URI.file(worktree.worktreePath),
+			repositoryRoot: URI.file(worktree.repositoryPath),
+		};
 	}
 
 	/** Adopts a legacy extension-host Copilot CLI session in place when it is eligible on disk. */
@@ -3140,7 +3166,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			const client = await this._ensureClient();
 			const sdkMetadata = await client.getSessionMetadata(sessionId).catch(() => undefined);
-			const workingDirectory = (typeof sdkMetadata?.context?.workingDirectory === 'string' ? URI.file(sdkMetadata.context.workingDirectory) : undefined)
+			// The SDK reports the directory recorded when the session ran, which may since
+			// have been deleted (a removed worktree). Adopting it anyway commits the claim
+			// and then fails to resume, leaving the session in neither list.
+			const sdkWorkingDirectory = typeof sdkMetadata?.context?.workingDirectory === 'string' ? sdkMetadata.context.workingDirectory : undefined;
+			// A deleted worktree is recoverable the same way a native session recovers
+			// one: keep it as the working directory and let resume recreate it from the
+			// recorded branch.
+			const adoptedWorktree = await this._extensionHostCliAdoptedWorktree(sessionId);
+			const workingDirectory = adoptedWorktree?.worktreePath
+				?? (sdkWorkingDirectory && await this._isExistingDirectory(sdkWorkingDirectory) ? URI.file(sdkWorkingDirectory) : undefined)
 				?? await this._extensionHostCliWorkingDirectory(sessionId);
 			if (!workingDirectory) {
 				// An eligible legacy session whose on-disk working directory could not
@@ -3151,7 +3186,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Resolve the project from the SDK-derived cwd (authoritative) — the
 			// caller may not have supplied a working directory (e.g. the chat
 			// editor), so we cannot trust a hint.
-			const project = await projectFromCopilotContext({ cwd: workingDirectory.fsPath }, this._gitService);
+			const project = await projectFromCopilotContext({ cwd: (adoptedWorktree?.repositoryRoot ?? workingDirectory).fsPath }, this._gitService);
 			// Carry over the user-chosen session name (EH `customTitle`) so the
 			// adopted session keeps its title instead of regenerating one.
 			const customTitle = await this._readExtensionHostCliCustomTitle(sessionId);
@@ -3163,9 +3198,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// `isolation: 'folder'` keeps the session in place in the reused cwd —
 			// a git repo would otherwise default to worktree and show a spurious
 			// "Creating worktree…".
-			await this._storeSessionMetadata(session, undefined, workingDirectory, [workingDirectory], workingDirectory, project, project !== undefined, { [SessionConfigKey.Isolation]: 'folder' }, customTitle, /* markRead */ true, archived);
+			await this._storeSessionMetadata(session, undefined, workingDirectory, [workingDirectory], workingDirectory, project, project !== undefined, { [SessionConfigKey.Isolation]: 'folder' }, customTitle, /* markRead */ true, archived, /* ehcliAdopted */ true);
 			await this._adoptLegacyTurnUsage(session, sessionId);
-			return { adopted: true, eligible: true };
+			return { adopted: true, eligible: true, ...(adoptedWorktree ? { worktree: adoptedWorktree } : {}) };
 		});
 	}
 
@@ -4768,7 +4803,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 
-	private async _storeSessionMetadata(session: URI, model: ModelSelection | undefined, workingDirectory: URI | undefined, workingDirectories: readonly URI[] | undefined, customizationDirectory: URI | undefined, project: IAgentSessionProjectInfo | undefined, projectResolved = project !== undefined, configValues?: Record<string, unknown>, customTitle?: string, markRead?: boolean, archived?: boolean): Promise<void> {
+	private async _storeSessionMetadata(session: URI, model: ModelSelection | undefined, workingDirectory: URI | undefined, workingDirectories: readonly URI[] | undefined, customizationDirectory: URI | undefined, project: IAgentSessionProjectInfo | undefined, projectResolved = project !== undefined, configValues?: Record<string, unknown>, customTitle?: string, markRead?: boolean, archived?: boolean, ehcliAdopted?: boolean): Promise<void> {
 		const dbRef = this._sessionDataService.openDatabase(session);
 		const db = dbRef.object;
 		try {
@@ -4784,6 +4819,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// everything the user filed away in the extension host list.
 			if (archived) {
 				work.push(db.setMetadata(AH_META_IS_ARCHIVED_DB_KEY, 'true'));
+			}
+			// Outlives the transient `ehcliAdoptable` summary marker so the session
+			// keeps being listed like the legacy session it was migrated from.
+			if (ehcliAdopted) {
+				work.push(db.setMetadata(AH_META_EHCLI_ADOPTED_DB_KEY, 'true'));
 			}
 			if (workingDirectory) {
 				work.push(db.setMetadata(CopilotAgent._META_CWD, workingDirectory.toString()));

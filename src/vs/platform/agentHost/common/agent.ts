@@ -1024,6 +1024,14 @@ export interface IActiveClient {
 	customizations: readonly ClientPluginCustomization[];
 }
 
+/** Worktree identity a predecessor recorded for a chat, so a missing checkout can be recreated on resume. */
+export interface IAgentAdoptedWorktree {
+	readonly branchName: string;
+	readonly baseBranch: string | undefined;
+	readonly worktreePath: URI;
+	readonly repositoryRoot: URI;
+}
+
 /** Outcome of attempting to adopt a legacy provider-native chat. */
 export interface IAgentChatAdoptionResult {
 	/** Whether this call newly seeded Agent Host metadata. */
@@ -1032,6 +1040,8 @@ export interface IAgentChatAdoptionResult {
 	readonly eligible: boolean;
 	/** Whether the chat already has Agent Host metadata, i.e. it is ours regardless of adoption. */
 	readonly native?: boolean;
+	/** Set when the adopted chat ran in a worktree that no longer exists and can be recreated. */
+	readonly worktree?: IAgentAdoptedWorktree;
 }
 
 /**

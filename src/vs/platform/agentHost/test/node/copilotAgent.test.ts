@@ -11106,6 +11106,81 @@ suite('CopilotAgent', () => {
 			await fs.writeFile(join(dir, 'vscode.requests.metadata.json'), JSON.stringify(details), 'utf8');
 		}
 
+		test('keeps a deleted worktree as the working directory so resume can recreate it', async () => {
+			// Parity with native worktree sessions: the checkout is recreated from the
+			// recorded branch rather than the session being re-rooted at the repository.
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const repositoryRoot = await fs.mkdtemp(`${os.tmpdir()}/adopt-repo-`);
+			const worktreePath = join(repositoryRoot, '..', 'gone.worktrees', 'feature-x');
+			const sessionId = 'legacy-worktree-gone';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			// The SDK still reports the deleted checkout, exactly as it does on disk.
+			const client = new TestCopilotClient([sdkSession(sessionId, worktreePath)]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await writeExtensionHostMarker(userHome, sessionId, {
+					origin: 'vscode',
+					worktreeProperties: { worktreePath, repositoryPath: repositoryRoot, branchName: 'feature/x', baseBranchName: 'main' },
+				});
+
+				const adopted = await ensureDefaultChatAdopted(agent, session);
+
+				const db = await sessionDataService.tryOpenDatabase(session);
+				const persistedCwd = await db?.object.getMetadata('copilot.workingDirectory');
+				db?.dispose();
+
+				assert.deepStrictEqual(
+					{
+						adopted: adopted.adopted,
+						worktree: adopted.worktree && {
+							branchName: adopted.worktree.branchName,
+							baseBranch: adopted.worktree.baseBranch,
+							worktreePath: adopted.worktree.worktreePath.fsPath,
+							repositoryRoot: adopted.worktree.repositoryRoot.fsPath,
+						},
+						persistedCwd,
+					},
+					{
+						adopted: true,
+						worktree: { branchName: 'feature/x', baseBranch: 'main', worktreePath: URI.file(worktreePath).fsPath, repositoryRoot: URI.file(repositoryRoot).fsPath },
+						persistedCwd: URI.file(worktreePath).toString(),
+					},
+				);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(repositoryRoot, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('reports no recorded worktree when the checkout still exists', async () => {
+			// A live worktree is handled by the existing probe-the-directory bridge.
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/adopt-live-`);
+			const sessionId = 'legacy-worktree-live';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await writeExtensionHostMarker(userHome, sessionId, {
+					origin: 'vscode',
+					worktreeProperties: { worktreePath: workingDirectory, repositoryPath: workingDirectory, branchName: 'feature/y' },
+				});
+
+				const adopted = await ensureDefaultChatAdopted(agent, session);
+
+				assert.deepStrictEqual({ adopted: adopted.adopted, worktree: adopted.worktree }, { adopted: true, worktree: undefined });
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
 		test('adopts a legacy extension-host session in place and seeds folder isolation', async () => {
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
 			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/adopt-cwd-`);
@@ -11134,6 +11209,38 @@ suite('CopilotAgent', () => {
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('does not adopt a session whose recorded working directory no longer exists', async () => {
+			// A months-old session may have run in a worktree that has since been
+			// deleted. Adopting it commits the claim (the extension host list stops
+			// showing it) and then fails to resume, leaving it in neither list.
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const deletedWorkingDirectory = await fs.mkdtemp(`${os.tmpdir()}/adopt-gone-`);
+			await fs.rm(deletedWorkingDirectory, { recursive: true, force: true });
+			const sessionId = 'legacy-missing-cwd';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, deletedWorkingDirectory)]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await writeExtensionHostMarker(userHome, sessionId);
+
+				const adopted = await ensureDefaultChatAdopted(agent, session);
+
+				const db = await sessionDataService.tryOpenDatabase(session);
+				const persistedCwd = await db?.object.getMetadata('copilot.workingDirectory');
+				db?.dispose();
+
+				assert.deepStrictEqual(
+					{ adopted, persistedCwd },
+					{ adopted: { adopted: false, eligible: true }, persistedCwd: undefined },
+				);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await disposeAgent(agent);
 			}
 		});

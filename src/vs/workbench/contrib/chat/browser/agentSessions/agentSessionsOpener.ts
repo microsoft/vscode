@@ -60,20 +60,43 @@ export const sessionOpenerRegistry = new SessionOpenerRegistry();
 
 //#endregion
 
+/**
+ * The agent-host session a legacy chat was just migrated into is not in the list
+ * until its provider is refreshed, so a lookup straight after adoption misses and
+ * the caller would fall back to opening the legacy session it just migrated away
+ * from. Refresh that one provider and look again.
+ */
+async function resolveMigratedSession(agentSessionsService: IAgentSessionsService, migrated: URI): Promise<IAgentSession | undefined> {
+	const existing = agentSessionsService.getSession(migrated);
+	if (existing) {
+		return existing;
+	}
+	await agentSessionsService.model.resolve(getChatSessionType(migrated));
+	return agentSessionsService.getSession(migrated);
+}
+
 export async function openSessionByResource(accessor: ServicesAccessor, resource: URI, openOptions?: ISessionOpenOptions): Promise<IChatWidget | undefined> {
 	const instantiationService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
+	const agentSessionsService = accessor.get(IAgentSessionsService);
 
 	// A superseded legacy resource is redirected (and adopted) before anything
 	// looks it up, so opening by URI migrates instead of reaching the old provider.
-	resource = await adoptLegacyCopilotCliResource(
+	const migrated = await adoptLegacyCopilotCliResource(
 		accessor.get(IAgentHostConnectionsService).ambientConnection,
 		resource,
 		logService,
 		accessor.get(IConfigurationService),
 		accessor.get(ITelemetryService),
 		'open',
-	) ?? resource;
+	);
+	if (migrated) {
+		if (await resolveMigratedSession(agentSessionsService, migrated)) {
+			resource = migrated;
+		} else {
+			logService.warn(`[AgentHost] migrated ${resource.toString()} to ${migrated.toString()} but it did not surface; opening the legacy session`);
+		}
+	}
 
 	for (const participant of sessionOpenerRegistry.getParticipants()) {
 		if (!participant.handleOpenSessionResource) {
@@ -101,6 +124,7 @@ export async function openSessionByResource(accessor: ServicesAccessor, resource
 export async function openSession(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions, alreadyResolved?: boolean): Promise<IChatWidget | undefined> {
 	const instantiationService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
+	const agentSessionsService = accessor.get(IAgentSessionsService);
 
 	// List and picker clicks arrive here with a resolved session, so the redirect
 	// has to happen on this path too or those opens never migrate. A no-op for
@@ -115,7 +139,12 @@ export async function openSession(accessor: ServicesAccessor, session: IAgentSes
 			'open',
 		);
 		if (migrated) {
-			session = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService).getSession(migrated)) ?? session;
+			const migratedSession = await resolveMigratedSession(agentSessionsService, migrated);
+			if (migratedSession) {
+				session = migratedSession;
+			} else {
+				logService.warn(`[AgentHost] migrated ${session.resource.toString()} to ${migrated.toString()} but it did not surface; opening the legacy session`);
+			}
 		}
 	}
 

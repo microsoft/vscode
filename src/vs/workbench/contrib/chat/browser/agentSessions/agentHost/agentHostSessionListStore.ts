@@ -10,7 +10,7 @@ import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resour
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ActionType, type IIsArchivedChangedAction, type IIsReadChangedAction, type INotification, type SessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { readSessionEhcliAdoptable, readSessionMultiRootMetadata, SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { readSessionMatchesByProjectRoot, readSessionMultiRootMetadata, SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService, type IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 
 /**
@@ -420,10 +420,12 @@ export class AgentHostSessionListStore extends Disposable {
 	 * server-owned project (repository) root. Those legacy sessions run out of a
 	 * `copilot-worktrees/` directory outside the repository, so working
 	 * directories alone would hide them from a window opened on that repository.
+	 * The marker has to outlive adoption: a migrated session is still a legacy
+	 * session and must not drop out of the list the moment it migrates.
 	 */
 	private _containmentCandidates(summary: SessionSummary): readonly URI[] {
 		const candidates = summary.workingDirectories?.map(directory => URI.parse(directory)) ?? [];
-		if (summary.project?.uri && readSessionEhcliAdoptable(summary._meta)) {
+		if (summary.project?.uri && readSessionMatchesByProjectRoot(summary._meta)) {
 			candidates.push(URI.parse(summary.project.uri));
 		}
 		return candidates;

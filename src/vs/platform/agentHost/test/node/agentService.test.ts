@@ -6628,7 +6628,7 @@ suite('AgentService (node dispatcher)', () => {
 					rejected,
 					hydratedAfter: !!svc.stateManager.getSessionState(session.toString()),
 				}, {
-					beforeGate: { metadataRead: 0, hydrated: false },
+					beforeGate: { metadataRead: 1, hydrated: false },
 					rejected: undefined,
 					hydratedAfter: true,
 				});
@@ -6656,9 +6656,31 @@ suite('AgentService (node dispatcher)', () => {
 				}, {
 					isProtocolError: true,
 					code: AHP_SESSION_NOT_FOUND,
-					metadataRead: 0,
+					// Restore reads per-session metadata before waiting on the catalogue,
+					// so one read happens even for a session deleted during the wait.
+					metadataRead: 1,
 					hydrated: false,
 				});
+			});
+
+			test('restores a session the provider can describe without waiting for the catalogue', async () => {
+				// Warming the catalogue is O(catalogue) — ~48s on a large `~/.copilot` —
+				// so a session that resolves from its own metadata must not pay for it.
+				const svc = makeService();
+				const agent = disposables.add(new StartupRaceAgent('copilot'));
+				const session = AgentSession.uri('copilot', 'describable-session');
+				seedSession(agent, session);
+				// Describable immediately, while the catalogue migration stays gated.
+				agent.sdkReady = true;
+				svc.registerProvider(agent);
+
+				await svc.restoreSession(session);
+
+				assert.deepStrictEqual(
+					{ hydrated: !!svc.stateManager.getSessionState(session.toString()), catalogueSettled: agent.migrationGate.isSettled },
+					{ hydrated: true, catalogueSettled: false },
+				);
+				agent.migrationGate.complete();
 			});
 
 			test('reports a genuinely missing session as not found once migration completes', async () => {
@@ -7179,6 +7201,7 @@ suite('AgentService (node dispatcher)', () => {
 			);
 		});
 
+
 		test('adopts a surfaced legacy session on open only when the migrate setting is on', async () => {
 			// Open-adoption is strictly gated on the live migrate setting.
 			class AdoptOnOpenAgent extends MockAgent {
@@ -7226,6 +7249,37 @@ suite('AgentService (node dispatcher)', () => {
 				{ adoptCalls: agent.adoptCalls, restored: !!localService.stateManager.getSessionState(sessionStr) },
 				{ adoptCalls: 1, restored: true },
 			);
+		});
+
+		test('an adopted chat whose restore fails is still registered, not lost from every list', async () => {
+			// Adoption claims the chat on disk, which stops the extension host listing
+			// it. If restore then fails (e.g. a worktree whose branch is gone) and the
+			// chat was never registered, it exists in no list at all.
+			class AdoptThenFailAgent extends MockAgent {
+				constructor() { super('copilot'); }
+				// Absent from the catalogue, so only the adoption path can register it.
+				override async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+					return [];
+				}
+				async ensureChatAdopted(_chat: URI, _context: URI | IAgentChatContext): Promise<IAgentChatAdoptionResult> {
+					return { adopted: true, eligible: true };
+				}
+				override async materializeChat(): Promise<never> {
+					throw new Error('working directory no longer exists');
+				}
+			}
+
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new AdoptThenFailAgent());
+			localService.registerProvider(agent);
+			localService.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+			const session = AgentSession.uri('copilot', 'adopted-restore-fails');
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
+
+			await assert.rejects(() => localService.restoreSession(session));
+
+			const registry = (localService as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
+			assert.strictEqual((await registry.get(session))?.session.toString(), session.toString());
 		});
 
 		test('does not materialize state for an unregistered chat that is not adoptable', async () => {
