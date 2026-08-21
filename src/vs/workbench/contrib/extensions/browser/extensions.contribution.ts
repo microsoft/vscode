@@ -67,7 +67,7 @@ import { ILanguageModelToolsService } from '../../chat/common/tools/languageMode
 import { CONTEXT_KEYBINDINGS_EDITOR } from '../../preferences/common/preferences.js';
 import { IWebview } from '../../webview/browser/webview.js';
 import { Query } from '../common/extensionQuery.js';
-import { AutoRestartConfigurationKey, AutoUpdateConfigurationKey, CONTEXT_EXTENSIONS_GALLERY_STATUS, CONTEXT_HAS_GALLERY, DefaultViewsContext, ExtensionEditorTab, ExtensionRuntimeActionType, EXTENSIONS_CATEGORY, extensionsFilterSubMenu, extensionsSearchActionsMenu, HasOutdatedExtensionsContext, IExtensionArg, IExtensionsViewPaneContainer, IExtensionsWorkbenchService, INSTALL_ACTIONS_GROUP, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, IWorkspaceRecommendedExtensionsView, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, OUTDATED_EXTENSIONS_VIEW_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, TOGGLE_IGNORE_EXTENSION_ACTION_ID, UPDATE_ACTIONS_GROUP, VIEWLET_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID } from '../common/extensions.js';
+import { AutoRestartConfigurationKey, AutoUpdateConfigLockedByPolicyContext, AutoUpdateConfigurationKey, CONTEXT_EXTENSIONS_GALLERY_STATUS, CONTEXT_HAS_GALLERY, DefaultViewsContext, ExtensionEditorTab, ExtensionRuntimeActionType, EXTENSIONS_CATEGORY, extensionsFilterSubMenu, extensionsSearchActionsMenu, HasOutdatedExtensionsContext, IExtensionArg, IExtensionsViewPaneContainer, IExtensionsWorkbenchService, INSTALL_ACTIONS_GROUP, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, IWorkspaceRecommendedExtensionsView, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, OUTDATED_EXTENSIONS_VIEW_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, TOGGLE_IGNORE_EXTENSION_ACTION_ID, UPDATE_ACTIONS_GROUP, VIEWLET_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID } from '../common/extensions.js';
 import { ExtensionsConfigurationSchema, ExtensionsConfigurationSchemaId } from '../common/extensionsFileTemplate.js';
 import { ExtensionsInput } from '../common/extensionsInput.js';
 import { KeymapExtensions } from '../common/extensionsUtils.js';
@@ -762,7 +762,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			}
 		});
 
-		const enableAutoUpdateWhenCondition = ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, 'off');
+		const enableAutoUpdateWhenCondition = ContextKeyExpr.and(ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, 'off'), ContextKeyExpr.not(AutoUpdateConfigLockedByPolicyContext.key));
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.enableAutoUpdate',
 			title: localize2('enableAutoUpdate', 'Enable Auto Update for Extensions'),
@@ -779,7 +779,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			run: (accessor: ServicesAccessor) => accessor.get(IExtensionsWorkbenchService).updateAutoUpdateForAllExtensions(true)
 		});
 
-		const disableAutoUpdateWhenCondition = ContextKeyExpr.notEquals(`config.${AutoUpdateConfigurationKey}`, 'off');
+		const disableAutoUpdateWhenCondition = ContextKeyExpr.and(ContextKeyExpr.notEquals(`config.${AutoUpdateConfigurationKey}`, 'off'), ContextKeyExpr.not(AutoUpdateConfigLockedByPolicyContext.key));
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.disableAutoUpdate',
 			title: localize2('disableAutoUpdate', 'Disable Auto Update for Extensions'),
@@ -1474,7 +1474,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			id: ToggleAutoUpdateForExtensionAction.ID,
 			title: ToggleAutoUpdateForExtensionAction.LABEL,
 			category: ExtensionsLocalizedLabel,
-			precondition: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.notEquals(`config.${AutoUpdateConfigurationKey}`, 'on'), ContextKeyExpr.equals('isExtensionEnabled', true)), ContextKeyExpr.not('extensionDisallowInstall'), ContextKeyExpr.has('isExtensionAllowed')),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.notEquals(`config.${AutoUpdateConfigurationKey}`, 'on'), ContextKeyExpr.equals('isExtensionEnabled', true)), ContextKeyExpr.not('extensionDisallowInstall'), ContextKeyExpr.has('isExtensionAllowed'), ContextKeyExpr.not(AutoUpdateConfigLockedByPolicyContext.key)),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: UPDATE_ACTIONS_GROUP,
@@ -1501,7 +1501,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			id: ToggleAutoUpdatesForPublisherAction.ID,
 			title: { value: ToggleAutoUpdatesForPublisherAction.LABEL, original: 'Auto Update (Publisher)' },
 			category: ExtensionsLocalizedLabel,
-			precondition: ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, 'off'),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, 'off'), ContextKeyExpr.not(AutoUpdateConfigLockedByPolicyContext.key)),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: UPDATE_ACTIONS_GROUP,
