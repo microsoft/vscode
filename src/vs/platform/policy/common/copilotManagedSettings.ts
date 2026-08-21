@@ -166,15 +166,9 @@ export interface IForceRemoteSettingsRefreshResolution {
 }
 
 /**
- * Resolve the fail-closed startup refresh control across every delivery channel.
- *
- * Resolution reuses {@link pickManagedSettings} rather than re-implementing precedence, so the
- * control cannot drift from the ordering applied to every other managed setting — and so the file
- * channel participates, which a native-plus-server-only resolver silently ignored.
- *
- * A value that is not a boolean is treated as absent (matching the managed-settings schema) and the
- * next channel in precedence order is consulted, so a malformed high-precedence value cannot mask a
- * well-formed lower-precedence one.
+ * Resolve the fail-closed startup refresh control across every delivery channel, reusing
+ * {@link pickManagedSettings} precedence rather than re-implementing it. A non-boolean value is
+ * treated as absent, so a malformed high-precedence value cannot mask a well-formed lower one.
  */
 export function resolveForceRemoteSettingsRefresh(nativeMdm: ManagedSettingsData | undefined, server: ManagedSettingsData | undefined, file: ManagedSettingsData | undefined): IForceRemoteSettingsRefreshResolution {
 	const resolution = pickManagedSettings(nativeMdm, server, file).resolutions.get(COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY);
