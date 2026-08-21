@@ -3,66 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Matches the ask question tool so the two inline surfaces read as one family. */
+/* Card chrome, header, title and the close button come from widget/media/chatCard.css. */
 
 .chat-feedback-survey-widget.hidden {
 	display: none;
 }
 
 .chat-feedback-survey-container {
-	display: flex;
-	flex-direction: column;
 	margin: 8px 0;
-	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-chat-requestBorder));
-	border-radius: var(--vscode-cornerRadius-large);
-	background-color: var(--vscode-panel-background);
-	overflow: hidden;
-}
-
-.chat-feedback-survey-container:focus-within {
-	border-color: var(--vscode-focusBorder);
-}
-
-/* In the agents window and the editor the surface is the editor background. */
-.agent-sessions-workbench .chat-feedback-survey-container,
-.editor-instance .chat-feedback-survey-container {
-	background-color: var(--vscode-editor-background);
-}
-
-.chat-feedback-survey-header {
-	display: flex;
-	align-items: flex-start;
-	justify-content: space-between;
-	gap: var(--vscode-spacing-size80);
-	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size80) var(--vscode-spacing-size80) var(--vscode-spacing-size160);
-	border-bottom: 1px solid var(--vscode-chat-requestBorder);
-}
-
-.chat-feedback-survey-title {
-	flex: 1;
-	min-width: 0;
-	margin: 0;
-	font-size: var(--vscode-fontSize-heading3);
-	font-weight: var(--vscode-fontWeight-semiBold);
-	line-height: 1.4;
-	overflow-wrap: anywhere;
-}
-
-/* Chrome free, matching the close button on the ask question tool. */
-.chat-feedback-survey-container .monaco-button.chat-feedback-survey-close {
-	flex-shrink: 0;
-	width: 22px;
-	min-width: 22px;
-	height: 22px;
-	padding: 0;
-	border: none !important;
-	box-shadow: none !important;
-	background: transparent !important;
-	color: var(--vscode-icon-foreground) !important;
-}
-
-.chat-feedback-survey-container .monaco-button.chat-feedback-survey-close:hover:not(.disabled) {
-	background: var(--vscode-toolbar-hoverBackground) !important;
 }
 
 .chat-feedback-survey-body {

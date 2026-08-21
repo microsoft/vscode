@@ -15,15 +15,9 @@
 	margin: 0;
 }
 
-/* general questions styling - matches the tool confirmation (permissions) box family */
+/* general questions styling - card chrome comes from widget/media/chatCard.css */
 .interactive-session .chat-question-carousel-container {
 	margin: 8px 0;
-	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-chat-requestBorder));
-	border-radius: var(--vscode-cornerRadius-large);
-	background-color: var(--vscode-panel-background);
-	display: flex;
-	flex-direction: column;
-	overflow: hidden;
 	container-type: inline-size;
 	max-height: min(420px, 45vh);
 	position: relative;
@@ -33,15 +27,8 @@
 	outline: none;
 }
 
-.interactive-session .chat-question-carousel-container:focus-visible,
-.interactive-session .chat-question-carousel-container:focus-within {
+.interactive-session .chat-question-carousel-container:focus-visible {
 	border-color: var(--vscode-focusBorder);
-}
-
-/* in the agents window / editor the surface is the editor background */
-.agent-sessions-workbench .interactive-session .chat-question-carousel-container,
-.editor-instance .interactive-session .chat-question-carousel-container {
-	background-color: var(--vscode-editor-background);
 }
 
 /* input part wrapper */
@@ -77,24 +64,12 @@
 		flex-shrink: 0;
 
 		.chat-question-title-row {
-			display: flex;
-			justify-content: space-between;
-			align-items: flex-start;
-			gap: 8px;
 			min-width: 0;
-			padding: 8px 8px 8px 16px;
-			border-bottom: 1px solid var(--vscode-chat-requestBorder);
 		}
 
 		.chat-question-title {
-			flex: 1;
-			min-width: 0;
 			word-break: break-word;
-			overflow-wrap: anywhere;
 			white-space: normal;
-			font-weight: var(--vscode-agents-fontWeight-semiBold);
-			font-size: var(--vscode-agents-fontSize-heading3);
-			margin: 0;
 			user-select: text;
 			-webkit-user-select: text;
 
@@ -123,55 +98,10 @@
 
 		.chat-question-focus-terminal-container {
 			flex-shrink: 0;
-
-			.monaco-button.chat-question-focus-terminal {
-				min-width: 22px;
-				width: 22px;
-				height: 22px;
-				padding: 0;
-				border: none !important;
-				box-shadow: none !important;
-				background: transparent !important;
-				color: var(--vscode-icon-foreground) !important;
-			}
-
-			.monaco-button.chat-question-focus-terminal:hover:not(.disabled) {
-				background: var(--vscode-toolbar-hoverBackground) !important;
-			}
 		}
 
 		.chat-question-close-container {
 			flex-shrink: 0;
-
-			.monaco-button.chat-question-close {
-				min-width: 22px;
-				width: 22px;
-				height: 22px;
-				padding: 0;
-				border: none !important;
-				box-shadow: none !important;
-				background: transparent !important;
-				color: var(--vscode-icon-foreground) !important;
-			}
-
-			.monaco-button.chat-question-close:hover:not(.disabled) {
-				background: var(--vscode-toolbar-hoverBackground) !important;
-			}
-		}
-
-		.monaco-button.chat-question-collapse-toggle {
-			min-width: 22px;
-			width: 22px;
-			height: 22px;
-			padding: 0;
-			border: none !important;
-			box-shadow: none !important;
-			background: transparent !important;
-			color: var(--vscode-icon-foreground) !important;
-		}
-
-		.monaco-button.chat-question-collapse-toggle:hover:not(.disabled) {
-			background: var(--vscode-toolbar-hoverBackground) !important;
 		}
 	}
 }
@@ -305,8 +235,12 @@
 			}
 		}
 
-		/* When the question list has focus, use active selection styling */
-		.chat-question-list:focus .chat-question-list-item.selected {
+		/*
+		 * When the question list has focus, use active selection styling. Written with `&` because
+		 * this rule is nested inside `.chat-question-list`; spelling the class out again would
+		 * compile to a list inside a list and never match.
+		 */
+		&:focus .chat-question-list-item.selected {
 			background-color: var(--vscode-list-activeSelectionBackground, var(--vscode-list-hoverBackground));
 			color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
 
@@ -438,25 +372,6 @@
 		display: flex;
 		align-items: center;
 		gap: 4px;
-	}
-
-	.monaco-button.chat-question-nav-arrow {
-		min-width: 22px;
-		width: 22px;
-		height: 22px;
-		padding: 0;
-		border: none !important;
-		box-shadow: none !important;
-		background: transparent !important;
-		color: var(--vscode-foreground) !important;
-	}
-
-	.monaco-button.chat-question-nav-arrow:hover:not(.disabled) {
-		background: var(--vscode-toolbar-hoverBackground) !important;
-	}
-
-	.monaco-button.chat-question-nav-arrow.disabled {
-		opacity: 0.4;
 	}
 
 	.chat-question-step-indicator {
