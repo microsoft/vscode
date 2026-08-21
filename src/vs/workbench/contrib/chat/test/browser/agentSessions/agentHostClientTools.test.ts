@@ -210,12 +210,17 @@ suite('AgentHostClientTools', () => {
 	};
 
 	async function publishedTools(tools: readonly IToolData[], sessionType: string, enabled: boolean) {
-		const toolSet = new class extends mock<IToolSet>() {
+		const searchToolSet = new class extends mock<IToolSet>() {
 			override readonly id = 'search';
-			override readonly deprecated = false;
-			override getTools(): Iterable<IToolData> { return tools; }
+			override readonly deprecated = true;
+			override getTools(): Iterable<IToolData> { return tools.filter(tool => tool.id === CLIENT_SEMANTIC_SEARCH_TOOL_ID); }
 		};
-		const client = createActiveClientService(constObservable(tools), constObservable([toolSet]));
+		const enabledToolSet = new class extends mock<IToolSet>() {
+			override readonly id = 'enabled';
+			override readonly deprecated = false;
+			override getTools(): Iterable<IToolData> { return tools.filter(tool => tool.id !== CLIENT_SEMANTIC_SEARCH_TOOL_ID); }
+		};
+		const client = createActiveClientService(constObservable(tools), constObservable([searchToolSet, enabledToolSet]));
 		const registration = disposables.add(client.service.registerForAgent(sessionType));
 		const scope = disposables.add(registration.acquireScope([]));
 		await scope.whenResolved();
@@ -235,7 +240,7 @@ suite('AgentHostClientTools', () => {
 			localDisabled: [['readFile', 'Read File']],
 			localEnabled: [[SEMANTIC_SEARCH_TOOL_NAME, 'Search Codebase'], ['readFile', 'Read File']],
 			remoteEnabled: [[SEMANTIC_SEARCH_TOOL_NAME, 'Search Codebase'], ['readFile', 'Read File']],
-			otherEnabled: [[CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, 'Other Codebase'], [SEMANTIC_SEARCH_TOOL_NAME, 'Other Semantic Search'], [CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, 'Search Codebase'], ['readFile', 'Read File']],
+			otherEnabled: [[CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, 'Other Codebase'], [SEMANTIC_SEARCH_TOOL_NAME, 'Other Semantic Search'], ['readFile', 'Read File']],
 			withoutCanonical: [['readFile', 'Read File']],
 		});
 	});

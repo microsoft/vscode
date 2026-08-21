@@ -91,6 +91,21 @@ type GitHubCredentialsUpdateResult = Awaited<ReturnType<CopilotSession['rpc']['g
 type McpAuthHandler = NonNullable<SessionConfig['onMcpAuthRequest']>;
 type McpAuthRequest = Parameters<McpAuthHandler>[0];
 type McpAuthResult = Awaited<ReturnType<McpAuthHandler>>;
+
+interface IClientToolSdkPolicy {
+	readonly overridesBuiltInTool?: true;
+	readonly skipPermission?: true;
+}
+
+const DEFAULT_CLIENT_TOOL_SDK_POLICY: IClientToolSdkPolicy = {};
+const CLIENT_TOOL_SDK_POLICIES: ReadonlyMap<string, IClientToolSdkPolicy> = new Map([
+	[SEMANTIC_SEARCH_TOOL_NAME, { overridesBuiltInTool: true, skipPermission: true }],
+]);
+
+function getClientToolSdkPolicy(toolName: string): IClientToolSdkPolicy {
+	return CLIENT_TOOL_SDK_POLICIES.get(toolName) ?? DEFAULT_CLIENT_TOOL_SDK_POLICY;
+}
+
 interface CopilotExitPlanModeResponse extends ExitPlanModeResult {
 	readonly autoApproveEdits?: ExitPlanModeCompletedData['autoApproveEdits'];
 }
@@ -1645,12 +1660,13 @@ export class CopilotAgentSession extends Disposable {
 			const defer: 'auto' | 'never' | undefined = toolSearchActive
 				? (NON_DEFERRED_CLIENT_TOOL_NAMES.has(def.name) ? 'never' : 'auto')
 				: undefined;
+			const sdkPolicy = getClientToolSdkPolicy(def.name);
 			return {
 				name: def.name,
 				description: def.description ?? '',
 				parameters: def.inputSchema ?? { type: 'object' as const, properties: {} },
 				defer,
-				...(def.name === SEMANTIC_SEARCH_TOOL_NAME ? { overridesBuiltInTool: true, skipPermission: true } : {}),
+				...sdkPolicy,
 				handler: this._guarded(async (_args: Record<string, unknown>, { toolCallId }) => {
 					try {
 						return await this._pendingClientToolCalls.register(toolCallId);
@@ -4325,9 +4341,10 @@ export class CopilotAgentSession extends Disposable {
 			if (isToolSearch && clientToolAutoApproved) {
 				meta.autoApproveBySetting = true;
 			}
+			const sdkPolicy = getClientToolSdkPolicy(e.data.toolName);
 			const shouldWaitForClientToolReady = contributor?.kind === ToolCallContributorKind.Client
 				&& !isAgentCoordinationTool(e.data.toolName)
-				&& (isToolSearch || !clientToolAutoApproved);
+				&& (isToolSearch || (!sdkPolicy.skipPermission && !clientToolAutoApproved));
 			if (shouldWaitForClientToolReady) {
 				return;
 			}

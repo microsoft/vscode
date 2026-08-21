@@ -412,6 +412,9 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 				const enablement = this._toolSetEnablementService.observe(sessionType).read(reader);
 				const isCopilotSession = isCopilotCliSessionType(sessionType);
 				const semanticSearchEnabled = isCopilotSession && this._semanticSearchEnabled.read(reader);
+				const semanticSearchTool = isCopilotSession
+					? tools.find(tool => tool.id === CLIENT_SEMANTIC_SEARCH_TOOL_ID)
+					: undefined;
 				const enabledToolIds = new Set<string>();
 				for (const ts of toolSets) {
 					if (ts.deprecated) {
@@ -423,10 +426,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 						}
 					}
 				}
-				const semanticSearchTool = isCopilotSession
-					? tools.find(tool => tool.id === CLIENT_SEMANTIC_SEARCH_TOOL_ID)
-					: undefined;
-				return coalesce(tools.filter(tool => enabledToolIds.has(tool.id)).map(tool => {
+				return coalesce(tools.filter(tool => enabledToolIds.has(tool.id) || (semanticSearchEnabled && tool === semanticSearchTool)).map(tool => {
 					if (!isCopilotSession) {
 						return toolDataToDefinition(tool);
 					}
