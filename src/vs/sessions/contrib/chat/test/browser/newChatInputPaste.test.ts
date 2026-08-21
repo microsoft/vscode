@@ -84,7 +84,7 @@ suite('NewChatInputPasteTarget', () => {
 	 * inserted text is one undo element and the attachment is a second, so undo
 	 * runs the custom edit first and the text edit second, and redo the reverse.
 	 */
-	async function runPasteLifecycle(pastedText: string, act?: (attachments: INewChatAttachments, completionHandler: AgentHostInputCompletionHandler) => void) {
+	async function runPasteLifecycle(pastedText: string, act?: (attachments: INewChatAttachments) => void) {
 		const snapshots: { stage: string; value: string; attachments: string[]; code: string | undefined; sent: { name: string; text: string }[] }[] = [];
 
 		const model = store.add(createTextModel('', null, undefined, URI.from({ scheme: Schemas.sessionsChatInput, path: 'input-test' })));
@@ -160,7 +160,7 @@ suite('NewChatInputPasteTarget', () => {
 				await customEdit.redo();
 				snapshot('redo');
 
-				act?.(attachments, completionHandler);
+				act?.(attachments);
 				snapshot('afterAct');
 			} finally {
 				local.dispose();
@@ -200,23 +200,6 @@ suite('NewChatInputPasteTarget', () => {
 		assert.deepStrictEqual(snapshots.at(-1), {
 			stage: 'afterAct',
 			value: '',
-			attachments: [],
-			code: undefined,
-			sent: [],
-		});
-	});
-
-	test('inserting in the prompt puts the pasted text back in place of its reference', async () => {
-		const pastedText = `${'x'.repeat(1200)}\n`.repeat(10);
-		const snapshots = await runPasteLifecycle(pastedText, (attachments, completionHandler) => {
-			completionHandler.insertArtifactTextInPrompt(attachments.attachments[0]);
-		});
-
-		assert.deepStrictEqual(snapshots.at(-1), {
-			stage: 'afterAct',
-			// The reference is gone, the text it stood in for is back, and the
-			// trailing space the paste added is left alone.
-			value: `${pastedText} `,
 			attachments: [],
 			code: undefined,
 			sent: [],

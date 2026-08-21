@@ -501,35 +501,6 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		this._artifactReferenceIds.delete(id);
 	}
 
-	/**
-	 * Replaces a pasted-text artifact's inline reference with the text it stands
-	 * in for, so a paste that was turned into an attachment can be worked with as
-	 * ordinary text. Tracking is dropped first so the chip-removal cleanup does not
-	 * run a competing edit over text this already replaced.
-	 */
-	insertArtifactTextInPrompt(entry: IChatRequestVariableEntry): void {
-		const model = this._editor.getModel();
-		if (!model || !isPastedTextArtifact(entry)) {
-			return;
-		}
-
-		const reference = this._insertedReferences.get(entry.id);
-		const value = model.getValue();
-		const referenceRange = reference
-			? getAgentHostCompletionAttachmentRange(value, reference.text, reference.range, 0, value.length)
-			: undefined;
-		// The trailing space is left alone: the text takes the reference's place,
-		// not its spacing.
-		const editRange = referenceRange
-			? Range.fromPositions(model.getPositionAt(referenceRange.start), model.getPositionAt(referenceRange.endExclusive))
-			: (this._editor.getSelection() ?? model.getFullModelRange().collapseToEnd());
-
-		this.forgetReference(entry.id);
-		this._editor.executeEdits('sessionsChat.insertPastedTextInPrompt', [{ range: editRange, text: entry.code }]);
-		this._contextAttachments.removeAttachment(entry.id);
-		this._editor.focus();
-	}
-
 	/** Removes an inline reference's text, including one trailing space. */
 	private _removeReferenceText(text: string, preferredRange: OffsetRange | undefined): void {
 		const model = this._editor.getModel();

@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
-import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
-import { toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -16,7 +14,6 @@ import { localize } from '../../../../nls.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { registerOpenEditorListeners } from '../../../../platform/editor/browser/editor.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IChatImageCarouselService } from '../../../../workbench/contrib/chat/browser/chatImageCarouselService.js';
 import { coerceImageBuffer } from '../../../../workbench/contrib/chat/common/chatImageExtraction.js';
@@ -87,16 +84,6 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 
 	private readonly _resourceLabels: ResourceLabels;
 
-	/**
-	 * Puts a pasted-text artifact's content back into the prompt. Set by the input,
-	 * which owns the editor; without it the artifact's text has no way back.
-	 */
-	private _insertInPrompt: ((entry: IChatRequestVariableEntry) => void) | undefined;
-
-	setInsertInPromptHandler(handler: (entry: IChatRequestVariableEntry) => void): void {
-		this._insertInPrompt = handler;
-	}
-
 	constructor(
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ITextModelService private readonly textModelService: ITextModelService,
@@ -111,7 +98,6 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IChatImageCarouselService private readonly chatImageCarouselService: IChatImageCarouselService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		super();
 		this._resourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
@@ -199,26 +185,6 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 				this._renderDisposables.add(registerOpenEditorListeners(pill, async () => {
 					await this.instantiationService.invokeFunction(openPastedTextArtifact, entry);
 				}));
-				// A paste that became an attachment is otherwise a one-way door: the
-				// text lives only in the pill and cannot be edited.
-				const insertInPrompt = this._insertInPrompt;
-				if (insertInPrompt) {
-					this._renderDisposables.add(dom.addDisposableListener(pill, dom.EventType.CONTEXT_MENU, domEvent => {
-						const event = new StandardMouseEvent(dom.getWindow(domEvent), domEvent);
-						dom.EventHelper.stop(domEvent, true);
-
-						this.contextMenuService.showContextMenu({
-							getAnchor: () => event,
-							getActions: () => [
-								toAction({
-									id: 'sessions.pastedTextAttachment.insertInPrompt',
-									label: localize('insertInPrompt', "Insert in Prompt"),
-									run: () => insertInPrompt(entry),
-								}),
-							],
-						});
-					}));
-				}
 			}
 
 			// Only expose the pill itself as a focusable button when it has an open

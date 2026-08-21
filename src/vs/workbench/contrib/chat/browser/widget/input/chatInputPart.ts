@@ -44,7 +44,6 @@ import { EDITOR_FONT_DEFAULTS } from '../../../../../../editor/common/config/fon
 import { IDimension } from '../../../../../../editor/common/core/2d/dimension.js';
 import { IPosition } from '../../../../../../editor/common/core/position.js';
 import { IRange, Range } from '../../../../../../editor/common/core/range.js';
-import { Selection } from '../../../../../../editor/common/core/selection.js';
 import { isLocation } from '../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
@@ -91,7 +90,7 @@ import { AccessibilityCommandId } from '../../../../accessibility/common/accessi
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEditorSelectionStyling } from '../../../../codeEditor/browser/simpleEditorOptions.js';
 import { IChatViewTitleActionContext } from '../../../common/actions/chatActions.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
-import { ChatRequestVariableSet, getImageAttachmentLimit, IChatRequestPasteVariableEntry, IChatRequestVariableEntry, isPastedTextArtifact, isAgentHostCompletionVariableEntry, isBrowserViewVariableEntry, isElementVariableEntry, isExplicitFileOrImageVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringVariableEntry, OmittedState } from '../../../common/attachments/chatVariableEntries.js';
+import { ChatRequestVariableSet, getImageAttachmentLimit, IChatRequestVariableEntry, isPastedTextArtifact, isAgentHostCompletionVariableEntry, isBrowserViewVariableEntry, isElementVariableEntry, isExplicitFileOrImageVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringVariableEntry, OmittedState } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatMode, getModeNameForTelemetry, IChatMode, IChatModes, IChatModeService } from '../../../common/chatModes.js';
 import { IChatFollowup, IChatPlanReview, IChatQuestionCarousel, IChatService, IChatToolInvocation } from '../../../common/chatService/chatService.js';
 import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, isAgentHostTarget, isIChatSessionFileChange2, localChatSessionType, SessionType } from '../../../common/chatSessionsService.js';
@@ -3921,9 +3920,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			} else if (isElementVariableEntry(attachment)) {
 				attachmentWidget = this.instantiationService.createInstance(ElementChatAttachmentWidget, attachment, lm, options, container, this._contextResourceLabels);
 			} else if (isPasteVariableEntry(attachment)) {
-				const pasteWidget = this.instantiationService.createInstance(PasteAttachmentWidget, attachment, lm, options, container, this._contextResourceLabels);
-				store.add(pasteWidget.onDidRequestInsertInPrompt(() => this.insertPastedTextInPrompt(attachment)));
-				attachmentWidget = pasteWidget;
+				attachmentWidget = this.instantiationService.createInstance(PasteAttachmentWidget, attachment, lm, options, container, this._contextResourceLabels);
 			} else if (isSCMHistoryItemVariableEntry(attachment)) {
 				attachmentWidget = this.instantiationService.createInstance(SCMHistoryItemAttachmentWidget, attachment, lm, options, container, this._contextResourceLabels);
 			} else if (isSCMHistoryItemChangeVariableEntry(attachment)) {
@@ -3959,29 +3956,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	/**
-	 * The range of the inline reference that stands in for an attachment in the
-	 * input, if the attachment has one.
-	 */
-	private getInlineReferenceRange(attachment: IChatRequestVariableEntry): Range | undefined {
-		if (!attachment.range || !isPastedTextArtifact(attachment)) {
-			return undefined;
-		}
-		const reference = this._widget?.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.variables
-			.find(variable => variable.id === attachment.id);
-		return reference ? Range.lift(reference.range) : undefined;
-	}
-
-	/**
 	 * Removes the inline reference bound to a deleted attachment, including one
 	 * trailing space, so the input is not left with a token that resolves to
 	 * nothing. The dynamic variable model drops the reference once its text goes.
 	 */
 	private removeInlineReferenceText(attachment: IChatRequestVariableEntry): void {
-		const model = this._inputEditor.getModel();
-		const range = this.getInlineReferenceRange(attachment);
-		if (!model || !range) {
+		if (!attachment.range || !isPastedTextArtifact(attachment)) {
 			return;
 		}
+		const model = this._inputEditor.getModel();
+		const reference = this._widget?.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.variables
+			.find(variable => variable.id === attachment.id);
+		if (!model || !reference) {
+			return;
+		}
+		const range = Range.lift(reference.range);
 		const endColumn = model.getValueInRange(new Range(range.endLineNumber, range.endColumn, range.endLineNumber, range.endColumn + 1)) === ' '
 			? range.endColumn + 1
 			: range.endColumn;
@@ -3989,39 +3978,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			range: new Range(range.startLineNumber, range.startColumn, range.endLineNumber, endColumn),
 			text: '',
 		}]);
-	}
-
-	/**
-	 * Puts a pasted-text attachment's content back into the prompt in place of
-	 * the inline reference that stands in for it, so a paste that was turned into
-	 * an attachment can be worked with as ordinary text. The trailing space after
-	 * the reference is kept, and the attachment goes away with its reference.
-	 */
-	private insertPastedTextInPrompt(attachment: IChatRequestPasteVariableEntry): void {
-		const model = this._inputEditor.getModel();
-		if (!model) {
-			return;
-		}
-
-		// A reference the user already deleted leaves the attachment with nowhere
-		// to go back to, so fall back to wherever the cursor is.
-		const range = this.getInlineReferenceRange(attachment) ?? this._inputEditor.getSelection() ?? model.getFullModelRange().collapseToEnd();
-		const text = attachment.code;
-		const lines = text.split(/\r\n|\r|\n/);
-		const endLineNumber = range.startLineNumber + lines.length - 1;
-		const endColumn = lines.length === 1
-			? range.startColumn + lines[0].length
-			: lines[lines.length - 1].length + 1;
-
-		this._inputEditor.executeEdits(
-			'chatInsertPastedTextInPrompt',
-			[{ range, text }],
-			[new Selection(endLineNumber, endColumn, endLineNumber, endColumn)]);
-
-		this._attachmentModel.delete(attachment.id);
-		this._onDidChangeContext.fire({ removed: [attachment] });
-		this.renderAttachedContext();
-		this.focus();
 	}
 
 	private handleAttachmentDeletion(e: KeyboardEvent | unknown, index: number, attachment: IChatRequestVariableEntry) {

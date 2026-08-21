@@ -145,9 +145,8 @@ export class ChatCopyActionRendering extends Disposable implements IWorkbenchCon
 }
 
 export function registerChatCopyActions() {
-	// The chat input turns a plain paste into Markdown or an attachment depending
-	// on the clipboard, so reserve the conventional "paste without formatting"
-	// chord for text that is inserted exactly as it sits on the clipboard.
+	// A plain paste in the chat input may become Markdown or an attachment, so
+	// keep the usual "paste without formatting" chord for verbatim text.
 	KeybindingsRegistry.registerKeybindingRule({
 		id: 'editor.action.pasteAsText',
 		weight: KeybindingWeight.WorkbenchContrib,

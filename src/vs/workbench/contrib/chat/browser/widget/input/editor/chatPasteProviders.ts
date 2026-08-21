@@ -39,9 +39,9 @@ import { cleanupOldImages, createFileForMedia, resizeImage } from '../../../chat
 const COPY_MIME_TYPES = 'application/vnd.code.additional-editor-data';
 export const pastedTextArtifactDefaultMinLength = 10000;
 /**
- * A long *single* line — a URL, a stack frame, a dictated sentence — is content
- * the user means to write with, so length alone must not turn it into an
- * attachment. Only text that is also shaped like a document qualifies.
+ * A long single line, such as a URL, a stack frame, or a dictated sentence, is
+ * content the user means to write with, so length alone must not turn it into
+ * an attachment. Only text that is also shaped like a document qualifies.
  */
 const pastedTextArtifactMinLines = 10;
 export const CHAT_ATTACHMENT_MIME_TYPE = 'application/vnd.chat.attachment+json';
