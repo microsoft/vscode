@@ -155,7 +155,7 @@ export const defaultAgentMergeConfiguration: AgentMergeConfiguration = {
 };
 
 export type AgentMergeGateResult =
-	| { readonly kind: 'indeterminate'; readonly reason: string }
+	| { readonly kind: 'indeterminate'; readonly reason: string; readonly cause: string }
 	| { readonly kind: 'terminal' }
 	| { readonly kind: 'noWork'; readonly waitingOnChecks: boolean; readonly fingerprint: string }
 	| { readonly kind: 'prompt'; readonly actions: readonly AgentMergeRepairAction[]; readonly fingerprint: string; readonly context: AgentMergePromptContext }
@@ -293,22 +293,19 @@ class FeedbackBudget {
 export function evaluateAgentMerge(snapshot: PullRequestSnapshot, configuration: AgentMergeConfiguration, commentWatermark: string): AgentMergeGateResult {
 	const core = snapshot.core;
 	if (core.status !== 'ready' || !core.complete || !core.value) {
-		return { kind: 'indeterminate', reason: 'Pull request core state is incomplete' };
+		return { kind: 'indeterminate', reason: 'Pull request core state is incomplete', cause: 'core:incomplete' };
 	}
 	if (core.value.state !== 'open') {
 		return { kind: 'terminal' };
 	}
-	if (!isCompleteFragment(snapshot, 'topLevelComments')
-		|| !isCompleteFragment(snapshot, 'submittedReviews')
-		|| !isCompleteFragment(snapshot, 'reviewThreads')
-		|| !isCompleteHeadFragment(snapshot, 'checks', core.value.headSha)
-		|| !isCompleteHeadFragment(snapshot, 'mergeability', core.value.headSha)) {
-		return { kind: 'indeterminate', reason: 'Pull request state is incomplete or stale' };
+	const incomplete = firstIncompleteFragment(snapshot, core.value.headSha);
+	if (incomplete) {
+		return { kind: 'indeterminate', ...describeIncompleteFragment(snapshot, incomplete) };
 	}
 
 	const checks = classifyAgentMergeRequiredChecks(snapshot.checks.value!);
 	if (checks.kind === 'indeterminate') {
-		return { kind: 'indeterminate', reason: checks.reason };
+		return { kind: 'indeterminate', reason: checks.reason, cause: `checks:${checks.reason}` };
 	}
 
 	const reviewThreads = snapshot.reviewThreads.value!
@@ -391,6 +388,44 @@ function isCompleteFragment(snapshot: PullRequestSnapshot, fragment: 'topLevelCo
 function isCompleteHeadFragment(snapshot: PullRequestSnapshot, fragment: 'checks' | 'mergeability', headSha: string): boolean {
 	const state = snapshot[fragment];
 	return state.status === 'ready' && state.complete && state.value !== undefined && state.headSha === headSha;
+}
+
+type EvaluatedFragment = 'topLevelComments' | 'submittedReviews' | 'reviewThreads' | 'checks' | 'mergeability';
+
+function firstIncompleteFragment(snapshot: PullRequestSnapshot, headSha: string): EvaluatedFragment | undefined {
+	for (const fragment of ['topLevelComments', 'submittedReviews', 'reviewThreads'] as const) {
+		if (!isCompleteFragment(snapshot, fragment)) {
+			return fragment;
+		}
+	}
+	for (const fragment of ['checks', 'mergeability'] as const) {
+		if (!isCompleteHeadFragment(snapshot, fragment, headSha)) {
+			return fragment;
+		}
+	}
+	return undefined;
+}
+
+/**
+ * Names the fragment holding evaluation back, and why.
+ *
+ * Every fragment shares one indeterminate outcome, so without this a permanent
+ * failure and an ordinary in-flight refresh are indistinguishable in the logs.
+ * `reason` carries the volatile detail worth logging, while `cause` stays
+ * stable for as long as the same condition persists so callers can time it.
+ */
+function describeIncompleteFragment(snapshot: PullRequestSnapshot, fragment: EvaluatedFragment): { readonly reason: string; readonly cause: string } {
+	const state = snapshot[fragment];
+	if (state.error) {
+		return {
+			reason: `Pull request ${fragment} could not be loaded (${state.error.kind}): ${state.error.message}`,
+			cause: `${fragment}:${state.error.kind}`,
+		};
+	}
+	return {
+		reason: `Pull request ${fragment} state is incomplete or stale (status=${state.status}, complete=${state.complete})`,
+		cause: `${fragment}:incomplete`,
+	};
 }
 
 function latestReviewsByAuthor(reviews: PullRequestSnapshot['submittedReviews']['value']): NonNullable<typeof reviews> {

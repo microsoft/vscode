@@ -23,6 +23,7 @@ import { GitHubHostCapabilities, IGitHubEndpointProvider } from './githubTypes.j
 import { GitHubCredential } from './githubCredentialService.js';
 import { IGitHubCapabilities } from './githubHostCapabilitiesService.js';
 import { GitHubGraphQLError, GitHubRequestError, IGitHubTransport } from './githubTransport.js';
+import { ILogService } from '../../log/common/log.js';
 import { PullRequestRequestPlanner } from './pullRequestRequestPlanner.js';
 
 export type PullRequestFragmentResult =
@@ -79,7 +80,7 @@ const reviewThreadCommentsQuery = `query AgentHostPullRequestReviewThreadComment
 	rateLimit { limit remaining used resetAt }
 }`;
 
-const checksQuery = (includeRequiredness: boolean) => `query AgentHostPullRequestChecks($owner: String!, $repo: String!, $number: Int!, $after: String) {
+const checksQuery = (includeRequiredness: boolean, includeWorkflowNames: boolean) => `query AgentHostPullRequestChecks($owner: String!, $repo: String!, $number: Int!, $after: String) {
 	repository(owner: $owner, name: $repo) {
 		pullRequest(number: $number) {
 			headRefOid
@@ -92,7 +93,7 @@ const checksQuery = (includeRequiredness: boolean) => `query AgentHostPullReques
 									__typename
 									... on CheckRun {
 										databaseId name status conclusion detailsUrl
-										checkSuite { workflowRun { workflow { name } } }
+										${includeWorkflowNames ? 'checkSuite { workflowRun { workflow { name } } }' : ''}
 										${includeRequiredness ? 'isRequired(pullRequestNumber: $number)' : ''}
 									}
 									... on StatusContext {
@@ -144,10 +145,14 @@ export class PullRequestQueryService implements IPullRequestQuery {
 
 	private readonly _planner = new PullRequestRequestPlanner();
 
+	/** Repositories whose host refused the workflow-name subselection, keyed by `owner/repo`. */
+	private readonly _workflowNamesUnavailable = new Set<string>();
+
 	constructor(
 		private readonly _transport: IGitHubTransport,
 		private readonly _capabilities: IGitHubCapabilities,
 		private readonly _endpoint: IGitHubEndpointProvider,
+		private readonly _logService?: ILogService,
 	) { }
 
 	async fetch(
@@ -387,22 +392,110 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		loadExpectedSuites: boolean,
 		includeOptional: boolean,
 	): Promise<PullRequestChecks> {
+		const rollup = await this._fetchCheckRollupWithWorkflowNames(ref, core, credential, signal, priority, includeRequiredness, includeOptional);
+		const expected = loadExpectedSuites
+			? await this._fetchExpectedCheckSuitesWhenPermitted(ref, core.headSha, credential, signal, priority)
+			: { suites: [], complete: false };
+		return {
+			headSha: rollup.headSha,
+			checks: rollup.checks,
+			requirednessComplete: includeRequiredness,
+			expectedSuites: expected.suites,
+			expectedSuitesComplete: expected.complete,
+		};
+	}
+
+	/**
+	 * Loads the check rollup, dropping the workflow-name subselection when the
+	 * host refuses it.
+	 *
+	 * `CheckRun.checkSuite` is non-nullable, so an authorization failure on the
+	 * GitHub Actions data it exposes — most commonly SAML SSO enforcement on the
+	 * owning organization — fails the whole fragment rather than that one field.
+	 * Checks would then never load, and Agent Merge cannot evaluate a pull
+	 * request without them. Workflow names are only informational, so a refusal
+	 * drops them and keeps the checks themselves. The decision is remembered per
+	 * repository so the fragment does not pay for a rejected request on every
+	 * poll. Only the rollup request is retried, so a refusal raised by any other
+	 * request cannot be misread as this one.
+	 */
+	private async _fetchCheckRollupWithWorkflowNames(
+		ref: PullRequestRef,
+		core: PullRequestCore,
+		credential: GitHubCredential,
+		signal: AbortSignal,
+		priority: import('./githubTypes.js').GitHubRequestPriority,
+		includeRequiredness: boolean,
+		includeOptional: boolean,
+	): Promise<{ readonly headSha: string; readonly checks: readonly PullRequestCheck[] }> {
+		const repositoryKey = `${ref.owner}/${ref.repo}`.toLowerCase();
+		const includeWorkflowNames = !this._workflowNamesUnavailable.has(repositoryKey);
+		try {
+			return await this._fetchCheckRollup(ref, core, credential, signal, priority, includeRequiredness, includeOptional, includeWorkflowNames);
+		} catch (error) {
+			if (!includeWorkflowNames || !(error instanceof GitHubRequestError) || error.kind !== 'authorization') {
+				throw error;
+			}
+			this._workflowNamesUnavailable.add(repositoryKey);
+			this._logService?.warn(`[PullRequestQueryService] Retrying checks for ${ref.owner}/${ref.repo}#${ref.number} without workflow names because GitHub refused them: ${error.message}`);
+			return await this._fetchCheckRollup(ref, core, credential, signal, priority, includeRequiredness, includeOptional, false);
+		}
+	}
+
+	/**
+	 * Loads the check suites expected for the head commit, tolerating a host
+	 * that refuses them.
+	 *
+	 * These suites are supplementary, and they read the same organization
+	 * protected GitHub Actions data that can refuse the rollup, so letting a
+	 * refusal fail the fragment would leave checks unreadable for the same
+	 * reason. Reporting them absent and incomplete keeps the checks themselves
+	 * usable and matches how every caller that does not request them is already
+	 * served.
+	 */
+	private async _fetchExpectedCheckSuitesWhenPermitted(
+		ref: PullRequestRef,
+		headSha: string,
+		credential: GitHubCredential,
+		signal: AbortSignal,
+		priority: import('./githubTypes.js').GitHubRequestPriority,
+	): Promise<{ readonly suites: readonly PullRequestCheckSuite[]; readonly complete: boolean }> {
+		try {
+			return { suites: await this._fetchExpectedCheckSuites(ref, headSha, credential, signal, priority), complete: true };
+		} catch (error) {
+			if (!(error instanceof GitHubRequestError) || error.kind !== 'authorization') {
+				throw error;
+			}
+			this._logService?.warn(`[PullRequestQueryService] Reporting expected check suites for ${ref.owner}/${ref.repo}#${ref.number} as unavailable because GitHub refused them: ${error.message}`);
+			return { suites: [], complete: false };
+		}
+	}
+
+	private async _fetchCheckRollup(
+		ref: PullRequestRef,
+		core: PullRequestCore,
+		credential: GitHubCredential,
+		signal: AbortSignal,
+		priority: import('./githubTypes.js').GitHubRequestPriority,
+		includeRequiredness: boolean,
+		includeOptional: boolean,
+		includeWorkflowNames: boolean,
+	): Promise<{ readonly headSha: string; readonly checks: readonly PullRequestCheck[] }> {
 		const checks: PullRequestCheck[] = [];
 		let after: string | undefined;
-		let observedHead: string | undefined;
 		for (let page = 0; page < maximumPaginationPages; page++) {
 			const response = await this._transport.graphql<unknown>(
 				credential.account,
 				credential.token,
 				this._endpoint.getGraphQlUri(),
-				checksQuery(includeRequiredness),
+				checksQuery(includeRequiredness, includeWorkflowNames),
 				{ owner: ref.owner, repo: ref.repo, number: ref.number, after },
 				signal,
 				priority,
 			);
 			throwGraphQLErrors(response.errors);
 			const pullRequest = objectAt(response.data, 'repository', 'pullRequest');
-			observedHead = requiredString(pullRequest, 'headRefOid');
+			const observedHead = requiredString(pullRequest, 'headRefOid');
 			if (observedHead !== core.headSha) {
 				throw new GitHubRequestError('GitHub checks response was for an old pull request head', 'unknown');
 			}
@@ -411,31 +504,13 @@ export class PullRequestQueryService implements IPullRequestQuery {
 			const commit = objectProperty(commitNode, 'commit');
 			const rollup = optionalObjectProperty(commit, 'statusCheckRollup');
 			if (!rollup) {
-				const expectedSuites = loadExpectedSuites
-					? await this._fetchExpectedCheckSuites(ref, core.headSha, credential, signal, priority)
-					: [];
-				return {
-					headSha: observedHead,
-					checks: [],
-					requirednessComplete: includeRequiredness,
-					expectedSuites,
-					expectedSuitesComplete: loadExpectedSuites,
-				};
+				return { headSha: observedHead, checks: [] };
 			}
 			const contexts = objectProperty(rollup, 'contexts');
 			checks.push(...arrayProperty(contexts, 'nodes').map(toCheck));
 			const pageInfo = pageInfoFrom(contexts);
 			if (!pageInfo.hasNextPage) {
-				const expectedSuites = loadExpectedSuites
-					? await this._fetchExpectedCheckSuites(ref, core.headSha, credential, signal, priority)
-					: [];
-				return {
-					headSha: observedHead,
-					checks: filterChecks(checks, includeRequiredness, includeOptional),
-					requirednessComplete: includeRequiredness,
-					expectedSuites,
-					expectedSuitesComplete: loadExpectedSuites,
-				};
+				return { headSha: observedHead, checks: filterChecks(checks, includeRequiredness, includeOptional) };
 			}
 			after = requiredCursor(pageInfo.endCursor);
 		}
