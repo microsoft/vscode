@@ -14,6 +14,7 @@ import { AgentCustomization, Customization, McpServerStatus, RootConfigState, ty
 import { type CustomizationDisabledReason } from '../../platform/agentHost/common/customizationEnablement.js';
 import { ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
 import { ISessionAgentRef } from '../services/sessions/common/session.js';
+import type { AgentMergeSessionOverrides, AgentMergeSessionState } from '../../platform/agentHost/common/agentMerge.js';
 
 /**
  * Progress emitted while an agent-host provider is establishing a connection.
@@ -131,6 +132,12 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	getCreateSessionConfig(sessionId: string): Record<string, unknown> | undefined;
 	/** Clears dynamic configuration state for an abandoned new session. */
 	clearSessionConfig(sessionId: string): void;
+	/** Returns the persisted Agent Merge state for a running session. */
+	getAgentMergeSessionState(sessionId: string): AgentMergeSessionState | undefined;
+	/** Enables or disables Agent Merge while preserving the session's action overrides. */
+	setAgentMergeEnabled(sessionId: string, enabled: boolean): Promise<void>;
+	/** Replaces the session's Agent Merge action overrides; `undefined` follows global defaults. */
+	setAgentMergeOverrides(sessionId: string, overrides: AgentMergeSessionOverrides | undefined): Promise<void>;
 
 	// -- Root (agent host) Config --
 

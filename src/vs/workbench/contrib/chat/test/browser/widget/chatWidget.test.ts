@@ -13,8 +13,8 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { SaveReason } from '../../../../../common/editor.js';
 import { ISaveAllEditorsOptions, ISaveEditorsResult } from '../../../../../services/editor/common/editorService.js';
 import { TestEditorService } from '../../../../../test/browser/workbenchTestServices.js';
-import { acceptAndAwaitSentRequest, ChatWidget, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatTip, shouldShowChatWelcome } from '../../../browser/widget/chatWidget.js';
-import { ChatSendResult, ChatSendResultSent, IChatSendRequestData } from '../../../common/chatService/chatService.js';
+import { acceptAndAwaitSentRequest, ChatWidget, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatTip, shouldShowChatWelcome, shouldUnlockChatPetQueueOrSteeringMessage, shouldUnlockChatPetRequestRevision } from '../../../browser/widget/chatWidget.js';
+import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatSendRequestData } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../common/constants.js';
 import { ChatRequestSlashCommandPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
 import { observePromptTimelineHostWidth } from '../../../browser/promptTimeline/promptTimelineWidgetContrib.js';
@@ -32,6 +32,46 @@ suite('ChatWidget', () => {
 		}
 	}
 
+	function createRequestEditWidget(currentInput: string, currentAttachmentIds: readonly string[], confirmResult = false) {
+		const editing = {};
+		let confirmationCount = 0;
+		let finishedCount = 0;
+		let focusCount = 0;
+		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
+		Object.defineProperties(widget, {
+			viewModel: { value: { editing } },
+			input: {
+				value: {
+					inputEditor: { getValue: () => currentInput },
+					attachmentModel: { getAttachmentIDs: () => new Set(currentAttachmentIds) },
+					focus: () => focusCount++,
+				}
+			},
+			_requestEditSnapshot: {
+				value: {
+					input: 'original request',
+					attachmentIds: new Set(['original-attachment']),
+				},
+				writable: true,
+			},
+			_requestEditCancellationPending: { value: false, writable: true },
+			dialogService: {
+				value: {
+					confirm: async () => {
+						confirmationCount++;
+						return { confirmed: confirmResult };
+					}
+				}
+			},
+			finishedEditing: { value: () => finishedCount++ },
+		});
+
+		return {
+			widget,
+			result: () => ({ confirmationCount, finishedCount, focusCount }),
+		};
+	}
+
 	test('saves non-untitled editors before sending by default', async () => {
 		const configurationService = new TestConfigurationService();
 		const editorService = store.add(new RecordingEditorService());
@@ -44,6 +84,40 @@ suite('ChatWidget', () => {
 			includeUntitled: false,
 			reason: SaveReason.EXPLICIT,
 		}]);
+	});
+
+	test('confirms before cancelling changed request edits', async () => {
+		const scenarios = [
+			{ name: 'unchanged', input: 'original request', attachmentIds: ['original-attachment'] },
+			{ name: 'text changed', input: 'edited request', attachmentIds: ['original-attachment'] },
+			{ name: 'attachment added', input: 'original request', attachmentIds: ['original-attachment', 'new-attachment'] },
+			{ name: 'attachment removed', input: 'original request', attachmentIds: [] },
+		];
+		const actual = [];
+
+		for (const scenario of scenarios) {
+			const requestEdit = createRequestEditWidget(scenario.input, scenario.attachmentIds);
+			await requestEdit.widget.cancelEditing();
+			actual.push({ name: scenario.name, ...requestEdit.result() });
+		}
+		assert.deepStrictEqual(actual, [
+			{ name: 'unchanged', confirmationCount: 0, finishedCount: 1, focusCount: 0 },
+			{ name: 'text changed', confirmationCount: 1, finishedCount: 0, focusCount: 1 },
+			{ name: 'attachment added', confirmationCount: 1, finishedCount: 0, focusCount: 1 },
+			{ name: 'attachment removed', confirmationCount: 1, finishedCount: 0, focusCount: 1 },
+		]);
+	});
+
+	test('confirmed cancellation discards changed request edits', async () => {
+		const requestEdit = createRequestEditWidget('edited request', ['original-attachment'], true);
+
+		await requestEdit.widget.cancelEditing();
+
+		assert.deepStrictEqual(requestEdit.result(), {
+			confirmationCount: 1,
+			finishedCount: 1,
+			focusCount: 0,
+		});
 	});
 
 	test('transcript overlays suppress the welcome state', () => {
@@ -67,6 +141,25 @@ suite('ChatWidget', () => {
 			shouldShowChatTip(0, false, false),
 			shouldShowChatTip(0, false, true),
 		], [true, false]);
+	});
+
+	test('only unlocks request revision for edited user submissions', () => {
+		assert.deepStrictEqual([
+			shouldUnlockChatPetRequestRevision(false, false),
+			shouldUnlockChatPetRequestRevision(false, true),
+			shouldUnlockChatPetRequestRevision(true, false),
+			shouldUnlockChatPetRequestRevision(true, true),
+		], [false, false, false, true]);
+	});
+
+	test('only unlocks queue or steering for queued user submissions', () => {
+		assert.deepStrictEqual([
+			shouldUnlockChatPetQueueOrSteeringMessage(false, undefined),
+			shouldUnlockChatPetQueueOrSteeringMessage(true, undefined),
+			shouldUnlockChatPetQueueOrSteeringMessage(false, ChatRequestQueueKind.Queued),
+			shouldUnlockChatPetQueueOrSteeringMessage(true, ChatRequestQueueKind.Queued),
+			shouldUnlockChatPetQueueOrSteeringMessage(true, ChatRequestQueueKind.Steering),
+		], [false, false, false, true, true]);
 	});
 
 	test('identifies only leading silent execute-immediately slash commands', () => {
@@ -208,7 +301,7 @@ suite('ChatWidget - acceptAndAwaitSentRequest', () => {
 		const deferred = new DeferredPromise<ChatSendResult>();
 		let accepted = 0;
 
-		const pending = acceptAndAwaitSentRequest({ kind: 'queued', requestId: 'queued-request', deferred: deferred.p }, () => accepted++);
+		const pending = acceptAndAwaitSentRequest({ kind: 'queued', deferred: deferred.p }, () => accepted++);
 		// The queued request has not run yet, so `pending` is still unresolved here.
 		const acceptedWhileQueued = accepted === 1;
 
@@ -234,7 +327,7 @@ suite('ChatWidget - acceptAndAwaitSentRequest', () => {
 		const deferred = new DeferredPromise<ChatSendResult>();
 		let accepted = 0;
 
-		const pending = acceptAndAwaitSentRequest({ kind: 'queued', requestId: 'queued-request', deferred: deferred.p }, () => accepted++);
+		const pending = acceptAndAwaitSentRequest({ kind: 'queued', deferred: deferred.p }, () => accepted++);
 		await deferred.complete({ kind: 'rejected', reason: 'Session is read-only' });
 
 		assert.deepStrictEqual({ accepted, sent: await pending }, { accepted: 1, sent: undefined });

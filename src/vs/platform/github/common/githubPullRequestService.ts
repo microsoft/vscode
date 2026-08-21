@@ -70,6 +70,7 @@ export interface FragmentState<T> {
 export interface GitHubActor {
 	readonly id?: string;
 	readonly login: string;
+	readonly association?: string;
 }
 
 export interface PullRequestCore {
@@ -84,6 +85,8 @@ export interface PullRequestCore {
 	readonly draft: boolean;
 	readonly headSha: string;
 	readonly headRef: string;
+	readonly headRepositoryNameWithOwner?: string;
+	readonly maintainerCanModify?: boolean;
 	readonly baseSha: string;
 	readonly baseRef: string;
 	readonly author?: GitHubActor;

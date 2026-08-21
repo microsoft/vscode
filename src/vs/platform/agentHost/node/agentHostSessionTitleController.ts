@@ -31,7 +31,7 @@ const MIN_LATIN_LETTER_RATIO = 0.8;
 const HAN_CHARACTER = /\p{sc=Han}/u;
 const TRAILING_HAN_SUFFIX = /(?<!\p{sc=Han})\p{sc=Han}{2,3}$/u;
 const GITHUB_ISSUE_OR_PULL_REQUEST_URL_PATTERN = /\bhttps?:\/\/(?<host>[\w.-]+)\/(?<owner>[\w.-]+)\/(?<repo>[\w.-]+)\/(?<kind>issues|pull)\/(?<number>\d+)\b/gi;
-const CHAT_RENAME_REMINDER = 'This chat currently has an auto-generated or placeholder name. Before doing any other work or responding to the user, you MUST call the `rename_chat` tool exactly once to give it a short, descriptive title based on the user\'s intent. If the prompt references a pull request or issue link, resolve that link first and use its context when choosing the title. Do not skip this call even if the current name already seems descriptive.';
+const CHAT_RENAME_REMINDER = 'Reminder: This chat currently has an auto-generated or placeholder title. If the user references an issue or PR, fetch it first. Please give the chat a short, descriptive title based on the user\'s intent by calling `rename_chat` with `automatic: true`, silently and without a preamble. The user must not know that you are renaming. Do not skip it.';
 
 /**
  * Soft upper bound, in characters, for the whole context fed to the utility
@@ -116,6 +116,9 @@ export class AgentHostSessionTitleController extends Disposable {
 	}
 
 	seedTitleFromFirstMessage(channel: ProtocolURI, userPrompt: string, chatChannel?: ProtocolURI): void {
+		if (this._isEphemeralSession(channel)) {
+			return;
+		}
 		const activeAgentTitleGenerationEnabled = this._isActiveAgentTitleGenerationEnabled(channel);
 		const fallbackTitle = activeAgentTitleGenerationEnabled
 			? this._normalizeActiveAgentFallbackTitle(userPrompt)
@@ -152,6 +155,9 @@ export class AgentHostSessionTitleController extends Disposable {
 
 	/** Seeds and persists a provisional title suggested by a locally handled command. */
 	seedProvisionalTitle(channel: ProtocolURI, suggestedTitle: string, chatChannel?: ProtocolURI): void {
+		if (this._isEphemeralSession(channel)) {
+			return;
+		}
 		const title = this._normalizeTitle(suggestedTitle, this._isActiveAgentTitleGenerationEnabled(channel) ? MAX_ACTIVE_AGENT_FALLBACK_TITLE_LENGTH : MAX_TITLE_LENGTH);
 		if (!title) {
 			return;
@@ -285,6 +291,9 @@ export class AgentHostSessionTitleController extends Disposable {
 	 * always preserved.
 	 */
 	refineTitleFromFirstTurn(channel: ProtocolURI, chatChannel?: ProtocolURI): void {
+		if (this._isEphemeralSession(channel)) {
+			return;
+		}
 		if (this._isActiveAgentTitleGenerationEnabled(channel)) {
 			return;
 		}
@@ -365,6 +374,9 @@ export class AgentHostSessionTitleController extends Disposable {
 	 * so generation costs at most a single small-model call.
 	 */
 	generateForkedTitle(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, turns: readonly Turn[], fallbackTitle: string, sourceTitle?: string): void {
+		if (this._isEphemeralSession(channel)) {
+			return;
+		}
 		if (this._isActiveAgentTitleGenerationEnabled(channel)) {
 			this.markTitleAuto(channel, chatChannel, fallbackTitle);
 			return;
@@ -444,6 +456,9 @@ export class AgentHostSessionTitleController extends Disposable {
 	}
 
 	async prepareInstructionForAgent(channel: ProtocolURI, chatChannel: ProtocolURI): Promise<string | undefined> {
+		if (this._isEphemeralSession(channel)) {
+			return undefined;
+		}
 		if (!this._isActiveAgentTitleGenerationEnabled(channel)) {
 			return undefined;
 		}
@@ -789,6 +804,10 @@ export class AgentHostSessionTitleController extends Disposable {
 		return serverTools
 			? serverTools.some(tool => tool.name === SessionServerToolName.RenameChat)
 			: this._options.isActiveAgentTitleGenerationEnabled?.() === true;
+	}
+
+	private _isEphemeralSession(channel: ProtocolURI): boolean {
+		return this._stateManager.isEphemeralSession(channel);
 	}
 
 	private async _readPersistedTitleSource(session: ProtocolURI, key: string): Promise<string | undefined> {

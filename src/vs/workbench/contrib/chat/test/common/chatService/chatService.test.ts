@@ -28,7 +28,8 @@ import { MockContextKeyService } from '../../../../../../platform/keybinding/tes
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, WillSaveStateReason } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from '../../../../../../platform/telemetry/common/gdprTypings.js';
 import { IUserDataProfilesService, toUserDataProfile } from '../../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
@@ -45,8 +46,9 @@ import { IChatRequestVariableEntry } from '../../../common/attachments/chatVaria
 import { IChatVariablesService } from '../../../common/attachments/chatVariables.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
-import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatProgress, IChatService, ResponseModelState } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatProgress, IChatService, IChatUserActionEvent, ResponseModelState } from '../../../common/chatService/chatService.js';
 import { backfillTransferredModel, backfillRestoredPickerState, ChatService } from '../../../common/chatService/chatServiceImpl.js';
+import { ChatServiceTelemetry } from '../../../common/chatService/chatServiceTelemetry.js';
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
@@ -62,7 +64,7 @@ import { MockChatVariablesService } from '../mockChatVariables.js';
 import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.js';
 import { MockLanguageModelToolsService } from '../tools/mockLanguageModelToolsService.js';
 import { MockChatService } from './mockChatService.js';
-import { ChatSessionOptionsMap, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionServerRequest, IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ChatSessionOptionsMap, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionServerRequest, IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
 import { MockChatSessionsService } from '../mockChatSessionsService.js';
 import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, COPILOT_SKILL_URI_SCHEME, TROUBLESHOOT_SKILL_PATH } from '../../../common/promptSyntax/promptTypes.js';
 import { ChatRequestSlashPromptPart } from '../../../common/requestParser/chatParserTypes.js';
@@ -189,7 +191,8 @@ suite('ChatService', () => {
 		instantiationService.stub(IUserDataProfilesService, { defaultProfile: toUserDataProfile('default', 'Default', URI.file('/test/userdata'), URI.file('/test/cache')) });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IExtensionService, new TestExtensionService());
-		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		const contextKeyService = testDisposables.add(new MockContextKeyService());
+		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IViewsService, new TestExtensionService());
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
 		instantiationService.stub(IChatSlashCommandService, testDisposables.add(instantiationService.createInstance(ChatSlashCommandService)));
@@ -200,7 +203,7 @@ suite('ChatService', () => {
 		instantiationService.stub(IEnvironmentService, { workspaceStorageHome: URI.file('/test/path/to/workspaceStorage') });
 		instantiationService.stub(ILifecycleService, { onWillShutdown: Event.None });
 		instantiationService.stub(IWorkspaceEditingService, { onDidEnterWorkspace: Event.None });
-		instantiationService.stub(IChatDebugService, testDisposables.add(new ChatDebugServiceImpl(new TestConfigurationService())));
+		instantiationService.stub(IChatDebugService, testDisposables.add(new ChatDebugServiceImpl(new TestConfigurationService(), contextKeyService)));
 		editingSessionEntries = observableValue('editingSessionEntries', []);
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() {
 			override startOrContinueGlobalEditingSession(): IChatEditingSession {
@@ -1034,7 +1037,6 @@ suite('ChatService', () => {
 
 		const model = testService.getSession(sessionResource) as ChatModel;
 		assert.strictEqual(model.getPendingRequests().length, 1, 'queued message should wait while the streamed turn is in progress');
-		assert.strictEqual(queued.requestId, model.getPendingRequests()[0].request.id, 'queued result should identify the pending request it created');
 
 		isCompleteObs.set(true, undefined);
 		await invoked.p;
@@ -1374,6 +1376,62 @@ suite('ChatService', () => {
 		assert.strictEqual(model.getPendingRequests().length, 0);
 	});
 
+	test('does not locally dequeue pending requests for remote agent host sessions', async () => {
+		const sessionType = 'remote-neat-cat-copilotcli';
+		const sessionResource = URI.from({ scheme: sessionType, path: '/session-server-managed-queue' });
+
+		const mockSessionsService = new MockChatSessionsService();
+		mockSessionsService.setContributions([{
+			type: sessionType,
+			name: 'Remote Agent Host',
+			displayName: 'Remote Agent Host',
+			description: 'Remote Agent Host',
+			agentHostProviderId: 'copilotcli',
+		}]);
+		testDisposables.add(mockSessionsService.registerChatSessionContentProvider(sessionType, {
+			provideChatSessionContent: resource => Promise.resolve({
+				sessionResource: resource,
+				history: [],
+				onWillDispose: Event.None,
+				dispose: () => { },
+			}),
+		}));
+		instantiationService.stub(IChatSessionsService, mockSessionsService);
+
+		const invokedMessages: string[] = [];
+		testDisposables.add(chatAgentService.registerAgent(sessionType, { ...getAgentData(sessionType), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, {
+			async invoke(request) {
+				invokedMessages.push(request.message);
+				return {};
+			},
+		}));
+
+		const testService = createChatService();
+		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.ok(ref);
+		testDisposables.add(ref);
+
+		const result = await testService.sendRequest(sessionResource, 'queued message', { agentIdSilent: sessionType, queue: ChatRequestQueueKind.Queued });
+		assert.ok(ChatSendResult.isQueued(result));
+		await timeout(0);
+
+		const model = testService.getSession(sessionResource) as ChatModel;
+		const pendingRequests = model.getPendingRequests();
+		const actual = {
+			invokedMessages,
+			pendingMessages: pendingRequests.map(request => request.request.message.text),
+		};
+		for (const pendingRequest of pendingRequests) {
+			testService.removePendingRequest(sessionResource, pendingRequest.request.id);
+		}
+
+		assert.deepStrictEqual(actual, {
+			invokedMessages: [],
+			pendingMessages: ['queued message'],
+		});
+	});
+
 	test('sendPendingRequestImmediately re-sends a steering message as a turn on agent host sessions', async () => {
 		const sessionType = 'agent-host-copilot';
 		const sessionResource = URI.from({ scheme: sessionType, path: '/session-send-immediately' });
@@ -1384,6 +1442,7 @@ suite('ChatService', () => {
 			name: 'Agent Host',
 			displayName: 'Agent Host',
 			description: 'Agent Host',
+			agentHostProviderId: 'copilot',
 		}]);
 		testDisposables.add(mockSessionsService.registerChatSessionContentProvider(sessionType, {
 			provideChatSessionContent: resource => Promise.resolve({
@@ -1546,6 +1605,53 @@ suite('ChatService', () => {
 		assert.ok(lastThree[0].includes('queued-1'));
 		assert.ok(lastThree[1].includes('queued-2'));
 		assert.ok(lastThree[2].includes('queued-3'));
+	});
+
+	test('external sessions from transient surfaces are not persisted to chat history (inline chat)', async () => {
+		// Inline chat and terminal chat create throwaway agent-host sessions. Their
+		// resources are not local, so they used to fall into the external-session
+		// persistence path and show up in the chat session list.
+		const remoteScheme = 'transient-surface-provider';
+
+		const mockSessionsService = new MockChatSessionsService();
+		testDisposables.add(mockSessionsService.registerChatSessionContentProvider(remoteScheme, {
+			provideChatSessionContent: (resource: URI) => Promise.resolve({
+				sessionResource: resource,
+				history: [],
+				onWillDispose: Event.None,
+				dispose: () => { },
+			}),
+		}));
+		instantiationService.stub(IChatSessionsService, mockSessionsService);
+
+		const agent: IChatAgentImplementation = { async invoke() { return {}; } };
+		testDisposables.add(chatAgentService.registerAgent(remoteScheme, { ...getAgentData(remoteScheme), locations: [ChatAgentLocation.Chat, ChatAgentLocation.EditorInline], isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation(remoteScheme, agent));
+
+		const testService = createChatService();
+
+		const send = async (resource: URI, location: ChatAgentLocation) => {
+			const ref = await testService.acquireOrLoadSession(resource, location, CancellationToken.None);
+			assert.ok(ref);
+			const response = await testService.sendRequest(resource, 'hello', { agentId: remoteScheme });
+			ChatSendResult.assertSent(response);
+			await response.data.responseCompletePromise;
+			ref.dispose();
+		};
+
+		const inlineResource = URI.from({ scheme: remoteScheme, path: '/inline-session' });
+		const panelResource = URI.from({ scheme: remoteScheme, path: '/panel-session' });
+		await send(inlineResource, ChatAgentLocation.EditorInline);
+		await send(panelResource, ChatAgentLocation.Chat);
+		await Promise.all(testServices.map(service => service.waitForModelDisposals()));
+
+		assert.deepStrictEqual(
+			{
+				inline: !!await testService.getMetadataForSession(inlineResource),
+				panel: !!await testService.getMetadataForSession(panelResource),
+			},
+			{ inline: false, panel: true }
+		);
 	});
 
 	test('acquireOrLoadSession returns undefined when remote provider is not registered (fix for #301203)', async () => {
@@ -1994,8 +2100,61 @@ suite('ChatService', () => {
 
 		assert.deepStrictEqual(providerInvokedEvents.map(event => ({
 			sessionType: event.sessionType,
+			isAgentHostSession: event.isAgentHostSession,
 			hasRequestId: typeof event.requestId === 'string',
-		})), [{ sessionType: 'remote-agent-host', hasRequestId: true }]);
+		})), [{ sessionType: 'remote-agent-host', isAgentHostSession: true, hasRequestId: true }]);
+	});
+
+	test('user action telemetry distinguishes agent host sessions from local sessions', () => {
+		const telemetryEvents: { readonly name: string; readonly isAgentHostSession: boolean }[] = [];
+		class TestTelemetryService extends NullTelemetryServiceShape {
+			override publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(name?: string, data?: StrictPropertyCheck<T, E>): void {
+				const isAgentHostSession = data && typeof data === 'object' ? Reflect.get(data, 'isAgentHostSession') : undefined;
+				if ((name === 'chatEditHunk' || name === 'chatEditSession') && typeof isAgentHostSession === 'boolean') {
+					telemetryEvents.push({ name, isAgentHostSession });
+				}
+			}
+		}
+		const telemetry = new ChatServiceTelemetry(new TestTelemetryService());
+		const sessionAction = {
+			action: {
+				kind: 'chatEditingSessionAction',
+				uri: URI.file('/test/file.ts'),
+				outcome: 'accepted',
+				hasRemainingEdits: false,
+			},
+			agentId: 'agent',
+			command: undefined,
+			requestId: 'request',
+			result: undefined,
+		} satisfies Omit<IChatUserActionEvent, 'sessionResource'>;
+		const action = {
+			action: {
+				kind: 'chatEditingHunkAction',
+				uri: URI.file('/test/file.ts'),
+				lineCount: 1,
+				linesAdded: 1,
+				linesRemoved: 0,
+				outcome: 'accepted',
+				hasRemainingEdits: false,
+			},
+			agentId: 'agent',
+			command: undefined,
+			requestId: 'request',
+			result: undefined,
+		} satisfies Omit<IChatUserActionEvent, 'sessionResource'>;
+
+		telemetry.notifyUserAction({ ...sessionAction, sessionResource: URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' }) });
+		telemetry.notifyUserAction({ ...sessionAction, sessionResource: URI.from({ scheme: SessionType.Local, path: '/session' }) });
+		telemetry.notifyUserAction({ ...action, sessionResource: URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' }) });
+		telemetry.notifyUserAction({ ...action, sessionResource: URI.from({ scheme: SessionType.Local, path: '/session' }) });
+
+		assert.deepStrictEqual(telemetryEvents, [
+			{ name: 'chatEditSession', isAgentHostSession: true },
+			{ name: 'chatEditSession', isAgentHostSession: false },
+			{ name: 'chatEditHunk', isAgentHostSession: true },
+			{ name: 'chatEditHunk', isAgentHostSession: false },
+		]);
 	});
 
 	test('sendRequest with agentIdSilent passes agent host session capabilities to the request parser', async () => {

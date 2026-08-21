@@ -241,6 +241,7 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	get worktreePending() { return this._session.worktreePending; }
 	get isQuickChat() { return this._session.isQuickChat; }
 	get isAutomation() { return this._session.isAutomation; }
+	get isExternal() { return this._session.isExternal; }
 	get title() { return this._session.title; }
 	get updatedAt() { return this._session.updatedAt; }
 	get status() { return this._session.status; }
@@ -249,6 +250,7 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	get changesets() { return this._session.changesets; }
 	get changes() { return this._session.changes; }
 	get externalChanges() { return this._session.externalChanges; }
+	get artifacts() { return this._session.artifacts; }
 	get modelId() { return this._activeChatModelId; }
 	get mode() { return this._activeChatMode; }
 	get loading() { return this._session.loading; }
@@ -289,6 +291,7 @@ class ResourceOverrideSession implements ISession {
 	get worktreePending() { return this._session.worktreePending; }
 	get isQuickChat() { return this._session.isQuickChat; }
 	get isAutomation() { return this._session.isAutomation; }
+	get isExternal() { return this._session.isExternal; }
 	get title() { return this._session.title; }
 	get updatedAt() { return this._session.updatedAt; }
 	get status() { return this._session.status; }
@@ -297,6 +300,7 @@ class ResourceOverrideSession implements ISession {
 	get changes() { return this._session.changes; }
 	get changesets() { return this._session.changesets; }
 	get externalChanges() { return this._session.externalChanges; }
+	get artifacts() { return this._session.artifacts; }
 	get modelId() { return this._session.modelId; }
 	get mode() { return this._session.mode; }
 	get loading() { return this._session.loading; }

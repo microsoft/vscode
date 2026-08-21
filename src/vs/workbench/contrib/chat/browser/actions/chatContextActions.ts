@@ -557,8 +557,7 @@ export class AttachContextAction extends Action2 {
 			});
 		}
 
-		const quickInputService = await (context?.contextPicker ?? widget.contextPicker)?.prepare();
-		instantiationService.invokeFunction(this._show.bind(this), widget, quickPickItems, context?.placeholder, quickInputService);
+		instantiationService.invokeFunction(this._show.bind(this), widget, quickPickItems, context?.placeholder);
 	}
 
 	private _show(accessor: ServicesAccessor, widget: IChatWidget, additionPicks: IContextPickItemItem[] | undefined, placeholder?: string, quickInputServiceOverride?: IQuickInputService) {
