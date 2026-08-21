@@ -5,11 +5,12 @@
 
 import assert from 'assert';
 import { Emitter } from '../../../../../base/common/event.js';
-import { DisposableStore, ImmortalReference, type IReference } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, type IReference } from '../../../../../base/common/lifecycle.js';
 import { autorun, ISettableObservable, observableValue, type IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
 import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
@@ -29,7 +30,7 @@ suite('BlockedSessions', () => {
 
 	function createService(sessions: TestSession[], gitHubService: TestGitHubService): { service: BlockedSessions; management: TestSessionsManagementService } {
 		const management = new TestSessionsManagementService(sessions as unknown as ISession[]);
-		const service = store.add(new BlockedSessions(management as unknown as ISessionsManagementService, gitHubService as unknown as IGitHubService));
+		const service = store.add(new BlockedSessions(management as unknown as ISessionsManagementService, gitHubService as unknown as IGitHubService, new NullLogService()));
 		// Keep the derived live so per-session model references are actually read.
 		store.add(autorun(reader => { service.blockedSessions.read(reader); }));
 		return { service, management };
@@ -147,6 +148,24 @@ suite('BlockedSessions', () => {
 		const { service } = createService([session], gitHub);
 		assert.deepStrictEqual(blockedReasons(service), [['both', BlockedSessionReason.FailingCI]]);
 	});
+
+	test('keeps the pull request and CI models referenced across recomputes', () => {
+		// Sessions change constantly (opening a session, a status tick, ...) and each
+		// change recomputes the blocked set. Releasing the shared, ref-counted GitHub
+		// models while doing so would dispose them and report the session as
+		// unblocked until the data was fetched again - which silently discards the
+		// acknowledgement the user made for that very CI failure.
+		const gitHub = new TestGitHubService();
+		gitHub.setPullRequest('owner', 'repo', 30, openPullRequest(30, 'sha30'));
+		gitHub.setCIStatus('owner', 'repo', 30, 'sha30', GitHubCIOverallStatus.Failure);
+		const session = new TestSession('ci', SessionStatus.Completed, { pr: { owner: 'owner', repo: 'repo', number: 30 } });
+		const { service, management } = createService([session], gitHub);
+		assert.deepStrictEqual(blockedIds(service), ['ci']);
+
+		management.fireDidChangeSessions();
+
+		assert.deepStrictEqual({ blocked: blockedIds(service), released: gitHub.releasedModels }, { blocked: ['ci'], released: [] });
+	});
 });
 
 function openPullRequest(number: number, headSha: string): IGitHubPullRequest {
@@ -201,11 +220,18 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() {
 	}
 
 	override getSessions(): ISession[] {
-		return this._sessions;
+		// A fresh array per call, like the real service: every change event
+		// therefore invalidates the blocked-sessions computation.
+		return [...this._sessions];
 	}
 
 	override getSession(resource: URI): ISession | undefined {
 		return this._sessions.find(s => s.resource.toString() === resource.toString());
+	}
+
+	/** Simulate any session change (a session opened, updated, created, ...). */
+	fireDidChangeSessions(): void {
+		this._onDidChangeSessions.fire({} as ISessionsChangeEvent);
 	}
 }
 
@@ -214,17 +240,29 @@ class TestGitHubService extends mock<IGitHubService>() {
 	private readonly _prModels = new Map<string, TestPullRequestModel>();
 	private readonly _ciModels = new Map<string, TestCIModel>();
 	private readonly _reviewThreadModels = new Map<string, TestReviewThreadsModel>();
+	private readonly _refCounts = new Map<string, number>();
+
+	/**
+	 * Keys whose last reference was released. The real reference collections
+	 * dispose the model at that point and re-create an empty one on the next
+	 * acquire, losing everything that had been fetched - so consumers must keep
+	 * these models referenced across recomputes.
+	 */
+	readonly releasedModels: string[] = [];
 
 	override createPullRequestModelReference(owner: string, repo: string, prNumber: number): IReference<GitHubPullRequestModel> {
-		return new ImmortalReference(this._prModel(owner, repo, prNumber) as unknown as GitHubPullRequestModel);
+		const key = `${owner}/${repo}/${prNumber}`;
+		return this._acquire(key, this._prModel(owner, repo, prNumber)) as unknown as IReference<GitHubPullRequestModel>;
 	}
 
 	override createPullRequestCIModelReference(owner: string, repo: string, prNumber: number, headSha: string): IReference<GitHubPullRequestCIModel> {
-		return new ImmortalReference(this._ciModel(owner, repo, prNumber, headSha) as unknown as GitHubPullRequestCIModel);
+		const key = `${owner}/${repo}/${prNumber}/${headSha}`;
+		return this._acquire(key, this._ciModel(owner, repo, prNumber, headSha)) as unknown as IReference<GitHubPullRequestCIModel>;
 	}
 
 	override createPullRequestReviewThreadsModelReference(owner: string, repo: string, prNumber: number): IReference<GitHubPullRequestReviewThreadsModel> {
-		return new ImmortalReference(this._reviewThreadModel(owner, repo, prNumber) as unknown as GitHubPullRequestReviewThreadsModel);
+		const key = `${owner}/${repo}/${prNumber}/reviewThreads`;
+		return this._acquire(key, this._reviewThreadModel(owner, repo, prNumber)) as unknown as IReference<GitHubPullRequestReviewThreadsModel>;
 	}
 
 	setPullRequest(owner: string, repo: string, prNumber: number, pullRequest: IGitHubPullRequest): void {
@@ -237,6 +275,27 @@ class TestGitHubService extends mock<IGitHubService>() {
 
 	setReviewThreads(owner: string, repo: string, prNumber: number, threads: readonly IGitHubPullRequestReviewThread[]): void {
 		this._reviewThreadModel(owner, repo, prNumber).set(threads);
+	}
+
+	private _acquire<T extends { reset(): void }>(key: string, object: T): IReference<T> {
+		this._refCounts.set(key, (this._refCounts.get(key) ?? 0) + 1);
+		let released = false;
+		return {
+			object,
+			dispose: () => {
+				if (released) {
+					return;
+				}
+				released = true;
+				const count = (this._refCounts.get(key) ?? 1) - 1;
+				this._refCounts.set(key, count);
+				if (count === 0) {
+					this.releasedModels.push(key);
+					// Stand in for the model being disposed and re-created empty.
+					object.reset();
+				}
+			},
+		};
 	}
 
 	private _prModel(owner: string, repo: string, prNumber: number): TestPullRequestModel {
@@ -274,16 +333,19 @@ class TestPullRequestModel {
 	private readonly _pullRequest = observableValue<IGitHubPullRequest | undefined>('test.pullRequest', undefined);
 	readonly pullRequest: IObservable<IGitHubPullRequest | undefined> = this._pullRequest;
 	set(pullRequest: IGitHubPullRequest): void { this._pullRequest.set(pullRequest, undefined); }
+	reset(): void { this._pullRequest.set(undefined, undefined); }
 }
 
 class TestCIModel {
 	private readonly _overallStatus = observableValue<GitHubCIOverallStatus>('test.ciStatus', GitHubCIOverallStatus.Neutral);
 	readonly overallStatus: IObservable<GitHubCIOverallStatus> = this._overallStatus;
 	set(status: GitHubCIOverallStatus): void { this._overallStatus.set(status, undefined); }
+	reset(): void { this._overallStatus.set(GitHubCIOverallStatus.Neutral, undefined); }
 }
 
 class TestReviewThreadsModel {
 	private readonly _reviewThreads = observableValue<readonly IGitHubPullRequestReviewThread[]>('test.reviewThreads', []);
 	readonly reviewThreads: IObservable<readonly IGitHubPullRequestReviewThread[]> = this._reviewThreads;
 	set(threads: readonly IGitHubPullRequestReviewThread[]): void { this._reviewThreads.set(threads, undefined); }
+	reset(): void { this._reviewThreads.set([], undefined); }
 }

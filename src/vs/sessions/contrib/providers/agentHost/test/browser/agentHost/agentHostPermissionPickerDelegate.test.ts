@@ -6,15 +6,15 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { type IConfigurationOverrides, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ResolveSessionConfigResult, SessionConfigPropertySchema } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { getAgentHostCopilotSandboxSettingId } from '../../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostEnablementService } from '../../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
-import { AgentHostCopilotManagedSandboxEnabledConfigKey } from '../../../../../../../platform/agentHost/common/sandboxConfigSchema.js';
 import type { RootConfigState } from '../../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../../../../../workbench/contrib/chat/common/constants.js';
 import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownClaudePermissionModeSchema, isWellKnownModeSchema, isWellKnownModeValue } from '../../../browser/agentHostPermissionPickerDelegate.js';
@@ -88,6 +88,7 @@ interface ITestRig {
 	readonly activeSessionObs: ReturnType<typeof observableValue<IActiveSession | undefined>>;
 	readonly setAssistedPermissionsEnabled: (enabled: boolean) => void;
 	readonly setCustomTerminalToolEnabled: (enabled: boolean) => void;
+	readonly setManagedSandboxEnforced: (enforced: boolean) => void;
 }
 
 function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSession | undefined, configValue?: string): ITestRig {
@@ -105,6 +106,7 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 		}
 	})();
 	const activeSessionObs = observableValue<IActiveSession | undefined>('activeSession', activeSession);
+	const managedSandboxEnforced = observableValue('managedSandboxEnforced', false);
 	let assistedPermissionsEnabled = true;
 	let customTerminalToolEnabled = false;
 	const configurationService = new class extends mock<IConfigurationService>() {
@@ -128,6 +130,11 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 	insta.set(ISessionsService, sessionsManagementService);
 	insta.set(ISessionsProvidersService, sessionsProvidersService);
 	insta.set(IConfigurationService, configurationService);
+	insta.set(IAgentHostEnablementService, {
+		_serviceBrand: undefined,
+		enabled: constObservable(true),
+		managedSandboxEnforced,
+	});
 
 	const delegate = store.add(insta.createInstance(AgentHostPermissionPickerDelegate, activeSessionObs));
 	return {
@@ -136,6 +143,7 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 		activeSessionObs,
 		setAssistedPermissionsEnabled: enabled => assistedPermissionsEnabled = enabled,
 		setCustomTerminalToolEnabled: enabled => customTerminalToolEnabled = enabled,
+		setManagedSandboxEnforced: enforced => managedSandboxEnforced.set(enforced, undefined),
 	};
 }
 
@@ -178,20 +186,13 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		});
 	});
 
-	test('exposes the server-managed sandbox value for Copilot sessions', () => {
-		const { delegate, provider } = setup(store, makeActiveSession(), 'default');
-		provider.rootConfig = {
-			schema: { type: 'object', properties: {} },
-			values: { [AgentHostCopilotManagedSandboxEnabledConfigKey]: false },
-		} as RootConfigState;
+	test('exposes managed sandbox enforcement to picker surfaces', () => {
+		const { delegate, setManagedSandboxEnforced } = setup(store, makeActiveSession(), 'default');
+		const before = delegate.managedSandboxEnforced.get();
 
-		assert.strictEqual(delegate.getManagedSandboxEnabled(), false);
+		setManagedSandboxEnforced(true);
 
-		provider.rootConfig = {
-			schema: { type: 'object', properties: {} },
-			values: {},
-		} as RootConfigState;
-		assert.strictEqual(delegate.getManagedSandboxEnabled(), undefined);
+		assert.deepStrictEqual({ before, after: delegate.managedSandboxEnforced.get() }, { before: false, after: true });
 	});
 
 	test('returns Default when the active session has no config seeded yet', () => {

@@ -427,6 +427,7 @@ export class ProgrammableGitHubServer extends Disposable {
 			if (request.service !== 'graphql') {
 				throw new Error(`Expected GraphQL request for ${describeStep(step)}, got ${request.pathname}`);
 			}
+			assertGraphQlRootSelections(request.graphQl);
 			if (step.operationName !== undefined && request.graphQl?.operationName !== step.operationName) {
 				throw new Error(`Expected GraphQL operation ${step.operationName}, got ${request.graphQl?.operationName ?? '<none>'}`);
 			}
@@ -556,6 +557,178 @@ function normalizeHeaders(headers: http.IncomingHttpHeaders): Readonly<Record<st
 		}
 	}
 	return normalized;
+}
+
+/**
+ * Fields that GitHub exposes on the `Query` root only. Selecting one at the root of a mutation is a
+ * schema validation error that GitHub rejects before executing the mutation, so the fake server treats
+ * it as a test failure rather than replaying a canned response.
+ */
+const queryOnlyRootFields = ['rateLimit'];
+
+interface IGraphQlOperation {
+	readonly type: 'query' | 'mutation' | 'subscription';
+	readonly name: string | undefined;
+	readonly rootFields: readonly string[];
+}
+
+function assertGraphQlRootSelections(request: IRecordedGraphQLRequest | undefined): void {
+	if (!request?.query) {
+		return;
+	}
+	const operations = parseGraphQlOperations(request.query);
+	// A document with several operations requires `operationName` to select one, so anything left
+	// ambiguous is skipped rather than guessed at.
+	const selected = request.operationName !== undefined
+		? operations.find(operation => operation.name === request.operationName)
+		: operations.length === 1 ? operations[0] : undefined;
+	if (selected?.type !== 'mutation') {
+		return;
+	}
+	const invalid = selected.rootFields.filter(field => queryOnlyRootFields.includes(field));
+	if (invalid.length > 0) {
+		throw new Error(`GraphQL mutation ${selected.name ?? '<anonymous>'} selected ${invalid.join(', ')} on the Mutation root, which GitHub only exposes on Query`);
+	}
+}
+
+/**
+ * Parses the operations of a GraphQL document, capturing the fields selected at each operation root.
+ * Fields reached through a fragment spread are not expanded, so a spread at an operation root is opaque.
+ */
+function parseGraphQlOperations(document: string): readonly IGraphQlOperation[] {
+	const source = blankGraphQlLiterals(document);
+	const operations: IGraphQlOperation[] = [];
+	let index = 0;
+	while (index < source.length) {
+		if (!/[_A-Za-z{]/.test(source[index])) {
+			index++;
+			continue;
+		}
+		let type: IGraphQlOperation['type'] | undefined;
+		let name: string | undefined;
+		if (source[index] === '{') {
+			type = 'query'; // Shorthand for an anonymous query.
+		} else {
+			const keyword = readGraphQlName(source, index);
+			index = keyword.next;
+			if (keyword.value === 'query' || keyword.value === 'mutation' || keyword.value === 'subscription') {
+				type = keyword.value;
+				const operationName = readGraphQlName(source, skipGraphQlIgnored(source, index));
+				if (operationName.value) {
+					name = operationName.value;
+					index = operationName.next;
+				}
+			} else if (keyword.value !== 'fragment') {
+				continue;
+			}
+		}
+		// Variable definitions and directives precede the selection set and may themselves contain
+		// braces, so the opening brace is only recognized outside of them.
+		const open = findGraphQlSelectionSet(source, index);
+		if (open < 0) {
+			break;
+		}
+		const close = matchGraphQlBrace(source, open);
+		if (type) {
+			operations.push({ type, name, rootFields: graphQlSelectedFieldNames(source.substring(open + 1, close)) });
+		}
+		index = close + 1;
+	}
+	return operations;
+}
+
+/** Collects the fields selected directly in a selection set body, resolving aliases to the selected field. */
+function graphQlSelectedFieldNames(selectionSet: string): readonly string[] {
+	const names: string[] = [];
+	let depth = 0;
+	for (let index = 0; index < selectionSet.length; index++) {
+		const char = selectionSet[index];
+		if (char === '(') {
+			index = matchGraphQlParen(selectionSet, index);
+			continue;
+		}
+		if (char === '{') { depth++; continue; }
+		if (char === '}') { depth--; continue; }
+		if (char === '.') {
+			// Skip a fragment spread or the `on Type` header of an inline fragment.
+			while (index < selectionSet.length && selectionSet[index] === '.') { index++; }
+			const first = readGraphQlName(selectionSet, skipGraphQlIgnored(selectionSet, index));
+			index = first.value === 'on' ? readGraphQlName(selectionSet, skipGraphQlIgnored(selectionSet, first.next)).next : first.next;
+			index--;
+			continue;
+		}
+		if (depth !== 0 || !/[_A-Za-z]/.test(char)) { continue; }
+		const field = readGraphQlName(selectionSet, index);
+		index = field.next - 1;
+		// `alias: field` selects `field`, so the alias is dropped and the field read on the next pass.
+		if (!/^\s*:/.test(selectionSet.substring(field.next))) {
+			names.push(field.value);
+		}
+	}
+	return names;
+}
+
+/** Blanks comments and string literals so that brace matching cannot be confused by their contents. */
+function blankGraphQlLiterals(document: string): string {
+	const chars = [...document];
+	for (let index = 0; index < chars.length; index++) {
+		if (chars[index] === '#') {
+			while (index < chars.length && chars[index] !== '\n') { chars[index++] = ' '; }
+			continue;
+		}
+		if (chars[index] !== '"') { continue; }
+		const terminator = document.startsWith('"""', index) ? '"""' : '"';
+		let cursor = index + terminator.length;
+		while (cursor < chars.length) {
+			if (chars[cursor] === '\\') { cursor += 2; continue; }
+			if (document.startsWith(terminator, cursor)) { cursor += terminator.length; break; }
+			cursor++;
+		}
+		for (let position = index; position < Math.min(cursor, chars.length); position++) { chars[position] = ' '; }
+		index = cursor - 1;
+	}
+	return chars.join('');
+}
+
+function readGraphQlName(source: string, from: number): { readonly value: string; readonly next: number } {
+	let index = from;
+	while (index < source.length && /[_0-9A-Za-z]/.test(source[index])) { index++; }
+	return { value: source.substring(from, index), next: index };
+}
+
+function skipGraphQlIgnored(source: string, from: number): number {
+	let index = from;
+	while (index < source.length && /[\s,]/.test(source[index])) { index++; }
+	return index;
+}
+
+function findGraphQlSelectionSet(source: string, from: number): number {
+	for (let index = from; index < source.length; index++) {
+		if (source[index] === '(') {
+			index = matchGraphQlParen(source, index);
+			continue;
+		}
+		if (source[index] === '{') { return index; }
+	}
+	return -1;
+}
+
+function matchGraphQlParen(source: string, open: number): number {
+	let depth = 0;
+	for (let index = open; index < source.length; index++) {
+		if (source[index] === '(') { depth++; }
+		else if (source[index] === ')' && --depth === 0) { return index; }
+	}
+	return source.length;
+}
+
+function matchGraphQlBrace(source: string, open: number): number {
+	let depth = 0;
+	for (let index = open; index < source.length; index++) {
+		if (source[index] === '{') { depth++; }
+		else if (source[index] === '}' && --depth === 0) { return index; }
+	}
+	return source.length;
 }
 
 function readGraphQlRequest(bodyJson: unknown): IRecordedGraphQLRequest | undefined {

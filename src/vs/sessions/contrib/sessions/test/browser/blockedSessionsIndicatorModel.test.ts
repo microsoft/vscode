@@ -9,6 +9,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
@@ -42,6 +43,7 @@ suite('BlockedSessionsIndicatorModel', () => {
 			sessionsService as unknown as ISessionsService,
 			instantiationService,
 			productService,
+			new NullLogService(),
 		));
 		// Keep the derived live so it recomputes on visibility/dismissal changes.
 		store.add(autorun(reader => { model.blockedSessions.read(reader); }));
@@ -245,6 +247,21 @@ suite('BlockedSessionsIndicatorModel', () => {
 
 		blockedModel.setBlocked([failingCI(s1, 'sha2')]);
 		assert.deepStrictEqual(blockedIds(model), ['s1']);
+	});
+
+	test('keeps an ignored CI failure ignored when the session drops out of the blocked set', () => {
+		// The raw blocked set drops a session whenever its pull request / CI data is
+		// momentarily unavailable (e.g. while those models reload). Nothing changed
+		// about the failure, so the acknowledgement must survive that gap.
+		const { model, blockedModel } = createModel();
+		const s1 = new TestSession('s1');
+		blockedModel.setBlocked([failingCI(s1, 'sha1')]);
+		model.ignoreSession(s1 as unknown as ISession);
+
+		blockedModel.setBlocked([]);
+		blockedModel.setBlocked([failingCI(s1, 'sha1')]);
+
+		assert.deepStrictEqual(blockedIds(model), []);
 	});
 
 	test('ignores all currently surfaced blocked sessions', () => {

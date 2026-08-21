@@ -52,29 +52,34 @@ suite('Protocol WebSocket - Session Config', function () {
 	test('resolveSessionConfig returns schema and re-resolves dependent read-only state', async function () {
 		this.timeout(10_000);
 
-		const workingDirectory = URI.file('/mock/workspace').toString();
+		const workingDirectory = URI.file(process.cwd()).toString();
 		const initial = await client.call<ResolveSessionConfigResult>('resolveSessionConfig', {
 			channel: ROOT_STATE_URI,
 			provider: 'mock',
 			workingDirectory,
 		});
 
-		assert.deepStrictEqual(initial.values, { isolation: 'worktree', branch: 'main' });
-		assert.deepStrictEqual(Object.keys(initial.schema.properties), ['isolation', 'branch']);
-		assert.deepStrictEqual(initial.schema.properties.branch.enum, ['main']);
-		assert.strictEqual(initial.schema.properties.branch.enumDynamic, true);
-		assert.strictEqual(initial.schema.properties.branch.readOnly, false);
+		assert.deepStrictEqual({
+			mockMode: initial.values.mockMode,
+			mockBranch: initial.values.mockBranch,
+		}, { mockMode: 'managed', mockBranch: 'main' });
+		assert.deepStrictEqual(initial.schema.properties.mockBranch.enum, ['main']);
+		assert.strictEqual(initial.schema.properties.mockBranch.enumDynamic, true);
+		assert.strictEqual(initial.schema.properties.mockBranch.readOnly, false);
 
-		const folder = await client.call<ResolveSessionConfigResult>('resolveSessionConfig', {
+		const direct = await client.call<ResolveSessionConfigResult>('resolveSessionConfig', {
 			channel: ROOT_STATE_URI,
 			provider: 'mock',
 			workingDirectory,
-			config: { isolation: 'folder', branch: 'feature/config' },
+			config: { mockMode: 'direct', mockBranch: 'feature/config' },
 		});
 
-		assert.deepStrictEqual(folder.values, { isolation: 'folder', branch: 'main' });
-		assert.strictEqual(folder.schema.properties.branch.enumDynamic, false);
-		assert.strictEqual(folder.schema.properties.branch.readOnly, true);
+		assert.deepStrictEqual({
+			mockMode: direct.values.mockMode,
+			mockBranch: direct.values.mockBranch,
+		}, { mockMode: 'direct', mockBranch: 'main' });
+		assert.strictEqual(direct.schema.properties.mockBranch.enumDynamic, false);
+		assert.strictEqual(direct.schema.properties.mockBranch.readOnly, true);
 	});
 
 	test('sessionConfigCompletions returns dynamic branch matches', async function () {
@@ -83,9 +88,9 @@ suite('Protocol WebSocket - Session Config', function () {
 		const result = await client.call<SessionConfigCompletionsResult>('sessionConfigCompletions', {
 			channel: ROOT_STATE_URI,
 			provider: 'mock',
-			workingDirectory: URI.file('/mock/workspace').toString(),
-			config: { isolation: 'worktree' },
-			property: 'branch',
+			workingDirectory: URI.file(process.cwd()).toString(),
+			config: { mockMode: 'managed' },
+			property: 'mockBranch',
 			query: 'feat',
 		});
 
@@ -97,11 +102,11 @@ suite('Protocol WebSocket - Session Config', function () {
 	test('createSession stores config schema and values on session state', async function () {
 		this.timeout(10_000);
 
-		const config = { isolation: 'worktree', branch: 'feature/config' };
+		const config = { mockMode: 'managed', mockBranch: 'feature/config' };
 		await client.call('createSession', {
 			channel: nextSessionUri(),
 			provider: 'mock',
-			workingDirectories: [URI.file('/mock/workspace').toString()],
+			workingDirectories: [URI.file(process.cwd()).toString()],
 			config,
 		});
 
@@ -114,8 +119,11 @@ suite('Protocol WebSocket - Session Config', function () {
 
 		const snapshot = await client.call<SubscribeResult>('subscribe', { channel: notification.summary.resource });
 		const state = snapshot.snapshot!.state as SessionState;
-		assert.deepStrictEqual(state.config?.values, config);
-		assert.deepStrictEqual(Object.keys(state.config?.schema.properties ?? {}), ['isolation', 'branch']);
+		assert.deepStrictEqual({
+			mockMode: state.config?.values.mockMode,
+			mockBranch: state.config?.values.mockBranch,
+		}, config);
+		assert.deepStrictEqual(Object.keys(state.config?.schema.properties ?? {}).filter(key => key.startsWith('mock')), ['mockMode', 'mockBranch']);
 	});
 
 	test('session/configChanged merges config values into session state', async function () {
@@ -124,7 +132,7 @@ suite('Protocol WebSocket - Session Config', function () {
 		await client.call('createSession', {
 			channel: nextSessionUri(),
 			provider: 'mock',
-			config: { isolation: 'folder', branch: 'main' },
+			config: { mockMode: 'direct', mockBranch: 'main' },
 		});
 
 		const notif = await client.waitForNotification(n =>
@@ -140,7 +148,7 @@ suite('Protocol WebSocket - Session Config', function () {
 			clientSeq: 1,
 			action: {
 				type: ActionType.SessionConfigChanged,
-				config: { branch: 'release' },
+				config: { mockBranch: 'release' },
 			},
 		});
 
@@ -149,7 +157,10 @@ suite('Protocol WebSocket - Session Config', function () {
 
 		const snapshot = await client.call<SubscribeResult>('subscribe', { channel: session });
 		const state = snapshot.snapshot!.state as SessionState;
-		assert.deepStrictEqual(state.config?.values, { isolation: 'folder', branch: 'release' });
+		assert.deepStrictEqual({
+			mockMode: state.config?.values.mockMode,
+			mockBranch: state.config?.values.mockBranch,
+		}, { mockMode: 'direct', mockBranch: 'release' });
 	});
 });
 
@@ -172,7 +183,7 @@ suite('Protocol WebSocket - Session Config persistence across restarts', functio
 	test('persisted config values are restored on subscribe after server restart', async function () {
 		this.timeout(getAgentHostE2ETestTimeout(30_000, 180_000));
 
-		const initialConfig = { isolation: 'worktree', branch: 'main' };
+		const initialConfig = { mockMode: 'managed', mockBranch: 'main' };
 		const updatedBranch = 'release';
 		let sessionUri: string;
 
@@ -186,7 +197,7 @@ suite('Protocol WebSocket - Session Config persistence across restarts', functio
 			await client1.call('createSession', {
 				channel: nextSessionUri(),
 				provider: 'mock',
-				workingDirectories: [URI.file('/mock/workspace').toString()],
+				workingDirectories: [URI.file(process.cwd()).toString()],
 				config: initialConfig,
 			});
 			const addedNotif = await client1.waitForNotification(n =>
@@ -204,7 +215,7 @@ suite('Protocol WebSocket - Session Config persistence across restarts', functio
 				clientSeq: 1,
 				action: {
 					type: ActionType.SessionConfigChanged,
-					config: { branch: updatedBranch },
+					config: { mockBranch: updatedBranch },
 				},
 			});
 			const configChanged = await client1.waitForNotification(n => isActionNotification(n, ActionType.SessionConfigChanged));
@@ -235,10 +246,12 @@ suite('Protocol WebSocket - Session Config persistence across restarts', functio
 			const state = snapshot.snapshot!.state as SessionState;
 
 			assert.ok(state.config, 'restored session should have state.config populated');
-			// Schema is re-resolved by the provider (worktree-mode mock returns
-			// dynamic branch enum), so just check that our persisted user
+			// Schema is re-resolved by the provider, so just check that our persisted user
 			// selections survived the round trip.
-			assert.deepStrictEqual(state.config.values, { isolation: 'worktree', branch: updatedBranch });
+			assert.deepStrictEqual({
+				mockMode: state.config.values.mockMode,
+				mockBranch: state.config.values.mockBranch,
+			}, { mockMode: 'managed', mockBranch: updatedBranch });
 
 			client2.close();
 		} finally {

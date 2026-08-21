@@ -147,7 +147,7 @@ export class ContextMenuHandler {
 
 				this.lastContainer = null;
 			}
-		}, shadowRootElement, !!shadowRootElement);
+		}, shadowRootElement, !!shadowRootElement, delegate.useWindowContainerForShadowRoot);
 	}
 
 	private onActionRun(e: IRunEvent, logTelemetry: boolean): void {

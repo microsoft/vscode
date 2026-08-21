@@ -245,11 +245,13 @@ suite('Sessions rename', () => {
 			assert.deepStrictEqual({
 				hasDoubleClick: content.includes('double-click its title'),
 				hasContextMenu: content.includes('open its context menu'),
+				hasPetAchievements: content.includes('View Achievements'),
 				activeElement: mainWindow.document.activeElement,
 				fallbackFocusCount: fallbackFocusCount(),
 			}, {
 				hasDoubleClick: true,
 				hasContextMenu: true,
+				hasPetAchievements: true,
 				activeElement: origin,
 				fallbackFocusCount: 0,
 			});

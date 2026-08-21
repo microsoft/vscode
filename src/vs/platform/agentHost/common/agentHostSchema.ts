@@ -460,6 +460,9 @@ export const AgentHostAutoReplyAnswer = 'The user is not available to answer you
 /** Root config key forwarded from the renderer for automatic OS system proxy discovery. */
 export const AgentHostSystemProxyEnabledConfigKey = 'systemProxyEnabled';
 
+/** Root config key forwarded from the renderer for the GitHub MCP server. */
+export const AgentHostGitHubMcpServerEnabledConfigKey = 'githubMcpServerEnabled';
+
 /**
  * Independently synchronized proxy settings retain their VS Code `http.*`
  * names, matching other flat namespaced root keys such as `agentMerge.*`.
@@ -489,7 +492,6 @@ const agentHostProxyConfigDefinition = {
 		default: [],
 	}),
 };
-
 export const agentHostProxyConfigSchema = createSchema(agentHostProxyConfigDefinition);
 
 /** Root config key forwarded from the renderer for active-agent title generation. */
@@ -497,6 +499,9 @@ export const AgentHostActiveAgentTitleGenerationConfigKey = 'activeAgentTitleGen
 
 /** Root config key controlling rich-link guidance for Markdown plan documents. */
 export const AgentHostMarkdownPlanRichLinksEnabledConfigKey = 'markdownPlanRichLinksEnabled';
+
+/** Root config key forwarded from the renderer for the artifact tools and their instruction. */
+export const AgentHostArtifactToolsConfigKey = 'artifactTools';
 
 // Root config key forwarded from the renderer when the `chat.agentSessions.migrateLegacyCopilotCli`
 // setting changes. When `true`, `listSessions` surfaces un-adopted extension-host Copilot CLI
@@ -779,6 +784,12 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.systemProxyEnabled.description', "Whether Copilot sessions automatically discover and use the operating system's proxy configuration."),
 		default: true,
 	}),
+	[AgentHostGitHubMcpServerEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.githubMcpServerEnabled.title', "GitHub MCP Server"),
+		description: localize('agentHost.config.githubMcpServerEnabled.description', "Whether agent sessions include a GitHub MCP server by default."),
+		default: true,
+	}),
 	[AgentHostActiveAgentTitleGenerationConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.activeAgentTitleGeneration.title', "Active Agent Title Generation"),
@@ -787,8 +798,14 @@ export const platformRootSchema = createSchema({
 	}),
 	[AgentHostMarkdownPlanRichLinksEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
-		title: localize('agentHost.config.markdownPlanRichLinksEnabled.title', "Markdown Plan Rich Links"),
-		description: localize('agentHost.config.markdownPlanRichLinksEnabled.description', "Whether agents receive guidance for using rich links and running task markers in Markdown plan documents."),
+		title: localize('agentHost.config.markdownPlanRichLinks.title', "Markdown Plan Rich Links"),
+		description: localize('agentHost.config.markdownPlanRichLinks.description', "Whether agents receive guidance for using rich links and running task markers in Markdown plan documents."),
+		default: false,
+	}),
+	[AgentHostArtifactToolsConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.artifactTools.title', "Artifact Tools"),
+		description: localize('agentHost.config.artifactTools.description', "Whether agents can record artifacts — pull requests, issues, commits, websites, files and other resources — with the artifact tools."),
 		default: false,
 	}),
 	[AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: schemaProperty<boolean>({
@@ -801,7 +818,7 @@ export const platformRootSchema = createSchema({
 		type: 'string',
 		title: localize('agentHost.config.showExternalSessions.title', "Show External Agent Sessions"),
 		description: localize('agentHost.config.showExternalSessions.description', "Controls whether sessions created outside the Agent Host are included in the session catalog."),
-		enum: [ChatExternalSessionsMode.None, ChatExternalSessionsMode.Recent, ChatExternalSessionsMode.Last24Hours, ChatExternalSessionsMode.Last7Days, ChatExternalSessionsMode.All],
+		enum: [ChatExternalSessionsMode.None, ChatExternalSessionsMode.Recent, ChatExternalSessionsMode.Last24Hours, ChatExternalSessionsMode.Last7Days, ChatExternalSessionsMode.Last30Days],
 		default: ChatExternalSessionsMode.None,
 	}),
 	[AgentHostCopilotMultiRootEnabledConfigKey]: schemaProperty<boolean>({

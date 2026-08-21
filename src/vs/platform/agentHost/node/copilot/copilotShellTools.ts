@@ -57,8 +57,6 @@ interface IManagedShell {
  * the session ends.
  */
 export class ShellManager extends Disposable {
-	private _managedSandboxEnabled: boolean | undefined;
-
 	private readonly _shells = new Map<string, IManagedShell>();
 	private readonly _toolCallShells = new Map<string, string>();
 	private _resolvedExecutable: Promise<string> | undefined;
@@ -112,10 +110,6 @@ export class ShellManager extends Disposable {
 		return this._resolvedExecutable;
 	}
 
-	setManagedSandboxEnabled(enabled: boolean | undefined): void {
-		this._managedSandboxEnabled = enabled;
-	}
-
 	/**
 	 * Lazily constructs the per-session {@link TerminalSandboxEngine}. The engine
 	 * is registered for disposal alongside the {@link ShellManager}; its temp dir
@@ -132,7 +126,6 @@ export class ShellManager extends Disposable {
 				this._sandboxHelper,
 				sessionId,
 				this.workingDirectory,
-				() => this._managedSandboxEnabled,
 			);
 			this._register(engine);
 			this._register(toDisposable(() => {
