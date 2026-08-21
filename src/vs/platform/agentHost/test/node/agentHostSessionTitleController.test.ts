@@ -12,6 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
+import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, MessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ResponsePart, type SessionSummary, type ToolCallCompletedState, type Turn } from '../../common/state/sessionState.js';
 import { type AutoMergeMethod, type CreatedPullRequest, type GitHubIssueOrPullRequest, type IAgentHostOctoKitService } from '../../node/shared/agentHostOctoKitService.js';
@@ -102,7 +103,7 @@ suite('AgentHostSessionTitleController', () => {
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createSummary(session: URI, title = ''): SessionSummary {
+	function createSummary(session: URI, title = '', isEphemeral = false): SessionSummary {
 		return {
 			resource: session.toString(),
 			provider: 'copilot',
@@ -110,6 +111,7 @@ suite('AgentHostSessionTitleController', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date(1).toISOString(),
 			modifiedAt: new Date(1).toISOString(),
+			...(isEphemeral ? { _meta: withEphemeralSessionMeta(undefined, true) } : {}),
 		};
 	}
 
@@ -132,6 +134,7 @@ suite('AgentHostSessionTitleController', () => {
 		gitHubContextRequestTimeout?: number,
 		getGitHubHost = () => 'github.com',
 		activeAgentTitleGeneration = false,
+		isEphemeral = false,
 	): {
 		controller: AgentHostSessionTitleController;
 		stateManager: AgentHostStateManager;
@@ -144,7 +147,7 @@ suite('AgentHostSessionTitleController', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const db = new TestSessionDatabase();
 		const session = URI.parse('agenthost-session://copilot/session-title-test');
-		stateManager.createSession(createSummary(session, title));
+		stateManager.createSession(createSummary(session, title, isEphemeral));
 		const titleActions: string[] = [];
 		disposables.add(stateManager.onDidEmitEnvelope(e => {
 			if (e.action.type === ActionType.SessionTitleChanged) {
@@ -207,6 +210,25 @@ suite('AgentHostSessionTitleController', () => {
 		controller.seedTitleFromFirstMessage(session.toString(), 'Explain title generation');
 
 		assert.strictEqual(await controller.prepareInstructionForAgent(session.toString(), buildDefaultChatUri(session)), undefined);
+	});
+
+	test('does not generate or instruct titles for ephemeral sessions', async () => {
+		const { controller, session, titleActions, copilotApiService } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, true, true);
+
+		controller.seedTitleFromFirstMessage(session.toString(), 'Optimize an inline edit');
+		controller.seedProvisionalTitle(session.toString(), 'Provisional inline edit');
+		controller.refineTitleFromFirstTurn(session.toString());
+		controller.generateForkedTitle(session.toString(), undefined, [], 'Forked inline edit');
+
+		assert.deepStrictEqual({
+			titleActions,
+			utilityCalls: copilotApiService.utilityCalls.length,
+			instruction: await controller.prepareInstructionForAgent(session.toString(), buildDefaultChatUri(session)),
+		}, {
+			titleActions: [],
+			utilityCalls: 0,
+			instruction: undefined,
+		});
 	});
 
 	test('materialized server tools override later root setting changes', async () => {

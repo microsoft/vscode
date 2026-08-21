@@ -175,7 +175,7 @@ const CODEX_THINKING_LEVEL_KEY = 'thinkingLevel';
  */
 const USER_AGENT_PREFIX = 'vscode_codex';
 
-/** Where a user finishes setting Codex up outside the app; the workbench labels the button. */
+/** Where a user finishes setting Codex up outside the app; the workbench labels the link. */
 const CODEX_SETUP_DOCS_URL = 'https://learn.chatgpt.com/codex/auth';
 
 /**
@@ -2235,7 +2235,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * {@link _handleDynamicToolCallRpc} by name.
 	 */
 	private _buildDynamicTools(session: ICodexSession): DynamicToolSpec[] | undefined {
-		const serverTools = this._serverToolHost?.definitions ?? [];
+		const serverTools = this._serverToolHost?.getDefinitionsForSession(session.configurationResource.toString()) ?? [];
 		const clientTools = session.clientToolSet.merged();
 		// Server tools first; a server tool name shadows a colliding client tool
 		// (the agent host owns those names) and matches the routing order below.

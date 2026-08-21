@@ -68,8 +68,8 @@ import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js
 
 const USER_AGENT_PREFIX = 'vscode_claude_code';
 
-/** Where a user goes to establish Claude credentials; the workbench labels the button. */
-const CLAUDE_SETUP_DOCS_URL = 'https://docs.claude.com/en/docs/claude-code/setup';
+/** Where a user goes to establish Claude credentials; the workbench labels the link. */
+const CLAUDE_SETUP_DOCS_URL = 'https://code.claude.com/docs/en/third-party-integrations';
 
 /**
  * Returns true if `m` is a Claude-family model that should be advertised
