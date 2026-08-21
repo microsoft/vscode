@@ -23,9 +23,12 @@
 
 /* Editor Layout Actions Toolbar */
 
-.agent-sessions-workbench .part.editor > .content .editor-group-container > .title .editor-actions,
-.agent-sessions-workbench .part.editor > .content .editor-group-container > .title > .title-actions {
+.agent-sessions-workbench .part.editor > .content .editor-group-container > .title .editor-actions {
 	padding-right: 0;
+}
+
+.agent-sessions-workbench .part.editor > .content .editor-group-container > .title > .title-actions {
+	padding: 0 0 0 var(--vscode-spacing-size40);
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.editor > .content .editor-group-container > .title:not(.tabs) > .label-container > .single-tab.title-label {
