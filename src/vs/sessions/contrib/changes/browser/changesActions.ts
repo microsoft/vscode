@@ -27,7 +27,7 @@ import { DiffEditorWidget } from '../../../../editor/browser/widget/diffEditor/d
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';
 import { ChatPillActionViewItem } from '../../../../workbench/browser/chatPills.js';
-import { IsQuickChatSessionContext, SessionHasChangesContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { SessionHasChangesContext, SessionHasWorkspaceContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { SessionChangesetOperationScope } from '../../../services/sessions/common/session.js';
@@ -49,14 +49,16 @@ class ViewAllChangesAction extends Action2 {
 			title: localize2('agentSessions.changes', 'Changes'),
 			icon: Codicon.diffMultiple,
 			f1: false,
-			// Metadata pill rendered with live +/- counts.
+			// Metadata pill rendered with live +/- counts. A session without a
+			// workspace folder (a quick chat) has no Changes editor to open, so the
+			// pill would be inert — it never joins the pill row.
 			menu: {
 				id: Menus.SessionHeaderMeta,
 				group: 'navigation',
 				order: 0,
 				when: ContextKeyExpr.and(
 					SessionHasChangesContext,
-					ContextKeyExpr.or(IsQuickChatSessionContext.negate(), SinglePaneLayoutEnabledContext)
+					SessionHasWorkspaceContext
 				)
 			},
 		});
