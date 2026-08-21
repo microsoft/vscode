@@ -1317,6 +1317,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		} else {
 			session.abort();
 		}
+		// Wait for the subprocess to exit so its flush cannot recreate the transcript.
+		await session.shutdownLiveQuery();
 		this._deleteSession(session);
 	}
 
