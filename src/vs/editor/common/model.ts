@@ -567,6 +567,7 @@ export class TextModelResolvedOptions {
 	readonly defaultEOL: DefaultEndOfLine;
 	readonly trimAutoWhitespace: boolean;
 	readonly bracketPairColorizationOptions: BracketPairColorizationOptions;
+	readonly textDirection: TextDirection;
 
 	public get originalIndentSize(): number | 'tabSize' {
 		return this._indentSizeIsTabSize ? 'tabSize' : this.indentSize;
@@ -582,6 +583,7 @@ export class TextModelResolvedOptions {
 		defaultEOL: DefaultEndOfLine;
 		trimAutoWhitespace: boolean;
 		bracketPairColorizationOptions: BracketPairColorizationOptions;
+		textDirection: TextDirection;
 	}) {
 		this.tabSize = Math.max(1, src.tabSize | 0);
 		if (src.indentSize === 'tabSize') {
@@ -595,6 +597,7 @@ export class TextModelResolvedOptions {
 		this.defaultEOL = src.defaultEOL | 0;
 		this.trimAutoWhitespace = Boolean(src.trimAutoWhitespace);
 		this.bracketPairColorizationOptions = src.bracketPairColorizationOptions;
+		this.textDirection = src.textDirection;
 	}
 
 	/**
@@ -609,6 +612,7 @@ export class TextModelResolvedOptions {
 			&& this.defaultEOL === other.defaultEOL
 			&& this.trimAutoWhitespace === other.trimAutoWhitespace
 			&& equals(this.bracketPairColorizationOptions, other.bracketPairColorizationOptions)
+			&& this.textDirection === other.textDirection
 		);
 	}
 
@@ -621,6 +625,7 @@ export class TextModelResolvedOptions {
 			indentSize: this.indentSize !== newOpts.indentSize,
 			insertSpaces: this.insertSpaces !== newOpts.insertSpaces,
 			trimAutoWhitespace: this.trimAutoWhitespace !== newOpts.trimAutoWhitespace,
+			textDirection: this.textDirection !== newOpts.textDirection,
 		};
 	}
 }
@@ -638,6 +643,7 @@ export interface ITextModelCreationOptions {
 	isForSimpleWidget: boolean;
 	largeFileOptimizations: boolean;
 	bracketPairColorizationOptions: BracketPairColorizationOptions;
+	textDirection: TextDirection;
 }
 
 export interface BracketPairColorizationOptions {
@@ -651,6 +657,7 @@ export interface ITextModelUpdateOptions {
 	insertSpaces?: boolean;
 	trimAutoWhitespace?: boolean;
 	bracketColorizationOptions?: BracketPairColorizationOptions;
+	textDirection?: TextDirection;
 }
 
 export class FindMatch {
