@@ -351,7 +351,7 @@ suite('Code Review Contributions', () => {
 			hasTopRightEditorGroupGate: true,
 			hasChangesGate: true,
 			hasCreatedGate: true,
-			hasEditorAreaVisibleGate: true,
+			hasEditorAreaVisibleGate: false,
 		});
 	});
 

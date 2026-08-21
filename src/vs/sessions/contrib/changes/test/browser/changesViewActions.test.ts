@@ -20,6 +20,7 @@ import { SessionsDiffRenderSideBySideContext } from '../../../editor/common/diff
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext, TextCompareEditorActiveContext } from '../../../../../workbench/common/contextkeys.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { Menus } from '../../../../browser/menus.js';
+import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ChangesContextKeys, ChangesViewMode } from '../../common/changes.js';
@@ -241,15 +242,25 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('Changes accessibility help points to the editor title bar overflow menu', () => {
+	function getChangesAccessibilityHelp(singlePane: boolean): string {
 		const instantiationService = new TestInstantiationService();
 		instantiationService.stub(IViewsService, new class extends mock<IViewsService>() { });
+		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
+			override readonly isSinglePaneLayoutEnabled = singlePane;
+		});
 		const provider = new SessionsChangesAccessibilityHelp().getProvider(instantiationService);
 
 		const content = provider.provideContent();
 		provider.dispose();
+		return content;
+	}
 
-		assert.strictEqual(content.includes('Use Always Show Inline Diff in the editor title bar\'s More Actions menu'), true);
+	test('Changes accessibility help describes the single-pane diff action', () => {
+		assert.strictEqual(getChangesAccessibilityHelp(true).includes('Use Always Show Inline Diff in the editor title bar\'s More Actions menu'), true);
+	});
+
+	test('Changes accessibility help describes the classic diff action', () => {
+		assert.strictEqual(getChangesAccessibilityHelp(false).includes('Use Inline View in the editor title area\'s More Actions menu'), true);
 	});
 
 	test('view mode toggles are contributed to the editor title bar overflow for non-text single-file diffs', () => {
