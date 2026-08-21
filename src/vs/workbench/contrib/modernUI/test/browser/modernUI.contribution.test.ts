@@ -949,7 +949,7 @@ suite('ModernUIContribution', () => {
 		const getLabelColors = (label: { label: HTMLElement; name: HTMLElement; description: HTMLElement }) => {
 			const targetWindow = getWindow(label.label);
 			return [
-				targetWindow.getComputedStyle(label.label).color,
+				targetWindow.getComputedStyle(label.label, '::before').color,
 				targetWindow.getComputedStyle(label.name).color,
 				targetWindow.getComputedStyle(label.description).color,
 			];
