@@ -23,7 +23,8 @@
 
 /* Editor Layout Actions Toolbar */
 
-.agent-sessions-workbench .part.editor > .content .editor-group-container > .title .editor-actions {
+.agent-sessions-workbench .part.editor > .content .editor-group-container > .title .editor-actions,
+.agent-sessions-workbench .part.editor > .content .editor-group-container > .title > .title-actions {
 	padding-right: 0;
 }
 
