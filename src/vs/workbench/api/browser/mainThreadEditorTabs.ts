@@ -314,7 +314,10 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 				if (!tabInfo) {
 					return;
 				}
-				tabInfo.tab = this._buildTabObject(group, editorInput, editorIndex);
+				// Refresh the DTO in place. The group's `tabs` array holds this very object,
+				// so swapping in a new one would leave that copy behind and let the two
+				// caches drift apart, e.g. a later update could re-send a stale `isActive`.
+				Object.assign(tabInfo.tab, this._buildTabObject(group, editorInput, editorIndex));
 				this._proxy.$acceptTabOperation({
 					groupId,
 					index: editorIndex,
