@@ -90,9 +90,9 @@ export function buildReasoningEffortSchemaProperty(effortLevels: readonly string
  */
 export function getAutoModeTierLabel(tier: string): string {
 	switch (tier) {
-		case 'eco': return l10n.t('Eco');
-		case 'balanced': return l10n.t('Balanced');
-		case 'max': return l10n.t('Max');
+		case 'eco': return l10n.t('Efficiency');
+		case 'balanced': return l10n.t('Balance');
+		case 'max': return l10n.t('Intelligence');
 		case 'fast': return l10n.t('Fast');
 		default: return tier.charAt(0).toUpperCase() + tier.slice(1);
 	}
@@ -115,12 +115,12 @@ export function getAutoModeTierDescription(tier: string): string {
 /**
  * Builds the `tier` property descriptor for the Auto model's
  * {@link LanguageModelConfigurationSchema}. Rendered by the model picker the
- * same way thinking effort is, but labelled "Tier".
+ * same way thinking effort is, but labelled "Optimize for".
  */
 export function buildAutoModeTierSchemaProperty(tiers: readonly string[], defaultTier: string): NonNullable<LanguageModelConfigurationSchema['properties']>[string] {
 	return {
 		type: 'string',
-		title: l10n.t('Tier'),
+		title: l10n.t('Optimize for'),
 		enum: [...tiers],
 		enumItemLabels: tiers.map(getAutoModeTierLabel),
 		enumDescriptions: tiers.map(getAutoModeTierDescription),

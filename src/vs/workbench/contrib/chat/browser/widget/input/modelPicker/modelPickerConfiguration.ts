@@ -82,7 +82,7 @@ export class ModelPickerConfiguration {
 				: String(effortConfig.value);
 			labelParts.push(effortLabel);
 			// The group is generic, so producers name it: Copilot's Auto model uses it
-			// for "Tier" while regular models use it for thinking effort.
+			// for "Optimize for" while regular models use it for thinking effort.
 			ariaParts.push(effortConfig.schema.title
 				? localize('chat.modelPicker.navigationAriaLabel', "{0}: {1}", effortConfig.schema.title, effortLabel)
 				: localize('chat.modelPicker.effortAriaLabel', "Thinking Effort: {0}", effortLabel));
