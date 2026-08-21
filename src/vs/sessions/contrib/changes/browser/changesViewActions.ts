@@ -271,7 +271,7 @@ class CollapseAllSessionChangesDiffsAction extends Action2 {
 			f1: false,
 			menu: {
 				id: Menus.SessionsEditorHeaderSecondary,
-				group: '1_diff',
+				group: 'secondary/1_diff',
 				order: 10,
 				when: ContextKeyExpr.and(
 					singlePaneChangesEditorTitleVisible,
@@ -301,7 +301,7 @@ class ExpandAllSessionChangesDiffsAction extends Action2 {
 			f1: false,
 			menu: {
 				id: Menus.SessionsEditorHeaderSecondary,
-				group: '1_diff',
+				group: 'secondary/1_diff',
 				order: 10,
 				when: ContextKeyExpr.and(
 					singlePaneChangesEditorActive,

@@ -104,12 +104,12 @@ suite('Changes View Actions', () => {
 		]);
 	});
 
-	test('collapse all diffs is contributed to the single-pane editor header (right)', () => {
+	test('collapse all diffs is contributed to the single-pane editor header overflow menu', () => {
 		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'workbench.action.agentSessions.collapseAllDiffs');
 
-		assert.ok(item, 'expected collapse all diffs action on the single-pane editor header menu');
+		assert.ok(item, 'expected collapse all diffs action in the single-pane editor header overflow menu');
 		const when = item.when?.serialize() ?? '';
 		assert.deepStrictEqual({
 			group: item.group,
@@ -120,7 +120,7 @@ suite('Changes View Actions', () => {
 			hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 		}, {
-			group: '1_diff',
+			group: 'secondary/1_diff',
 			order: 10,
 			icon: Codicon.collapseAll.id,
 			hasSessionsWindowGate: true,
@@ -130,12 +130,12 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('expand all diffs is contributed to the single-pane editor header (right)', () => {
+	test('expand all diffs is contributed to the single-pane editor header overflow menu', () => {
 		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'workbench.action.agentSessions.expandAllDiffs');
 
-		assert.ok(item, 'expected expand all diffs action on the single-pane editor header menu');
+		assert.ok(item, 'expected expand all diffs action in the single-pane editor header overflow menu');
 		const when = item.when?.serialize() ?? '';
 		assert.deepStrictEqual({
 			group: item.group,
@@ -147,7 +147,7 @@ suite('Changes View Actions', () => {
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 			hasAllCollapsedGate: when.includes(EditorContextKeys.multiDiffEditorAllCollapsed.key),
 		}, {
-			group: '1_diff',
+			group: 'secondary/1_diff',
 			order: 10,
 			icon: Codicon.expandAll.id,
 			hasSessionsWindowGate: true,
