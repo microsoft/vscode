@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore, type IDisposable } from '../../../../base/common/lifecycle.js';
-import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { ArtifactToolsContribution } from './artifactTools/artifactToolsContribution.js';
 import { ChatSurfaceContribution } from './chatSurface/chatSurfaceContribution.js';
@@ -18,22 +17,21 @@ import { RenameInstructionContribution } from './renameInstruction/renameInstruc
 import { TitleRefinementContribution } from './titleRefinement/titleRefinementContribution.js';
 import { WorktreeAnnouncementContribution } from './worktreeAnnouncement/worktreeAnnouncementContribution.js';
 
-/** Registers all built-in chat contributions through the supplied instantiation service. */
+/** Registers all built-in chat contribution constructors. */
 export function registerBuiltInChatContributions(
 	contributions: IAgentHostChatContributions,
-	instantiationService: IInstantiationService,
 ): IDisposable {
 	const registrations = new DisposableStore();
-	registrations.add(contributions.registerContribution(instantiationService.createInstance(PersistedTurnUsageContribution)));
-	registrations.add(contributions.registerContribution(instantiationService.createInstance(WorktreeAnnouncementContribution)));
-	registrations.add(contributions.registerContribution(instantiationService.createInstance(CheckpointAndChangesetContribution)));
-	registrations.add(contributions.registerContribution(instantiationService.createInstance(QueueDrainContribution)));
-	registrations.add(contributions.registerContribution(instantiationService.createInstance(GitRefreshContribution)));
-	registrations.add(contributions.registerContribution(instantiationService.createInstance(TitleRefinementContribution)));
-	registrations.add(contributions.registerContribution(instantiationService.createInstance(MarkUnreadContribution)));
-	registrations.add(contributions.registerContribution(instantiationService.createInstance(MarkdownPlanRichLinksContribution)));
-	registrations.add(contributions.registerContribution(instantiationService.createInstance(ArtifactToolsContribution)));
-	registrations.add(contributions.registerContribution(instantiationService.createInstance(ChatSurfaceContribution)));
-	registrations.add(contributions.registerContribution(instantiationService.createInstance(RenameInstructionContribution)));
+	registrations.add(contributions.registerContribution(PersistedTurnUsageContribution));
+	registrations.add(contributions.registerContribution(WorktreeAnnouncementContribution));
+	registrations.add(contributions.registerContribution(CheckpointAndChangesetContribution));
+	registrations.add(contributions.registerContribution(QueueDrainContribution));
+	registrations.add(contributions.registerContribution(GitRefreshContribution));
+	registrations.add(contributions.registerContribution(TitleRefinementContribution));
+	registrations.add(contributions.registerContribution(MarkUnreadContribution));
+	registrations.add(contributions.registerContribution(MarkdownPlanRichLinksContribution));
+	registrations.add(contributions.registerContribution(ArtifactToolsContribution));
+	registrations.add(contributions.registerContribution(ChatSurfaceContribution));
+	registrations.add(contributions.registerContribution(RenameInstructionContribution));
 	return registrations;
 }

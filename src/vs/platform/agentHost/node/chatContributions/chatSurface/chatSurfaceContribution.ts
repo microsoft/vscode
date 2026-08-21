@@ -4,17 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import type { IAgentHostChatContribution, IOutgoingTurn, ISendContribution } from '../../../common/agentHostChatContributionsService.js';
+import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IOutgoingTurn, ISendContribution } from '../../../common/agentHostChatContributionsService.js';
 import { createEditorInlineChatInstruction, createTerminalChatInstruction } from '../../../common/meta/agentChatSurfaceMeta.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 
 /** Adds guidance tailored to the chat surface that created the session. */
 export class ChatSurfaceContribution extends Disposable implements IAgentHostChatContribution {
 
-	readonly id = 'chatSurface';
+	static readonly id = 'chatSurface';
 	readonly order = 300;
 
 	constructor(
+		protected readonly _context: IAgentHostChatContributionContext,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 	) {
 		super();

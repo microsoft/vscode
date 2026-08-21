@@ -6,17 +6,18 @@
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../log/common/log.js';
-import type { IAgentHostChatContribution, IHydrationContext } from '../../../common/agentHostChatContributionsService.js';
+import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IHydrationContext } from '../../../common/agentHostChatContributionsService.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { chatStorageUri, hasReportedUsage, isSubagentChatUri, type Turn, type UsageInfo } from '../../../common/state/sessionState.js';
 
 /** Re-attaches persisted per-turn usage to restored turns. */
 export class PersistedTurnUsageContribution extends Disposable implements IAgentHostChatContribution {
 
-	readonly id = 'persistedTurnUsage';
+	static readonly id = 'persistedTurnUsage';
 	readonly order = 100;
 
 	constructor(
+		protected readonly _context: IAgentHostChatContributionContext,
 		@ILogService private readonly _logService: ILogService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 	) {

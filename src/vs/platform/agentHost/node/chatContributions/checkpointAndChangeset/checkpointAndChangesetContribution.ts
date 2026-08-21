@@ -7,17 +7,18 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../log/common/log.js';
 import { IAgentHostCheckpointService } from '../../../common/agentHostCheckpointService.js';
 import { IAgentHostChangesetService } from '../../../common/agentHostChangesetService.js';
-import type { IAgentHostChatContribution, ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
+import type { IAgentHostChatContribution, IAgentHostChatContributionContext, ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 import { IAgentConfigurationService } from '../../agentConfigurationService.js';
 import { URI } from '../../../../../base/common/uri.js';
 
 /** Captures end-of-turn checkpoints before scheduling changeset recomputation. */
 export class CheckpointAndChangesetContribution extends Disposable implements IAgentHostChatContribution {
 
-	readonly id = 'checkpointAndChangeset';
+	static readonly id = 'checkpointAndChangeset';
 	readonly order = 100;
 
 	constructor(
+		protected readonly _context: IAgentHostChatContributionContext,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
 		@IAgentHostChangesetService private readonly _changesets: IAgentHostChangesetService,

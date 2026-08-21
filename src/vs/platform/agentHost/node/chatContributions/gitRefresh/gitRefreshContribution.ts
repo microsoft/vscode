@@ -5,15 +5,16 @@
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../log/common/log.js';
-import { IAgentHostChatContributions, type IAgentHostChatContribution, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
+import { IAgentHostChatContributions, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 
 /** Notifies the host to refresh the owning session's git state after success. */
 export class GitRefreshContribution extends Disposable implements IAgentHostChatContribution {
 
-	readonly id = 'gitRefresh';
+	static readonly id = 'gitRefresh';
 	readonly order = 300;
 
 	constructor(
+		protected readonly _context: IAgentHostChatContributionContext,
 		@IAgentHostChatContributions private readonly _chatContributions: IAgentHostChatContributions,
 		@ILogService private readonly _logService: ILogService,
 	) {

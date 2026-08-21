@@ -192,16 +192,17 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 				await checkpointGate?.p;
 			},
 		};
-		const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
+		const services = new ServiceCollection(
 			[ILogService, logService],
 			[IAgentConfigurationService, configService],
 			[IAgentHostChangesetService, new FakeChangesetService()],
 			[IAgentHostCheckpointService, checkpointService],
-			[IAgentHostChatContributions, disposables.add(new AgentHostChatContributions(logService))],
 			[ITelemetryService, telemetryService],
 			[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
 			[ISessionDataService, sessionDataService],
-		), /*strict*/ true));
+		);
+		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
+		services.set(IAgentHostChatContributions, disposables.add(new AgentHostChatContributions(logService, instantiationService)));
 		sideEffects = disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, customizationEnablementService, {
 			getAgent: () => agent,
 			agents: agentList,

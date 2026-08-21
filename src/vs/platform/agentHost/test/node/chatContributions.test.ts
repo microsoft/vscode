@@ -5,18 +5,19 @@
 
 import assert from 'assert';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import type { BrandedService, IConstructorSignature } from '../../../instantiation/common/instantiation.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostChangesetService } from '../../common/agentHostChangesetService.js';
-import { IAgentHostChatContributions, type IAgentHostChatContribution, type IAgentHostChatContributionHost, type IHydrationContext, type IOutgoingTurn, type ITurnEnd } from '../../common/agentHostChatContributionsService.js';
+import { createChatMementoKey, createSessionMementoKey, IAgentHostChatContributions, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IAgentHostChatContributionHost, type IHydrationContext, type IOutgoingTurn, type ITurnEnd } from '../../common/agentHostChatContributionsService.js';
 import { AgentHostArtifactToolsConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, type ISchema, type SchemaDefinition, type SchemaValue } from '../../common/agentHostSchema.js';
 import { withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildDefaultChatUri, MessageKind, SessionStatus, TurnState, type Turn } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, SessionStatus, TurnState, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -26,8 +27,34 @@ import { createSessionDataService, TestSessionDatabase } from '../common/session
 
 let calls: string[] = [];
 
-class OrderedFirstContribution extends Disposable implements IAgentHostChatContribution {
-	readonly id = 'orderedFirst';
+abstract class TestContribution extends Disposable implements IAgentHostChatContribution {
+	constructor(protected readonly _context: IAgentHostChatContributionContext, ..._services: BrandedService[]) {
+		super();
+	}
+}
+
+class FirstMementoContribution extends TestContribution {
+	static readonly id = 'firstMemento';
+	static context: IAgentHostChatContributionContext | undefined;
+
+	constructor(context: IAgentHostChatContributionContext, ...services: BrandedService[]) {
+		super(context, ...services);
+		FirstMementoContribution.context = context;
+	}
+}
+
+class SecondMementoContribution extends TestContribution {
+	static readonly id = 'secondMemento';
+	static context: IAgentHostChatContributionContext | undefined;
+
+	constructor(context: IAgentHostChatContributionContext, ...services: BrandedService[]) {
+		super(context, ...services);
+		SecondMementoContribution.context = context;
+	}
+}
+
+class OrderedFirstContribution extends TestContribution {
+	static readonly id = 'orderedFirst';
 	readonly order = 10;
 
 	onTurnEnd(turn: ITurnEnd): void {
@@ -37,8 +64,8 @@ class OrderedFirstContribution extends Disposable implements IAgentHostChatContr
 	}
 }
 
-class OrderedSecondContribution extends Disposable implements IAgentHostChatContribution {
-	readonly id = 'orderedSecond';
+class OrderedSecondContribution extends TestContribution {
+	static readonly id = 'orderedSecond';
 	readonly order = 0;
 
 	onTurnEnd(turn: ITurnEnd): void {
@@ -48,8 +75,8 @@ class OrderedSecondContribution extends Disposable implements IAgentHostChatCont
 	}
 }
 
-class OrderedThirdContribution extends Disposable implements IAgentHostChatContribution {
-	readonly id = 'orderedThird';
+class OrderedThirdContribution extends TestContribution {
+	static readonly id = 'orderedThird';
 	readonly order = 10;
 
 	onTurnEnd(turn: ITurnEnd): void {
@@ -59,8 +86,8 @@ class OrderedThirdContribution extends Disposable implements IAgentHostChatContr
 	}
 }
 
-class ThrowingContribution extends Disposable implements IAgentHostChatContribution {
-	readonly id = 'throwing';
+class ThrowingContribution extends TestContribution {
+	static readonly id = 'throwing';
 	readonly order = 20;
 
 	onTurnEnd(turn: ITurnEnd): void {
@@ -70,8 +97,8 @@ class ThrowingContribution extends Disposable implements IAgentHostChatContribut
 	}
 }
 
-class FollowingContribution extends Disposable implements IAgentHostChatContribution {
-	readonly id = 'following';
+class FollowingContribution extends TestContribution {
+	static readonly id = 'following';
 	readonly order = 21;
 
 	onTurnEnd(turn: ITurnEnd): void {
@@ -81,8 +108,8 @@ class FollowingContribution extends Disposable implements IAgentHostChatContribu
 	}
 }
 
-class ReasonContribution extends Disposable implements IAgentHostChatContribution {
-	readonly id = 'reason';
+class ReasonContribution extends TestContribution {
+	static readonly id = 'reason';
 
 	onTurnEnd(turn: ITurnEnd): void {
 		if (turn.turnId === 'reason') {
@@ -91,12 +118,12 @@ class ReasonContribution extends Disposable implements IAgentHostChatContributio
 	}
 }
 
-class OptionalContribution extends Disposable implements IAgentHostChatContribution {
-	readonly id = 'optional';
+class OptionalContribution extends TestContribution {
+	static readonly id = 'optional';
 }
 
-class SendOrderFirstContribution extends Disposable implements IAgentHostChatContribution {
-	readonly id = 'sendOrderFirst';
+class SendOrderFirstContribution extends TestContribution {
+	static readonly id = 'sendOrderFirst';
 	readonly order = 11;
 
 	contributeSend(turn: IOutgoingTurn) {
@@ -104,8 +131,8 @@ class SendOrderFirstContribution extends Disposable implements IAgentHostChatCon
 	}
 }
 
-class SendOrderSecondContribution extends Disposable implements IAgentHostChatContribution {
-	readonly id = 'sendOrderSecond';
+class SendOrderSecondContribution extends TestContribution {
+	static readonly id = 'sendOrderSecond';
 	readonly order = 10;
 
 	contributeSend(turn: IOutgoingTurn) {
@@ -113,8 +140,8 @@ class SendOrderSecondContribution extends Disposable implements IAgentHostChatCo
 	}
 }
 
-class AsyncSendContribution extends Disposable implements IAgentHostChatContribution {
-	readonly id = 'asyncSend';
+class AsyncSendContribution extends TestContribution {
+	static readonly id = 'asyncSend';
 	readonly order = 20;
 
 	async contributeSend(turn: IOutgoingTurn) {
@@ -127,8 +154,8 @@ class AsyncSendContribution extends Disposable implements IAgentHostChatContribu
 	}
 }
 
-class ThrowingSendContribution extends Disposable implements IAgentHostChatContribution {
-	readonly id = 'throwingSend';
+class ThrowingSendContribution extends TestContribution {
+	static readonly id = 'throwingSend';
 	readonly order = 30;
 
 	contributeSend(turn: IOutgoingTurn) {
@@ -139,8 +166,8 @@ class ThrowingSendContribution extends Disposable implements IAgentHostChatContr
 	}
 }
 
-class FollowingSendContribution extends Disposable implements IAgentHostChatContribution {
-	readonly id = 'followingSend';
+class FollowingSendContribution extends TestContribution {
+	static readonly id = 'followingSend';
 	readonly order = 31;
 
 	contributeSend(turn: IOutgoingTurn) {
@@ -148,8 +175,8 @@ class FollowingSendContribution extends Disposable implements IAgentHostChatCont
 	}
 }
 
-class EmptySendContribution extends Disposable implements IAgentHostChatContribution {
-	readonly id = 'emptySend';
+class EmptySendContribution extends TestContribution {
+	static readonly id = 'emptySend';
 	readonly order = 40;
 
 	contributeSend(turn: IOutgoingTurn) {
@@ -163,8 +190,8 @@ class EmptySendContribution extends Disposable implements IAgentHostChatContribu
 	}
 }
 
-class FirstHydrationContribution extends Disposable implements IAgentHostChatContribution {
-	readonly id = 'firstHydration';
+class FirstHydrationContribution extends TestContribution {
+	static readonly id = 'firstHydration';
 	readonly order = 10;
 
 	onHydrateTurns(_context: IHydrationContext, turns: readonly Turn[]): readonly Turn[] {
@@ -173,8 +200,8 @@ class FirstHydrationContribution extends Disposable implements IAgentHostChatCon
 	}
 }
 
-class SecondHydrationContribution extends Disposable implements IAgentHostChatContribution {
-	readonly id = 'secondHydration';
+class SecondHydrationContribution extends TestContribution {
+	static readonly id = 'secondHydration';
 	readonly order = 20;
 
 	onHydrateTurns(_context: IHydrationContext, turns: readonly Turn[]): readonly Turn[] {
@@ -183,8 +210,8 @@ class SecondHydrationContribution extends Disposable implements IAgentHostChatCo
 	}
 }
 
-class AsyncHydrationContribution extends Disposable implements IAgentHostChatContribution {
-	readonly id = 'asyncHydration';
+class AsyncHydrationContribution extends TestContribution {
+	static readonly id = 'asyncHydration';
 
 	async onHydrateTurns(_context: IHydrationContext, turns: readonly Turn[]): Promise<readonly Turn[]> {
 		await Promise.resolve();
@@ -193,8 +220,8 @@ class AsyncHydrationContribution extends Disposable implements IAgentHostChatCon
 	}
 }
 
-class PreviousHydrationContribution extends Disposable implements IAgentHostChatContribution {
-	readonly id = 'previousHydration';
+class PreviousHydrationContribution extends TestContribution {
+	static readonly id = 'previousHydration';
 	readonly order = 10;
 
 	onHydrateTurns(_context: IHydrationContext, turns: readonly Turn[]): readonly Turn[] {
@@ -202,8 +229,8 @@ class PreviousHydrationContribution extends Disposable implements IAgentHostChat
 	}
 }
 
-class ThrowingHydrationContribution extends Disposable implements IAgentHostChatContribution {
-	readonly id = 'throwingHydration';
+class ThrowingHydrationContribution extends TestContribution {
+	static readonly id = 'throwingHydration';
 	readonly order = 20;
 
 	onHydrateTurns(): readonly Turn[] {
@@ -211,8 +238,8 @@ class ThrowingHydrationContribution extends Disposable implements IAgentHostChat
 	}
 }
 
-class FollowingHydrationContribution extends Disposable implements IAgentHostChatContribution {
-	readonly id = 'followingHydration';
+class FollowingHydrationContribution extends TestContribution {
+	static readonly id = 'followingHydration';
 	readonly order = 30;
 
 	onHydrateTurns(_context: IHydrationContext, turns: readonly Turn[]): readonly Turn[] {
@@ -232,8 +259,12 @@ function createConfigurationService(enableSendInstructions: boolean): IAgentConf
 	return agentConfigService;
 }
 
-function createContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, ...contributions: readonly IAgentHostChatContribution[]): AgentHostChatContributions {
-	const service = new AgentHostChatContributions(new NullLogService());
+function createContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, ...contributions: readonly (IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string })[]): AgentHostChatContributions {
+	const logService = new NullLogService();
+	const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
+		[ILogService, logService],
+	), /*strict*/ true));
+	const service = new AgentHostChatContributions(logService, instantiationService);
 	for (const contribution of contributions) {
 		disposables.add(service.registerContribution(contribution));
 	}
@@ -263,7 +294,6 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		...NULL_CHECKPOINT_SERVICE,
 		captureTurnCheckpoint: async () => { observed.push('checkpointAndChangeset'); },
 	} as IAgentHostCheckpointService : NULL_CHECKPOINT_SERVICE;
-	const service = disposables.add(new AgentHostChatContributions(logService));
 	const usageDatabase = new TestSessionDatabase();
 	const originalGetTurnUsages = usageDatabase.getTurnUsages.bind(usageDatabase);
 	usageDatabase.getTurnUsages = async () => {
@@ -271,15 +301,17 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		return originalGetTurnUsages();
 	};
 	const agentConfigService = createConfigurationService(enableSendInstructions);
-	const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
+	const services = new ServiceCollection(
 		[ILogService, logService],
 		[IAgentHostCheckpointService, checkpointService],
 		[IAgentHostChangesetService, changesets],
 		[IAgentConfigurationService, agentConfigService],
 		[IAgentHostStateManager, stateManager],
-		[IAgentHostChatContributions, service],
 		[ISessionDataService, createSessionDataService(usageDatabase)],
-	), /*strict*/ true));
+	);
+	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
+	const service = disposables.add(new AgentHostChatContributions(logService, instantiationService));
+	services.set(IAgentHostChatContributions, service);
 	const host: IAgentHostChatContributionHost = {
 		drainQueuedMessages: () => observed?.push('queueDrain'),
 		notifyTurnComplete: () => observed?.push('gitRefresh'),
@@ -291,7 +323,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		},
 	};
 	disposables.add(service.registerHost(host));
-	disposables.add(registerBuiltInChatContributions(service, instantiationService));
+	disposables.add(registerBuiltInChatContributions(service));
 	return service;
 }
 
@@ -323,10 +355,82 @@ suite('AgentHostChatContributions', () => {
 
 	setup(() => {
 		calls = [];
+		FirstMementoContribution.context = undefined;
+		SecondMementoContribution.context = undefined;
+	});
+
+	test('creates contribution-scoped mementos from their factories', () => {
+		let factoryCalls = 0;
+		const sharedName = createChatMementoKey<number>('shared', () => ++factoryCalls);
+		const contributions = disposables.add(createContributions(disposables, FirstMementoContribution, SecondMementoContribution));
+		const first = FirstMementoContribution.context!.memento(sharedName, 'agent-host-chat://first');
+		const firstAgain = FirstMementoContribution.context!.memento(sharedName, 'agent-host-chat://first');
+		const second = SecondMementoContribution.context!.memento(sharedName, 'agent-host-chat://first');
+
+		assert.strictEqual(first, firstAgain);
+		assert.deepStrictEqual([first.get(), second.get(), factoryCalls], [1, 2, 2]);
+		contributions.dispose();
+	});
+
+	test('distinguishes memento extra key segments and evicts chat state', () => {
+		const keyed = createChatMementoKey<number, [messageId: string, retry: number]>('keyed', () => 0);
+		const contributions = disposables.add(createContributions(disposables, FirstMementoContribution));
+		const context = FirstMementoContribution.context!;
+		const first = context.memento(keyed, 'agent-host-chat://first', 'one', 0);
+		const second = context.memento(keyed, 'agent-host-chat://first', 'two', 0);
+		const retained = context.memento(keyed, 'agent-host-chat://second', 'one', 0);
+		first.set(1, undefined);
+		second.set(2, undefined);
+		retained.set(3, undefined);
+
+		contributions.disposeChatState('agent-host-chat://first');
+
+		assert.deepStrictEqual([first.get(), second.get()], [1, 2]);
+		assert.notStrictEqual(context.memento(keyed, 'agent-host-chat://first', 'one', 0), first);
+		assert.strictEqual(context.memento(keyed, 'agent-host-chat://first', 'one', 0).get(), 0);
+		assert.strictEqual(context.memento(keyed, 'agent-host-chat://second', 'one', 0), retained);
+	});
+
+	test('evicts session state and all supplied chat state without affecting other chats', () => {
+		const chatKey = createChatMementoKey<number>('chat', () => 0);
+		const sessionKey = createSessionMementoKey<number>('session', () => 0);
+		const contributions = disposables.add(createContributions(disposables, FirstMementoContribution));
+		const context = FirstMementoContribution.context!;
+		const sessionResource = 'agent-host-session://session';
+		const firstChatResource = buildChatUri(sessionResource, 'first');
+		const secondChatResource = buildChatUri(sessionResource, 'second');
+		const retainedChatResource = buildChatUri('agent-host-session://retained', 'retained');
+		const firstChat = context.memento(chatKey, firstChatResource);
+		const secondChat = context.memento(chatKey, secondChatResource);
+		const retainedChat = context.memento(chatKey, retainedChatResource);
+		const session = context.memento(sessionKey, sessionResource);
+
+		contributions.disposeSessionState(sessionResource);
+
+		assert.notStrictEqual(context.memento(chatKey, firstChatResource), firstChat);
+		assert.notStrictEqual(context.memento(chatKey, secondChatResource), secondChat);
+		assert.strictEqual(context.memento(chatKey, retainedChatResource), retainedChat);
+		assert.notStrictEqual(context.memento(sessionKey, sessionResource), session);
+	});
+
+	test('supports queued-sender mementos keyed by message id', () => {
+		interface IQueuedMessageSender {
+			readonly messageId: string;
+		}
+		const queuedSender = createChatMementoKey<IQueuedMessageSender | undefined, [messageId: string]>('queueDrain.sender', () => undefined);
+		const contributions = disposables.add(createContributions(disposables, FirstMementoContribution));
+		const context = FirstMementoContribution.context!;
+		const sender = context.memento(queuedSender, 'agent-host-chat://queue', 'message-1');
+		sender.set({ messageId: 'message-1' }, undefined);
+
+		assert.deepStrictEqual(sender.get(), { messageId: 'message-1' });
+		assert.strictEqual(context.memento(queuedSender, 'agent-host-chat://queue', 'message-2').get(), undefined);
+		contributions.disposeChatState('agent-host-chat://queue');
+		assert.strictEqual(context.memento(queuedSender, 'agent-host-chat://queue', 'message-1').get(), undefined);
 	});
 
 	test('runs contributions in order while preserving registration order for ties', () => {
-		const contributions = disposables.add(createContributions(disposables, new OrderedFirstContribution(), new OrderedSecondContribution(), new OrderedThirdContribution()));
+		const contributions = disposables.add(createContributions(disposables, OrderedFirstContribution, OrderedSecondContribution, OrderedThirdContribution));
 		contributions.turnEnd(turnEnd('ordered'));
 
 		assert.deepStrictEqual(calls, ['second', 'first', 'third']);
@@ -371,54 +475,54 @@ suite('AgentHostChatContributions', () => {
 	});
 
 	test('isolates a throwing contribution', () => {
-		const contributions = disposables.add(createContributions(disposables, new ThrowingContribution(), new FollowingContribution()));
+		const contributions = disposables.add(createContributions(disposables, ThrowingContribution, FollowingContribution));
 		contributions.turnEnd(turnEnd('throwing'));
 
 		assert.deepStrictEqual(calls, ['following']);
 	});
 
 	test('propagates the terminal outcome reason', () => {
-		const contributions = disposables.add(createContributions(disposables, new ReasonContribution()));
+		const contributions = disposables.add(createContributions(disposables, ReasonContribution));
 		contributions.turnEnd(turnEnd('reason', { kind: 'cancelled' }));
 
 		assert.deepStrictEqual(calls, ['cancelled']);
 	});
 
 	test('skips contributions without an onTurnEnd hook', () => {
-		const contributions = disposables.add(createContributions(disposables, new OptionalContribution()));
+		const contributions = disposables.add(createContributions(disposables, OptionalContribution));
 		contributions.turnEnd(turnEnd('optional'));
 
 		assert.deepStrictEqual(calls, []);
 	});
 
 	test('collects send instructions in contribution order', async () => {
-		const contributions = disposables.add(createContributions(disposables, new SendOrderFirstContribution(), new SendOrderSecondContribution()));
+		const contributions = disposables.add(createContributions(disposables, SendOrderFirstContribution, SendOrderSecondContribution));
 
 		assert.deepStrictEqual(await contributions.contributeSend(outgoingTurn('send-order')), ['second', 'first']);
 	});
 
 	test('awaits asynchronous send contributions', async () => {
-		const contributions = disposables.add(createContributions(disposables, new AsyncSendContribution()));
+		const contributions = disposables.add(createContributions(disposables, AsyncSendContribution));
 
 		assert.deepStrictEqual(await contributions.contributeSend(outgoingTurn('send-async')), ['async']);
 		assert.deepStrictEqual(calls, ['async']);
 	});
 
 	test('isolates a failing send contribution', async () => {
-		const contributions = disposables.add(createContributions(disposables, new ThrowingSendContribution(), new FollowingSendContribution()));
+		const contributions = disposables.add(createContributions(disposables, ThrowingSendContribution, FollowingSendContribution));
 
 		assert.deepStrictEqual(await contributions.contributeSend(outgoingTurn('send-failure')), ['following']);
 	});
 
 	test('omits empty send contribution results', async () => {
-		const contributions = disposables.add(createContributions(disposables, new EmptySendContribution()));
+		const contributions = disposables.add(createContributions(disposables, EmptySendContribution));
 
 		assert.deepStrictEqual(await contributions.contributeSend(outgoingTurn('send-empty-array')), []);
 		assert.deepStrictEqual(await contributions.contributeSend(outgoingTurn('send-empty-object')), []);
 	});
 
 	test('threads hydrated turns through contributions in order', async () => {
-		const contributions = disposables.add(createContributions(disposables, new SecondHydrationContribution(), new FirstHydrationContribution()));
+		const contributions = disposables.add(createContributions(disposables, SecondHydrationContribution, FirstHydrationContribution));
 
 		const turns = await contributions.hydrateTurns(hydrationContext(), [hydrationTurn('initial')]);
 
@@ -427,7 +531,7 @@ suite('AgentHostChatContributions', () => {
 	});
 
 	test('awaits asynchronous hydration contributions', async () => {
-		const contributions = disposables.add(createContributions(disposables, new AsyncHydrationContribution()));
+		const contributions = disposables.add(createContributions(disposables, AsyncHydrationContribution));
 
 		const turns = await contributions.hydrateTurns(hydrationContext(), []);
 
@@ -436,7 +540,7 @@ suite('AgentHostChatContributions', () => {
 	});
 
 	test('preserves the previous turns when a hydration contribution fails', async () => {
-		const contributions = disposables.add(createContributions(disposables, new FollowingHydrationContribution(), new ThrowingHydrationContribution(), new PreviousHydrationContribution()));
+		const contributions = disposables.add(createContributions(disposables, FollowingHydrationContribution, ThrowingHydrationContribution, PreviousHydrationContribution));
 
 		const turns = await contributions.hydrateTurns(hydrationContext(), []);
 

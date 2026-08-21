@@ -2934,6 +2934,7 @@ export class AgentService extends Disposable implements IAgentService {
 			this._sideEffects.clearQueuedMessageSenders(chatKey);
 			this._sideEffects.cancelSubagentSessions(chatKey);
 			this._sideEffects.clearChannelTelemetry(chatKey);
+			this._chatContributions.disposeChatState(chatKey);
 			this._stateManager.removeChat(sessionKey, chatKey);
 		} finally {
 			this._disposingPeerChats.delete(chatKey);
@@ -3689,6 +3690,7 @@ export class AgentService extends Disposable implements IAgentService {
 			this._clearDownloadProgressInterest(session.toString());
 		}
 		this._sideEffects.clearSessionTitleState(session.toString(), sessionChats.map(chat => chat.resource));
+		this._chatContributions.disposeSessionState(session.toString());
 		await this._whenSessionDataIdle(session);
 		// Remove the VS Code per-session data directory (metadata DB + checkpoints) to mirror the SDK-side cleanup
 		// performed by the provider above. No-op when the directory does not exist.
@@ -4172,6 +4174,7 @@ export class AgentService extends Disposable implements IAgentService {
 			this._stateManager.removeSession(cachedKey);
 		}
 		this._sideEffects.clearSessionTitleState(evictionTargetKey, chats);
+		this._chatContributions.disposeSessionState(evictionTargetKey);
 		this._stateManager.removeSession(evictionTargetKey);
 	}
 

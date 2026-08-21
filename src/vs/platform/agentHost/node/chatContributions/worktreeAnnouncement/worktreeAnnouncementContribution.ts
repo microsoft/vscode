@@ -4,16 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { IAgentHostChatContributions, type IAgentHostChatContribution, type IHydrationContext } from '../../../common/agentHostChatContributionsService.js';
+import { IAgentHostChatContributions, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IHydrationContext } from '../../../common/agentHostChatContributionsService.js';
 import { isDefaultChatUri, type Turn } from '../../../common/state/sessionState.js';
 
 /** Restores the worktree notice on the default chat when isolation is configured. */
 export class WorktreeAnnouncementContribution extends Disposable implements IAgentHostChatContribution {
 
-	readonly id = 'worktreeAnnouncement';
+	static readonly id = 'worktreeAnnouncement';
 	readonly order = 200;
 
 	constructor(
+		protected readonly _context: IAgentHostChatContributionContext,
 		@IAgentHostChatContributions private readonly _chatContributions: IAgentHostChatContributions,
 	) {
 		super();

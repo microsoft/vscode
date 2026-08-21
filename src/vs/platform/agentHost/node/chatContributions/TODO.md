@@ -32,6 +32,11 @@ Each contribution has its own subfolder so its implementation, helpers, and test
 - `onIncomingRequest` — unifies duplicated turn admission in `handleAction` ChatTurnStarted (`agentSideEffects.ts:1521`) and `_tryConsumeNextQueuedMessage` (`agentSideEffects.ts:1977`), folds in `ILocalChatCommand`, and moves the read-only/archived guard from `_sendTurnMessage` (`agentSideEffects.ts:2093`) into a `reject` disposition.
 - `onAgentSignal` — observes or redirects signals before they reach state.
 
+## Memento follow-ups
+
+- Add disposable-value semantics only when a contribution needs to store disposables. Memento eviction currently drops observables without disposing their values.
+- Consider a `chatDisposable` helper only when a real contribution needs it; do not add it speculatively.
+
 ## Payoff
 
 - Migrate btw/sideChat to one contribution (`contributeSend` plus `onHydrateTurns`), deleting the six per-harness wiring sites (`copilot/copilotAgent.ts:3651`, `:3755`, `:3900`; `claude/claudeAgent.ts:1414`, `:1987`, `:2359`) and the `sideChat` field from both `IPersistedChat` blobs. Codex gains btw support by deletion rather than addition.

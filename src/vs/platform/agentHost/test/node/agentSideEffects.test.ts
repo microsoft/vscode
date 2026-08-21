@@ -138,19 +138,20 @@ function createTestSideEffects(
 ): AgentSideEffects {
 	const logService = new NullLogService();
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
-	const chatContributions = disposables.add(new AgentHostChatContributions(logService));
-	const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
+	const services = new ServiceCollection(
 		[ILogService, logService],
 		[IAgentConfigurationService, configService],
 		[IAgentHostChangesetService, changesets],
 		[IAgentHostCheckpointService, checkpointService],
-		[IAgentHostChatContributions, chatContributions],
 		[IAgentHostStateManager, stateManager],
 		[ITelemetryService, telemetryService],
 		[IAgentHostTerminalManager, terminalManager],
 		[ISessionDataService, options.sessionDataService],
-	), /*strict*/ true));
-	disposables.add(registerBuiltInChatContributions(chatContributions, instantiationService));
+	);
+	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
+	const chatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
+	services.set(IAgentHostChatContributions, chatContributions);
+	disposables.add(registerBuiltInChatContributions(chatContributions));
 	const resolvedOptions: IAgentSideEffectsOptions = {
 		...options,
 		localTurns: options.localTurns ?? new AgentHostLocalTurns(options.sessionDataService, logService),

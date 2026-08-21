@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IDisposable } from '../../../base/common/lifecycle.js';
-import { createDecorator } from '../../instantiation/common/instantiation.js';
+import type { ISettableObservable } from '../../../base/common/observable.js';
+import { createDecorator, type BrandedService } from '../../instantiation/common/instantiation.js';
 import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
 import type { ErrorInfo, Turn, URI as ProtocolURI } from './state/sessionState.js';
 
@@ -63,9 +64,43 @@ export interface IAgentHostChatContributionHost {
 	applyWorktreeRestoreAnnouncement(session: ProtocolURI, turns: readonly Turn[]): Promise<readonly Turn[]>;
 }
 
+type MementoKeySegment = string | boolean | number;
+type MementoKeySegments = readonly MementoKeySegment[];
+
+export interface IChatMementoKey<T, TExtra extends MementoKeySegments> {
+	readonly scope: 'chat';
+	readonly debugName: string;
+	readonly create: () => T;
+	readonly _extra?: TExtra;
+}
+
+export interface ISessionMementoKey<T, TExtra extends MementoKeySegments> {
+	readonly scope: 'session';
+	readonly debugName: string;
+	readonly create: () => T;
+	readonly _extra?: TExtra;
+}
+
+export function createChatMementoKey<T, TExtra extends MementoKeySegments = []>(debugName: string, create: () => T): IChatMementoKey<T, TExtra> {
+	return { scope: 'chat', debugName, create };
+}
+
+export function createSessionMementoKey<T, TExtra extends MementoKeySegments = []>(debugName: string, create: () => T): ISessionMementoKey<T, TExtra> {
+	return { scope: 'session', debugName, create };
+}
+
+/**
+ * Per-contribution state that is centrally evicted with its owning chat or session.
+ * Each registered contribution receives a distinct context, so memento names are
+ * automatically namespaced by contribution.
+ */
+export interface IAgentHostChatContributionContext {
+	readonly contributionId: string;
+	memento<T, TExtra extends MementoKeySegments>(key: IChatMementoKey<T, TExtra> | ISessionMementoKey<T, TExtra>, resource: ProtocolURI, ...extra: TExtra): ISettableObservable<T>;
+}
+
 /** A self-contained behavior contributed to the agent host chat lifecycle. */
 export interface IAgentHostChatContribution extends IDisposable {
-	readonly id: string;
 	/**
 	 * Lower runs first. Contributions that require a specific relative sequence
 	 * must declare an explicit order; registration order only breaks ties.
@@ -82,15 +117,17 @@ export interface IAgentHostChatContribution extends IDisposable {
 	onHydrateTurns?(context: IHydrationContext, turns: readonly Turn[]): readonly Turn[] | Promise<readonly Turn[]>;
 }
 
+export type IAgentHostChatContributionSignature<Services extends BrandedService[]> = new (context: IAgentHostChatContributionContext, ...services: Services) => IAgentHostChatContribution;
+
 /** Dispatches chat lifecycle hooks to registered contributions. */
 export interface IAgentHostChatContributions extends IDisposable {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Adds a contribution. Disposing the returned value unregisters and disposes
-	 * the contribution.
+	 * Creates and adds a contribution. Disposing the returned value unregisters
+	 * and disposes the contribution.
 	 */
-	registerContribution(contribution: IAgentHostChatContribution): IDisposable;
+	registerContribution<Services extends BrandedService[]>(contribution: IAgentHostChatContributionSignature<Services> & { readonly id: string }): IDisposable;
 	/**
 	 * Registers the narrow AgentSideEffects-owned operations required by some
 	 * contributions.
@@ -101,4 +138,6 @@ export interface IAgentHostChatContributions extends IDisposable {
 	turnEnd(turn: ITurnEnd): void;
 	contributeSend(turn: IOutgoingTurn): Promise<readonly string[]>;
 	hydrateTurns(context: IHydrationContext, turns: readonly Turn[]): Promise<readonly Turn[]>;
+	disposeChatState(chat: ProtocolURI): void;
+	disposeSessionState(session: ProtocolURI): void;
 }

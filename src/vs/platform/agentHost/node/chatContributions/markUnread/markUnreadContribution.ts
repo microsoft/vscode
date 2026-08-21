@@ -6,18 +6,19 @@
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { SessionStatus } from '../../../common/state/sessionState.js';
-import type { IAgentHostChatContribution, ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
+import type { IAgentHostChatContribution, IAgentHostChatContributionContext, ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 
 /** Marks a read session unread after a terminal turn outcome. */
 export class MarkUnreadContribution extends Disposable implements IAgentHostChatContribution {
 
-	readonly id = 'markUnread';
+	static readonly id = 'markUnread';
 	// This hook was originally dispatched after all turn-complete side effects.
 	// Keep it as the terminal tail while newer side effects use explicit orders.
 	readonly order = 500;
 
 	constructor(
+		protected readonly _context: IAgentHostChatContributionContext,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 	) {
 		super();

@@ -5,15 +5,16 @@
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../log/common/log.js';
-import { IAgentHostChatContributions, type IAgentHostChatContribution, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
+import { IAgentHostChatContributions, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 
 /** Starts the next queued message after a successful turn. */
 export class QueueDrainContribution extends Disposable implements IAgentHostChatContribution {
 
-	readonly id = 'queueDrain';
+	static readonly id = 'queueDrain';
 	readonly order = 200;
 
 	constructor(
+		protected readonly _context: IAgentHostChatContributionContext,
 		@IAgentHostChatContributions private readonly _chatContributions: IAgentHostChatContributions,
 		@ILogService private readonly _logService: ILogService,
 	) {

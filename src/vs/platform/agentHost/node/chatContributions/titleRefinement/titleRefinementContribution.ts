@@ -5,16 +5,17 @@
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../log/common/log.js';
-import { IAgentHostChatContributions, type IAgentHostChatContribution, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
+import { IAgentHostChatContributions, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 import { isAhpChatChannel, isDefaultChatUri } from '../../../common/state/sessionState.js';
 
 /** Refines a chat's automatic title after its first successful turn. */
 export class TitleRefinementContribution extends Disposable implements IAgentHostChatContribution {
 
-	readonly id = 'titleRefinement';
+	static readonly id = 'titleRefinement';
 	readonly order = 400;
 
 	constructor(
+		protected readonly _context: IAgentHostChatContributionContext,
 		@IAgentHostChatContributions private readonly _chatContributions: IAgentHostChatContributions,
 		@ILogService private readonly _logService: ILogService,
 	) {

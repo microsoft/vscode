@@ -5,17 +5,18 @@
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { AgentHostArtifactToolsConfigKey, platformRootSchema } from '../../../common/agentHostSchema.js';
-import type { IAgentHostChatContribution, ISendContribution } from '../../../common/agentHostChatContributionsService.js';
+import type { IAgentHostChatContribution, IAgentHostChatContributionContext, ISendContribution } from '../../../common/agentHostChatContributionsService.js';
 import { IAgentConfigurationService } from '../../agentConfigurationService.js';
 import { ARTIFACT_TOOLS_INSTRUCTION } from '../../shared/artifactServerTools.js';
 
 /** Adds artifact-tool guidance when artifact tools are enabled. */
 export class ArtifactToolsContribution extends Disposable implements IAgentHostChatContribution {
 
-	readonly id = 'artifactTools';
+	static readonly id = 'artifactTools';
 	readonly order = 200;
 
 	constructor(
+		protected readonly _context: IAgentHostChatContributionContext,
 		@IAgentConfigurationService private readonly _agentConfigService: IAgentConfigurationService,
 	) {
 		super();

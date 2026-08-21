@@ -5,7 +5,7 @@
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { AgentHostMarkdownPlanRichLinksEnabledConfigKey, platformRootSchema } from '../../../common/agentHostSchema.js';
-import type { IAgentHostChatContribution, IOutgoingTurn, ISendContribution } from '../../../common/agentHostChatContributionsService.js';
+import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IOutgoingTurn, ISendContribution } from '../../../common/agentHostChatContributionsService.js';
 import { buildOpenSessionLinkForChatResource } from '../../../common/openSessionLink.js';
 import { IAgentConfigurationService } from '../../agentConfigurationService.js';
 
@@ -27,11 +27,12 @@ function createMarkdownPlanRichLinksInstruction(chat: IOutgoingTurn['chat']): st
 /** Adds Markdown plan rich-link guidance when the feature is enabled. */
 export class MarkdownPlanRichLinksContribution extends Disposable implements IAgentHostChatContribution {
 
-	readonly id = 'markdownPlanRichLinks';
+	static readonly id = 'markdownPlanRichLinks';
 	// Send contributions reserve 100-400 for the original host-instruction sequence.
 	readonly order = 100;
 
 	constructor(
+		protected readonly _context: IAgentHostChatContributionContext,
 		@IAgentConfigurationService private readonly _agentConfigService: IAgentConfigurationService,
 	) {
 		super();
