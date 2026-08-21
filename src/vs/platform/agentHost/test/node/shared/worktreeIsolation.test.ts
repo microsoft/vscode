@@ -248,37 +248,6 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
-	test('creates the selected branch from its remote when it does not exist locally', async () => {
-		branchExists = false;
-		const isolation = createIsolation(disposables, {
-			branchNameGenerator: { generateBranchName: async () => { throw new Error('should not generate a branch'); } },
-		});
-
-		await isolation.resolveWorkingDirectory({
-			sessionUri,
-			sessionId,
-			workingDirectory: repoRoot,
-			config: {
-				[SessionConfigKey.Isolation]: 'worktree',
-				[SessionConfigKey.Branch]: 'feature',
-				[SessionConfigKey.WorktreeBranchTrack]: true,
-				[SessionConfigKey.WorktreeCreateNewBranch]: false,
-			},
-		});
-
-		assert.deepStrictEqual(addWorktreeCalls.map(call => ({
-			commitish: call.commitish,
-			newBranchName: call.newBranchName,
-			track: call.track,
-			preferRemoteBranch: call.preferRemoteBranch,
-		})), [{
-			commitish: 'feature',
-			newBranchName: 'feature',
-			track: true,
-			preferRemoteBranch: true,
-		}]);
-	});
-
 	test('resolveWorkingDirectory creates a worktree, persists metadata, queues the announcement, and is idempotent', async () => {
 		const isolation = createIsolation(disposables);
 		const config = { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' };

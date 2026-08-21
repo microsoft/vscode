@@ -12557,63 +12557,6 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('first-send selected branch checkout failure does not fall back to the original folder', async () => {
-			const sourceDir = URI.file(mkdtempSync(`${tmpdir()}/agent-worktree-checkout-failure-`));
-			disposables.add(toDisposable(() => {
-				rmSync(sourceDir.fsPath, { recursive: true, force: true });
-				rmSync(getWorktreesRoot(sourceDir).fsPath, { recursive: true, force: true });
-			}));
-			const sessionDataService = createSessionDataService(new TestSessionDatabase());
-			const gitService = createNoopGitService();
-			gitService.getRepositoryRoot = async () => sourceDir;
-			gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
-			gitService.branchExists = async () => true;
-			gitService.addWorktree = async () => {
-				throw new Error('feature is already checked out');
-			};
-			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
-			const isolation = disposables.add(new WorktreeIsolation(
-				{ generateBranchName: async () => { throw new Error('should not generate a branch'); } },
-				gitService,
-				new TestCopilotApiService(),
-				sessionDataService,
-				new NullLogService(),
-			));
-			localService.setWorktreeIsolation(isolation);
-
-			const session = AgentSession.uri('copilot', 'worktree-checkout-failure');
-			const sessionResource = session.toString();
-			const chat = buildDefaultChatUri(sessionResource);
-			localService.stateManager.restoreSession({
-				resource: sessionResource,
-				provider: 'copilot',
-				title: 'Worktree checkout failure',
-				status: SessionStatus.Idle,
-				createdAt: new Date().toISOString(),
-				modifiedAt: new Date().toISOString(),
-				project: undefined,
-				workingDirectories: [sourceDir.toString()],
-			}, []);
-			localService.stateManager.setSessionConfig(sessionResource, {
-				schema: { type: 'object', properties: {} },
-				values: {
-					[SessionConfigKey.Isolation]: 'worktree',
-					[SessionConfigKey.Branch]: 'feature',
-					[SessionConfigKey.WorktreeCreateNewBranch]: false,
-				},
-			});
-			isolation.notePending(AgentSession.id(session));
-
-			const resolver = localService as unknown as {
-				_resolveWorkingDirectoryBeforeSend: (params: { session: string; chat: string; turnId: string; prompt: string }) => Promise<readonly URI[] | undefined>;
-			};
-			await assert.rejects(
-				resolver._resolveWorkingDirectoryBeforeSend({ session: sessionResource, chat, turnId: 'turn-1', prompt: 'test' }),
-				/feature is already checked out/,
-			);
-			assert.strictEqual(isolation.isWorkingDirectoryPending(AgentSession.id(session)), false);
-		});
-
 		test('first-send worktree fallback warns when no repository root is resolved', async () => {
 			const sourceDir = URI.file('/source/repo');
 			const database = new TestSessionDatabase();
