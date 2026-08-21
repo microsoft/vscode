@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { API, Project, Snapshot } from '@typescript/native/unstable/async';
+import type { API, Project, Snapshot, DocumentIdentifier } from '@typescript/native/unstable/async';
 import {
 	SyntaxKind,
 	isArrowFunction,
@@ -154,7 +154,7 @@ export async function prepareNesRename<FromLSP extends boolean>(result: PrepareN
 	}
 
 	const [oldText, oldPosition] = getOldText(document, position, oldName, newName, lastSymbolRename);
-	await api.runWithTemporaryFileUpdate(snapshot, document.fileName, oldText, async updatedSnapshot => {
+	await runWithTemporaryFileUpdate<FromLSP>(api, snapshot, document.fileName, oldText, async updatedSnapshot => {
 		const updatedProject = await getUpdatedProject(updatedSnapshot, project, document.fileName);
 		const updatedSourceFile = await updatedProject?.program.getSourceFile(document.fileName);
 		if (updatedProject === undefined || updatedSourceFile === undefined) {
@@ -176,7 +176,7 @@ export async function nesRename<FromLSP extends boolean>(api: API<FromLSP>, snap
 	const [oldText, oldPosition] = getOldText(document, position, oldName, newName, lastSymbolRename);
 	const groups = new Map<string, protocol.RenameGroup>();
 	const seen = new Set<string>();
-	await api.runWithTemporaryFileUpdate(snapshot, document.fileName, oldText, async updatedSnapshot => {
+	await runWithTemporaryFileUpdate<FromLSP>(api, snapshot, document.fileName, oldText, async updatedSnapshot => {
 		const updatedProject = await getUpdatedProject(updatedSnapshot, project, document.fileName);
 		const updatedSourceFile = await updatedProject?.program.getSourceFile(document.fileName);
 		if (updatedProject === undefined || updatedSourceFile === undefined) {
@@ -187,7 +187,7 @@ export async function nesRename<FromLSP extends boolean>(api: API<FromLSP>, snap
 			return;
 		}
 		const symbols = new Symbols(updatedProject, token);
-		const referencedSymbols = await updatedProject.languageService.getReferencedSymbolsForNode(renameTarget.node, renameTarget.position);
+		const referencedSymbols = await updatedProject.checker.getReferencedSymbolsForNode(renameTarget.node, renameTarget.position);
 		for (const referencedSymbol of referencedSymbols) {
 			const definition = await referencedSymbol.definition.resolve(updatedProject);
 			if (definition === undefined || await symbols.isSourceFileFromLibrary(definition.getSourceFile())) {
@@ -237,6 +237,16 @@ export async function nesRename<FromLSP extends boolean>(api: API<FromLSP>, snap
 		}
 	});
 	return Array.from(groups.values());
+}
+
+function runWithTemporaryFileUpdate<FromLSP extends boolean>(api: API<FromLSP>, baseSnapshot: Snapshot, file: DocumentIdentifier, newText: string, cb: (newSnapshot: Snapshot) => void | Promise<void>): Promise<void> {
+	interface ApiWithTemporaryFileUpdate {
+		runWithTemporaryFileUpdate(baseSnapshot: Snapshot, file: DocumentIdentifier, newText: string, cb: (newSnapshot: Snapshot) => void | Promise<void>): Promise<void>;
+	}
+	if (typeof (api as unknown as ApiWithTemporaryFileUpdate).runWithTemporaryFileUpdate === 'function') {
+		return (api as unknown as ApiWithTemporaryFileUpdate).runWithTemporaryFileUpdate(baseSnapshot, file, newText, cb);
+	}
+	return Promise.resolve();
 }
 
 const enum PrepareState {

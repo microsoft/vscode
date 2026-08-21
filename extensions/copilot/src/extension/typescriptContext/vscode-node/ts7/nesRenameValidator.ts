@@ -200,7 +200,8 @@ async function hasSameSymbolOnDeclarationSide(symbols: Symbols, declarations: re
 
 async function isInModule(symbols: Symbols, declarations: readonly Node[]): Promise<boolean> {
 	for (const declaration of declarations) {
-		if (await symbols.getTypeChecker().getSymbolOfSourceFile(declaration.getSourceFile().fileName) === undefined) {
+		// if (await symbols.getTypeChecker().getSymbolOfSourceFile(declaration.getSourceFile().fileName) === undefined) {
+		if (await symbols.getLeafSymbolAtLocation(declaration.getSourceFile()) === undefined) {
 			return false;
 		}
 	}

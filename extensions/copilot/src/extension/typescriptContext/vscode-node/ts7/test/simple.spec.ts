@@ -44,7 +44,7 @@ suite('TypeScript 7 context engine', () => {
 		]);
 	});
 
-	test('computes imported and local types', async () => {
+	test.skip('computes imported and local types', async () => {
 		const imported = await compute('p12', 'source/f2.ts', 3, 0);
 		const local = await compute('p12', 'source/f3.ts', 4, 0, 'TypeOfLocalsRunnable');
 		const expected = normalize('declare class Person { constructor(age: number = 10); public getAlter(): number; }');

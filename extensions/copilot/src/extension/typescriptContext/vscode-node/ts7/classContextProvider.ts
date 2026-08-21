@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Project, Symbol as NativeSymbol } from '@typescript/native/unstable/async';
-import { isClassDeclaration, SyntaxKind, type ClassDeclaration, type HeritageClauseElement, type Node, type SourceFile, isExpressionWithTypeArguments } from '@typescript/native/unstable/ast';
+import { isClassDeclaration, SyntaxKind, type ClassDeclaration, type Node, type SourceFile, type ExpressionWithTypeArguments } from '@typescript/native/unstable/ast';
 import { CodeSnippetBuilder } from './code';
 import { AbstractContextRunnable, ComputeCost, ContextProvider, Search, SnippetLocation, type ComputeContextSession, type ContextResult, type ContextRunnableCollector, type RequestContext, type RunnableResult } from './contextProvider';
 import * as protocol from '../../common/serverProtocol';
@@ -12,7 +12,7 @@ import tss, { type CancellationTokenWithTimer, Symbols } from './typescripts';
 
 export type TypeInfo = {
 	symbol: NativeSymbol;
-	type: HeritageClauseElement;
+	type: ExpressionWithTypeArguments;
 	abstractMembers: number;
 };
 
@@ -59,8 +59,9 @@ export class ClassBlueprintSearch extends Search<SimilarClassDeclaration> {
 		const matches = new Map<ClassDeclaration, number>();
 		for (const typeInfo of this.all()) {
 			token.throwIfCancellationRequested();
-			const node = isExpressionWithTypeArguments(typeInfo.type) ? typeInfo.type.expression : typeInfo.type.typeName;
-			for (const entry of await this.project.languageService.getReferencedSymbolsForNode(node, node.getStart())) {
+			// const node = isExpressionWithTypeArguments(typeInfo.type) ? typeInfo.type.expression : typeInfo.type.typeName;
+			const node = typeInfo.type.expression;
+			for (const entry of await this.project.checker.getReferencedSymbolsForNode(node, node.getStart())) {
 				for (const reference of entry.references) {
 					const node = await reference.resolve(this.project);
 					const candidate = node === undefined ? undefined : this.getContainingClass(node);
@@ -87,7 +88,8 @@ export class ClassBlueprintSearch extends Search<SimilarClassDeclaration> {
 		const implemented: TypeInfo[] = [];
 		for (const heritageClause of this.classDeclaration.heritageClauses ?? []) {
 			for (const type of heritageClause.types) {
-				const symbol = await (isExpressionWithTypeArguments(type) ? this.symbols.getLeafSymbolAtLocation(type.expression) : this.symbols.getLeafSymbolAtLocation(type.typeName));
+				// const symbol = await (isExpressionWithTypeArguments(type) ? this.symbols.getLeafSymbolAtLocation(type.expression) : this.symbols.getLeafSymbolAtLocation(type.typeName));
+				const symbol = await this.symbols.getLeafSymbolAtLocation(type.expression);
 				if (symbol === undefined) {
 					continue;
 				}

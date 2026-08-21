@@ -447,7 +447,10 @@ export class TypeOfExpressionRunnable extends AbstractContextRunnable {
 			...await checker.getSignaturesOfType(type, SignatureKind.Call),
 		]) {
 			token.throwIfCancellationRequested();
-			const returnType = await signature.getReturnType();
+			const returnType = await checker.getReturnTypeOfSignature(signature);
+			if (returnType === undefined) {
+				continue;
+			}
 			for (const symbol of await this.symbols.getTypeSymbols(returnType)) {
 				await this.handleSymbol(symbol, symbol.name);
 			}
