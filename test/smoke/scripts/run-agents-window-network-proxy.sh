@@ -11,19 +11,37 @@ FIXTURE_DIR="$ROOT/test/smoke/network-proxy"
 LOG_DIR="$ROOT/.build/logs/agents-window-network-proxy"
 TEMP_ROOT="${RUNNER_TEMP:-${AGENT_TEMPDIRECTORY:-${TMPDIR:-/tmp}}}/vscode-agents-window-network-proxy-$$"
 TEST_REPO="$TEMP_ROOT/vscode-smoketest-express"
+PROXY_AUTH="none"
+if [[ "${1:-}" == "--kerberos" ]]; then
+	PROXY_AUTH="kerberos"
+	shift
+fi
 PROXY_GROUP="vscodeproxytest"
 PF_ANCHOR="com.apple/vscodeproxytest"
 MOCK_HOST="vscode-smoke.test"
 PROXY_HEADER_VALUE="vscode-smoke-network-proxy-$$"
 PAC_URL="http://127.0.0.1:44444/test.pac"
+PAC_FILE="$FIXTURE_DIR/test.pac"
 PAC_LOG="$LOG_DIR/pac-server.log"
 SQUID_ACCESS_LOG="$LOG_DIR/squid-access.log"
 SQUID_LOG="$LOG_DIR/squid.log"
 SQUID_PREFIX="$(brew --prefix squid 2>/dev/null || true)"
 SQUID_BIN="$SQUID_PREFIX/sbin/squid"
+NODE_BIN="$(command -v node)"
+KDC_BIN="/System/Library/PrivateFrameworks/Heimdal.framework/Helpers/kdc"
+KDC_PORT="61088"
+KDC_LOG="$LOG_DIR/kdc.log"
+KERBEROS_AUTH_LOG="$LOG_DIR/kerberos-auth.log"
+KERBEROS_CONFIG="$TEMP_ROOT/krb5.conf"
+KERBEROS_CACHE="FILE:$TEMP_ROOT/krb5cc"
+KERBEROS_KEYTAB="FILE:$TEMP_ROOT/proxy.keytab"
+KERBEROS_REALM="VSCODE.PROXY.TEST"
+KERBEROS_USERNAME="PlaceholderUsername"
+KERBEROS_PASSWORD="Placeholder"
 
 pac_pid=""
 squid_pid=""
+kdc_pid=""
 primary_service=""
 saved_pac_url=""
 saved_pac_enabled="No"
@@ -59,6 +77,10 @@ cleanup() {
 		kill "$pac_pid"
 		wait "$pac_pid"
 	fi
+	if [[ -n "$kdc_pid" ]]; then
+		kill "$kdc_pid"
+		wait "$kdc_pid"
+	fi
 
 	if $group_created; then
 		sudo dseditgroup -o delete "$PROXY_GROUP"
@@ -67,7 +89,7 @@ cleanup() {
 	fi
 
 	if [[ $exit_code -ne 0 ]]; then
-		tail -n 100 "$PAC_LOG" "$SQUID_LOG" "$SQUID_ACCESS_LOG" 2>/dev/null
+		tail -n 100 "$PAC_LOG" "$SQUID_LOG" "$SQUID_ACCESS_LOG" "$KDC_LOG" "$KERBEROS_AUTH_LOG" 2>/dev/null
 	fi
 	rm -rf "$TEMP_ROOT"
 	exit "$exit_code"
@@ -94,12 +116,72 @@ saved_pac_url="$(printf '%s\n' "$saved_pac_state" | sed -n 's/^URL: //p')"
 saved_pac_enabled="$(printf '%s\n' "$saved_pac_state" | sed -n 's/^Enabled: //p')"
 
 mkdir -p "$LOG_DIR" "$TEMP_ROOT"
-rm -f "$PAC_LOG" "$SQUID_ACCESS_LOG" "$SQUID_LOG"
+rm -f "$PAC_LOG" "$SQUID_ACCESS_LOG" "$SQUID_LOG" "$KDC_LOG" "$KERBEROS_AUTH_LOG"
 git clone --depth 1 https://github.com/microsoft/vscode-smoketest-express "$TEST_REPO"
 
 if [[ -z "$SQUID_PREFIX" || ! -x "$SQUID_BIN" ]]; then
 	echo "Squid is required; install it with 'brew install squid'" >&2
 	exit 1
+fi
+
+if [[ "$PROXY_AUTH" == "kerberos" ]]; then
+	PAC_FILE="$FIXTURE_DIR/test-kerberos.pac"
+	if [[ ! -x "$KDC_BIN" ]]; then
+		echo "The macOS Heimdal KDC is required at $KDC_BIN" >&2
+		exit 1
+	fi
+	if nc -z 127.0.0.1 "$KDC_PORT"; then
+		echo "Port $KDC_PORT must be available for the Kerberos KDC" >&2
+		exit 1
+	fi
+
+	cat > "$KERBEROS_CONFIG" <<EOF
+[libdefaults]
+	default_realm = $KERBEROS_REALM
+	dns_lookup_realm = false
+	dns_lookup_kdc = false
+
+[realms]
+	$KERBEROS_REALM = {
+		kdc = 127.0.0.1:$KDC_PORT
+	}
+
+[domain_realm]
+	.localhost = $KERBEROS_REALM
+	localhost = $KERBEROS_REALM
+
+[kdc]
+	database = {
+		dbname = $TEMP_ROOT/heimdal
+		realm = $KERBEROS_REALM
+		mkey_file = $TEMP_ROOT/heimdal.mkey
+	}
+EOF
+
+	/usr/sbin/kadmin -l -c "$KERBEROS_CONFIG" init --realm-max-ticket-life=1d --realm-max-renewable-life=7d "$KERBEROS_REALM"
+	/usr/sbin/kadmin -l -c "$KERBEROS_CONFIG" add --use-defaults --password="$KERBEROS_PASSWORD" "$KERBEROS_USERNAME"
+	/usr/sbin/kadmin -l -c "$KERBEROS_CONFIG" add --use-defaults --random-key HTTP/localhost
+	/usr/sbin/kadmin -l -c "$KERBEROS_CONFIG" ext_keytab --keytab="${KERBEROS_KEYTAB#FILE:}" HTTP/localhost
+
+	"$KDC_BIN" --listen-on-network --addresses=127.0.0.1 --ports="$KDC_PORT" --config-file="$KERBEROS_CONFIG" --no-sandbox > "$KDC_LOG" 2>&1 &
+	kdc_pid=$!
+
+	kdc_ready=false
+	for _ in {1..50}; do
+		if nc -z 127.0.0.1 "$KDC_PORT"; then
+			kdc_ready=true
+			break
+		fi
+		sleep 0.1
+	done
+	if ! $kdc_ready; then
+		echo "The local Kerberos KDC did not become ready" >&2
+		exit 1
+	fi
+
+	printf '%s\n' "$KERBEROS_PASSWORD" > "$TEMP_ROOT/kerberos-password"
+	KRB5_CONFIG="$KERBEROS_CONFIG" KRB5CCNAME="$KERBEROS_CACHE" \
+		/usr/bin/kinit --password-file="$TEMP_ROOT/kerberos-password" "$KERBEROS_USERNAME"
 fi
 
 cat > "$TEMP_ROOT/hosts" <<EOF
@@ -109,8 +191,6 @@ cat > "$TEMP_ROOT/squid.conf" <<EOF
 visible_hostname vscode-smoke-proxy
 http_port 127.0.0.1:43144
 hosts_file $TEMP_ROOT/hosts
-acl all src all
-http_access allow all
 request_header_add X-VSCode-Smoke-Proxy $PROXY_HEADER_VALUE all
 cache deny all
 cache_store_log none
@@ -118,16 +198,40 @@ access_log stdio:$SQUID_ACCESS_LOG
 cache_log $SQUID_LOG
 pid_filename $TEMP_ROOT/squid.pid
 coredump_dir $TEMP_ROOT
+shutdown_lifetime 1 seconds
 EOF
+
+if [[ "$PROXY_AUTH" == "kerberos" ]]; then
+	cat >> "$TEMP_ROOT/squid.conf" <<EOF
+auth_param negotiate program $NODE_BIN $ROOT/test/smoke/out/networkProxy/negotiateAuthHelper.js $KERBEROS_AUTH_LOG
+auth_param negotiate children 5
+auth_param negotiate keep_alive on
+acl connect method CONNECT
+acl smoke_mock url_regex ^http://$MOCK_HOST:
+acl authenticated proxy_auth REQUIRED
+http_access allow smoke_mock !connect
+http_access allow authenticated
+http_access deny all
+EOF
+else
+	cat >> "$TEMP_ROOT/squid.conf" <<EOF
+acl all src all
+http_access allow all
+EOF
+fi
 
 if nc -z 127.0.0.1 44444 || nc -z 127.0.0.1 43144; then
 	echo "Ports 44444 and 43144 must be available for the PAC server and Squid proxy" >&2
 	exit 1
 fi
 
-node "$ROOT/test/smoke/out/networkProxy/pacServer.js" "$FIXTURE_DIR/test.pac" > "$PAC_LOG" 2>&1 &
+node "$ROOT/test/smoke/out/networkProxy/pacServer.js" "$PAC_FILE" > "$PAC_LOG" 2>&1 &
 pac_pid=$!
-"$SQUID_BIN" -N -f "$TEMP_ROOT/squid.conf" -d 1 >> "$SQUID_LOG" 2>&1 &
+if [[ "$PROXY_AUTH" == "kerberos" ]]; then
+	KRB5_CONFIG="$KERBEROS_CONFIG" KRB5_KTNAME="$KERBEROS_KEYTAB" "$SQUID_BIN" -N -f "$TEMP_ROOT/squid.conf" -d 1 >> "$SQUID_LOG" 2>&1 &
+else
+	"$SQUID_BIN" -N -f "$TEMP_ROOT/squid.conf" -d 1 >> "$SQUID_LOG" 2>&1 &
+fi
 squid_pid=$!
 
 proxy_ready=false
@@ -193,6 +297,12 @@ restricted_env=(
 	"TMPDIR=${TMPDIR:-/tmp}"
 	"USER=$(id -un)"
 )
+if [[ "$PROXY_AUTH" == "kerberos" ]]; then
+	restricted_env+=(
+		"KRB5_CONFIG=$KERBEROS_CONFIG"
+		"KRB5CCNAME=$KERBEROS_CACHE"
+	)
+fi
 for name in BUILD_ARTIFACTSTAGINGDIRECTORY CI GITHUB_ACTIONS GITHUB_RUN_ATTEMPT GITHUB_RUN_ID GITHUB_WORKSPACE RUNNER_TEMP TF_BUILD; do
 	if [[ -n "${!name:-}" ]]; then
 		restricted_env+=("$name=${!name}")
@@ -219,6 +329,15 @@ if run_restricted curl --fail --silent --connect-timeout 3 --noproxy '*' http://
 	exit 1
 fi
 
+if [[ "$PROXY_AUTH" == "kerberos" ]]; then
+	if curl --fail --silent --connect-timeout 3 --proxy http://localhost:43144 --noproxy '' "$PAC_URL" >/dev/null 2>&1; then
+		echo "The Kerberos proxy accepted an unauthenticated request" >&2
+		exit 1
+	fi
+	KRB5_CONFIG="$KERBEROS_CONFIG" KRB5CCNAME="$KERBEROS_CACHE" \
+		curl --fail --silent --connect-timeout 3 --proxy http://localhost:43144 --noproxy '' --proxy-negotiate --proxy-user : "$PAC_URL" >/dev/null
+fi
+
 cd "$ROOT"
 run_restricted env VSCODE_SMOKE_TEST_MOCK_HOST="$MOCK_HOST" VSCODE_SMOKE_TEST_PROXY_HEADER="$PROXY_HEADER_VALUE" \
 	npm run smoketest-no-compile -- --tracing -g 'Agents Window' --fail-zero --test-repo "$TEST_REPO" --skip-stable-build "$@"
@@ -229,6 +348,11 @@ squid_pid=""
 kill "$pac_pid"
 wait "$pac_pid" || true
 pac_pid=""
+if [[ -n "$kdc_pid" ]]; then
+	kill "$kdc_pid"
+	wait "$kdc_pid" || true
+	kdc_pid=""
+fi
 
 if ! grep -Fq 'GET /test.pac' "$PAC_LOG"; then
 	echo "The macOS proxy resolver did not fetch the PAC script" >&2
@@ -237,4 +361,14 @@ fi
 if ! grep -Fq "$MOCK_HOST" "$SQUID_ACCESS_LOG"; then
 	echo "The Agents Window smoke test did not reach the mock server through Squid" >&2
 	exit 1
+fi
+if [[ "$PROXY_AUTH" == "kerberos" ]]; then
+	if ! grep -Fq "$KERBEROS_USERNAME@$KERBEROS_REALM" "$KERBEROS_AUTH_LOG"; then
+		echo "Squid did not validate a Kerberos token from the Agents Window smoke test" >&2
+		exit 1
+	fi
+	if ! awk -v host="$MOCK_HOST" -v user="$KERBEROS_USERNAME@$KERBEROS_REALM" 'index($0, "TCP_TUNNEL/200") && index($0, "CONNECT " host) && index($0, " " user " ") { found=1 } END { exit !found }' "$SQUID_ACCESS_LOG"; then
+		echo "The Agents Window smoke test did not establish a Kerberos-authenticated tunnel through Squid" >&2
+		exit 1
+	fi
 fi
