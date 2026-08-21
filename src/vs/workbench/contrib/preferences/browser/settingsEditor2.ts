@@ -29,7 +29,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { localize } from '../../../../nls.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationUpdateOverrides } from '../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -2339,9 +2339,17 @@ class SyncControls extends Disposable {
 		if (this.userDataSyncEnablementService.isEnabled() || this.userDataSyncService.status !== SyncStatus.Idle) {
 			DOM.show(this.lastSyncedLabel);
 			DOM.hide(this.turnOnSyncButton.element);
-		} else {
+		} else if (CommandsRegistry.getCommand('workbench.userDataSync.actions.turnOn')) {
 			DOM.hide(this.lastSyncedLabel);
 			DOM.show(this.turnOnSyncButton.element);
+		} else {
+			// The command that turns on settings sync is contributed by the
+			// userDataSync workbench contribution, which is not present in every
+			// window (e.g. the Agents window). Keep the button hidden when the
+			// command is not registered so clicking it cannot fail with
+			// "command not found".
+			DOM.hide(this.lastSyncedLabel);
+			DOM.hide(this.turnOnSyncButton.element);
 		}
 	}
 }
