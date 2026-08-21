@@ -7,7 +7,6 @@ import { $, addDisposableListener, DisposableResizeObserver, EventType, getWindo
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { toAction, Action, Separator, type IAction } from '../../../../base/common/actions.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedOpts, IObservable, IReader, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -18,7 +17,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChatResponseFileChangesService } from '../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
 import { CHAT_TURN_ARTIFACT_PILL_ID, CHAT_TURN_CHANGES_PILL_ID, ChatTurnPillsProvider, diffStatsEqual, EMPTY_DIFF_STATS, IChatTurnPillsModel, IDiffStats, observeTurnStatusPillsEnabled } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
-import { SessionArtifacts } from './sessionArtifacts.js';
+import { SessionArtifacts, sessionArtifactLocation } from './sessionArtifacts.js';
 import { chatCustomizationPillOptions, SessionCustomizations, SESSION_CUSTOMIZATIONS_PILL_ID } from './sessionCustomizations.js';
 import { localize } from '../../../../nls.js';
 import { getChatPillEntries, ChatPillsWidget, IChatPill, IChatPillsModel, type IChatPillSection } from '../../../../workbench/browser/chatPills.js';
@@ -54,17 +53,7 @@ function computeTurnStats(chat: IChat, reader: IReader): IDiffStats {
 function buildDebugArtifactSections(debugData: ISessionChatPillsDebugData): readonly IChatPillSection[] {
 	const entries = debugData.markdownFiles.map(name => {
 		const resource = URI.from({ scheme: 'session-chat-pills-debug', path: `/${name}` });
-		const location = resource.toString(true);
-		return {
-			id: name,
-			label: name,
-			resource,
-			ariaDescription: location,
-			ariaLabel: localize('sessionArtifacts.open', "Open {0}", name),
-			hover: { content: new MarkdownString().appendText(location) },
-			tooltip: location,
-			open: () => { },
-		};
+		return { id: name, label: name, resource, ...sessionArtifactLocation(resource, name), open: () => { } };
 	});
 	return entries.length ? [{ title: localize('sessionArtifacts.files', "Files"), entries }] : [];
 }
@@ -240,7 +229,7 @@ export class SessionChatInputToolbar extends Disposable {
 		pills.element.classList.add('show-file-icons');
 		this._content.appendChild(pills.element);
 
-		// Kinds the session reports data for; the others cannot be toggled.
+		// Kinds the session reports data for; the others are listed in a separate group.
 		const kindsWithData = derived(reader => {
 			const kinds = new Set<SessionChatPillKind>();
 			for (const pill of candidatePills.read(reader)) {
@@ -281,7 +270,6 @@ export class SessionChatInputToolbar extends Disposable {
 						id: `sessions.chatPills.toggle.${entry.kind}`,
 						label: entry.label,
 						checked: entry.checked,
-						enabled: entry.enabled,
 						run: () => visibility.toggle(entry.kind),
 					});
 
