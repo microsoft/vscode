@@ -122,3 +122,46 @@ export const SYMBOL_ICON_VARIABLE_FOREGROUND = registerColor('symbolIcon.variabl
 	hcDark: '#75BEFF',
 	hcLight: '#007ACC',
 }, localize('symbolIcon.variableForeground', 'The foreground color for variable symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_HEADER_ONE_FOREGROUND = registerColor('symbolIcon.headerOneForeground', {
+	dark: '#D16D6A',
+	light: '#BB271A',
+	hcDark: '#D16D6A',
+	hcLight: '#BB271A'
+}, localize('symbolIcon.headerOneForeground', 'The foreground color for header level 1 symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_HEADER_TWO_FOREGROUND = registerColor('symbolIcon.headerTwoForeground', {
+	dark: '#7CA7D8',
+	light: '#5084C1',
+	hcDark: '#7CA7D8',
+	hcLight: '#5084C1'
+}, localize('symbolIcon.headerTwoForeground', 'The foreground color for header level 2 symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_HEADER_THREE_FOREGROUND = registerColor('symbolIcon.headerThreeForeground', {
+	dark: '#9DC384',
+	light: '#78A75A',
+	hcDark: '#9DC384',
+	hcLight: '#78A75A'
+}, localize('symbolIcon.headerThreeForeground', 'The foreground color for header level 3 symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_HEADER_FOUR_FOREGROUND = registerColor('symbolIcon.headerFourForeground', {
+	dark: '#B87E9F',
+	light: '#9B5278',
+	hcDark: '#B87E9F',
+	hcLight: '#9B5278'
+}, localize('symbolIcon.headerFourForeground', 'The foreground color for header level 4 symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_HEADER_FIVE_FOREGROUND = registerColor('symbolIcon.headerFiveForeground', {
+	dark: '#80A4AE',
+	light: '#54808C',
+	hcDark: '#80A4AE',
+	hcLight: '#54808C'
+}, localize('symbolIcon.headerFiveForeground', 'The foreground color for header level 5 symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_HEADER_SIX_FOREGROUND = registerColor('symbolIcon.headerSixForeground', {
+	dark: '#F9DB78',
+	light: '#EAC452',
+	hcDark: '#F9DB78',
+	hcLight: '#EAC452'
+}, localize('symbolIcon.headerSixForeground', 'The foreground color for header level 6 symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
