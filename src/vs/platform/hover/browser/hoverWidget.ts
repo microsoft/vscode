@@ -446,6 +446,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 
 	private computeXCordinate(target: TargetRect): void {
 		const hoverWidth = this._hover.containerDomNode.clientWidth + Constants.HoverBorderWidth;
+		const documentElementClientLeft = this._targetDocumentElement.clientLeft;
 
 		if (this._target.x !== undefined) {
 			this._x = this._target.x;
@@ -469,14 +470,15 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			}
 
 			// Hover is going beyond window towards right end
-			if (this._x + hoverWidth >= this._targetDocumentElement.clientWidth) {
+			const documentElementClientWidth = this._targetDocumentElement.clientWidth;
+			if (this._x + hoverWidth >= documentElementClientWidth) {
 				this._hover.containerDomNode.classList.add('right-aligned');
-				this._x = Math.max(this._targetDocumentElement.clientWidth - hoverWidth - Constants.HoverWindowEdgeMargin, this._targetDocumentElement.clientLeft);
+				this._x = Math.max(documentElementClientWidth - hoverWidth - Constants.HoverWindowEdgeMargin, documentElementClientLeft);
 			}
 		}
 
 		// Hover is going beyond window towards left end
-		if (this._x < this._targetDocumentElement.clientLeft) {
+		if (this._x < documentElementClientLeft) {
 			this._x = target.left + Constants.HoverWindowEdgeMargin;
 		}
 

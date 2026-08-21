@@ -205,7 +205,7 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 		}
 		const message = err instanceof Error ? err.message : String(err);
 		return /\b(401|403)\b/.test(message)
-			&& /\b(auth|authorization|unauthorized|forbidden|token|copilot endpoint discovery|copilot session token mint)\b/i.test(message);
+			&& /\b(auth|authorization|unauthorized|forbidden|token|copilot endpoint discovery)\b/i.test(message);
 	}
 
 	private _throwIfCancelled(token: CancellationToken): void {

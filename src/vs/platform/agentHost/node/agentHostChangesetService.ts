@@ -215,7 +215,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	private _hasWorkingDirectory(session: ProtocolURI): boolean {
-		return !!this._configurationService.getEffectiveWorkingDirectories(session)?.[0];
+		return !this._configurationService.isWorkingDirectoryPending(session)
+			&& !!this._configurationService.getEffectiveWorkingDirectories(session)?.[0];
 	}
 
 	registerStaticChangesets(session: ProtocolURI): void {

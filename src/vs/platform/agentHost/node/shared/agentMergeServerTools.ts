@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import type { ToolDefinition } from '../../common/state/sessionState.js';
+import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
 import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } from './agentServerToolHost.js';
 
@@ -12,7 +12,7 @@ export const readAgentMergeCIToolName = 'readAgentMergeCI';
 export const replyToAgentMergeReviewThreadToolName = 'replyToAgentMergeReviewThread';
 export const rerunAgentMergeWorkflowToolName = 'rerunAgentMergeWorkflow';
 
-const definitions: readonly ToolDefinition[] = [
+const definitions: readonly IAgentServerToolDefinition[] = [
 	{
 		name: readAgentMergeCIToolName,
 		title: 'Read Agent Merge CI',

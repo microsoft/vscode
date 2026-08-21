@@ -248,6 +248,7 @@ function createRecordingServerToolHost(advertised: string[]): IAgentServerToolHo
 		definitions: [],
 		toolNames: [],
 		advertise: session => advertised.push(session.toString()),
+		getDefinitionsForSession: () => [],
 		canRequireConfirmation: () => false,
 		requiresConfirmation: () => false,
 		executeTool: () => '',
@@ -260,6 +261,7 @@ function createThrowingAdvertiseServerToolHost(message: string): IAgentServerToo
 		definitions: [],
 		toolNames: [],
 		advertise: () => { throw new Error(message); },
+		getDefinitionsForSession: () => [],
 		canRequireConfirmation: () => false,
 		requiresConfirmation: () => false,
 		executeTool: () => '',
@@ -277,6 +279,7 @@ function createRecordingChatServerToolHost(calls: { readonly method: 'requiresCo
 		definitions: [{ name: PEER_TEST_TOOL_NAME, description: 'test', inputSchema: { type: 'object' } }],
 		toolNames: [PEER_TEST_TOOL_NAME],
 		advertise: () => { },
+		getDefinitionsForSession: () => [{ name: PEER_TEST_TOOL_NAME, description: 'test', inputSchema: { type: 'object' } }],
 		canRequireConfirmation: () => false,
 		requiresConfirmation: (chatUri, toolName) => {
 			calls.push({ method: 'requiresConfirmation', chatUri: chatUri.toString() });

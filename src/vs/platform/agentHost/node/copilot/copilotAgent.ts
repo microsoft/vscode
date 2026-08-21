@@ -254,6 +254,7 @@ interface IProvisionalSession {
 	readonly sdkSessionId: string;
 	readonly sessionUri: URI;
 	readonly chat: URI;
+	readonly isEphemeral: boolean;
 	/**
 	 * Folder the user picked at create time. Used as both the
 	 * pre-worktree working directory and the customization directory
@@ -757,7 +758,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._serverToolHost = host;
 	}
 
-	/** Reflects the `rt=1` field on the GitHub Copilot bearer token; gates enhanced GH telemetry. */
+	/** Reflects the restricted-telemetry entitlement from `/copilot_internal/user`. */
 	private _restrictedTelemetryEnabled = false;
 	private readonly _onDidChangeRestrictedTelemetry = this._register(new Emitter<void>());
 	readonly onDidChangeRestrictedTelemetry = this._onDidChangeRestrictedTelemetry.event;
@@ -1549,11 +1550,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _updateRestrictedTelemetry(githubToken: string | undefined): void {
-		// Safe default synchronously: keep restricted/enhanced telemetry disabled until the minted
-		// CAPI Copilot session token confirms the `rt=1` opt-in. The GitHub token here carries no
-		// `rt`/`tid` claims — those live in the Copilot session token, which the API service mints —
-		// so the real values are resolved asynchronously below. Mirrors how the Copilot extension
-		// reads `rt`/`tid` off its `CopilotToken` rather than the GitHub token.
+		// Keep restricted telemetry disabled until `/copilot_internal/user` confirms the opt-in.
 		this._applyRestrictedTelemetry(undefined);
 		if (githubToken) {
 			void this._resolveRestrictedTelemetry(githubToken);
@@ -2965,6 +2962,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				sdkSessionId,
 				sessionUri: session,
 				chat,
+				isEphemeral: options.isEphemeral === true,
 				workingDirectory,
 				workingDirectories: options.workingDirectories,
 				model: options.model,
@@ -3246,12 +3244,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		let agentSession: CopilotAgentSession | undefined;
 		let agent: AgentSelection | undefined;
 		try {
-			const resolvedAgent = await this._resolveAgentWhenMaterializing(provisional, snapshot, workingDirectory);
+			const resolvedAgent = provisional.isEphemeral ? undefined : await this._resolveAgentWhenMaterializing(provisional, snapshot, workingDirectory);
 			agent = resolvedAgent?.agent;
 			const launchPlan: CopilotSessionLaunchPlan = {
 				kind: 'create',
 				client,
 				sessionId: sdkSessionId,
+				isEphemeral: provisional.isEphemeral,
 				workingDirectory,
 				additionalDirectories: this._additionalCustomizationDirectories(resolvedWorkingDirectories),
 				resolvedAgentName: resolvedAgent?.name,

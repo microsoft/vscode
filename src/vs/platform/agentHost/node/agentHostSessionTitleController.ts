@@ -116,6 +116,9 @@ export class AgentHostSessionTitleController extends Disposable {
 	}
 
 	seedTitleFromFirstMessage(channel: ProtocolURI, userPrompt: string, chatChannel?: ProtocolURI): void {
+		if (this._isEphemeralSession(channel)) {
+			return;
+		}
 		const activeAgentTitleGenerationEnabled = this._isActiveAgentTitleGenerationEnabled(channel);
 		const fallbackTitle = activeAgentTitleGenerationEnabled
 			? this._normalizeActiveAgentFallbackTitle(userPrompt)
@@ -152,6 +155,9 @@ export class AgentHostSessionTitleController extends Disposable {
 
 	/** Seeds and persists a provisional title suggested by a locally handled command. */
 	seedProvisionalTitle(channel: ProtocolURI, suggestedTitle: string, chatChannel?: ProtocolURI): void {
+		if (this._isEphemeralSession(channel)) {
+			return;
+		}
 		const title = this._normalizeTitle(suggestedTitle, this._isActiveAgentTitleGenerationEnabled(channel) ? MAX_ACTIVE_AGENT_FALLBACK_TITLE_LENGTH : MAX_TITLE_LENGTH);
 		if (!title) {
 			return;
@@ -285,6 +291,9 @@ export class AgentHostSessionTitleController extends Disposable {
 	 * always preserved.
 	 */
 	refineTitleFromFirstTurn(channel: ProtocolURI, chatChannel?: ProtocolURI): void {
+		if (this._isEphemeralSession(channel)) {
+			return;
+		}
 		if (this._isActiveAgentTitleGenerationEnabled(channel)) {
 			return;
 		}
@@ -365,6 +374,9 @@ export class AgentHostSessionTitleController extends Disposable {
 	 * so generation costs at most a single small-model call.
 	 */
 	generateForkedTitle(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, turns: readonly Turn[], fallbackTitle: string, sourceTitle?: string): void {
+		if (this._isEphemeralSession(channel)) {
+			return;
+		}
 		if (this._isActiveAgentTitleGenerationEnabled(channel)) {
 			this.markTitleAuto(channel, chatChannel, fallbackTitle);
 			return;
@@ -444,6 +456,9 @@ export class AgentHostSessionTitleController extends Disposable {
 	}
 
 	async prepareInstructionForAgent(channel: ProtocolURI, chatChannel: ProtocolURI): Promise<string | undefined> {
+		if (this._isEphemeralSession(channel)) {
+			return undefined;
+		}
 		if (!this._isActiveAgentTitleGenerationEnabled(channel)) {
 			return undefined;
 		}
@@ -789,6 +804,10 @@ export class AgentHostSessionTitleController extends Disposable {
 		return serverTools
 			? serverTools.some(tool => tool.name === SessionServerToolName.RenameChat)
 			: this._options.isActiveAgentTitleGenerationEnabled?.() === true;
+	}
+
+	private _isEphemeralSession(channel: ProtocolURI): boolean {
+		return this._stateManager.isEphemeralSession(channel);
 	}
 
 	private async _readPersistedTitleSource(session: ProtocolURI, key: string): Promise<string | undefined> {

@@ -23,6 +23,7 @@ interface IGitHubPullRequestNode {
 	readonly title: string;
 	readonly author: { readonly login: string; readonly avatarUrl: string } | null;
 	readonly headRefName: string;
+	readonly isCrossRepository: boolean;
 	readonly isDraft: boolean;
 	readonly updatedAt: string;
 	readonly additions: number;
@@ -42,6 +43,7 @@ const LIST_PULL_REQUESTS_QUERY = [
 	'        title',
 	'        author { login avatarUrl }',
 	'        headRefName',
+	'        isCrossRepository',
 	'        isDraft',
 	'        updatedAt',
 	'        additions',
@@ -62,6 +64,7 @@ const LIST_PULL_REQUEST_NUMBERS_QUERY = [
 	'        title',
 	'        author { login avatarUrl }',
 	'        headRefName',
+	'        isCrossRepository',
 	'        isDraft',
 	'        updatedAt',
 	'        additions',
@@ -123,6 +126,7 @@ function mapPullRequest(pullRequest: IGitHubPullRequestNode, reviewRequestedFrom
 		author: pullRequest.author ?? { login: 'ghost', avatarUrl: '' },
 		headRef: pullRequest.headRefName,
 		checkoutRef: `refs/pull/${pullRequest.number}/head`,
+		isCrossRepository: pullRequest.isCrossRepository,
 		isDraft: pullRequest.isDraft,
 		updatedAt: pullRequest.updatedAt,
 		additions: pullRequest.additions,

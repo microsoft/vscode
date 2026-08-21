@@ -204,11 +204,19 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override readonly variant = observableValue('chatPetVariant', 'stable' as const);
 		override readonly onTheRun = observableValue('chatPetOnTheRun', false);
 		override readonly scale = observableValue('chatPetScale', 1);
+		override readonly unlockedAchievements = observableValue('chatPetUnlockedAchievements', []);
+		override readonly unseenAchievements = observableValue('chatPetUnseenAchievements', []);
+		override readonly selectedAccessory = observableValue('chatPetSelectedAccessory', undefined);
+		override readonly onDidUnlockAchievement = Event.None;
 		override readonly horizontalPosition = observableValue<number | undefined>('chatPetHorizontalPosition', undefined);
 		override toggle() { return false; }
 		override setVariant() { }
 		override setOnTheRun() { }
 		override setScale(scale: number) { this.scale.set(scale, undefined); }
+		override unlockAchievement() { return false; }
+		override markAchievementSeen() { return false; }
+		override setAccessory() { }
+		override resetAchievements() { }
 		override setHorizontalPosition(position: number) { this.horizontalPosition.set(position, undefined); }
 	}());
 	reg.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() {
