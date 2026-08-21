@@ -300,8 +300,7 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 			if (this.isVisible()) {
 				this._recomputeDelayer.trigger(() => {
 					this._model.recompute();
-					// The row usually rerenders before this debounced pass, so its repaint ran
-					// against the previous match set; repaint again now the new matches exist.
+					// The row usually rerenders before this debounced pass, against the old matches.
 					this._scheduleRepaint();
 				}).catch(() => { });
 			}
@@ -324,9 +323,7 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 			this._lastFocusedElement = this._targetWindow.document.activeElement as HTMLElement | undefined;
 		}
 		this._findWidgetVisibleKey.set(true);
-		// Opening reads the result count before the seed text has reached the model, which would
-		// otherwise report "No results" for a query that does match. Holding the count here keeps
-		// the first number the user sees the real one.
+		// Opening reads the count before the seed text reaches the model, reporting "No results".
 		this._beginSettle();
 		if (focus) {
 			super.reveal(seedText);
@@ -355,8 +352,7 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 		this._lastNavigationWasPrevious = previous;
 		this._unlocatableSkips = 0;
 		if (this._flushPendingSearch()) {
-			// The query had not been searched yet, so Enter lands on its first match rather than
-			// stepping past it into the second.
+			// The query was not searched yet, so Enter lands on its first match, not its second.
 			this._navigateToActive();
 			void this.updateResultCount();
 			return;
@@ -405,8 +401,7 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 
 	findFirst(): void {
 		this._unlocatableSkips = 0;
-		// A deliberate action (toggling an option) supersedes any keystroke still waiting out the
-		// debounce, so the pending search is dropped rather than left to re-navigate afterwards.
+		// Toggling an option supersedes a keystroke still waiting out the debounce.
 		this._searchDelayer.cancel();
 		this._pendingSearch = undefined;
 		this._model.setQuery(this.inputValue, this._currentFindOptions());
@@ -440,9 +435,18 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 	protected _onInputChanged(): boolean {
 		this._unlocatableSkips = 0;
 		this._scheduleSearch();
-		// The label is only refreshed once the search settles, so this optimistic answer just
-		// keeps the navigation buttons usable in the meantime; `updateResultCount` corrects it.
+		// Optimistic: keeps the buttons usable until `updateResultCount` corrects the label.
 		return this._model.matches.length > 0;
+	}
+
+	/** Whether the widget's query or options have moved on from what the model last searched. */
+	private _isModelStale(): boolean {
+		const options = this._currentFindOptions();
+		const current = this._model.options;
+		return this.inputValue !== this._model.query
+			|| options.isRegex !== current.isRegex
+			|| options.matchCase !== current.matchCase
+			|| options.wholeWord !== current.wholeWord;
 	}
 
 	/**
@@ -451,6 +455,10 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 	 * ticking up and down before landing on the real number.
 	 */
 	private _scheduleSearch(): void {
+		// An option toggle also reaches here via `findFirst`; a duplicate would swallow Enter.
+		if (!this._isModelStale()) {
+			return;
+		}
 		const search = this._searchDelayer.trigger(() => {
 			this._model.setQuery(this.inputValue, this._currentFindOptions());
 			this._navigateToActive();
@@ -481,13 +489,14 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 	 * that is about to change.
 	 */
 	private async _whenSettled(): Promise<void> {
+		// `FindInput.onDidChange` reads the count before `onInput` schedules the search.
+		await Promise.resolve();
 		for (let attempt = 0; attempt < MAX_SETTLE_WAITS; attempt++) {
 			const pending = [this._pendingSearch, this._settleBarrier?.p].filter(isDefined);
 			if (!pending.length) {
 				return;
 			}
-			// A newer search may have started while awaiting, so re-check rather than assume
-			// this was the last one.
+			// A newer search may have started while awaiting, so re-check rather than assume.
 			await Promise.all(pending).catch(() => { });
 		}
 	}
@@ -545,10 +554,7 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 	private _revealActiveMatch(match: IChatFindMatch, attempt: number = 0): void {
 		const locatedMatch = this._locateMatch(match);
 		if (!locatedMatch) {
-			// The row may simply not have mounted yet. The list renders rows as it scrolls and,
-			// with dynamic heights, re-measures them over the following frames, so a long jump —
-			// wrapping from the oldest match to the newest, say — lands well before the target
-			// row exists. Give it a few frames before concluding the match isn't there.
+			// A long jump outruns the list, which mounts and re-measures rows over later frames.
 			if (attempt < ChatFindWidget.MAX_LOCATE_ATTEMPTS) {
 				const item = this._findItemForMatch(match);
 				if (item) {

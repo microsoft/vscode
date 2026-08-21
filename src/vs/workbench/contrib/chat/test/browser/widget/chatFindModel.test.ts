@@ -131,6 +131,26 @@ suite('ChatFindModel', () => {
 
 		assert.strictEqual(model.matches.length, 9999);
 		assert.strictEqual(model.matches[0].itemId, 'resp2', 'navigation starts at the newest match');
+		assert.strictEqual(model.matches[0].occurrenceIndex, 8999, 'and at that response\'s newest occurrence');
+		model.dispose();
+	});
+
+	test('a single over-limit segment keeps its newest occurrences', () => {
+		// Truncating a segment from the front would retain occurrences 0..9998 and drop the very
+		// matches navigation reaches first.
+		const items = [fakeResponse('resp1', [markdown(new Array(10_500).fill('needle').join(' '))])];
+		const model = new ChatFindModel(() => items);
+		model.setQuery('needle', { isRegex: false, matchCase: false, wholeWord: false });
+
+		assert.deepStrictEqual({
+			total: model.matches.length,
+			newest: model.matches[0].occurrenceIndex,
+			oldest: model.matches[model.matches.length - 1].occurrenceIndex,
+		}, {
+			total: 9999,
+			newest: 10_499,
+			oldest: 501,
+		});
 		model.dispose();
 	});
 

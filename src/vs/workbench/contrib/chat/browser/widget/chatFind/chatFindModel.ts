@@ -64,8 +64,7 @@ function buildSegments(items: readonly ChatTreeItem[]): IChatFindSegment[] {
 				segments.push({ itemId: item.id, itemKind: 'request', partIndex: -1, text: item.messageText });
 			}
 		} else if (isResponseVM(item)) {
-			// A filtered response renders none of its content, so the references slot, the
-			// response body and the citations are all absent and row-level text starts at 0.
+			// A filtered response renders no content at all, so row-level text starts at 0.
 			const isFiltered = !!item.errorDetails?.responseIsFiltered;
 			const annotated = isFiltered ? [] : annotateSpecialMarkdownContentWithSource(item.response.value);
 			const renderedContent = item.isComplete
@@ -109,13 +108,22 @@ function buildSegments(items: readonly ChatTreeItem[]): IChatFindSegment[] {
 	return segments;
 }
 
+/**
+ * Bounds a single segment's scan. Higher than {@link MAX_FIND_MATCHES} because a segment has to be
+ * scanned past the cap to know which of its occurrences are the newest, but still finite so a
+ * pathological regex over a huge response cannot pin the UI.
+ */
+const MAX_SEGMENT_SCAN = 100_000;
+
+/** The segment's last `limit` matches, since navigation visits a segment's newest occurrence first. */
 function findMatchesInSegment(segment: IChatFindSegment, regex: RegExp, limit: number): IChatFindMatch[] {
+	if (limit <= 0) {
+		return [];
+	}
 	const matches: IChatFindMatch[] = [];
 	regex.lastIndex = 0;
 	let occurrenceIndex = 0;
 	let match: RegExpExecArray | null;
-	// Guard against catastrophic/zero-length-match regexes looping forever.
-	let safety = 0;
 	while ((match = regex.exec(segment.text))) {
 		matches.push({
 			itemId: segment.itemId,
@@ -131,11 +139,15 @@ function findMatchesInSegment(segment: IChatFindSegment, regex: RegExp, limit: n
 		if (match[0].length === 0) {
 			regex.lastIndex++;
 		}
-		if (++safety > MAX_FIND_MATCHES || matches.length >= limit) {
+		// Trimming at twice the limit bounds the window without shifting on every match.
+		if (matches.length >= limit * 2) {
+			matches.splice(0, matches.length - limit);
+		}
+		if (occurrenceIndex >= MAX_SEGMENT_SCAN) {
 			break;
 		}
 	}
-	return matches;
+	return matches.length > limit ? matches.slice(-limit) : matches;
 }
 
 /** Searches the logical chat transcript independently of rendered rows. */
@@ -230,9 +242,7 @@ export class ChatFindModel extends Disposable {
 		const items = this.getItems();
 		const segments = buildSegments(items);
 		const matches: IChatFindMatch[] = [];
-		// Newest first: both the segment walk and each segment's matches are reversed, since
-		// `buildSegments` produces them in transcript order. The cap therefore keeps the most
-		// recent matches, which are the ones a user is realistically trying to reach.
+		// Newest first: `buildSegments` produces transcript order, so both walks are reversed.
 		for (let index = segments.length - 1; index >= 0 && matches.length < MAX_FIND_MATCHES; index--) {
 			const segmentMatches = findMatchesInSegment(segments[index], regex, MAX_FIND_MATCHES - matches.length);
 			for (let occurrence = segmentMatches.length - 1; occurrence >= 0; occurrence--) {
@@ -308,8 +318,7 @@ export class ChatFindModel extends Disposable {
 		if (anchorPosition === undefined) {
 			return 0;
 		}
-		// Matches run newest first, so the first one at or above the anchor is the nearest
-		// match at or before what the viewport is showing.
+		// Newest first, so the first match at or above the anchor is the nearest one.
 		const seeded = matches.findIndex(match => {
 			const position = positions.get(match.itemId);
 			return position !== undefined && position <= anchorPosition;
