@@ -15,8 +15,10 @@ import { DockedAuxiliaryBarController, IDockedAuxiliaryBarHost } from '../../bro
 import { ISidePaneToggleEvent, Workbench } from '../../browser/workbench.js';
 import { DockedEditorSizeMemento, SinglePaneWorkbench } from '../../browser/singlePaneWorkbench.js';
 import { SinglePaneMainEditorPart } from '../../browser/parts/singlePaneEditorPart.js';
+import { EditorParts } from '../../browser/parts/editorParts.js';
 import { DockedEditorInput } from '../../common/dockedEditorInput.js';
 import { EditorInputCapabilities } from '../../../workbench/common/editor.js';
+import { GroupDirection, GroupOrientation } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { SESSIONS_LIST_MINIMUM_WIDTH } from '../../browser/parts/sidebarPart.js';
 import { Menus } from '../../browser/menus.js';
 import { DEFAULT_NOTIFICATION_ROW_HEIGHT, onDidChangeNotificationRowHeight, setNotificationRowHeight } from '../../../workbench/browser/parts/notifications/notificationsViewer.js';
@@ -1630,6 +1632,43 @@ suite('Sessions - Workbench', () => {
 			editorAndAuxiliaryBarSingle: undefined,
 			editorOnlyNone: 'single',
 			fullyHiddenMultiple: undefined,
+		});
+	});
+
+	test('single-pane editor part rejects editor group creation and multi-group layouts', () => {
+		const group = {};
+		const addGroup = Reflect.get(SinglePaneMainEditorPart.prototype, 'addGroup') as (location: object, direction: GroupDirection) => object;
+		const applyLayout = Reflect.get(SinglePaneMainEditorPart.prototype, 'applyLayout') as (layout: { orientation: GroupOrientation; groups: object[] }) => void;
+
+		assert.deepStrictEqual({
+			addGroupResult: addGroup.call({ assertGroupView: () => group }, group, GroupDirection.RIGHT),
+			multiGroupLayoutRejected: (() => {
+				applyLayout.call({}, { orientation: GroupOrientation.HORIZONTAL, groups: [{}, {}] });
+				return true;
+			})(),
+		}, {
+			addGroupResult: group,
+			multiGroupLayoutRejected: true,
+		});
+	});
+
+	test('single-pane editor parts reject cross-part group moves and copies', () => {
+		const mainPart = Object.create(SinglePaneMainEditorPart.prototype) as SinglePaneMainEditorPart;
+		const sourceGroup = {};
+		const host = {
+			mainPart,
+			getPart: () => mainPart,
+			resolveGroup: () => sourceGroup,
+		};
+		const moveGroup = Reflect.get(EditorParts.prototype, 'moveGroup') as (group: object, location: object, direction: GroupDirection) => object;
+		const copyGroup = Reflect.get(EditorParts.prototype, 'copyGroup') as (group: object, location: object, direction: GroupDirection) => object;
+
+		assert.deepStrictEqual({
+			move: moveGroup.call(host, sourceGroup, {}, GroupDirection.RIGHT),
+			copy: copyGroup.call(host, sourceGroup, {}, GroupDirection.RIGHT),
+		}, {
+			move: sourceGroup,
+			copy: sourceGroup,
 		});
 	});
 

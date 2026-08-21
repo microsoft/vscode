@@ -34,7 +34,7 @@ import { IBoundarySashes } from '../../../../base/browser/ui/sash/sash.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { EditorAreaFocusContext, EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, EditorTabsVisibleContext, IsTopRightEditorGroupContext } from '../../../common/contextkeys.js';
+import { EditorAreaFocusContext, EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, EditorPartSupportsMultipleGroupsContext, EditorTabsVisibleContext, IsTopRightEditorGroupContext } from '../../../common/contextkeys.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 
 /**
@@ -1098,6 +1098,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		// Applies to all editor parts (main, modal, auxiliary) so callers can gate
 		// shortcuts on focus being in any editor area regardless of which part.
 		EditorAreaFocusContext.bindTo(this.scopedContextKeyService).set(true);
+		EditorPartSupportsMultipleGroupsContext.bindTo(this.scopedContextKeyService).set(this.supportsMultipleGroups);
 
 		const multipleEditorGroupsContext = EditorPartMultipleEditorGroupsContext.bindTo(this.scopedContextKeyService);
 		const maximizedEditorGroupContext = EditorPartMaximizedEditorGroupContext.bindTo(this.scopedContextKeyService);
@@ -1168,6 +1169,10 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			this.applyContentRightInset();
 		}));
 		this._register(this.onDidLayout(() => updateTopRightGroupContextKey()));
+	}
+
+	protected get supportsMultipleGroups(): boolean {
+		return true;
 	}
 
 	private setupDragAndDropSupport(parent: HTMLElement, container: HTMLElement): void {

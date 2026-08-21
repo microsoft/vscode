@@ -27,6 +27,8 @@ import { GroupDirection, IEditorDropTargetDelegate, IEditorGroup, IEditorGroupsS
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ITreeViewsDnDService } from '../../../../editor/common/services/treeViewsDndService.js';
 import { DraggedTreeItemsIdentifier } from '../../../../editor/common/services/treeViewsDnd.js';
+import { EditorPartSupportsMultipleGroupsContext } from '../../../common/contextkeys.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 
 interface IDropOperation {
 	splitDirection?: GroupDirection;
@@ -69,7 +71,8 @@ class DropOverlay extends Themable {
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@ITreeViewsDnDService private readonly treeViewsDragAndDropService: ITreeViewsDnDService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super(themeService);
 
@@ -181,8 +184,9 @@ class DropOverlay extends Themable {
 				// Position overlay and conditionally enable or disable
 				// editor group splitting support based on setting and
 				// keymodifiers used.
-				let splitOnDragAndDrop = !!this.groupView.groupsView.partOptions.splitOnDragAndDrop;
-				if (this.isToggleSplitOperation(e)) {
+				const supportsMultipleGroups = this.contextKeyService.contextMatchesRules(EditorPartSupportsMultipleGroupsContext);
+				let splitOnDragAndDrop = supportsMultipleGroups && !!this.groupView.groupsView.partOptions.splitOnDragAndDrop;
+				if (supportsMultipleGroups && this.isToggleSplitOperation(e)) {
 					splitOnDragAndDrop = !splitOnDragAndDrop;
 				}
 				this.positionOverlay(e.offsetX, e.offsetY, isDraggingGroup, splitOnDragAndDrop);
