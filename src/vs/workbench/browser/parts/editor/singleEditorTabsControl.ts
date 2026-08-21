@@ -67,12 +67,12 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		titleContainer.classList.toggle('breadcrumbs', Boolean(this.breadcrumbsControl));
 		this._register(toDisposable(() => titleContainer.classList.remove('breadcrumbs'))); // important to remove because the container is a shared dom node
 
+		if (this.menuIds?.tabsBarAddTab) {
+			this.createAddTabControl(labelContainer, this.menuIds.tabsBarAddTab);
+		}
+
 		// Create editor actions toolbar
 		this.createEditorActionsToolBar(titleContainer, ['title-actions']);
-
-		if (this.menuIds?.tabsBarAddTab) {
-			this.createAddTabControl(titleContainer, this.menuIds.tabsBarAddTab, this.editorLayoutActionsSeparator, true);
-		}
 
 		return titleContainer;
 	}
