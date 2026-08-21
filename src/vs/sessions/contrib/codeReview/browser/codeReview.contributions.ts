@@ -10,7 +10,7 @@ import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/c
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
 import { IsPhoneLayoutContext, SessionHasChangesContext, SessionIsCreatedContext, SessionWorkspaceIsVirtualContext, SessionProviderIdContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
@@ -29,9 +29,8 @@ const CODE_REVIEW_QUERY = '/code-review';
 
 const singlePaneDetailPanel = SinglePaneLayoutEnabledContext;
 
-// Code review is shown next to the diff-stats action in the single-pane Changes
-// editor header, so it is only contributed to the classic changes button bar
-// when single-pane is off.
+// Code review is shown in the single-pane editor title bar, so it is only
+// contributed to the classic changes button bar when single-pane is off.
 const codeReviewChangesToolbarWhen = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	SessionWorkspaceIsVirtualContext.toNegated(),
@@ -72,16 +71,10 @@ class RunSessionCodeReviewAction extends Action2 {
 					when: codeReviewChangesToolbarWhen,
 				},
 				{
-					id: Menus.SessionsEditorHeaderSecondary,
-					group: '0_codeReview',
+					id: Menus.SessionsEditorTitle,
+					group: 'navigation',
 					order: 10,
-					when: ContextKeyExpr.and(singlePaneCodeReviewWhen, MainEditorAreaVisibleContext),
-				},
-				{
-					id: Menus.SessionsEditorHeaderSecondary,
-					group: 'secondary/1_codeReview',
-					order: 10,
-					when: ContextKeyExpr.and(singlePaneCodeReviewWhen, MainEditorAreaVisibleContext.toNegated()),
+					when: singlePaneCodeReviewWhen,
 				},
 			],
 		});

@@ -17,7 +17,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../../workbench/common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SessionHasChangesContext, SessionIsCreatedContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -311,50 +311,31 @@ suite('Code Review Contributions', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('Run Code Review is right-inline when visible and first in overflow when collapsed', () => {
-		const primaryItem = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderPrimary)
+	test('Run Code Review is contributed to the editor title bar', () => {
+		const titleItem = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'sessions.codeReview.run');
-		const rightItems = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
+		const headerItems = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id === 'sessions.codeReview.run');
-		const inlineItem = rightItems.find(item => item.group === '0_codeReview');
-		const overflowItem = rightItems.find(item => item.group === 'secondary/1_codeReview');
 
-		assert.strictEqual(primaryItem, undefined, 'Run Code Review should not render inline in the primary header');
-		assert.ok(inlineItem, 'expected Run Code Review inline on the right while the editor is visible');
-		assert.ok(overflowItem, 'expected Run Code Review in overflow while the editor is collapsed');
-		const inlineWhen = inlineItem.when?.serialize() ?? '';
-		const overflowWhen = overflowItem.when?.serialize() ?? '';
+		assert.ok(titleItem, 'expected Run Code Review in the editor title bar');
+		const when = titleItem.when?.serialize() ?? '';
 		assert.deepStrictEqual({
-			inline: {
-				group: inlineItem.group,
-				order: inlineItem.order,
-				editorAreaGate: inlineWhen.includes(MainEditorAreaVisibleContext.key),
-			},
-			overflow: {
-				group: overflowItem.group,
-				order: overflowItem.order,
-				editorAreaGate: overflowWhen.includes(`!${MainEditorAreaVisibleContext.key}`),
-			},
-			hasSessionsWindowGate: inlineWhen.includes(IsSessionsWindowContext.key),
-			hasActiveEditorGate: inlineWhen.includes(ActiveEditorContext.key) && inlineWhen.includes(SessionChangesEditorInput.EDITOR_ID),
-			hasSinglePaneLayoutGate: inlineWhen.includes(SinglePaneLayoutEnabledContext.key),
-			hasAuxiliaryWindowGate: inlineWhen.includes(IsAuxiliaryWindowContext.key),
-			hasTopRightEditorGroupGate: inlineWhen.includes(IsTopRightEditorGroupContext.key),
-			hasChangesGate: inlineWhen.includes(SessionHasChangesContext.key),
-			hasCreatedGate: inlineWhen.includes(SessionIsCreatedContext.key),
+			group: titleItem.group,
+			order: titleItem.order,
+			headerItems,
+			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
+			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditorInput.EDITOR_ID),
+			hasSinglePaneLayoutGate: when.includes(SinglePaneLayoutEnabledContext.key),
+			hasAuxiliaryWindowGate: when.includes(IsAuxiliaryWindowContext.key),
+			hasTopRightEditorGroupGate: when.includes(IsTopRightEditorGroupContext.key),
+			hasChangesGate: when.includes(SessionHasChangesContext.key),
+			hasCreatedGate: when.includes(SessionIsCreatedContext.key),
 		}, {
-			inline: {
-				group: '0_codeReview',
-				order: 10,
-				editorAreaGate: true,
-			},
-			overflow: {
-				group: 'secondary/1_codeReview',
-				order: 10,
-				editorAreaGate: true,
-			},
+			group: 'navigation',
+			order: 10,
+			headerItems: [],
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
 			hasSinglePaneLayoutGate: true,
