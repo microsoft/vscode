@@ -1113,7 +1113,7 @@ suite('ProtocolServerHandler', () => {
 				.map(message => (message.params as SessionSummaryChangedParams).changes);
 			assert.deepStrictEqual({ listedMeta, summaryChanges }, {
 				listedMeta: { providerOnly: true, live: 'current' },
-				summaryChanges: [{ status: SessionStatus.InProgress }],
+				summaryChanges: [{ modifiedAt: startedAt, status: SessionStatus.InProgress }],
 			});
 		});
 	});
@@ -1351,30 +1351,6 @@ suite('ProtocolServerHandler', () => {
 			result: null,
 			project: { uri: 'file:///created-project', displayName: 'Created Project' },
 			_meta,
-		});
-	});
-
-	test('createSession rejects a fork targeting its source session', async () => {
-		const transport = connectClient('client-self-fork');
-		transport.sent.length = 0;
-		const responsePromise = waitForResponse(transport, 2);
-		const session = URI.parse('copilot:///same-session').toString();
-
-		transport.simulateMessage(request(2, 'createSession', {
-			channel: session,
-			provider: 'copilot',
-			fork: { session, turnId: 'turn-1' },
-		}));
-		const response = await responsePromise as { error?: { code: number; message: string } };
-
-		assert.deepStrictEqual({
-			errorCode: response.error?.code,
-			errorMessage: response.error?.message,
-			createCalls: agentService.createSessionConfigs.length,
-		}, {
-			errorCode: AhpErrorCodes.SessionAlreadyExists,
-			errorMessage: `Fork target session must differ from source session: ${session}`,
-			createCalls: 0,
 		});
 	});
 

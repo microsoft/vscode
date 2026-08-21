@@ -137,16 +137,8 @@ function sessionConfigToChatOptions(config: IAgentCreateSessionConfig): IAgentCr
 		workingDirectories: config.workingDirectories,
 		config: config.config,
 		activeClient: config.activeClient,
-		deferBacking: !config.fork && !config.importConversation,
+		deferBacking: !config.importConversation,
 		importConversation: config.importConversation,
-		...(config.fork ? {
-			fork: {
-				source: config.fork.chat,
-				turnIndex: config.fork.turnIndex,
-				turnId: config.fork.turnId,
-				turnIdMapping: config.fork.turnIdMapping,
-			},
-		} : {}),
 	};
 }
 
@@ -919,7 +911,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
-	test('createSession validates, exposes, persists, and inherits multi-root metadata', async () => {
+	test('createSession validates, exposes, and persists multi-root metadata', async () => {
 		const db = new TestSessionDatabase();
 		const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 		const agent = new MockAgent('copilot');
@@ -939,43 +931,23 @@ suite('AgentService (node dispatcher)', () => {
 			workingDirectories: [URI.file('/workspace/one'), URI.file('/workspace/two')],
 			_meta: { github, multiRoot, ignored: 'client value' },
 		});
-		const sourceChat = buildDefaultChatUri(session.toString());
-		localService.dispatchAction(sourceChat, {
-			type: ActionType.ChatTurnStarted,
-			turnId: 'source-turn',
-			startedAt: new Date().toISOString(),
-			message: { text: 'hello', origin: { kind: MessageKind.User } },
-		}, 'test-client', 1);
-		localService.dispatchAction(sourceChat, {
-			type: ActionType.ChatTurnComplete,
-			turnId: 'source-turn',
-			duration: 0,
-		}, 'test-client', 2);
-		const inherited = await localService.createSession({
-			provider: agent.id,
-			_meta: { multiRoot: { workspaceFile: 'relative.code-workspace' } },
-			fork: { session, chat: URI.parse(sourceChat), turnIndex: 0, turnId: 'source-turn' },
-		});
 		const override = {
 			workspaceFile: 'file:///work/override.code-workspace',
 		};
 		const overridden = await localService.createSession({
 			provider: agent.id,
 			_meta: { multiRoot: override },
-			fork: { session, chat: URI.parse(sourceChat), turnIndex: 0, turnId: 'source-turn' },
 		});
 
 		assert.deepStrictEqual({
 			state: localService.stateManager.getSessionState(session.toString())?._meta,
 			persisted: await db.getMetadata(SESSION_META_MULTI_ROOT_KEY),
 			github: readSessionGitHubState(localService.stateManager.getSessionState(session.toString())?._meta),
-			inherited: readSessionMultiRootMetadata(localService.stateManager.getSessionState(inherited.toString())?._meta),
 			overridden: readSessionMultiRootMetadata(localService.stateManager.getSessionState(overridden.toString())?._meta),
 		}, {
 			state: { github, multiRoot },
 			persisted: JSON.stringify(override),
 			github,
-			inherited: multiRoot,
 			overridden: override,
 		});
 	});
@@ -2095,17 +2067,6 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(copilotApiService.utilityCalls.length, 0);
 			await waitForCondition(async () => await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY) === AGENT_HOST_TITLE_SOURCE_AUTO, 'active-agent fallback provenance should be persisted');
 
-			svc.dispatchAction(
-				buildDefaultChatUri(session.toString()),
-				{ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1 },
-				'test-client', 2,
-			);
-			const forked = await svc.createSession({
-				provider: 'copilot',
-				fork: { session, chat: URI.parse(buildDefaultChatUri(session)), turnIndex: 0, turnId: 'turn-1' },
-			});
-			assert.strictEqual(svc.stateManager.getSessionState(forked.toString())?.title, `Forked: ${title}`);
-			assert.strictEqual(copilotApiService.utilityCalls.length, 0);
 		});
 
 		test('leaves fallback title when AI title generation fails', async () => {
@@ -2186,51 +2147,6 @@ suite('AgentService (node dispatcher)', () => {
 				aborted: true,
 				state: undefined,
 				persistedTitle: undefined,
-			});
-		});
-
-		test('generates an AI title for forked sessions from the forked chat', async () => {
-			const copilotApiService = new TestCopilotApiService();
-			copilotApiService.response = 'Source generated title';
-			const { svc, session: sourceSession } = await setupTitleGeneration(copilotApiService);
-
-			svc.dispatchAction(
-				buildDefaultChatUri(sourceSession.toString()),
-				{ type: ActionType.ChatTurnStarted, turnId: 'source-turn', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'Seed fork title', origin: { kind: MessageKind.User } } },
-				'test-client', 1,
-			);
-			await waitForCondition(() => svc.stateManager.getSessionState(sourceSession.toString())?.title === 'Source generated title', 'source generated title should be applied');
-			svc.dispatchAction(
-				buildDefaultChatUri(sourceSession.toString()),
-				{ type: ActionType.ChatTurnComplete, turnId: 'source-turn', duration: 1000 },
-				'test-client', 2,
-			);
-			await waitForCondition(() => (svc.stateManager.getSessionState(sourceSession.toString())?.turns.length ?? 0) === 1, 'source turn should be complete before forking');
-
-			// The fork inherits a `Forked: …` placeholder, then regenerates a
-			// content-derived title from the copied chat.
-			copilotApiService.response = 'Forked branch title';
-			const forkedSession = await svc.createSession({
-				provider: 'copilot',
-				fork: {
-					session: sourceSession,
-					chat: URI.parse(buildDefaultChatUri(sourceSession)),
-					turnIndex: 0,
-					turnId: 'source-turn',
-				},
-			});
-			await waitForCondition(() => svc.stateManager.getSessionState(forkedSession.toString())?.title === 'Forked branch title', 'forked session should get a content-generated title');
-
-			const forkedCall = copilotApiService.utilityCalls[copilotApiService.utilityCalls.length - 1];
-			const userMessage = forkedCall.request.messages.find(message => message.role === 'user')?.content ?? '';
-			assert.deepStrictEqual({
-				title: svc.stateManager.getSessionState(forkedSession.toString())?.title,
-				utilityCalls: copilotApiService.utilityCalls.length,
-				includesForkedChat: userMessage.includes('Seed fork title'),
-			}, {
-				title: 'Forked branch title',
-				utilityCalls: 2,
-				includesForkedChat: true,
 			});
 		});
 
@@ -6017,7 +5933,7 @@ suite('AgentService (node dispatcher)', () => {
 			const annotationsUri = buildAnnotationsUri(session.toString());
 			const annotation = {
 				id: 'feedback-1',
-				turnId: 'turn-1',
+				origin: { session: session.toString(), turnId: 'turn-1' },
 				resource: URI.file('/workspace/reviewed.ts').toString(),
 				resolved: false,
 				entries: [{ id: 'feedback-1:0', text: 'Please revisit this.' }],
@@ -6035,6 +5951,40 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(restored.state, { annotations: [annotation] });
 		});
 
+		test('annotations persisted before the origin migration are restored', async () => {
+			const sessionData = createPerSessionDataService();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const annotationsUri = buildAnnotationsUri(session.toString());
+			// The shape written before annotations carried an origin: a
+			// top-level `turnId` and no owning session.
+			await sessionData.database(session).setMetadata('annotations', JSON.stringify({
+				annotations: [{
+					id: 'feedback-1',
+					turnId: 'turn-1',
+					resource: URI.file('/workspace/reviewed.ts').toString(),
+					resolved: false,
+					entries: [{ id: 'feedback-1:0', text: 'Please revisit this.' }],
+				}],
+			}));
+			localService.stateManager.deleteSession(session.toString());
+
+			const restored = await localService.subscribe(URI.parse(annotationsUri), 'client-after-upgrade');
+
+			assert.deepStrictEqual(restored.state, {
+				annotations: [{
+					id: 'feedback-1',
+					origin: { session: session.toString(), turnId: 'turn-1' },
+					resource: URI.file('/workspace/reviewed.ts').toString(),
+					resolved: false,
+					entries: [{ id: 'feedback-1:0', text: 'Please revisit this.' }],
+				}],
+			});
+		});
+
 		test('annotations subscribe concurrent with session restore returns persisted feedback', async () => {
 			const sessionData = createPerSessionDataService();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
@@ -6045,7 +5995,7 @@ suite('AgentService (node dispatcher)', () => {
 			const annotationsUri = buildAnnotationsUri(session.toString());
 			const annotation = {
 				id: 'feedback-1',
-				turnId: 'turn-1',
+				origin: { session: session.toString(), turnId: 'turn-1' },
 				resource: URI.file('/workspace/reviewed.ts').toString(),
 				resolved: false,
 				entries: [{ id: 'feedback-1:0', text: 'Please revisit this.' }],
@@ -6091,7 +6041,7 @@ suite('AgentService (node dispatcher)', () => {
 				type: ActionType.AnnotationsSet,
 				annotation: {
 					id: 'feedback-1',
-					turnId: 'turn-1',
+					origin: { session: subagent, turnId: 'turn-1' },
 					resource: URI.file('/workspace/reviewed.ts').toString(),
 					resolved: false,
 					entries: [{ id: 'feedback-1:0', text: 'Please revisit this.' }],
@@ -12892,44 +12842,6 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(state);
 			assert.deepStrictEqual(state!.changesets, defaultCatalogue(sessionStr));
 			assertBackingChangesetsComputing(service.stateManager, sessionStr);
-		});
-
-		test('forked createSession seeds both halves on the forked session', async () => {
-			service.registerProvider(copilotAgent);
-
-			// Set up a source session with at least one completed turn. The
-			// fork path at agentService.ts:493-504 intentionally drops
-			// `config.fork` when the source has zero turns and falls through
-			// to the non-fork create path; without this prelude the test
-			// would silently exercise the non-fork branch and pass vacuously.
-			const sourceSession = await service.createSession({ provider: 'copilot' });
-			const sourceState = service.stateManager.getSessionState(sourceSession.toString())!;
-			const sourceTurnId = 'turn-src-1';
-			sourceState.turns = [{
-				id: sourceTurnId,
-				state: TurnState.Complete,
-				message: { text: 'hi', origin: { kind: MessageKind.User } },
-				responseParts: [],
-				usage: undefined,
-			}];
-
-			const forked = await service.createSession({
-				provider: 'copilot',
-				fork: { session: sourceSession, chat: URI.parse(buildDefaultChatUri(sourceSession)), turnIndex: 0, turnId: sourceTurnId },
-			});
-			assert.notStrictEqual(forked.toString(), sourceSession.toString(), 'fork should produce a distinct session URI');
-			const forkedStr = forked.toString();
-			assert.strictEqual(copilotAgent.lastCreateSessionConfig?.fork?.chat?.toString(), buildDefaultChatUri(sourceSession));
-
-			const forkedState = service.stateManager.getSessionState(forkedStr);
-			assert.ok(forkedState);
-			assert.deepStrictEqual(forkedState!.changesets, defaultCatalogue(forkedStr));
-			// Note: source-session turn was seeded directly on state, so the
-			// reducer never saw a ChatTurnStarted/Complete pair for it;
-			// the fork branch (agentService.ts:548 path) is still exercised
-			// because `config.fork` survives the L493-504 turn-count check.
-			assert.ok(forkedState!.turns.length > 0, 'forked session should carry copied turns');
-			assertBackingChangesetsComputing(service.stateManager, forkedStr);
 		});
 
 		test('provisional session materialization preserves both halves', async () => {
