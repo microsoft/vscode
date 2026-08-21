@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -287,6 +288,67 @@ suite('Dev Container Agent Host Service', () => {
 			registeredProviders: [],
 			connectionDisposed: true,
 			transportDisposed: true,
+		});
+	});
+
+	test('a canceled caller stops waiting without canceling a shared connection', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const remoteAgentHostService = store.add(new TestRemoteAgentHostService());
+		const sessionsProvidersService = store.add(new TestSessionsProvidersService());
+		const service = store.add(new TestDevContainerAgentHostService(
+			instantiationService,
+			remoteAgentHostService,
+			sessionsProvidersService,
+		));
+
+		const sourceWorkspace = URI.file('/source');
+		const address = 'devcontainer:source';
+		const connection = new TestAgentConnection();
+		let connectorCalls = 0;
+		let connectorToken = CancellationToken.None;
+		const result = new DeferredPromise<{
+			address: string;
+			name: string;
+			connection: TestAgentConnection;
+			workspaceUri: URI;
+		}>();
+		store.add(service.registerConnector({
+			isAvailable: async () => true,
+			connect: async (_workspaceUri, token) => {
+				connectorCalls++;
+				connectorToken = token;
+				return result.p;
+			},
+		}));
+
+		const first = service.connect(sourceWorkspace, CancellationToken.None);
+		const secondTokenSource = store.add(new CancellationTokenSource());
+		const second = service.connect(sourceWorkspace, secondTokenSource.token);
+		secondTokenSource.cancel();
+		await assert.rejects(second, CancellationError);
+		result.complete({
+			address,
+			name: 'Source Dev Container',
+			connection,
+			workspaceUri: URI.from({
+				scheme: AGENT_HOST_SCHEME,
+				authority: agentHostAuthority(address),
+				path: '/workspaces/source',
+			}),
+		});
+		const target = await first;
+		await target.release();
+
+		assert.deepStrictEqual({
+			connectorCalls,
+			underlyingConnectionCanceled: connectorToken.isCancellationRequested,
+			removedAddress: remoteAgentHostService.removedAddress,
+			connectionDisposed: connection.disposed,
+		}, {
+			connectorCalls: 1,
+			underlyingConnectionCanceled: false,
+			removedAddress: address,
+			connectionDisposed: true,
 		});
 	});
 

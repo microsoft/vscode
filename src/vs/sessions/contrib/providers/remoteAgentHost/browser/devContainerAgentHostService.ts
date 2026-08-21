@@ -73,7 +73,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		}
 		const pending = this._pendingConnections.get(key);
 		if (pending) {
-			return pending.promise.then(active => this._acquireConnection(key, active));
+			return raceCancellationError(pending.promise, token).then(active => this._acquireConnection(key, active));
 		}
 		if (!this._connector) {
 			return Promise.reject(new Error(localize('devContainerAgentHost.connectorUnavailable', "No Dev Container Agent Host connector is registered.")));
