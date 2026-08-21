@@ -601,13 +601,13 @@ function splitLargeTokens(lineContent: string, tokens: LinePart[], onlyAtSpaces:
 					}
 					if (lastSpaceOffset !== -1 && j - currTokenStart >= Constants.LongToken) {
 						// Split at `lastSpaceOffset` + 1
-						result[resultLen++] = new LinePart(lastSpaceOffset + 1, tokenType, tokenMetadata, tokenContainsRTL);
+						result[resultLen++] = new LinePart(lastSpaceOffset + 1, tokenType, tokenMetadata, tokenContainsRTL, token.fixedWidth);
 						currTokenStart = lastSpaceOffset + 1;
 						lastSpaceOffset = -1;
 					}
 				}
 				if (currTokenStart !== tokenEndIndex) {
-					result[resultLen++] = new LinePart(tokenEndIndex, tokenType, tokenMetadata, tokenContainsRTL);
+					result[resultLen++] = new LinePart(tokenEndIndex, tokenType, tokenMetadata, tokenContainsRTL, token.fixedWidth);
 				}
 			} else {
 				result[resultLen++] = token;
@@ -628,9 +628,9 @@ function splitLargeTokens(lineContent: string, tokens: LinePart[], onlyAtSpaces:
 				const piecesCount = Math.ceil(diff / Constants.LongToken);
 				for (let j = 1; j < piecesCount; j++) {
 					const pieceEndIndex = lastTokenEndIndex + (j * Constants.LongToken);
-					result[resultLen++] = new LinePart(pieceEndIndex, tokenType, tokenMetadata, tokenContainsRTL);
+					result[resultLen++] = new LinePart(pieceEndIndex, tokenType, tokenMetadata, tokenContainsRTL, token.fixedWidth);
 				}
-				result[resultLen++] = new LinePart(tokenEndIndex, tokenType, tokenMetadata, tokenContainsRTL);
+				result[resultLen++] = new LinePart(tokenEndIndex, tokenType, tokenMetadata, tokenContainsRTL, token.fixedWidth);
 			} else {
 				result[resultLen++] = token;
 			}
@@ -672,8 +672,8 @@ function splitLeadingWhitespaceFromRTL(lineContent: string, tokens: LinePart[]):
 
 	// Split the first token into leading whitespace and the rest
 	const result: LinePart[] = [];
-	result.push(new LinePart(firstNonWhitespaceIndex, firstToken.type, firstToken.metadata, false));
-	result.push(new LinePart(firstTokenEndIndex, firstToken.type, firstToken.metadata, firstToken.containsRTL));
+	result.push(new LinePart(firstNonWhitespaceIndex, firstToken.type, firstToken.metadata, false, firstToken.fixedWidth));
+	result.push(new LinePart(firstTokenEndIndex, firstToken.type, firstToken.metadata, firstToken.containsRTL, firstToken.fixedWidth));
 
 	// Add remaining tokens
 	for (let i = 1; i < tokens.length; i++) {
@@ -944,12 +944,12 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: LineP
 			if (lineDecoration.endOffset + 1 <= tokenEndIndex) {
 				// This line decoration ends before this token ends
 				lastResultEndIndex = lineDecoration.endOffset + 1;
-				result[resultLen++] = new LinePart(lastResultEndIndex, tokenType + ' ' + lineDecoration.className, tokenMetadata | lineDecoration.metadata, tokenContainsRTL);
+				result[resultLen++] = new LinePart(lastResultEndIndex, tokenType + ' ' + lineDecoration.className, tokenMetadata | lineDecoration.metadata, tokenContainsRTL, lineDecoration.fixedWidth);
 				lineDecorationIndex++;
 			} else {
 				// This line decoration continues on to the next token
 				lastResultEndIndex = tokenEndIndex;
-				result[resultLen++] = new LinePart(lastResultEndIndex, tokenType + ' ' + lineDecoration.className, tokenMetadata | lineDecoration.metadata, tokenContainsRTL);
+				result[resultLen++] = new LinePart(lastResultEndIndex, tokenType + ' ' + lineDecoration.className, tokenMetadata | lineDecoration.metadata, tokenContainsRTL, lineDecoration.fixedWidth);
 				break;
 			}
 		}
@@ -964,7 +964,7 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: LineP
 	if (lineDecorationIndex < lineDecorationsLen && lineDecorations[lineDecorationIndex].startOffset === lastTokenEndIndex) {
 		while (lineDecorationIndex < lineDecorationsLen && lineDecorations[lineDecorationIndex].startOffset === lastTokenEndIndex) {
 			const lineDecoration = lineDecorations[lineDecorationIndex];
-			result[resultLen++] = new LinePart(lastResultEndIndex, lineDecoration.className, lineDecoration.metadata, false);
+			result[resultLen++] = new LinePart(lastResultEndIndex, lineDecoration.className, lineDecoration.metadata, false, lineDecoration.fixedWidth);
 			lineDecorationIndex++;
 		}
 	}

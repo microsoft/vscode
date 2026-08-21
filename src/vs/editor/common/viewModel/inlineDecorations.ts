@@ -16,11 +16,16 @@ export const enum InlineDecorationType {
 	RegularAffectingLetterSpacing = 3
 }
 
+export interface InlineDecorationFixedWidth {
+	readonly widthInEm: number;
+}
+
 export class InlineDecoration {
 	constructor(
 		public readonly range: Range,
 		public readonly inlineClassName: string,
-		public readonly type: InlineDecorationType
+		public readonly type: InlineDecorationType,
+		public readonly fixedWidth: InlineDecorationFixedWidth | undefined = undefined
 	) { }
 }
 
@@ -251,7 +256,8 @@ export class InjectedTextInlineDecorationsComputer implements IInlineDecorations
 							const viewLineNumber = this.context.getBaseViewLineNumber(modelLineNumber) + outputLineIndex;
 							const range = new Range(viewLineNumber, start + 1, viewLineNumber, end + 1);
 							const type: InlineDecorationType = options.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular;
-							inlineDecorations.push(new InlineDecoration(range, options.inlineClassName, type));
+							const fixedWidth = options.widthInEm === undefined ? undefined : { widthInEm: options.widthInEm };
+							inlineDecorations.push(new InlineDecoration(range, options.inlineClassName, type, fixedWidth));
 						}
 					}
 				}

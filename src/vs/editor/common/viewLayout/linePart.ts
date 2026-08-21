@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { InlineDecorationFixedWidth } from '../viewModel/inlineDecorations.js';
+
 export const enum LinePartMetadata {
 	IS_WHITESPACE = 1,
 	PSEUDO_BEFORE = 2,
@@ -23,7 +25,8 @@ export class LinePart {
 		public readonly endIndex: number,
 		public readonly type: string,
 		public readonly metadata: number,
-		public readonly containsRTL: boolean
+		public readonly containsRTL: boolean,
+		public readonly fixedWidth: InlineDecorationFixedWidth | undefined = undefined
 	) { }
 
 	public isWhitespace(): boolean {
