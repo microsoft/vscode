@@ -34,14 +34,15 @@ export interface Ref {
 	readonly remote?: string;
 }
 
-export interface UpstreamRef {
+export interface RemoteRef {
 	readonly remote: string;
 	readonly name: string;
 	readonly commit?: string;
 }
 
 export interface Branch extends Ref {
-	readonly upstream?: UpstreamRef;
+	readonly upstream?: RemoteRef;
+	readonly pushBranch?: RemoteRef;
 	readonly ahead?: number;
 	readonly behind?: number;
 }
