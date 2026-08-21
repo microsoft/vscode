@@ -778,6 +778,12 @@ export interface ModelConfiguration {
 	rebasedCacheDelay?: number;
 	/** Base debounce (ms) applied before issuing a request. `undefined` falls back to the experiment default. */
 	debounce?: number;
+	/**
+	 * Whether this model handles inline completions itself, so the separate completions provider
+	 * should be suppressed and the client should run as the single unified provider. `undefined`
+	 * falls back to the experiment/deployment toggles.
+	 */
+	supportsUnifiedCompletions?: boolean;
 }
 
 /**
@@ -812,6 +818,7 @@ const STRATEGY_CONFIG: Partial<Record<PromptingStrategy, Partial<ModelConfigurat
 		cacheDelay: 200,
 		rebasedCacheDelay: 0,
 		debounce: 0,
+		supportsUnifiedCompletions: true,
 	},
 	[PromptingStrategy.PatchBased02WithoutRecentLineNumbers]: {
 		includeTagsInCurrentFile: false,
@@ -870,6 +877,7 @@ export const MODEL_CONFIGURATION_VALIDATOR: IValidator<ModelConfiguration> = vOb
 	'cacheDelay': vUnion(vNumber(), vUndefined()),
 	'rebasedCacheDelay': vUnion(vNumber(), vUndefined()),
 	'debounce': vUnion(vNumber(), vUndefined()),
+	'supportsUnifiedCompletions': vUnion(vBoolean(), vUndefined()),
 });
 
 export function parseLintOptionString(optionString: string, defaults: LintOptions): LintOptions {

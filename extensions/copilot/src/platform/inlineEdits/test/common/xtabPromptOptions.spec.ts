@@ -57,6 +57,7 @@ describe('applyStrategyConfig', () => {
 		expect(result.patchModelPredictionKind).toBeUndefined();
 		expect(result.cacheDelay).toBeUndefined();
 		expect(result.debounce).toBeUndefined();
+		expect(result.supportsUnifiedCompletions).toBeUndefined();
 	});
 
 	it('forces baked-in fields for PatchBased02Optimized', () => {
@@ -84,6 +85,7 @@ describe('applyStrategyConfig', () => {
 			cacheDelay: 200,
 			rebasedCacheDelay: 0,
 			debounce: 0,
+			supportsUnifiedCompletions: true,
 		});
 	});
 

@@ -254,7 +254,8 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 
 		const isCompletionsEnabled = this._isCompletionsEnabled(document);
 
-		const unification = this._configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsUnification, this._expService);
+		const unification = this._modelService.selectedModelConfiguration().supportsUnifiedCompletions
+			?? this._configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsUnification, this._expService);
 
 		const isInlineEditsEnabled = this._configurationService.getExperimentBasedConfig(ConfigKey.InlineEditsEnabled, this._expService, { languageId: document.languageId });
 
