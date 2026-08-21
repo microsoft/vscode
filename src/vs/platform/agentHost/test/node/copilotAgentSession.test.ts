@@ -7458,6 +7458,68 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	suite('waitForTurnEventId', () => {
+		test('resolves when the matching user message event arrives', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			session.resetTurnState('turn-waiting');
+
+			const eventIdPromise = session.waitForTurnEventId('turn-waiting');
+			mockSession.fire('user.message', { content: 'hello agent' } as SessionEventPayload<'user.message'>['data'], { id: 'sdk-event-waiting' });
+			await timeout(0);
+
+			assert.deepStrictEqual(await eventIdPromise, 'sdk-event-waiting');
+		});
+
+		test('resolves from a user message event recorded before waiting', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			session.resetTurnState('turn-recorded');
+			mockSession.fire('user.message', { content: 'hello agent' } as SessionEventPayload<'user.message'>['data'], { id: 'sdk-event-recorded' });
+			await timeout(0);
+
+			assert.deepStrictEqual(await session.waitForTurnEventId('turn-recorded'), 'sdk-event-recorded');
+		});
+
+		test('rejects when the turn ends before its user message event arrives', async () => {
+			const { session } = await createAgentSession(disposables);
+			session.resetTurnState('turn-ended');
+
+			const eventIdPromise = session.waitForTurnEventId('turn-ended');
+			session.discardActiveTurn();
+
+			await assert.rejects(eventIdPromise, /Turn turn-ended was disposed before its SDK event id was recorded/);
+		});
+
+		test('rejects immediately when the requested turn is not the currently active turn', async () => {
+			const { session } = await createAgentSession(disposables);
+
+			await assert.rejects(
+				session.waitForTurnEventId('turn-never-starts'),
+				/Turn turn-never-starts is not the currently active turn in session/,
+			);
+		});
+
+		test('rejects immediately when a different turn has since become active', async () => {
+			const { session } = await createAgentSession(disposables);
+			session.resetTurnState('turn-superseded');
+			session.resetTurnState('turn-current');
+
+			await assert.rejects(
+				session.waitForTurnEventId('turn-superseded'),
+				/Turn turn-superseded is not the currently active turn in session/,
+			);
+		});
+
+		test('rejects pending waiters when the session is disposed', async () => {
+			const { session } = await createAgentSession(disposables);
+			session.resetTurnState('turn-disposed');
+
+			const eventIdPromise = session.waitForTurnEventId('turn-disposed');
+			session.dispose();
+
+			await assert.rejects(eventIdPromise, /Turn turn-disposed was disposed before its SDK event id was recorded/);
+		});
+	});
+
 	// ---- user input handling ----
 
 	suite('user input handling', () => {
