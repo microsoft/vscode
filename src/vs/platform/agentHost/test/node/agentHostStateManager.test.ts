@@ -1156,6 +1156,43 @@ suite('AgentHostStateManager', () => {
 			);
 		});
 
+		test('restored peer chat snapshots the inherited default chat title', () => {
+			manager.restoreSession(makeSessionSummary(), []);
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const beforeRestore = manager.getSessionState(sessionUri)?.chats.find(chat => chat.resource === defaultChat)?.title;
+
+			manager.registerRestoredChatSummary(sessionUri, peerChat, { title: 'Peer' });
+
+			assert.deepStrictEqual({
+				beforeRestore,
+				afterRestore: manager.getSessionState(sessionUri)?.chats.find(chat => chat.resource === defaultChat)?.title,
+			}, {
+				beforeRestore: '',
+				afterRestore: 'Test',
+			});
+		});
+
+		test('adding a chat snapshots the canonical default when routing defaults to a peer', () => {
+			manager.createSession(makeSessionSummary());
+			const canonicalDefault = buildDefaultChatUri(sessionUri);
+			const peer2 = buildChatUri(sessionUri, 'peer-2');
+			manager.addChat(sessionUri, peerChat, { title: 'Peer' });
+			manager.updateChatTitle(sessionUri, canonicalDefault, '');
+			manager.updateChatTitle(sessionUri, peerChat, '');
+			manager.dispatchServerAction(sessionUri, { type: ActionType.SessionDefaultChatChanged, defaultChat: peerChat });
+
+			manager.addChat(sessionUri, peer2, { title: 'Peer 2' });
+
+			const state = manager.getSessionState(sessionUri);
+			assert.deepStrictEqual({
+				canonicalDefaultTitle: state?.chats.find(chat => chat.resource === canonicalDefault)?.title,
+				routingDefaultTitle: state?.chats.find(chat => chat.resource === peerChat)?.title,
+			}, {
+				canonicalDefaultTitle: 'Test',
+				routingDefaultTitle: '',
+			});
+		});
+
 		test('addChat is idempotent for an existing chat URI', () => {
 			manager.createSession(makeSessionSummary());
 			const first = manager.addChat(sessionUri, peerChat, { title: 'Peer' });
