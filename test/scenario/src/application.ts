@@ -208,6 +208,14 @@ if (!opts.web) {
 		fail(`Cannot find VS Code at ${electronPath}. Install VS Code Insiders, pass --build <app-root>, or build this checkout and pass --dev.`);
 	}
 
+	// Windows applies a downloaded update by swapping the executable during
+	// startup, so the launched process exits before it ever shows a window and
+	// the failure reads as a crash. Insiders updates daily, so say what is
+	// actually wrong instead of leaving a 60s timeout to be misread.
+	if (electronPath && fs.existsSync(path.join(path.dirname(electronPath), `new_${path.basename(electronPath)}`))) {
+		fail(`${electronPath} has a downloaded update waiting to be applied, and it exits during startup to install it instead of opening a window. Start and quit VS Code once to apply the update, then run this again.`);
+	}
+
 	quality = parseQuality(testCodePath ? readBuildQuality(testCodePath) : undefined);
 
 	if (opts.remote) {
