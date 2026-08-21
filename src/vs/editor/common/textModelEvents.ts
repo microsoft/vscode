@@ -254,14 +254,14 @@ export class LineInjectedText {
 		return result;
 	}
 
-	public static getFixedWidthRanges(injectedTexts: LineInjectedText[] | null): LineInjectedTextFixedWidth[] | null {
-		let result: LineInjectedTextFixedWidth[] | null = null;
+	public static getInjectedTextWidthsInEm(injectedTexts: LineInjectedText[] | null): LineInjectedTextWidth[] {
+		const result: LineInjectedTextWidth[] = [];
 		let injectedTextLength = 0;
 		for (const injectedText of injectedTexts ?? []) {
 			const startOffset = injectedText.column - 1 + injectedTextLength;
 			const endOffset = startOffset + injectedText.options.content.length;
 			if (injectedText.options.widthInEm !== undefined) {
-				(result ??= []).push({
+				result.push({
 					startOffset,
 					endOffset,
 					widthInEm: injectedText.options.widthInEm
@@ -319,7 +319,7 @@ export class LineInjectedText {
 	}
 }
 
-export interface LineInjectedTextFixedWidth {
+export interface LineInjectedTextWidth {
 	readonly startOffset: number;
 	readonly endOffset: number;
 	readonly widthInEm: number;

@@ -46,7 +46,7 @@ export interface IInlayHintsCache {
 	set(model: ITextModel, value: InlayHintItem[]): void;
 }
 
-class InlayHintsCache implements IInlayHintsCache {
+class InlayHintsCache {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -568,11 +568,12 @@ export class InlayHintsController implements IEditorContribution {
 
 		const addInjectedWhitespace = (item: InlayHintItem, isLast: boolean): void => {
 			const widthInPixels = (fontSize / 3) | 0;
+			const widthInEm = widthInPixels / editorFontSize;
 			const marginRule = this._ruleFactory.createClassNameRef({
 				width: `${widthInPixels}px`,
 				display: 'inline-block'
 			});
-			addInjectedText(item, marginRule, '\u200a', isLast ? InjectedTextCursorStops.Right : InjectedTextCursorStops.None, InlayHintsController._whitespaceData, widthInPixels / editorFontSize);
+			addInjectedText(item, marginRule, '\u200a', isLast ? InjectedTextCursorStops.Right : InjectedTextCursorStops.None, InlayHintsController._whitespaceData, widthInEm);
 		};
 
 

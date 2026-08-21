@@ -12,6 +12,7 @@ import { LineDecoration, LineDecorationsNormalizer } from './lineDecorations.js'
 import { LinePart, LinePartMetadata } from './linePart.js';
 import { OffsetRange } from '../core/ranges/offsetRange.js';
 import { InlineDecorationType } from '../viewModel/inlineDecorations.js';
+import { InjectedTextLinePart } from '../viewModel/injectedTextLinePart.js';
 import { TextDirection } from '../model.js';
 
 export const enum RenderWhitespace {
@@ -32,6 +33,7 @@ export interface IRenderLineInputOptions {
 	fauxIndentLength: number;
 	lineTokens: IViewLineTokens;
 	lineDecorations: LineDecoration[];
+	injectedTextLineParts: readonly InjectedTextLinePart[];
 	tabSize: number;
 	startVisibleColumn: number;
 	spaceWidth: number;
@@ -58,6 +60,7 @@ export class RenderLineInput {
 	public readonly fauxIndentLength: number;
 	public readonly lineTokens: IViewLineTokens;
 	public readonly lineDecorations: LineDecoration[];
+	public readonly injectedTextLineParts: readonly InjectedTextLinePart[];
 	public readonly tabSize: number;
 	public readonly startVisibleColumn: number;
 	public readonly spaceWidth: number;
@@ -94,6 +97,7 @@ export class RenderLineInput {
 		fauxIndentLength: number,
 		lineTokens: IViewLineTokens,
 		lineDecorations: LineDecoration[],
+		injectedTextLineParts: readonly InjectedTextLinePart[],
 		tabSize: number,
 		startVisibleColumn: number,
 		spaceWidth: number,
@@ -117,6 +121,7 @@ export class RenderLineInput {
 		this.fauxIndentLength = fauxIndentLength;
 		this.lineTokens = lineTokens;
 		this.lineDecorations = lineDecorations.sort(LineDecoration.compare);
+		this.injectedTextLineParts = injectedTextLineParts;
 		this.tabSize = tabSize;
 		this.startVisibleColumn = startVisibleColumn;
 		this.spaceWidth = spaceWidth;
@@ -191,6 +196,7 @@ export class RenderLineInput {
 			&& this.renderControlCharacters === other.renderControlCharacters
 			&& this.fontLigatures === other.fontLigatures
 			&& LineDecoration.equalsArr(this.lineDecorations, other.lineDecorations)
+			&& InjectedTextLinePart.equalsArr(this.injectedTextLineParts, other.injectedTextLineParts)
 			&& this.lineTokens.equals(other.lineTokens)
 			&& this.sameSelection(other.selectionsOnLine)
 			&& this.textDirection === other.textDirection
@@ -478,6 +484,19 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		len = lineContent.length;
 	}
 
+	let containsForeignElements = input.injectedTextLineParts.length > 0 ? ForeignElementType.Before : ForeignElementType.None;
+	for (let i = 0, len = input.lineDecorations.length; i < len; i++) {
+		const lineDecoration = input.lineDecorations[i];
+		if (lineDecoration.type === InlineDecorationType.RegularAffectingLetterSpacing) {
+			// Pretend there are foreign elements... although not 100% accurate.
+			containsForeignElements |= ForeignElementType.Before;
+		} else if (lineDecoration.type === InlineDecorationType.Before) {
+			containsForeignElements |= ForeignElementType.Before;
+		} else if (lineDecoration.type === InlineDecorationType.After) {
+			containsForeignElements |= ForeignElementType.After;
+		}
+	}
+
 	let tokens = transformAndRemoveOverflowing(lineContent, input.containsRTL, input.lineTokens, input.fauxIndentLength, len);
 	if (input.renderControlCharacters && !input.isBasicASCII) {
 		// Calling `extractControlCharacters` before adding (possibly empty) line parts
@@ -491,21 +510,10 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 	) {
 		tokens = _applyRenderWhitespace(input, lineContent, len, tokens);
 	}
-	let containsForeignElements = ForeignElementType.None;
 	if (input.lineDecorations.length > 0) {
-		for (let i = 0, len = input.lineDecorations.length; i < len; i++) {
-			const lineDecoration = input.lineDecorations[i];
-			if (lineDecoration.type === InlineDecorationType.RegularAffectingLetterSpacing) {
-				// Pretend there are foreign elements... although not 100% accurate.
-				containsForeignElements |= ForeignElementType.Before;
-			} else if (lineDecoration.type === InlineDecorationType.Before) {
-				containsForeignElements |= ForeignElementType.Before;
-			} else if (lineDecoration.type === InlineDecorationType.After) {
-				containsForeignElements |= ForeignElementType.After;
-			}
-		}
 		tokens = _applyInlineDecorations(lineContent, len, tokens, input.lineDecorations);
 	}
+	tokens = createAtomicInjectedTextParts(tokens, input.injectedTextLineParts);
 	if (!input.containsRTL) {
 		// We can never split RTL text, as it ruins the rendering
 		tokens = splitLargeTokens(lineContent, tokens, !input.isBasicASCII || input.fontLigatures);
@@ -588,7 +596,7 @@ function splitLargeTokens(lineContent: string, tokens: LinePart[], onlyAtSpaces:
 		for (let i = 0, len = tokens.length; i < len; i++) {
 			const token = tokens[i];
 			const tokenEndIndex = token.endIndex;
-			if (!token.fixedWidth && lastTokenEndIndex + Constants.LongToken < tokenEndIndex) {
+			if (token.widthInEm === undefined && lastTokenEndIndex + Constants.LongToken < tokenEndIndex) {
 				const tokenType = token.type;
 				const tokenMetadata = token.metadata;
 				const tokenContainsRTL = token.containsRTL;
@@ -601,13 +609,13 @@ function splitLargeTokens(lineContent: string, tokens: LinePart[], onlyAtSpaces:
 					}
 					if (lastSpaceOffset !== -1 && j - currTokenStart >= Constants.LongToken) {
 						// Split at `lastSpaceOffset` + 1
-						result[resultLen++] = new LinePart(lastSpaceOffset + 1, tokenType, tokenMetadata, tokenContainsRTL, token.fixedWidth);
+						result[resultLen++] = new LinePart(lastSpaceOffset + 1, tokenType, tokenMetadata, tokenContainsRTL, undefined);
 						currTokenStart = lastSpaceOffset + 1;
 						lastSpaceOffset = -1;
 					}
 				}
 				if (currTokenStart !== tokenEndIndex) {
-					result[resultLen++] = new LinePart(tokenEndIndex, tokenType, tokenMetadata, tokenContainsRTL, token.fixedWidth);
+					result[resultLen++] = new LinePart(tokenEndIndex, tokenType, tokenMetadata, tokenContainsRTL, undefined);
 				}
 			} else {
 				result[resultLen++] = token;
@@ -621,16 +629,16 @@ function splitLargeTokens(lineContent: string, tokens: LinePart[], onlyAtSpaces:
 			const token = tokens[i];
 			const tokenEndIndex = token.endIndex;
 			const diff = (tokenEndIndex - lastTokenEndIndex);
-			if (!token.fixedWidth && diff > Constants.LongToken) {
+			if (token.widthInEm === undefined && diff > Constants.LongToken) {
 				const tokenType = token.type;
 				const tokenMetadata = token.metadata;
 				const tokenContainsRTL = token.containsRTL;
 				const piecesCount = Math.ceil(diff / Constants.LongToken);
 				for (let j = 1; j < piecesCount; j++) {
 					const pieceEndIndex = lastTokenEndIndex + (j * Constants.LongToken);
-					result[resultLen++] = new LinePart(pieceEndIndex, tokenType, tokenMetadata, tokenContainsRTL, token.fixedWidth);
+					result[resultLen++] = new LinePart(pieceEndIndex, tokenType, tokenMetadata, tokenContainsRTL, undefined);
 				}
-				result[resultLen++] = new LinePart(tokenEndIndex, tokenType, tokenMetadata, tokenContainsRTL, token.fixedWidth);
+				result[resultLen++] = new LinePart(tokenEndIndex, tokenType, tokenMetadata, tokenContainsRTL, undefined);
 			} else {
 				result[resultLen++] = token;
 			}
@@ -650,6 +658,9 @@ function splitLeadingWhitespaceFromRTL(lineContent: string, tokens: LinePart[]):
 	}
 
 	const firstToken = tokens[0];
+	if (firstToken.widthInEm !== undefined) {
+		return tokens;
+	}
 	if (!firstToken.containsRTL) {
 		return tokens;
 	}
@@ -672,8 +683,8 @@ function splitLeadingWhitespaceFromRTL(lineContent: string, tokens: LinePart[]):
 
 	// Split the first token into leading whitespace and the rest
 	const result: LinePart[] = [];
-	result.push(new LinePart(firstNonWhitespaceIndex, firstToken.type, firstToken.metadata, false, firstToken.fixedWidth));
-	result.push(new LinePart(firstTokenEndIndex, firstToken.type, firstToken.metadata, firstToken.containsRTL, firstToken.fixedWidth));
+	result.push(new LinePart(firstNonWhitespaceIndex, firstToken.type, firstToken.metadata, false));
+	result.push(new LinePart(firstTokenEndIndex, firstToken.type, firstToken.metadata, firstToken.containsRTL));
 
 	// Add remaining tokens
 	for (let i = 1; i < tokens.length; i++) {
@@ -944,12 +955,12 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: LineP
 			if (lineDecoration.endOffset + 1 <= tokenEndIndex) {
 				// This line decoration ends before this token ends
 				lastResultEndIndex = lineDecoration.endOffset + 1;
-				result[resultLen++] = new LinePart(lastResultEndIndex, combineClassNames(tokenType, lineDecoration.className), tokenMetadata | lineDecoration.metadata, tokenContainsRTL, lineDecoration.fixedWidth);
+				result[resultLen++] = new LinePart(lastResultEndIndex, tokenType + ' ' + lineDecoration.className, tokenMetadata | lineDecoration.metadata, tokenContainsRTL);
 				lineDecorationIndex++;
 			} else {
 				// This line decoration continues on to the next token
 				lastResultEndIndex = tokenEndIndex;
-				result[resultLen++] = new LinePart(lastResultEndIndex, combineClassNames(tokenType, lineDecoration.className), tokenMetadata | lineDecoration.metadata, tokenContainsRTL, lineDecoration.fixedWidth);
+				result[resultLen++] = new LinePart(lastResultEndIndex, tokenType + ' ' + lineDecoration.className, tokenMetadata | lineDecoration.metadata, tokenContainsRTL);
 				break;
 			}
 		}
@@ -964,57 +975,53 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: LineP
 	if (lineDecorationIndex < lineDecorationsLen && lineDecorations[lineDecorationIndex].startOffset === lastTokenEndIndex) {
 		while (lineDecorationIndex < lineDecorationsLen && lineDecorations[lineDecorationIndex].startOffset === lastTokenEndIndex) {
 			const lineDecoration = lineDecorations[lineDecorationIndex];
-			result[resultLen++] = new LinePart(lastResultEndIndex, lineDecoration.className, lineDecoration.metadata, false, lineDecoration.fixedWidth);
+			result[resultLen++] = new LinePart(lastResultEndIndex, lineDecoration.className, lineDecoration.metadata, false);
 			lineDecorationIndex++;
 		}
 	}
 
-	return coalesceFixedWidthLineParts(lineContent, result);
+	return result;
 }
 
-function combineClassNames(first: string, second: string): string {
-	if (!first) {
-		return second;
+// Fixed-width injected text replaces all line parts in its projected range with one atomic part.
+function createAtomicInjectedTextParts(parts: LinePart[], injectedTextLineParts: readonly InjectedTextLinePart[]): LinePart[] {
+	if (injectedTextLineParts.length === 0) {
+		return parts;
 	}
-	if (!second) {
-		return first;
-	}
-	return first + ' ' + second;
-}
 
-function coalesceFixedWidthLineParts(lineContent: string, parts: LinePart[]): LinePart[] {
 	const result: LinePart[] = [];
-	let partStartIndex = 0;
+	let partIndex = 0;
+	const renderedEndIndex = parts[parts.length - 1]?.endIndex ?? 0;
 
-	for (let partIndex = 0; partIndex < parts.length; partIndex++) {
-		const part = parts[partIndex];
-		const fixedWidth = part.fixedWidth;
-		if (!fixedWidth) {
-			result.push(part);
-			partStartIndex = part.endIndex;
+	for (const injectedTextPart of injectedTextLineParts) {
+		const injectedTextStartIndex = injectedTextPart.startColumn - 1;
+		const injectedTextEndIndex = Math.min(injectedTextPart.endColumn - 1, renderedEndIndex);
+		if (injectedTextStartIndex >= injectedTextEndIndex) {
 			continue;
 		}
 
-		let endIndex = part.endIndex;
-		let metadata = part.metadata;
-		let containsRTL = part.containsRTL;
-		while (partIndex + 1 < parts.length && parts[partIndex + 1].fixedWidth === fixedWidth) {
-			const nextPart = parts[++partIndex];
-			endIndex = nextPart.endIndex;
-			metadata |= nextPart.metadata;
-			containsRTL ||= nextPart.containsRTL;
+		while (partIndex < parts.length && parts[partIndex].endIndex <= injectedTextStartIndex) {
+			result.push(parts[partIndex++]);
 		}
 
-		for (let charIndex = partStartIndex; charIndex < endIndex; charIndex++) {
-			const charCode = lineContent.charCodeAt(charIndex);
-			if (charCode !== CharCode.Space && charCode !== CharCode.Tab) {
-				metadata &= ~LinePartMetadata.IS_WHITESPACE_MASK;
-				break;
-			}
+		const firstPart = parts[partIndex];
+		if (!firstPart) {
+			break;
 		}
 
-		result.push(new LinePart(endIndex, part.type, metadata, containsRTL, fixedWidth));
-		partStartIndex = endIndex;
+		let containsRTL = false;
+		while (partIndex < parts.length && parts[partIndex].endIndex <= injectedTextEndIndex) {
+			const part = parts[partIndex];
+			containsRTL ||= part.containsRTL;
+			partIndex++;
+		}
+
+		const type = injectedTextPart.inlineClassName ? firstPart.type + ' ' + injectedTextPart.inlineClassName : firstPart.type;
+		result.push(new LinePart(injectedTextEndIndex, type, 0, containsRTL, injectedTextPart.widthInEm));
+	}
+
+	while (partIndex < parts.length) {
+		result.push(parts[partIndex++]);
 	}
 
 	return result;
@@ -1059,7 +1066,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 		const partEndIndex = part.endIndex;
 		const partType = part.type;
 		const partContainsRTL = part.containsRTL;
-		const partWidthInEm = part.fixedWidth?.widthInEm;
+		const partWidthInEm = part.widthInEm;
 		const partRendersWhitespace = (renderWhitespace !== RenderWhitespace.None && part.isWhitespace());
 		const partRendersWhitespaceWithWidth = partRendersWhitespace && !fontIsMonospace && (partType === 'mtkw'/*only whitespace*/ || !containsForeignElements);
 		const partIsEmptyAndHasPseudoAfter = (charIndex === partEndIndex && part.isPseudoAfter());

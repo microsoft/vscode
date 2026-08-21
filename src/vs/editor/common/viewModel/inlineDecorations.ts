@@ -8,6 +8,7 @@ import { Range } from '../core/range.js';
 import { Position } from '../core/position.js';
 import { ICoordinatesConverter } from '../coordinatesConverter.js';
 import { isModelDecorationVisible, ViewModelDecoration } from './viewModelDecoration.js';
+import { InjectedTextLinePart } from './injectedTextLinePart.js';
 
 export const enum InlineDecorationType {
 	Regular = 0,
@@ -16,17 +17,17 @@ export const enum InlineDecorationType {
 	RegularAffectingLetterSpacing = 3
 }
 
-export interface InlineDecorationFixedWidth {
-	readonly widthInEm: number;
-}
-
 export class InlineDecoration {
 	constructor(
 		public readonly range: Range,
 		public readonly inlineClassName: string,
-		public readonly type: InlineDecorationType,
-		public readonly fixedWidth: InlineDecorationFixedWidth | undefined = undefined
+		public readonly type: InlineDecorationType
 	) { }
+}
+
+export interface IInjectedTextRenderingData {
+	readonly inlineDecorations: InlineDecoration[][];
+	readonly injectedTextLineParts: InjectedTextLinePart[][];
 }
 
 /**
@@ -216,11 +217,16 @@ export class InjectedTextInlineDecorationsComputer implements IInlineDecorations
 	constructor(private readonly context: IInjectedTextInlineDecorationsComputerContext) { }
 
 	public getInlineDecorations(modelLineNumber: number): InlineDecoration[][] {
+		return this.getDecorations(modelLineNumber).inlineDecorations;
+	}
+
+	public getDecorations(modelLineNumber: number): IInjectedTextRenderingData {
 		const injectionOffsets = this.context.getInjectionOffsets(modelLineNumber);
 		if (!injectionOffsets) {
-			return [];
+			return { inlineDecorations: [], injectedTextLineParts: [] };
 		}
 		const lineInlineDecorations = [];
+		const injectedTextLineParts: InjectedTextLinePart[][] = [];
 		let totalInjectedTextLengthBefore = 0;
 		let currentInjectedOffset = 0;
 
@@ -230,6 +236,8 @@ export class InjectedTextInlineDecorationsComputer implements IInlineDecorations
 		for (let outputLineIndex = 0; outputLineIndex < breakOffsets.length; outputLineIndex++) {
 			const inlineDecorations = new Array<InlineDecoration>();
 			lineInlineDecorations[outputLineIndex] = inlineDecorations;
+			const outputLineParts = new Array<InjectedTextLinePart>();
+			injectedTextLineParts[outputLineIndex] = outputLineParts;
 
 			const lineStartOffsetInInputWithInjections = outputLineIndex > 0 ? breakOffsets[outputLineIndex - 1] : 0;
 			const lineEndOffsetInInputWithInjections = breakOffsets[outputLineIndex];
@@ -254,10 +262,13 @@ export class InjectedTextInlineDecorationsComputer implements IInlineDecorations
 						const end = offset + Math.min(injectedTextEndOffsetInInputWithInjections - lineStartOffsetInInputWithInjections, lineEndOffsetInInputWithInjections - lineStartOffsetInInputWithInjections);
 						if (start !== end) {
 							const viewLineNumber = this.context.getBaseViewLineNumber(modelLineNumber) + outputLineIndex;
-							const range = new Range(viewLineNumber, start + 1, viewLineNumber, end + 1);
-							const type: InlineDecorationType = options.inlineClassNameAffectsLetterSpacing || options.widthInEm !== undefined ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular;
-							const fixedWidth = options.widthInEm === undefined ? undefined : { widthInEm: options.widthInEm };
-							inlineDecorations.push(new InlineDecoration(range, options.inlineClassName ?? '', type, fixedWidth));
+							if (options.widthInEm !== undefined) {
+								outputLineParts.push(new InjectedTextLinePart(start + 1, end + 1, options.inlineClassName ?? '', options.widthInEm));
+							} else if (options.inlineClassName) {
+								const range = new Range(viewLineNumber, start + 1, viewLineNumber, end + 1);
+								const type: InlineDecorationType = options.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular;
+								inlineDecorations.push(new InlineDecoration(range, options.inlineClassName, type));
+							}
 						}
 					}
 				}
@@ -270,6 +281,6 @@ export class InjectedTextInlineDecorationsComputer implements IInlineDecorations
 				}
 			}
 		}
-		return lineInlineDecorations;
+		return { inlineDecorations: lineInlineDecorations, injectedTextLineParts };
 	}
 }

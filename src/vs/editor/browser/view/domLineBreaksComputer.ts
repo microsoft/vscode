@@ -12,7 +12,7 @@ import { WrappingIndent } from '../../common/config/editorOptions.js';
 import { StringBuilder } from '../../common/core/stringBuilder.js';
 import { InjectedTextOptions } from '../../common/model.js';
 import { ILineBreaksComputer, ILineBreaksComputerContext, ILineBreaksComputerFactory, ModelLineProjectionData } from '../../common/modelLineProjectionData.js';
-import { LineInjectedText, LineInjectedTextFixedWidth } from '../../common/textModelEvents.js';
+import { LineInjectedText, LineInjectedTextWidth } from '../../common/textModelEvents.js';
 import { FontInfo } from '../../common/config/fontInfo.js';
 
 const ttPolicy = createTrustedTypesPolicy('domLineBreaksComputer', { createHTML: value => value });
@@ -84,7 +84,7 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 		const lineNumber = lineNumbers[i];
 		const injectedTexts = context.getLineInjectedText(lineNumber);
 		const lineContent = LineInjectedText.applyInjectedText(context.getLineContent(lineNumber), injectedTexts);
-		const fixedWidthRanges = LineInjectedText.getFixedWidthRanges(injectedTexts);
+		const fixedWidthRanges = LineInjectedText.getInjectedTextWidthsInEm(injectedTexts);
 
 		let firstNonWhitespaceIndex = 0;
 		let wrappedTextIndentLength = 0;
@@ -318,7 +318,7 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 	return [charOffsets, visibleColumns, null];
 }
 
-function renderLineWithFixedWidths(lineContent: string, initialVisibleColumn: number, tabSize: number, width: number, sb: StringBuilder, wrappingIndentLength: number, fixedWidthRanges: readonly LineInjectedTextFixedWidth[], columnsPerEm: number): [number[], number[], number[]] {
+function renderLineWithFixedWidths(lineContent: string, initialVisibleColumn: number, tabSize: number, width: number, sb: StringBuilder, wrappingIndentLength: number, fixedWidthRanges: readonly LineInjectedTextWidth[], columnsPerEm: number): [number[], number[], number[]] {
 	if (wrappingIndentLength !== 0) {
 		const hangingOffset = String(wrappingIndentLength);
 		sb.appendString('<div style="text-indent: -');
