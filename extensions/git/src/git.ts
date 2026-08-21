@@ -1031,6 +1031,14 @@ export function parseLsFiles(raw: string): LsFilesElement[] {
 		.map(([, mode, object, stage, file]) => ({ mode, object, stage, file }));
 }
 
+export function parseGitWorktreePath(gitdirPath: string, gitdirContent: string): string {
+	const worktreeGitPath = path.isAbsolute(gitdirContent)
+		? gitdirContent
+		: path.resolve(path.dirname(gitdirPath), gitdirContent);
+
+	return worktreeGitPath.replace(/[\\/]\.git(?:[\\/].*)?$/, '');
+}
+
 const stashRegex = /([0-9a-f]{40})\n(.*)\nstash@{(\d+)}\n(WIP\s)?on\s([^:]+):\s(.*)\n(\d+)\n(\d+)(?:\x00)/gmi;
 
 function parseGitStashes(raw: string): Stash[] {
@@ -3062,8 +3070,7 @@ export class Repository {
 
 					result.push({
 						name: dirent.name,
-						// Remove '/.git' suffix
-						path: gitdirContent.replace(/\/.git.*$/, ''),
+						path: parseGitWorktreePath(gitdirPath, gitdirContent),
 						// Remove 'ref: ' prefix
 						ref: headContent.replace(/^ref: /, ''),
 						// Detached if HEAD does not start with 'ref: '
