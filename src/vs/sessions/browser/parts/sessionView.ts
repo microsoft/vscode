@@ -22,6 +22,7 @@ import { autorun, observableValue } from '../../../base/common/observable.js';
 import { SessionIsMaximizedContext } from '../../common/contextkeys.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
 import { setActiveSessionContextKeys } from '../../services/sessions/common/sessionContextKeys.js';
+import { ISessionChangesStatsCache } from '../../services/sessions/common/sessionChangesStatsCache.js';
 import { applySessionViewThemeColors } from './sessionBarStyles.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
 
@@ -89,6 +90,7 @@ export class SessionView extends Disposable implements ISerializableView {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService private readonly themeService: IThemeService,
+		@ISessionChangesStatsCache private readonly _changesStatsCache: ISessionChangesStatsCache,
 	) {
 		super();
 
@@ -193,7 +195,7 @@ export class SessionView extends Disposable implements ISerializableView {
 		// scoped service whenever the session's observable properties change.
 		// Passing `undefined` resets the keys to their defaults.
 		return autorun(reader => {
-			setActiveSessionContextKeys(session, this._scopedContextKeyService, reader);
+			setActiveSessionContextKeys(session, this._scopedContextKeyService, reader, this._changesStatsCache);
 		});
 	}
 

@@ -27,10 +27,11 @@ import { DiffEditorWidget } from '../../../../editor/browser/widget/diffEditor/d
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';
 import { ChatPillActionViewItem } from '../../../../workbench/browser/chatPills.js';
-import { IsQuickChatSessionContext, SessionHasChangesContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { IsQuickChatSessionContext, SessionHasCachedChangesContext, SessionHasChangesContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { SessionChangesetOperationScope } from '../../../services/sessions/common/session.js';
+import { ISessionChangesStatsCache, readSessionChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { IChangesViewService } from '../common/changesViewService.js';
 import { ChangesMultiDiffSourceResolver, SessionChangesReviewedFilesContext } from './changesMultiDiffSourceResolver.js';
@@ -49,13 +50,14 @@ class ViewAllChangesAction extends Action2 {
 			title: localize2('agentSessions.changes', 'Changes'),
 			icon: Codicon.diffMultiple,
 			f1: false,
-			// Metadata pill rendered with live +/- counts.
+			// Metadata pill rendered with live +/- counts, or the counts last shown
+			// for the session while it has not reported its changes yet.
 			menu: {
 				id: Menus.SessionHeaderMeta,
 				group: 'navigation',
 				order: 0,
 				when: ContextKeyExpr.and(
-					SessionHasChangesContext,
+					ContextKeyExpr.or(SessionHasChangesContext, SessionHasCachedChangesContext),
 					ContextKeyExpr.or(IsQuickChatSessionContext.negate(), SinglePaneLayoutEnabledContext)
 				)
 			},
@@ -240,6 +242,10 @@ interface IDiffStats {
  * session's {@link ISession.changesSummary} when available, falling back to aggregating the
  * changeset the provider marks as {@link ISessionChangeset.isDefault} (or the session's
  * top-level {@link IActiveSession.changes} when none is default).
+ *
+ * A session reports its changes late, so until it reports any the counts last shown for it
+ * are taken from the {@link ISessionChangesStatsCache} — the pill is then already there,
+ * with plausible counts, the moment the session opens.
  */
 export class ViewAllChangesActionViewItem extends ChatPillActionViewItem {
 
@@ -249,6 +255,7 @@ export class ViewAllChangesActionViewItem extends ChatPillActionViewItem {
 		action: MenuItemAction,
 		options: IActionViewItemOptions,
 		@ISessionContext sessionContext: ISessionContext,
+		@ISessionChangesStatsCache changesStatsCache: ISessionChangesStatsCache,
 	) {
 		super(undefined, action, options);
 
@@ -257,33 +264,15 @@ export class ViewAllChangesActionViewItem extends ChatPillActionViewItem {
 			const workspace = session?.workspace.read(reader);
 			const branch = workspace?.folders[0]?.gitRepository?.branchName?.trim();
 
-			// Prefer the provider-supplied changes summary which reflects the
-			// session's authoritative aggregate. Fall back to aggregating the
-			// default changeset's changes when no summary is available.
-			const changesSummary = session?.changesSummary?.read(reader);
-			if (changesSummary) {
-				return {
-					branch,
-					files: changesSummary.files,
-					insertions: changesSummary.additions,
-					deletions: changesSummary.deletions,
-				} satisfies IDiffStats;
-			}
-
-			const defaultChangeset = session?.changesets.read(reader)?.find(c => c.isDefault.read(reader));
-			const changes = (defaultChangeset?.changes.read(reader) ?? session?.changes.read(reader)) ?? [];
-
-			let insertions = 0, deletions = 0;
-			for (const change of changes) {
-				insertions += change.insertions;
-				deletions += change.deletions;
-			}
+			const stats = session
+				? readSessionChangesStats(session, reader) ?? changesStatsCache.get(session.sessionId, reader)
+				: undefined;
 
 			return {
 				branch,
-				files: changes.length,
-				insertions,
-				deletions,
+				files: stats?.files ?? 0,
+				insertions: stats?.insertions ?? 0,
+				deletions: stats?.deletions ?? 0,
 			} satisfies IDiffStats;
 		});
 
@@ -348,6 +337,39 @@ class ViewAllChangesActionViewItemContribution extends Disposable implements IWo
 			return instantiationService.createInstance(ViewAllChangesActionViewItem, action, options);
 		}, onDidRegister.event));
 		onDidRegister.fire();
+	}
+}
+
+/**
+ * Remembers the changes pill shown for each visible session so it can be rendered
+ * optimistically the next time that session is opened, before the provider has
+ * reported its changes. Recording sessions as they are shown (rather than from the
+ * pill itself) also keeps the cache honest: a session that ends up without changes
+ * drops its entry instead of keeping a stale pill.
+ */
+class SessionChangesStatsCacheContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.sessions.changesStatsCache';
+
+	constructor(
+		@ISessionsService sessionsService: ISessionsService,
+		@ISessionChangesStatsCache changesStatsCache: ISessionChangesStatsCache,
+	) {
+		super();
+
+		this._register(autorun(reader => {
+			for (const session of sessionsService.visibleSessions.read(reader)) {
+				// While the worktree is pending the reported changes belong to the
+				// checkout the session was started from, not to the session.
+				if (!session || session.worktreePending?.read(reader)) {
+					continue;
+				}
+				const stats = readSessionChangesStats(session, reader);
+				if (stats) {
+					changesStatsCache.set(session.sessionId, stats);
+				}
+			}
+		}));
 	}
 }
 
@@ -469,3 +491,4 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 registerWorkbenchContribution2(ChangesMultiDiffSourceResolverContribution.ID, ChangesMultiDiffSourceResolverContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChangesetOperationsActionControllerContribution.ID, ChangesetOperationsActionControllerContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ViewAllChangesActionViewItemContribution.ID, ViewAllChangesActionViewItemContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(SessionChangesStatsCacheContribution.ID, SessionChangesStatsCacheContribution, WorkbenchPhase.AfterRestored);
