@@ -293,6 +293,7 @@ export function collectBuildOverrides(
 	queuedSdk = (process.env['VSCODE_SDK_CANARY_VERSION'] ?? '').trim(),
 	queuedCli = (process.env['VSCODE_CLI_CANARY_VERSION'] ?? '').trim(),
 	versionResolver: (packageName: string, sourceCommit: string) => string = resolveSourcePackageVersion,
+	addBuildTag: (tag: string) => void = tag => console.log(`##vso[build.addbuildtag]${tag}`),
 ): Override[] {
 	if (queuedSdk || queuedCli) {
 		throw new Error('[build-override] package.json buildOverrides cannot be combined with VSCODE_SDK_CANARY_VERSION or VSCODE_CLI_CANARY_VERSION.');
@@ -317,8 +318,8 @@ export function collectBuildOverrides(
 		assertVscodeSourceMetadata(packageName, version, metadataReader(packageName, version), expected);
 		resolvedVersions.set(packageName, version);
 	}
-	console.log(`##vso[build.addbuildtag]copilot-sdk-build-override=${resolvedVersions.get(SDK_NPM_NAME)}`);
-	console.log(`##vso[build.addbuildtag]copilot-runtime-build-override=${resolvedVersions.get(RUNTIME_NPM_NAME)}`);
+	addBuildTag(`copilot-sdk-build-override=${resolvedVersions.get(SDK_NPM_NAME)}`);
+	addBuildTag(`copilot-runtime-build-override=${resolvedVersions.get(RUNTIME_NPM_NAME)}`);
 	return [
 		{ name: SDK_NPM_NAME, version: resolvedVersions.get(SDK_NPM_NAME)! },
 		{ name: RUNTIME_NPM_NAME, version: resolvedVersions.get(RUNTIME_NPM_NAME)! },

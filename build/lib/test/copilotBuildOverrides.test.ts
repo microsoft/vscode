@@ -53,6 +53,7 @@ suite('Copilot build overrides', () => {
 			'',
 			'',
 			packageName => packageName === SDK_NPM_NAME ? sdkVersion : runtimeVersion,
+			() => undefined,
 		), [
 			{ name: SDK_NPM_NAME, version: sdkVersion },
 			{ name: RUNTIME_NPM_NAME, version: runtimeVersion },
