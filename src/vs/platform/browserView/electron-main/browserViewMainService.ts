@@ -177,6 +177,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return this._getBrowserView(id).onDidChangeFavicon;
 	}
 
+	onDynamicDidChangeOwner(id: string) {
+		return this._getBrowserView(id).onDidChangeOwner;
+	}
+
 	onDynamicDidFindInPage(id: string) {
 		return this._getBrowserView(id).onDidFindInPage;
 	}
@@ -235,6 +239,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 	async destroyBrowserView(id: string): Promise<void> {
 		return this.browserViews.deleteAndDispose(id);
+	}
+
+	async setOwner(id: string, owner: IBrowserViewOwner): Promise<void> {
+		this._getBrowserView(id).setOwner(owner);
 	}
 
 	async layout(id: string, bounds: IBrowserViewBounds): Promise<void> {
@@ -440,10 +448,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			associatedResource,
 			browserSession,
 			// Child views share their host, owner, and storage, but do not implicitly inherit agent access.
-			(url, electronOptions, editorOptions) => {
+			(childOwner, url, electronOptions, editorOptions) => {
 				return this._createBrowserView(generateUuid(), {
 					hostWindowId,
-					owner,
+					owner: childOwner,
 					session: browserSession.id,
 					initialUrl: url || undefined
 				}, editorOptions, electronOptions);
