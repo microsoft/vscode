@@ -423,7 +423,6 @@ suite('ChatPetWidget', () => {
 	});
 
 	test('opens achievements when activated during the unlock state', () => {
-		const clock = sinon.useFakeTimers();
 		const parent = mainWindow.document.createElement('div');
 		const dragBounds = mainWindow.document.createElement('div');
 		const movementBounds = mainWindow.document.createElement('div');
@@ -459,7 +458,6 @@ suite('ChatPetWidget', () => {
 			parent.remove();
 			dragBounds.remove();
 			movementBounds.remove();
-			clock.restore();
 		}));
 
 		service.toggle();
