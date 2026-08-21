@@ -19,17 +19,20 @@ use zip::{self, ZipArchive};
 /// Returns whether all files in the archive start with the same path segment.
 /// If so, it's an indication we should skip that segment when extracting.
 fn should_skip_first_segment(archive: &mut ZipArchive<File>) -> bool {
-	let first_name = {
-		let file = archive
-			.by_index_raw(0)
-			.expect("expected not to have an empty archive");
+	if archive.len() < 2 {
+		return false;
+	}
 
-		let path = file
-			.enclosed_name()
-			.expect("expected to have path")
-			.iter()
-			.next()
-			.expect("expected to have non-empty name");
+	let first_name = {
+		let file = match archive.by_index_raw(0) {
+			Ok(f) => f,
+			Err(_) => return false,
+		};
+
+		let path = match file.enclosed_name().and_then(|n| n.iter().next()) {
+			Some(p) => p,
+			None => return false,
+		};
 
 		path.to_owned()
 	};

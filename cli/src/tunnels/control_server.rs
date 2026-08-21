@@ -1538,7 +1538,12 @@ async fn do_challenge_response_flow(
 	let challenge: ChallengeIssueResponse = caller
 		.call(METHOD_CHALLENGE_ISSUE, EmptyObject {})
 		.await
-		.unwrap()
+		.map_err(|e| {
+			CodeError::ProcessSpawnHandshakeFailed(std::io::Error::new(
+				std::io::ErrorKind::BrokenPipe,
+				e,
+			))
+		})?
 		.map_err(CodeError::TunnelRpcCallFailed)?;
 
 	let _: EmptyObject = caller
@@ -1549,7 +1554,12 @@ async fn do_challenge_response_flow(
 			},
 		)
 		.await
-		.unwrap()
+		.map_err(|e| {
+			CodeError::ProcessSpawnHandshakeFailed(std::io::Error::new(
+				std::io::ErrorKind::BrokenPipe,
+				e,
+			))
+		})?
 		.map_err(CodeError::TunnelRpcCallFailed)?;
 
 	shutdown.open(());
