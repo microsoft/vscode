@@ -56,8 +56,8 @@
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.editor > .content .editor-group-container > .title:not(.tabs) > .label-container > .tabs-bar-add-tab .action-label:not(.separator) {
-	width: 22px;
-	height: 22px;
+	width: var(--vscode-codiconFontSize);
+	height: var(--vscode-codiconFontSize);
 	margin: 0 var(--vscode-spacing-size40);
 	display: flex;
 	align-items: center;
