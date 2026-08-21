@@ -24,7 +24,9 @@ import { IFilesConfigurationService } from '../../../../services/filesConfigurat
 import { IAiEditTelemetryService } from '../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ChatUserAction, IChatService } from '../../common/chatService/chatService.js';
+import { isAgentHostTarget } from '../../common/chatSessionsService.js';
 import { ChatEditKind, IModifiedEntryTelemetryInfo, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ISnapshotEntry, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IChatResponseModel } from '../../common/model/chatModel.js';
 
 class AutoAcceptControl {
@@ -273,6 +275,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 	}
 
 	protected _notifyAction(action: ChatUserAction) {
+		const isAgentHostSession = isAgentHostTarget(getChatSessionType(this._telemetryInfo.sessionResource));
 		if (action.kind === 'chatEditingHunkAction' && action.outcome === 'accepted') {
 			this._aiEditTelemetryService.handleCodeAccepted({
 				suggestionId: undefined, // TODO@hediet try to figure this out
@@ -291,6 +294,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 				languageId: action.languageId,
 				source: undefined,
 				sourceRequestId: this._telemetryInfo.requestId,
+				isAgentHostSession,
 			});
 		} else if (action.kind === 'chatEditingHunkAction' && action.outcome === 'rejected') {
 			this._aiEditTelemetryService.handleCodeRejected({
@@ -310,6 +314,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 				languageId: action.languageId,
 				source: undefined,
 				sourceRequestId: this._telemetryInfo.requestId,
+				isAgentHostSession,
 			});
 		}
 
