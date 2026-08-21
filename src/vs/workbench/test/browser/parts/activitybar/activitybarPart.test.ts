@@ -16,6 +16,7 @@ import { LayoutSettings, Parts, Position } from '../../../../services/layout/bro
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { IPaneCompositePart } from '../../../../browser/parts/paneCompositePart.js';
+import { IPaneCompositeBarOptions } from '../../../../browser/parts/paneCompositeBar.js';
 import { Event, Emitter } from '../../../../../base/common/event.js';
 import { IPaneComposite } from '../../../../common/panecomposite.js';
 import { Extensions, PaneCompositeDescriptor } from '../../../../browser/panecomposite.js';
@@ -74,7 +75,7 @@ suite('ActivitybarPart', () => {
 		disposables.clear();
 	});
 
-	function createActivitybarPart(compact: boolean, floatingPanelsEnabled = false, sideBarPosition = Position.LEFT, colors: { [id: string]: string | undefined } = {}): { part: ActivitybarPart; configService: TestConfigurationService; layoutService: TestFloatingPanelsLayoutService; hostService: TestHostService } {
+	function createActivitybarPart(compact: boolean, floatingPanelsEnabled = false, sideBarPosition = Position.LEFT, colors: { [id: string]: string | undefined } = {}, instantiationService?: IInstantiationService): { part: ActivitybarPart; configService: TestConfigurationService; layoutService: TestFloatingPanelsLayoutService; hostService: TestHostService } {
 		const configService = new TestConfigurationService({
 			[LayoutSettings.ACTIVITY_BAR_COMPACT]: compact,
 			[LayoutSettings.MODERN_UI]: floatingPanelsEnabled,
@@ -92,7 +93,7 @@ suite('ActivitybarPart', () => {
 
 		// Stub instantiation service—createCompositeBar is only called in show(),
 		// which we skip in unit tests focused on dimensions / style behaviour.
-		const stubInstantiationService = { createInstance: () => { throw new Error('not expected'); } } as unknown as IInstantiationService;
+		const stubInstantiationService = instantiationService ?? { createInstance: () => { throw new Error('not expected'); } } as unknown as IInstantiationService;
 
 		const part = disposables.add(new ActivitybarPart(
 			ViewContainerLocation.Sidebar,
@@ -295,6 +296,7 @@ suite('ActivitybarPart', () => {
 
 		assert.strictEqual(el.style.getPropertyValue('--activity-bar-width'), `${ActivitybarPart.ACTIVITYBAR_WIDTH}px`);
 		assert.strictEqual(el.style.getPropertyValue('--activity-bar-action-height'), `${ActivitybarPart.ACTION_HEIGHT}px`);
+		assert.strictEqual(el.style.getPropertyValue('--activity-bar-action-gap'), '0px');
 		assert.strictEqual(el.style.getPropertyValue('--activity-bar-icon-size'), `${ActivitybarPart.ICON_SIZE}px`);
 		assert.strictEqual(el.classList.contains('compact'), false);
 	});
@@ -308,6 +310,7 @@ suite('ActivitybarPart', () => {
 
 		assert.strictEqual(el.style.getPropertyValue('--activity-bar-width'), `${ActivitybarPart.COMPACT_ACTIVITYBAR_WIDTH}px`);
 		assert.strictEqual(el.style.getPropertyValue('--activity-bar-action-height'), `${ActivitybarPart.COMPACT_ACTION_HEIGHT}px`);
+		assert.strictEqual(el.style.getPropertyValue('--activity-bar-action-gap'), '0px');
 		assert.strictEqual(el.style.getPropertyValue('--activity-bar-icon-size'), `${ActivitybarPart.COMPACT_ICON_SIZE}px`);
 		assert.strictEqual(el.classList.contains('compact'), true);
 	});
@@ -321,6 +324,7 @@ suite('ActivitybarPart', () => {
 
 		assert.strictEqual(el.style.getPropertyValue('--activity-bar-width'), `${ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH}px`);
 		assert.strictEqual(el.style.getPropertyValue('--activity-bar-action-height'), `${ActivitybarPart.FLOATING_ACTION_HEIGHT}px`);
+		assert.strictEqual(el.style.getPropertyValue('--activity-bar-action-gap'), `${ActivitybarPart.FLOATING_ACTION_GAP}px`);
 		assert.strictEqual(el.style.getPropertyValue('--activity-bar-icon-size'), `${ActivitybarPart.ICON_SIZE}px`);
 		assert.strictEqual(el.classList.contains('compact'), false);
 	});
@@ -436,6 +440,53 @@ suite('ActivitybarPart', () => {
 			bothEdgesExposed: 300 - margin * 2 - margin * 2,
 			floatingPanelsDisabled: 300,
 		});
+	});
+
+	// --- composite bar item sizing -------------------------------------------
+
+	// The composite bar decides how many activity icons fit before collapsing the rest into
+	// the overflow ("Additional Views") menu, so the size it is handed has to match the
+	// vertical space an item actually occupies in the current mode.
+	function capturedCompositeBarOptions(compact: boolean, floatingPanelsEnabled: boolean): IPaneCompositeBarOptions {
+		let captured: IPaneCompositeBarOptions | undefined;
+		const stubCompositeBar = { create: () => { }, layout: () => { }, dispose: () => { } };
+		const { part } = createActivitybarPart(compact, floatingPanelsEnabled, Position.LEFT, {}, {
+			createInstance: (_descriptor: unknown, _location: unknown, options: IPaneCompositeBarOptions) => {
+				captured = options;
+				return stubCompositeBar;
+			}
+		} as unknown as IInstantiationService);
+
+		const el = document.createElement('div');
+		fixture.appendChild(el);
+		part.create(el);
+		part.show();
+
+		return captured!;
+	}
+
+	test('composite bar item size tracks the rendered item stride in every mode', () => {
+		const sizesFor = (compact: boolean, floatingPanelsEnabled: boolean) => {
+			const { compositeSize, overflowActionSize } = capturedCompositeBarOptions(compact, floatingPanelsEnabled);
+			return { compositeSize, overflowActionSize };
+		};
+
+		assert.deepStrictEqual(
+			{
+				classicDefault: sizesFor(false, false),
+				classicCompact: sizesFor(true, false),
+				modernDefault: sizesFor(false, true),
+				modernCompact: sizesFor(true, true),
+			},
+			{
+				// Items stack flush against each other, so the stride is just the action height.
+				classicDefault: { compositeSize: 48, overflowActionSize: 48 },
+				classicCompact: { compositeSize: 28, overflowActionSize: 28 },
+				// Modern UI separates items with an 8px gap, but only at the default size.
+				modernDefault: { compositeSize: 44, overflowActionSize: 44 },
+				modernCompact: { compositeSize: 28, overflowActionSize: 28 },
+			}
+		);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

@@ -57,7 +57,8 @@ export class ActivitybarPart extends Part {
 
 	/**
 	 * Vertical gap between activity bar items at the default size under the floating
-	 * panels experiment. Must match the margin applied in `floatingPanels.css`.
+	 * panels experiment. Published to CSS as `--activity-bar-action-gap` so that the
+	 * stylesheet and the overflow computation cannot drift apart.
 	 */
 	static readonly FLOATING_ACTION_GAP = 8;
 
@@ -100,15 +101,21 @@ export class ActivitybarPart extends Part {
 	}
 
 	/**
+	 * Vertical gap rendered between two adjacent items. Only the floating panels
+	 * experiment separates items, and only at the default size.
+	 */
+	private get actionGap(): number {
+		return this.layoutService.isFloatingPanelsEnabled() && !this._isCompact ? ActivitybarPart.FLOATING_ACTION_GAP : 0;
+	}
+
+	/**
 	 * The vertical space a single item occupies in the bar (its height plus the gap that
 	 * separates it from the next one). This drives the overflow computation, so it has to
 	 * track the current activity bar size, otherwise items collapse into the overflow menu
 	 * prematurely.
 	 */
 	private get compositeSize(): number {
-		const gap = this.layoutService.isFloatingPanelsEnabled() && !this._isCompact ? ActivitybarPart.FLOATING_ACTION_GAP : 0;
-
-		return this.actionHeight + gap;
+		return this.actionHeight + this.actionGap;
 	}
 
 	private get floatingHorizontalGutter(): number {
@@ -182,6 +189,7 @@ export class ActivitybarPart extends Part {
 			this.layoutService.mainContainer.classList.toggle('activitybar-compact', this._isCompact);
 			this.element.style.setProperty('--activity-bar-width', `${this.baseWidth}px`);
 			this.element.style.setProperty('--activity-bar-action-height', `${this.actionHeight}px`);
+			this.element.style.setProperty('--activity-bar-action-gap', `${this.actionGap}px`);
 			this.element.style.setProperty('--activity-bar-icon-size', `${this._isCompact ? ActivitybarPart.COMPACT_ICON_SIZE : ActivitybarPart.ICON_SIZE}px`);
 		}
 	}
@@ -520,7 +528,7 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 		}
 		if (this.globalCompositeBar) {
 			if (this.options.orientation === ActionsOrientation.VERTICAL) {
-				height -= (this.globalCompositeBar.size() * this.options.overflowActionSize);
+				height -= this.globalCompositeBar.element.clientHeight;
 			} else {
 				width -= this.globalCompositeBar.element.clientWidth;
 			}
