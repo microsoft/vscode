@@ -1347,13 +1347,6 @@ export class ClaudeAgentSession extends Disposable {
 	}
 
 	/**
-	 * Resolve a parked client-tool MCP handler with the workbench-supplied
-	 * result. Returns `true` if a matching deferred was found and settled.
-	 * Unknown ids are a benign no-op — `agentSideEffects.ts` forwards every
-	 * `ChatToolCallComplete` envelope, so SDK-owned tool completions land
-	 * here too and must NOT throw.
-	 */
-	/**
 	 * Park the SDK's client-tool invocation until the workbench echoes its
 	 * result. `registerAndFire` collects a buffered result without firing.
 	 */
@@ -1365,11 +1358,18 @@ export class ClaudeAgentSession extends Disposable {
 			chat: this._chatChannelUri,
 			toolCallId: toolUseId,
 			toolName,
-			toolInput: JSON.stringify(args ?? {}) ?? '{}',
+			toolInput: JSON.stringify(args ?? {}),
 			...(parentToolCallId !== undefined ? { parentToolCallId } : {}),
 		}));
 	}
 
+	/**
+	 * Resolve a parked client-tool MCP handler with the workbench-supplied
+	 * result. Returns `true` if a matching deferred was found and settled.
+	 * Unknown ids are a benign no-op — `agentSideEffects.ts` forwards every
+	 * `ChatToolCallComplete` envelope, so SDK-owned tool completions land
+	 * here too and must NOT throw.
+	 */
 	completeClientToolCall(toolCallId: string, result: ToolCallResult): boolean {
 		const converted = convertToolCallResult(result, toolCallId);
 		return this._pendingClientToolCalls.respond(toolCallId, converted);
