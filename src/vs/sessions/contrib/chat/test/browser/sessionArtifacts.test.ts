@@ -31,7 +31,7 @@ suite('Session Artifacts', () => {
 			{ id: 'resource', kind: SessionArtifactKind.Resource, label: 'Resource', uri: resourceUri },
 		];
 
-		const entries = buildSessionArtifactSections(artifacts, [{ uri: externalFileUri, operation: SessionFileOperation.Created }], actions).flatMap(section => section.entries);
+		const entries = buildSessionArtifactSections(artifacts, [{ uri: externalFileUri, operation: SessionFileOperation.Created }], actions, true).flatMap(section => section.entries);
 		assert.deepStrictEqual(entries.map(entry => {
 			const content = entry.hover?.content;
 			return {
@@ -65,7 +65,7 @@ suite('Session Artifacts', () => {
 
 		const sections = buildSessionArtifactSections(artifacts, [
 			{ uri: diagramUri, operation: SessionFileOperation.Created },
-		], imageActions);
+		], imageActions, true);
 		const imageSection = sections.find(section => section.title === 'Images');
 		assert.ok(imageSection);
 		imageSection.entries[1].open();
@@ -79,6 +79,32 @@ suite('Session Artifacts', () => {
 				{ title: 'Files', labels: ['report.md'] },
 			],
 			opened: [{ images: ['/artifacts/screenshot.png', '/external/diagram.jpg'], startIndex: 1 }],
+		});
+	});
+
+	test('opens the image resource when the image carousel is disabled', () => {
+		const screenshotUri = URI.file('/artifacts/screenshot.png');
+		const opened: string[] = [];
+		const imageActions: ISessionArtifactActions = {
+			...actions,
+			openImages: () => opened.push('carousel'),
+			openResource: uri => opened.push(uri.path),
+		};
+		const artifacts: readonly ISessionArtifact[] = [
+			{ id: 'screenshot', kind: SessionArtifactKind.File, label: 'Screenshot', uri: screenshotUri },
+		];
+
+		const sections = buildSessionArtifactSections(artifacts, [], imageActions, false);
+		const imageSection = sections.find(section => section.title === 'Images');
+		assert.ok(imageSection);
+		imageSection.entries[0].open();
+
+		assert.deepStrictEqual({
+			ariaLabel: imageSection.entries[0].ariaLabel,
+			opened,
+		}, {
+			ariaLabel: 'Open screenshot.png',
+			opened: ['/artifacts/screenshot.png'],
 		});
 	});
 });

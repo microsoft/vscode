@@ -17,9 +17,11 @@ import { toAction } from '../../../../base/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import type { IChatPillEntry, IChatPillSection } from '../../../../workbench/browser/chatPills.js';
 import { openChatTurnFile, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
+import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import type { IImageCarouselCollection } from '../../../../workbench/contrib/imageCarousel/browser/imageCarouselTypes.js';
 import { SessionArtifactKind, SessionFileOperation, type ISessionArtifact, type ISessionFile } from '../../../services/sessions/common/session.js';
 import type { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
@@ -126,7 +128,7 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions): 
  * the previewable files the session wrote outside its workspace, de-duplicated
  * with the agent's own entries winning.
  */
-export function buildSessionArtifactSections(artifacts: readonly ISessionArtifact[], externalFiles: readonly ISessionFile[], actions: ISessionArtifactActions): readonly IChatPillSection[] {
+export function buildSessionArtifactSections(artifacts: readonly ISessionArtifact[], externalFiles: readonly ISessionFile[], actions: ISessionArtifactActions, imageCarouselEnabled: boolean): readonly IChatPillSection[] {
 	const entriesByKind = new Map<SessionArtifactKind, IChatPillEntry[]>();
 	const images: ISessionArtifactImage[] = [];
 	const seen = new Set<string>();
@@ -178,8 +180,12 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 						label,
 						resource: uri,
 						...artifactLocation(uri, label),
-						ariaLabel: localize('sessionArtifacts.openImage', "Open {0} in Images Preview", label),
-						open: () => actions.openImages(images, index),
+						...(imageCarouselEnabled
+							? {
+								ariaLabel: localize('sessionArtifacts.openImage', "Open {0} in Images Preview", label),
+								open: () => actions.openImages(images, index),
+							}
+							: { open: () => actions.openResource(uri) }),
 					};
 				}),
 			});
@@ -206,6 +212,8 @@ export class SessionArtifacts extends Disposable {
 	) {
 		super();
 
+		const imageCarouselEnabled = observableConfigValue<boolean>(ChatConfiguration.ImageCarouselEnabled, true, this._configurationService);
+
 		this.sections = derived(this, reader => {
 			const current = session.read(reader);
 			if (!current) {
@@ -215,6 +223,7 @@ export class SessionArtifacts extends Disposable {
 				current.artifacts?.read(reader) ?? [],
 				this._readExternalFiles(current, reader),
 				this._actions(),
+				imageCarouselEnabled.read(reader),
 			);
 		});
 	}
