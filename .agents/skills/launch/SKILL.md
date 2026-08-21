@@ -81,11 +81,13 @@ Windows has no shared per-app keychain for these secrets, so they live in files 
 | Encrypted GitHub session blob | `<shared-data-dir>/sharedStorage/state.vscdb` |
 | DPAPI-wrapped decryption key (`os_crypt.encrypted_key`) | `<user-data-dir>/Local State` |
 
-The launcher therefore seeds **both**: it copies the source profile *and* copies the source shared-data-dir (`~/<product.sharedDataFolderName>`, i.e. `%USERPROFILE%\.vscode-oss-shared`) into the run's throwaway `shared-data` dir. Set `$env:CODE_OSS_DEV_AUTHED_SHARED_DATA_DIR` to seed from a different one. It also verifies `Local State`, `machineid`, and `Network` survived the profile copy, and warns on stderr if no shared-data-dir was found.
+The launcher therefore seeds **both**: it copies the source profile *and* copies the source shared-data-dir into the run's throwaway `shared-data` dir. The source resolves the same way `IEnvironmentService.appSharedDataHome` does - `$env:CODE_OSS_DEV_AUTHED_SHARED_DATA_DIR` if set, else `$env:VSCODE_PORTABLE\shared-data` when running portable, else `~/<product.sharedDataFolderName>` (i.e. `%USERPROFILE%\.vscode-oss-shared`). It also verifies `Local State`, `machineid`, and `Network` survived the profile copy, and warns on stderr if neither database holds a GitHub session.
 
-> This asymmetry is invisible on macOS/Linux, where the same token lands inside the profile. A Windows-only "always signed out" symptom is almost always a shared-data-dir problem, **not** a profile problem - so re-signing-in against the source profile does not fix it on its own.
+> This asymmetry is invisible on macOS/Linux, where the same token lands inside the profile. A Windows-only "always signed out" symptom is a shared-data-dir problem, **not** a profile problem: signing in against the source profile writes a perfectly good session, but before this seeding existed every launch handed Code OSS an empty shared dir and threw it away.
 
 To (re)establish the source session: run `.\scripts\code.bat --user-data-dir=$env:USERPROFILE\.vscode-oss-dev` directly, sign in once, and close it. That writes the blob to `%USERPROFILE%\.vscode-oss-shared` and the key to the profile's `Local State`; later launches copy both and inherit the session.
+
+> Profiles that predate the `APPLICATION_SHARED` migration can still hold the secret in `User/globalStorage/state.vscdb`. `ApplicationSharedStorageMain` registers application storage as a read fallback, so those profiles authenticate even with no shared-data-dir present - which is why a missing shared dir is reported as a fact rather than assumed fatal.
 
 Excluded (transient, regenerable, or known-not-needed):
 - `User/workspaceStorage/` - per-workspace state, **including stored chat sessions** (often multi-GB)

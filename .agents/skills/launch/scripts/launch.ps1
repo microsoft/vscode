@@ -81,7 +81,13 @@ function Get-SourceSharedDataDir([string]$repoPath) {
 		return $env:CODE_OSS_DEV_AUTHED_SHARED_DATA_DIR
 	}
 
-	# Mirrors IEnvironmentService.appSharedDataHome: ~/<product.sharedDataFolderName>
+	# Mirrors IEnvironmentService.appSharedDataHome, minus the --shared-data-dir
+	# branch (that one names the *destination*, not the source we copy from):
+	# VSCODE_PORTABLE\shared-data, else ~/<product.sharedDataFolderName>.
+	if ($env:VSCODE_PORTABLE) {
+		return Join-Path $env:VSCODE_PORTABLE 'shared-data'
+	}
+
 	$folderName = '.vscode-oss-shared'
 	$productJson = Join-Path $repoPath 'product.json'
 	if (Test-Path -LiteralPath $productJson -PathType Leaf) {
@@ -524,7 +530,11 @@ try {
 		Write-LaunchError "[launch.ps1] copying shared data: $sourceSharedDataDir -> $sharedDataDir"
 		Copy-ProfileDirectory $sourceSharedDataDir $sharedDataDir $false
 	} else {
-		Write-LaunchError "[launch.ps1] no shared-data-dir at $sourceSharedDataDir; the launched instance will prompt you to sign in"
+		# Not necessarily fatal: profiles predating the APPLICATION_SHARED migration
+		# still hold the secret in globalStorage, and ApplicationSharedStorageMain
+		# falls back to application storage. State the fact and let the preflight
+		# below decide whether a sign-in is actually coming.
+		Write-LaunchError "[launch.ps1] no shared-data-dir at $sourceSharedDataDir; nothing to seed"
 	}
 	$hasGitHubAuthenticationSecret = Test-SourceHasGitHubAuthenticationSecret $node $sourceUserDataDir $sourceSharedDataDir (Join-Path $runDir 'auth-preflight.vscdb')
 	if ($hasGitHubAuthenticationSecret -eq $false) {
