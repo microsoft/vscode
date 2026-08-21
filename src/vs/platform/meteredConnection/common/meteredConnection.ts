@@ -35,44 +35,7 @@ export interface IMeteredConnectionService {
 }
 
 export const METERED_CONNECTION_SETTING_KEY = 'network.meteredConnection';
-
 export type MeteredConnectionSettingValue = 'on' | 'off' | 'auto';
-
-/**
- * Network Information API
- * See https://developer.mozilla.org/en-US/docs/Web/API/Network_Information_API
- */
-export interface NetworkInformation {
-	saveData?: boolean;
-	metered?: boolean;
-	effectiveType?: 'slow-2g' | '2g' | '3g' | '4g';
-	addEventListener(type: 'change', listener: () => void): void;
-	removeEventListener(type: 'change', listener: () => void): void;
-}
-
-/**
- * Extended Navigator interface for Network Information API
- */
-export interface NavigatorWithConnection {
-	readonly connection?: NetworkInformation;
-}
-
-/**
- * Check if the current network connection is metered according to the Network Information API.
- */
-export function getIsBrowserConnectionMetered() {
-	const connection = (navigator as NavigatorWithConnection).connection;
-	if (!connection) {
-		return false;
-	}
-
-	if (connection.saveData || connection.metered) {
-		return true;
-	}
-
-	const effectiveType = connection.effectiveType;
-	return effectiveType === '2g' || effectiveType === 'slow-2g';
-}
 
 /**
  * Abstract base class for metered connection services.
@@ -84,15 +47,15 @@ export abstract class AbstractMeteredConnectionService extends Disposable implem
 	public readonly onDidChangeIsConnectionMetered = this._onDidChangeIsConnectionMetered.event;
 
 	private _isConnectionMetered: boolean;
-	private _isBrowserConnectionMetered: boolean;
+	private _isUnderlyingConnectionMetered: boolean;
 	private _meteredConnectionSetting: MeteredConnectionSettingValue;
 
-	constructor(configurationService: IConfigurationService, isBrowserConnectionMetered: boolean) {
+	constructor(configurationService: IConfigurationService, isUnderlyingConnectionMetered: boolean) {
 		super();
 
-		this._isBrowserConnectionMetered = isBrowserConnectionMetered;
+		this._isUnderlyingConnectionMetered = isUnderlyingConnectionMetered;
 		this._meteredConnectionSetting = configurationService.getValue<MeteredConnectionSettingValue>(METERED_CONNECTION_SETTING_KEY);
-		this._isConnectionMetered = this._meteredConnectionSetting === 'on' || (this._meteredConnectionSetting !== 'off' && this._isBrowserConnectionMetered);
+		this._isConnectionMetered = this._meteredConnectionSetting === 'on' || (this._meteredConnectionSetting !== 'off' && this._isUnderlyingConnectionMetered);
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(METERED_CONNECTION_SETTING_KEY)) {
@@ -109,23 +72,23 @@ export abstract class AbstractMeteredConnectionService extends Disposable implem
 		return this._isConnectionMetered;
 	}
 
-	protected get isBrowserConnectionMetered(): boolean {
-		return this._isBrowserConnectionMetered;
+	protected get isUnderlyingConnectionMetered(): boolean {
+		return this._isUnderlyingConnectionMetered;
 	}
 
-	public setIsBrowserConnectionMetered(value: boolean) {
-		if (value !== this._isBrowserConnectionMetered) {
-			this._isBrowserConnectionMetered = value;
-			this.onChangeBrowserConnection();
+	protected setIsUnderlyingConnectionMetered(value: boolean) {
+		if (value !== this._isUnderlyingConnectionMetered) {
+			this._isUnderlyingConnectionMetered = value;
+			this.onChangeUnderlyingConnection();
 		}
 	}
 
-	protected onChangeBrowserConnection() {
+	protected onChangeUnderlyingConnection() {
 		this.onUpdated();
 	}
 
 	protected onUpdated() {
-		const value = this._meteredConnectionSetting === 'on' || (this._meteredConnectionSetting !== 'off' && this._isBrowserConnectionMetered);
+		const value = this._meteredConnectionSetting === 'on' || (this._meteredConnectionSetting !== 'off' && this._isUnderlyingConnectionMetered);
 		if (value !== this._isConnectionMetered) {
 			this._isConnectionMetered = value;
 			this.onChangeIsConnectionMetered();

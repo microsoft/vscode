@@ -27,9 +27,6 @@ export class MeteredConnectionChannel implements IServerChannel {
 		switch (command) {
 			case MeteredConnectionCommand.IsConnectionMetered:
 				return this.service.isConnectionMetered;
-			case MeteredConnectionCommand.SetIsBrowserConnectionMetered:
-				this.service.setIsBrowserConnectionMetered(arg);
-				break;
 			default:
 				throw new Error(`Call not found: ${command}`);
 		}

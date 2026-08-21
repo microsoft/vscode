@@ -1212,7 +1212,7 @@ export class CodeApplication extends Disposable {
 		services.set(IGlobalKeybindingsMainService, new SyncDescriptor(GlobalKeybindingsMainService, [globalShortcut]));
 
 		// Metered Connection
-		const meteredConnectionService = new MeteredConnectionMainService(this.configurationService);
+		const meteredConnectionService = new MeteredConnectionMainService(undefined, this.configurationService, this.logService);
 		services.set(IMeteredConnectionService, meteredConnectionService);
 
 		// Web Contents Extractor
