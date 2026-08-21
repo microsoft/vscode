@@ -21,6 +21,8 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { type ILanguageModelChatMetadataAndIdentifier } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IChatPhoneInputPresenter } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
 import { getModelProviderIcon } from '../../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelProviderIcons.js';
+import { ChatPetAchievementIds, didExplicitlySwitchChatPetModel } from '../../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
+import { IChatPetService } from '../../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { Menus } from '../../../../../browser/menus.js';
 import { SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext } from '../../../../../common/contextkeys.js';
 import { type IAgentHostSessionsProvider, isAgentHostProvider, isAgentHostProviderId } from '../../../../../common/agentHostSessionsProvider.js';
@@ -81,6 +83,7 @@ class MobileChatInputConfigPicker extends Disposable {
 		@INewChatModelPickerService private readonly _newChatModelPickerService: INewChatModelPickerService,
 		@ISessionModelSelection private readonly _selectionModel: ISessionModelSelection,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
+		@IChatPetService private readonly _chatPetService: IChatPetService,
 	) {
 		super();
 		this._register(this._newChatModelPickerService.registerModelPicker({
@@ -257,7 +260,12 @@ class MobileChatInputConfigPicker extends Disposable {
 	}
 
 	private _switchToModel(modelIdentifier: string): boolean {
-		return this._selectionModel.selectModel(modelIdentifier);
+		const previousModelIdentifier = this._selectionModel.state.get().currentModel?.identifier;
+		const selected = this._selectionModel.selectModel(modelIdentifier);
+		if (selected && didExplicitlySwitchChatPetModel(previousModelIdentifier, modelIdentifier)) {
+			this._chatPetService.unlockAchievement(ChatPetAchievementIds.ModelSwitch);
+		}
+		return selected;
 	}
 
 	private async _showSheet(): Promise<void> {
