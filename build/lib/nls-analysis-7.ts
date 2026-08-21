@@ -219,7 +219,7 @@ export class NlsAnalyzer {
 
 	constructor() {
 		this.fileSystem = createVirtualFileSystem({});
-		this.api = new API({ cwd: virtualRoot, fs: this.fileSystem });
+		this.api = new API({ cwd: virtualRoot, fs: this.fileSystem, collectTiming: true });
 	}
 
 	analyzeLocalizeCalls(contents: string, functionName: 'localize' | 'localize2'): ILocalizeCall[] {
@@ -237,6 +237,7 @@ export class NlsAnalyzer {
 			return;
 		}
 		this.snapshot?.dispose();
+		console.log(this.api.getTimingInfo());
 		this.api.close();
 		this.disposed = true;
 	}
