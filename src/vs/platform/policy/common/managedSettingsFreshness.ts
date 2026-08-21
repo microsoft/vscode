@@ -16,6 +16,8 @@
  * and holds no mutable state; the authoritative fetch state lives with the default-account provider.
  */
 
+import type { ManagedSettingsChannel } from './copilotManagedSettings.js';
+
 /** Lifecycle of the fail-closed freshness requirement. */
 export const enum ManagedSettingsFreshnessState {
 	/**
@@ -108,34 +110,46 @@ export interface IManagedSettingsFreshnessScope {
 	readonly endpointOrigin: string;
 }
 
-/** Observable freshness state, including what diagnostics must report. */
-export interface IManagedSettingsFreshness {
-	readonly state: ManagedSettingsFreshnessState;
-
-	/** Set exactly when {@link state} is {@link ManagedSettingsFreshnessState.Blocked}. */
-	readonly failure?: ManagedSettingsFreshnessFailure;
-
+/** Common shape of the states reached only once the control is known to be effective. */
+interface IManagedSettingsFreshnessEffective {
 	/**
-	 * Channel that made the control effective, or `undefined` when it is not effective. Reported so
-	 * an administrator can tell which delivery channel is responsible for a closed gate.
+	 * Channel that made the control effective, so diagnostics can name the delivery channel
+	 * responsible for a closed gate. Never `'none'`: these states are reached only when a channel
+	 * supplies the control.
 	 */
-	readonly source?: string;
-
-	/** Scope of a {@link ManagedSettingsFreshnessState.Satisfied} result. */
-	readonly scope?: IManagedSettingsFreshnessScope;
-
+	readonly source: ManagedSettingsChannel;
 	/** When a refresh was last attempted, for diagnostics. */
 	readonly lastAttemptAt?: number;
-
-	/** When freshness was last satisfied, for diagnostics. */
-	readonly satisfiedAt?: number;
-
-	/** Status code behind a {@link ManagedSettingsFreshnessFailure.HttpError}. */
-	readonly httpStatus?: number;
-
-	/** When an active {@link ManagedSettingsFreshnessFailure.RateLimited} backoff elapses. */
-	readonly retryAfter?: number;
 }
+
+/**
+ * A failed refresh, carrying exactly the detail its category defines: a status code for an HTTP
+ * error and a backoff deadline for rate limiting, neither of which is meaningful for the others.
+ */
+type ManagedSettingsFreshnessBlocked = IManagedSettingsFreshnessEffective
+	& { readonly state: ManagedSettingsFreshnessState.Blocked }
+	& (
+		| { readonly failure: ManagedSettingsFreshnessFailure.HttpError; readonly httpStatus: number }
+		| { readonly failure: ManagedSettingsFreshnessFailure.RateLimited; readonly retryAfter: number }
+		| { readonly failure: Exclude<ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessFailure.HttpError | ManagedSettingsFreshnessFailure.RateLimited> }
+	);
+
+/**
+ * Observable freshness state, including what diagnostics must report.
+ *
+ * Modelled as a discriminated union so the state machine's invariants are enforced by the compiler
+ * rather than by convention: the fetch path cannot report a block without a cause, or a satisfied
+ * result without the scope that makes it non-transferable.
+ */
+export type IManagedSettingsFreshness =
+	| { readonly state: ManagedSettingsFreshnessState.NotRequired }
+	| (IManagedSettingsFreshnessEffective & { readonly state: ManagedSettingsFreshnessState.Pending })
+	| (IManagedSettingsFreshnessEffective & {
+		readonly state: ManagedSettingsFreshnessState.Satisfied;
+		readonly scope: IManagedSettingsFreshnessScope;
+		readonly satisfiedAt: number;
+	})
+	| ManagedSettingsFreshnessBlocked;
 
 /** The initial state: no freshness requirement observed. */
 export const MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED: IManagedSettingsFreshness = { state: ManagedSettingsFreshnessState.NotRequired };
@@ -152,11 +166,7 @@ export function isManagedSettingsFreshnessBlocking(freshness: IManagedSettingsFr
 		|| freshness.state === ManagedSettingsFreshnessState.Blocked;
 }
 
-/** Whether two scopes refer to the same account, provider and endpoint. */
-export function isSameManagedSettingsFreshnessScope(a: IManagedSettingsFreshnessScope | undefined, b: IManagedSettingsFreshnessScope | undefined): boolean {
-	if (!a || !b) {
-		return false;
-	}
+function isSameScope(a: IManagedSettingsFreshnessScope, b: IManagedSettingsFreshnessScope): boolean {
 	return a.accountId === b.accountId
 		&& a.authenticationProviderId === b.authenticationProviderId
 		&& a.endpointOrigin === b.endpointOrigin;
@@ -171,5 +181,5 @@ export function isSameManagedSettingsFreshnessScope(a: IManagedSettingsFreshness
  */
 export function isManagedSettingsFreshnessSatisfiedFor(freshness: IManagedSettingsFreshness, scope: IManagedSettingsFreshnessScope): boolean {
 	return freshness.state === ManagedSettingsFreshnessState.Satisfied
-		&& isSameManagedSettingsFreshnessScope(freshness.scope, scope);
+		&& isSameScope(freshness.scope, scope);
 }

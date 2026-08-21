@@ -10,7 +10,6 @@ import {
 	IManagedSettingsFreshnessScope,
 	isManagedSettingsFreshnessBlocking,
 	isManagedSettingsFreshnessSatisfiedFor,
-	isSameManagedSettingsFreshnessScope,
 	MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED,
 	ManagedSettingsFreshnessFailure,
 	ManagedSettingsFreshnessState,
@@ -26,14 +25,19 @@ suite('Managed settings freshness', () => {
 		endpointOrigin: 'https://api.github.com',
 	};
 
-	const satisfied: IManagedSettingsFreshness = { state: ManagedSettingsFreshnessState.Satisfied, scope };
+	const satisfied: IManagedSettingsFreshness = {
+		state: ManagedSettingsFreshnessState.Satisfied,
+		source: 'nativeMdm',
+		scope,
+		satisfiedAt: 1,
+	};
 
 	test('only an unresolved or failed refresh withholds agent functionality', () => {
 		assert.deepStrictEqual({
 			notRequired: isManagedSettingsFreshnessBlocking(MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED),
-			pending: isManagedSettingsFreshnessBlocking({ state: ManagedSettingsFreshnessState.Pending }),
+			pending: isManagedSettingsFreshnessBlocking({ state: ManagedSettingsFreshnessState.Pending, source: 'server' }),
 			satisfied: isManagedSettingsFreshnessBlocking(satisfied),
-			blocked: isManagedSettingsFreshnessBlocking({ state: ManagedSettingsFreshnessState.Blocked, failure: ManagedSettingsFreshnessFailure.Network }),
+			blocked: isManagedSettingsFreshnessBlocking({ state: ManagedSettingsFreshnessState.Blocked, source: 'server', failure: ManagedSettingsFreshnessFailure.Network }),
 		}, {
 			notRequired: false,
 			// Pending gates: an unresolved refresh must never read as permission to proceed.
@@ -49,33 +53,29 @@ suite('Managed settings freshness', () => {
 			otherAccount: isManagedSettingsFreshnessSatisfiedFor(satisfied, { ...scope, accountId: 'account-2' }),
 			otherProvider: isManagedSettingsFreshnessSatisfiedFor(satisfied, { ...scope, authenticationProviderId: 'github-enterprise' }),
 			otherEndpoint: isManagedSettingsFreshnessSatisfiedFor(satisfied, { ...scope, endpointOrigin: 'https://ghe.example.com' }),
-			unscopedSatisfied: isManagedSettingsFreshnessSatisfiedFor({ state: ManagedSettingsFreshnessState.Satisfied }, scope),
-			pendingNeverSatisfies: isManagedSettingsFreshnessSatisfiedFor({ state: ManagedSettingsFreshnessState.Pending, scope }, scope),
+			pendingNeverSatisfies: isManagedSettingsFreshnessSatisfiedFor({ state: ManagedSettingsFreshnessState.Pending, source: 'nativeMdm' }, scope),
 		}, {
 			sameScope: true,
-			// A different account, provider or GHE host must re-establish freshness rather than
-			// inherit another scope's success.
 			otherAccount: false,
 			otherProvider: false,
 			otherEndpoint: false,
-			// A satisfied result without a scope is never transferable.
-			unscopedSatisfied: false,
 			pendingNeverSatisfies: false,
 		});
 	});
 
-	test('scope comparison treats a missing scope as never matching', () => {
-		assert.deepStrictEqual({
-			bothPresent: isSameManagedSettingsFreshnessScope(scope, { ...scope }),
-			leftMissing: isSameManagedSettingsFreshnessScope(undefined, scope),
-			rightMissing: isSameManagedSettingsFreshnessScope(scope, undefined),
-			bothMissing: isSameManagedSettingsFreshnessScope(undefined, undefined),
-		}, {
-			bothPresent: true,
-			leftMissing: false,
-			rightMissing: false,
-			bothMissing: false,
-		});
+	test('the state machine rejects states that would let consumers drift', () => {
+		// @ts-expect-error a block must carry the cause that drives remediation and diagnostics
+		const blockedWithoutFailure: IManagedSettingsFreshness = { state: ManagedSettingsFreshnessState.Blocked, source: 'server' };
+		// @ts-expect-error satisfaction without a scope would be transferable across accounts
+		const satisfiedWithoutScope: IManagedSettingsFreshness = { state: ManagedSettingsFreshnessState.Satisfied, source: 'server', satisfiedAt: 1 };
+		// @ts-expect-error a retry deadline is meaningful only while rate limited
+		const retryAfterOnNetworkFailure: IManagedSettingsFreshness = { state: ManagedSettingsFreshnessState.Blocked, source: 'server', failure: ManagedSettingsFreshnessFailure.Network, retryAfter: 1 };
+
+		assert.deepStrictEqual([blockedWithoutFailure, satisfiedWithoutScope, retryAfterOnNetworkFailure].map(freshness => freshness.state), [
+			ManagedSettingsFreshnessState.Blocked,
+			ManagedSettingsFreshnessState.Satisfied,
+			ManagedSettingsFreshnessState.Blocked,
+		]);
 	});
 
 	test('the default state is not-required so the gate is inert until a control is observed', () => {
