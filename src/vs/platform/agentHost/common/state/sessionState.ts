@@ -157,6 +157,20 @@ export interface UsageInfoMeta {
 	 * what a completed turn consumed in aggregate.
 	 */
 	turnTokenTotals?: readonly ITurnTokenTotal[];
+	/**
+	 * Per-model token totals attributed directly to the routed Agent Host turn.
+	 * Unlike {@link turnTokenTotals}, these exclude descendant sub-agent calls so
+	 * telemetry can sum a recursive turn tree without double-counting.
+	 */
+	directTurnTokenTotals?: readonly ITurnTokenTotal[];
+	/**
+	 * Copilot usage attributed directly to the routed Agent Host turn. The root
+	 * turn's ordinary {@link copilotUsage} remains inclusive of descendant work
+	 * for existing UI and billing semantics.
+	 */
+	directCopilotUsage?: {
+		readonly totalNanoAiu?: number;
+	};
 	[key: string]: unknown;
 }
 
@@ -283,6 +297,17 @@ export function readUsageInfoMeta(usage: UsageInfo | undefined): UsageInfoMeta {
 	const turnTokenTotals = readTurnTokenTotals(meta['turnTokenTotals']);
 	if (turnTokenTotals) {
 		result.turnTokenTotals = turnTokenTotals;
+	}
+	const directTurnTokenTotals = readTurnTokenTotals(meta['directTurnTokenTotals']);
+	if (directTurnTokenTotals) {
+		result.directTurnTokenTotals = directTurnTokenTotals;
+	}
+	const directCopilotUsage = meta['directCopilotUsage'];
+	if (directCopilotUsage && typeof directCopilotUsage === 'object' && !Array.isArray(directCopilotUsage)) {
+		const totalNanoAiu = (directCopilotUsage as Record<string, unknown>)['totalNanoAiu'];
+		if (typeof totalNanoAiu === 'number') {
+			result.directCopilotUsage = { totalNanoAiu };
+		}
 	}
 	return result;
 }

@@ -175,6 +175,7 @@ export interface IAgentHostTurnCompletedEvent extends IAgentHostInitiatorTelemet
 	chatSessionId: string;
 	isSubagentSession: boolean;
 	turnId: string;
+	parentTurnId: string | undefined;
 	timeToFirstProgress: number | undefined;
 	totalTime: number;
 	result: AgentHostTurnResult;
@@ -188,6 +189,10 @@ export interface IAgentHostTurnCompletedEvent extends IAgentHostInitiatorTelemet
 	isMultiRoot: boolean;
 	folderCount: number;
 	billedNanoAiu: number | undefined;
+	directPromptTokenCount: number | undefined;
+	directPromptCacheTokenCount: number | undefined;
+	directCompletionTokenCount: number | undefined;
+	directBilledNanoAiu: number | undefined;
 	modelCallCount: number;
 }
 
@@ -197,6 +202,7 @@ export type IAgentHostTurnCompletedClassification = IAgentHostInitiatorClassific
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat identifier within the agent host session.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the turn belongs to a subagent session.' };
 	turnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the turn within the agent host session.' };
+	parentTurnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The immediate parent turn identifier for a subagent turn.' };
 	timeToFirstProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from turn start to the first visible progress (text delta, response part, tool call start, or reasoning).' };
 	totalTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total time in milliseconds from turn start to turn completion.' };
 	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the turn completed successfully, with an error, or was cancelled.' };
@@ -210,7 +216,11 @@ export type IAgentHostTurnCompletedClassification = IAgentHostInitiatorClassific
 	isMultiRoot: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the session spans more than one working directory.' };
 	folderCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of effective working directories for the session at turn completion.' };
 	billedNanoAiu: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The AI credit usage billed for the turn in nano-AIU, when reported by the provider.' };
-	modelCallCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of completed upstream model responses attributed directly to the turn.' };
+	directPromptTokenCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Input tokens used directly by this turn, excluding descendant sub-agent calls.' };
+	directPromptCacheTokenCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Input tokens read from cache directly by this turn, excluding descendant sub-agent calls.' };
+	directCompletionTokenCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Output tokens generated directly by this turn, excluding descendant sub-agent calls.' };
+	directBilledNanoAiu: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'AI credit usage billed directly to this turn in nano-AIU, excluding descendant sub-agent calls.' };
+	modelCallCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of completed upstream model responses attributed directly to this turn, excluding descendant sub-agent calls.' };
 	owner: 'roblourens';
 	comment: 'Tracks agent host turn completion, including performance, configuration context, completed model responses, and billed AI credit usage when reported by the provider.';
 };
@@ -261,6 +271,7 @@ export interface IAgentHostTurnCompletedReport extends IAgentHostTurnAttributedR
 	provider: string;
 	session: string;
 	turnId: string;
+	parentTurnId: string | undefined;
 	timeToFirstProgress: number | undefined;
 	totalTime: number;
 	result: AgentHostTurnResult;
@@ -273,6 +284,10 @@ export interface IAgentHostTurnCompletedReport extends IAgentHostTurnAttributedR
 	isMultiRoot: boolean;
 	folderCount: number;
 	billedNanoAiu: number | undefined;
+	directPromptTokenCount: number | undefined;
+	directPromptCacheTokenCount: number | undefined;
+	directCompletionTokenCount: number | undefined;
+	directBilledNanoAiu: number | undefined;
 	modelCallCount: number;
 }
 
@@ -1151,6 +1166,7 @@ export class AgentHostTelemetryReporter {
 			chatSessionId,
 			isSubagentSession: isSubagent,
 			turnId: report.turnId,
+			parentTurnId: report.parentTurnId,
 			timeToFirstProgress: report.timeToFirstProgress,
 			totalTime: report.totalTime,
 			result: report.result,
@@ -1164,6 +1180,10 @@ export class AgentHostTelemetryReporter {
 			isMultiRoot: report.isMultiRoot,
 			folderCount: report.folderCount,
 			billedNanoAiu: report.billedNanoAiu,
+			directPromptTokenCount: report.directPromptTokenCount,
+			directPromptCacheTokenCount: report.directPromptCacheTokenCount,
+			directCompletionTokenCount: report.directCompletionTokenCount,
+			directBilledNanoAiu: report.directBilledNanoAiu,
 			modelCallCount: report.modelCallCount,
 		});
 		if (report.failure) {
