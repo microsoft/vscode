@@ -16,6 +16,7 @@
 	type INativeWindowConfiguration = import('../../../platform/window/common/window.ts').INativeWindowConfiguration;
 	type IMainWindowSandboxGlobals = import('../../../base/parts/sandbox/electron-browser/globals.js').IMainWindowSandboxGlobals;
 	type IDesktopMain = import('../../../workbench/electron-browser/desktop.main.js').IDesktopMain;
+	type IPartsSplashPartBounds = import('../../../platform/theme/common/themeService.js').IPartsSplashPartBounds;
 
 	const preloadGlobals = (window as unknown as { vscode: IMainWindowSandboxGlobals }).vscode; // defined by preload.ts
 	const safeProcess = preloadGlobals.process;
@@ -95,6 +96,9 @@
 			const floatingOuterMargin = layoutInfo.modernUICompact === true ? 4 : floatingMargin * 2;
 			const floatingStatusBarMargin = modernUI ? 4 : 0;
 			const floatingBorderWidth = 1;
+			const floatingBorderRadius = 8;
+			const contentTop = layoutInfo.titleBarHeight;
+			const contentBottom = layoutInfo.statusBarHeight;
 
 			const splash = document.createElement('div');
 			splash.id = 'monaco-parts-splash';
@@ -144,18 +148,71 @@
 				element.style.height = `${bounds.height}px`;
 			};
 
-			const applyFloatingCardStyles = (element: HTMLElement, backgroundColor: string | undefined) => {
+			const fallbackActivityBarBounds: IPartsSplashPartBounds | undefined = layoutInfo.modernUICompact === true && layoutInfo.activityBarWidth > 0 ? {
+				top: contentTop + (contentTop === 0 ? floatingOuterMargin : 0),
+				left: layoutInfo.sideBarSide === 'left' ? floatingOuterMargin : window.innerWidth - layoutInfo.activityBarWidth,
+				width: Math.max(0, layoutInfo.activityBarWidth - floatingOuterMargin),
+				height: window.innerHeight - contentTop - contentBottom - floatingOuterMargin - (contentTop === 0 ? floatingOuterMargin : 0),
+			} : undefined;
+			const compactPartBounds = layoutInfo.modernUICompact === true ? [
+				layoutInfo.partBounds?.activityBar,
+				layoutInfo.partBounds?.sideBar,
+				layoutInfo.partBounds?.auxiliaryBar,
+				layoutInfo.partBounds?.editor,
+				layoutInfo.partBounds?.panel,
+			].filter((bounds): bounds is IPartsSplashPartBounds => !!bounds) : [];
+			const compactHorizontalBounds = layoutInfo.modernUICompact === true ? [
+				layoutInfo.partBounds?.activityBar ?? fallbackActivityBarBounds,
+				layoutInfo.partBounds?.sideBar,
+				layoutInfo.partBounds?.auxiliaryBar,
+				layoutInfo.partBounds?.editor,
+				layoutInfo.partBounds?.panel,
+			].filter((bounds): bounds is IPartsSplashPartBounds => !!bounds) : [];
+			const compactClusterEdges = compactPartBounds.length > 0 && compactHorizontalBounds.length > 0 ? {
+				left: Math.min(...compactHorizontalBounds.map(bounds => bounds.left)),
+				right: Math.max(...compactHorizontalBounds.map(bounds => bounds.left + bounds.width)),
+				top: Math.min(...compactPartBounds.map(bounds => bounds.top)),
+				bottom: Math.max(...compactPartBounds.map(bounds => bounds.top + bounds.height)),
+			} : undefined;
+
+			const applyFloatingCardStyles = (
+				element: HTMLElement,
+				backgroundColor: string | undefined,
+				partBounds?: IPartsSplashPartBounds,
+				fallbackOuterEdges = { left: true, right: true, top: true, bottom: true },
+				compactBorderColor = colorInfo.surfaceBorder ?? colorInfo.agentsPanelBorder ?? colorInfo.editorGroupBorder ?? 'transparent'
+			) => {
 				element.style.boxSizing = 'border-box';
-				element.style.border = `${floatingBorderWidth}px solid ${colorInfo.agentsPanelBorder ?? colorInfo.editorGroupBorder ?? 'transparent'}`;
-				element.style.borderRadius = layoutInfo.modernUICompact === true ? '0' : '8px';
+				if (layoutInfo.modernUICompact === true) {
+					const outerEdges = partBounds?.outerEdges ?? (partBounds && compactClusterEdges ? {
+						left: partBounds.left === compactClusterEdges.left,
+						right: partBounds.left + partBounds.width === compactClusterEdges.right,
+						top: partBounds.top === compactClusterEdges.top,
+						bottom: partBounds.top + partBounds.height === compactClusterEdges.bottom,
+					} : fallbackOuterEdges);
+					element.style.borderStyle = 'solid';
+					element.style.borderColor = compactBorderColor;
+					element.style.borderWidth = `${outerEdges.top ? floatingBorderWidth : 0}px ${floatingBorderWidth}px ${floatingBorderWidth}px ${outerEdges.left ? floatingBorderWidth : 0}px`;
+					element.style.borderRadius = [
+						outerEdges.top && outerEdges.left ? floatingBorderRadius : 0,
+						outerEdges.top && outerEdges.right ? floatingBorderRadius : 0,
+						outerEdges.bottom && outerEdges.right ? floatingBorderRadius : 0,
+						outerEdges.bottom && outerEdges.left ? floatingBorderRadius : 0,
+					].map(radius => `${radius}px`).join(' ');
+				} else {
+					element.style.border = `${floatingBorderWidth}px solid ${colorInfo.agentsPanelBorder ?? colorInfo.editorGroupBorder ?? 'transparent'}`;
+					element.style.borderRadius = `${floatingBorderRadius}px`;
+				}
 				element.style.backgroundColor = backgroundColor ?? colorInfo.editorBackground ?? colorInfo.background;
 				element.style.overflow = 'hidden';
 			};
 
-			const contentTop = layoutInfo.titleBarHeight;
-			const contentBottom = layoutInfo.statusBarHeight;
 			const contentHeight = `calc(100% - ${contentTop + contentBottom}px)`;
 			const activityHeight = modernUI ? `calc(100% - ${contentTop + contentBottom + floatingMargin}px)` : contentHeight;
+			const modernActivityBarBackground = (window.document.hasFocus()
+				? colorInfo.modernActivityBarBackground
+				: colorInfo.modernActivityBarInactiveBackground ?? colorInfo.modernActivityBarBackground)
+				?? colorInfo.activityBarBackground;
 
 			if (layoutInfo.auxiliaryBarWidth === Number.MAX_SAFE_INTEGER) {
 				// if auxiliary bar is maximized, it goes as wide as the
@@ -194,16 +251,37 @@
 			// part: activity bar
 			if (layoutInfo.activityBarWidth > 0) {
 				const activityDiv = document.createElement('div');
-				activityDiv.style.position = 'absolute';
-				activityDiv.style.width = `${layoutInfo.activityBarWidth}px`;
-				activityDiv.style.height = activityHeight;
-				activityDiv.style.top = `${contentTop}px`;
-				if (layoutInfo.sideBarSide === 'left') {
-					activityDiv.style.left = '0';
+				const activityBarBounds = layoutInfo.partBounds?.activityBar;
+				if (modernUI && activityBarBounds) {
+					setPartBounds(activityDiv, activityBarBounds);
+				} else if (layoutInfo.modernUICompact === true) {
+					setBounds(activityDiv, {
+						top: contentTop + (contentTop === 0 ? floatingOuterMargin : 0),
+						bottom: contentBottom + floatingOuterMargin,
+						...(layoutInfo.sideBarSide === 'left' ? { left: floatingOuterMargin } : { right: floatingOuterMargin }),
+						width: Math.max(0, layoutInfo.activityBarWidth - floatingOuterMargin),
+					});
 				} else {
-					activityDiv.style.right = '0';
+					activityDiv.style.position = 'absolute';
+					activityDiv.style.width = `${layoutInfo.activityBarWidth}px`;
+					activityDiv.style.height = activityHeight;
+					activityDiv.style.top = `${contentTop}px`;
+					if (layoutInfo.sideBarSide === 'left') {
+						activityDiv.style.left = '0';
+					} else {
+						activityDiv.style.right = '0';
+					}
 				}
-				activityDiv.style.backgroundColor = modernUI ? 'transparent' : `${colorInfo.activityBarBackground}`;
+				if (layoutInfo.modernUICompact === true) {
+					applyFloatingCardStyles(activityDiv, modernActivityBarBackground, activityBarBounds, {
+						left: layoutInfo.sideBarSide === 'left',
+						right: layoutInfo.sideBarSide === 'right',
+						top: true,
+						bottom: true,
+					});
+				} else {
+					activityDiv.style.backgroundColor = modernUI ? 'transparent' : `${colorInfo.activityBarBackground}`;
+				}
 				splash.appendChild(activityDiv);
 
 				if (!modernUI && colorInfo.activityBarBorder) {
@@ -244,7 +322,7 @@
 					});
 				}
 				if (modernUI) {
-					applyFloatingCardStyles(sideDiv, colorInfo.agentsPanelBackground ?? colorInfo.sideBarBackground);
+					applyFloatingCardStyles(sideDiv, colorInfo.sideBarBackground, layoutInfo.partBounds?.sideBar);
 				} else {
 					sideDiv.style.backgroundColor = `${colorInfo.sideBarBackground}`;
 				}
@@ -288,7 +366,7 @@
 					});
 				}
 				if (modernUI) {
-					applyFloatingCardStyles(auxSideDiv, colorInfo.sideBarBackground);
+					applyFloatingCardStyles(auxSideDiv, colorInfo.sideBarBackground, layoutInfo.partBounds?.auxiliaryBar);
 				} else {
 					auxSideDiv.style.backgroundColor = `${colorInfo.sideBarBackground}`;
 				}
@@ -325,14 +403,14 @@
 						right: editorRight
 					});
 				}
-				applyFloatingCardStyles(editorDiv, colorInfo.editorBackground);
+				applyFloatingCardStyles(editorDiv, colorInfo.editorBackground, layoutInfo.partBounds?.editor, undefined, colorInfo.editorBorder ?? colorInfo.surfaceBorder ?? colorInfo.editorGroupBorder ?? 'transparent');
 				splash.appendChild(editorDiv);
 			}
 
 			if (modernUI && layoutInfo.partBounds?.panel) {
 				const panelDiv = document.createElement('div');
 				setPartBounds(panelDiv, layoutInfo.partBounds.panel);
-				applyFloatingCardStyles(panelDiv, colorInfo.panelBackground ?? colorInfo.editorBackground);
+				applyFloatingCardStyles(panelDiv, colorInfo.panelBackground ?? colorInfo.editorBackground, layoutInfo.partBounds.panel);
 				splash.appendChild(panelDiv);
 			}
 

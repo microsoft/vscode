@@ -185,6 +185,7 @@ suite('LayoutService - getFloatingPaneCompositeHorizontalMargins', () => {
 			compactPrimarySideBarLeft: margins(Parts.SIDEBAR_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART], Position.LEFT, true),
 			compactPrimarySideBarRight: margins(Parts.SIDEBAR_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART], Position.RIGHT, true),
 			compactJustifiedPanel: margins(Parts.PANEL_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART], Position.LEFT, true, 'justify'),
+			compactJustifiedPanelSideBarRight: margins(Parts.PANEL_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART], Position.RIGHT, true, 'justify'),
 		}, {
 			activityBarLeft: { left: 4, right: 8 },
 			activityBarRight: { left: 8, right: 0 },
@@ -192,7 +193,8 @@ suite('LayoutService - getFloatingPaneCompositeHorizontalMargins', () => {
 			compactSecondarySideBarOnly: { left: COMPACT_FLOATING_PANEL_OUTER_MARGIN, right: COMPACT_FLOATING_PANEL_OUTER_MARGIN },
 			compactPrimarySideBarLeft: { left: COMPACT_FLOATING_PANEL_MARGIN, right: FLOATING_PANEL_INNER_MARGIN },
 			compactPrimarySideBarRight: { left: COMPACT_FLOATING_PANEL_MARGIN, right: FLOATING_PANEL_INNER_MARGIN },
-			compactJustifiedPanel: { left: COMPACT_FLOATING_PANEL_OUTER_MARGIN, right: COMPACT_FLOATING_PANEL_OUTER_MARGIN },
+			compactJustifiedPanel: { left: COMPACT_FLOATING_PANEL_MARGIN, right: COMPACT_FLOATING_PANEL_OUTER_MARGIN },
+			compactJustifiedPanelSideBarRight: { left: COMPACT_FLOATING_PANEL_OUTER_MARGIN, right: FLOATING_PANEL_INNER_MARGIN },
 		});
 	});
 });

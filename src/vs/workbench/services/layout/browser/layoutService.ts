@@ -409,7 +409,7 @@ function getFloatingHorizontalPanelOuterEdges(layoutService: IWorkbenchLayoutSer
 	const sideBarLeft = layoutService.getSideBarPosition() === Position.LEFT;
 	const { sideBar: sideBarSiblingToEditor, auxBar: auxSiblingToEditor } = getFloatingSidebarSiblingToEditorStatus(layoutService);
 
-	const sideBarSideReached = (!layoutService.isVisible(Parts.ACTIVITYBAR_PART) || layoutService.isModernUICompact())
+	const sideBarSideReached = !layoutService.isVisible(Parts.ACTIVITYBAR_PART)
 		&& (!layoutService.isVisible(Parts.SIDEBAR_PART) || sideBarSiblingToEditor);
 	const auxSideReached = !layoutService.isVisible(Parts.AUXILIARYBAR_PART) || auxSiblingToEditor;
 

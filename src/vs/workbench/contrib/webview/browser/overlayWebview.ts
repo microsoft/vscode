@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getWindowById } from '../../../../base/browser/dom.js';
+import { getWindow, getWindowById } from '../../../../base/browser/dom.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { OverlayLayoutElement } from '../../../../base/browser/overlayLayoutElement.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -58,6 +58,8 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	private _overlayLayout: OverlayLayoutElement | undefined;
 
 	private _anchorState: { readonly anchorElement: HTMLElement; readonly clippingContainer?: HTMLElement } | undefined;
+	private _outerEdgePart: Element | undefined;
+	private readonly _outerEdgeObserver = this._register(new MutableDisposable());
 
 	public constructor(
 		initInfo: WebviewInitInfo,
@@ -202,6 +204,21 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		this.overlayLayout.setAnchorElement(anchorElement, { clippingContainer });
 
 		const part = anchorElement.closest('.part');
+		this._syncOuterEdgeClasses(part);
+
+		if (part !== this._outerEdgePart) {
+			this._outerEdgeObserver.clear();
+			this._outerEdgePart = part ?? undefined;
+
+			if (part) {
+				const observer = new (getWindow(part).MutationObserver)(() => this._syncOuterEdgeClasses(part));
+				observer.observe(part, { attributes: true, attributeFilter: ['class'] });
+				this._outerEdgeObserver.value = toDisposable(() => observer.disconnect());
+			}
+		}
+	}
+
+	private _syncOuterEdgeClasses(part: Element | null): void {
 		for (const edge of ['left', 'right', 'top', 'bottom']) {
 			const isOuterEdge = part?.classList.contains(`floating-part-outer-${edge}`)
 				|| part?.classList.contains(`floating-editor-outer-${edge}`)

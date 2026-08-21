@@ -229,10 +229,14 @@ export interface IPartsSplash {
 		titleBarBorder: string | undefined;
 		activityBarBackground: string | undefined;
 		activityBarBorder: string | undefined;
+		modernActivityBarBackground: string | undefined;
+		modernActivityBarInactiveBackground: string | undefined;
 		sideBarBackground: string | undefined;
 		sideBarBorder: string | undefined;
 		panelBackground: string | undefined;
 		editorGroupBorder: string | undefined;
+		editorBorder: string | undefined;
+		surfaceBorder: string | undefined;
 		agentsPanelBackground: string | undefined;
 		agentsPanelBorder: string | undefined;
 		statusBarBackground: string | undefined;
@@ -253,10 +257,24 @@ export interface IPartsSplash {
 		modernUI: boolean;
 		modernUICompact: boolean;
 		partBounds: {
-			sideBar: { top: number; left: number; width: number; height: number } | undefined;
-			auxiliaryBar: { top: number; left: number; width: number; height: number } | undefined;
-			panel: { top: number; left: number; width: number; height: number } | undefined;
-			editor: { top: number; left: number; width: number; height: number } | undefined;
+			activityBar?: IPartsSplashPartBounds;
+			sideBar: IPartsSplashPartBounds | undefined;
+			auxiliaryBar: IPartsSplashPartBounds | undefined;
+			panel: IPartsSplashPartBounds | undefined;
+			editor: IPartsSplashPartBounds | undefined;
 		} | undefined;
 	} | undefined;
+}
+
+export interface IPartsSplashPartBounds {
+	top: number;
+	left: number;
+	width: number;
+	height: number;
+	outerEdges?: {
+		left: boolean;
+		right: boolean;
+		top: boolean;
+		bottom: boolean;
+	};
 }
