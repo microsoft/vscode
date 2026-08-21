@@ -1620,6 +1620,25 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
+	 * Emits completed reasoning only when the SDK did not stream a non-empty
+	 * reasoning delta for the current parent/subagent scope. Some providers
+	 * expose reasoning only on `assistant.reasoning` or
+	 * `assistant.message.reasoningText`; treating those events as a fallback
+	 * keeps the live view aligned with restored session history without
+	 * duplicating an already-streamed reasoning part.
+	 */
+	private _emitCompletedReasoningFallback(content: string | undefined, parentToolCallId?: string): void {
+		if (!content) {
+			return;
+		}
+		const reasoningScope = parentToolCallId ?? '';
+		if (this._currentTurn.value?.reasoningPartIds.has(reasoningScope)) {
+			return;
+		}
+		this._emitReasoningDelta(content, parentToolCallId);
+	}
+
+	/**
 	 * The snapshot of client contributions captured when this session was
 	 * created. Used by the agent to detect when the session is 1stale.
 	 */
@@ -4110,13 +4129,14 @@ export class CopilotAgentSession extends Disposable {
 			// part when no deltas preceded the message (e.g. text after tool calls
 			// where the SDK delivered the full message at once).
 			//
-			// Other fields (toolRequests, reasoningText, encryptedContent) are
-			// only used for history reconstruction and live tool calls fire their
-			// own tool_start events, so we can safely drop them here.
+			// Live tool calls fire their own tool_start events. `reasoningText` is
+			// retained as a fallback for providers that did not emit live reasoning
+			// deltas; encryptedContent remains history-only.
 			if (this._shouldDropUnmappedSubagentEvent(e, 'assistant.message')) {
 				return;
 			}
 			const markdownScope = parentToolCallId ?? '';
+			this._emitCompletedReasoningFallback(e.data.reasoningText, parentToolCallId);
 			if (e.data.content && !this._currentTurn.value?.markdownPartIds.has(markdownScope)) {
 				const partId = generateUuid();
 				this._currentTurn.value?.markdownPartIds.set(markdownScope, partId);
@@ -4959,6 +4979,9 @@ export class CopilotAgentSession extends Disposable {
 			if (this._shouldDropUnmappedSubagentEvent(e, 'assistant.reasoning_delta')) {
 				return;
 			}
+			if (!e.data.deltaContent) {
+				return;
+			}
 			this._emitReasoningDelta(e.data.deltaContent, this._parentToolCallIdForSubagentEvent(e));
 		}));
 
@@ -5568,6 +5591,11 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onReasoning(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Reasoning: ${e.data.content.length} chars`);
+			this._resumeSubagentForEvent(e);
+			if (this._shouldDropUnmappedSubagentEvent(e, 'assistant.reasoning')) {
+				return;
+			}
+			this._emitCompletedReasoningFallback(e.data.content, this._parentToolCallIdForSubagentEvent(e));
 		}));
 
 		this._register(wrapper.onTurnEnd(e => {

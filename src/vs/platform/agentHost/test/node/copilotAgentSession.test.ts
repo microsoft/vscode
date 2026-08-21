@@ -7281,6 +7281,101 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(reasoningResponseParts[1].content, 'thinking step 2');
 		});
 
+		test('completed reasoning renders when no non-empty reasoning delta was emitted', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-1');
+
+			// An empty transport delta must not suppress the useful completed fallback.
+			mockSession.fire('assistant.reasoning_delta', {
+				deltaContent: '',
+			} as SessionEventPayload<'assistant.reasoning_delta'>['data']);
+			mockSession.fire('assistant.reasoning', {
+				content: 'Completed reasoning summary.',
+			} as SessionEventPayload<'assistant.reasoning'>['data']);
+
+			const reasoningParts = signals.flatMap(signal => {
+				if (signal.kind !== 'action' || signal.action.type !== ActionType.ChatResponsePart) {
+					return [];
+				}
+				const part = (signal.action as ChatResponsePartAction).part;
+				return part.kind === ResponsePartKind.Reasoning ? [part.content] : [];
+			});
+
+			assert.deepStrictEqual(reasoningParts, ['Completed reasoning summary.']);
+		});
+
+		test('completed reasoning does not duplicate streamed reasoning', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-1');
+
+			mockSession.fire('assistant.reasoning_delta', {
+				deltaContent: 'Streamed reasoning.',
+			} as SessionEventPayload<'assistant.reasoning_delta'>['data']);
+			mockSession.fire('assistant.reasoning', {
+				content: 'Streamed reasoning.',
+			} as SessionEventPayload<'assistant.reasoning'>['data']);
+
+			const reasoningActions = signals.filter(signal => signal.kind === 'action'
+				&& (signal.action.type === ActionType.ChatResponsePart || signal.action.type === ActionType.ChatReasoning));
+			assert.strictEqual(reasoningActions.length, 1);
+			assert.strictEqual((reasoningActions[0] as IAgentActionSignal).action.type, ActionType.ChatResponsePart);
+		});
+
+		test('assistant message reasoningText renders as a live fallback before markdown', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-1');
+
+			mockSession.fire('assistant.message', {
+				messageId: 'msg-reasoning-fallback',
+				content: 'Final answer.',
+				reasoningText: 'Reasoning restored from the complete message.',
+			} as SessionEventPayload<'assistant.message'>['data']);
+
+			const responseParts = signals.flatMap(signal => {
+				if (signal.kind !== 'action' || signal.action.type !== ActionType.ChatResponsePart) {
+					return [];
+				}
+				const part = (signal.action as ChatResponsePartAction).part;
+				return part.kind === ResponsePartKind.Reasoning || part.kind === ResponsePartKind.Markdown
+					? [{ kind: part.kind, content: part.content }]
+					: [];
+			});
+
+			assert.deepStrictEqual(responseParts, [
+				{ kind: ResponsePartKind.Reasoning, content: 'Reasoning restored from the complete message.' },
+				{ kind: ResponsePartKind.Markdown, content: 'Final answer.' },
+			]);
+		});
+
+		test('completed subagent reasoning fallback routes to the subagent session scope', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-1');
+
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+				agentDescription: 'Explore tests',
+			} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+			mockSession.fire('assistant.reasoning', {
+				content: 'Completed subagent reasoning.',
+			} as SessionEventPayload<'assistant.reasoning'>['data'], { agentId: 'agent-1' });
+
+			const reasoningParts = signals.flatMap(signal => {
+				if (signal.kind !== 'action' || signal.action.type !== ActionType.ChatResponsePart) {
+					return [];
+				}
+				const part = (signal.action as ChatResponsePartAction).part;
+				return part.kind === ResponsePartKind.Reasoning
+					? [{ parentToolCallId: signal.parentToolCallId, content: part.content }]
+					: [];
+			});
+
+			assert.deepStrictEqual(reasoningParts, [
+				{ parentToolCallId: 'tc-subagent', content: 'Completed subagent reasoning.' },
+			]);
+		});
+
 		test('subagent reasoning delta routes to the subagent session scope', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-1');
