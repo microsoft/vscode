@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore } from '../../../base/common/lifecycle.js';
-import { Event } from '../../../base/common/event.js';
+import type { Event } from '../../../base/common/event.js';
+import type { IObservable } from '../../../base/common/observable.js';
 import { joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { Schemas } from '../../../base/common/network.js';
@@ -28,14 +29,19 @@ import { IAgentEditAttributionService } from '../common/fileEditAttribution.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
+import type { IAgent } from '../common/agent.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { AgentHostGitService } from './agentHostGitService.js';
 import { AgentHostOTelService } from './otel/agentHostOTelService.js';
 import { AgentHostProxyResolver, IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { AgentHostRequestService } from './agentHostRequestService.js';
 import { createAgentHostTelemetryService, IAgentHostTelemetryService } from './agentHostTelemetryService.js';
+import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { IAgentHostCompletions } from './agentHostCompletions.js';
+import { IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
+import { AgentHostStateManager } from './agentHostStateManager.js';
 import { AgentService, IAgentServiceOptions } from './agentService.js';
-import { createAgentService } from './agentServiceComposition.js';
+import { createAgentServiceComposition } from './agentServiceComposition.js';
 import { INetworkDiagnosticsService, NetworkDiagnosticsService } from './networkDiagnosticsService.js';
 import { AgentPluginManager } from './agentPluginManager.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
@@ -79,6 +85,12 @@ export interface ICreateAgentHostRuntimeOptions {
 export interface IAgentHostRuntime {
 	readonly instantiationService: IInstantiationService;
 	readonly agentService: AgentService;
+	readonly configurationService: IAgentConfigurationService;
+	readonly stateManager: AgentHostStateManager;
+	readonly customizationEnablementService: IAgentHostCustomizationEnablementService;
+	readonly completions: IAgentHostCompletions;
+	readonly agents: IObservable<readonly IAgent[]>;
+	readonly onDidStartTurn: Event<string>;
 	readonly fileService: IFileService;
 	readonly sessionDataService: ISessionDataService;
 	readonly proxyResolver: IAgentHostProxyResolver;
@@ -157,8 +169,10 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 				tmpDir: environmentService.tmpDir,
 			},
 		};
-		agentService = createAgentService(agentServiceOptions, services, instantiationService, fetchFn, logService, productService);
-		proxyResolver.bindConfigurationService(agentService.configurationService, options.transientProxyConfiguration);
+		const agentServiceComposition = createAgentServiceComposition(agentServiceOptions, services, instantiationService, fetchFn, logService, productService, sessionDataService);
+		agentService = agentServiceComposition.agentService;
+		const { configurationService } = agentServiceComposition;
+		proxyResolver.bindConfigurationService(configurationService, options.transientProxyConfiguration);
 		const networkDiagnosticsService = instantiationService.createInstance(NetworkDiagnosticsService);
 		services.set(INetworkDiagnosticsService, networkDiagnosticsService);
 		agentService.setNetworkDiagnosticsService(networkDiagnosticsService);
@@ -190,6 +204,12 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		return {
 			instantiationService,
 			agentService,
+			configurationService,
+			stateManager: agentServiceComposition.stateManager,
+			customizationEnablementService: agentServiceComposition.customizationEnablementService,
+			completions: agentServiceComposition.completions,
+			agents: agentServiceComposition.agents,
+			onDidStartTurn: agentServiceComposition.onDidStartTurn,
 			fileService,
 			sessionDataService,
 			proxyResolver,

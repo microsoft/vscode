@@ -27,10 +27,10 @@ import { ActionType, type ChatTurnStartedAction, type SessionActiveClientSetActi
 import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { buildDefaultChatUri, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, customizationId, withSessionExternal, withSessionWorkspaceless } from '../../common/state/sessionState.js';
+import { CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, customizationId, withSessionExternal, withSessionWorkspaceless } from '../../common/state/sessionState.js';
 import { NonReconnectableTransportError, type IClientTransport, type IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
-import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
 import { AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../common/agentHostManagedSettings.js';
@@ -616,16 +616,14 @@ suite('AgentHostProtocolClient', () => {
 		await Promise.all([completionTriggerCharacters, connectError]);
 	});
 
-	test('maps protocol-supported create session fork and progress token', async () => {
+	test('maps create session metadata and progress token', async () => {
 		const { client, transport } = createClient();
 		await connectClient(client, transport);
 		const session = URI.parse('ahp-session:/new');
-		const source = URI.parse('ahp-session:/source');
 		const creation = client.createSession({
 			provider: 'copilot',
 			session,
 			_meta: { multiRoot: { workspaceFile: 'file:///demo.code-workspace' } },
-			fork: { session: source, chat: URI.parse(buildDefaultChatUri(source)), turnIndex: 2, turnId: 'turn-2' },
 			progressToken: 'progress-token',
 		});
 
@@ -636,7 +634,6 @@ suite('AgentHostProtocolClient', () => {
 			_meta: { multiRoot: { workspaceFile: 'file:///demo.code-workspace' } },
 			provider: 'copilot',
 			workingDirectories: undefined,
-			fork: { session: source.toString(), turnId: 'turn-2' },
 			config: undefined,
 			activeClient: undefined,
 			progressToken: 'progress-token',
@@ -1098,6 +1095,29 @@ suite('AgentHostProtocolClient', () => {
 			findRootConfigValue(transport.sentMessages, AgentHostTelemetryLevelConfigKey),
 			'off',
 		);
+	});
+
+	test('forwards telemetry setting changes to the local agent host after initialization', async () => {
+		const transport = disposables.add(new TestProtocolTransport(AgentHostClientConnectionKind.Local));
+		const configurationService = new TestConfigurationService();
+		const { client } = createClientForIdentity(
+			LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
+			transport,
+			createPermissionService(),
+			undefined,
+			new NullLogService(),
+			configurationService,
+			undefined,
+			editorWindowAgentHostClientInfo,
+			new TestClientIdentityTelemetryService(),
+		);
+		await connectClient(client, transport);
+		transport.sentMessages.length = 0;
+
+		await configurationService.setUserConfiguration(TELEMETRY_SETTING_ID, TelemetryConfiguration.OFF);
+		fireConfigurationChange(configurationService, TELEMETRY_SETTING_ID);
+
+		assert.strictEqual(findRootConfigValue(transport.sentMessages, AgentHostTelemetryLevelConfigKey), 'off');
 	});
 
 	test('forwards every setting declaring `agentHost` on connect and when one changes', async () => {
@@ -2378,7 +2398,7 @@ suite('AgentHostProtocolClient', () => {
 				type: ActionType.AnnotationsSet,
 				annotation: {
 					id: 'feedback-1',
-					turnId: 'turn-after-restart',
+					origin: { session: sessionUri.toString(), turnId: 'turn-after-restart' },
 					resource: 'file:///reviewed.ts',
 					resolved: false,
 					entries: [{ id: 'feedback-1:0', text: 'Please revisit this.' }],

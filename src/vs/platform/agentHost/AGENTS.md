@@ -700,9 +700,9 @@ resource. `AgentSideEffects` does not enumerate chats or fan config values
 through provider hooks.
 
 Both `IAgentHostPromptCache` and `IAgentHostSessionTitleSignal` are constructed
-by `AgentService`, exposed as `agentService.promptCache` /
-`agentService.sessionTitleSignal`, and registered in the `agentHostMain` /
-`agentHostServerMain` DI containers next to `IAgentHostStateManager`.
+and registered by `createAgentServiceComposition`. Consumers resolve their
+service identifiers through constructor injection; `AgentService` neither owns
+nor exposes them.
 
 ### 8g. Seam → provider read it replaces
 

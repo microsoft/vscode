@@ -31,12 +31,13 @@ import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
+import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { TerminalClaimKind } from '../../common/state/protocol/state.js';
 import { toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
@@ -5708,7 +5709,7 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(terminalManager.outputTerminalsCreated, [{
 				uri: terminalUri,
 				title: 'Run Shell Command',
-				claim: { kind: TerminalClaimKind.Session, session: AgentSession.uri('copilot', 'test-session-1').toString(), toolCallId: 'tc-stream' },
+				claim: { kind: TerminalClaimKind.Session, session: AgentSession.uri('copilot', 'test-session-1').toString(), chat: buildDefaultChatUri(AgentSession.uri('copilot', 'test-session-1')), toolCallId: 'tc-stream' },
 			}]);
 			assert.deepStrictEqual(terminalManager.outputTerminalData, [
 				{ uri: terminalUri, data: 'tick 1\n' },
@@ -7458,6 +7459,63 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	suite('getForkBoundaryEventId', () => {
+		test('resolves when the matching user message event arrives', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			session.resetTurnState('turn-waiting');
+
+			const eventIdPromise = session.getForkBoundaryEventId('previous-turn');
+			mockSession.fire('user.message', { content: 'hello agent' } as SessionEventPayload<'user.message'>['data'], { id: 'sdk-event-waiting' });
+			await timeout(0);
+
+			assert.deepStrictEqual(await eventIdPromise, 'sdk-event-waiting');
+		});
+
+		test('resolves from a user message event recorded before waiting', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			session.resetTurnState('turn-recorded');
+			mockSession.fire('user.message', { content: 'hello agent' } as SessionEventPayload<'user.message'>['data'], { id: 'sdk-event-recorded' });
+			await timeout(0);
+
+			assert.deepStrictEqual(await session.getForkBoundaryEventId('previous-turn'), 'sdk-event-recorded');
+		});
+
+		test('rejects when the turn ends before its user message event arrives', async () => {
+			const { session } = await createAgentSession(disposables);
+			session.resetTurnState('turn-ended');
+
+			const eventIdPromise = session.getForkBoundaryEventId('previous-turn');
+			session.discardActiveTurn();
+
+			await assert.rejects(eventIdPromise, /its next turn \(turn-ended\) never produced an SDK event id: Turn turn-ended was disposed before its SDK event id was recorded/);
+		});
+
+		test('retains the active turn event promise when session.idle clears it during the database read', async () => {
+			const databaseRead = new DeferredPromise<string | undefined>();
+			const sessionDatabase = new TestSessionDatabase();
+			sessionDatabase.getNextTurnEventId = () => databaseRead.p;
+			const { session, mockSession } = await createAgentSession(disposables, { sessionDatabase });
+			session.resetTurnState('turn-ended-during-read');
+
+			const eventIdPromise = session.getForkBoundaryEventId('previous-turn');
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			await timeout(0);
+			databaseRead.complete(undefined);
+
+			await assert.rejects(eventIdPromise, /its next turn \(turn-ended-during-read\) never produced an SDK event id/);
+		});
+
+		test('rejects pending waiters when the session is disposed', async () => {
+			const { session } = await createAgentSession(disposables);
+			session.resetTurnState('turn-disposed');
+
+			const eventIdPromise = session.getForkBoundaryEventId('previous-turn');
+			session.dispose();
+
+			await assert.rejects(eventIdPromise, /its next turn \(turn-disposed\) never produced an SDK event id: Turn turn-disposed was disposed before its SDK event id was recorded/);
+		});
+	});
+
 	// ---- user input handling ----
 
 	suite('user input handling', () => {
@@ -7476,7 +7534,7 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(signals.length, 1);
 			const request = getInputRequest(signals[0]);
 			const requestId = request.id;
-			assert.strictEqual(request.purpose, ChatInputRequestPurpose.AskUser);
+			assert.strictEqual(readChatInputRequestPurpose(request), ChatInputRequestPurpose.AskUser);
 			assert.ok(request.questions);
 			assert.strictEqual(request.questions[0].message, 'What is your name?');
 			const questionId = request.questions[0].id;
@@ -7620,7 +7678,7 @@ suite('CopilotAgentSession', () => {
 				ActionType.ChatInputCompleted,
 			]);
 			const requested = getActions(signals)[0];
-			assert.strictEqual(requested.type === ActionType.ChatInputRequested ? requested.request.purpose : undefined, undefined);
+			assert.strictEqual(requested.type === ActionType.ChatInputRequested ? readChatInputRequestPurpose(requested.request) : undefined, undefined);
 			const completed = getActions(signals)[1];
 			assert.deepStrictEqual(completed.type === ActionType.ChatInputCompleted ? Object.values(completed.answers ?? {}) : [], [{
 				state: ChatInputAnswerState.Submitted,
@@ -7671,7 +7729,7 @@ suite('CopilotAgentSession', () => {
 				ActionType.ChatInputCompleted,
 			]);
 			const requested = getActions(signals)[0];
-			assert.strictEqual(requested.type === ActionType.ChatInputRequested ? requested.request.purpose : undefined, undefined);
+			assert.strictEqual(requested.type === ActionType.ChatInputRequested ? readChatInputRequestPurpose(requested.request) : undefined, undefined);
 			const completed = getActions(signals)[1];
 			assert.deepStrictEqual(completed.type === ActionType.ChatInputCompleted ? Object.values(completed.answers ?? {}) : [], [{
 				state: ChatInputAnswerState.Submitted,
@@ -7710,7 +7768,7 @@ suite('CopilotAgentSession', () => {
 
 			assert.strictEqual(signals.length, 1);
 			const request = getInputRequest(signals[0]);
-			assert.strictEqual(request.purpose, ChatInputRequestPurpose.Elicitation);
+			assert.strictEqual(readChatInputRequestPurpose(request), ChatInputRequestPurpose.Elicitation);
 			assert.strictEqual(request.message, 'Configure deployment');
 			assert.ok(request.questions);
 			assert.deepStrictEqual(request.questions.map(q => ({ id: q.id, kind: q.kind, required: q.required })), [
@@ -9195,7 +9253,7 @@ suite('CopilotAgentSession', () => {
 
 			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
 			const request = getInputRequest(signal);
-			assert.strictEqual(request.purpose, ChatInputRequestPurpose.PlanReview);
+			assert.strictEqual(readChatInputRequestPurpose(request), ChatInputRequestPurpose.PlanReview);
 
 			const planReview = (request as ChatInputRequestWithPlanReview).planReview;
 			assert.deepStrictEqual(planReview, {
@@ -9761,7 +9819,7 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(mockSession.mcpEnableCalls, [{ serverName }]);
 		});
 
-		test('re-enabling a plugin server with an explicit cwd defers to a session refresh', async () => {
+		test('re-enabling an explicitly projected plugin server defers to a session refresh', async () => {
 			const serverName = 'vscode_probe';
 			const pluginUri = 'https://bundle';
 			const pluginDir = URI.file('/bundle');
@@ -9790,6 +9848,7 @@ suite('CopilotAgentSession', () => {
 							name: serverName,
 							configuration: { type: McpServerType.LOCAL, command: 'node', args: ['server.js'] },
 							defaultCwd: URI.file('/workspace'),
+							sdkRegistration: 'sessionConfig',
 							uri: URI.joinPath(pluginDir, '.mcp.json'),
 							customization: child,
 						}],

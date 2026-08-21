@@ -19,6 +19,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { AbstractEditorWithViewState } from '../../../../workbench/browser/parts/editor/editorWithViewState.js';
@@ -31,6 +32,7 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 import { IMultiDiffEditorOptions, IMultiDiffEditorViewState } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
+import { MultiDiffEditorLogger } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorLogging.js';
 import { IDiffEditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { IResourceLabel, IWorkbenchUIElementFactory, MultiDiffEditorItemLabelKind } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
@@ -188,6 +190,8 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	/** Deferred focus request awaiting the active diff editor to be rendered. */
 	private readonly _pendingFocus = this._register(new MutableDisposable());
 
+	private readonly _logger: MultiDiffEditorLogger;
+
 	constructor(
 		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -202,6 +206,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
 		@ISessionChangesService private readonly sessionChangesService: ISessionChangesService,
 		@IDiffEditorOptionsService private readonly diffEditorOptionsService: IDiffEditorOptionsService,
+		@ILogService logService: ILogService,
 	) {
 		super(
 			SessionChangesEditor.ID,
@@ -215,6 +220,8 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			editorService,
 			editorGroupService,
 		);
+
+		this._logger = this._register(new MultiDiffEditorLogger(logService));
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
@@ -290,7 +297,8 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 
 	override async setInput(input: SessionChangesEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
-		this._inputSessionResource.set(this.sessionChangesService.getSessionResource(input.multiDiffSource), undefined);
+		const sessionResource = this.sessionChangesService.getSessionResource(input.multiDiffSource);
+		this._inputSessionResource.set(sessionResource, undefined);
 		const viewModel = await input.getViewModel();
 		if (token.isCancellationRequested) {
 			return;
@@ -301,6 +309,11 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		// automatic first-change navigation sees the restored active item instead
 		// of navigating to (and focusing) the first file.
 		const viewState = this.loadEditorViewState(input, context);
+		this._logger.log('changes editor set input', {
+			session: sessionResource,
+			preserveFocus: !!options?.preserveFocus,
+			hasPersistedViewState: !!viewState,
+		});
 		this.widget?.setViewModel(viewModel, { preserveFocus: options?.preserveFocus, viewState });
 		this._applyOptions(options);
 	}
@@ -312,6 +325,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		// state survives regardless of the close/open ordering.
 		if (!visible) {
 			this._pendingFocus.clear();
+			this._logger.log('changes editor hidden, saving view state');
 			this.saveCurrentEditorViewState();
 		}
 		super.setEditorVisible(visible);
@@ -319,6 +333,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 
 	protected override computeEditorViewState(_resource: URI): IMultiDiffEditorViewState | undefined {
 		if (!this.viewModel) {
+			this._logger.log('skipped computing view state, no view model loaded');
 			return undefined; // nothing loaded: don't overwrite a saved state with an empty snapshot
 		}
 		return this.widget?.getViewState();
@@ -386,6 +401,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	override clearInput(): void {
 		const input = this.input;
 		this._pendingFocus.clear();
+		this._logger.log('changes editor clear input');
 		// Let the base capture the current view state (it reads the widget) before the
 		// view model is torn down.
 		super.clearInput();
