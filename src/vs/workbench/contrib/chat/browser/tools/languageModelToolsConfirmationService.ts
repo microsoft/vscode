@@ -14,7 +14,9 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IQuickInputButton, IQuickInputButtonWithToggle, IQuickInputService, IQuickTreeItem, QuickInputButtonLocation } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ConfirmedReason, ToolConfirmKind } from '../../common/chatService/chatService.js';
+import { isAutoApprovePolicyRestricted } from '../../common/agentHostConfigPolicy.js';
 import { ILanguageModelToolConfirmationActions, ILanguageModelToolConfirmationContribution, ILanguageModelToolConfirmationContributionQuickTreeItem, ILanguageModelToolConfirmationRef, ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
 import { IToolData, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
 
@@ -231,6 +233,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IDialogService private readonly _dialogService: IDialogService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -253,6 +256,10 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 
 		// If contribution disables default permissions, don't check default stores
 		if (contribution && contribution.canUseDefaultApprovals === false) {
+			return undefined;
+		}
+
+		if (isAutoApprovePolicyRestricted(this._configurationService)) {
 			return undefined;
 		}
 
@@ -296,6 +303,10 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 			return undefined;
 		}
 
+		if (isAutoApprovePolicyRestricted(this._configurationService)) {
+			return undefined;
+		}
+
 		// Check tool-level confirmation
 		const toolResult = this._postExecutionToolConfirmStore.checkAutoConfirmation(ref.toolId);
 		if (toolResult) {
@@ -324,6 +335,10 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 
 		// If contribution disables default permissions, only return contribution actions
 		if (contribution && contribution.canUseDefaultApprovals === false) {
+			return actions;
+		}
+
+		if (isAutoApprovePolicyRestricted(this._configurationService)) {
 			return actions;
 		}
 
@@ -443,6 +458,10 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 
 		// If contribution disables default permissions, only return contribution actions
 		if (contribution && contribution.canUseDefaultApprovals === false) {
+			return actions;
+		}
+
+		if (isAutoApprovePolicyRestricted(this._configurationService)) {
 			return actions;
 		}
 
