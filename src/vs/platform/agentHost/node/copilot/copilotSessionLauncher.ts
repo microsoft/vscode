@@ -6,7 +6,6 @@
 import type { ContextTier, CopilotClient, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ModelCapabilitiesOverride, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { isEqual } from '../../../../base/common/resources.js';
 import { isObject, isStringArray } from '../../../../base/common/types.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -28,8 +27,7 @@ import { IAgentHostManagedSettingsService } from '../agentHostManagedSettingsSer
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyService.js';
-import type { IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
-import type { ICopilotPluginInfo } from './copilotAgent.js';
+import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.js';
 import { toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSessionCustomAgents, toSdkSkillDirectories } from './copilotPluginConverters.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { ShellManager, createShellTools, type IUnsandboxedCommandConfirmationRequest } from './copilotShellTools.js';
@@ -76,10 +74,11 @@ function disabledMcpServersSessionOption(plugins: readonly ICopilotPluginInfo[],
 	return disabledMcpServers.length > 0 ? { disabledMcpServers } : {};
 }
 
-export function isMcpServerExplicitlyProjected(plugin: ICopilotPluginInfo, server: IMcpServerDefinition): boolean {
-	return !plugin.pluginDir
-		|| plugin.pluginDir.scheme !== Schemas.file
-		|| server.defaultCwd !== undefined && !isEqual(server.defaultCwd, plugin.pluginDir);
+/**
+ * Returns whether Agent Host must include the server in `SessionConfig.mcpServers` instead of leaving it to SDK plugin discovery.
+ */
+export function isMcpServerExplicitlyProjected(server: ICopilotMcpServerInfo): boolean {
+	return server.sdkRegistration === 'sessionConfig';
 }
 
 /**
@@ -753,7 +752,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const pluginsWithoutDirs = plugins.filter(p => !p.pluginDir || p.pluginDir.scheme !== Schemas.file);
 		const explicitMcpServers = plan.isEphemeral ? [] : plugins.flatMap(plugin => plugin.mcpServers.filter(server =>
 			!plugin.disabledMcpServers?.includes(server.name)
-			&& isMcpServerExplicitlyProjected(plugin, server)
+			&& isMcpServerExplicitlyProjected(server)
 		));
 		// An ephemeral session skips the explicit enumeration (and its file I/O). The SDK can
 		// still discover agents from `pluginDirectories`; suppressing that too would also drop
@@ -816,21 +815,29 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// summary at info for prompt observability; the full config at trace.
 		const systemMessage = agentHostPromptRegistry.resolveSystemMessageConfig(effectiveModel, promptContext);
 		this._logService.info(`[Copilot:${plan.sessionId}] Resolved system message: ${describeSystemMessageConfig(systemMessage)}`);
+		const additionalDisabledMcpServers = plan.isEphemeral ? [
+			...plugins.flatMap(plugin => plugin.mcpServers.map(server => server.name)),
+			...Object.keys(plan.snapshot.mcpServers),
+		] : undefined;
+		const disabledMcpServers = disabledMcpServersSessionOption(plugins, plan.disabledRootMcpServers, additionalDisabledMcpServers);
+		const mcpServers = plan.isEphemeral ? {} : { ...toSdkMcpServersFromConfigMap(plan.snapshot.mcpServers), ...toSdkMcpServers(explicitMcpServers) };
 		if (this._logService.getLevel() <= LogLevel.Trace) {
 			// Guarded: a `replace`-mode prompt's content can be multiple KB, so only
 			// serialize it when trace output is actually emitted.
 			this._logService.trace(`[Copilot:${plan.sessionId}] System message config: ${JSON.stringify(systemMessage, (_key, value) => typeof value === 'function' ? '[transform fn]' : value)}`);
+			const sortedUnique = (names: readonly string[]) => [...new Set(names)].sort();
+			this._logService.trace(`[Copilot:${plan.sessionId}] MCP launch projection: ${JSON.stringify({
+				ephemeral: plan.isEphemeral === true,
+				pluginDiscovery: sortedUnique(plugins.flatMap(plugin => plugin.mcpServers.filter(server => server.sdkRegistration === 'pluginDiscovery').map(server => server.name))),
+				sessionConfig: sortedUnique(plugins.flatMap(plugin => plugin.mcpServers.filter(server => server.sdkRegistration === 'sessionConfig').map(server => server.name))),
+				rootConfig: Object.keys(plan.snapshot.mcpServers).sort(),
+				disabled: [...(disabledMcpServers.disabledMcpServers ?? [])].sort(),
+				finalSessionConfig: Object.keys(mcpServers).sort(),
+			})}`);
 		}
 		return {
 			...byok,
-			...disabledMcpServersSessionOption(
-				plugins,
-				plan.disabledRootMcpServers,
-				plan.isEphemeral ? [
-					...plugins.flatMap(plugin => plugin.mcpServers.map(server => server.name)),
-					...Object.keys(plan.snapshot.mcpServers),
-				] : undefined,
-			),
+			...disabledMcpServers,
 			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
 			// Resume only: `_createSession` re-resolves the full effort for a create,
 			// while a resumed session keeps the effort the runtime journaled unless
@@ -851,7 +858,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				onPostToolUse: input => runtime.handlePostToolUse(input),
 				onUserPromptSubmitted: () => runtime.handleUserPromptSubmitted(),
 			}),
-			mcpServers: plan.isEphemeral ? {} : { ...toSdkMcpServersFromConfigMap(plan.snapshot.mcpServers), ...toSdkMcpServers(explicitMcpServers) },
+			mcpServers,
 			onExitPlanModeRequest: (request, invocation) => runtime.handleExitPlanModeRequest(request, invocation),
 			workingDirectory: plan.workingDirectory?.fsPath,
 			customAgents,

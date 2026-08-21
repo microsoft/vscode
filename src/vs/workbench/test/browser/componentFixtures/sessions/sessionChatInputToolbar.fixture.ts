@@ -107,7 +107,7 @@ function createMockSession(spec: ISessionSpec): IMockSessionAndChat {
 	const browsers = (spec.browsers ?? []).map((browser, index) => {
 		const owner = browser.ownerSubagent === undefined ? chat : subagents[browser.ownerSubagent];
 		const model = new class extends mock<IBrowserViewModel>() {
-			override readonly owner = { mainWindowId: 1, sessionId: owner.resource.toString() };
+			override readonly owner = { type: 'agent' as const, sessionId: owner.resource.toString() };
 		}();
 		return new class extends mock<BrowserEditorInput>() {
 			override get id(): string { return `browser-${index}`; }
