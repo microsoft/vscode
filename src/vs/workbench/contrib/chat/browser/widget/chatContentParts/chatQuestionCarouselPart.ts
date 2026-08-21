@@ -43,6 +43,7 @@ import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/c
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { getChatMarkdownRenderOptions } from '../chatContentMarkdownRenderer.js';
 import { CHAT_CARD_HEADER_CLASS, CHAT_CARD_LARGE_CLASS, CHAT_CARD_TITLE_CLASS, createChatCardIconButton } from '../chatCard.js';
+import { ChatCardListbox } from '../chatCardListbox.js';
 import './media/chatQuestionCarousel.css';
 
 const PREVIOUS_QUESTION_ACTION_ID = 'workbench.action.chat.previousQuestion';
@@ -1131,9 +1132,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	private renderSingleSelect(container: HTMLElement, question: IChatQuestion): void {
 		const orderedOptions = getOptionsWithDefaultsFirst(question);
 		const selectContainer = dom.$('.chat-question-list');
-		selectContainer.setAttribute('role', 'listbox');
-		selectContainer.setAttribute('aria-label', question.title);
-		selectContainer.tabIndex = 0;
 		container.appendChild(selectContainer);
 
 		// Restore previous answer if exists
@@ -1155,22 +1153,19 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			}
 		});
 
-		const listItems: HTMLElement[] = [];
+		const listbox = new ChatCardListbox(selectContainer, question.title, 'selected');
 		const indicators: HTMLElement[] = [];
-		const updateSelection = (newIndex: number) => {
-			// Update visual state
-			listItems.forEach((item, i) => {
+		/** Paints the row state without committing, which is what initial render needs. */
+		const paintSelection = (newIndex: number) => {
+			listbox.setActive(newIndex);
+			indicators.forEach((indicator, i) => {
 				const isSelected = i === newIndex;
-				item.classList.toggle('selected', isSelected);
-				item.setAttribute('aria-selected', String(isSelected));
-				const indicator = indicators[i];
 				indicator.classList.toggle('codicon', isSelected);
 				indicator.classList.toggle('codicon-check', isSelected);
 			});
-			// Update aria-activedescendant for screen reader announcements
-			if (newIndex >= 0 && newIndex < listItems.length) {
-				selectContainer.setAttribute('aria-activedescendant', listItems[newIndex].id);
-			}
+		};
+		const updateSelection = (newIndex: number) => {
+			paintSelection(newIndex);
 			// Update tracked state
 			const data = this._singleSelectItems.get(question.id);
 			if (data) {
@@ -1180,24 +1175,17 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			this.saveCurrentAnswer();
 		};
 
+		const listItems: HTMLElement[] = [];
 		orderedOptions.forEach(({ option }, index) => {
-			const isSelected = index === selectedIndex;
 			const listItem = dom.$('.chat-question-list-item');
-			listItem.setAttribute('role', 'option');
-			listItem.setAttribute('aria-selected', String(isSelected));
+			listbox.addOption(listItem, `option-${question.id}`);
 			listItem.setAttribute('aria-label', localize('chat.questionCarousel.optionLabel', "Option {0}: {1}", index + 1, option.label));
-			listItem.id = `option-${question.id}-${index}`;
-			listItem.tabIndex = -1;
 
 			const number = dom.$('.chat-question-list-number');
 			number.textContent = `${index + 1}`;
 			listItem.appendChild(number);
 
-			// Selection indicator (checkmark when selected)
 			const indicator = dom.$('.chat-question-list-indicator');
-			if (isSelected) {
-				indicator.classList.add('codicon', 'codicon-check');
-			}
 			indicators.push(indicator);
 
 			// Label with optional description (format: "Title - Description")
@@ -1217,10 +1205,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			}
 			listItem.appendChild(label);
 			listItem.appendChild(indicator);
-
-			if (isSelected) {
-				listItem.classList.add('selected');
-			}
 
 			// if we select an option, clear text and go to next question
 			this._inputBoxes.add(dom.addDisposableListener(listItem, dom.EventType.CLICK, (e: MouseEvent) => {
@@ -1246,10 +1230,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		this._singleSelectItems.set(question.id, { items: listItems, selectedIndex, optionIndices: orderedOptions.map(o => o.originalIndex) });
 
-		// Set initial aria-activedescendant if there's a selected item
-		if (selectedIndex >= 0 && selectedIndex < listItems.length) {
-			selectContainer.setAttribute('aria-activedescendant', listItems[selectedIndex].id);
-		}
+		// Paints the initial row and points `aria-activedescendant` at it. Deliberately not
+		// `updateSelection`, which would commit an answer the user has not given yet.
+		paintSelection(selectedIndex);
 
 		// Show freeform input only when explicitly allowed
 		let freeformTextarea: HTMLTextAreaElement | undefined;
@@ -1302,10 +1285,10 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 			if (event.keyCode === KeyCode.DownArrow) {
 				e.preventDefault();
-				newIndex = Math.min(data.selectedIndex + 1, listItems.length - 1);
+				newIndex = listbox.clampedIndex(data.selectedIndex + 1);
 			} else if (event.keyCode === KeyCode.UpArrow) {
 				e.preventDefault();
-				newIndex = Math.max(data.selectedIndex - 1, 0);
+				newIndex = listbox.clampedIndex(data.selectedIndex - 1);
 			} else if ((event.keyCode === KeyCode.Enter || event.keyCode === KeyCode.Space) && !event.metaKey && !event.ctrlKey) {
 				// Enter confirms current selection and advances to next question
 				e.preventDefault();
@@ -1347,7 +1330,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 					updateSelection(0);
 				}
 				this._inputBoxes.add(dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(selectContainer), () => {
-					selectContainer.focus();
+					listbox.focus();
 				}));
 			}
 		}
