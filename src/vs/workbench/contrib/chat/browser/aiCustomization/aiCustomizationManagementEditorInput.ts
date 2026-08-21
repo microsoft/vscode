@@ -21,7 +21,6 @@ export class AICustomizationManagementEditorInput extends EditorInput implements
 
 	readonly resource = undefined;
 
-	private static _activeHarnessLabel = '';
 	private _isDirty = false;
 	private _saveHandler?: () => Promise<boolean>;
 
@@ -36,7 +35,6 @@ export class AICustomizationManagementEditorInput extends EditorInput implements
 	 */
 	static getOrCreate(): AICustomizationManagementEditorInput {
 		if (!AICustomizationManagementEditorInput._instance || AICustomizationManagementEditorInput._instance.isDisposed()) {
-			AICustomizationManagementEditorInput._activeHarnessLabel = '';
 			AICustomizationManagementEditorInput._instance = new AICustomizationManagementEditorInput();
 		}
 		return AICustomizationManagementEditorInput._instance;
@@ -55,10 +53,7 @@ export class AICustomizationManagementEditorInput extends EditorInput implements
 	}
 
 	override getName(): string {
-		const harnessLabel = AICustomizationManagementEditorInput._activeHarnessLabel;
-		return harnessLabel
-			? localize('aiCustomizationManagementEditorNameWithHarness', "Agent Customizations for {0}", harnessLabel)
-			: localize('aiCustomizationManagementEditorName', "Agent Customizations");
+		return localize('aiCustomizationManagementEditorName', "Agent Customizations");
 	}
 
 	override getIcon(): ThemeIcon {
@@ -90,14 +85,6 @@ export class AICustomizationManagementEditorInput extends EditorInput implements
 
 	override async revert(): Promise<void> {
 		this.setDirty(false);
-	}
-
-	setHarnessLabel(label: string): void {
-		if (AICustomizationManagementEditorInput._activeHarnessLabel === label) {
-			return;
-		}
-		AICustomizationManagementEditorInput._activeHarnessLabel = label;
-		this._onDidChangeLabel.fire();
 	}
 
 	setDirty(dirty: boolean): void {

@@ -22,9 +22,15 @@ import { AICustomizationManagementSection, AICustomizationSources } from '../../
 import type { ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
 import { CustomizationMigrationCategoryId } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
 import type { ICustomizationMigrationCategorySummary } from '../../../browser/aiCustomization/aiCustomizationWelcomePage.js';
+import { AICustomizationManagementEditorInput } from '../../../browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 
 suite('aiCustomizationManagementEditor', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses a stable modal title', () => {
+		const input = store.add(new AICustomizationManagementEditorInput());
+		assert.strictEqual(input.getName(), 'Agent Customizations');
+	});
 
 	type TestableEditor = {
 		currentEditingPromptType: PromptsType | undefined;
