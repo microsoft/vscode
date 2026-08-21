@@ -225,6 +225,8 @@ export interface IMakeChatRequestOptions {
 	enableRetryOnError?: boolean;
 	/** Which fetcher to use, overrides the default. */
 	useFetcher?: FetcherId;
+	/** Complete schema-resolved model configuration for this request. */
+	modelConfiguration?: Readonly<Record<string, unknown>>;
 	/** Per-request model capability opt-ins (thinking, tool search, context editing). */
 	modelCapabilities?: IModelCapabilityOptions;
 	/**

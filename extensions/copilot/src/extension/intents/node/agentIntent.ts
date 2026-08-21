@@ -1180,6 +1180,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 				const response = await this.endpoint.makeChatRequest2({
 					debugName: 'summarizeConversationHistory',
 					messages,
+					modelConfiguration: this.request.modelConfiguration,
 					// Compaction is a standalone turn. Explicit because the default differs per
 					// endpoint: true on ChatEndpoint (HTTP), false on OpenAIEndpoint (#323554).
 					ignoreStatefulMarker: true,
