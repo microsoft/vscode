@@ -5932,6 +5932,40 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(restored.state, { annotations: [annotation] });
 		});
 
+		test('annotations persisted before the origin migration are restored', async () => {
+			const sessionData = createPerSessionDataService();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const annotationsUri = buildAnnotationsUri(session.toString());
+			// The shape written before annotations carried an origin: a
+			// top-level `turnId` and no owning session.
+			await sessionData.database(session).setMetadata('annotations', JSON.stringify({
+				annotations: [{
+					id: 'feedback-1',
+					turnId: 'turn-1',
+					resource: URI.file('/workspace/reviewed.ts').toString(),
+					resolved: false,
+					entries: [{ id: 'feedback-1:0', text: 'Please revisit this.' }],
+				}],
+			}));
+			localService.stateManager.deleteSession(session.toString());
+
+			const restored = await localService.subscribe(URI.parse(annotationsUri), 'client-after-upgrade');
+
+			assert.deepStrictEqual(restored.state, {
+				annotations: [{
+					id: 'feedback-1',
+					origin: { session: session.toString(), turnId: 'turn-1' },
+					resource: URI.file('/workspace/reviewed.ts').toString(),
+					resolved: false,
+					entries: [{ id: 'feedback-1:0', text: 'Please revisit this.' }],
+				}],
+			});
+		});
+
 		test('annotations subscribe concurrent with session restore returns persisted feedback', async () => {
 			const sessionData = createPerSessionDataService();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));

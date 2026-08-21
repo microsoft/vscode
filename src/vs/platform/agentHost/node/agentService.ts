@@ -33,7 +33,7 @@ import { resolveSessionWorkingDirectoryAction } from '../common/state/sessionWor
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult, SessionConfigPropertySchema } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
-import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type ChatOrigin, type Customization, type Message, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
+import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type ChatOrigin, type Customization, type Message, type MessageAttachment, type MessageResourceAttachment, type TextRange } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
 import { ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_ORCHESTRATION_DB_KEY, readSessionSpawnDepth, parseSessionOrchestration, withSessionSpawnDepth, withSessionOrchestration, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, isAhpChatChannel, isDefaultChatUri, isSubagentChatUri, isSubagentSession, needsSessionGitStateRefresh, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, readSessionEhcliAdoptable, type ISessionSourceControlState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn, type UsageInfo, chatStorageUri, hasReportedUsage } from '../common/state/sessionState.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
@@ -222,21 +222,68 @@ function isPersistedAnnotationOrigin(value: unknown): value is AnnotationOrigin 
 		&& (value.turnId === undefined || typeof value.turnId === 'string');
 }
 
-function isPersistedAnnotation(value: unknown): value is Annotation {
+function isPersistedTextRange(value: unknown): value is TextRange {
 	return isRecord(value)
-		&& typeof value.id === 'string'
-		&& isPersistedAnnotationOrigin(value.origin)
-		&& typeof value.resource === 'string'
-		&& typeof value.resolved === 'boolean'
-		&& Array.isArray(value.entries)
-		&& value.entries.length > 0
-		&& value.entries.every(isPersistedAnnotationEntry);
+		&& isRecord(value.start) && typeof value.start.line === 'number' && typeof value.start.character === 'number'
+		&& isRecord(value.end) && typeof value.end.line === 'number' && typeof value.end.character === 'number';
 }
 
-function isPersistedAnnotationsState(value: unknown): value is AnnotationsState {
-	return isRecord(value)
-		&& Array.isArray(value.annotations)
-		&& value.annotations.every(isPersistedAnnotation);
+/**
+ * Reads one persisted annotation, migrating the pre-`origin` shape. Releases
+ * before the annotation origin recorded a top-level `turnId` and no owning
+ * session, so the session that is being restored supplies the origin.
+ */
+function readPersistedAnnotation(value: unknown, session: string): Annotation | undefined {
+	if (!isRecord(value)
+		|| typeof value.id !== 'string'
+		|| typeof value.resource !== 'string'
+		|| typeof value.resolved !== 'boolean'
+		|| !Array.isArray(value.entries)
+		|| value.entries.length === 0
+		|| !value.entries.every(isPersistedAnnotationEntry)) {
+		return undefined;
+	}
+	let origin: AnnotationOrigin;
+	if (isPersistedAnnotationOrigin(value.origin)) {
+		origin = value.origin;
+	} else if (value.origin === undefined) {
+		origin = { session, ...(typeof value.turnId === 'string' && value.turnId ? { turnId: value.turnId } : {}) };
+	} else {
+		return undefined;
+	}
+	const annotation: Annotation = {
+		id: value.id,
+		origin,
+		resource: value.resource,
+		resolved: value.resolved,
+		entries: value.entries,
+	};
+	if (isPersistedTextRange(value.range)) {
+		annotation.range = value.range;
+	}
+	if (isRecord(value._meta)) {
+		annotation._meta = value._meta;
+	}
+	return annotation;
+}
+
+/**
+ * Reads a persisted annotations state, migrating any legacy annotation into the
+ * current shape. Returns `undefined` when the payload is not a valid state.
+ */
+function readPersistedAnnotationsState(value: unknown, session: string): AnnotationsState | undefined {
+	if (!isRecord(value) || !Array.isArray(value.annotations)) {
+		return undefined;
+	}
+	const annotations: Annotation[] = [];
+	for (const entry of value.annotations) {
+		const annotation = readPersistedAnnotation(entry, session);
+		if (!annotation) {
+			return undefined;
+		}
+		annotations.push(annotation);
+	}
+	return { annotations };
 }
 
 /** Opaque provider data for the session's default chat. */
@@ -4346,6 +4393,14 @@ export class AgentService extends Disposable implements IAgentService {
 				action = this._withPreservedHostWrittenSessionConfig(sessionChannel, configAction);
 			}
 		}
+		// `session/workingDirectoryReplaced` is client-dispatchable in the
+		// protocol, but no provider advertises `primaryReplacement` and the host
+		// has no backend side effect for it. Reject it rather than let the
+		// reducer apply an unvalidated, uncanonicalized mutation.
+		if (action.type === ActionType.SessionWorkingDirectoryReplaced) {
+			this._stateManager.rejectClientAction(channel, action, origin, 'Session working-directory replacement is not supported.');
+			return;
+		}
 		if (action.type === ActionType.SessionWorkingDirectorySet || action.type === ActionType.SessionWorkingDirectoryRemoved) {
 			if (clientContext.clientType !== AgentHostClientType.EditorWindow) {
 				this._stateManager.rejectClientAction(channel, action, origin, 'Session working-directory actions require an Editor Window client.');
@@ -4814,10 +4869,11 @@ export class AgentService extends Disposable implements IAgentService {
 					return;
 				}
 				const state: unknown = JSON.parse(raw);
-				if (!isPersistedAnnotationsState(state)) {
+				const annotations = readPersistedAnnotationsState(state, session.toString());
+				if (!annotations) {
 					throw new Error('Invalid annotations state');
 				}
-				this._stateManager.restoreAnnotations(session.toString(), state);
+				this._stateManager.restoreAnnotations(session.toString(), annotations);
 			} finally {
 				ref.dispose();
 			}

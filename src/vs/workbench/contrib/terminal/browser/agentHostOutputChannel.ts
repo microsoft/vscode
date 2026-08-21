@@ -23,6 +23,9 @@ export class AgentHostOutputChannel extends Disposable implements IChatTerminalO
 	private _output = '';
 	get output(): string { return this._output; }
 
+	private _hasExited = false;
+	get hasExited(): boolean { return this._hasExited; }
+
 	private _exitCode: number | undefined;
 	get exitCode(): number | undefined { return this._exitCode; }
 
@@ -41,7 +44,9 @@ export class AgentHostOutputChannel extends Disposable implements IChatTerminalO
 			.map(part => part.type === 'command' ? part.output : part.value)
 			.join('')
 			.replace(/\r?\n/g, '\r\n');
-		this._exitCode = state.lifecycle.status === TerminalLifecycleStatus.Exited ? state.lifecycle.exitCode : undefined;
+		const lifecycle = state.lifecycle;
+		this._hasExited = lifecycle.status === TerminalLifecycleStatus.Exited;
+		this._exitCode = lifecycle.status === TerminalLifecycleStatus.Exited ? lifecycle.exitCode : undefined;
 		this._onDidChange.fire();
 	}
 }

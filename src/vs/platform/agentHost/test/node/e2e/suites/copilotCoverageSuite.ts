@@ -108,7 +108,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 			action: {
 				type: ActionType.ChatTurnStarted,
 				turnId,
-				startedAt: '2025-01-01T00:00:00.000Z',
+				startedAt: new Date().toISOString(),
 				message: {
 					text: 'Search for the get_magic_word tool before using it. Call get_magic_word exactly once, then reply with only its result.',
 					origin: { kind: MessageKind.User },

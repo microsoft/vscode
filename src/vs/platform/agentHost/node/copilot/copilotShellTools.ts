@@ -16,6 +16,7 @@ import { ISandboxHelperService } from '../../../sandbox/common/sandboxHelperServ
 import type { ITerminalSandboxResolvedNetworkDomains } from '../../../sandbox/common/terminalSandboxService.js';
 import { TerminalSandboxEngine } from '../../../sandbox/common/terminalSandboxEngine.js';
 import { TerminalClaimKind, TerminalLifecycleStatus, type TerminalSessionClaim } from '../../common/state/protocol/state.js';
+import { parseRequiredSessionUriFromChatUri } from '../../common/state/sessionState.js';
 import { isZsh } from '../agentHostShellUtils.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import { createAgentHostSandboxEngine } from './agentHostSandboxEngine.js';
@@ -174,7 +175,9 @@ export class ShellManager extends Disposable {
 
 		const claim: TerminalSessionClaim = {
 			kind: TerminalClaimKind.Session,
-			session: this._sessionUri.toString(),
+			// The chat URI is authoritative: this manager's own scope URI is the
+			// chat for a peer chat, so the owning session comes from the chat.
+			session: parseRequiredSessionUriFromChatUri(chat),
 			chat: chat.toString(),
 			turnId,
 			toolCallId,
