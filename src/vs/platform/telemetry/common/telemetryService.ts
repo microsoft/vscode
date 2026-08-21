@@ -83,6 +83,8 @@ export class TelemetryService implements ITelemetryService {
 		return new TelemetryService(config, undefined, productService);
 	}
 
+	constructor(config: ITelemetryServiceConfig & { telemetryLevel: TelemetryLevel }, configurationService: undefined, productService: IProductService);
+	constructor(config: ITelemetryServiceConfig, configurationService: IConfigurationService, productService: IProductService);
 	constructor(
 		config: ITelemetryServiceConfig,
 		@IConfigurationService configurationService: IConfigurationService | undefined,
