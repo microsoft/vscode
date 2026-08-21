@@ -61,6 +61,27 @@ suite('FetcherFallback Test Suite', function () {
 		assert.deepStrictEqual(json, JSON.parse(someJSON));
 	});
 
+	test('redirect response falls back to another fetcher', async function () {
+		const fetcherSpec = [
+			{ name: 'electron-fetch', response: createFakeResponse(302, someHTML) },
+			{ name: 'node-fetch', response: createFakeResponse(200, someJSON) },
+			{ name: 'electron-fetch', response: createFakeResponse(302, someHTML) },
+		];
+		const testFetchers = createTestFetchers(fetcherSpec);
+		const { response, updatedFetchers, updatedKnownBadFetchers } = await fetchWithFallbacks(testFetchers.fetchers, 'https://example.com', { callSite: 'test', expectJSON: true, retryFallbacks: true }, knownBadFetchers, configurationService, logService, telemetryService, experimentationService);
+		assert.deepStrictEqual({
+			calls: testFetchers.calls.map(c => c.name),
+			responseStatus: response.status,
+			updatedFetchers: updatedFetchers?.map(fetcher => fetcher.getUserAgentLibrary()),
+			updatedKnownBadFetchers: Array.from(updatedKnownBadFetchers ?? []),
+		}, {
+			calls: ['electron-fetch', 'node-fetch', 'electron-fetch'],
+			responseStatus: 200,
+			updatedFetchers: ['node-fetch', 'electron-fetch'],
+			updatedKnownBadFetchers: ['electron-fetch'],
+		});
+	});
+
 	test.each([
 		{ status: 401, fetchers: ['electron-fetch', 'node-fetch', 'node-http'] },
 		{ status: 429, fetchers: ['node-fetch', 'electron-fetch', 'node-http'] },

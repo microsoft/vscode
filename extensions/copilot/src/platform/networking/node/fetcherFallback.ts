@@ -52,7 +52,7 @@ export async function fetchWithFallbacks(availableFetchers: readonly IFetcher[],
 			if (fetcher === availableFetchers[0]) {
 				firstResult = result;
 			}
-			if ('response' in result && !result.response.ok) {
+			if ('response' in result && result.response.status >= 400) {
 				return fetcher === availableFetchers[0]
 					? { response: result.response }
 					: useFallbackFetcher(fetcher, result.response);
