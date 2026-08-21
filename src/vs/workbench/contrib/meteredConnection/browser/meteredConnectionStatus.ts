@@ -21,11 +21,18 @@ export class MeteredConnectionStatusContribution extends Disposable implements I
 	) {
 		super();
 
-		this.updateStatusBarEntry(this.meteredConnectionService.isConnectionMetered);
-
 		this._register(this.meteredConnectionService.onDidChangeIsConnectionMetered(isMetered => {
 			this.updateStatusBarEntry(isMetered);
 		}));
+
+		void this.initialize();
+	}
+
+	private async initialize(): Promise<void> {
+		await this.meteredConnectionService.whenInitialized;
+		if (!this._store.isDisposed) {
+			this.updateStatusBarEntry(this.meteredConnectionService.isConnectionMetered);
+		}
 	}
 
 	private updateStatusBarEntry(isMetered: boolean): void {

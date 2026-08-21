@@ -20,7 +20,7 @@ export class ExtHostMeteredConnection extends Disposable implements IExtHostMete
 
 	declare readonly _serviceBrand: undefined;
 
-	private _isConnectionMetered: boolean = false;
+	private _isConnectionMetered: boolean = true;
 
 	private readonly _onDidChangeIsConnectionMetered = this._register(new Emitter<boolean>());
 	readonly onDidChangeIsConnectionMetered: Event<boolean> = this._onDidChangeIsConnectionMetered.event;
@@ -34,7 +34,7 @@ export class ExtHostMeteredConnection extends Disposable implements IExtHostMete
 	}
 
 	$initializeIsConnectionMetered(isMetered: boolean): void {
-		this._isConnectionMetered = isMetered;
+		this.$onDidChangeIsConnectionMetered(isMetered);
 	}
 
 	$onDidChangeIsConnectionMetered(isMetered: boolean): void {

@@ -742,7 +742,9 @@ export class CodeApplication extends Disposable {
 
 		// Metered connection telemetry
 		appInstantiationService.invokeFunction(accessor => {
-			(accessor.get(IMeteredConnectionService) as MeteredConnectionMainService).setTelemetryService(accessor.get(ITelemetryService));
+			const meteredConnectionService = accessor.get(IMeteredConnectionService) as MeteredConnectionMainService;
+			meteredConnectionService.setTelemetryService(accessor.get(ITelemetryService));
+			meteredConnectionService.start();
 		});
 
 		// Auth Handler
@@ -1212,7 +1214,7 @@ export class CodeApplication extends Disposable {
 		services.set(IGlobalKeybindingsMainService, new SyncDescriptor(GlobalKeybindingsMainService, [globalShortcut]));
 
 		// Metered Connection
-		const meteredConnectionService = new MeteredConnectionMainService(this.configurationService);
+		const meteredConnectionService = new MeteredConnectionMainService(undefined, this.configurationService, this.logService);
 		services.set(IMeteredConnectionService, meteredConnectionService);
 
 		// Web Contents Extractor
