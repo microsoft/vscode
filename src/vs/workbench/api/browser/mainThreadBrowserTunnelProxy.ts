@@ -5,7 +5,7 @@
 
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
-import { ITunnelProxyInfo } from '../../../platform/tunnel/common/tunnelProxy.js';
+import { TunnelProxyStatus } from '../../../platform/tunnel/common/tunnelProxy.js';
 import { IBrowserViewWorkbenchService } from '../../contrib/browserView/common/browserView.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
@@ -53,10 +53,12 @@ export class MainThreadBrowserTunnelProxy extends Disposable implements MainThre
 	}
 
 	private _updateEnabled(): void {
-		this._proxy.$setEnabled(this._isEnabled());
+		const enabled = this._isEnabled();
+		this._browserViewWorkbenchService.setRemoteProxyStatus({ type: enabled ? 'starting' : 'stopped' });
+		this._proxy.$setEnabled(enabled);
 	}
 
-	$updateProxyInfo(info: ITunnelProxyInfo | undefined): void {
-		this._browserViewWorkbenchService.setRemoteProxyInfo(info);
+	$updateProxyStatus(status: TunnelProxyStatus): void {
+		this._browserViewWorkbenchService.setRemoteProxyStatus(status);
 	}
 }

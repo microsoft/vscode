@@ -19,3 +19,10 @@ export interface ITunnelProxyInfo {
 	/** SHA-256 fingerprint of the self-signed certificate (`sha256/<base64>`). */
 	certFingerprint: string;
 }
+
+/** Current lifecycle state of the browser tunnel proxy. */
+export type TunnelProxyStatus =
+	| { readonly type: 'stopped' }
+	| { readonly type: 'starting' }
+	| { readonly type: 'ready'; readonly info: ITunnelProxyInfo }
+	| { readonly type: 'failed'; readonly error: string };

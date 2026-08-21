@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { ITunnelProxyInfo } from '../../tunnel/common/tunnelProxy.js';
+import { ITunnelProxyInfo, TunnelProxyStatus } from '../../tunnel/common/tunnelProxy.js';
 import { BrowserViewStorageScope } from '../common/browserView.js';
 import type { BrowserSession } from './browserSession.js';
 
@@ -36,12 +37,10 @@ export interface IBrowserSessionRemote {
 	 */
 	readonly whenReady: Promise<void>;
 	/**
-	 * Acquire a reference to the tunnel proxy on behalf of {@link viewId}
-	 * and apply {@link proxyInfo} to the Electron session. Pass `undefined`
-	 * to release the reference (non-remote view). Refcounted by
-	 * {@link viewId}.
+	 * Acquire a reference to the tunnel proxy on behalf of {@link viewId} and
+	 * apply its current lifecycle {@link status}. Refcounted by {@link viewId}.
 	 */
-	acquire(viewId: string, proxyInfo: ITunnelProxyInfo | undefined): void;
+	acquire(viewId: string, status: TunnelProxyStatus): void;
 	/**
 	 * Release the reference acquired for {@link viewId}. Clears the proxy
 	 * and resets the Electron session when the last reference is released.
@@ -69,6 +68,8 @@ export class BrowserSessionRemote implements IBrowserSessionRemote {
 
 	private _proxy: ITunnelProxyInfo | undefined;
 	private _readyPromise: Promise<void> = Promise.resolve();
+	private _pendingReady: DeferredPromise<void> | undefined;
+	private _failureMessage: string | undefined;
 
 	/** Live references held by view id; the proxy is cleared at zero. */
 	private readonly _viewIds = new Set<string>();
@@ -96,13 +97,23 @@ export class BrowserSessionRemote implements IBrowserSessionRemote {
 		return this._readyPromise;
 	}
 
-	acquire(viewId: string, proxyInfo: ITunnelProxyInfo | undefined): void {
-		if (!proxyInfo || this._session.storageScope === BrowserViewStorageScope.Global) {
+	acquire(viewId: string, status: TunnelProxyStatus): void {
+		if (status.type === 'stopped' || this._session.storageScope === BrowserViewStorageScope.Global) {
 			this.release(viewId);
 			return;
 		}
 		this._viewIds.add(viewId);
-		this._setProxy(proxyInfo);
+		switch (status.type) {
+			case 'starting':
+				this._setPending();
+				break;
+			case 'ready':
+				this._setProxy(status.info);
+				break;
+			case 'failed':
+				this._setFailed(status.error);
+				break;
+		}
 	}
 
 	release(viewId: string): void {
@@ -115,15 +126,62 @@ export class BrowserSessionRemote implements IBrowserSessionRemote {
 	}
 
 	private _setProxy(info: ITunnelProxyInfo | undefined): void {
-		if (sameProxyInfo(this._proxy, info)) {
+		if (sameProxyInfo(this._proxy, info) && !this._pendingReady && !this._failureMessage) {
 			return;
 		}
 		const wasRemote = this._proxy !== undefined;
 		this._proxy = info;
-		this._readyPromise = this._applyProxy();
+		this._failureMessage = undefined;
+		const pendingReady = this._pendingReady;
+		this._pendingReady = undefined;
+		const applyPromise = this._applyProxy();
+		if (pendingReady) {
+			this._readyPromise = pendingReady.p;
+			void applyPromise.then(
+				() => pendingReady.complete(),
+				error => pendingReady.error(error)
+			);
+		} else {
+			this._readyPromise = applyPromise;
+		}
 		if (info) {
 			this._onDidStart.fire();
 		} else if (wasRemote) {
+			this._onDidStop.fire();
+		}
+	}
+
+	private _setPending(): void {
+		this._failureMessage = undefined;
+		if (!this._pendingReady) {
+			this._pendingReady = new DeferredPromise<void>();
+			this._readyPromise = this._pendingReady.p;
+			void this._readyPromise.catch(() => { });
+		}
+	}
+
+	private _setFailed(message: string): void {
+		if (this._failureMessage === message) {
+			return;
+		}
+		const wasRemote = this._proxy !== undefined;
+		this._proxy = undefined;
+		this._failureMessage = message;
+		const pendingReady = this._pendingReady;
+		this._pendingReady = undefined;
+		const error = new Error(`Failed to start remote browser proxy: ${message}`);
+		const applyPromise = wasRemote ? this._applyProxy() : Promise.resolve();
+		if (pendingReady) {
+			this._readyPromise = pendingReady.p;
+			void applyPromise.then(
+				() => pendingReady.error(error),
+				applyError => pendingReady.error(applyError)
+			);
+		} else {
+			this._readyPromise = applyPromise.then(() => { throw error; });
+			void this._readyPromise.catch(() => { });
+		}
+		if (wasRemote) {
 			this._onDidStop.fire();
 		}
 	}

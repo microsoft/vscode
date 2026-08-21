@@ -10,7 +10,7 @@ import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CDPEvent, CDPRequest, CDPResponse } from '../../../../platform/browserView/common/cdp/types.js';
-import { ITunnelProxyInfo } from '../../../../platform/tunnel/common/tunnelProxy.js';
+import { TunnelProxyStatus } from '../../../../platform/tunnel/common/tunnelProxy.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { localize } from '../../../../nls.js';
@@ -237,12 +237,12 @@ export interface IBrowserViewWorkbenchService {
 	willUseRemoteProxy(): boolean;
 
 	/**
-	 * Set the tunnel-proxy credentials resolved by the window's local node
-	 * extension host (which hosts the HTTPS tunnel proxy), or `undefined` to
-	 * clear them. Folded into the window configuration sent to the main
-	 * process so this window's remote browser views (re)apply the proxy.
+	 * Set the tunnel-proxy lifecycle state reported by the window's local node
+	 * extension host. Folded into the window configuration sent to the main
+	 * process so this window's remote browser views can wait, apply the proxy,
+	 * or fail without leaving navigation pending forever.
 	 */
-	setRemoteProxyInfo(info: ITunnelProxyInfo | undefined): void;
+	setRemoteProxyStatus(status: TunnelProxyStatus): void;
 
 	/**
 	 * Fires when the set of known browser views changes, or a model is created for an existing input.

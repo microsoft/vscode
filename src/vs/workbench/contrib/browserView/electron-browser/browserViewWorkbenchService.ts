@@ -39,7 +39,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { getCopilotRootPaths } from '../../../../platform/agentHost/common/copilotHome.js';
 import { localChatSessionType } from '../../chat/common/chatSessionsService.js';
 import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
-import { ITunnelProxyInfo } from '../../../../platform/tunnel/common/tunnelProxy.js';
+import { TunnelProxyStatus } from '../../../../platform/tunnel/common/tunnelProxy.js';
 
 export const BrowserMaxHistoryEntriesSettingId = 'workbench.browser.maxHistoryEntries';
 export const BrowserRemoteProxyEnabledSettingId = 'workbench.browser.enableRemoteProxy';
@@ -72,8 +72,8 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	private readonly _openHandlers = new Set<IBrowserViewOpenHandler>();
 	private readonly _mainWindowId: number;
 
-	/** Latest tunnel-proxy credentials pushed from the local extension host. */
-	private _remoteProxyInfo: ITunnelProxyInfo | undefined;
+	/** Latest tunnel-proxy lifecycle state pushed from the local extension host. */
+	private _remoteProxyStatus: TunnelProxyStatus = { type: 'starting' };
 
 	/**
 	 * In-flight creation of the dedicated browser window group, used to coalesce
@@ -198,8 +198,8 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return true;
 	}
 
-	setRemoteProxyInfo(info: ITunnelProxyInfo | undefined): void {
-		this._remoteProxyInfo = info;
+	setRemoteProxyStatus(status: TunnelProxyStatus): void {
+		this._remoteProxyStatus = status;
 		this._updateWindowConfiguration();
 	}
 
@@ -500,7 +500,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			keybindings: this._getKeybindings(),
 			aiFeaturesDisabled: !this.contextKeyService.contextMatchesRules(ChatContextKeys.enabled),
 			maxHistoryEntries: this.configurationService.getValue<number>(BrowserMaxHistoryEntriesSettingId),
-			proxyInfo: this._remoteProxyInfo,
+			remoteProxyStatus: this.willUseRemoteProxy() ? this._remoteProxyStatus : { type: 'stopped' },
 			trustedFileRoots: this._getTrustedFileRoots(),
 			trustAllFiles: !this.workspaceTrustEnablementService.isWorkspaceTrustEnabled(),
 		});

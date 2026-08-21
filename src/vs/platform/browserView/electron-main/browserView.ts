@@ -7,6 +7,7 @@ import { screen, WebContentsView, webContents } from 'electron';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { localize } from '../../../nls.js';
 import { IBrowserViewAudience, IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewOpenOptions, IBrowserViewPermissionRequestEvent, equalsBrowserViewAudience, isBrowserViewAssociatedResourceNavigation, matchesBrowserViewAudience } from '../common/browserView.js';
 import { BrowserViewEmulator } from './browserViewEmulator.js';
 import { BrowserViewInspector } from './browserViewInspector.js';
@@ -737,7 +738,19 @@ export class BrowserView extends Disposable {
 		this._explicitNavigationPending = true;
 		// Wait for the tunnel proxy (if any) to be applied so the navigation
 		// and the requests it triggers flow through the proxy.
-		await this.session.remote.whenReady;
+		try {
+			await this.session.remote.whenReady;
+		} catch (error) {
+			this._explicitNavigationPending = false;
+			this.logService.error(`[BrowserView] Remote proxy was not ready for ${url}:`, error);
+			this._lastError = {
+				url,
+				errorCode: -2,
+				errorDescription: localize('browser.remoteProxyStartError', "Remote browser proxy failed to start")
+			};
+			this._onDidChangeLoadingState.fire({ loading: false, error: this._lastError });
+			return;
+		}
 		await this._view.webContents.loadURL(url);
 	}
 
