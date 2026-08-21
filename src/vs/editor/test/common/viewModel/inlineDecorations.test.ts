@@ -316,6 +316,24 @@ suite('InjectedTextInlineDecorationsComputer', () => {
 		]);
 	});
 
+	test('fixed width injection without inlineClassName affects letter spacing', () => {
+		const injectionOptions: InjectedTextOptions[] = [
+			{ content: '\xa0', widthInEm: 3 }
+		];
+		const context: IInjectedTextInlineDecorationsComputerContext = {
+			getInjectionOptions: () => injectionOptions,
+			getInjectionOffsets: () => [5],
+			getBreakOffsets: () => [11],
+			getWrappedTextIndentLength: () => 0,
+			getBaseViewLineNumber: () => 1,
+		};
+		const computer = new InjectedTextInlineDecorationsComputer(context);
+		const result = computer.getInlineDecorations(1);
+		assert.deepStrictEqual(result, [
+			[new InlineDecoration(new Range(1, 6, 1, 7), '', InlineDecorationType.RegularAffectingLetterSpacing, { widthInEm: 3 })]
+		]);
+	});
+
 	test('injection with inlineClassNameAffectsLetterSpacing', () => {
 		const injectionOptions: InjectedTextOptions[] = [
 			{ content: 'abc', inlineClassName: 'ls-class', inlineClassNameAffectsLetterSpacing: true }

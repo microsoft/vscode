@@ -944,12 +944,12 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: LineP
 			if (lineDecoration.endOffset + 1 <= tokenEndIndex) {
 				// This line decoration ends before this token ends
 				lastResultEndIndex = lineDecoration.endOffset + 1;
-				result[resultLen++] = new LinePart(lastResultEndIndex, tokenType + ' ' + lineDecoration.className, tokenMetadata | lineDecoration.metadata, tokenContainsRTL, lineDecoration.fixedWidth);
+				result[resultLen++] = new LinePart(lastResultEndIndex, combineClassNames(tokenType, lineDecoration.className), tokenMetadata | lineDecoration.metadata, tokenContainsRTL, lineDecoration.fixedWidth);
 				lineDecorationIndex++;
 			} else {
 				// This line decoration continues on to the next token
 				lastResultEndIndex = tokenEndIndex;
-				result[resultLen++] = new LinePart(lastResultEndIndex, tokenType + ' ' + lineDecoration.className, tokenMetadata | lineDecoration.metadata, tokenContainsRTL, lineDecoration.fixedWidth);
+				result[resultLen++] = new LinePart(lastResultEndIndex, combineClassNames(tokenType, lineDecoration.className), tokenMetadata | lineDecoration.metadata, tokenContainsRTL, lineDecoration.fixedWidth);
 				break;
 			}
 		}
@@ -967,6 +967,54 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: LineP
 			result[resultLen++] = new LinePart(lastResultEndIndex, lineDecoration.className, lineDecoration.metadata, false, lineDecoration.fixedWidth);
 			lineDecorationIndex++;
 		}
+	}
+
+	return coalesceFixedWidthLineParts(lineContent, result);
+}
+
+function combineClassNames(first: string, second: string): string {
+	if (!first) {
+		return second;
+	}
+	if (!second) {
+		return first;
+	}
+	return first + ' ' + second;
+}
+
+function coalesceFixedWidthLineParts(lineContent: string, parts: LinePart[]): LinePart[] {
+	const result: LinePart[] = [];
+	let partStartIndex = 0;
+
+	for (let partIndex = 0; partIndex < parts.length; partIndex++) {
+		const part = parts[partIndex];
+		const fixedWidth = part.fixedWidth;
+		if (!fixedWidth) {
+			result.push(part);
+			partStartIndex = part.endIndex;
+			continue;
+		}
+
+		let endIndex = part.endIndex;
+		let metadata = part.metadata;
+		let containsRTL = part.containsRTL;
+		while (partIndex + 1 < parts.length && parts[partIndex + 1].fixedWidth === fixedWidth) {
+			const nextPart = parts[++partIndex];
+			endIndex = nextPart.endIndex;
+			metadata |= nextPart.metadata;
+			containsRTL ||= nextPart.containsRTL;
+		}
+
+		for (let charIndex = partStartIndex; charIndex < endIndex; charIndex++) {
+			const charCode = lineContent.charCodeAt(charIndex);
+			if (charCode !== CharCode.Space && charCode !== CharCode.Tab) {
+				metadata &= ~LinePartMetadata.IS_WHITESPACE_MASK;
+				break;
+			}
+		}
+
+		result.push(new LinePart(endIndex, part.type, metadata, containsRTL, fixedWidth));
+		partStartIndex = endIndex;
 	}
 
 	return result;

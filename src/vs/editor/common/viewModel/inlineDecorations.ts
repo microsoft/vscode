@@ -247,7 +247,7 @@ export class InjectedTextInlineDecorationsComputer implements IInlineDecorations
 				if (lineStartOffsetInInputWithInjections < injectedTextEndOffsetInInputWithInjections) {
 					// Injected text ends after or in this line (but also starts in or before this line).
 					const options = injectionOptions![currentInjectedOffset];
-					if (options.inlineClassName) {
+					if (options.inlineClassName || options.widthInEm !== undefined) {
 						const wrappedTextIndentLength = this.context.getWrappedTextIndentLength(modelLineNumber);
 						const offset = (outputLineIndex > 0 ? wrappedTextIndentLength : 0);
 						const start = offset + Math.max(injectedTextStartOffsetInInputWithInjections - lineStartOffsetInInputWithInjections, 0);
@@ -255,9 +255,9 @@ export class InjectedTextInlineDecorationsComputer implements IInlineDecorations
 						if (start !== end) {
 							const viewLineNumber = this.context.getBaseViewLineNumber(modelLineNumber) + outputLineIndex;
 							const range = new Range(viewLineNumber, start + 1, viewLineNumber, end + 1);
-							const type: InlineDecorationType = options.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular;
+							const type: InlineDecorationType = options.inlineClassNameAffectsLetterSpacing || options.widthInEm !== undefined ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular;
 							const fixedWidth = options.widthInEm === undefined ? undefined : { widthInEm: options.widthInEm };
-							inlineDecorations.push(new InlineDecoration(range, options.inlineClassName, type, fixedWidth));
+							inlineDecorations.push(new InlineDecoration(range, options.inlineClassName ?? '', type, fixedWidth));
 						}
 					}
 				}

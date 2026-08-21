@@ -350,7 +350,7 @@ function renderLineWithFixedWidths(lineContent: string, initialVisibleColumn: nu
 			sb.appendString(String(fixedWidthRange.widthInEm));
 			sb.appendString('em;">');
 			spanStartOffsets.push(charOffset);
-		} else if (!fixedWidthRange && charIndex !== 0 && charIndex % Constants.SPAN_MODULO_LIMIT === 0) {
+		} else if ((!fixedWidthRange || charIndex < fixedWidthRange.startOffset) && charIndex !== 0 && charIndex % Constants.SPAN_MODULO_LIMIT === 0) {
 			sb.appendString('</span><span>');
 			spanStartOffsets.push(charOffset);
 		}

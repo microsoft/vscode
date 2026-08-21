@@ -202,6 +202,18 @@ suite('renderViewLine', () => {
 		assert.strictEqual(actual.html, '<span><span style="display:inline-block;width:1em;" class="mtk0 injected">\xa0</span></span>');
 	});
 
+	test('applies fixed injected text width once across line parts', () => {
+		const fixedWidth = { widthInEm: 3 };
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent: 'a b',
+			lineTokens: createViewLineTokens([createPart(1, 1), createPart(3, 2)]),
+			lineDecorations: [new LineDecoration(1, 4, 'injected', InlineDecorationType.RegularAffectingLetterSpacing, fixedWidth)],
+			renderWhitespace: 'all'
+		}));
+
+		assert.strictEqual(actual.html, '<span><span style="display:inline-block;width:3em;" class="mtk1 injected">a\xa0b</span></span>');
+	});
+
 	// overflow
 	test('overflow', async () => {
 		const _actual = renderViewLine(createRenderLineInput({
