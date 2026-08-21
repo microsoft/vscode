@@ -20,6 +20,18 @@
 	position: relative;
 }
 
+.notebook-text-diff-editor .notebook-diff-webview {
+	width: calc(50% - var(--vscode-spacing-size160));
+}
+
+.notebook-text-diff-editor .notebook-diff-webview.modified {
+	left: 50%;
+}
+
+.notebook-text-diff-editor .notebook-diff-webview.original {
+	left: var(--vscode-spacing-size160);
+}
+
 .notebook-text-diff-editor .cell-body {
 	display: flex;
 	flex-direction: row;

@@ -265,14 +265,6 @@ export class ChatDebugWireLogView extends Disposable {
 	}
 
 	layout(): void {
-		// Give the scrollable content an explicit height so the list can
-		// overflow (and thus scroll) instead of growing the whole view. The
-		// body is the flex-sized region between the toolbar/summary and the
-		// footer.
-		const height = this.body.clientHeight;
-		if (height > 0) {
-			this.list.style.height = `${height}px`;
-		}
 		this.scrollable.scanDomNode();
 	}
 

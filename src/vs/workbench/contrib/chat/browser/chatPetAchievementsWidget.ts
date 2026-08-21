@@ -82,13 +82,7 @@ export class ChatPetAchievementsWidget extends Disposable {
 			this.container.style.height = `${dimension.height}px`;
 		}
 		const width = dimension?.width ?? this.container.clientWidth;
-		const height = dimension?.height ?? this.container.clientHeight;
 		this.container.classList.toggle('narrow', width < 560);
-		this.content.style.width = `${width}px`;
-		this.content.style.height = `${height}px`;
-		const scrollableNode = this.scrollable.getDomNode();
-		scrollableNode.style.width = `${width}px`;
-		scrollableNode.style.height = `${height}px`;
 		this.scrollable.scanDomNode();
 	}
 
