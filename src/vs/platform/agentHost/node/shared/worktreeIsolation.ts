@@ -958,6 +958,17 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 	}
 
 	/**
+	 * Records worktree identity supplied by a predecessor for an adopted session whose
+	 * checkout is gone, so resume recreates it exactly like a native worktree session.
+	 * Values come from the predecessor's own record rather than probing the (missing)
+	 * directory, which is what {@link adoptExistingWorktreeMetadata} requires.
+	 */
+	async recordAdoptedWorktreeMetadata(sessionUri: URI, metadata: { readonly branchName: string; readonly baseBranch: string | undefined; readonly worktreePath: URI; readonly repositoryRoot: URI }): Promise<void> {
+		this._logService.info(`[${this._logLabel}:${AgentSession.id(sessionUri)}] Recorded adopted worktree metadata: worktree='${metadata.worktreePath.fsPath}' branch='${metadata.branchName}' base='${metadata.baseBranch ?? '(none)'}' repo='${metadata.repositoryRoot.fsPath}'`);
+		await this._writeWorktreeMetadata(sessionUri, metadata);
+	}
+
+	/**
 	 * Records repository identity for an externally-owned linked worktree without taking ownership of its lifecycle.
 	 */
 	async recordExternalWorktreeProject(sessionUri: URI, workingDirectory: URI): Promise<IAgentSessionProjectInfo | undefined> {
