@@ -50,15 +50,13 @@ suite('agentHostBootstrap', () => {
 			productService,
 			logService: new NullLogService(),
 			loggerService: undefined,
-			disposables: testDisposables,
 			disableTelemetry: true,
 			transientProxyConfiguration: true,
 			hostLaunchKind: AgentHostLaunchKind.Unknown,
 			providerConfigurations: [],
 			byok: { kind: 'renderer', bridgeRegistry: new NullByokLmBridgeRegistry() },
 		});
-		testDisposables.add(runtime.agentService);
-		testDisposables.add(runtime.instantiationService);
+		testDisposables.add(runtime);
 
 		assert.ok(runtime.agentSdkDownloader);
 	});

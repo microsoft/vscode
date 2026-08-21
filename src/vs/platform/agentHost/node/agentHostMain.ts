@@ -120,12 +120,12 @@ async function startAgentHost(): Promise<void> {
 			productService,
 			logService,
 			loggerService,
-			disposables,
 			transientProxyConfiguration: true,
 			hostLaunchKind,
 			providerConfigurations: [createCodexProviderConfiguration(environmentService.userHome)],
 			byok: { kind: 'renderer', bridgeRegistry: byokLmBridgeRegistry },
 		});
+		disposables.add(runtime);
 		agentService = runtime.agentService;
 		const agentConfigurationService = runtime.configurationService;
 		instantiationService = runtime.instantiationService;
@@ -171,8 +171,8 @@ async function startAgentHost(): Promise<void> {
 			disposables.add(agentConfigurationService.onDidRootConfigChange(registerCodexIfEnabled));
 		}
 	} catch (err) {
-		instantiationService?.dispose();
 		logService.error('Failed to create AgentService', err);
+		disposables.dispose();
 		throw err;
 	}
 
@@ -466,10 +466,8 @@ async function startAgentHost(): Promise<void> {
 	});
 
 	process.once('exit', () => {
-		agentService.dispose();
 		logService.dispose();
 		disposables.dispose();
-		instantiationService.dispose();
 	});
 }
 

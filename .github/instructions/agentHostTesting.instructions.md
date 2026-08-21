@@ -20,6 +20,29 @@ The sessions process is a portable, standalone server that multiple clients can 
 
 See the agent host protocol documentation for more details.
 
+## Service Placement
+
+The Agent Host uses one `ServiceCollection` and one `InstantiationService`, with
+three construction categories:
+
+1. **Bootstrap instances** belong in `agentHostBootstrap.ts` only when they need
+   runtime or environment values, asynchronous construction, an
+   entry-point-selected implementation, or must exist before the instantiation
+   service.
+2. **Shared orchestration services** belong in `agentServiceComposition.ts` when
+   every Agent Host entry point uses the same synchronous implementation, all
+   dependencies are registered services, and construction does not start
+   process-level behavior.
+3. **Runtime activation** belongs in the entry point for transports, provider
+   registration, recurring schedulers, process listeners, and other behavior
+   that starts or stops with the process.
+
+Place a service based on its construction requirements and lifetime, not based
+on which existing service consumes it. Do not add a public service getter or a
+post-construction setter merely to cross these categories. If a dependency
+crosses categories, first consider extracting a smaller bootstrap foundation or
+passing an explicit runtime input to the composition root.
+
 ## End to End Testing
 
 You can run `node ./scripts/code-agent-host.js` to start an agent host. If you pass `--enable-mock-agent`, then the `ScriptedMockAgent` will be used.

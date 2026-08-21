@@ -124,7 +124,16 @@ class AgentServiceCallbackAdapter {
 	}
 }
 
-/** Constructs and registers the complete {@link AgentService} collaborator graph. */
+/**
+ * Constructs and registers the shared, synchronous session-orchestration graph.
+ *
+ * A service belongs here when every Agent Host entry point uses the same
+ * implementation, its dependencies are already registered, and construction
+ * does not start process-level behavior. Services requiring runtime options,
+ * async initialization, or an entry-point-selected implementation belong in
+ * `agentHostBootstrap.ts`; transports, providers, schedulers, and process
+ * listeners belong in the activating entry point.
+ */
 export function createAgentServiceComposition(
 	options: IAgentServiceOptions,
 	services: ServiceCollection,

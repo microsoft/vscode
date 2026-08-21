@@ -189,15 +189,14 @@ async function main(): Promise<void> {
 		productService,
 		logService,
 		loggerService,
-		disposables,
 		disableTelemetry: options.quiet,
 		transientProxyConfiguration: false,
 		hostLaunchKind: AgentHostLaunchKind.VSCodeCLI,
 		providerConfigurations: [createCodexProviderConfiguration(environmentService.userHome)],
 		byok: { kind: 'unavailable' },
 	});
+	disposables.add(runtime);
 	const { agentService, configurationService: agentConfigurationService, instantiationService, fileService, sessionDataService } = runtime;
-	disposables.add(agentService);
 	errorTelemetry.value = new ErrorTelemetry(runtime.telemetryService);
 
 	// Register agents
@@ -372,7 +371,6 @@ async function main(): Promise<void> {
 			logService.warn('[AgentHostServer] Timed out waiting for persistence writes to flush; exiting anyway.');
 		});
 		disposables.dispose();
-		instantiationService.dispose();
 		loggerService?.dispose();
 		process.exit(0);
 	}
