@@ -47,6 +47,7 @@ export {
 	type SessionActiveClientRemovedAction,
 	type SessionWorkingDirectorySetAction,
 	type SessionWorkingDirectoryRemovedAction,
+	type SessionWorkingDirectoryReplacedAction,
 	type SessionCustomizationsChangedAction,
 	type SessionCustomizationToggledAction,
 	type ChatPendingMessageSetAction,
@@ -139,6 +140,7 @@ import type {
 	SessionIsArchivedChangedAction,
 	SessionWorkingDirectorySetAction,
 	SessionWorkingDirectoryRemovedAction,
+	SessionWorkingDirectoryReplacedAction,
 	RootConfigChangedAction,
 } from './protocol/actions.js';
 
@@ -212,7 +214,8 @@ export type IIsArchivedChangedAction = SessionIsArchivedChangedAction;
 /** Session-level working-directory mutations. */
 export type SessionWorkingDirectoryAction =
 	| SessionWorkingDirectorySetAction
-	| SessionWorkingDirectoryRemovedAction;
+	| SessionWorkingDirectoryRemovedAction
+	| SessionWorkingDirectoryReplacedAction;
 
 // Notifications
 export type INotification = ProtocolNotification;
