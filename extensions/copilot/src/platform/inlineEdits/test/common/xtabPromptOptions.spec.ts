@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { ImportChanges } from '../../common/dataTypes/importFilteringOptions';
-import { applyStrategyConfig, DEFAULT_OPTIONS, GlobalBudgetOptions, IncludeLineNumbersOption, isEagernessPrompt, MODEL_CONFIGURATION_VALIDATOR, ModelConfiguration, PromptingStrategy, RejectedEditsMemoryMode } from '../../common/dataTypes/xtabPromptOptions';
+import { applyStrategyConfig, DEFAULT_OPTIONS, GlobalBudgetOptions, IncludeLineNumbersOption, isEagernessPrompt, MODEL_CONFIGURATION_VALIDATOR, ModelConfiguration, PatchModelPrediction, PromptingStrategy, RejectedEditsMemoryMode } from '../../common/dataTypes/xtabPromptOptions';
 
 function baseConfig(overrides: Partial<ModelConfiguration> = {}): ModelConfiguration {
 	return {
@@ -53,6 +53,10 @@ describe('applyStrategyConfig', () => {
 			recentlyViewedDocuments: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace, maxTokens: 99 },
 			supportsNextCursorLinePrediction: false,
 		});
+		// The additional client/latency knobs are only baked into PatchBased02Optimized.
+		expect(result.patchModelPredictionKind).toBeUndefined();
+		expect(result.cacheDelay).toBeUndefined();
+		expect(result.debounce).toBeUndefined();
 	});
 
 	it('forces baked-in fields for PatchBased02Optimized', () => {
@@ -72,6 +76,14 @@ describe('applyStrategyConfig', () => {
 			recentlyViewedDocuments: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace, maxTokens: 99 },
 			supportsNextCursorLinePrediction: false,
 			allowImportChanges: ImportChanges.All,
+			patchModelPredictionKind: PatchModelPrediction.CurrentLineCompleted,
+			splitPatchOnDiff: true,
+			patchFastYieldLineWithCursor: true,
+			extraDebounceEndOfLine: 0,
+			nesMimicGhostTextBehavior: true,
+			cacheDelay: 200,
+			rebasedCacheDelay: 0,
+			debounce: 0,
 		});
 	});
 

@@ -467,7 +467,7 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 			// re-surface in any other form. Suppress here without evicting the cache entry —
 			// when the cursor returns to an inline-renderable position, we'll serve it again.
 			if (
-				this._nesMimicGhostTextBehavior.get()
+				(this._modelService.selectedModelConfiguration().nesMimicGhostTextBehavior ?? this._nesMimicGhostTextBehavior.get())
 				&& !isInlineCompletion
 				&& isLlmCompletionInfo(suggestionInfo)
 				&& suggestionInfo.suggestion.result?.cacheEntry?.wasRenderedAsInlineSuggestion
