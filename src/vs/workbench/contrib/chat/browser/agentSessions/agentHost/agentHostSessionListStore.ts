@@ -90,6 +90,9 @@ export class AgentHostSessionListStore extends Disposable {
 	 */
 	private _mutationGeneration = 0;
 
+	/** Sessions already reported as having an unusable (non-local) project root. */
+	private readonly _reportedNonLocalProjects = new Set<string>();
+
 	constructor(
 		private readonly _connection: IAgentHostSessionListConnection,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
@@ -377,8 +380,10 @@ export class AgentHostSessionListStore extends Disposable {
 		const inWorkspace = this._computeSessionInWorkspace(entry);
 		// A legacy session is matched by its repository root, which must be a local
 		// path; a remote project (e.g. an `https://` repo URL) silently matches
-		// nothing. Excluding one is legitimate, so only report the broken input.
-		if (!inWorkspace && readSessionMatchesByProjectRoot(entry.summary._meta) && entry.summary.project && URI.parse(entry.summary.project.uri).scheme !== Schemas.file) {
+		// nothing. Excluding one is legitimate, so only report the broken input, and
+		// only once — this runs for every session on every refresh.
+		if (!inWorkspace && readSessionMatchesByProjectRoot(entry.summary._meta) && entry.summary.project && URI.parse(entry.summary.project.uri).scheme !== Schemas.file && !this._reportedNonLocalProjects.has(entry.summary.resource)) {
+			this._reportedNonLocalProjects.add(entry.summary.resource);
 			this._logService.warn(`[AgentHost] legacy session ${entry.summary.resource} has a non-local project '${entry.summary.project.uri}' and cannot be matched to a workspace folder`);
 		}
 		return inWorkspace;

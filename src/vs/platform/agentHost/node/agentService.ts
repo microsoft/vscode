@@ -4845,23 +4845,25 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session is not an adoptable legacy chat: ${sessionStr}`);
 		}
 
-		// Adoption has already claimed the chat on disk, which is what stops the
-		// extension host listing it. Register it now so a later restore failure (e.g.
-		// a worktree whose branch is gone) leaves a session that reports an error like
-		// any native one, instead of one that exists in no list at all.
-		if (adopted && !registeredSession) {
-			try {
-				await this._sessionRegistry.register(session, { provider: agent.id, startTime: Date.now(), source: 'restore' }, { checkTombstone: true });
-				this._invalidateSessionList();
-			} catch (err) {
-				this._logService.warn(`[AgentService] adopt: registering ${sessionStr} after adoption failed`, err);
-			}
-		}
-
 		// From here the whole restore is wrapped so `migrated` is reported only
 		// after every required step succeeds, and any failure after a successful
 		// adoption is surfaced as a migration failure.
+		let registeredAfterAdoption = !!registeredSession;
 		try {
+			// Adoption has already claimed the chat on disk, which is what stops the
+			// extension host listing it. Register it before restoring so a later restore
+			// failure (e.g. a worktree whose branch is gone) leaves a session that
+			// reports an error like any native one, instead of one that exists in no
+			// list at all. A registration that cannot be made durable fails the
+			// migration: continuing would leave exactly the orphan this prevents.
+			if (adopted && !registeredSession) {
+				await this._retryRegistryMutation(
+					() => this._sessionRegistry.register(session, { provider: agent.id, startTime: Date.now(), source: 'restore' }, { checkTombstone: true }),
+					`adoption registration for ${sessionStr}`,
+				);
+				registeredAfterAdoption = true;
+				this._invalidateSessionList();
+			}
 			const facts = await this._restoreSessionState(agent, session, sessionStr, adopted, external, registeredSession?.source ?? 'restore', awaitCatalogReadable, !!registeredSession, adoption.worktree);
 			await this._restoreAnnotations(session);
 			if (adopted) {
@@ -4878,7 +4880,9 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		} catch (err) {
 			if (adopted) {
-				this._logService.error(`[AgentService] legacy session ${sessionStr} was adopted but its restore failed; it is registered so it surfaces with an error rather than disappearing`, err);
+				this._logService.error(registeredAfterAdoption
+					? `[AgentService] legacy session ${sessionStr} was adopted but its restore failed; it is registered so it surfaces with an error rather than disappearing`
+					: `[AgentService] legacy session ${sessionStr} was adopted but could not be registered; the extension host no longer lists it, so it will not appear until the next successful restore`, err);
 				this._reportLegacyMigration(agent.id, 'failed', migrationStartTime, { errorMessage: toErrorMessage(err), reason: adoption.reason });
 			}
 			throw err;

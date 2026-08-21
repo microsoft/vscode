@@ -11290,6 +11290,41 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('declines adoption when the archived state can no longer be read', async () => {
+			// Adoption commits the archived state and makes the extension host stop
+			// listing the chat, so guessing "not archived" would resurface a session the
+			// user had filed away. Leave it for the next open instead.
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/adopt-marker-gone-`);
+			const sessionId = 'legacy-marker-unreadable';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await writeExtensionHostMarker(userHome, sessionId);
+				// Classify it as legacy while the marker is readable, then corrupt it.
+				await (agent as unknown as { _isExtensionHostCliSession(id: string): Promise<boolean> })._isExtensionHostCliSession(sessionId);
+				await fs.writeFile(join(getCopilotHomePath(userHome.fsPath, process.env), 'session-state', sessionId, 'vscode.metadata.json'), '{ not json', 'utf8');
+
+				const adopted = await ensureDefaultChatAdopted(agent, session);
+
+				const db = await sessionDataService.tryOpenDatabase(session);
+				const persistedCwd = await db?.object.getMetadata('copilot.workingDirectory');
+				db?.dispose();
+
+				assert.deepStrictEqual(
+					{ adopted, persistedCwd },
+					{ adopted: { adopted: false, eligible: true, reason: 'markerUnavailable' }, persistedCwd: undefined },
+				);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
 		test('reports no recorded worktree when the checkout still exists', async () => {
 			// A live worktree is handled by the existing probe-the-directory bridge.
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));

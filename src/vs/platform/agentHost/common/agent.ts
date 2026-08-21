@@ -1045,6 +1045,8 @@ export type AgentChatAdoptionReason =
 	| 'notLegacyChat'
 	/** A legacy chat whose recorded working directory no longer exists and could not be resolved. */
 	| 'workingDirectoryMissing'
+	/** A legacy chat whose extension-host marker could not be re-read, leaving its archived state unknown. */
+	| 'markerUnavailable'
 	/** Newly adopted. */
 	| 'adopted';
 

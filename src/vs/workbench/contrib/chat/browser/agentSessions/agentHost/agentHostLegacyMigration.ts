@@ -33,14 +33,14 @@ export type LegacyMigrationProbeSource = 'open' | 'restore';
 
 type LegacyMigrationProbeEvent = {
 	source: string;
-	outcome: 'redirected' | 'declined' | 'timedOut' | 'settingDisabled' | 'noConnection' | 'failed';
+	outcome: 'adopted' | 'declined' | 'timedOut' | 'settingDisabled' | 'noConnection' | 'failed';
 	durationMs: number;
 	timeoutMs: number;
 };
 
 type LegacyMigrationProbeClassification = {
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Entry point that probed: open (user opened a session) or restore (startup/editor restore).' };
-	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Probe outcome: redirected (opened as the migrated agent-host session), declined (host refused, e.g. not an adoptable legacy chat), timedOut (no answer within the budget), settingDisabled, noConnection, or failed (probe threw).' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Probe outcome: adopted (the host migrated the session; the caller may still fall back if it does not surface — see agentHost.legacyCopilotCliMigrationOpen), declined (host refused, e.g. not an adoptable legacy chat), timedOut (no answer within the budget), settingDisabled, noConnection, or failed (probe threw).' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds spent probing before the outcome was known.' };
 	timeoutMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The probe budget that applied, so timeouts can be correlated with the entry point.' };
 	owner: 'vijayupadya';
@@ -110,7 +110,7 @@ export async function adoptLegacyCopilotCliResource(
 		const ref = store.add(connection.getSubscription(StateComponents.Session, backendSession, 'AgentHostLegacyMigration'));
 		const settled = await raceTimeout(whenSubscriptionSettles(ref.object as IAgentSubscription<SessionState>, store), timeoutMs);
 		if (settled === true) {
-			report('redirected');
+			report('adopted');
 			logService.info(`[AgentHost] adopted legacy session ${resource.toString()} in ${Date.now() - startedAt}ms`);
 			return twin;
 		}
@@ -124,6 +124,27 @@ export async function adoptLegacyCopilotCliResource(
 	} finally {
 		store.dispose();
 	}
+}
+
+type LegacyMigrationOpenEvent = {
+	source: string;
+	surfaced: boolean;
+};
+
+type LegacyMigrationOpenClassification = {
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Entry point that opened: open (user opened a session) or restore (startup/editor restore).' };
+	surfaced: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the migrated session was found and opened. False means the open fell back to the legacy session the host had just migrated away from.' };
+	owner: 'vijayupadya';
+	comment: 'Reports whether an adopted legacy session was actually opened as its migrated agent-host session. The probe event only reports that the host adopted it, so without this a silent fallback to the legacy session is invisible.';
+};
+
+/**
+ * Records whether an adopted session was opened as its migrated twin. Adoption
+ * succeeding does not mean the caller could open it, and that fallback is the
+ * failure this telemetry exists to catch.
+ */
+export function reportLegacyMigrationOpen(telemetryService: ITelemetryService, source: LegacyMigrationProbeSource, surfaced: boolean): void {
+	telemetryService.publicLog2<LegacyMigrationOpenEvent, LegacyMigrationOpenClassification>('agentHost.legacyCopilotCliMigrationOpen', { source, surfaced });
 }
 
 /** Resolves `true` once the subscription has state, `false` if it errors. */

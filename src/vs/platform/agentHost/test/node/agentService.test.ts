@@ -7345,6 +7345,32 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual((await registry.get(session))?.session.toString(), session.toString());
 		});
 
+		test('an adopted chat whose registration cannot be made durable fails the migration', async () => {
+			// Continuing unregistered would leave exactly the orphan the registration is
+			// there to prevent: adopted on disk, so the extension host stops listing it,
+			// but present in no Agent Host list either.
+			class AdoptAgent extends MockAgent {
+				constructor() { super('copilot'); }
+				override async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+					return [];
+				}
+				async ensureChatAdopted(_chat: URI, _context: URI | IAgentChatContext): Promise<IAgentChatAdoptionResult> {
+					return { adopted: true, eligible: true };
+				}
+			}
+
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new AdoptAgent());
+			localService.registerProvider(agent);
+			localService.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+			const session = AgentSession.uri('copilot', 'adopted-registration-fails');
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
+			const registry = (localService as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
+			registry.register = async () => { throw new Error('registry unavailable'); };
+
+			await assert.rejects(() => localService.restoreSession(session));
+		});
+
 		test('does not materialize state for an unregistered chat that is not adoptable', async () => {
 			// An external chat (e.g. created by the GitHub app) is hidden while
 			// `showExternalSessions` is `none`, so it is absent from the registered

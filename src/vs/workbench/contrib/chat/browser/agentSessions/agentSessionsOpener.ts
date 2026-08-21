@@ -23,7 +23,7 @@ import { IAgentSessionsService } from './agentSessionsService.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { adoptLegacyCopilotCliResource } from './agentHost/agentHostLegacyMigration.js';
+import { adoptLegacyCopilotCliResource, reportLegacyMigrationOpen } from './agentHost/agentHostLegacyMigration.js';
 
 //#region Session Opener Registry
 
@@ -79,6 +79,7 @@ export async function openSessionByResource(accessor: ServicesAccessor, resource
 	const instantiationService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
 	const agentSessionsService = accessor.get(IAgentSessionsService);
+	const telemetryService = accessor.get(ITelemetryService);
 
 	// A superseded legacy resource is redirected (and adopted) before anything
 	// looks it up, so opening by URI migrates instead of reaching the old provider.
@@ -91,7 +92,9 @@ export async function openSessionByResource(accessor: ServicesAccessor, resource
 		'open',
 	);
 	if (migrated) {
-		if (await resolveMigratedSession(agentSessionsService, migrated)) {
+		const surfaced = await resolveMigratedSession(agentSessionsService, migrated);
+		reportLegacyMigrationOpen(telemetryService, 'open', !!surfaced);
+		if (surfaced) {
 			resource = migrated;
 		} else {
 			logService.warn(`[AgentHost] migrated ${resource.toString()} to ${migrated.toString()} but it is not in this window's list after refreshing provider '${getChatSessionType(migrated)}'; opening the legacy session instead.`);
@@ -125,6 +128,7 @@ export async function openSession(accessor: ServicesAccessor, session: IAgentSes
 	const instantiationService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
 	const agentSessionsService = accessor.get(IAgentSessionsService);
+	const telemetryService = accessor.get(ITelemetryService);
 
 	logService.trace(`[AgentSessions] openSession start: ${session.resource.toString()}`);
 
@@ -142,6 +146,7 @@ export async function openSession(accessor: ServicesAccessor, session: IAgentSes
 		);
 		if (migrated) {
 			const migratedSession = await resolveMigratedSession(agentSessionsService, migrated);
+			reportLegacyMigrationOpen(telemetryService, 'open', !!migratedSession);
 			if (migratedSession) {
 				session = migratedSession;
 			} else {

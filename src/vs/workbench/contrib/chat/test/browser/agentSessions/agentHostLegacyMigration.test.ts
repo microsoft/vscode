@@ -74,7 +74,7 @@ suite('AgentHost legacy Copilot CLI migration', () => {
 
 		assert.deepStrictEqual(
 			{ resolved: resolved?.toString(), subscribed: subscribed.map(s => s.toString()), outcomes },
-			{ resolved: twinResource.toString(), subscribed: [backendChannel.toString()], outcomes: ['redirected'] },
+			{ resolved: twinResource.toString(), subscribed: [backendChannel.toString()], outcomes: ['adopted'] },
 		);
 	});
 

@@ -3116,11 +3116,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return typeof title === 'string' && title.trim() ? title : undefined;
 	}
 
-	/** Whether the user archived this session in the extension host list. */
-	private async _isExtensionHostCliSessionArchived(sessionId: string): Promise<boolean> {
+	/**
+	 * Whether the user archived this session in the extension host list, or
+	 * `undefined` when the current state cannot be established (unreadable or
+	 * malformed marker, or one that no longer identifies a VS Code legacy chat).
+	 * Callers that would commit to the state must not treat that as unarchived.
+	 */
+	private async _isExtensionHostCliSessionArchived(sessionId: string): Promise<boolean | undefined> {
 		// Archive state is toggled in the extension host while this agent runs, so it
 		// cannot be served from the marker cache, which memoizes successful reads.
-		return (await this._readExtensionHostCliMarkerUncached(sessionId))?.archived === true;
+		const marker = await this._readExtensionHostCliMarkerUncached(sessionId);
+		if (!isExtensionHostCliMarker(marker)) {
+			return undefined;
+		}
+		return marker?.archived === true;
 	}
 
 	/** Whether `path` is a directory that still exists on disk. */
@@ -3250,6 +3259,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// adopted session keeps its title instead of regenerating one.
 			const customTitle = await this._readExtensionHostCliCustomTitle(sessionId);
 			const archived = await this._isExtensionHostCliSessionArchived(sessionId);
+			if (archived === undefined) {
+				// Adoption commits the archived state, and the extension host stops listing
+				// the chat once it does. Guessing `false` here would resurface a session the
+				// user had filed away, so leave it for the next open instead.
+				this._logService.warn(`[Copilot] Adoption skipped for ${sessionId}: its extension-host marker could not be re-read, so the archived state is unknown`);
+				return { adopted: false, eligible: true, reason: 'markerUnavailable' };
+			}
 			// Seed VS Code-layer metadata only — the SDK event log on disk is
 			// untouched. Writing `agentSessionData/<sanitizedId>/session.db` here
 			// is also what makes the legacy extension-host Copilot CLI list stop
