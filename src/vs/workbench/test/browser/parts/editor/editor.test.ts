@@ -24,6 +24,7 @@ import { ICodeEditorViewState, IDiffEditorViewState } from '../../../../../edito
 import { Position } from '../../../../../editor/common/core/position.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../../browser/parts/editor/editor.js';
+import { EditorGroupView } from '../../../../browser/parts/editor/editorGroupView.js';
 
 suite('Workbench editor utils', () => {
 
@@ -425,6 +426,32 @@ suite('Workbench editor utils', () => {
 
 		enforcedOverride.dispose();
 		assert.strictEqual(part.partOptions.tabActionReserveSpace, false);
+	});
+
+	test('wrapping tabs always reserve tab action space to prevent row reflow (#331483)', async () => {
+		const configuredInstantiationService = workbenchInstantiationService({
+			configurationService: () => {
+				const configurationService = new TestConfigurationService({
+					workbench: { editor: { tabActionReserveSpace: false } }
+				});
+				disposables.add(configurationService.onDidChangeConfigurationEmitter);
+				return configurationService;
+			}
+		}, disposables);
+		const part = await createEditorPart(configuredInstantiationService, disposables);
+		const groupElement = (part.activeGroup as EditorGroupView).element;
+		const title = groupElement.querySelector(':scope > .title')!;
+
+		// Single-row compact tabs: no reservation
+		assert.strictEqual(title.classList.contains('tab-actions-reserve-space'), false);
+
+		// Enabling wrapped tabs forces the reservation so that dirty/pin indicators cannot change tab width
+		const enforceWrap = part.enforcePartOptions({ wrapTabs: true });
+		assert.strictEqual(title.classList.contains('tab-actions-reserve-space'), true);
+
+		// Reverting restores the configured compact behavior
+		enforceWrap.dispose();
+		assert.strictEqual(title.classList.contains('tab-actions-reserve-space'), false);
 	});
 
 	test('whenEditorClosed (single editor)', async function () {

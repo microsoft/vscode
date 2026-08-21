@@ -664,7 +664,11 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	}
 
 	private updateTabActionSpaceReservation(): void {
-		this.parent.classList.toggle('tab-actions-reserve-space', this.groupsView.partOptions.tabActionReserveSpace);
+
+		// When tabs wrap into multiple rows, any tab width change reflows entire
+		// rows and shifts the editor vertically, so the action column must always
+		// be reserved in that layout (https://github.com/microsoft/vscode/issues/331483).
+		this.parent.classList.toggle('tab-actions-reserve-space', this.groupsView.partOptions.tabActionReserveSpace || this.groupsView.partOptions.wrapTabs);
 	}
 
 	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
@@ -674,7 +678,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			this.updateTabHeight();
 		}
 
-		if (oldOptions.tabActionReserveSpace !== newOptions.tabActionReserveSpace) {
+		if (oldOptions.tabActionReserveSpace !== newOptions.tabActionReserveSpace || oldOptions.wrapTabs !== newOptions.wrapTabs) {
 			this.updateTabActionSpaceReservation();
 		}
 
