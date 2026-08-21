@@ -7,12 +7,12 @@ import { open, unlink, type FileHandle } from 'fs/promises';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { DeferredPromise, disposableTimeout, Limiter, Promises, ResourceQueue } from '../../../base/common/async.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
-import { Emitter, type Event } from '../../../base/common/event.js';
+import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { getExtensionForMimeType, getMediaMime, getMediaOrTextMime } from '../../../base/common/mime.js';
 import { Schemas } from '../../../base/common/network.js';
-import { IObservable, observableValue } from '../../../base/common/observable.js';
+import { ISettableObservable } from '../../../base/common/observable.js';
 import { dirname as resourcesDirname, extname as resourcesExtname, extUriBiasedIgnorePathCase, isEqual, isEqualOrParent, joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -20,7 +20,7 @@ import { hasKey } from '../../../base/common/types.js';
 import { localize } from '../../../nls.js';
 import { FileChangeType, FileOperationResult, IFileChange, IFileService, toFileOperationResult, type FileChangesEvent } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, AgentSession, AgentSignal, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDiscoveredChat, IAgentHostAuthTokenRequest, IAgentHostNetworkEndpoint, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, IMcpNotification, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
+import { AgentProvider, AgentSession, AgentSignal, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDiscoveredChat, IAgentHostNetworkEndpoint, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, IMcpNotification, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
 import { AgentHostSessionReleaseGraceMsEnvVar, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
@@ -41,17 +41,14 @@ import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../commo
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../common/meta/agentEphemeralSessionMeta.js';
 import { readChatSurfaceMeta, withChatSurfaceMeta } from '../common/meta/agentChatSurfaceMeta.js';
 import { buildBoundedSideChatSourceContext, getSideChatPartialResponse } from './agentPeerChats.js';
-import { AgentConfigurationService, getEffectiveWorkingDirectories, IAgentConfigurationService } from './agentConfigurationService.js';
-import { IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
-import { AgentHostTerminalManager, IAgentHostTerminalManager } from './agentHostTerminalManager.js';
+import { AgentConfigurationService, getEffectiveWorkingDirectories } from './agentConfigurationService.js';
+import { AgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { ISessionDbUriFields, parseSessionDbUri } from '../common/sessionDbUri.js';
 import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
 import { resolveSessionRepositories } from './agentHostSessionRepositories.js';
 import { findDeepestContainingWorkingDirectory, isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { createAgentChatContext } from './agentChatContext.js';
-import { IAgentHostPromptCache } from './agentHostPromptCache.js';
-import { IAgentHostSessionTitleSignal } from './agentHostSessionTitleSignal.js';
 import { AgentHostDebugLogsCollector, type IAgentHostDebugLogsEnvironment } from './agentHostDebugLogs.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
 import { AgentSessionRegistry, IRegisteredSession, IStoredRegisteredSession } from './agentSessionRegistry.js';
@@ -81,13 +78,11 @@ import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointServic
 import { AgentMergeController, type IAgentMergeControllerOptions } from './agentMergeController.js';
 import { AgentMergeConfigKey, agentMergeRootConfigSchema, readAgentMergeSessionState } from '../common/agentMerge.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { AgentHostAuthenticationService, type IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
+import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostArtifactToolsConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
-import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
-import { AgentHostStorageService, IAgentHostStorageService } from './agentHostStorageService.js';
+import { AgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
 import { SessionCoordinationService } from './sessionCoordination.js';
-import { IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
@@ -310,39 +305,30 @@ export interface IAgentServiceOptions {
 	readonly debugLogsEnvironment?: IAgentHostDebugLogsEnvironment;
 }
 
-/** Core state and callbacks exposed only to the Agent Host composition root. */
-export interface IAgentServiceCompositionContext {
-	readonly stateManager: AgentHostStateManager;
-	readonly configurationService: AgentConfigurationService;
-	readonly storageService: AgentHostStorageService;
-	readonly managedSettingsService: IAgentHostManagedSettingsService;
-	readonly sessionDataService: ISessionDataService;
-	readonly agents: IObservable<readonly IAgent[]>;
-	readonly hostLaunchKind: AgentHostLaunchKind;
-	readonly copilotApiServiceOverride: ICopilotApiService | undefined;
-	readonly getAuthToken: (request: IAgentHostAuthTokenRequest) => string | undefined;
-	readonly createAgentMergeControllerOptions: () => IAgentMergeControllerOptions;
-	readonly createSideEffectsOptions: (services: {
-		readonly localTurns: AgentHostLocalTurns;
-		readonly copilotApiService: ICopilotApiService;
-		readonly octoKitService: IAgentHostOctoKitService;
-		readonly gitStateService: IAgentHostGitStateService;
-	}) => IAgentSideEffectsOptions;
+export interface IAgentServiceCallbacks {
+	readonly canEvictChangeset: (changeset: string) => boolean;
+	readonly startAgentMergeTurn: IAgentMergeControllerOptions['startTurn'];
+	readonly cancelAgentMergeTurn: IAgentMergeControllerOptions['cancelTurn'];
+	readonly getAutonomousSessionConfig: IAgentMergeControllerOptions['getAutonomousSessionConfig'];
+	readonly getAgent: IAgentSideEffectsOptions['getAgent'];
+	readonly resolveWorkingDirectoryBeforeSend: NonNullable<IAgentSideEffectsOptions['resolveWorkingDirectoryBeforeSend']>;
+	readonly resolveChatAttachmentTurns: NonNullable<IAgentSideEffectsOptions['resolveChatAttachmentTurns']>;
 	readonly getSessionMetadata: (session: URI) => Promise<IAgentSessionMetadata | undefined>;
 	readonly restoreSession: (session: URI) => Promise<void>;
-	readonly createSessionServerToolAccessor: () => ISessionServerToolAccessor;
-	readonly createArtifactServerToolAccessor: () => IArtifactServerToolAccessor;
+	readonly sessionServerToolAccessor: ISessionServerToolAccessor;
+	readonly artifactServerToolAccessor: IArtifactServerToolAccessor;
 }
 
-/** Collaborators constructed by the composition root after registering {@link IAgentService}. */
-export interface IAgentServiceInitialization {
+export interface IAgentServiceCallbackBinder {
+	bind(callbacks: IAgentServiceCallbacks): void;
+}
+
+export interface IAgentServiceCollaborators {
 	readonly gitHubEndpointService: IAgentHostGitHubEndpointService;
 	readonly customizationEnablementService: AgentHostCustomizationEnablementService;
 	readonly gitStateService: IAgentHostGitStateService;
 	readonly agentMergeController: AgentMergeController;
 	readonly checkpointService: IAgentHostCheckpointService;
-	readonly promptCache: IAgentHostPromptCache;
-	readonly sessionTitleSignal: IAgentHostSessionTitleSignal;
 	readonly changesetOperationService: IAgentHostChangesetOperationService;
 	readonly reviewService: IAgentHostReviewService;
 	readonly changesets: IAgentHostChangesetService;
@@ -364,10 +350,8 @@ export interface IAgentServiceCore {
 	readonly sessionRegistry: AgentSessionRegistry;
 	readonly stateManager: AgentHostStateManager;
 	readonly configurationService: AgentConfigurationService;
-	readonly storageService: AgentHostStorageService;
-	readonly managedSettingsService: IAgentHostManagedSettingsService;
-	readonly hostLaunchKind: AgentHostLaunchKind;
-	readonly copilotApiServiceOverride: ICopilotApiService | undefined;
+	readonly agents: ISettableObservable<readonly IAgent[]>;
+	readonly callbackBinder: IAgentServiceCallbackBinder;
 }
 
 /**
@@ -394,8 +378,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/** Authoritative state manager for the sessions process protocol. */
 	private readonly _stateManager: AgentHostStateManager;
-	private _sessionCoordination!: SessionCoordinationService;
-	private readonly _managedSettingsService: IAgentHostManagedSettingsService;
+	private readonly _sessionCoordination: SessionCoordinationService;
 
 	/**
 	 * Orchestrator-owned durable index of known sessions. Populated alongside
@@ -421,31 +404,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private readonly _unpersistedChatBackings = new Set<string>();
 
-	/** Exposes the state manager for co-hosting a WebSocket protocol server. */
 	get stateManager(): AgentHostStateManager { return this._stateManager; }
-
-	/** Exposes the configuration service so agent providers can share root config plumbing. */
-	get configurationService(): IAgentConfigurationService { return this._configurationService; }
-
-	/** Exposes host-owned persistent storage to process-level DI. */
-	get storageService(): IAgentHostStorageService { return this._storageService; }
-
-	/** Exposes customization enablement to process-level DI. */
-	get customizationEnablementService(): IAgentHostCustomizationEnablementService { return this._customizationEnablementService; }
-
-	get managedSettingsService(): IAgentHostManagedSettingsService { return this._managedSettingsService; }
-
-	/** Exposes the GitHub endpoint service so agent providers share GitHub (Enterprise) resource resolution. */
-	get gitHubEndpointService(): IAgentHostGitHubEndpointService { return this._gitHubEndpointService; }
-
-	/** Exposes the checkpoint service so agent providers can capture session baselines. */
-	get checkpointService(): IAgentHostCheckpointService { return this._checkpointService; }
-
-	/** Exposes prompt-cache metadata without exposing the whole state manager. */
-	get promptCache(): IAgentHostPromptCache { return this._promptCache; }
-
-	/** Exposes host-owned session-title changes without exposing the whole state manager. */
-	get sessionTitleSignal(): IAgentHostSessionTitleSignal { return this._sessionTitleSignal; }
 
 	/** Registered providers keyed by their {@link AgentProvider} id. */
 	private readonly _providers = new Map<AgentProvider, IAgent>();
@@ -476,38 +435,34 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _disposingPeerChats = new Set<string>();
 	private readonly _defaultChatBackingWrites = new Map<string, Promise<void>>();
 	private readonly _authService: AgentHostAuthenticationService;
-	get authenticationService(): IAgentHostAuthenticationService { return this._authService; }
 	/** Default provider used when no explicit provider is specified. */
 	private _defaultProvider: AgentProvider | undefined;
 	/** Observable registered agents, drives `root/agentsChanged` via {@link AgentSideEffects}. */
-	private readonly _agents = observableValue<readonly IAgent[]>('agents', []);
+	private readonly _agents: ISettableObservable<readonly IAgent[]>;
 	/** Shared side-effect handler for action dispatch and session lifecycle. */
-	private _sideEffects!: AgentSideEffects;
-	private _agentMergeController!: AgentMergeController;
+	private readonly _sideEffects: AgentSideEffects;
+	private readonly _agentMergeController: AgentMergeController;
 	/** Owns static / per-turn changeset compute, publish, persist, restore. */
-	private _changesets!: IAgentHostChangesetService;
+	private readonly _changesets: IAgentHostChangesetService;
 	/** Shared active changeset subscription registry. */
 	/** Owns changeset operation contributions and handler activation. */
-	private _changesetOperationService!: IAgentHostChangesetOperationService;
-	private _reviewService!: IAgentHostReviewService;
+	private readonly _changesetOperationService: IAgentHostChangesetOperationService;
+	private readonly _reviewService: IAgentHostReviewService;
 	/** Owns AgentService-side orchestration of the changeset feature. */
-	private _changesetCoordinator!: AgentHostChangesetCoordinator;
+	private readonly _changesetCoordinator: AgentHostChangesetCoordinator;
 	/** Owns session git-state probing and git-backed catalogue decoration. */
-	private _gitStateService!: IAgentHostGitStateService;
+	private readonly _gitStateService: IAgentHostGitStateService;
 	/** Manages PTY-backed terminals for the agent host protocol. */
-	private _terminalManager!: AgentHostTerminalManager;
+	private readonly _terminalManager: AgentHostTerminalManager;
 	/** Persists host-injected `/rename` / `!command` turns for restore & fork/truncate. */
-	private _localTurns!: AgentHostLocalTurns;
+	private readonly _localTurns: AgentHostLocalTurns;
 	/** Server-side host for the agent host's server tools. */
-	private _serverToolHost!: AgentServerToolHost;
+	private readonly _serverToolHost: AgentServerToolHost;
 	private readonly _debugLogsCollector: AgentHostDebugLogsCollector | undefined;
 	private readonly _configurationService: AgentConfigurationService;
-	private readonly _storageService: AgentHostStorageService;
-	private _customizationEnablementService!: AgentHostCustomizationEnablementService;
+	private readonly _customizationEnablementService: AgentHostCustomizationEnablementService;
 	/** Captures baseline / per-turn git checkpoints backing the changeset pipeline. */
-	private _checkpointService!: IAgentHostCheckpointService;
-	private _promptCache!: IAgentHostPromptCache;
-	private _sessionTitleSignal!: IAgentHostSessionTitleSignal;
+	private readonly _checkpointService: IAgentHostCheckpointService;
 	/**
 	 * Host-owned worktree isolation controller. Set post-construction via
 	 * {@link setWorktreeIsolation} after host startup constructs the Copilot API
@@ -518,16 +473,13 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private _worktree: WorktreeIsolation | undefined;
 	/** Single source of truth for GitHub (Enterprise) endpoints and protected resources. */
-	private _gitHubEndpointService!: IAgentHostGitHubEndpointService;
+	private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService;
 	/** Pluggable completion item providers (e.g. workspace file completions, agent-specific @-mentions). */
-	private _completions!: IAgentHostCompletions;
-	private _initialized = false;
+	private readonly _completions: IAgentHostCompletions;
 	private _skillCompletionProviderRegistered = false;
 	/** Backs {@link getNetworkDiagnosticsInfo} / {@link diagnosticsFetch}; wired via {@link setNetworkDiagnosticsService}. */
 	private _networkDiagnostics: INetworkDiagnosticsService | undefined;
 	private _editAttributionService: IAgentEditAttributionService | undefined;
-	private readonly _hostLaunchKind: AgentHostLaunchKind;
-	private readonly _copilotApiServiceOverride: ICopilotApiService | undefined;
 
 	/**
 	 * Authoritative server-side per-resource subscription refcount, keyed by
@@ -597,20 +549,9 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private readonly _resourceWatches = this._register(new DisposableMap<string, IActiveResourceWatch>());
 
-	/** Exposes the terminal manager for use by agent providers. */
-	get terminalManager(): IAgentHostTerminalManager { return this._terminalManager; }
-
-	/** Exposes the completions service for use by agent providers (e.g. to register agent-scoped completion item providers). */
-	get completionsService(): IAgentHostCompletions { return this._completions; }
-
-	/**
-	 * Trigger characters announced to clients via `InitializeResult.completionTriggerCharacters`.
-	 * Aggregated from all registered {@link IAgentHostCompletionItemProvider}s.
-	 */
-	get completionTriggerCharacters(): readonly string[] { return this._completions.triggerCharacters; }
-
 	constructor(
 		core: IAgentServiceCore,
+		collaborators: IAgentServiceCollaborators,
 		@ILogService private readonly _logService: ILogService,
 		@IFileService private readonly _fileService: IFileService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
@@ -619,14 +560,42 @@ export class AgentService extends Disposable implements IAgentService {
 	) {
 		super();
 		this._register(core.disposables);
-		this._hostLaunchKind = core.hostLaunchKind;
-		this._copilotApiServiceOverride = core.copilotApiServiceOverride;
-		this._logService.info('AgentService initialized');
 		this._authService = core.authenticationService;
 		this._orchestratorDatabase = core.orchestratorDatabase;
 		this._debugLogsCollector = core.debugLogsCollector;
 		this._sessionRegistry = core.sessionRegistry;
 		this._stateManager = core.stateManager;
+		this._configurationService = core.configurationService;
+		this._agents = core.agents;
+		this._gitHubEndpointService = collaborators.gitHubEndpointService;
+		this._customizationEnablementService = collaborators.customizationEnablementService;
+		this._gitStateService = collaborators.gitStateService;
+		this._agentMergeController = collaborators.agentMergeController;
+		this._checkpointService = collaborators.checkpointService;
+		this._changesetOperationService = collaborators.changesetOperationService;
+		this._reviewService = collaborators.reviewService;
+		this._changesets = collaborators.changesets;
+		this._changesetCoordinator = collaborators.changesetCoordinator;
+		this._completions = collaborators.completions;
+		this._terminalManager = collaborators.terminalManager;
+		this._localTurns = collaborators.localTurns;
+		this._sideEffects = collaborators.sideEffects;
+		this._sessionCoordination = collaborators.sessionCoordination;
+		this._serverToolHost = collaborators.serverToolHost;
+		core.callbackBinder.bind({
+			canEvictChangeset: changeset => this._canEvictChangeset(changeset),
+			startAgentMergeTurn: (session, turnId, prompt) => this._startAgentMergePrompt(session, turnId, prompt),
+			cancelAgentMergeTurn: (session, turnId) => this._cancelAgentMergePrompt(session, turnId),
+			getAutonomousSessionConfig: (session, config) => this._findProviderForSession(session)?.getAutonomousSessionConfig?.(config),
+			getAgent: session => this._findProviderForSession(session),
+			resolveWorkingDirectoryBeforeSend: params => this._resolveWorkingDirectoryBeforeSend(params),
+			resolveChatAttachmentTurns: resource => this._resolveChatAttachmentTurns(resource),
+			getSessionMetadata: session => this._getSessionMetadata(session),
+			restoreSession: session => this.restoreSession(session),
+			sessionServerToolAccessor: this._createSessionServerToolAccessor(),
+			artifactServerToolAccessor: this._createArtifactServerToolAccessor(),
+		});
+		this._logService.info('AgentService initialized');
 		this._register(this._stateManager.onDidEmitEnvelope(e => this._onDidAction.fire(e)));
 		this._register(this._stateManager.onDidEmitEnvelope(e => this._trackPendingSubagentChatFromEnvelope(e)));
 		this._register(this._stateManager.onDidEmitEnvelope(e => this._persistAnnotations(e)));
@@ -647,86 +616,7 @@ export class AgentService extends Disposable implements IAgentService {
 				this._queueSessionListReconciliation();
 			}
 		}));
-		this._configurationService = core.configurationService;
-		this._storageService = core.storageService;
-		this._managedSettingsService = core.managedSettingsService;
 		updateAgentHostTelemetryLevelFromConfig(this._telemetryService, this._stateManager.rootState.config?.values);
-	}
-
-	/** Returns the narrow state and callback surface needed to compose collaborators. */
-	getCompositionContext(): IAgentServiceCompositionContext {
-		return {
-			stateManager: this._stateManager,
-			configurationService: this._configurationService,
-			storageService: this._storageService,
-			managedSettingsService: this._managedSettingsService,
-			sessionDataService: this._sessionDataService,
-			agents: this._agents,
-			hostLaunchKind: this._hostLaunchKind,
-			copilotApiServiceOverride: this._copilotApiServiceOverride,
-			getAuthToken: request => this._authService.getAuthToken(request),
-			createAgentMergeControllerOptions: () => ({
-				startTurn: (session, turnId, prompt) => this._startAgentMergePrompt(session, turnId, prompt),
-				cancelTurn: (session, turnId) => this._cancelAgentMergePrompt(session, turnId),
-				getAutonomousSessionConfig: (session, config) => this._findProviderForSession(session)?.getAutonomousSessionConfig?.(config),
-			}),
-			createSideEffectsOptions: services => ({
-				getAgent: session => this._findProviderForSession(session),
-				sessionDataService: this._sessionDataService,
-				localTurns: services.localTurns,
-				agents: this._agents,
-				hostLaunchKind: this._hostLaunchKind,
-				copilotApiService: services.copilotApiService,
-				getGitHubCopilotToken: () => {
-					const resource = this._gitHubEndpointService.getCopilotResource();
-					return this._authService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
-				},
-				getGitHubToken: () => {
-					const resource = this._gitHubEndpointService.getRepoResource();
-					return this._authService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
-				},
-				getGitHubHost: () => this._gitHubEndpointService.getEnterpriseHost() ?? 'github.com',
-				octoKitService: services.octoKitService,
-				resolveWorkingDirectoryBeforeSend: params => this._resolveWorkingDirectoryBeforeSend(params),
-				resolveChatAttachmentTurns: resource => this._resolveChatAttachmentTurns(resource),
-				onTurnComplete: session => {
-					const workingDirStr = this._stateManager.getSessionState(session)?.workingDirectories?.[0];
-					void services.gitStateService.attachSessionGitHubPullRequest(session, workingDirStr ? URI.parse(workingDirStr) : undefined);
-				},
-				onUserMessage: (session, text) => {
-					void services.gitStateService.attachSessionGitHubReferences(session.toString(), text);
-				},
-			}),
-			getSessionMetadata: session => this._getSessionMetadata(session),
-			restoreSession: session => this.restoreSession(session),
-			createSessionServerToolAccessor: () => this._createSessionServerToolAccessor(),
-			createArtifactServerToolAccessor: () => this._createArtifactServerToolAccessor(),
-		};
-	}
-
-	/** Completes the one-time wiring of collaborators that depend on {@link IAgentService}. */
-	initialize(initialization: IAgentServiceInitialization): void {
-		if (this._initialized) {
-			throw new Error('AgentService has already been initialized');
-		}
-		this._initialized = true;
-		this._gitHubEndpointService = initialization.gitHubEndpointService;
-		this._customizationEnablementService = initialization.customizationEnablementService;
-		this._gitStateService = initialization.gitStateService;
-		this._agentMergeController = initialization.agentMergeController;
-		this._checkpointService = initialization.checkpointService;
-		this._promptCache = initialization.promptCache;
-		this._sessionTitleSignal = initialization.sessionTitleSignal;
-		this._changesetOperationService = initialization.changesetOperationService;
-		this._reviewService = initialization.reviewService;
-		this._changesets = initialization.changesets;
-		this._changesetCoordinator = initialization.changesetCoordinator;
-		this._completions = initialization.completions;
-		this._terminalManager = initialization.terminalManager;
-		this._localTurns = initialization.localTurns;
-		this._sideEffects = initialization.sideEffects;
-		this._sessionCoordination = initialization.sessionCoordination;
-		this._serverToolHost = initialization.serverToolHost;
 		this._register(this._stateManager.onDidChangeSessionConfig(({ session, previous, current }) => this._syncAgentMergeIndex(URI.parse(session), previous, current)));
 		this._register(this._agentMergeController.onDidReleaseHold(session => {
 			const resource = URI.parse(session);
@@ -769,24 +659,6 @@ export class AgentService extends Disposable implements IAgentService {
 			});
 		}));
 		this._scheduleExternalSessionPrune();
-	}
-
-	/**
-	 * The registered providers. Exposed so process-lifetime background jobs
-	 * (notably {@link AgentModelRefreshScheduler}) can observe registrations
-	 * without this service owning an ambient recurring timer of its own.
-	 */
-	get agents(): IObservable<readonly IAgent[]> {
-		return this._agents;
-	}
-
-	/**
-	 * Fires with the provider id whenever a turn starts. Exposed alongside
-	 * {@link agents} so {@link AgentModelRefreshScheduler} can gate its periodic
-	 * refresh on real agent usage rather than polling an idle host.
-	 */
-	get onDidStartTurn(): Event<string> {
-		return this._sideEffects.onDidStartTurn;
 	}
 
 	private _scheduleExternalSessionPrune(): void {
@@ -949,7 +821,7 @@ export class AgentService extends Disposable implements IAgentService {
 				workingDirectory: pickedFolderUri,
 				config: this._configurationService.getSessionConfigValues(params.session),
 				prompt: params.prompt,
-				githubToken: this.getAuthToken({
+				githubToken: this._authService.getAuthToken({
 					resource: this._gitHubEndpointService.getCopilotResource().resource,
 					scopes: this._gitHubEndpointService.getCopilotResource().scopes_supported,
 				}),
@@ -1059,10 +931,6 @@ export class AgentService extends Disposable implements IAgentService {
 			this._agentMergeController.refresh();
 		}
 		return result;
-	}
-
-	getAuthToken(request: IAgentHostAuthTokenRequest): string | undefined {
-		return this._authService.getAuthToken(request);
 	}
 
 	// ---- Changeset operation handlers --------------------------------------
@@ -4227,7 +4095,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/** Returns true when a changeset is safe to drop from the in-memory cache. */
-	canEvictChangeset(changeset: string): boolean {
+	private _canEvictChangeset(changeset: string): boolean {
 		const changesetUri = URI.parse(changeset);
 		// A direct changeset subscriber is rendering this expanded URI. Keep
 		// the state alive so future envelopes still target an existing object.
