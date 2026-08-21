@@ -6,7 +6,7 @@
 import { describe, expect, it, vi, type Mock } from 'vitest';
 import { Event } from '../../../../util/vs/base/common/event';
 import { CopilotChatAttr, GenAiAttr, GenAiOperationName, StdAttr } from '../genAiAttributes';
-import { emitAgentTurnEvent, emitEditFeedbackEvent, emitEditSurvivalEvent, emitInferenceDetailsEvent, emitSessionStartEvent, emitToolCallEvent } from '../genAiEvents';
+import { emitAgentTurnEvent, emitEditFeedbackEvent, emitEditSurvivalEvent, emitInferenceDetailsEvent, emitSessionStartEvent, emitToolCallEvent, emitToolCallStartedEvent } from '../genAiEvents';
 import { resolveOTelConfig } from '../otelConfig';
 import type { IOTelService } from '../otelService';
 
@@ -147,6 +147,19 @@ describe('emitToolCallEvent', () => {
 		const attrs = otel.emitLogRecord.mock.calls[0][1];
 		expect(attrs['success']).toBe(false);
 		expect(attrs[StdAttr.ERROR_TYPE]).toBe('TimeoutError');
+	});
+});
+
+describe('emitToolCallStartedEvent', () => {
+	it('emits tool call started event', () => {
+		const otel = createMockOTel();
+		emitToolCallStartedEvent(otel, 'runCommand', 'tool-call-123');
+
+		expect(otel.emitLogRecord).toHaveBeenCalledWith('copilot_chat.tool.call.started: runCommand', {
+			'event.name': 'copilot_chat.tool.call.started',
+			[GenAiAttr.TOOL_NAME]: 'runCommand',
+			[GenAiAttr.TOOL_CALL_ID]: 'tool-call-123',
+		});
 	});
 });
 
