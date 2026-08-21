@@ -1385,7 +1385,7 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 		log?: RecordingLogService;
 		telemetry?: ITelemetryService;
 		subscriptions?: string[];
-		peer?: { resource: string; db: TestSessionDatabase; turnId: string };
+		peer?: { resource: string; db: TestSessionDatabase; turnId: string; onDispose?: () => void };
 	}): { svc: AgentHostChangesetService; stateManager: AgentHostStateManager; log: RecordingLogService } {
 		const log = options.log ?? new RecordingLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -1406,9 +1406,19 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			log,
 			{
 				...sessionDataService,
-				openDatabase: resource => options.peer?.resource === resource.toString()
-					? peerDataService!.openDatabase(resource)
-					: sessionDataService.openDatabase(resource),
+				openDatabase: resource => {
+					if (options.peer?.resource !== resource.toString()) {
+						return sessionDataService.openDatabase(resource);
+					}
+					const ref = peerDataService!.openDatabase(resource);
+					return {
+						object: ref.object,
+						dispose: () => {
+							options.peer?.onDispose?.();
+							ref.dispose();
+						},
+					};
+				},
 			},
 			options.git,
 			options.checkpoint,
@@ -1502,7 +1512,15 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 
 	test('uses the owning peer database for multi-root non-git fallback', async () => {
 		const sessionDb = new TestSessionDatabase();
-		const peerDb = new TestSessionDatabase();
+		const lifecycle: string[] = [];
+		class DelayedPeerDatabase extends TestSessionDatabase {
+			override async getFileEditsByTurn(turnId: string) {
+				await timeout(0);
+				lifecycle.push('read');
+				return super.getFileEditsByTurn(turnId);
+			}
+		}
+		const peerDb = new DelayedPeerDatabase();
 		peerDb.addEdit({ turnId: 'peer-turn', toolCallId: 'tc1', filePath: '/folderA/peer.txt', kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString('a'), afterContent: encodeString('a\nb') });
 		const peerResource = 'ahp-chat://peer-1/session-mr';
 		const { svc, stateManager } = build({
@@ -1510,14 +1528,18 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			git: createNoopGitService(),
 			checkpoint: NULL_CHECKPOINT_SERVICE,
 			db: sessionDb,
-			peer: { resource: peerResource, db: peerDb, turnId: 'peer-turn' },
+			peer: { resource: peerResource, db: peerDb, turnId: 'peer-turn', onDispose: () => lifecycle.push('dispose') },
 		});
 
 		const turnUri = await svc.computeTurnChangeset(sessionStr, 'peer-turn');
 
-		assert.deepStrictEqual(stateManager.getChangesetState(turnUri)?.files.map(file => file.id), [
-			URI.file('/folderA/peer.txt').toString(),
-		]);
+		assert.deepStrictEqual({
+			files: stateManager.getChangesetState(turnUri)?.files.map(file => file.id),
+			lifecycle,
+		}, {
+			files: [URI.file('/folderA/peer.txt').toString()],
+			lifecycle: ['read', 'dispose'],
+		});
 	});
 
 	test('diffs a repository shared by two working directories exactly once (dedup by repo root)', async () => {

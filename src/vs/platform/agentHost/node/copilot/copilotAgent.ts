@@ -254,6 +254,7 @@ interface IProvisionalSession {
 	readonly sdkSessionId: string;
 	readonly sessionUri: URI;
 	readonly chat: URI;
+	readonly isEphemeral: boolean;
 	/**
 	 * Folder the user picked at create time. Used as both the
 	 * pre-worktree working directory and the customization directory
@@ -2975,6 +2976,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				sdkSessionId,
 				sessionUri: session,
 				chat,
+				isEphemeral: options.isEphemeral === true,
 				workingDirectory,
 				workingDirectories: options.workingDirectories,
 				model: options.model,
@@ -3297,12 +3299,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		let agentSession: CopilotAgentSession | undefined;
 		let agent: AgentSelection | undefined;
 		try {
-			const resolvedAgent = await this._resolveAgentWhenMaterializing(provisional, snapshot, workingDirectory);
+			const resolvedAgent = provisional.isEphemeral ? undefined : await this._resolveAgentWhenMaterializing(provisional, snapshot, workingDirectory);
 			agent = resolvedAgent?.agent;
 			const launchPlan: CopilotSessionLaunchPlan = {
 				kind: 'create',
 				client,
 				sessionId: sdkSessionId,
+				isEphemeral: provisional.isEphemeral,
 				workingDirectory,
 				additionalDirectories: this._additionalCustomizationDirectories(resolvedWorkingDirectories),
 				resolvedAgentName: resolvedAgent?.name,

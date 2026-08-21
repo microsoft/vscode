@@ -7,6 +7,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { FEEDBACK_ANNOTATION_META_KEY, feedbackAnnotationEntryMeta, readFeedbackAnnotationMeta, resolveFeedbackEntryAuthor, VIEW_UNREVIEWED_COMMENTS_TOOL_NAME, ADD_COMMENT_TOOL_NAME, type IFeedbackAnnotationMeta } from '../../common/meta/agentFeedbackAnnotations.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
+import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
 import type { AnnotationsAction } from '../../common/state/sessionActions.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { parseChatUri, type Annotation, type AnnotationsState, type StringOrMarkdown, type TextRange, type ToolDefinition } from '../../common/state/sessionState.js';
@@ -114,11 +115,11 @@ const resolveCommentsInputSchema: ToolDefinition['inputSchema'] = {
 };
 
 /**
- * Protocol {@link ToolDefinition}s for the feedback server tools, advertised on
+ * {@link IAgentServerToolDefinition}s for the feedback server tools, advertised on
  * {@link SessionState.serverTools} so clients know these tools are owned and
  * executed by the agent host.
  */
-export const feedbackServerToolDefinitions: ToolDefinition[] = [
+export const feedbackServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: addCommentToolName,
 		title: 'Add Comment (Agent Feedback)',

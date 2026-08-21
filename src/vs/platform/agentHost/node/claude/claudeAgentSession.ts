@@ -832,8 +832,9 @@ export class ClaudeAgentSession extends Disposable {
 	): Promise<{ mcpServers: Record<string, McpServerConfig> | undefined; deniedMcpServers: readonly ClaudeDeniedMcpServerSpec[]; allowedTools: readonly string[] | undefined }> {
 		const externalServers = await this._buildExternalMcpServers(await this._getGitHubMcpServerConfiguration());
 		const clientServers = await buildClientMcpServers(this.toolDiff, this._pendingClientToolCalls, this._sdkService);
-		const serverToolServer = serverToolHost
-			? await buildServerToolMcpServer(serverToolHost, this._chatChannelUri.toString(), this._sdkService)
+		const serverToolDefinitions = serverToolHost?.getDefinitionsForSession(resource.toString());
+		const serverToolServer = serverToolHost && serverToolDefinitions?.length
+			? await buildServerToolMcpServer(serverToolHost, this._chatChannelUri.toString(), this._sdkService, serverToolDefinitions)
 			: undefined;
 		const mcpServers = (Object.keys(externalServers.servers).length === 0 && !clientServers && !serverToolServer)
 			? undefined
@@ -849,8 +850,8 @@ export class ClaudeAgentSession extends Disposable {
 		// answer: the allow-list is baked into the SDK options here and would go
 		// stale if a tool were allow-listed while it happened to have nothing to
 		// confirm.
-		const autoApproveToolNames = serverToolHost
-			? serverToolHost.toolNames.filter(name => !serverToolHost.canRequireConfirmation(name))
+		const autoApproveToolNames = serverToolHost && serverToolDefinitions
+			? serverToolDefinitions.filter(definition => !serverToolHost.canRequireConfirmation(definition.name)).map(definition => definition.name)
 			: undefined;
 		return {
 			mcpServers,

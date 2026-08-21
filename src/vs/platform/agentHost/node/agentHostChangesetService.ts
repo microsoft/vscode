@@ -718,7 +718,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 			const workingDirectories = this._configurationService.getEffectiveWorkingDirectories(session);
 			if (isMultiRootSession(workingDirectories)) {
-				return this._computeMultiFolderTurnDiffs(session, trackedSource.sessionUri, trackedSource.db, turnId, workingDirectories!);
+				return await this._computeMultiFolderTurnDiffs(session, trackedSource.sessionUri, trackedSource.db, turnId, workingDirectories!);
 			}
 			const diffs = await this._computeSingleFolderTurnDiffs(session, trackedSource.sessionUri, trackedSource.db, turnId);
 			return { diffs, outcome: 'computed' };

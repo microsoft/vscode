@@ -48,6 +48,10 @@ export class ChatResourcePillActionViewItem extends ChatPillActionViewItemBase {
 		return entry?.tooltip ?? (entry ? localize('chatResourcePill.open', "Open {0}", entry.label) : this._action.label);
 	}
 
+	protected override getAriaLabel(): string | undefined {
+		return this._entry.get()?.ariaLabel ?? super.getAriaLabel();
+	}
+
 	protected override onDidClickButton(): void {
 		try {
 			this._entry.get()?.open();

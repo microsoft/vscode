@@ -105,6 +105,7 @@ import { CHAT_READ_ONLY_BANNER_HEIGHT, ChatReadOnlyBanner } from './chatReadOnly
 import { IChatSubmitRequestHandlerService } from '../chatSubmitRequestHandlerService.js';
 import { ChatPetWidget, shouldReserveChatPetSpace } from './chatPetWidget.js';
 import { IChatPetService } from '../chatPetService.js';
+import { ChatPetAchievementIds, hasChatPetImageAttachment } from '../chatPetAchievements.js';
 import { stopDictationForEditor } from '../speechToText/dictationSession.js';
 import { ChatContentMarkdownRenderer } from './chatContentMarkdownRenderer.js';
 
@@ -205,6 +206,14 @@ export async function acceptAndAwaitSentRequest(result: ChatSendResult, onReques
 
 	const sent = ChatSendResult.isQueued(result) ? await result.deferred : result;
 	return ChatSendResult.isSent(sent) ? sent : undefined;
+}
+
+export function shouldUnlockChatPetRequestRevision(isEditing: boolean, isUserQuery: boolean): boolean {
+	return isEditing && isUserQuery;
+}
+
+export function shouldUnlockChatPetQueueOrSteeringMessage(isUserQuery: boolean, queue: ChatRequestQueueKind | undefined): boolean {
+	return isUserQuery && queue !== undefined;
 }
 
 type ChatHandoffClickEvent = {
@@ -707,9 +716,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this._register(autorun(r => {
 			const viewModel = viewModelObs.read(r);
-			const sessions = chatEditingService.editingSessionsObs.read(r);
+			chatEditingService.editingSessionsObs.read(r);
 
-			const session = sessions.find(candidate => isEqual(candidate.chatSessionResource, viewModel?.sessionResource));
+			const session = viewModel ? chatEditingService.getEditingSession(viewModel.sessionResource) : undefined;
 			this._editingSession.set(undefined, undefined);
 			this.renderChatEditingSessionState(); // this is necessary to make sure we dispose previous buttons, etc.
 
@@ -1056,6 +1065,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				getTemplateDataForRequestId: (requestId) => this.getTemplateDataForRequestId(requestId),
 				onDidRerenderRow: this.onDidRerenderRow,
 				editorsInUse: () => this.listWidget.editorsInUse(),
+				getScrollTop: () => this.listWidget.scrollTop,
+				setScrollTop: (scrollTop) => { this.listWidget.scrollTop = scrollTop; },
+				getRenderHeight: () => this.listWidget.renderHeight,
+				getViewportAnchorItemId: () => this.listWidget.lastVisibleItem?.id,
 			};
 			this._findController = this._register(this.instantiationService.createInstance(ChatFindWidget, host));
 			// Focusing the Find widget must count as focusing this widget, so
@@ -3114,6 +3127,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 		const isEditing = this.viewModel?.editing;
+		const submittedFromEditing = shouldUnlockChatPetRequestRevision(isEditing !== undefined, isUserQuery);
 		// Captured before `finishedEditing` tears the inline editor down, while `this.input` still
 		// resolves to it. The inline editor owns the model and mode for a resubmit — those are the
 		// pickers the user actually chose in — so these stay authoritative over the bottom input.
@@ -3236,6 +3250,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// Expand directory attachments: extract images as binary entries
 		const resolvedImageVariables = await this._resolveDirectoryImageAttachments(requestInputs.attachedContext.asArray());
+		const submittedWithImage = isUserQuery && hasChatPetImageAttachment([
+			...requestInputs.attachedContext.asArray(),
+			...resolvedImageVariables,
+		]);
 		const submittedSessionResource = this.viewModel.sessionResource;
 
 		// For contributed session types, only collect automatic instructions when
@@ -3303,9 +3321,24 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this._maybeStartGoalSummary(requestInputs.input);
 		}
 
-		const sent = await acceptAndAwaitSentRequest(result, options.onRequestAccepted);
+		const shouldUnlockQueueOrSteeringMessage = shouldUnlockChatPetQueueOrSteeringMessage(isUserQuery, options.queue);
+		const sent = await acceptAndAwaitSentRequest(result, () => {
+			if (shouldUnlockQueueOrSteeringMessage) {
+				this.chatPetService.unlockAchievement(ChatPetAchievementIds.QueueOrSteeringMessage);
+			}
+			options.onRequestAccepted?.();
+		});
 		if (!sent) {
 			return;
+		}
+		if (isUserQuery) {
+			this.chatPetService.unlockAchievement(ChatPetAchievementIds.FirstChatMessage);
+		}
+		if (submittedFromEditing) {
+			this.chatPetService.unlockAchievement(ChatPetAchievementIds.RequestRevision);
+		}
+		if (submittedWithImage) {
+			this.chatPetService.unlockAchievement(ChatPetAchievementIds.ImageRequest);
 		}
 
 		if (!options.preserveInput) {

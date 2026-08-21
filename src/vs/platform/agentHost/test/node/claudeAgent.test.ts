@@ -67,6 +67,7 @@ import { AgentHostSessionTitleSignal, IAgentHostSessionTitleSignal } from '../..
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { IAgentHostAuthenticationService, type IAgentHostAuthTokenChangeEvent } from '../../node/agentHostAuthenticationService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
+import { createTestAgentService } from './agentServiceTestUtils.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { makeMcpServerCustomization } from '../../../agentPlugins/common/pluginParsers.js';
 import { ClaudeAgent, fromSdkModelInfo } from '../../node/claude/claudeAgent.js';
@@ -77,14 +78,13 @@ import { createClaudeInternalMcpServerCustomization } from '../../node/claude/cu
 import { ClaudeSessionMetadataStore } from '../../node/claude/claudeSessionMetadataStore.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { ClaudeAgentSdkService, IClaudeAgentSdkService, IClaudeSdkBindings } from '../../node/claude/claudeAgentSdkService.js';
-import { AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, readAgentSdkSetupInfos } from '../../common/agentSdkSetup.js';
+import { AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, AGENT_SDK_SETUP_RELOAD_REQUEST_KEY, readAgentSdkSetupInfos } from '../../common/agentSdkSetup.js';
 import { IAgentSdkDownloader } from '../../node/agentSdkDownloader.js';
 import { RecordingAgentSdkDownloader } from './testAgentSdkDownloader.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { IClaudeProxyCreditsReport, IClaudeProxyHandle, IClaudeProxyService } from '../../node/claude/claudeProxyService.js';
 import { resolvePromptToContentBlocks } from '../../node/claude/claudePromptResolver.js';
 import { ICopilotApiService, type ICopilotApiServiceRequestOptions } from '../../node/shared/copilotApiService.js';
-import { AgentService } from '../../node/agentService.js';
 import { createAgentChatContext } from '../../node/agentChatContext.js';
 import { injectSideChatContext } from '../../node/agentPeerChats.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, RecordingCheckpointService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
@@ -2155,7 +2155,7 @@ suite('ClaudeAgent', () => {
 	test('AgentService surfaces the registered ClaudeAgent in the providers map', () => {
 		const { agent } = createTestContext(disposables);
 		const fileService = disposables.add(new FileService(new NullLogService()));
-		const service = disposables.add(new AgentService(
+		const service = disposables.add(createTestAgentService(
 			new NullLogService(),
 			fileService,
 			createNullSessionDataService(),
@@ -6073,6 +6073,11 @@ suite('ClaudeAgent — agent SDK setup channel', () => {
 		ctx.configService.updateRootConfig({ [AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY]: { agent, request } });
 	}
 
+	/** Addresses a reload request the same way, as the banner's link does. */
+	function dispatchReload(ctx: ITestContext, agent = 'claude', request = 'req-1'): void {
+		ctx.configService.updateRootConfig({ [AGENT_SDK_SETUP_RELOAD_REQUEST_KEY]: { agent, request } });
+	}
+
 	/** Waits for the ctor's queued publish (and any refresh it chains) to settle. */
 	async function settle(): Promise<void> {
 		for (let i = 0; i < 20; i++) {
@@ -6087,7 +6092,7 @@ suite('ClaudeAgent — agent SDK setup channel', () => {
 		assert.deepStrictEqual(readSetup(ctx), {
 			agent: 'claude',
 			download: 'ready',
-			setupDocsUrl: 'https://docs.claude.com/en/docs/claude-code/setup',
+			setupDocsUrl: 'https://code.claude.com/docs/en/third-party-integrations',
 			// No in-app sign-in: every Claude credential is established outside the
 			// app, so the banner can only point at the docs.
 			signInProviderName: undefined,
@@ -6262,6 +6267,52 @@ suite('ClaudeAgent — agent SDK setup channel', () => {
 			inFlight: [],
 			after: [1],
 			migratable: [],
+		});
+	});
+
+	test('a reload re-asks the SDK for the account the user set up elsewhere, fetching nothing', async () => {
+		// Setup happens outside the app, so nothing fires when it finishes — a fresh
+		// `accountInfo()` is the only way to see it, and the SDK is already on disk.
+		const ctx = createTestContext(disposables);
+		await settle();
+		const before = ctx.sdk.accountInfoCallCount;
+		ctx.sdk.accountInfoResult = NATIVE_ACCOUNT;
+		ctx.sdk.supportedModelsResult = [
+			{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '', supportedEffortLevels: ['high'] },
+		];
+
+		dispatchReload(ctx);
+		await settle();
+
+		assert.deepStrictEqual({
+			asked: ctx.sdk.accountInfoCallCount > before,
+			fetches: ctx.sdk.ensureAvailableCalls,
+			models: ctx.agent.models.get().map(model => model.name),
+			// Consumed like the download key, so pressing the link twice is two reloads.
+			key: ctx.configService.getRootConfigValues()[AGENT_SDK_SETUP_RELOAD_REQUEST_KEY],
+		}, {
+			asked: true,
+			fetches: 0,
+			models: ['Claude Sonnet 4.5'],
+			key: undefined,
+		});
+	});
+
+	test('a reload addressed to another agent is ignored', async () => {
+		const ctx = createTestContext(disposables);
+		await settle();
+		const before = ctx.sdk.accountInfoCallCount;
+
+		dispatchReload(ctx, 'codex');
+		await settle();
+
+		assert.deepStrictEqual({
+			asked: ctx.sdk.accountInfoCallCount > before,
+			// Left in place for the agent it names, rather than consumed by this one.
+			key: ctx.configService.getRootConfigValues()[AGENT_SDK_SETUP_RELOAD_REQUEST_KEY],
+		}, {
+			asked: false,
+			key: { agent: 'codex', request: 'req-1' },
 		});
 	});
 });
@@ -6845,6 +6896,7 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 		confirmationRequiredForSession = false;
 
 		advertise(): void { }
+		getDefinitionsForSession(): readonly ToolDefinition[] { return this.definitions; }
 		canRequireConfirmation(): boolean { return true; }
 		requiresConfirmation(): boolean { return this.confirmationRequiredForSession; }
 		executeTool(): string { return 'ok'; }
@@ -10873,6 +10925,7 @@ suite('ClaudeAgent — host seams', () => {
 			definitions: [{ name: toolName, inputSchema: { type: 'object', properties: {} } }],
 			toolNames: [toolName],
 			advertise: () => { },
+			getDefinitionsForSession: () => [{ name: toolName, inputSchema: { type: 'object', properties: {} } }],
 			canRequireConfirmation: () => false,
 			requiresConfirmation: () => false,
 			executeTool: chatUri => {

@@ -22,6 +22,7 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSession, AgentSignal, IAgent, resolveSubagentChatParent, SubagentChatSignal, type IAgentChatContext } from '../../common/agent.js';
 import { buildDefaultChangesetCatalog } from '../../common/changesetUri.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
+import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
@@ -39,7 +40,6 @@ import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportK
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostChangesetService, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
-import { AgentService } from '../../node/agentService.js';
 import { AgentSideEffects, IAgentSideEffectsOptions } from '../../node/agentSideEffects.js';
 import { AgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import type { IAgentHostAskQuestionsToolInvokedEvent } from '../../node/agentHostTelemetryReporter.js';
@@ -53,6 +53,7 @@ import { applyMcpServerEnablement } from '../../node/shared/mcpCustomizationCont
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
+import { createTestAgentService } from './agentServiceTestUtils.js';
 
 // ---- Tests ------------------------------------------------------------------
 
@@ -718,6 +719,32 @@ suite('AgentSideEffects', () => {
 			].join('\n')]);
 		});
 
+		test('adds focused edit guidance for an editor inline-chat surface', async () => {
+			setupSession(undefined, withChatSurfaceMeta(undefined, { surface: 'editorInline', languageId: 'typescript' }));
+
+			sideEffects.handleAction(defaultChatUri, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'Rename the function', origin: { kind: MessageKind.User } },
+			});
+			await waitForSendMessageCalls(1);
+
+			const sendContext = agent.chatContexts.find(call => call.boundary === 'sendMessage')?.context;
+			assert.deepStrictEqual(!URI.isUri(sendContext) ? sendContext?.hostInstructions : undefined, [[
+				'<editor_inline_chat>',
+				'You specialize in focused inline edits. Make the requested change directly.',
+				'- Edit only the file attached as the current editor context. Do not create, delete, or modify other files.',
+				'- Make the smallest edit that satisfies the request; preserve surrounding style and indentation.',
+				'- Focus on the user\'s selected range when one is provided.',
+				'- Avoid broad repository exploration or context-gathering unless required to resolve ambiguity.',
+				'- After making the edit, stop; do not run tests, builds, linters, or other verification, and never summarize the change.',
+				'- Produce the edit directly rather than explaining it or writing a tutorial.',
+				'- The file\'s language is typescript.',
+				'</editor_inline_chat>',
+			].join('\n')]);
+		});
+
 		test('passes the dispatching client id and type to sendMessage', async () => {
 			setupSession();
 			const action: ChatAction = {
@@ -1197,7 +1224,7 @@ suite('AgentSideEffects', () => {
 		 * how the agent host creates a session whose worktree/SDK setup happens on
 		 * the first `sendMessage`.
 		 */
-		function setupProvisionalSession(): void {
+		function setupProvisionalSession(isEphemeral = false): void {
 			stateManager.createSession({
 				resource: sessionUri.toString(),
 				provider: 'mock',
@@ -1205,6 +1232,7 @@ suite('AgentSideEffects', () => {
 				status: SessionStatus.Idle,
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
+				...(isEphemeral ? { _meta: withEphemeralSessionMeta(undefined, true) } : {}),
 			}, { emitNotification: false });
 		}
 
@@ -1328,6 +1356,34 @@ suite('AgentSideEffects', () => {
 			}]);
 		});
 
+		test('skips turn-start checkpoint capture for an ephemeral session', async () => {
+			setupProvisionalSession(true);
+			let captureCount = 0;
+			const checkpoints: IAgentHostCheckpointService = {
+				...NULL_CHECKPOINT_SERVICE,
+				captureTurnStartCheckpoint: async () => { captureCount++; },
+			};
+			const localSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				resolveWorkingDirectoryBeforeSend: async () => [URI.file('/wd')],
+				onTurnComplete: () => { },
+			}, undefined, NullTelemetryService, undefined, undefined, checkpoints);
+			const turnStarted = {
+				type: ActionType.ChatTurnStarted,
+				startedAt: '2025-01-01T00:00:00.000Z',
+				turnId: 'turn-1',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			} as const;
+			stateManager.dispatchClientAction(defaultChatUri, turnStarted, { clientId: 'test', clientSeq: 1 });
+
+			localSideEffects.handleAction(defaultChatUri, turnStarted);
+			await waitForSendMessageCalls(1);
+
+			assert.strictEqual(captureCount, 0);
+		});
+
 		test('client cancellation discards the pending turn start', async () => {
 			setupProvisionalSession();
 			const discarded = new DeferredPromise<void>();
@@ -1355,6 +1411,30 @@ suite('AgentSideEffects', () => {
 				duration: 0,
 			}, { clientId: 'test', clientSeq: 1 });
 			await discarded.p;
+		});
+
+		test('discards a turn-start checkpoint for an ephemeral session', async () => {
+			setupProvisionalSession(true);
+			let discardCount = 0;
+			const checkpoints: IAgentHostCheckpointService = {
+				...NULL_CHECKPOINT_SERVICE,
+				discardTurnStartCheckpoint: async () => { discardCount++; },
+			};
+			createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				onTurnComplete: () => { },
+			}, undefined, NullTelemetryService, undefined, undefined, checkpoints);
+
+			stateManager.dispatchClientAction(defaultChatUri, {
+				type: ActionType.ChatTurnCancelled,
+				turnId: 'turn-1',
+				duration: 0,
+			}, { clientId: 'test', clientSeq: 1 });
+			await new Promise(resolve => setTimeout(resolve));
+
+			assert.strictEqual(discardCount, 1);
 		});
 
 		test('cancellation before send skips turn-start capture', async () => {
@@ -4917,7 +4997,7 @@ suite('AgentSideEffects', () => {
 			const sessionDataService = createSessionDataService(sessionDb);
 			const localAgent = new MockAgent();
 			disposables.add(toDisposable(() => localAgent.dispose()));
-			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			localService.registerProvider(localAgent);
 
 			await localService.createSession({ provider: localAgent.id });
@@ -4936,7 +5016,7 @@ suite('AgentSideEffects', () => {
 			const sessionDataService = createSessionDataService(sessionDb);
 			const localAgent = new MockAgent();
 			disposables.add(toDisposable(() => localAgent.dispose()));
-			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			localService.registerProvider(localAgent);
 
 			const session = await createAgentSession(localAgent);
@@ -4963,7 +5043,7 @@ suite('AgentSideEffects', () => {
 			const sessionDataService = createSessionDataService(sessionDb);
 			const localAgent = new MockAgent();
 			disposables.add(toDisposable(() => localAgent.dispose()));
-			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			localService.registerProvider(localAgent);
 
 			const session = await createAgentSession(localAgent);
@@ -6531,6 +6611,70 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(agent.respondToPermissionCalls, [
 				{ requestId: 'inner-perm-1', approved: true },
 			]);
+		});
+
+		test('hard-denies a write to a snapshot under the session attachments dir, even with global auto-approve, and dispatches no confirmation-ready action (#331154)', async () => {
+			// `isSessionAttachmentPath` compares the write path (a `file:` URI) against the session
+			// attachments dir, so the session-data dir must resolve to a `file:` URI here.
+			const attachmentsSessionDataService: ISessionDataService = {
+				...createNullSessionDataService(),
+				getSessionDataDir: () => URI.file('/session-data/session-1'),
+			};
+			const localSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: attachmentsSessionDataService,
+				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+				onTurnComplete: () => { },
+			});
+
+			setupSession();
+			// Global auto-approve would otherwise approve the write; the snapshot deny must win because it
+			// is evaluated before `getAutoApproval`.
+			stateManager.dispatchServerAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostGlobalAutoApproveEnabledConfigKey]: true },
+			});
+			startTurn('turn-1');
+			disposables.add(localSideEffects.registerProgressListener(agent));
+
+			// A confirmation-ready action would only be dispatched by the auto-approval path; the deny path
+			// returns before dispatching one, so capturing them proves nothing was surfaced to the client.
+			const readyActions: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+				if (envelope.action.type === ActionType.ChatToolCallReady) {
+					readyActions.push(envelope);
+				}
+			}));
+
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: {
+					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
+					toolCallId: 'tc-snapshot-write', toolName: 'edit', displayName: 'Edit', contributor: undefined,
+					_meta: { toolKind: undefined, language: undefined },
+				},
+			});
+			agent.fireProgress({
+				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
+				state: {
+					status: ToolCallStatus.PendingConfirmation,
+					toolCallId: 'tc-snapshot-write', toolName: 'edit', displayName: 'Edit',
+					invocationMessage: 'Edit file', toolInput: undefined,
+					confirmationTitle: 'Edit file', edits: undefined,
+				},
+				permissionKind: 'write',
+				permissionPath: '/session-data/session-1/attachments/abc/Pasted text #1.txt',
+			});
+
+			await waitForState(stateManager, () => agent.respondToPermissionCalls.length > 0 || undefined);
+			assert.deepStrictEqual({
+				responses: agent.respondToPermissionCalls,
+				readyActionCount: readyActions.length,
+			}, {
+				responses: [{ requestId: 'tc-snapshot-write', approved: false }],
+				readyActionCount: 0,
+			});
 		});
 	});
 

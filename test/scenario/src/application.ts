@@ -238,7 +238,7 @@ async function removeProfileData(userDataPath: string | undefined): Promise<void
 
 async function preseedUserData(userDataDir: string | undefined, userSettings: Record<string, JSONValue> | undefined, web: boolean): Promise<void> {
 	if (!userDataDir) {
-		throw new Error('Cannot pre-seed the MCP test profile without a user data directory.');
+		throw new Error('Cannot pre-seed the isolated test profile without a user data directory.');
 	}
 
 	const userDir = path.join(userDataDir, ...(web ? ['data', 'User'] : ['User']));

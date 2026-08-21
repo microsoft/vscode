@@ -13,7 +13,7 @@ import { annotateSpecialMarkdownContentWithSource } from '../../../common/widget
 import { moveResponseOutcomeToolsAfterFinalResponse } from '../chatListRenderer.js';
 
 /** Upper bound on tracked matches, mirroring `LIMIT_FIND_COUNT` in `textModelSearch.ts`, so a pathological regex can't pin the UI. */
-const MAX_FIND_MATCHES = 9999;
+export const MAX_FIND_MATCHES = 9999;
 
 export interface IChatFindOptions {
 	readonly isRegex: boolean;
@@ -64,13 +64,15 @@ function buildSegments(items: readonly ChatTreeItem[]): IChatFindSegment[] {
 				segments.push({ itemId: item.id, itemKind: 'request', partIndex: -1, text: item.messageText });
 			}
 		} else if (isResponseVM(item)) {
-			const annotated = annotateSpecialMarkdownContentWithSource(item.response.value);
+			// A filtered response renders no content at all, so row-level text starts at 0.
+			const isFiltered = !!item.errorDetails?.responseIsFiltered;
+			const annotated = isFiltered ? [] : annotateSpecialMarkdownContentWithSource(item.response.value);
 			const renderedContent = item.isComplete
 				? moveResponseOutcomeToolsAfterFinalResponse(annotated.map(entry => entry.content))
 				: annotated.map(entry => entry.content);
 			// Mirrors the renderer, which puts the references slot first and code citations
 			// between the response content and the trailing parts that hold row-level text.
-			const trailingPartIndex = renderedContent.length + 1 + (item.codeCitations?.length ? 1 : 0);
+			const trailingPartIndex = isFiltered ? 0 : renderedContent.length + 1 + (item.codeCitations?.length ? 1 : 0);
 			// Indexes only what the response renders: `getChatFindTextParts` deliberately omits
 			// reasoning and tool result payloads, whose text does not exist in the DOM until
 			// their container is expanded, so a match there could never be revealed.
@@ -106,13 +108,22 @@ function buildSegments(items: readonly ChatTreeItem[]): IChatFindSegment[] {
 	return segments;
 }
 
+/**
+ * Bounds a single segment's scan. Higher than {@link MAX_FIND_MATCHES} because a segment has to be
+ * scanned past the cap to know which of its occurrences are the newest, but still finite so a
+ * pathological regex over a huge response cannot pin the UI.
+ */
+const MAX_SEGMENT_SCAN = 100_000;
+
+/** The segment's last `limit` matches, since navigation visits a segment's newest occurrence first. */
 function findMatchesInSegment(segment: IChatFindSegment, regex: RegExp, limit: number): IChatFindMatch[] {
+	if (limit <= 0) {
+		return [];
+	}
 	const matches: IChatFindMatch[] = [];
 	regex.lastIndex = 0;
 	let occurrenceIndex = 0;
 	let match: RegExpExecArray | null;
-	// Guard against catastrophic/zero-length-match regexes looping forever.
-	let safety = 0;
 	while ((match = regex.exec(segment.text))) {
 		matches.push({
 			itemId: segment.itemId,
@@ -128,11 +139,15 @@ function findMatchesInSegment(segment: IChatFindSegment, regex: RegExp, limit: n
 		if (match[0].length === 0) {
 			regex.lastIndex++;
 		}
-		if (++safety > MAX_FIND_MATCHES || matches.length >= limit) {
+		// Trimming at twice the limit bounds the window without shifting on every match.
+		if (matches.length >= limit * 2) {
+			matches.splice(0, matches.length - limit);
+		}
+		if (occurrenceIndex >= MAX_SEGMENT_SCAN) {
 			break;
 		}
 	}
-	return matches;
+	return matches.length > limit ? matches.slice(-limit) : matches;
 }
 
 /** Searches the logical chat transcript independently of rendered rows. */
@@ -149,7 +164,8 @@ export class ChatFindModel extends Disposable {
 	private _invalidRegex = false;
 
 	constructor(
-		private readonly getItems: () => readonly ChatTreeItem[]
+		private readonly getItems: () => readonly ChatTreeItem[],
+		private readonly getViewportAnchorItemId: () => string | undefined = () => undefined
 	) {
 		super();
 	}
@@ -180,8 +196,16 @@ export class ChatFindModel extends Disposable {
 	}
 
 	setQuery(query: string, options: IChatFindOptions): void {
+		const changed = query !== this._query
+			|| options.isRegex !== this._options.isRegex
+			|| options.matchCase !== this._options.matchCase
+			|| options.wholeWord !== this._options.wholeWord;
 		this._query = query;
 		this._options = options;
+		if (changed) {
+			this._activeAnchor = undefined;
+			this._activeIndex = -1;
+		}
 		this.recompute();
 	}
 
@@ -215,13 +239,15 @@ export class ChatFindModel extends Disposable {
 			return;
 		}
 
-		const segments = buildSegments(this.getItems());
+		const items = this.getItems();
+		const segments = buildSegments(items);
 		const matches: IChatFindMatch[] = [];
-		for (const segment of segments) {
-			if (matches.length >= MAX_FIND_MATCHES) {
-				break;
+		// Newest first: `buildSegments` produces transcript order, so both walks are reversed.
+		for (let index = segments.length - 1; index >= 0 && matches.length < MAX_FIND_MATCHES; index--) {
+			const segmentMatches = findMatchesInSegment(segments[index], regex, MAX_FIND_MATCHES - matches.length);
+			for (let occurrence = segmentMatches.length - 1; occurrence >= 0; occurrence--) {
+				matches.push(segmentMatches[occurrence]);
 			}
-			matches.push(...findMatchesInSegment(segment, regex, MAX_FIND_MATCHES - matches.length));
 		}
 
 		this._matches = matches;
@@ -230,13 +256,14 @@ export class ChatFindModel extends Disposable {
 			this._activeIndex = matches.findIndex(m => m.itemId === previousAnchor.itemId && m.partIndex === previousAnchor.partIndex && m.occurrenceIndex === previousAnchor.occurrenceIndex);
 		}
 		if (this._activeIndex < 0) {
-			this._activeIndex = matches.length > 0 ? 0 : -1;
+			this._activeIndex = this._seedActiveIndex(matches, items);
 		}
 		this._updateAnchor();
 
 		this._onDidChangeMatches.fire();
 	}
 
+	/** Moves to the next match in navigation order, which is the next one *back* in the transcript. */
 	next(): IChatFindMatch | undefined {
 		if (this._matches.length === 0) {
 			return undefined;
@@ -247,6 +274,7 @@ export class ChatFindModel extends Disposable {
 		return this.activeMatch;
 	}
 
+	/** Moves to the previous match in navigation order, which is the next one *forward* in the transcript. */
 	previous(): IChatFindMatch | undefined {
 		if (this._matches.length === 0) {
 			return undefined;
@@ -268,5 +296,33 @@ export class ChatFindModel extends Disposable {
 	private _updateAnchor(): void {
 		const active = this.activeMatch;
 		this._activeAnchor = active ? { itemId: active.itemId, partIndex: active.partIndex, occurrenceIndex: active.occurrenceIndex } : undefined;
+	}
+
+	/**
+	 * Picks where to start when no previous active match survived: the newest match that is not
+	 * below the viewport, so Find begins at what the user is looking at rather than at the end of
+	 * the transcript. Falls back to the newest match overall when everything on screen is older
+	 * than every match.
+	 */
+	private _seedActiveIndex(matches: readonly IChatFindMatch[], items: readonly ChatTreeItem[]): number {
+		if (matches.length === 0) {
+			return -1;
+		}
+		const anchorItemId = this.getViewportAnchorItemId();
+		if (anchorItemId === undefined) {
+			return 0;
+		}
+		const positions = new Map<string, number>();
+		items.forEach((item, position) => positions.set(item.id, position));
+		const anchorPosition = positions.get(anchorItemId);
+		if (anchorPosition === undefined) {
+			return 0;
+		}
+		// Newest first, so the first match at or above the anchor is the nearest one.
+		const seeded = matches.findIndex(match => {
+			const position = positions.get(match.itemId);
+			return position !== undefined && position <= anchorPosition;
+		});
+		return seeded >= 0 ? seeded : 0;
 	}
 }

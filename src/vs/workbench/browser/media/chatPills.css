@@ -115,8 +115,8 @@
 	white-space: nowrap;
 }
 
-/* The chevron is a codicon like the leading glyph, so it needs the same
-	compact box to sit on the label's baseline. */
+/* The chevron glyph is drawn above the middle of its box, so nudge it onto the
+	label's optical centre. */
 .monaco-workbench .chat-pill-chevron.codicon[class*='codicon-'] {
 	display: inline-flex;
 	align-items: center;
@@ -126,6 +126,12 @@
 	margin: 0;
 	font-size: var(--vscode-codiconFontSize-compact);
 	flex-shrink: 0;
+	transform: translateY(1px);
+}
+
+/* The themed file icon carries its own leading gap, so the pill adds barely any. */
+.chat-pill-item .monaco-button.chat-resource-pill-button {
+	padding-left: var(--vscode-spacing-size20);
 }
 
 .chat-resource-pill-button .monaco-icon-label {
@@ -138,7 +144,7 @@
 .chat-resource-pill-button .monaco-icon-label::before {
 	background-size: var(--vscode-codiconFontSize-compact);
 	width: var(--vscode-codiconFontSize-compact);
-	height: var(--vscode-codiconFontSize-compact);
+	height: 14px;
 }
 
 /* File rows render a themed file icon in the same slot codicon rows use, so
