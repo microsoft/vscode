@@ -6,7 +6,7 @@
 import * as cp from 'child_process';
 import { join } from '../../../base/common/path.js';
 import { TelemetryConfiguration } from '../../telemetry/common/telemetry.js';
-import { AgentHostTelemetryLevelEnvKey } from '../common/agentHostTelemetryEnv.js';
+import { AgentHostInternalTelemetryEnvKey, AgentHostTelemetryLevelEnvKey } from '../common/agentHostTelemetryEnv.js';
 import type { IWSLDistro } from '../common/wslRemoteAgentHost.js';
 import {
 	buildAgentHostBaseCommand,
@@ -254,6 +254,7 @@ export interface IComposeAgentHostBootstrapScriptArgs {
 	readonly os: string;
 	readonly arch: string;
 	readonly telemetryLevel?: TelemetryConfiguration;
+	readonly internalTelemetry?: boolean;
 	/** Dev override; executed verbatim with no appended arguments. All CLI bootstrap is skipped. */
 	readonly remoteAgentHostCommand?: string;
 }
@@ -277,7 +278,7 @@ export function composeAgentHostBootstrapScript(args: IComposeAgentHostBootstrap
 	const telemetryLevel = validateAgentHostTelemetryLevel(args.telemetryLevel ?? TelemetryConfiguration.OFF);
 	if (args.remoteAgentHostCommand) {
 		// The override may not be the VS Code CLI, so pass launch restrictions out-of-band.
-		return `export ${AgentHostTelemetryLevelEnvKey}=${telemetryLevel} && ${args.remoteAgentHostCommand}`;
+		return `export ${AgentHostTelemetryLevelEnvKey}=${telemetryLevel} ${AgentHostInternalTelemetryEnvKey}=${args.internalTelemetry === true} && ${args.remoteAgentHostCommand}`;
 	}
 	const installRoot = getRemoteCLIInstallRoot(args.serverDataFolderName);
 	const cliBin = getRemoteCLIBin(args.serverDataFolderName, args.quality, args.commit);

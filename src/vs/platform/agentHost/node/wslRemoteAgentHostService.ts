@@ -197,6 +197,7 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 			os: targetOs,
 			arch: targetArch,
 			telemetryLevel: telemetryLevelToAgentHostValue(this._telemetryService.telemetryLevel),
+			internalTelemetry: this._telemetryService.msftInternal,
 			remoteAgentHostCommand: config.remoteAgentHostCommand,
 		});
 

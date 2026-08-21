@@ -21,7 +21,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProcess.js';
 import { AgentHostStartError, IAgentHostConnection, IAgentHostShutdownRequest, IAgentHostStarter, IAgentHostStartRequest, isFatalAgentHostStartError, toFatalAgentHostStartError } from '../common/agent.js';
-import { buildAgentHostTelemetryIdEnv, IAgentHostForwardedTelemetryIds } from '../common/agentHostTelemetryEnv.js';
+import { AgentHostInternalTelemetryEnvKey, buildAgentHostTelemetryIdEnv, IAgentHostForwardedTelemetryIds } from '../common/agentHostTelemetryEnv.js';
 import { AgentHostLaunchKind, AgentHostLaunchKindEnvVar, telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
 import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostIpcChannels, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOtlpProtocolSettingId, AgentHostOTelOutfileSettingId, AgentHostOTelResourceAttributesSettingId, AgentHostOTelServiceNameSettingId, AgentHostOTelPolicyIpcChannel, AgentHostRestartIpcChannel, AgentHostWillRestartIpcChannel, buildAgentHostOTelEnv, buildAgentSdkEnv, IAgentHostManagementService, IAgentHostOTelSettings, sanitizeAgentHostOTelPolicySettings } from '../common/agentService.js';
 import { deepClone } from '../../../base/common/objects.js';
@@ -190,6 +190,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 					...sdkEnv,
 					...otelEnv,
 					...telemetryIdEnv,
+					[AgentHostInternalTelemetryEnvKey]: String(this._telemetryService.msftInternal === true),
 				}
 			})) {
 				throw new Error('Agent Host utility process did not start.');

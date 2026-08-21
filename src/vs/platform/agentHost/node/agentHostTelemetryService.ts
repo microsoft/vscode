@@ -21,7 +21,7 @@ import { TelemetryLogAppender } from '../../telemetry/common/telemetryLogAppende
 import { TelemetryService } from '../../telemetry/common/telemetryService.js';
 import { getPiiPathsFromEnvironment, isLoggingOnly, NullTelemetryService, supportsTelemetry, type ITelemetryAppender } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostTelemetryLevelConfigKey, agentHostConfigValueToTelemetryLevel } from '../common/agentHostSchema.js';
-import { AgentHostDevDeviceIdEnvKey, AgentHostMachineIdEnvKey, AgentHostSqmIdEnvKey, AgentHostTelemetryLevelEnvKey } from '../common/agentHostTelemetryEnv.js';
+import { AgentHostDevDeviceIdEnvKey, AgentHostInternalTelemetryEnvKey, AgentHostMachineIdEnvKey, AgentHostSqmIdEnvKey, AgentHostTelemetryLevelEnvKey } from '../common/agentHostTelemetryEnv.js';
 import { AgentHostRestrictedTelemetrySender, IAgentHostRestrictedTelemetry, IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetryContext, TelemetryMeasurements, TelemetryProps } from './agentHostRestrictedTelemetry.js';
 import { AgentHostInternalTelemetrySender } from './agentHostMicrosoftTelemetry.js';
 
@@ -36,6 +36,7 @@ export interface IAgentHostTelemetryServiceOptions {
 	readonly fetchFn?: typeof globalThis.fetch;
 	readonly requestService?: IRequestService;
 	readonly readTelemetryLevelEnvironment?: () => string | undefined;
+	readonly readInternalTelemetryEnvironment?: () => string | undefined;
 }
 
 export interface IAgentHostTelemetryService extends ITelemetryService, IAgentHostRestrictedTelemetry {
@@ -241,7 +242,8 @@ export async function createAgentHostTelemetryService(options: IAgentHostTelemet
 		parseLaunchTelemetryLevel(environmentService.args?.['telemetry-level']),
 		parseLaunchTelemetryLevel((options.readTelemetryLevelEnvironment ?? (() => process.env[AgentHostTelemetryLevelEnvKey]))()),
 	);
-	const internalTelemetry = verifyMicrosoftInternalDomain(productService.msftInternalDomains ?? []);
+	const internalTelemetry = (options.readInternalTelemetryEnvironment ?? (() => process.env[AgentHostInternalTelemetryEnvKey]))() === 'true'
+		|| verifyMicrosoftInternalDomain(productService.msftInternalDomains ?? []);
 
 	const appenders: ITelemetryAppender[] = [
 		disposables.add(new TelemetryLogAppender('', false, loggerService, environmentService, productService)),

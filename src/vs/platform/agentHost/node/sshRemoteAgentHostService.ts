@@ -47,7 +47,7 @@ import {
 } from './sshKnownHosts.js';
 import type { RemoteAgentHostLocationPreference } from '../common/remoteAgentHostLocationPreference.js';
 import type { IRelayMessage } from '../common/relayTransport.js';
-import { AgentHostTelemetryLevelEnvKey } from '../common/agentHostTelemetryEnv.js';
+import { AgentHostInternalTelemetryEnvKey, AgentHostTelemetryLevelEnvKey } from '../common/agentHostTelemetryEnv.js';
 import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
 import {
 	type AgentHostEndpointAddress,
@@ -377,6 +377,7 @@ function startRemoteAgentHost(
 	cliDataDir: string | undefined,
 	commandOverride?: string,
 	telemetryLevel = TelemetryConfiguration.OFF,
+	internalTelemetry = false,
 ): Promise<{ port: number; connectionToken: string | undefined; pid: number | undefined; stream: SSHChannel }> {
 	return new Promise((resolve, reject) => {
 		if (!commandOverride && (!cliBin || !cliDataDir)) {
@@ -389,7 +390,7 @@ function startRemoteAgentHost(
 		// user's PATH and environment from ~/.bash_profile / ~/.bashrc
 		// (ssh2 exec runs a non-interactive non-login shell by default).
 		// Echo the PID so we can record it for process reuse detection.
-		const cmd = `bash -l -c ${shellEscape(`echo VSCODE_PID=$$ && export ${AgentHostTelemetryLevelEnvKey}=${validatedTelemetryLevel} && exec ${baseCmd}`)}`;
+		const cmd = `bash -l -c ${shellEscape(`echo VSCODE_PID=$$ && export ${AgentHostTelemetryLevelEnvKey}=${validatedTelemetryLevel} ${AgentHostInternalTelemetryEnvKey}=${internalTelemetry} && exec ${baseCmd}`)}`;
 		logService.info(`${LOG_PREFIX} Starting remote agent host: ${cmd}`);
 
 		client.exec(cmd, (err: Error | undefined, stream: SSHChannel) => {
@@ -2048,7 +2049,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	protected _startRemoteAgentHost(
 		client: SSHClient, cliBin: string | undefined, cliDataDir: string | undefined, commandOverride?: string, telemetryLevel?: TelemetryConfiguration,
 	): Promise<{ port: number; connectionToken: string | undefined; pid: number | undefined; stream: SSHChannel }> {
-		return startRemoteAgentHost(client, this._logService, cliBin, cliDataDir, commandOverride, telemetryLevel);
+		return startRemoteAgentHost(client, this._logService, cliBin, cliDataDir, commandOverride, telemetryLevel, this._telemetryService.msftInternal === true);
 	}
 
 	protected async _createWebSocketRelay(
