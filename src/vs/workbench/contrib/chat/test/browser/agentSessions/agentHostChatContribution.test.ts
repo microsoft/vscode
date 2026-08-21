@@ -829,6 +829,10 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		removePendingRequest(sessionResource: URI, requestId: string) {
 			this.removePendingRequestCalls.push({ sessionResource, requestId });
 		},
+		setChatSessionTitleCalls: [] as { sessionResource: URI; title: string }[],
+		async setChatSessionTitle(sessionResource: URI, title: string) {
+			this.setChatSessionTitleCalls.push({ sessionResource, title });
+		},
 		syncPendingRequestsFromRemoteCalls: [] as { sessionResource: URI; requests: readonly IRemotePendingRequest[] }[],
 		/** Set by tests that want to mirror remote pending messages into their fake chat model. */
 		applyRemotePendingRequests: undefined as ((sessionResource: URI, requests: readonly IRemotePendingRequest[]) => void) | undefined,
@@ -10353,6 +10357,209 @@ suite('AgentHostChatContribution', () => {
 				firePendingRequestsChanged: () => onDidChangePendingRequests.fire(),
 			};
 		}
+
+		test('uses independent default chat titles for the editor', async () => {
+			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
+			const backendSession = AgentSession.uri('copilot', 'independent-chat-title');
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/independent-chat-title' });
+			const defaultChat = buildDefaultChatUri(backendSession.toString());
+			const peerChat = buildChatUri(backendSession.toString(), 'peer');
+			const summary: SessionSummary = {
+				resource: backendSession.toString(),
+				provider: 'copilot',
+				title: 'Session title',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			};
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState(summary),
+				lifecycle: SessionLifecycle.Ready,
+				defaultChat,
+				chats: [
+					{ ...createDefaultChatSummary(summary, defaultChat), title: 'Default chat title' },
+					{ ...createDefaultChatSummary(summary, peerChat), title: 'Peer chat title' },
+				],
+			});
+
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			agentHostService.fireAction({
+				channel: backendSession.toString(),
+				action: {
+					type: ActionType.SessionChatUpdated,
+					chat: defaultChat,
+					changes: { title: 'Renamed default chat' },
+				},
+				serverSeq: 1,
+				origin: undefined,
+			});
+
+			assert.deepStrictEqual({
+				initialTitle: chatSession.title,
+				titleChanges: chatService.setChatSessionTitleCalls.map(call => ({
+					sessionResource: call.sessionResource.toString(),
+					title: call.title,
+				})),
+			}, {
+				initialTitle: 'Default chat title',
+				titleChanges: [{
+					sessionResource: sessionResource.toString(),
+					title: 'Renamed default chat',
+				}],
+			});
+		});
+
+		test('inherits the session title for an untitled default chat in a multi-chat session', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const backendSession = AgentSession.uri('copilot', 'inherited-default-chat-title');
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/inherited-default-chat-title' });
+			const defaultChat = buildDefaultChatUri(backendSession.toString());
+			const peerChat = buildChatUri(backendSession.toString(), 'peer');
+			const summary: SessionSummary = {
+				resource: backendSession.toString(),
+				provider: 'copilot',
+				title: 'Session title',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			};
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState(summary),
+				lifecycle: SessionLifecycle.Ready,
+				defaultChat,
+				chats: [
+					{ ...createDefaultChatSummary(summary, defaultChat), title: '' },
+					{ ...createDefaultChatSummary(summary, peerChat), title: 'Peer chat title' },
+				],
+			});
+
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			assert.strictEqual(chatSession.title, 'Session title');
+		});
+
+		test('does not inherit the session title for an untitled peer selected as the routing default', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const backendSession = AgentSession.uri('copilot', 'peer-routing-title');
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/peer-routing-title' });
+			const canonicalDefaultChat = buildDefaultChatUri(backendSession.toString());
+			const peerChat = buildChatUri(backendSession.toString(), 'peer');
+			const summary: SessionSummary = {
+				resource: backendSession.toString(),
+				provider: 'copilot',
+				title: 'Session title',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			};
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState(summary),
+				lifecycle: SessionLifecycle.Ready,
+				defaultChat: peerChat,
+				chats: [
+					{ ...createDefaultChatSummary(summary, canonicalDefaultChat), title: 'Canonical default title' },
+					{ ...createDefaultChatSummary(summary, peerChat), title: '' },
+				],
+			});
+
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			assert.strictEqual(chatSession.title, undefined);
+		});
+
+		test('routes editor renames through the addressed default and peer chat channels', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const backendSession = AgentSession.uri('copilot', 'editor-rename-routing');
+			const defaultChat = buildDefaultChatUri(backendSession.toString());
+			const peerChat = buildChatUri(backendSession.toString(), 'peer');
+			const summary: SessionSummary = {
+				resource: backendSession.toString(),
+				provider: 'copilot',
+				title: 'Session title',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			};
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState(summary),
+				lifecycle: SessionLifecycle.Ready,
+				defaultChat,
+				chats: [
+					{ ...createDefaultChatSummary(summary, defaultChat), title: 'Default title' },
+					{ ...createDefaultChatSummary(summary, peerChat), title: 'Peer title' },
+				],
+			});
+			const defaultResource = URI.from({ scheme: 'agent-host-copilot', path: '/editor-rename-routing' });
+			const peerResource = defaultResource.with({ fragment: 'peer' });
+			const defaultSession = await sessionHandler.provideChatSessionContent(defaultResource, CancellationToken.None);
+			const peerSession = await sessionHandler.provideChatSessionContent(peerResource, CancellationToken.None);
+			disposables.add(toDisposable(() => defaultSession.dispose()));
+			disposables.add(toDisposable(() => peerSession.dispose()));
+			agentHostService.dispatchedActions.length = 0;
+
+			await defaultSession.renameSession?.('Renamed default', CancellationToken.None);
+			await peerSession.renameSession?.('Renamed peer', CancellationToken.None);
+
+			assert.deepStrictEqual(agentHostService.dispatchedActions.map(({ channel, action }) => ({ channel, action })), [{
+				channel: defaultChat,
+				action: { type: ActionType.SessionTitleChanged, title: 'Renamed default' },
+			}, {
+				channel: peerChat,
+				action: { type: ActionType.SessionTitleChanged, title: 'Renamed peer' },
+			}]);
+		});
+
+		test('uses the session title for a sole default chat', async () => {
+			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
+			const backendSession = AgentSession.uri('copilot', 'sole-chat-title');
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/sole-chat-title' });
+			const defaultChat = buildDefaultChatUri(backendSession.toString());
+			const summary: SessionSummary = {
+				resource: backendSession.toString(),
+				provider: 'copilot',
+				title: 'Original session title',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			};
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState(summary),
+				lifecycle: SessionLifecycle.Ready,
+				defaultChat,
+				chats: [{ ...createDefaultChatSummary(summary, defaultChat), title: '' }],
+			});
+
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			agentHostService.fireAction({
+				channel: backendSession.toString(),
+				action: {
+					type: ActionType.SessionTitleChanged,
+					title: 'Renamed session',
+				},
+				serverSeq: 1,
+				origin: undefined,
+			});
+
+			assert.deepStrictEqual({
+				initialTitle: chatSession.title,
+				titleChanges: chatService.setChatSessionTitleCalls.map(call => ({
+					sessionResource: call.sessionResource.toString(),
+					title: call.title,
+				})),
+			}, {
+				initialTitle: 'Original session title',
+				titleChanges: [{
+					sessionResource: sessionResource.toString(),
+					title: 'Renamed session',
+				}],
+			});
+		});
 
 		test('syncs queued messages added to restored active sessions idempotently', async () => {
 			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
