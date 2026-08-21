@@ -736,8 +736,6 @@ class TestProxyResolver implements IAgentHostProxyResolver {
 		});
 	}
 
-	bindConfigurationService(_configurationService: IAgentConfigurationService, _transient: boolean): void { }
-
 	getConfigurationValue<T>(_key: string): T | undefined {
 		return undefined;
 	}

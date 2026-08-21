@@ -15,10 +15,8 @@ import { FileService } from '../../files/common/fileService.js';
 import { DiskFileSystemProvider } from '../../files/node/diskFileSystemProvider.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
-import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILoggerService, ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
-import { IRequestService } from '../../request/common/request.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ISandboxHelperService } from '../../sandbox/common/sandboxHelperService.js';
 import { SandboxHelperService } from '../../sandbox/node/sandboxHelper.js';
@@ -33,8 +31,7 @@ import type { IAgent } from '../common/agent.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { AgentHostGitService } from './agentHostGitService.js';
 import { AgentHostOTelService } from './otel/agentHostOTelService.js';
-import { AgentHostProxyResolver, IAgentHostProxyResolver } from './agentHostProxyResolver.js';
-import { AgentHostRequestService } from './agentHostRequestService.js';
+import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { createAgentHostTelemetryService, IAgentHostTelemetryService } from './agentHostTelemetryService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
@@ -42,6 +39,8 @@ import { IAgentHostCustomizationEnablementService } from './agentHostCustomizati
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { AgentService, IAgentServiceOptions } from './agentService.js';
 import { createAgentServiceComposition } from './agentServiceComposition.js';
+import { createAgentServiceFoundation } from './agentServiceFoundation.js';
+import { AgentHostServiceCollection } from './agentHostServices.js';
 import { INetworkDiagnosticsService, NetworkDiagnosticsService } from './networkDiagnosticsService.js';
 import { AgentPluginManager } from './agentPluginManager.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
@@ -59,11 +58,6 @@ import { registerPendingEditContentProvider } from './copilot/pendingEditContent
 import { SessionDataService } from './sessionDataService.js';
 import { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
-
-export interface IAgentHostNetworkServices {
-	readonly proxyResolver: IAgentHostProxyResolver;
-	readonly requestService: IRequestService;
-}
 
 export interface ICreateAgentHostRuntimeOptions {
 	readonly environmentService: INativeEnvironmentService;
@@ -140,30 +134,6 @@ class AgentHostRuntime extends Disposable implements IAgentHostRuntime {
 }
 
 /**
- * Register `IAgentHostProxyResolver` and `IRequestService` into the agent host's
- * DI container — the services that `IAgentSdkDownloader` (and proxy-aware
- * network diagnostics) depend on.
- *
- * Used by both entry points (`agentHostMain.ts` and `agentHostServerMain.ts`)
- * to avoid drift between them. The order of registration matters because
- * Consumers (the downloader itself, and through it `ClaudeAgentSdkService` /
- * `CodexAgent`) must be constructed AFTER this call. The resolver is bound to
- * `IAgentConfigurationService` after the session-orchestration composition
- * creates the host-owned configuration service.
- */
-export function registerAgentHostNetworkServices(
-	services: ServiceCollection,
-	logService: ILogService,
-	disposables: DisposableStore,
-): IAgentHostNetworkServices {
-	const proxyResolver = disposables.add(new AgentHostProxyResolver(logService));
-	services.set(IAgentHostProxyResolver, proxyResolver);
-	const requestService = disposables.add(new AgentHostRequestService(logService, proxyResolver));
-	services.set(IRequestService, requestService);
-	return { proxyResolver, requestService };
-}
-
-/**
  * Creates the complete Agent Host runtime.
  *
  * Add services directly to this bootstrap only when they require runtime or
@@ -183,34 +153,13 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		infrastructure.add(fileService.registerProvider(Schemas.file, infrastructure.add(new DiskFileSystemProvider(logService))));
 		infrastructure.add(registerPendingEditContentProvider(fileService));
 		const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService);
-		const services = new ServiceCollection(
+		const services = new AgentHostServiceCollection(
 			[INativeEnvironmentService, environmentService],
 			[ILogService, logService],
 			[IFileService, fileService],
 			[ISessionDataService, sessionDataService],
 			[IProductService, productService],
 		);
-		const networkServices = registerAgentHostNetworkServices(services, logService, infrastructure);
-		const proxyResolver = networkServices.proxyResolver;
-		const fetchFn = proxyResolver.fetch.bind(proxyResolver);
-		const telemetryService = await createAgentHostTelemetryService({
-			environmentService,
-			productService,
-			fileService,
-			loggerService,
-			logService,
-			disposables: infrastructure,
-			disableTelemetry: options.disableTelemetry,
-			fetchFn,
-			requestService: networkServices.requestService,
-		});
-		services.set(ITelemetryService, telemetryService);
-		instantiationService = new InstantiationService(services, /*strict*/ true);
-		const fileMonitorService = infrastructure.add(instantiationService.createInstance(AgentHostFileMonitorService));
-		services.set(IAgentHostFileMonitorService, fileMonitorService);
-		services.set(IWindowsMxcTerminalSandboxRuntime, instantiationService.createInstance(WindowsMxcTerminalSandboxRuntime));
-		services.set(ISandboxHelperService, new SandboxHelperService());
-		services.set(IAgentHostGitService, instantiationService.createInstance(AgentHostGitService));
 		const agentServiceOptions: IAgentServiceOptions = {
 			rootConfigResource: joinPath(environmentService.appSettingsHome, 'globalStorage', 'agent-host-config.json'),
 			providerConfigurations: options.providerConfigurations,
@@ -221,10 +170,37 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 				tmpDir: environmentService.tmpDir,
 			},
 		};
-		const agentServiceComposition = createAgentServiceComposition(agentServiceOptions, services, instantiationService, fetchFn, logService, productService, sessionDataService);
+		const foundation = createAgentServiceFoundation({
+			services,
+			owned: infrastructure,
+			logService,
+			productService,
+			rootConfigResource: agentServiceOptions.rootConfigResource,
+			providerConfigurations: agentServiceOptions.providerConfigurations,
+			transientProxyConfiguration: options.transientProxyConfiguration,
+		});
+		const { proxyResolver, fetchFn } = foundation;
+		const telemetryService = await createAgentHostTelemetryService({
+			environmentService,
+			productService,
+			fileService,
+			loggerService,
+			logService,
+			disposables: infrastructure,
+			disableTelemetry: options.disableTelemetry,
+			fetchFn,
+			requestService: foundation.requestService,
+		});
+		services.set(ITelemetryService, telemetryService);
+		instantiationService = new InstantiationService(services, /*strict*/ true);
+		const fileMonitorService = infrastructure.add(instantiationService.createInstance(AgentHostFileMonitorService));
+		services.set(IAgentHostFileMonitorService, fileMonitorService);
+		services.set(IWindowsMxcTerminalSandboxRuntime, instantiationService.createInstance(WindowsMxcTerminalSandboxRuntime));
+		services.set(ISandboxHelperService, new SandboxHelperService());
+		services.set(IAgentHostGitService, instantiationService.createInstance(AgentHostGitService));
+		const agentServiceComposition = createAgentServiceComposition(agentServiceOptions, services, instantiationService, fetchFn, logService, sessionDataService, foundation);
 		agentService = agentServiceComposition.agentService;
 		const { configurationService } = agentServiceComposition;
-		proxyResolver.bindConfigurationService(configurationService, options.transientProxyConfiguration);
 		const networkDiagnosticsService = instantiationService.createInstance(NetworkDiagnosticsService);
 		services.set(INetworkDiagnosticsService, networkDiagnosticsService);
 		agentService.setNetworkDiagnosticsService(networkDiagnosticsService);

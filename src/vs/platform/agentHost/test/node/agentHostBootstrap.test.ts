@@ -13,29 +13,12 @@ import { parseArgs, OPTIONS } from '../../../environment/node/argv.js';
 import { NativeEnvironmentService } from '../../../environment/node/environmentService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import product from '../../../product/common/product.js';
-import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
-import { IRequestService } from '../../../request/common/request.js';
-import { createAgentHostRuntime, registerAgentHostNetworkServices } from '../../node/agentHostBootstrap.js';
-import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
+import { createAgentHostRuntime } from '../../node/agentHostBootstrap.js';
 import { NullByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { AgentHostLaunchKind } from '../../common/agentHostTelemetry.js';
 
 suite('agentHostBootstrap', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('registers network services without reading VS Code settings', () => {
-		const testDisposables = disposables.add(new DisposableStore());
-		const services = new ServiceCollection();
-		const networkServices = registerAgentHostNetworkServices(services, new NullLogService(), testDisposables);
-
-		assert.deepStrictEqual({
-			proxyResolver: services.get(IAgentHostProxyResolver) === networkServices.proxyResolver,
-			requestService: services.get(IRequestService) === networkServices.requestService,
-		}, {
-			proxyResolver: true,
-			requestService: true,
-		});
-	});
 
 	test('constructs the renderer BYOK runtime with strict dependency injection', async () => {
 		const testDisposables = disposables.add(new DisposableStore());

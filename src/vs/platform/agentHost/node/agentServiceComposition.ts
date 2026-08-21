@@ -5,14 +5,13 @@
 
 import type { Event } from '../../../base/common/event.js';
 import { DisposableStore, type IDisposable } from '../../../base/common/lifecycle.js';
-import { observableValue, type IObservable } from '../../../base/common/observable.js';
+import type { IObservable } from '../../../base/common/observable.js';
 import { dirname, joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { GitHubService, IGitHubService } from '../../github/common/githubService.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
-import { IProductService } from '../../product/common/productService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
@@ -22,8 +21,8 @@ import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
 import type { IAgent } from '../common/agent.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
-import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
-import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
+import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { AgentHostChangesetCoordinator } from './agentHostChangesetCoordinator.js';
 import { AgentHostChangesetOperationService } from './agentHostChangesetOperationService.js';
 import { AgentHostChangesetService } from './agentHostChangesetService.js';
@@ -38,7 +37,6 @@ import { AgentHostDebugLogsCollector } from './agentHostDebugLogs.js';
 import { AgentHostDatabase } from './agentHostDatabase.js';
 import { AgentHostFileCompletionProvider } from './agentHostFileCompletionProvider.js';
 import { AgentHostGitStateService } from './agentHostGitStateService.js';
-import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { AgentHostMergeOperationContribution } from './agentHostMergeOperationProvider.js';
@@ -47,25 +45,23 @@ import { AgentHostPullRequestOperationContribution } from './agentHostPullReques
 import { AgentHostRenameCompletionProvider } from './agentHostRenameCommand.js';
 import { AgentHostReviewService } from './agentHostReviewService.js';
 import { AgentHostSessionTitleSignal, IAgentHostSessionTitleSignal } from './agentHostSessionTitleSignal.js';
-import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
+import { AgentHostStateManager } from './agentHostStateManager.js';
 import { AgentHostStorageService, IAgentHostStorageService } from './agentHostStorageService.js';
 import { AgentHostSyncOperationContribution } from './agentHostSyncOperationProvider.js';
 import { AgentHostTerminalManager, IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { AgentHostWorkspaceFiles } from './agentHostWorkspaceFiles.js';
 import { AgentMergeController } from './agentMergeController.js';
 import { AgentMergeTools } from './agentMergeTools.js';
-import { AgentService, type IAgentServiceCallbacks, type IAgentServiceCollaborators, type IAgentServiceCore, type IAgentServiceOptions } from './agentService.js';
+import { AgentService, type IAgentServiceCollaborators, type IAgentServiceCore, type IAgentServiceOptions } from './agentService.js';
 import { AgentSessionRegistry } from './agentSessionRegistry.js';
 import { AgentSideEffects } from './agentSideEffects.js';
 import { CodexCompactCompletionProvider } from './codexCompactCommand.js';
 import { SessionCoordinationService } from './sessionCoordination.js';
 import { AgentServerToolHost } from './shared/agentServerToolHost.js';
 import { buildServerToolGroups } from './shared/serverToolGroups.js';
-import type { ISessionServerToolAccessor } from './shared/sessionServerTools.js';
-import type { IArtifactServerToolAccessor } from './shared/artifactServerTools.js';
+import { type IAgentServiceFoundation } from './agentServiceFoundation.js';
 import { AgentHostOctoKitService, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
-import { hostBuildInfoFromProduct } from '../common/state/sessionState.js';
 
 export interface IAgentServiceComposition {
 	readonly agentService: AgentService;
@@ -77,51 +73,6 @@ export interface IAgentServiceComposition {
 	readonly completions: IAgentHostCompletions;
 	readonly agents: IObservable<readonly IAgent[]>;
 	readonly onDidStartTurn: Event<string>;
-}
-
-class AgentServiceCallbackAdapter {
-	private callbacks: IAgentServiceCallbacks | undefined;
-
-	readonly sessionServerToolAccessor: ISessionServerToolAccessor = {
-		isActiveAgentTitleGenerationEnabled: () => this.value.sessionServerToolAccessor.isActiveAgentTitleGenerationEnabled(),
-		listSessions: () => this.value.sessionServerToolAccessor.listSessions(),
-		getSession: session => this.value.sessionServerToolAccessor.getSession(session),
-		createSession: config => this.value.sessionServerToolAccessor.createSession(config),
-		getModels: () => this.value.sessionServerToolAccessor.getModels(),
-		getCreationDefaults: source => this.value.sessionServerToolAccessor.getCreationDefaults(source),
-		startPrompt: (session, chat, prompt) => this.value.sessionServerToolAccessor.startPrompt(session, chat, prompt),
-		createChat: (session, chat, options) => this.value.sessionServerToolAccessor.createChat(session, chat, options),
-		renameChat: (session, chat, title) => this.value.sessionServerToolAccessor.renameChat(session, chat, title),
-		reportToolError: (toolName, error) => this.value.sessionServerToolAccessor.reportToolError(toolName, error),
-		deleteSession: session => this.value.sessionServerToolAccessor.deleteSession(session),
-		getChatContext: (session, chatId) => this.value.sessionServerToolAccessor.getChatContext(session, chatId),
-		getSessionSpawnDepth: session => this.value.sessionServerToolAccessor.getSessionSpawnDepth(session),
-		setSessionSpawnDepth: (session, depth) => this.value.sessionServerToolAccessor.setSessionSpawnDepth(session, depth),
-		setSessionOrchestration: (session, orchestration) => this.value.sessionServerToolAccessor.setSessionOrchestration(session, orchestration),
-	};
-
-	readonly artifactServerToolAccessor: IArtifactServerToolAccessor = {
-		isEnabled: () => this.value.artifactServerToolAccessor.isEnabled(),
-		persist: (session, artifacts) => this.value.artifactServerToolAccessor.persist(session, artifacts),
-	};
-
-	bind(callbacks: IAgentServiceCallbacks): void {
-		if (this.callbacks) {
-			throw new Error('AgentService callbacks have already been bound');
-		}
-		this.callbacks = callbacks;
-	}
-
-	canEvictChangeset(changeset: string): boolean {
-		return this.callbacks?.canEvictChangeset(changeset) ?? false;
-	}
-
-	get value(): IAgentServiceCallbacks {
-		if (!this.callbacks) {
-			throw new Error('AgentService callbacks have not been bound');
-		}
-		return this.callbacks;
-	}
 }
 
 /**
@@ -140,8 +91,8 @@ export function createAgentServiceComposition(
 	instantiationService: IInstantiationService,
 	fetchFn: typeof globalThis.fetch,
 	logService: ILogService,
-	productService: IProductService,
 	sessionDataService: ISessionDataService,
+	foundation: IAgentServiceFoundation,
 	additionalDisposables: readonly IDisposable[] = [],
 ): IAgentServiceComposition {
 	const owned = new DisposableStore();
@@ -157,26 +108,13 @@ export function createAgentServiceComposition(
 		const debugLogsCollector = options.debugLogsEnvironment
 			? owned.add(new AgentHostDebugLogsCollector(options.debugLogsEnvironment, logService))
 			: undefined;
-		const callbackAdapter = new AgentServiceCallbackAdapter();
-		const agents = observableValue<readonly IAgent[]>(callbackAdapter, []);
+		const { callbackAdapter, agents, stateManager, configurationService, authenticationService, gitHubEndpointService } = foundation;
 		const sessionRegistry = owned.add(new AgentSessionRegistry(orchestratorDatabase));
-		const stateManager = owned.add(new AgentHostStateManager(logService, {
-			hostBuildInfo: hostBuildInfoFromProduct(productService),
-			changesetStateRetention: {
-				canEvict: changeset => callbackAdapter.canEvictChangeset(changeset),
-			},
-		}));
-		const configurationService = owned.add(new AgentConfigurationService(
-			stateManager,
-			logService,
-			options.rootConfigResource,
-			options.providerConfigurations ?? [],
-		));
 		const storageService = owned.add(new AgentHostStorageService(options.storageResource, logService));
 		const managedSettingsService = owned.add(new AgentHostManagedSettingsService());
 		const core: IAgentServiceCore = {
 			disposables: owned,
-			authenticationService: owned.add(new AgentHostAuthenticationService(logService)),
+			authenticationService,
 			orchestratorDatabase,
 			debugLogsCollector,
 			sessionRegistry,
@@ -185,27 +123,13 @@ export function createAgentServiceComposition(
 			agents,
 			callbackBinder: callbackAdapter,
 		};
-		services.set(IAgentHostAuthenticationService, core.authenticationService);
-		services.set(IAgentConfigurationService, configurationService);
-		services.set(IAgentHostStateManager, stateManager);
 		services.set(IAgentHostStorageService, storageService);
 		services.set(IAgentHostManagedSettingsService, managedSettingsService);
 
 		// AgentService subscribes after this graph is complete, so collaborator constructors must not emit state-manager events.
-		const gitHubEndpointService = owned.add(instantiationService.createInstance(AgentHostGitHubEndpointService));
-		services.set(IAgentHostGitHubEndpointService, gitHubEndpointService);
 		const octoKitService = instantiationService.createInstance(AgentHostOctoKitService, fetchFn);
 		services.set(IAgentHostOctoKitService, octoKitService);
-		const gitHubService = owned.add(instantiationService.createInstance(GitHubService, {
-			endpoint: gitHubEndpointService,
-			tokenProvider: {
-				getToken: () => {
-					const resource = gitHubEndpointService.getRepoResource();
-					return core.authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
-				},
-			},
-			fetch: fetchFn,
-		}));
+		const gitHubService = owned.add(instantiationService.createInstance(GitHubService, foundation.gitHubServiceOptions));
 		services.set(IGitHubService, gitHubService);
 		const copilotApiService = options.copilotApiService ?? instantiationService.createInstance(CopilotApiService, fetchFn);
 		services.set(ICopilotApiService, copilotApiService);
