@@ -699,6 +699,84 @@ suite('AgentHostPty', () => {
 		});
 	});
 
+	test('reconnect() during pending terminal creation supersedes start()', async () => {
+		const conn1 = new MockAgentConnection();
+		disposables.add(conn1);
+		const creationBarrier = new DeferredPromise<void>();
+		conn1.createTerminal = async params => {
+			conn1.createdTerminals.push(params);
+			await creationBarrier.p;
+		};
+		const pty = disposables.add(new TestAgentHostPty(1, conn1, terminalUri, undefined, logService));
+		let readyCount = 0;
+		disposables.add(pty.onProcessReady!(() => readyCount++));
+		const dataReceived: string[] = [];
+		disposables.add(pty.onProcessData!(e => dataReceived.push(typeof e === 'string' ? e : e.data)));
+
+		const start = pty.start();
+		await timeout(0);
+
+		const conn2 = new MockAgentConnection({ content: [{ type: 'unclassified', value: 'recovered output\n' }] });
+		disposables.add(conn2);
+		const reconnected = await pty.reconnect(conn2);
+		dataReceived.length = 0; // drop the reconnect replay
+
+		await creationBarrier.complete();
+		const startResult = await start;
+		conn2.fireAction(terminalUri, { type: ActionType.TerminalData, data: 'streamed' });
+
+		assert.deepStrictEqual({
+			reconnected,
+			startResult,
+			readyCount,
+			dataReceived,
+			disposedSubscriptions: conn2.disposedSubscriptions,
+		}, {
+			reconnected: true,
+			startResult: undefined,
+			readyCount: 1,
+			dataReceived: ['streamed'],
+			disposedSubscriptions: 0,
+		});
+	});
+
+	test('a stale creation failure does not tear down a reconnected PTY', async () => {
+		const conn1 = new MockAgentConnection();
+		disposables.add(conn1);
+		const creationBarrier = new DeferredPromise<void>();
+		conn1.createTerminal = async params => {
+			conn1.createdTerminals.push(params);
+			await creationBarrier.p;
+			throw new Error('transport disconnected');
+		};
+		const pty = disposables.add(new TestAgentHostPty(1, conn1, terminalUri, undefined, logService));
+		const exitCodes: (number | undefined)[] = [];
+		disposables.add(pty.onProcessExit!(exitCode => exitCodes.push(exitCode)));
+
+		const start = pty.start();
+		await timeout(0);
+
+		const conn2 = new MockAgentConnection();
+		disposables.add(conn2);
+		const reconnected = await pty.reconnect(conn2);
+
+		await creationBarrier.complete();
+		const startResult = await start;
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			reconnected,
+			startResult,
+			exitCodes,
+			disposeCount: pty.disposeCount,
+		}, {
+			reconnected: true,
+			startResult: undefined,
+			exitCodes: [],
+			disposeCount: 0,
+		});
+	});
+
 	test('failed reconnect finalizes a PTY whose initial hydration was replaced', async () => {
 		const conn1 = new MockAgentConnection();
 		disposables.add(conn1);

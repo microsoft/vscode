@@ -132,6 +132,12 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 	}
 
 	async start(): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined> {
+		// Reconnect can race a pending startup: the pty is registered before
+		// start() completes, so a successful reconnect() may replace the
+		// connection while terminal creation is still in flight. Capture the
+		// creation's connection so a superseded startup neither re-subscribes
+		// nor reports a stale launch failure.
+		const connection = this._connection;
 		try {
 			if (this._lifetime.token.isCancellationRequested) {
 				return undefined;
@@ -140,9 +146,9 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 			// 1. Create the terminal on the agent host (skip for attach-only mode
 			//    where the terminal already exists, e.g. created by a tool)
 			if (!this._options?.attachOnly) {
-				const terminalCreation = this._connection.createTerminal({
+				const terminalCreation = connection.createTerminal({
 					channel: this._terminalUri.toString(),
-					claim: { kind: TerminalClaimKind.Client, clientId: this._connection.clientId },
+					claim: { kind: TerminalClaimKind.Client, clientId: connection.clientId },
 					name: this._options?.name,
 					cwd: this._resolveCwdForProtocol(this._options?.cwd),
 					cols: this._lastDimensions.cols > 0 ? this._lastDimensions.cols : undefined,
@@ -159,7 +165,7 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 				}
 			}
 
-			if (this._lifetime.token.isCancellationRequested) {
+			if (this._lifetime.token.isCancellationRequested || this._connection !== connection) {
 				return undefined;
 			}
 
@@ -201,7 +207,7 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 
 			return undefined;
 		} catch (err) {
-			if (this._lifetime.token.isCancellationRequested) {
+			if (this._lifetime.token.isCancellationRequested || this._connection !== connection) {
 				return undefined;
 			}
 			return { message: err instanceof Error ? err.message : String(err) };
