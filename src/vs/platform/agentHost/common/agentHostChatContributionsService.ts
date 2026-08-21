@@ -6,7 +6,7 @@
 import type { IDisposable } from '../../../base/common/lifecycle.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
-import type { ErrorInfo, URI as ProtocolURI } from './state/sessionState.js';
+import type { ErrorInfo, Turn, URI as ProtocolURI } from './state/sessionState.js';
 
 export const IAgentHostChatContributions = createDecorator<IAgentHostChatContributions>('agentHostChatContributions');
 
@@ -48,12 +48,19 @@ export interface ISendContribution {
 	readonly instructions?: readonly string[];
 }
 
+/** The chat and owning session whose complete restored turn list is being hydrated. */
+export interface IHydrationContext {
+	readonly session: ProtocolURI;
+	readonly chat: ProtocolURI;
+}
+
 /** The host operations that remain owned by {@link AgentSideEffects}. */
 export interface IAgentHostChatContributionHost {
 	drainQueuedMessages(channel: ProtocolURI): void;
 	notifyTurnComplete(session: ProtocolURI): void;
 	refineTitleFromFirstTurn(session: ProtocolURI, chat?: ProtocolURI): void;
 	prepareRenameInstruction(session: ProtocolURI, chat: ProtocolURI): Promise<string | undefined>;
+	applyWorktreeRestoreAnnouncement(session: ProtocolURI, turns: readonly Turn[]): Promise<readonly Turn[]>;
 }
 
 /** A self-contained behavior contributed to the agent host chat lifecycle. */
@@ -68,6 +75,11 @@ export interface IAgentHostChatContribution extends IDisposable {
 	onTurnEnd?(turn: ITurnEnd): void;
 	/** Awaited before the turn is sent. Results are concatenated in `order`; failures are isolated and do not block the send. */
 	contributeSend?(turn: IOutgoingTurn): ISendContribution | undefined | Promise<ISendContribution | undefined>;
+	/**
+	 * Hydrates the complete restored turn list. Each ordered stage receives the previous stage's output;
+	 * failures preserve that previous list so a failed enrichment never loses chat history.
+	 */
+	onHydrateTurns?(context: IHydrationContext, turns: readonly Turn[]): readonly Turn[] | Promise<readonly Turn[]>;
 }
 
 /** Dispatches chat lifecycle hooks to registered contributions. */
@@ -88,4 +100,5 @@ export interface IAgentHostChatContributions extends IDisposable {
 	getHost(): IAgentHostChatContributionHost | undefined;
 	turnEnd(turn: ITurnEnd): void;
 	contributeSend(turn: IOutgoingTurn): Promise<readonly string[]>;
+	hydrateTurns(context: IHydrationContext, turns: readonly Turn[]): Promise<readonly Turn[]>;
 }

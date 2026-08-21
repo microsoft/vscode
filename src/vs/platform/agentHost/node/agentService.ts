@@ -35,7 +35,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, type Annotation, type AnnotationEntry, type AnnotationsState, type ChatOrigin, type Customization, type Message, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
-import { ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_ORCHESTRATION_DB_KEY, readSessionSpawnDepth, parseSessionOrchestration, withSessionSpawnDepth, withSessionOrchestration, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, isAhpChatChannel, isDefaultChatUri, isSubagentChatUri, isSubagentSession, needsSessionGitStateRefresh, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, readSessionEhcliAdoptable, type ISessionSourceControlState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn, type UsageInfo, chatStorageUri, hasReportedUsage } from '../common/state/sessionState.js';
+import { ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_ORCHESTRATION_DB_KEY, readSessionSpawnDepth, parseSessionOrchestration, withSessionSpawnDepth, withSessionOrchestration, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, isAhpChatChannel, isDefaultChatUri, isSubagentChatUri, isSubagentSession, needsSessionGitStateRefresh, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, readSessionEhcliAdoptable, type ISessionSourceControlState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../common/meta/agentSnapshotAttachmentMeta.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../common/meta/agentEphemeralSessionMeta.js';
@@ -91,6 +91,7 @@ import { IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
+import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
 
 /**
  * Grace period before an empty, unsubscribed session is garbage-collected
@@ -618,6 +619,7 @@ export class AgentService extends Disposable implements IAgentService {
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IAgentHostChatContributions private readonly _chatContributions: IAgentHostChatContributions,
 	) {
 		super();
 		this._register(core.disposables);
@@ -3104,92 +3106,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._logService.trace(`[AgentService] getChatMessages start: chat=${chat.toString()}`);
 		const providerTurns = await provider.chats.getMessages(chat, context);
 		this._logService.trace(`[AgentService] getChatMessages: provider returned ${providerTurns.length} turn(s) for chat=${chat.toString()}`);
-		const turns = await this._applyPersistedTurnUsage(chat, providerTurns);
-		// Host-owned worktree restore announcement: re-inject the "Created isolated
-		// worktree" message at the top of the default chat's first turn from
-		// persisted metadata. No-op for folder sessions and non-default chats (peer
-		// / subagent). Agents stay unaware of worktrees.
-		if (this._worktree && isDefaultChatUri(chat)) {
-			return this._worktree.applyRestoreAnnouncement(URI.parse(parseRequiredSessionUriFromChatUri(chat.toString())), turns);
-		}
-		return turns;
-	}
-
-	/**
-	 * Re-attaches persisted per-turn {@link UsageInfo} to reconstructed turns.
-	 *
-	 * Agent backends don't durably record token/credit usage — the Copilot
-	 * SDK's `assistant.usage` event is explicitly ephemeral and the Claude
-	 * transcript replay produces none — so restored turns come back without it.
-	 * Without this the chat's context-usage gauge stays hidden after a reload
-	 * and the session cost total restarts from zero. Usage recorded live by
-	 * {@link AgentSideEffects} is looked up by turn id (or the turn's SDK event
-	 * id, which is what a restored turn is keyed by).
-	 *
-	 * NOTE: the lookup only lands for providers that record the bridge between
-	 * the live protocol turn id (a host-generated uuid) and the id a restored
-	 * turn is keyed by. Today only Copilot does, via `setTurnEventId`. Claude
-	 * restores turns keyed by transcript uuid and never populates
-	 * `turns.event_id`, so its rows are written but never matched; giving it a
-	 * gauge after reload needs that bridge recorded first.
-	 */
-	private async _applyPersistedTurnUsage(chat: URI, turns: readonly Turn[]): Promise<readonly Turn[]> {
-		if (turns.length === 0 || turns.every(turn => hasReportedUsage(turn.usage)) || isSubagentChatUri(chat.toString())) {
-			return turns;
-		}
-		// Same storage the writer used; see `chatStorageUri`.
-		const storage = chatStorageUri(chat);
-		if (!storage) {
-			return turns;
-		}
-		let usages: Map<string, string>;
-		const ref = await this._sessionDataService.tryOpenDatabase(storage);
-		if (!ref) {
-			return turns;
-		}
-		try {
-			usages = await ref.object.getTurnUsages();
-			this._logService.trace(`[AgentService] getTurnUsages done: ${usages.size} row(s) for ${storage.toString()}`);
-		} catch (err) {
-			this._logService.warn(`[AgentService] Failed to read persisted turn usage for ${storage.toString()}`, err);
-			return turns;
-		} finally {
-			ref.dispose();
-		}
-		if (usages.size === 0) {
-			return turns;
-		}
-		return turns.map(turn => {
-			const raw = hasReportedUsage(turn.usage) ? undefined : usages.get(turn.id);
-			if (!raw) {
-				return turn;
-			}
-			try {
-				const parsed: unknown = JSON.parse(raw);
-				// Never spread an untyped payload blind: a corrupted column
-				// holding a string or array would splat index keys onto the
-				// turn's usage and flow that malformed shape to the renderer.
-				if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-					return turn;
-				}
-				const persisted = parsed as UsageInfo;
-				// Merge rather than replace: a turn that ran on Auto already
-				// carries a token-less stub holding `_meta.autoModeResolved`
-				// (see `mapSessionEvents`), which drives the "Auto (model)"
-				// label. Persisted values win; the stub fills what they lack.
-				const meta = { ...turn.usage?._meta, ...persisted._meta };
-				return {
-					...turn,
-					usage: {
-						...turn.usage,
-						...persisted,
-						...(Object.keys(meta).length > 0 ? { _meta: meta } : {}),
-					},
-				};
-			} catch {
-				return turn;
-			}
-		});
+		return this._chatContributions.hydrateTurns({ session: session.toString(), chat: chat.toString() }, providerTurns);
 	}
 
 	/**

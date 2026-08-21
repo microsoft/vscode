@@ -5,7 +5,8 @@
 
 import { Disposable, DisposableMap, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
-import type { IAgentHostChatContribution, IAgentHostChatContributionHost, IAgentHostChatContributions, IOutgoingTurn, ITurnEnd } from '../common/agentHostChatContributionsService.js';
+import type { IAgentHostChatContribution, IAgentHostChatContributionHost, IAgentHostChatContributions, IHydrationContext, IOutgoingTurn, ITurnEnd } from '../common/agentHostChatContributionsService.js';
+import type { Turn } from '../common/state/sessionState.js';
 
 export class AgentHostChatContributions extends Disposable implements IAgentHostChatContributions {
 	declare readonly _serviceBrand: undefined;
@@ -78,6 +79,21 @@ export class AgentHostChatContributions extends Disposable implements IAgentHost
 			}
 		}
 		return instructions;
+	}
+
+	async hydrateTurns(context: IHydrationContext, turns: readonly Turn[]): Promise<readonly Turn[]> {
+		let hydratedTurns = turns;
+		for (const contribution of this._getOrderedContributions()) {
+			if (!contribution.onHydrateTurns) {
+				continue;
+			}
+			try {
+				hydratedTurns = await contribution.onHydrateTurns(context, hydratedTurns);
+			} catch (err) {
+				this._logContributionFailure(contribution, err);
+			}
+		}
+		return hydratedTurns;
 	}
 
 	private _getOrderedContributions(): readonly IAgentHostChatContribution[] {

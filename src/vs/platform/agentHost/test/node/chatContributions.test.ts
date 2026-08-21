@@ -11,16 +11,18 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostChangesetService } from '../../common/agentHostChangesetService.js';
-import { IAgentHostChatContributions, type IAgentHostChatContribution, type IAgentHostChatContributionHost, type IOutgoingTurn, type ITurnEnd } from '../../common/agentHostChatContributionsService.js';
+import { IAgentHostChatContributions, type IAgentHostChatContribution, type IAgentHostChatContributionHost, type IHydrationContext, type IOutgoingTurn, type ITurnEnd } from '../../common/agentHostChatContributionsService.js';
 import { AgentHostArtifactToolsConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, type ISchema, type SchemaDefinition, type SchemaValue } from '../../common/agentHostSchema.js';
 import { withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
+import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { SessionStatus } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, MessageKind, SessionStatus, TurnState, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
 import { ARTIFACT_TOOLS_INSTRUCTION } from '../../node/shared/artifactServerTools.js';
+import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
 let calls: string[] = [];
 
@@ -161,6 +163,64 @@ class EmptySendContribution extends Disposable implements IAgentHostChatContribu
 	}
 }
 
+class FirstHydrationContribution extends Disposable implements IAgentHostChatContribution {
+	readonly id = 'firstHydration';
+	readonly order = 10;
+
+	onHydrateTurns(_context: IHydrationContext, turns: readonly Turn[]): readonly Turn[] {
+		calls.push(`first:${turns.map(turn => turn.id).join(',')}`);
+		return [...turns, hydrationTurn('first')];
+	}
+}
+
+class SecondHydrationContribution extends Disposable implements IAgentHostChatContribution {
+	readonly id = 'secondHydration';
+	readonly order = 20;
+
+	onHydrateTurns(_context: IHydrationContext, turns: readonly Turn[]): readonly Turn[] {
+		calls.push(`second:${turns.map(turn => turn.id).join(',')}`);
+		return [...turns, hydrationTurn('second')];
+	}
+}
+
+class AsyncHydrationContribution extends Disposable implements IAgentHostChatContribution {
+	readonly id = 'asyncHydration';
+
+	async onHydrateTurns(_context: IHydrationContext, turns: readonly Turn[]): Promise<readonly Turn[]> {
+		await Promise.resolve();
+		calls.push('async');
+		return [...turns, hydrationTurn('async')];
+	}
+}
+
+class PreviousHydrationContribution extends Disposable implements IAgentHostChatContribution {
+	readonly id = 'previousHydration';
+	readonly order = 10;
+
+	onHydrateTurns(_context: IHydrationContext, turns: readonly Turn[]): readonly Turn[] {
+		return [...turns, hydrationTurn('previous')];
+	}
+}
+
+class ThrowingHydrationContribution extends Disposable implements IAgentHostChatContribution {
+	readonly id = 'throwingHydration';
+	readonly order = 20;
+
+	onHydrateTurns(): readonly Turn[] {
+		throw new Error('expected');
+	}
+}
+
+class FollowingHydrationContribution extends Disposable implements IAgentHostChatContribution {
+	readonly id = 'followingHydration';
+	readonly order = 30;
+
+	onHydrateTurns(_context: IHydrationContext, turns: readonly Turn[]): readonly Turn[] {
+		calls.push(`following:${turns.map(turn => turn.id).join(',')}`);
+		return turns;
+	}
+}
+
 function createConfigurationService(enableSendInstructions: boolean): IAgentConfigurationService {
 	const agentConfigService = { _serviceBrand: undefined } as IAgentConfigurationService;
 	agentConfigService.getEffectiveWorkingDirectories = () => undefined;
@@ -204,6 +264,12 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		captureTurnCheckpoint: async () => { observed.push('checkpointAndChangeset'); },
 	} as IAgentHostCheckpointService : NULL_CHECKPOINT_SERVICE;
 	const service = disposables.add(new AgentHostChatContributions(logService));
+	const usageDatabase = new TestSessionDatabase();
+	const originalGetTurnUsages = usageDatabase.getTurnUsages.bind(usageDatabase);
+	usageDatabase.getTurnUsages = async () => {
+		observed?.push('persistedTurnUsage');
+		return originalGetTurnUsages();
+	};
 	const agentConfigService = createConfigurationService(enableSendInstructions);
 	const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
 		[ILogService, logService],
@@ -212,12 +278,17 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		[IAgentConfigurationService, agentConfigService],
 		[IAgentHostStateManager, stateManager],
 		[IAgentHostChatContributions, service],
+		[ISessionDataService, createSessionDataService(usageDatabase)],
 	), /*strict*/ true));
 	const host: IAgentHostChatContributionHost = {
 		drainQueuedMessages: () => observed?.push('queueDrain'),
 		notifyTurnComplete: () => observed?.push('gitRefresh'),
 		refineTitleFromFirstTurn: () => observed?.push('titleRefinement'),
 		prepareRenameInstruction: async () => enableSendInstructions ? 'rename instruction' : undefined,
+		applyWorktreeRestoreAnnouncement: async (_session, turns) => {
+			observed?.push('worktreeAnnouncement');
+			return turns;
+		},
 	};
 	disposables.add(service.registerHost(host));
 	disposables.add(registerBuiltInChatContributions(service, instantiationService));
@@ -230,6 +301,21 @@ function turnEnd(turnId: string, reason: ITurnEnd['reason'] = { kind: 'success' 
 
 function outgoingTurn(turnId: string): IOutgoingTurn {
 	return { session: 'agent-host-session://test', chat: 'agent-host-session://test', turnId };
+}
+
+function hydrationContext(): IHydrationContext {
+	const session = 'agent-host-session://test';
+	return { session, chat: buildDefaultChatUri(session) };
+}
+
+function hydrationTurn(id: string): Turn {
+	return {
+		id,
+		state: TurnState.Complete,
+		message: { text: id, origin: { kind: MessageKind.User } },
+		responseParts: [],
+		usage: undefined,
+	};
 }
 
 suite('AgentHostChatContributions', () => {
@@ -273,6 +359,15 @@ suite('AgentHostChatContributions', () => {
 			}
 			return undefined;
 		}), ['markdownPlanRichLinks', 'artifactTools', 'chatSurface', 'renameInstruction']);
+	});
+
+	test('runs built-in hydration contributions in the original sequence', async () => {
+		const observed: string[] = [];
+		const contributions = createBuiltInContributions(disposables, observed);
+
+		await contributions.hydrateTurns(hydrationContext(), [hydrationTurn('built-in-hydration-order')]);
+
+		assert.deepStrictEqual(observed, ['persistedTurnUsage', 'worktreeAnnouncement']);
 	});
 
 	test('isolates a throwing contribution', () => {
@@ -320,5 +415,32 @@ suite('AgentHostChatContributions', () => {
 
 		assert.deepStrictEqual(await contributions.contributeSend(outgoingTurn('send-empty-array')), []);
 		assert.deepStrictEqual(await contributions.contributeSend(outgoingTurn('send-empty-object')), []);
+	});
+
+	test('threads hydrated turns through contributions in order', async () => {
+		const contributions = disposables.add(createContributions(disposables, new SecondHydrationContribution(), new FirstHydrationContribution()));
+
+		const turns = await contributions.hydrateTurns(hydrationContext(), [hydrationTurn('initial')]);
+
+		assert.deepStrictEqual(calls, ['first:initial', 'second:initial,first']);
+		assert.deepStrictEqual(turns.map(turn => turn.id), ['initial', 'first', 'second']);
+	});
+
+	test('awaits asynchronous hydration contributions', async () => {
+		const contributions = disposables.add(createContributions(disposables, new AsyncHydrationContribution()));
+
+		const turns = await contributions.hydrateTurns(hydrationContext(), []);
+
+		assert.deepStrictEqual(calls, ['async']);
+		assert.deepStrictEqual(turns.map(turn => turn.id), ['async']);
+	});
+
+	test('preserves the previous turns when a hydration contribution fails', async () => {
+		const contributions = disposables.add(createContributions(disposables, new FollowingHydrationContribution(), new ThrowingHydrationContribution(), new PreviousHydrationContribution()));
+
+		const turns = await contributions.hydrateTurns(hydrationContext(), []);
+
+		assert.deepStrictEqual(calls, ['following:previous']);
+		assert.deepStrictEqual(turns.map(turn => turn.id), ['previous']);
 	});
 });

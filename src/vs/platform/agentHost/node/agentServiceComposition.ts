@@ -115,6 +115,8 @@ export function createAgentService(
 			hostLaunchKind: options.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
 			copilotApiServiceOverride: options.copilotApiService,
 		};
+		const chatContributions = owned.add(instantiationService.createInstance(AgentHostChatContributions));
+		services.set(IAgentHostChatContributions, chatContributions);
 		agentService = instantiationService.createInstance(AgentService, core);
 		const context = agentService.getCompositionContext();
 		services.set(IAgentService, agentService);
@@ -162,8 +164,6 @@ export function createAgentService(
 		services.set(IAgentHostChangesetService, changesets);
 		const changesetCoordinator = owned.add(instantiationService.createInstance(AgentHostChangesetCoordinator));
 		owned.add(context.stateManager.onDidChangeSessionActiveTurn(event => changesetCoordinator.onSessionTurnActiveChanged(event.session, event.active)));
-		const chatContributions = owned.add(instantiationService.createInstance(AgentHostChatContributions));
-		services.set(IAgentHostChatContributions, chatContributions);
 		owned.add(registerBuiltInChatContributions(chatContributions, instantiationService));
 		owned.add(changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostCommitOperationContribution)));
 		owned.add(changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostPullRequestOperationContribution)));

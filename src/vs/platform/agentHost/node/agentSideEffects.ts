@@ -304,6 +304,7 @@ export class AgentSideEffects extends Disposable {
 			notifyTurnComplete: session => this._options.onTurnComplete(session),
 			refineTitleFromFirstTurn: (session, chat) => this._titleController.refineTitleFromFirstTurn(session, chat),
 			prepareRenameInstruction: (session, chat) => this._titleController.prepareInstructionForAgent(session, chat),
+			applyWorktreeRestoreAnnouncement: (session, turns) => this._worktree?.applyRestoreAnnouncement(URI.parse(session), turns) ?? Promise.resolve(turns),
 		}));
 		this._register(this._stateManager.onDidChangeSessionConfig(e => {
 			const previousMode = getConfiguredSessionMode(e.previous);

@@ -12,9 +12,11 @@ import { CheckpointAndChangesetContribution } from './checkpointAndChangeset/che
 import { GitRefreshContribution } from './gitRefresh/gitRefreshContribution.js';
 import { MarkdownPlanRichLinksContribution } from './markdownPlanRichLinks/markdownPlanRichLinksContribution.js';
 import { MarkUnreadContribution } from './markUnread/markUnreadContribution.js';
+import { PersistedTurnUsageContribution } from './persistedTurnUsage/persistedTurnUsageContribution.js';
 import { QueueDrainContribution } from './queueDrain/queueDrainContribution.js';
 import { RenameInstructionContribution } from './renameInstruction/renameInstructionContribution.js';
 import { TitleRefinementContribution } from './titleRefinement/titleRefinementContribution.js';
+import { WorktreeAnnouncementContribution } from './worktreeAnnouncement/worktreeAnnouncementContribution.js';
 
 /** Registers all built-in chat contributions through the supplied instantiation service. */
 export function registerBuiltInChatContributions(
@@ -22,6 +24,8 @@ export function registerBuiltInChatContributions(
 	instantiationService: IInstantiationService,
 ): IDisposable {
 	const registrations = new DisposableStore();
+	registrations.add(contributions.registerContribution(instantiationService.createInstance(PersistedTurnUsageContribution)));
+	registrations.add(contributions.registerContribution(instantiationService.createInstance(WorktreeAnnouncementContribution)));
 	registrations.add(contributions.registerContribution(instantiationService.createInstance(CheckpointAndChangesetContribution)));
 	registrations.add(contributions.registerContribution(instantiationService.createInstance(QueueDrainContribution)));
 	registrations.add(contributions.registerContribution(instantiationService.createInstance(GitRefreshContribution)));

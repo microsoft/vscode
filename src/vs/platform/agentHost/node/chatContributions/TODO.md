@@ -21,17 +21,22 @@ Each contribution has its own subfolder so its implementation, helpers, and test
 - `chatSurface` (order 300) — adds terminal or editor-inline guidance from the session surface metadata.
 - `renameInstruction` (order 400) — asynchronously adds the automatic-title rename reminder.
 
+## Completed `onHydrateTurns` extractions
+
+- `persistedTurnUsage` (order 100) — restores persisted per-turn usage with one database read for the complete list.
+- `worktreeAnnouncement` (order 200) — restores the isolated-worktree notice for default chats through the late-bound host bridge.
+- Hydration reuses the spaced 100-series independently from turn-end and send hooks, because ordering is per hook.
+
 ## Future hooks
 
-- `onIncomingRequest` — unifies duplicated turn admission in `handleAction` ChatTurnStarted (`agentSideEffects.ts:1530`) and `_tryConsumeNextQueuedMessage` (`agentSideEffects.ts:1986`), folds in `ILocalChatCommand`, and moves the read-only/archived guard from `_sendTurnMessage` (`agentSideEffects.ts:2102`) into a `reject` disposition.
-- `onHydrateTurns` — registers whole-list stages for side-chat stripping and turn usage, replacing `worktreeAnnouncement` (`agentService.ts:_getChatMessages:3108`) and `persistedTurnUsage` (`agentService.ts:_applyPersistedTurnUsage:3136`); the list boundary avoids one DB read per turn. The prior ownership blocker is resolved: `AgentService` can inject `IAgentHostChatContributions`.
+- `onIncomingRequest` — unifies duplicated turn admission in `handleAction` ChatTurnStarted (`agentSideEffects.ts:1521`) and `_tryConsumeNextQueuedMessage` (`agentSideEffects.ts:1977`), folds in `ILocalChatCommand`, and moves the read-only/archived guard from `_sendTurnMessage` (`agentSideEffects.ts:2093`) into a `reject` disposition.
 - `onAgentSignal` — observes or redirects signals before they reach state.
 
 ## Payoff
 
-- Migrate btw/sideChat to one contribution (`contributeSend` plus `onHydrateTurns`), deleting the six per-harness wiring sites (`copilot/copilotAgent.ts:3649`, `:3754`, `:3900`; `claude/claudeAgent.ts:1414`, `:1986`, `:2357`) and the `sideChat` field from both `IPersistedChat` blobs. Codex gains btw support by deletion rather than addition.
+- Migrate btw/sideChat to one contribution (`contributeSend` plus `onHydrateTurns`), deleting the six per-harness wiring sites (`copilot/copilotAgent.ts:3651`, `:3755`, `:3900`; `claude/claudeAgent.ts:1414`, `:1987`, `:2359`) and the `sideChat` field from both `IPersistedChat` blobs. Codex gains btw support by deletion rather than addition.
 
 ## Deliberately not contributions
 
-- Subagent signal routing/buffering (`_handleAgentSignal` `agentSideEffects.ts:825-948`) and turn-id remap (`agentSideEffects.ts:975`) are routing fabric and correctness invariants.
+- Subagent signal routing/buffering (`_handleAgentSignal` `agentSideEffects.ts:816-947`) and turn-id remap (`_dispatchActionForSession` `agentSideEffects.ts:952-972`) are routing fabric and correctness invariants.
 - The three SDK event mappers and three attachment serializers are genuinely provider-shaped.
