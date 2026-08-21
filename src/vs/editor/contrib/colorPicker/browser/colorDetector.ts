@@ -231,6 +231,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 						content: noBreakWhitespace,
 						inlineClassName: `${ref.className} colorpicker-color-decoration`,
 						inlineClassNameAffectsLetterSpacing: true,
+						widthInEm: 1.2,
 						attachedData: ColorDecorationInjectedTextMarker
 					}
 				}
