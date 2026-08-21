@@ -55,6 +55,12 @@ export class ActivitybarPart extends Part {
 	static readonly FLOATING_ACTIVITYBAR_WIDTH = 36;
 	static readonly FLOATING_COMPACT_ACTIVITYBAR_WIDTH = 28;
 
+	/**
+	 * Vertical gap between activity bar items at the default size under the floating
+	 * panels experiment. Must match the margin applied in `floatingPanels.css`.
+	 */
+	static readonly FLOATING_ACTION_GAP = 8;
+
 	static readonly ICON_SIZE = 24;
 	static readonly COMPACT_ICON_SIZE = 16;
 
@@ -85,12 +91,24 @@ export class ActivitybarPart extends Part {
 		return this._isCompact ? ActivitybarPart.COMPACT_ACTIVITYBAR_WIDTH : ActivitybarPart.ACTIVITYBAR_WIDTH;
 	}
 
-	/** The action (item) height that drives visible item sizing and the composite bar overflow size. */
+	/** The action (item) height that drives visible item sizing. */
 	private get actionHeight(): number {
 		if (this._isCompact) {
 			return ActivitybarPart.COMPACT_ACTION_HEIGHT;
 		}
 		return this.layoutService.isFloatingPanelsEnabled() ? ActivitybarPart.FLOATING_ACTION_HEIGHT : ActivitybarPart.ACTION_HEIGHT;
+	}
+
+	/**
+	 * The vertical space a single item occupies in the bar (its height plus the gap that
+	 * separates it from the next one). This drives the overflow computation, so it has to
+	 * track the current activity bar size, otherwise items collapse into the overflow menu
+	 * prematurely.
+	 */
+	private get compositeSize(): number {
+		const gap = this.layoutService.isFloatingPanelsEnabled() && !this._isCompact ? ActivitybarPart.FLOATING_ACTION_GAP : 0;
+
+		return this.actionHeight + gap;
 	}
 
 	private get floatingHorizontalGutter(): number {
@@ -184,7 +202,7 @@ export class ActivitybarPart extends Part {
 	}
 
 	private createCompositeBar(): PaneCompositeBar {
-		const actionHeight = this.actionHeight;
+		const compositeSize = this.compositeSize;
 		const iconSize = this._isCompact ? ActivitybarPart.COMPACT_ICON_SIZE : ActivitybarPart.ICON_SIZE;
 
 		return this.instantiationService.createInstance(ActivityBarCompositeBar, this.location, {
@@ -201,7 +219,7 @@ export class ActivitybarPart extends Part {
 			preventLoopNavigation: true,
 			recomputeSizes: false,
 			fillExtraContextMenuActions: (actions, e?: MouseEvent | GestureEvent) => { },
-			compositeSize: 52,
+			compositeSize,
 			colors: (theme: IColorTheme) => ({
 				activeForegroundColor: theme.getColor(ACTIVITY_BAR_FOREGROUND),
 				inactiveForegroundColor: theme.getColor(ACTIVITY_BAR_INACTIVE_FOREGROUND),
@@ -212,7 +230,7 @@ export class ActivitybarPart extends Part {
 				dragAndDropBorder: theme.getColor(ACTIVITY_BAR_DRAG_AND_DROP_BORDER),
 				activeBackgroundColor: undefined, inactiveBackgroundColor: undefined, activeBorderBottomColor: undefined,
 			}),
-			overflowActionSize: actionHeight,
+			overflowActionSize: compositeSize,
 		}, Parts.ACTIVITYBAR_PART, this.paneCompositePart, true);
 	}
 
