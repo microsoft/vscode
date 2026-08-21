@@ -463,6 +463,7 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 		this._lifetime.cancel();
 		this._subscription.clear();
 		this._startBarrier.open();
+		// Defer exit so seamless relaunch can replace the process before the old PTY exits.
 		queueMicrotask(() => {
 			this.handleExit(exitCode);
 			this.dispose();

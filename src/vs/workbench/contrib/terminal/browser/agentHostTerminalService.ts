@@ -42,6 +42,10 @@ export interface IAgentHostTerminalProfileInfo {
 	readonly address: string;
 }
 
+interface IAgentHostPtyRegistration extends IDisposable {
+	setPty(pty: AgentHostPty): void;
+}
+
 const AGENT_HOST_PROFILE_EXT_ID = 'vscode.agent-host-terminal';
 
 export const IAgentHostTerminalService = createDecorator<IAgentHostTerminalService>('agentHostTerminalService');
@@ -295,30 +299,35 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 		const terminalUri = URI.from({ scheme: 'agenthost-terminal', path: `/${generateUuid()}` });
 		const name = options?.name ?? localize('agentHostTerminal.default', "Agent Host Terminal");
 		const key = terminalUri.toString();
+		const ptyRegistration = this._createPtyRegistration(key, connection.clientId);
 
-		const instance = await this._terminalService.createTerminal({
-			config: {
-				customPtyImplementation: (id, cols, rows) => {
-					const pty = new AgentHostPty(id, connection, terminalUri, {
-						name,
-						cwd: options?.cwd,
-					});
-					if (cols > 0 && rows > 0) {
-						pty.resize(cols, rows);
-					}
-					this._activePtys.set(key, { pty, clientId: connection.clientId });
-					return pty;
+		let instance: ITerminalInstance;
+		try {
+			instance = await this._terminalService.createTerminal({
+				config: {
+					customPtyImplementation: (id, cols, rows) => {
+						const pty = new AgentHostPty(id, connection, terminalUri, {
+							name,
+							cwd: options?.cwd,
+						});
+						if (cols > 0 && rows > 0) {
+							pty.resize(cols, rows);
+						}
+						ptyRegistration.setPty(pty);
+						return pty;
+					},
+					name,
+					icon: { id: 'remote' },
+					isFeatureTerminal: false,
 				},
-				name,
-				icon: { id: 'remote' },
-				isFeatureTerminal: false,
-			},
-			location: options?.location,
-		});
+				location: options?.location,
+			});
+		} catch (error) {
+			ptyRegistration.dispose();
+			throw error;
+		}
 
-		this._register(instance.onDisposed(() => {
-			this._activePtys.delete(key);
-		}));
+		this._registerInstancePtyCleanup(instance, key, ptyRegistration);
 
 		return instance;
 	}
@@ -352,6 +361,7 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 		}
 		const store = new DisposableStore();
 		const commandSource = store.add(new AhpTerminalCommandSource());
+		const ptyRegistration = this._createPtyRegistration(key, connection.clientId);
 
 		const instancePromise = Promise.resolve().then(() => this._terminalService.createTerminal({
 			config: {
@@ -367,7 +377,7 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 						commandSource.connect(instance, pty);
 					}
 
-					this._activePtys.set(key, { pty, clientId: connection.clientId });
+					ptyRegistration.setPty(pty);
 					return pty;
 				},
 				name: localize('agentHostTerminal.tool', "Agent Host Terminal"),
@@ -381,18 +391,56 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 			instance = await instancePromise;
 		} catch (error) {
 			store.dispose();
+			ptyRegistration.dispose();
 			throw error;
 		}
 		this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, instance);
 
 		this._revivedInstances.set(key, instance);
 		instance.store.add(store);
-		this._register(instance.onDisposed(() => {
-			this._revivedInstances.delete(key);
-			this._activePtys.delete(key);
-		}));
+		this._registerInstancePtyCleanup(instance, key, ptyRegistration);
 
 		return instance;
+	}
+
+	private _createPtyRegistration(key: string, clientId: string): IAgentHostPtyRegistration {
+		let pty: AgentHostPty | undefined;
+		let isDisposed = false;
+		return {
+			setPty: value => {
+				if (isDisposed) {
+					value.dispose();
+					return;
+				}
+				pty = value;
+				this._activePtys.set(key, { pty, clientId });
+			},
+			dispose: () => {
+				if (isDisposed) {
+					return;
+				}
+				isDisposed = true;
+				if (this._activePtys.get(key)?.pty === pty) {
+					this._activePtys.delete(key);
+				}
+				pty?.dispose();
+			},
+		};
+	}
+
+	private _registerInstancePtyCleanup(instance: ITerminalInstance, key: string, ptyRegistration: IAgentHostPtyRegistration): void {
+		const cleanup = () => {
+			if (this._revivedInstances.get(key) === instance) {
+				this._revivedInstances.delete(key);
+			}
+			// Instance disposal can bypass PTY shutdown (for example Detach Session).
+			ptyRegistration.dispose();
+		};
+		if (instance.isDisposed) {
+			cleanup();
+		} else {
+			instance.store.add(instance.onDisposed(cleanup));
+		}
 	}
 
 	async reconnectTerminals(newConnection: IAgentConnection, oldClientId: string): Promise<{ recovered: number; total: number }> {
