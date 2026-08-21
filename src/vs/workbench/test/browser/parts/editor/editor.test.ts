@@ -451,6 +451,10 @@ suite('Workbench editor utils', () => {
 			editors: ['/first.txt', '/second.txt'],
 			activeEditor: '/second.txt',
 		});
+
+		firstEditor.dirty = false;
+		secondEditor.dirty = false;
+		await part.activeGroup.closeAllEditors({ force: true });
 	});
 
 	test('whenEditorClosed (single editor)', async function () {
