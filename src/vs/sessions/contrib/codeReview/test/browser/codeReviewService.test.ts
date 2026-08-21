@@ -18,7 +18,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SessionHasChangesContext, SessionIsCreatedContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -342,6 +342,7 @@ suite('Code Review Contributions', () => {
 			hasTopRightEditorGroupGate: when.includes(IsTopRightEditorGroupContext.key),
 			hasChangesGate: when.includes(SessionHasChangesContext.key),
 			hasCreatedGate: when.includes(SessionIsCreatedContext.key),
+			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 		}, {
 			group: 'navigation',
 			order: 10,
@@ -355,6 +356,7 @@ suite('Code Review Contributions', () => {
 			hasTopRightEditorGroupGate: true,
 			hasChangesGate: true,
 			hasCreatedGate: true,
+			hasEditorAreaVisibleGate: true,
 		});
 	});
 

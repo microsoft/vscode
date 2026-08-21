@@ -294,6 +294,7 @@ suite('Changes View Actions', () => {
 				hasDiffEditorInputGate: when.includes(SinglePaneDiffEditorInputActiveContext.key),
 				hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
 				hasAuxBarVisibleGate: when.includes(AuxiliaryBarVisibleContext.key),
+				hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 				hasViewModeGate: when.includes(ChangesContextKeys.ViewMode.key),
 				matchesSingleFileDiffContext: item.when?.evaluate(context) ?? false,
 			};
@@ -310,6 +311,7 @@ suite('Changes View Actions', () => {
 			hasDiffEditorInputGate: true,
 			hasSinglePaneConfigGate: true,
 			hasAuxBarVisibleGate: true,
+			hasEditorAreaVisibleGate: false,
 			hasViewModeGate: true,
 			matchesSingleFileDiffContext: true,
 		}, {
@@ -323,6 +325,7 @@ suite('Changes View Actions', () => {
 			hasDiffEditorInputGate: true,
 			hasSinglePaneConfigGate: true,
 			hasAuxBarVisibleGate: true,
+			hasEditorAreaVisibleGate: false,
 			hasViewModeGate: true,
 			matchesSingleFileDiffContext: true,
 		}]);
