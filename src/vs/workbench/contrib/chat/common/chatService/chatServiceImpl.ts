@@ -665,11 +665,13 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private async loadRemoteSession(sessionResource: URI, location: ChatAgentLocation, token: CancellationToken, debugOwner?: string): Promise<IChatModelReference | undefined> {
+		this.trace('loadRemoteSession', `start ${sessionResource.toString()}`);
 		// Check if session already exists before resolving the provider,
 		// so we can return a cached model even if the provider was unregistered.
 		{
 			const existingRef = this.acquireExistingSession(sessionResource, debugOwner);
 			if (existingRef) {
+				this.trace('loadRemoteSession', `reused existing model for ${sessionResource.toString()}`);
 				return existingRef;
 			}
 		}
@@ -679,6 +681,7 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		const providedSession = await this.chatSessionService.getOrCreateChatSession(sessionResource, token);
+		this.trace('loadRemoteSession', `session content resolved for ${sessionResource.toString()} with ${providedSession.history.length} history item(s)`);
 
 		// Make sure we haven't created this in the meantime
 		{
@@ -907,6 +910,7 @@ export class ChatService extends Disposable implements IChatService {
 				}
 			}
 		}
+		this.trace('loadRemoteSession', `history applied to model for ${sessionResource.toString()}: ${model.getRequests().length} request(s)`);
 
 		// Set up progress streaming and cancellation for contributed sessions.
 		// This handles both the initial in-flight response (from session load)

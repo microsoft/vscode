@@ -99,6 +99,8 @@ export async function openSession(accessor: ServicesAccessor, session: IAgentSes
 	const instantiationService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
 
+	logService.trace(`[AgentSessions] openSession start: ${session.resource.toString()}`);
+
 	// List and picker clicks arrive here with a resolved session, so the redirect
 	// has to happen on this path too or those opens never migrate. A no-op for
 	// anything that is not a superseded legacy resource.
@@ -119,6 +121,7 @@ export async function openSession(accessor: ServicesAccessor, session: IAgentSes
 		try {
 			const handled = await instantiationService.invokeFunction(accessor => participant.handleOpenSession(accessor, session, openOptions));
 			if (handled) {
+				logService.trace(`[AgentSessions] openSession handled by participant: ${session.resource.toString()}`);
 				return undefined; // Participant handled the session, skip default opening
 			}
 		} catch (error) {
@@ -134,6 +137,7 @@ async function openSessionDefault(accessor: ServicesAccessor, session: IAgentSes
 	const chatSessionsService = accessor.get(IChatSessionsService);
 	const chatWidgetService = accessor.get(IChatWidgetService);
 	const notificationService = accessor.get(INotificationService);
+	const logService = accessor.get(ILogService);
 
 	try {
 		session.setRead(true); // mark as read when opened
@@ -152,6 +156,7 @@ async function openSessionDefault(accessor: ServicesAccessor, session: IAgentSes
 		};
 
 		await chatSessionsService.activateChatSessionItemProvider(session.providerType); // ensure provider is activated before trying to open
+		logService.trace(`[AgentSessions] openSession: provider '${session.providerType}' activated for ${session.resource.toString()}`);
 
 		let target: typeof SIDE_GROUP | typeof ACTIVE_GROUP | typeof ChatViewPaneTarget | undefined;
 		if (openOptions?.sideBySide) {
@@ -168,6 +173,7 @@ async function openSessionDefault(accessor: ServicesAccessor, session: IAgentSes
 
 		return await chatWidgetService.openSession(session.resource, target, options);
 	} catch (error) {
+		logService.error(`[AgentSessions] openSession failed: ${session.resource.toString()}`, error);
 		notificationService.error(localize('chat.openSessionFailed', "Failed to open chat session: {0}", toErrorMessage(error)));
 		return undefined;
 	}

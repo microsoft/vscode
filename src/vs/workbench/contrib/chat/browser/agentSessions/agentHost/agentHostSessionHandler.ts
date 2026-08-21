@@ -1309,6 +1309,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// whether this session resource represents a new session that hasn't yet
 		// been created on the backend.
 		const isNewSession = this._isNewSessionResource(sessionResource);
+		this._logService.trace(`[AgentHost] provideChatSessionContent start: ${resolvedSession.toString()} (isNewSession=${isNewSession})`);
 		const history: IChatSessionHistoryItem[] = [];
 		let initialProgress: IChatProgress[] | undefined;
 		let initialResponsePartCount = 0;
@@ -1344,6 +1345,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					if (sub.value instanceof Error) {
 						throw sub.value;
 					}
+					this._logService.trace(`[AgentHost] provideChatSessionContent: session state hydrated for ${resolvedSession.toString()}`);
 					const rawState = this._getRawSessionState(resolvedSession.toString());
 					if (!rawState) {
 						throw new Error(`Session state did not hydrate for ${resolvedSession.toString()}`);
@@ -1353,6 +1355,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					const chatSub = this._ensureChatSubscription(resolvedSession.toString(), chatURI);
 					chatSubscription = chatSub;
 					await this._whenSubscriptionHydrated(chatSub, token);
+					this._logService.trace(`[AgentHost] provideChatSessionContent: chat state hydrated for ${chatURI}`);
 					const sessionState = this._getSessionState(resolvedSession.toString(), chatURI);
 					if (sessionState) {
 						sessionTitle = sessionState.title;
@@ -1372,11 +1375,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							this._chatErrorContext(),
 							this._config.connection.initializeResult.get()?.terminalCommandPrefix,
 						));
+						this._logService.trace(`[AgentHost] provideChatSessionContent: converted ${sessionState.turns.length} turn(s) into ${history.length} history item(s) for ${resolvedSession.toString()}`);
 
 						// Enrich history with inner tool calls from subagent
 						// child sessions. Subscribes to each child session so
 						// its tool calls appear grouped under the parent widget.
 						await this._enrichHistoryWithSubagentCalls(history, resolvedSession, sessionResource, sessionState, historySubagentObservations);
+						this._logService.trace(`[AgentHost] provideChatSessionContent: subagent enrichment done for ${resolvedSession.toString()}`);
 
 						// Store historical turns so the editing session can seed a
 						// request-level checkpoint for each turn (with file edits
@@ -1587,6 +1592,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 		}
 
+		this._logService.trace(`[AgentHost] provideChatSessionContent done: ${resolvedSession.toString()} with ${history.length} history item(s)`);
 		return session;
 	}
 
