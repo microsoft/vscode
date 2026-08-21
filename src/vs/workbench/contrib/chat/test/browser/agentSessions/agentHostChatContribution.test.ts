@@ -34,7 +34,7 @@ import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSy
 import { ActionType, AuthRequiredReason, isSessionAction, isChatAction, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { ProtocolError, type IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type AgentCustomization, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withSessionMultiRootMetadata, SESSION_META_EHCLI_ADOPTABLE_KEY, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withSessionMultiRootMetadata, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -2522,6 +2522,82 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
+		test('a worktree session adopted mid-window survives the post-adoption summary change', async () => {
+			// Repro of the migration symptom: the session is listed while adoptable,
+			// the user opens it, adoption clears `ehcliAdoptable`, and the summary
+			// change that follows must not evict it from the window's list.
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			const folder = URI.file('/src/repo');
+			instantiationService.stub(IWorkspaceContextService, {
+				getWorkbenchState: () => WorkbenchState.FOLDER,
+				getWorkspace: () => ({ id: 'folder', folders: [{ uri: folder, name: 'repo', index: 0, toResource: () => folder }] }),
+				getWorkspaceFolder: () => null,
+				onDidChangeWorkspaceFolders: Event.None,
+			});
+
+			const backendSession = AgentSession.uri('copilot', 'adopted-midflight');
+			agentHostService.addSession({
+				session: backendSession,
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'Worktree session',
+				workingDirectories: [URI.file('/src/repo.worktrees/feature')],
+				project: { uri: folder, displayName: 'repo' },
+				_meta: { [SESSION_META_EHCLI_ADOPTABLE_KEY]: true },
+			});
+			const listController = createSessionListController(disposables, instantiationService, agentHostService);
+			await listController.refresh(CancellationToken.None);
+			const beforeAdoption = listController.items.map(item => item.label);
+
+			// Post-adoption the host reports the session with the durable adopted
+			// marker in place of the transient adoptable one, so it keeps matching
+			// its repository folder even though it runs out of a sibling worktree.
+			agentHostService.fireNotification({
+				type: 'root/sessionSummaryChanged',
+				channel: ROOT_STATE_URI,
+				session: backendSession.toString(),
+				changes: { status: SessionStatus.Idle, _meta: { [SESSION_META_EHCLI_ADOPTED_KEY]: true } },
+			});
+
+			assert.deepStrictEqual({
+				beforeAdoption,
+				afterAdoption: listController.items.map(item => item.label),
+			}, {
+				beforeAdoption: ['Worktree session'],
+				afterAdoption: ['Worktree session'],
+			});
+		});
+
+		test('a summary change still clears host-cleared markers on a non-legacy session', async () => {
+			// The adoption carry-forward must not turn `_meta` into an append-only bag:
+			// a session that was never adoptable keeps the host's replacement verbatim.
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+			const backendSession = AgentSession.uri('copilot', 'clearable-meta');
+			agentHostService.addSession({
+				session: backendSession,
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'Plain session',
+				_meta: { workspaceless: true },
+			});
+			const listController = createSessionListController(disposables, instantiationService, agentHostService);
+			await listController.refresh(CancellationToken.None);
+
+			agentHostService.fireNotification({
+				type: 'root/sessionSummaryChanged',
+				channel: ROOT_STATE_URI,
+				session: backendSession.toString(),
+				changes: { _meta: {} },
+			});
+
+			const store = (listController as unknown as { _sessionListStore: { getSessions(provider: string): readonly { summary: SessionSummary }[] } })._sessionListStore;
+			assert.deepStrictEqual(
+				store.getSessions('copilot').map(entry => entry.summary._meta),
+				[{}],
+			);
+		});
+
 		test('archive mutations dispatch through AHP and reconcile server summaries', async () => {
 			const { instantiationService, agentHostService } = createTestServices(disposables);
 			const backendSession = AgentSession.uri('copilot', 'archivable');
@@ -3434,6 +3510,35 @@ suite('AgentHostChatContribution', () => {
 			await listController.refresh(CancellationToken.None);
 
 			assert.deepStrictEqual(listController.items.map(item => item.label), ['Legacy worktree session']);
+		});
+
+		test('a migrated legacy worktree session stays listed after adoption clears the adoptable marker', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			const folder = URI.file('/src/repo');
+			instantiationService.stub(IWorkspaceContextService, {
+				getWorkbenchState: () => WorkbenchState.FOLDER,
+				getWorkspace: () => ({ id: 'folder', folders: [{ uri: folder, name: 'repo', index: 0, toResource: () => folder }] }),
+				getWorkspaceFolder: () => null,
+				onDidChangeWorkspaceFolders: Event.None,
+			});
+
+			// Adoption drops `ehcliAdoptable` and leaves the durable adopted marker
+			// behind; the session must not fall out of the list on migration.
+			agentHostService.addSession({
+				session: AgentSession.uri('copilot', 'adopted-worktree'),
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'Adopted worktree session',
+				workingDirectories: [URI.file('/src/repo.worktrees/feature')],
+				project: { uri: folder, displayName: 'repo' },
+				_meta: { [SESSION_META_EHCLI_ADOPTED_KEY]: true },
+			});
+
+			const listController = createSessionListController(disposables, instantiationService, agentHostService);
+			await listController.refresh(CancellationToken.None);
+
+			assert.deepStrictEqual(listController.items.map(item => item.label), ['Adopted worktree session']);
 		});
 
 		test('sessionAdded notification filters out sessions outside the workspace', async () => {
