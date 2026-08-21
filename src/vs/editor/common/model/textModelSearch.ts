@@ -253,22 +253,8 @@ export class TextModelSearch {
 	}
 
 	private static _findMatchesInLine(searchData: SearchData, text: string, lineNumber: number, deltaOffset: number, resultLen: number, result: FindMatch[], captureMatches: boolean, limitResultCount: number): number {
-		const wordSeparators = searchData.wordSeparators;
 		if (!captureMatches && searchData.simpleSearch) {
-			const searchString = searchData.simpleSearch;
-			const searchStringLen = searchString.length;
-			const textLength = text.length;
-
-			let lastMatchIndex = -searchStringLen;
-			while ((lastMatchIndex = text.indexOf(searchString, lastMatchIndex + searchStringLen)) !== -1) {
-				if (!wordSeparators || isValidMatch(wordSeparators, text, textLength, lastMatchIndex, searchStringLen)) {
-					result[resultLen++] = new FindMatch(new Range(lineNumber, lastMatchIndex + 1 + deltaOffset, lineNumber, lastMatchIndex + 1 + searchStringLen + deltaOffset), null);
-					if (resultLen >= limitResultCount) {
-						return resultLen;
-					}
-				}
-			}
-			return resultLen;
+			return findSimpleMatchesInLine(searchData.wordSeparators, searchData.simpleSearch, text, lineNumber, deltaOffset, resultLen, result, limitResultCount);
 		}
 
 		const searcher = new Searcher(searchData.wordSeparators, searchData.regex);
@@ -491,6 +477,29 @@ export function isValidMatch(wordSeparators: WordCharacterClassifier, text: stri
 	);
 }
 
+/**
+ * Finds all occurrences of a plain (non-regex) search string in a single line.
+ */
+export function findSimpleMatchesInLine(wordSeparators: WordCharacterClassifier | null, searchString: string, text: string, lineNumber: number, deltaOffset: number, resultLen: number, result: FindMatch[], limitResultCount: number): number {
+	const searchStringLen = searchString.length;
+	const textLength = text.length;
+
+	let lastMatchIndex = text.indexOf(searchString);
+	while (lastMatchIndex !== -1) {
+		if (!wordSeparators || isValidMatch(wordSeparators, text, textLength, lastMatchIndex, searchStringLen)) {
+			result[resultLen++] = new FindMatch(new Range(lineNumber, lastMatchIndex + 1 + deltaOffset, lineNumber, lastMatchIndex + 1 + searchStringLen + deltaOffset), null);
+			if (resultLen >= limitResultCount) {
+				return resultLen;
+			}
+			lastMatchIndex = text.indexOf(searchString, lastMatchIndex + searchStringLen);
+		} else {
+			// a rejected candidate can still contain a whole-word match starting inside it
+			lastMatchIndex = text.indexOf(searchString, lastMatchIndex + 1);
+		}
+	}
+	return resultLen;
+}
+
 export class Searcher {
 	public readonly _wordSeparators: WordCharacterClassifier | null;
 	private readonly _searchRegex: RegExp;
@@ -547,6 +556,11 @@ export class Searcher {
 			if (!this._wordSeparators || isValidMatch(this._wordSeparators, text, textLength, matchStartIndex, matchLength)) {
 				return m;
 			}
+
+			// Not a whole-word match; advance one code point so overlapping whole-word matches aren't skipped.
+			this._searchRegex.lastIndex = matchStartIndex + (strings.getNextCodePoint(text, textLength, matchStartIndex) > 0xFFFF ? 2 : 1);
+			this._prevMatchStartIndex = -1;
+			this._prevMatchLength = 0;
 
 		} while (m);
 
