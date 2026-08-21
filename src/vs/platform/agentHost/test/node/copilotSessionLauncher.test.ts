@@ -13,7 +13,7 @@ import { PluginFormat, type IMcpServerDefinition } from '../../../agentPlugins/c
 import type { IFileService } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
-import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { ILogService, LogLevel, NullLogService } from '../../../log/common/log.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { AgentHostByokModelsEnabledConfigKey, type SchemaValues } from '../../common/agentHostSchema.js';
@@ -50,7 +50,19 @@ const testRuntime: ICopilotSessionRuntime = {
 
 const testWorkingDirectory = URI.file(process.cwd());
 
-function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettingsPermissions, rootValues: Partial<Record<CopilotCliConfigKey, unknown>> = {}): CopilotSessionLauncher {
+class CapturingLogService extends NullLogService {
+	readonly traces: string[] = [];
+
+	override getLevel(): LogLevel {
+		return LogLevel.Trace;
+	}
+
+	override trace(message: string): void {
+		this.traces.push(message);
+	}
+}
+
+function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettingsPermissions, rootValues: Partial<Record<CopilotCliConfigKey, unknown>> = {}, logService: ILogService = new NullLogService()): CopilotSessionLauncher {
 	const configurationService = {
 		getRootValue: (_schema: unknown, key: CopilotCliConfigKey) => rootValues[key],
 	} as Partial<IAgentConfigurationService> as IAgentConfigurationService;
@@ -58,7 +70,7 @@ function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettin
 		configurationService,
 		{ permissions: managedSettingsPermissions ?? {} } as IAgentHostManagedSettingsService,
 		{} as IAgentHostTerminalManager,
-		new NullLogService(),
+		logService,
 		{} as IFileService,
 		{ _serviceBrand: undefined, start: async () => { throw new Error('Unexpected proxy start'); }, dispose: () => { } },
 		new ByokLmBridgeRegistry(),
@@ -413,7 +425,8 @@ suite('CopilotSessionLauncher shared session config', () => {
 			disableBypassPermissionsMode: 'disable',
 			ask: ['Shell'],
 		};
-		const launcher = createTestLauncher(managedSettingsPermissions);
+		const logService = new CapturingLogService();
+		const launcher = createTestLauncher(managedSettingsPermissions, {}, logService);
 		const pluginDir = URI.file('/tmp/synced-customizations');
 		const syntheticPluginDir = URI.file('/tmp/vscode-synced-customizations');
 		const skillUri = URI.joinPath(pluginDir, 'skills', 'user-skill', 'SKILL.md');
@@ -426,7 +439,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				uri: URI.joinPath(pluginDir, '.mcp.json'),
 				defaultCwd: testWorkingDirectory,
 				sdkRegistration: 'pluginDiscovery',
-				configuration: { type: McpServerType.LOCAL, command: 'native-plugin-server' },
+				configuration: { type: McpServerType.LOCAL, command: '/sensitive/plugin-command', env: { API_TOKEN: 'sensitive-plugin-env' } },
 				customization: {
 					type: CustomizationType.McpServer,
 					id: 'native-plugin-server',
@@ -457,7 +470,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				uri: URI.joinPath(syntheticPluginDir, '.mcp.json'),
 				defaultCwd: testWorkingDirectory,
 				sdkRegistration: 'sessionConfig',
-				configuration: { type: McpServerType.LOCAL, command: 'synced-server' },
+				configuration: { type: McpServerType.REMOTE, url: 'https://sensitive.example/mcp', headers: { Authorization: 'sensitive-header' } },
 				customization: {
 					type: CustomizationType.McpServer,
 					id: 'synced-server',
@@ -523,17 +536,26 @@ suite('CopilotSessionLauncher shared session config', () => {
 				ephemeralMcpServers: createConfigs[1].mcpServers,
 				ephemeralDisabledMcpServers: createConfigs[1].disabledMcpServers,
 				ephemeralExcludedTools: createConfigs[1].excludedTools,
+				mcpProjectionTraces: logService.traces.filter(message => message.includes('MCP launch projection:')).map(message => JSON.parse(message.slice(message.indexOf('{')))),
+				sensitiveProjectionValues: [
+					'/sensitive/plugin-command',
+					'sensitive-plugin-env',
+					'https://sensitive.example/mcp',
+					'sensitive-header',
+					pluginDir.fsPath,
+					syntheticPluginDir.fsPath,
+					testWorkingDirectory.fsPath,
+				].filter(value => logService.traces.some(message => message.includes('MCP launch projection:') && message.includes(value))),
 			}, {
 				createClientName: 'vscode-agent-host',
 				createGitHubMcpToolConfig: { disableFormDeferral: true },
 				createPluginDirectories: [pluginDir.fsPath, syntheticPluginDir.fsPath],
 				createMcpServers: {
 					'synced-server': {
-						type: 'local',
-						command: 'synced-server',
-						args: [],
+						type: 'http',
+						url: 'https://sensitive.example/mcp',
 						tools: ['*'],
-						cwd: testWorkingDirectory.fsPath,
+						headers: { Authorization: 'sensitive-header' },
 					},
 				},
 				createSkillDirectories: [],
@@ -547,11 +569,10 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumePluginDirectories: [pluginDir.fsPath, syntheticPluginDir.fsPath],
 				resumeMcpServers: {
 					'synced-server': {
-						type: 'local',
-						command: 'synced-server',
-						args: [],
+						type: 'http',
+						url: 'https://sensitive.example/mcp',
 						tools: ['*'],
-						cwd: testWorkingDirectory.fsPath,
+						headers: { Authorization: 'sensitive-header' },
 					},
 				},
 				resumeSkillDirectories: [],
@@ -563,6 +584,33 @@ suite('CopilotSessionLauncher shared session config', () => {
 				ephemeralMcpServers: {},
 				ephemeralDisabledMcpServers: ['azure', 'disabled-workspace-server', 'github', 'native-plugin-server', 'synced-server'],
 				ephemeralExcludedTools: ['task', `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
+				mcpProjectionTraces: [
+					{
+						ephemeral: false,
+						pluginDiscovery: ['native-plugin-server'],
+						sessionConfig: ['synced-server'],
+						rootConfig: [],
+						disabled: ['azure', 'disabled-workspace-server', 'github'],
+						finalSessionConfig: ['synced-server'],
+					},
+					{
+						ephemeral: false,
+						pluginDiscovery: ['native-plugin-server'],
+						sessionConfig: ['synced-server'],
+						rootConfig: [],
+						disabled: ['azure', 'disabled-workspace-server', 'github'],
+						finalSessionConfig: ['synced-server'],
+					},
+					{
+						ephemeral: true,
+						pluginDiscovery: ['native-plugin-server'],
+						sessionConfig: ['synced-server'],
+						rootConfig: [],
+						disabled: ['azure', 'disabled-workspace-server', 'github', 'native-plugin-server', 'synced-server'],
+						finalSessionConfig: [],
+					},
+				],
+				sensitiveProjectionValues: [],
 			});
 		} finally {
 			sessions.dispose();
