@@ -56,6 +56,7 @@ type TestTerminalInstance = ITerminalInstance & {
 
 type TestActiveSession = IActiveSession & {
 	loading: ReturnType<typeof observableValue<boolean>>;
+	isArchived: ReturnType<typeof observableValue<boolean>>;
 	worktreePending: ReturnType<typeof observableValue<boolean>>;
 };
 
@@ -76,7 +77,7 @@ function makeAgentSession(opts: {
 		description: undefined,
 		gitRepository: { uri: opts.repository ?? opts.worktree!, workTreeUri: opts.worktree, baseBranchName: undefined, gitHubInfo: constObservable(undefined) },
 	} : undefined;
-	const chat: IChat = {
+	const chat = {
 		resource: URI.parse('file:///session'),
 		createdAt: new Date(),
 		title: observableValue('test.title', 'Test Session'),
@@ -86,7 +87,7 @@ function makeAgentSession(opts: {
 		modelId: observableValue('test.modelId', undefined),
 		modelSource: observableValue('test.modelSource', undefined),
 		mode: observableValue('test.mode', undefined),
-		isArchived: observableValue('test.isArchived', opts.isArchived ?? false),
+		isArchived: observableValue<boolean>('test.isArchived', opts.isArchived ?? false),
 		isRead: observableValue('test.isRead', true),
 		interactivity: observableValue('test.interactivity', ChatInteractivity.Full),
 		checkpoints: observableValue('test.checkpoints', undefined),
@@ -263,6 +264,7 @@ suite('SessionsTerminalContribution', () => {
 	let disposeOnCreatePaths: Set<string>;
 	let defaultCwdCalls: (URI | undefined)[];
 	let vetoSafeDispose: boolean;
+	let safeDisposeBarrier: DeferredPromise<void> | undefined;
 	let logService: TestLogService;
 	let allSessions: ISession[];
 	let sessionProviders: Map<string, ISessionsProvider>;
@@ -285,6 +287,7 @@ suite('SessionsTerminalContribution', () => {
 		disposeOnCreatePaths = new Set();
 		defaultCwdCalls = [];
 		vetoSafeDispose = false;
+		safeDisposeBarrier = undefined;
 		logService = new TestLogService();
 		allSessions = [];
 		sessionProviders = new Map();
@@ -348,6 +351,7 @@ suite('SessionsTerminalContribution', () => {
 				focusCalls++;
 			}
 			override async safeDisposeTerminal(instance: ITerminalInstance): Promise<void> {
+				await safeDisposeBarrier?.p;
 				if (vetoSafeDispose) {
 					return;
 				}
@@ -950,6 +954,39 @@ suite('SessionsTerminalContribution', () => {
 		});
 	});
 
+	test('recreates the active restored terminal when archive cleanup completes late', async () => {
+		const worktreeUri = URI.file('/worktree');
+		const session = makeAgentSession({
+			sessionId: 'test:restore-during-cleanup',
+			worktree: worktreeUri,
+			providerType: AgentSessionProviders.Background,
+		});
+		activeSessionObs.set(session, undefined);
+		await tick();
+		assert.strictEqual(activeInstanceId, 1);
+		safeDisposeBarrier = new DeferredPromise<void>();
+
+		session.isArchived.set(true, undefined);
+		onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
+		await tick();
+		session.isArchived.set(false, undefined);
+		await tick();
+		await safeDisposeBarrier.complete();
+		await tick();
+
+		assert.deepStrictEqual({
+			created: createdTerminals.map(terminal => terminal.cwd.fsPath),
+			disposed: disposedInstances.map(instance => instance.instanceId),
+			remaining: [...terminalInstances.keys()],
+			activeInstanceId,
+		}, {
+			created: [worktreeUri.fsPath, worktreeUri.fsPath],
+			disposed: [1],
+			remaining: [2],
+			activeInstanceId: 2,
+		});
+	});
+
 	test('disposes an untracked restored terminal at the archived session worktree', async () => {
 		const worktreeUri = URI.file('/worktree');
 		const restoredTerminal = makeTerminalInstance(nextInstanceId++, worktreeUri.fsPath);
@@ -1249,7 +1286,7 @@ suite('SessionsTerminalContribution', () => {
 			disposed: disposedInstances.map(instance => instance.instanceId),
 			remaining: [...terminalInstances.keys()],
 		}, {
-			created: [worktreeUri.fsPath, '/other', worktreeUri.fsPath],
+			created: [worktreeUri.fsPath, URI.file('/other').fsPath, worktreeUri.fsPath],
 			disposed: [1],
 			remaining: [2, 3],
 		});

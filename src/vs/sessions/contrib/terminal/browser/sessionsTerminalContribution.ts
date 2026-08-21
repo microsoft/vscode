@@ -159,11 +159,12 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		this._register(autorun(reader => {
 			const session = this._sessionsService.activeSession.read(reader);
 			const isArchived = session?.isArchived.read(reader);
-			if (session && !isArchived) {
-				this._archivedSessionIds.delete(session.sessionId);
+			const worktreePending = session?.worktreePending?.read(reader);
+			if (session && !isArchived && this._archivedSessionIds.delete(session.sessionId)) {
+				this._invalidateTerminalOperations(session.sessionId);
 			}
-			if (session?.loading.read(reader) || isArchived || session?.worktreePending?.read(reader)) {
-				if (session && (isArchived || session.worktreePending?.get())) {
+			if (session?.loading.read(reader) || isArchived || worktreePending) {
+				if (session && (isArchived || worktreePending)) {
 					this._invalidateTerminalOperations(session.sessionId);
 				}
 				this._activeKey = undefined;
@@ -250,7 +251,9 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 						justArchived.push(session);
 					}
 				} else {
-					this._archivedSessionIds.delete(session.sessionId);
+					if (this._archivedSessionIds.delete(session.sessionId)) {
+						this._invalidateTerminalOperations(session.sessionId);
+					}
 				}
 			}
 			for (const session of e.removed) {
@@ -688,6 +691,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	}
 
 	private async _closeArchivedSessionTerminals(session: ISession): Promise<void> {
+		const cleanupGeneration = this._getTerminalOperationGeneration(session.sessionId);
 		const terminals = new Map(this._getTrackedTerminalsForSession(session.sessionId).map(instance => [instance.instanceId, instance]));
 		const untrackedWorktreeTerminalIds = new Set<number>();
 		const worktreeCwd = getSessionWorktreeCwd(session);
@@ -705,8 +709,14 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 				untrackedWorktreeTerminalIds.add(instance.instanceId);
 			}
 		}
+		if (!this._isArchiveCleanupCurrent(session.sessionId, cleanupGeneration)) {
+			return;
+		}
 
 		for (const instance of terminals.values()) {
+			if (!this._isArchiveCleanupCurrent(session.sessionId, cleanupGeneration)) {
+				return;
+			}
 			if (untrackedWorktreeTerminalIds.has(instance.instanceId)
 				&& (this._isTerminalTracked(instance.instanceId)
 					|| this._standaloneTerminalIds.has(instance.instanceId)
@@ -722,7 +732,30 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			if (availableInstance.isDisposed) {
 				this._removeTerminalFromTrackedSessions(availableInstance.instanceId);
 			}
+			if (!this._isArchiveCleanupCurrent(session.sessionId, cleanupGeneration)) {
+				await this._ensureActiveSessionTerminalAfterLateArchiveCleanup(session.sessionId);
+				return;
+			}
 		}
+	}
+
+	private _isArchiveCleanupCurrent(sessionId: string, generation: number): boolean {
+		return this._archivedSessionIds.has(sessionId)
+			&& this._getTerminalOperationGeneration(sessionId) === generation;
+	}
+
+	private async _ensureActiveSessionTerminalAfterLateArchiveCleanup(sessionId: string): Promise<void> {
+		const activeSession = this._sessionsService.activeSession.get();
+		if (!activeSession
+			|| activeSession.sessionId !== sessionId
+			|| activeSession.isArchived.get()
+			|| activeSession.loading.get()
+			|| activeSession.worktreePending?.get()) {
+			return;
+		}
+		this._activeKey = undefined;
+		this._activeSessionId = undefined;
+		await this._onActiveSessionChanged(activeSession);
 	}
 
 	private async _findUntrackedTerminalsForResource(resource: URI): Promise<ITerminalInstance[]> {

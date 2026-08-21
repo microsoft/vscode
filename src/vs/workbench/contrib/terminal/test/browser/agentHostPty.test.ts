@@ -346,13 +346,7 @@ suite('AgentHostPty', () => {
 	test('shutdown() disposes terminal and unsubscribes', async () => {
 		const conn = new MockAgentConnection();
 		disposables.add(conn);
-		let didDispose = false;
-		const pty = new class extends AgentHostPty {
-			override dispose(): void {
-				didDispose = true;
-				super.dispose();
-			}
-		}(1, conn, terminalUri);
+		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri));
 
 		let exitFired = false;
 		disposables.add(pty.onProcessExit!(() => { exitFired = true; }));
@@ -362,55 +356,9 @@ suite('AgentHostPty', () => {
 
 		await new Promise(resolve => setTimeout(resolve, 10));
 
-		assert.deepStrictEqual({
-			disposedTerminals: conn.disposedTerminals.map(uri => uri.toString()),
-			exitFired,
-			didDispose,
-		}, {
-			disposedTerminals: [terminalUri.toString()],
-			exitFired: true,
-			didDispose: true,
-		});
-	});
-
-	test('shutdown() disposes while initial subscription hydration is pending', async () => {
-		const conn = new MockAgentConnection();
-		disposables.add(conn);
-		conn.getSubscription = <T>(_kind: StateComponents, _resource: URI): IReference<IAgentSubscription<T>> => {
-			const onDidChange = new Emitter<TerminalState>();
-			disposables.add(onDidChange);
-			return {
-				object: {
-					value: undefined,
-					verifiedValue: undefined,
-					onDidChange: onDidChange.event,
-					onWillApplyAction: Event.None,
-					onDidApplyAction: Event.None,
-				} as IAgentSubscription<T>,
-				dispose: () => onDidChange.dispose(),
-			};
-		};
-		let didDispose = false;
-		const pty = new class extends AgentHostPty {
-			override dispose(): void {
-				didDispose = true;
-				super.dispose();
-			}
-		}(1, conn, terminalUri);
-
-		const start = pty.start();
-		await new Promise(resolve => setTimeout(resolve, 0));
-		pty.shutdown(false);
-		await start;
-		await new Promise(resolve => setTimeout(resolve, 0));
-
-		assert.deepStrictEqual({
-			disposedTerminals: conn.disposedTerminals.map(uri => uri.toString()),
-			didDispose,
-		}, {
-			disposedTerminals: [terminalUri.toString()],
-			didDispose: true,
-		});
+		assert.strictEqual(conn.disposedTerminals.length, 1);
+		assert.strictEqual(conn.disposedTerminals[0].toString(), terminalUri.toString());
+		assert.ok(exitFired);
 	});
 
 	test('shouldPersist is false', () => {

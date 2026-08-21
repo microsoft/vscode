@@ -94,12 +94,9 @@ function isCopilotSentinelCommand(commandLine: string): boolean {
 export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 
 	private readonly _startBarrier = new Barrier();
-	private readonly _terminalCreatedBarrier = new Barrier();
-	private readonly _shutdownBarrier = new Barrier();
 	private readonly _subscriptionDisposables = this._register(new DisposableStore());
 	private _subscriptionRef: IReference<IAgentSubscription<TerminalState>> | undefined;
 	private _initialCwd = '';
-	private _isShutdown = false;
 
 	private readonly _onCommandExecuted = this._register(new Emitter<IAgentHostPtyCommandExecutedEvent>());
 	readonly onCommandExecuted: Event<IAgentHostPtyCommandExecutedEvent> = this._onCommandExecuted.event;
@@ -134,23 +131,15 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 		try {
 			// 1. Create the terminal on the agent host (skip for attach-only mode
 			//    where the terminal already exists, e.g. created by a tool)
-			try {
-				if (!this._options?.attachOnly) {
-					await this._connection.createTerminal({
-						channel: this._terminalUri.toString(),
-						claim: { kind: TerminalClaimKind.Client, clientId: this._connection.clientId },
-						name: this._options?.name,
-						cwd: this._resolveCwdForProtocol(this._options?.cwd),
-						cols: this._lastDimensions.cols > 0 ? this._lastDimensions.cols : undefined,
-						rows: this._lastDimensions.rows > 0 ? this._lastDimensions.rows : undefined,
-					});
-				}
-			} finally {
-				this._terminalCreatedBarrier.open();
-			}
-			if (this._isShutdown) {
-				this._startBarrier.open();
-				return undefined;
+			if (!this._options?.attachOnly) {
+				await this._connection.createTerminal({
+					channel: this._terminalUri.toString(),
+					claim: { kind: TerminalClaimKind.Client, clientId: this._connection.clientId },
+					name: this._options?.name,
+					cwd: this._resolveCwdForProtocol(this._options?.cwd),
+					cols: this._lastDimensions.cols > 0 ? this._lastDimensions.cols : undefined,
+					rows: this._lastDimensions.rows > 0 ? this._lastDimensions.rows : undefined,
+				});
 			}
 
 			// 2. Get a subscription for the terminal URI (auto-subscribes)
@@ -159,18 +148,13 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 
 			// 3. Wait for hydration via onDidChange, then replay snapshot
 			if (subscription.value === undefined) {
-				const hydration = new Promise<void>(resolve => {
+				await new Promise<void>(resolve => {
 					const listener = subscription.onDidChange(() => {
 						listener.dispose();
 						resolve();
 					});
 					this._subscriptionDisposables.add(listener);
 				});
-				await Promise.race([hydration, this._shutdownBarrier.wait()]);
-				if (this._isShutdown) {
-					this._startBarrier.open();
-					return undefined;
-				}
 			}
 
 			const state = subscription.value as TerminalState;
@@ -343,22 +327,16 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 	}
 
 	shutdown(_immediate: boolean): void {
-		if (this._isShutdown) {
-			return;
-		}
-		this._isShutdown = true;
-		this._shutdownBarrier.open();
-		this._subscriptionRef?.dispose();
-		this._subscriptionRef = undefined;
-		this._subscriptionDisposables.clear();
-		this.handleExit(undefined);
-		this.dispose();
-		void this._terminalCreatedBarrier.wait().then(() => {
+		this._startBarrier.wait().then(() => {
 			// In attach-only mode, don't dispose the server-side terminal —
 			// it's owned by the tool/session, not by this client.
 			if (!this._options?.attachOnly) {
 				this._connection.disposeTerminal(this._terminalUri);
 			}
+			this._subscriptionRef?.dispose();
+			this._subscriptionRef = undefined;
+			this._subscriptionDisposables.clear();
+			this.handleExit(undefined);
 		});
 	}
 
