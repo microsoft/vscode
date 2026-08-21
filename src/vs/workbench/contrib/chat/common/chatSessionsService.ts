@@ -400,6 +400,10 @@ export function isAgentHostTarget(target: string): boolean {
 	return isLocalAgentHostTarget(target) || isRemoteAgentHostTarget(target);
 }
 
+export function isAgentHostSessionResource(resource: URI): boolean {
+	return isAgentHostTarget(resource.scheme);
+}
+
 /**
  * The session type used for local agent chat sessions.
  */

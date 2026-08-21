@@ -1810,7 +1810,7 @@ export class ChatService extends Disposable implements IChatService {
 						agentOrCommandFollowups.then(followups => {
 							model.setFollowups(completedRequest, followups);
 							const commandForTelemetry = agentSlashCommandPart ? agentSlashCommandPart.command.name : commandPart?.slashCommand.command;
-							this._chatServiceTelemetry.retrievedFollowups(agentPart?.agent.id ?? '', commandForTelemetry, followups?.length ?? 0);
+							this._chatServiceTelemetry.retrievedFollowups(model.sessionResource, agentPart?.agent.id ?? '', commandForTelemetry, followups?.length ?? 0);
 						});
 					}
 				}
