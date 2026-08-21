@@ -1370,24 +1370,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		},
 		createSession: async (_client, params) => {
 			let createdSession: URI;
-			// Resolve fork turnId to a 0-based index using the source session's
-			// turn list in the state manager.
-			let fork: { session: URI; chat: URI; turnIndex: number; turnId: string } | undefined;
-			if (params.fork) {
-				if (URI.parse(params.fork.session).toString() === URI.parse(params.channel).toString()) {
-					throw new ProtocolError(AhpErrorCodes.SessionAlreadyExists, `Fork target session must differ from source session: ${params.channel}`);
-				}
-				const sourceState = this._stateManager.getSessionState(params.fork.session);
-				if (!sourceState) {
-					throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Fork source session not found: ${params.fork.session}`);
-				}
-				const turnIndex = sourceState.turns.findIndex(t => t.id === params.fork!.turnId);
-				if (turnIndex < 0) {
-					throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Fork turn ID ${params.fork.turnId} not found in session ${params.fork.session}`);
-				}
-				const sourceSession = URI.parse(params.fork.session);
-				fork = { session: sourceSession, chat: URI.parse(buildDefaultChatUri(sourceSession)), turnIndex, turnId: params.fork.turnId };
-			}
 			// If the client eagerly claimed the active client role, validate
 			// the clientId matches the connection before forwarding.
 			if (params.activeClient && params.activeClient.clientId !== _client.clientId) {
@@ -1399,7 +1381,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					_meta: params._meta,
 					workingDirectories: params.workingDirectories?.map(d => URI.parse(d)),
 					session: URI.parse(params.channel),
-					fork,
 					config: params.config,
 					activeClient: params.activeClient,
 					progressToken: params.progressToken,
@@ -1575,6 +1556,18 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		},
 		invokeChangesetOperation: async (_client, params) => {
 			return this._agentService.invokeChangesetOperation(params);
+		},
+		// Automations are declared by the protocol but not implemented by this
+		// host: `initialize` never advertises the `automations` capability, so
+		// a conforming client does not reach these methods.
+		listAutomationTriggerDefinitions: async () => {
+			throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'Automations are not supported by this agent host');
+		},
+		runAutomation: async () => {
+			throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'Automations are not supported by this agent host');
+		},
+		fetchAutomationRuns: async () => {
+			throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'Automations are not supported by this agent host');
 		},
 	};
 
