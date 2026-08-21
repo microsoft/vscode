@@ -684,92 +684,107 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (!provider) {
 			throw new Error(`Sessions provider '${session.providerId}' not found`);
 		}
-
-		if (provider.prepareNewSession) {
-			const originalSession = session;
-			const preparationTokenSource = new CancellationTokenSource(this._disposeCts.token);
-			const preparationListeners = new DisposableStore();
-			preparationListeners.add(this.onDidReplaceNewDraftSession(({ from }) => {
-				if (from.sessionId === originalSession.sessionId) {
-					preparationTokenSource.cancel();
-				}
-			}));
-			preparationListeners.add(this.onDidDiscardNewSession(discarded => {
-				if (discarded.sessionId === originalSession.sessionId) {
-					preparationTokenSource.cancel();
-				}
-			}));
-			let prepared: IPreparedNewSession;
-			try {
-				prepared = await provider.prepareNewSession(session.sessionId, preparationTokenSource.token);
-			} finally {
-				preparationListeners.dispose();
-				preparationTokenSource.dispose();
-			}
-			const preparedSession = prepared.session;
-			if (preparedSession.sessionId !== originalSession.sessionId) {
-				const preparedProvider = this._getProvider(preparedSession);
-				if (!preparedProvider) {
-					await prepared.discard?.();
-					throw new Error(`Sessions provider '${preparedSession.providerId}' not found after preparing the new session`);
-				}
-				if (this._newSession.get()?.sessionId !== originalSession.sessionId) {
-					if (prepared.discard) {
-						await prepared.discard();
-					} else {
-						preparedProvider.deleteNewSession(preparedSession.sessionId);
-					}
-					throw new CancellationError();
-				}
-				provider.deleteNewSession(originalSession.sessionId);
-				this._onDidReplaceNewDraftSession.fire({ from: originalSession, to: preparedSession });
-				session = preparedSession;
-				provider = preparedProvider;
-			}
+		const requestActivity = options.background ? undefined : new MutableDisposable<IDisposable>();
+		if (requestActivity) {
+			requestActivity.value = provider.startNewSessionRequest?.(session.sessionId);
 		}
 
-		// The session is graduating into the list (being sent),
-		// so the provider keeps owning it — just drop the pointer, do not delete.
-		// Clearing the new session recomputes the isNewChatSession context key
-		// via the view service's active-session autorun.
-		this._newSession.set(undefined, undefined);
-
-		if (options.background) {
-			// Fire-and-forget so the composer can reset immediately. On commit
-			// failure the graduating draft is stranded, so dispose it through
-			// its provider (no-op if already graduated/removed).
-			this._sendNewChatRequestInBackground(provider, session, options).catch(e => {
-				provider.deleteNewSession(session.sessionId);
-				this.logService.error('[SessionsManagement] Failed to send background request:', e);
-			});
-			return;
-		}
-
-		// Foreground send: notify listeners that a send is starting. Listeners
-		// (e.g., telemetry) can use this to prewarm caches whose result is
-		// consumed when `onDidSendRequest` fires below. The background path
-		// fires this from within `_sendNewChatRequestInBackground`. The view
-		// service observes the will/did send pair to keep the newest chat
-		// active in the visible slot while the send materialises.
-		this._onWillSendRequest.fire(session);
-
-		// Ask the provider to create the new chat, then send the request.
-		const chat = await provider.createNewChat(session.sessionId, options.query);
-
-		const sendOptions = this._augmentOptionsForTroubleshoot(session, options);
-		const chatResourceKey = chat.resource.toString();
-		this._pendingSendChatResources.add(chatResourceKey);
-		let updatedSession: ISession;
 		try {
-			updatedSession = await provider.sendRequest(session.sessionId, chat.resource, sendOptions);
+			if (provider.prepareNewSession) {
+				const originalSession = session;
+				const preparationTokenSource = new CancellationTokenSource(this._disposeCts.token);
+				const preparationListeners = new DisposableStore();
+				preparationListeners.add(this.onDidReplaceNewDraftSession(({ from }) => {
+					if (from.sessionId === originalSession.sessionId) {
+						preparationTokenSource.cancel();
+					}
+				}));
+				preparationListeners.add(this.onDidDiscardNewSession(discarded => {
+					if (discarded.sessionId === originalSession.sessionId) {
+						preparationTokenSource.cancel();
+					}
+				}));
+				let prepared: IPreparedNewSession;
+				try {
+					prepared = await provider.prepareNewSession(session.sessionId, preparationTokenSource.token);
+				} finally {
+					preparationListeners.dispose();
+					preparationTokenSource.dispose();
+				}
+				const preparedSession = prepared.session;
+				if (preparedSession.sessionId !== originalSession.sessionId) {
+					const preparedProvider = this._getProvider(preparedSession);
+					if (!preparedProvider) {
+						await prepared.discard?.();
+						throw new Error(`Sessions provider '${preparedSession.providerId}' not found after preparing the new session`);
+					}
+					if (this._newSession.get()?.sessionId !== originalSession.sessionId) {
+						if (prepared.discard) {
+							await prepared.discard();
+						} else {
+							preparedProvider.deleteNewSession(preparedSession.sessionId);
+						}
+						throw new CancellationError();
+					}
+					const preparedRequestActivity = requestActivity
+						? preparedProvider.startNewSessionRequest?.(preparedSession.sessionId)
+						: undefined;
+					provider.deleteNewSession(originalSession.sessionId);
+					if (requestActivity) {
+						requestActivity.value = preparedRequestActivity;
+					}
+					this._onDidReplaceNewDraftSession.fire({ from: originalSession, to: preparedSession });
+					session = preparedSession;
+					provider = preparedProvider;
+				}
+			}
+
+			// The session is graduating into the list (being sent),
+			// so the provider keeps owning it — just drop the pointer, do not delete.
+			// Clearing the new session recomputes the isNewChatSession context key
+			// via the view service's active-session autorun.
+			this._newSession.set(undefined, undefined);
+
+			if (options.background) {
+				// Fire-and-forget so the composer can reset immediately. On commit
+				// failure the graduating draft is stranded, so dispose it through
+				// its provider (no-op if already graduated/removed).
+				const backgroundProvider = provider;
+				this._sendNewChatRequestInBackground(backgroundProvider, session, options).catch(e => {
+					backgroundProvider.deleteNewSession(session.sessionId);
+					this.logService.error('[SessionsManagement] Failed to send background request:', e);
+				});
+				return;
+			}
+
+			// Foreground send: notify listeners that a send is starting. Listeners
+			// (e.g., telemetry) can use this to prewarm caches whose result is
+			// consumed when `onDidSendRequest` fires below. The background path
+			// fires this from within `_sendNewChatRequestInBackground`. The view
+			// service observes the will/did send pair to keep the newest chat
+			// active in the visible slot while the send materialises.
+			this._onWillSendRequest.fire(session);
+
+			// Ask the provider to create the new chat, then send the request.
+			const chat = await provider.createNewChat(session.sessionId, options.query);
+
+			const sendOptions = this._augmentOptionsForTroubleshoot(session, options);
+			const chatResourceKey = chat.resource.toString();
+			this._pendingSendChatResources.add(chatResourceKey);
+			let updatedSession: ISession;
+			try {
+				updatedSession = await provider.sendRequest(session.sessionId, chat.resource, sendOptions);
+			} finally {
+				this._pendingSendChatResources.delete(chatResourceKey);
+			}
+			if (updatedSession.sessionId !== session.sessionId) {
+				this.logService.info(`[SessionsManagement] sendRequest: active session replaced: ${session.sessionId} -> ${updatedSession.sessionId}`);
+			}
+			this._onDidStartSession.fire(updatedSession);
+			this._onDidSendRequest.fire({ session: updatedSession, chat, isNewSession: true, isNewChat: true, options });
 		} finally {
-			this._pendingSendChatResources.delete(chatResourceKey);
+			requestActivity?.dispose();
 		}
-		if (updatedSession.sessionId !== session.sessionId) {
-			this.logService.info(`[SessionsManagement] sendRequest: active session replaced: ${session.sessionId} -> ${updatedSession.sessionId}`);
-		}
-		this._onDidStartSession.fire(updatedSession);
-		this._onDidSendRequest.fire({ session: updatedSession, chat, isNewSession: true, isNewChat: true, options });
 	}
 
 	/**

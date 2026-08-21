@@ -7,7 +7,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { raceCancellationError } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, constObservable, IObservable } from '../../../../../base/common/observable.js';
@@ -243,6 +243,15 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 			this._devContainerDrafts.delete(sessionId);
 		}
 		this._onDidChangeSessionConfig.fire(sessionId);
+	}
+
+	override startNewSessionRequest(sessionId: string, activity?: string): IDisposable {
+		return super.startNewSessionRequest(
+			sessionId,
+			activity ?? (this._devContainerDrafts.has(sessionId)
+				? localize('devContainerAgentHost.starting', "Starting Dev Container...")
+				: undefined),
+		);
 	}
 
 	async prepareNewSession(sessionId: string, token: CancellationToken): Promise<IPreparedNewSession> {

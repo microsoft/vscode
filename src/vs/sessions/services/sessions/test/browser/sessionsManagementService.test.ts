@@ -7,6 +7,7 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -970,32 +971,59 @@ suite('SessionsManagementService', () => {
 			requiresWorkspaceTrust: false,
 			isVirtualWorkspace: false,
 		};
+		const originalStatus = observableValue('originalStatus', SessionStatus.Untitled);
+		const originalChat: IChat = { ...stubChat, status: originalStatus };
 		const original = stubSession({
 			sessionId: 'local-draft',
 			providerId: 'local',
+			status: originalStatus,
+			chats: constObservable([originalChat]),
+			mainChat: constObservable(originalChat),
 			workspace: constObservable(workspace),
 		});
-		const replacementChat: IChat = { ...stubChat, resource: URI.parse('dev:///chat') };
+		const replacementStatus = observableValue('replacementStatus', SessionStatus.Untitled);
+		const replacementChat: IChat = { ...stubChat, resource: URI.parse('dev:///chat'), status: replacementStatus };
 		const replacement = stubSession({
 			sessionId: 'dev-draft',
 			providerId: 'dev',
+			status: replacementStatus,
 			chats: constObservable([replacementChat]),
 			mainChat: constObservable(replacementChat),
 			workspace: constObservable(workspace),
 		});
+		const preparation = new DeferredPromise<void>();
 		const deleted: string[] = [];
 		const originalProvider = new class extends TestSessionsProvider {
 			override readonly id = 'local';
 			constructor() { super(original); }
 			override resolveWorkspace(): ISessionWorkspace { return workspace; }
 			override createNewSession(): ISession { return original; }
-			override async prepareNewSession() { return { session: replacement }; }
+			override startNewSessionRequest() {
+				originalStatus.set(SessionStatus.InProgress, undefined);
+				return toDisposable(() => {
+					if (originalStatus.get() === SessionStatus.InProgress) {
+						originalStatus.set(SessionStatus.Untitled, undefined);
+					}
+				});
+			}
+			override async prepareNewSession() {
+				await preparation.p;
+				return { session: replacement };
+			}
 			override deleteNewSession(sessionId: string): void { deleted.push(sessionId); }
 		}();
 		const sent: string[] = [];
 		const replacementProvider = new class extends TestSessionsProvider {
 			override readonly id = 'dev';
 			constructor() { super(replacement); }
+			override startNewSessionRequest() {
+				replacementStatus.set(SessionStatus.InProgress, undefined);
+				return toDisposable(() => {
+					if (replacementStatus.get() === SessionStatus.InProgress) {
+						replacementStatus.set(SessionStatus.Untitled, undefined);
+					}
+				});
+			}
 			override async createNewChat(): Promise<IChat> {
 				sent.push('createNewChat');
 				return replacementChat;
@@ -1011,7 +1039,16 @@ suite('SessionsManagementService', () => {
 		const replacements: string[] = [];
 		disposables.add(service.onDidReplaceNewDraftSession(({ from, to }) => replacements.push(`${from.sessionId}->${to.sessionId}`)));
 
-		await service.sendNewChatRequest(original, { query: 'hi' });
+		const send = service.sendNewChatRequest(original, { query: 'hi' });
+		assert.deepStrictEqual({
+			statusDuringPreparation: original.status.get(),
+			activeSessionDuringPreparation: view.activeSession.get()?.sessionId,
+		}, {
+			statusDuringPreparation: SessionStatus.InProgress,
+			activeSessionDuringPreparation: 'local-draft',
+		});
+		preparation.complete();
+		await send;
 
 		assert.deepStrictEqual({
 			deleted,
@@ -1019,12 +1056,52 @@ suite('SessionsManagementService', () => {
 			sent,
 			visibleSessions: view.visibleSessions.get().map(session => session?.sessionId ?? null),
 			activeSession: view.activeSession.get()?.sessionId,
+			replacementStatus: replacement.status.get(),
 		}, {
 			deleted: ['local-draft'],
 			replacements: ['local-draft->dev-draft'],
 			sent: ['createNewChat', 'sendRequest:dev-draft'],
 			visibleSessions: ['dev-draft'],
 			activeSession: 'dev-draft',
+			replacementStatus: SessionStatus.Untitled,
+		});
+	});
+
+	test('sendNewChatRequest restores an untitled draft when preparation fails', async () => {
+		const status = observableValue('status', SessionStatus.Untitled);
+		const chat: IChat = { ...stubChat, status };
+		const session = stubSession({
+			sessionId: 'draft',
+			providerId: 'test',
+			status,
+			chats: constObservable([chat]),
+			mainChat: constObservable(chat),
+		});
+		const preparation = new DeferredPromise<void>();
+		const provider = new class extends TestSessionsProvider {
+			override startNewSessionRequest() {
+				status.set(SessionStatus.InProgress, undefined);
+				return toDisposable(() => status.set(SessionStatus.Untitled, undefined));
+			}
+			override async prepareNewSession(): Promise<never> {
+				await preparation.p;
+				throw new Error('prepare failed');
+			}
+		}(session);
+		const { service, view } = createSessionsManagementService(session, disposables, provider);
+		await view.openSession(session.resource);
+
+		const send = service.sendNewChatRequest(session, { query: 'hi' });
+		assert.strictEqual(status.get(), SessionStatus.InProgress);
+		preparation.complete();
+		await assert.rejects(send, /prepare failed/);
+
+		assert.deepStrictEqual({
+			status: status.get(),
+			activeSession: view.activeSession.get()?.sessionId,
+		}, {
+			status: SessionStatus.Untitled,
+			activeSession: 'draft',
 		});
 	});
 

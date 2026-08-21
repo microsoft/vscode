@@ -2597,7 +2597,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			during,
 			after: session.description.get()?.value,
 		}, {
-			status: SessionStatus.InProgress,
+			status: SessionStatus.Untitled,
 			during: activity,
 			after: undefined,
 		});
