@@ -764,6 +764,68 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		}
 	});
 
+	(hasGit ? test : test.skip)('addWorktree preserves tracking when attaching an existing branch', async () => {
+		const dir = initRepo();
+		const remotePath = join(dir, 'remote.git');
+		cp.execFileSync('git', ['init', '--bare', '-q', remotePath], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['remote', 'add', 'origin', remotePath], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['push', '-q', 'origin', 'main'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['branch', 'feature'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['push', '-q', '--set-upstream', 'origin', 'feature'], { cwd: dir, env, stdio: 'pipe' });
+		const wtPath = join(dir, '..', `wt-${Date.now()}`);
+		try {
+			await svc!.addWorktree(URI.file(dir), {
+				path: URI.file(wtPath),
+				commitish: 'feature',
+				track: true,
+			});
+
+			assert.deepStrictEqual({
+				branch: cp.execFileSync('git', ['branch', '--show-current'], { cwd: wtPath, env, encoding: 'utf8' }).trim(),
+				upstream: cp.execFileSync('git', ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}'], { cwd: wtPath, env, encoding: 'utf8' }).trim(),
+			}, {
+				branch: 'feature',
+				upstream: 'origin/feature',
+			});
+		} finally {
+			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
+			rmDirWithRetry(wtPath);
+		}
+	});
+
+	(hasGit ? test : test.skip)('addWorktree automatically tracks a remote branch when creating its local branch', async () => {
+		const dir = initRepo();
+		const remotePath = join(dir, 'remote.git');
+		cp.execFileSync('git', ['init', '--bare', '-q', remotePath], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['remote', 'add', 'origin', remotePath], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['checkout', '-q', '-b', 'feature'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['commit', '-q', '--allow-empty', '-m', 'feature'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['push', '-q', 'origin', 'feature'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['checkout', '-q', 'main'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['branch', '-D', 'feature'], { cwd: dir, env, stdio: 'pipe' });
+		const wtPath = join(dir, '..', `wt-${Date.now()}`);
+		try {
+			await svc!.addWorktree(URI.file(dir), {
+				path: URI.file(wtPath),
+				commitish: 'feature',
+				newBranchName: 'feature',
+				track: true,
+				preferRemoteBranch: true,
+			});
+
+			assert.deepStrictEqual({
+				branch: cp.execFileSync('git', ['branch', '--show-current'], { cwd: wtPath, env, encoding: 'utf8' }).trim(),
+				upstream: cp.execFileSync('git', ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}'], { cwd: wtPath, env, encoding: 'utf8' }).trim(),
+			}, {
+				branch: 'feature',
+				upstream: 'origin/feature',
+			});
+		} finally {
+			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
+			rmDirWithRetry(wtPath);
+		}
+	});
+
 	(hasGit ? test : test.skip)('removeWorktree preserves dirty work unless forced', async () => {
 		const dir = initRepo();
 		const fs = await import('fs/promises');

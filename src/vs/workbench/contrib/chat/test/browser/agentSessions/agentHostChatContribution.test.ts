@@ -62,7 +62,7 @@ import { IPathService } from '../../../../../services/path/common/pathService.js
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
-import { IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { AgentHostContribution, AgentHostSessionHandler } from '../../../browser/agentSessions/agentHost/agentHostChatContribution.js';
 import { AgentHostAuthTokenCache } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
@@ -788,15 +788,21 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		},
 		onDidChangeWorkspaceFolders: Event.None
 	});
-	const trustController: { result: boolean | undefined; workspaceTrustCalls: number; resourcesTrustCalls: number } = { result: true, workspaceTrustCalls: 0, resourcesTrustCalls: 0 };
+	const trustController: { result: boolean | undefined; workspaceTrustCalls: number; resourcesTrustCalls: number; resourcesTrustUris: URI[]; trustedUris: Set<string> } = { result: true, workspaceTrustCalls: 0, resourcesTrustCalls: 0, resourcesTrustUris: [], trustedUris: new Set<string>() };
 	instantiationService.stub(IWorkspaceTrustRequestService, new class extends mock<IWorkspaceTrustRequestService>() {
 		override async requestWorkspaceTrust(): Promise<boolean | undefined> {
 			trustController.workspaceTrustCalls++;
 			return trustController.result;
 		}
-		override async requestResourcesTrust(): Promise<boolean | undefined> {
+		override async requestResourcesTrust(options: ResourceTrustRequestOptions): Promise<boolean | undefined> {
 			trustController.resourcesTrustCalls++;
+			trustController.resourcesTrustUris.push(options.uri);
 			return trustController.result;
+		}
+	});
+	instantiationService.stub(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
+		override async getUriTrustInfo(uri: URI) {
+			return { uri, trusted: trustController.trustedUris.has(uri.toString()) };
 		}
 	});
 	instantiationService.stub(IChatEditingService, {
@@ -4218,6 +4224,125 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
 			assert.strictEqual(trustController.workspaceTrustCalls + trustController.resourcesTrustCalls, 1);
 		}));
+
+		test('sends without prompting when all session folders are already trusted', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const trustedFolder = URI.file('/repo-trusted');
+			const { sessionHandler, agentHostService, chatAgentService, trustController } = createContribution(disposables, { workspaceFolders: [trustedFolder] });
+			trustController.trustedUris.add(trustedFolder.toString());
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { message: 'Hi' });
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			// The folder is already trusted, so the parallel trust check short-circuits
+			// and the turn proceeds without any trust prompt.
+			assert.deepStrictEqual({
+				prompts: trustController.workspaceTrustCalls + trustController.resourcesTrustCalls,
+				created: agentHostService.createSessionCalls.length,
+			}, {
+				prompts: 0,
+				created: 1,
+			});
+		}));
+
+		test('resuming an existing session gates on its persisted folder and aborts on decline', async () => {
+			const { sessionHandler, agentHostService, chatAgentService, trustController } = createContribution(disposables);
+			trustController.result = false;
+
+			// Seed an existing (non-new) session whose persisted working directory is
+			// an untrusted local folder, then hydrate it via provideChatSessionContent.
+			const untrustedFolder = URI.file('/repo-a');
+			const backendSession = AgentSession.uri('copilot', 'resumed-x');
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(),
+					provider: 'copilot',
+					title: 'Resumed',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+					workingDirectories: [untrustedFolder.toString()],
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+			});
+			agentHostService.addSession({ session: backendSession, startTime: 1000, modifiedTime: 2000, summary: 'Resumed', workingDirectories: [untrustedFolder] });
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/resumed-x' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const result = await registered.impl.invoke(
+				makeRequest({ message: 'Hello', sessionResource }),
+				() => { }, [], CancellationToken.None,
+			);
+
+			// Gated on the session's own folder (resource trust), not the trivially
+			// satisfied whole-workspace fallback, and aborted without spawning.
+			assert.deepStrictEqual({
+				result,
+				created: agentHostService.createSessionCalls.length,
+				resourcesTrustCalls: trustController.resourcesTrustCalls,
+				workspaceTrustCalls: trustController.workspaceTrustCalls,
+			}, {
+				result: {},
+				created: 0,
+				resourcesTrustCalls: 1,
+				workspaceTrustCalls: 0,
+			});
+		});
+
+		test('sending to an unopened existing session gates on its persisted folder, not the current workspace', async () => {
+			const { agentHostService, chatAgentService, trustController } = createContribution(disposables);
+			trustController.result = false;
+
+			// An existing session whose persisted working directory is an untrusted
+			// local folder, eager-created (connection-level state open) but never
+			// opened in this window (no provideChatSessionContent), so the handler
+			// has no hydrated subscription. The gate must still read the persisted
+			// folder rather than falling back to the (trivially trusted) workspace.
+			const untrustedFolder = URI.file('/repo-unopened');
+			const backendSession = AgentSession.uri('copilot', 'unopened-x');
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(),
+					provider: 'copilot',
+					title: 'Unopened',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+					workingDirectories: [untrustedFolder.toString()],
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+			});
+			agentHostService.addSession({ session: backendSession, startTime: 1000, modifiedTime: 2000, summary: 'Unopened', workingDirectories: [untrustedFolder] });
+			// Hold the connection-level subscription open (mimics the eager holder)
+			// so `_readEagerlyCreatedSessionState` can peek the persisted state.
+			disposables.add(agentHostService.getSubscription(StateComponents.Session, backendSession));
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/unopened-x' });
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const result = await registered.impl.invoke(
+				makeRequest({ message: 'Hello', sessionResource }),
+				() => { }, [], CancellationToken.None,
+			);
+
+			// Prompted on the persisted folder (resource trust), not the trivially
+			// satisfied whole-workspace fallback, and aborted without spawning.
+			assert.deepStrictEqual({
+				result,
+				created: agentHostService.createSessionCalls.length,
+				resourcesTrustUris: trustController.resourcesTrustUris.map(uri => uri.toString()),
+				workspaceTrustCalls: trustController.workspaceTrustCalls,
+			}, {
+				result: {},
+				created: 0,
+				resourcesTrustUris: [untrustedFolder.toString()],
+				workspaceTrustCalls: 0,
+			});
+		});
 	});
 
 	// ---- "Preparing session…" migration status --------------------------

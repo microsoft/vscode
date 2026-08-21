@@ -142,6 +142,7 @@ const HOST_OWNED_SESSION_CONFIG_KEYS = [
 	SessionConfigKey.WorktreeBranchPrefix,
 	SessionConfigKey.WorktreeIncludeFiles,
 	SessionConfigKey.WorktreeBranchTrack,
+	SessionConfigKey.WorktreeCreateNewBranch,
 ] as const;
 
 /**
@@ -2730,8 +2731,10 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 
-		const workingDirectory = created.resolvedWorkingDirectory ?? config?.workingDirectories?.[0];
-		void this._gitStateService.refreshSessionGitState(session.toString(), workingDirectory);
+		if (!this._configurationService.isWorkingDirectoryPending(session.toString())) {
+			const workingDirectory = created.resolvedWorkingDirectory ?? config?.workingDirectories?.[0];
+			void this._gitStateService.refreshSessionGitState(session.toString(), workingDirectory);
+		}
 
 		return session;
 	}
@@ -3684,6 +3687,9 @@ export class AgentService extends Disposable implements IAgentService {
 		if (iso.worktreeBranchTrackProperty) {
 			properties[SessionConfigKey.WorktreeBranchTrack] = iso.worktreeBranchTrackProperty.protocol;
 		}
+		if (iso.worktreeCreateNewBranchProperty) {
+			properties[SessionConfigKey.WorktreeCreateNewBranch] = iso.worktreeCreateNewBranchProperty.protocol;
+		}
 		if (iso.worktreeIncludeFilesProperty) {
 			properties[SessionConfigKey.WorktreeIncludeFiles] = iso.worktreeIncludeFilesProperty.protocol;
 		}
@@ -3697,6 +3703,9 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		if (iso.worktreeBranchTrackProperty && typeof params.config?.[SessionConfigKey.WorktreeBranchTrack] === 'boolean') {
 			values[SessionConfigKey.WorktreeBranchTrack] = params.config[SessionConfigKey.WorktreeBranchTrack];
+		}
+		if (iso.worktreeCreateNewBranchProperty && typeof params.config?.[SessionConfigKey.WorktreeCreateNewBranch] === 'boolean') {
+			values[SessionConfigKey.WorktreeCreateNewBranch] = params.config[SessionConfigKey.WorktreeCreateNewBranch];
 		}
 		if (iso.worktreeIncludeFilesProperty
 			&& Array.isArray(params.config?.[SessionConfigKey.WorktreeIncludeFiles])

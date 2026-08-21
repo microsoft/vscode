@@ -3276,6 +3276,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			values: {
 				[SessionConfigKey.Isolation]: 'worktree',
 				[SessionConfigKey.WorktreeBranchTrack]: true,
+				[SessionConfigKey.WorktreeCreateNewBranch]: false,
 				[SessionConfigKey.Branch]: 'feature/pull-request',
 			},
 		};
@@ -3283,6 +3284,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const setting = provider.setWorktreeConfiguration(session.sessionId, {
 			isolationMode: 'worktree',
 			worktreeBranchTrack: true,
+			worktreeCreateNewBranch: false,
 			branch: 'feature/pull-request',
 		});
 		await timeout(0);
@@ -3299,12 +3301,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 				{
 					[SessionConfigKey.Isolation]: 'worktree',
 					[SessionConfigKey.WorktreeBranchTrack]: true,
+					[SessionConfigKey.WorktreeCreateNewBranch]: false,
 					[SessionConfigKey.Branch]: 'feature/pull-request',
 				},
 			],
 			config: {
 				[SessionConfigKey.Isolation]: 'worktree',
 				[SessionConfigKey.WorktreeBranchTrack]: true,
+				[SessionConfigKey.WorktreeCreateNewBranch]: false,
 				[SessionConfigKey.Branch]: 'feature/pull-request',
 			},
 		});
