@@ -442,16 +442,16 @@ suite('Workbench editor utils', () => {
 		const groupElement = (part.activeGroup as EditorGroupView).element;
 		const title = groupElement.querySelector(':scope > .title')!;
 
-		// Single-row compact tabs: no reservation
 		assert.strictEqual(title.classList.contains('tab-actions-reserve-space'), false);
+		assert.strictEqual(title.classList.contains('tabs-can-wrap'), false);
 
-		// Enabling wrapped tabs forces the reservation so that dirty/pin indicators cannot change tab width
 		const enforceWrap = part.enforcePartOptions({ wrapTabs: true });
 		assert.strictEqual(title.classList.contains('tab-actions-reserve-space'), true);
+		assert.strictEqual(title.classList.contains('tabs-can-wrap'), true);
 
-		// Reverting restores the configured compact behavior
 		enforceWrap.dispose();
 		assert.strictEqual(title.classList.contains('tab-actions-reserve-space'), false);
+		assert.strictEqual(title.classList.contains('tabs-can-wrap'), false);
 	});
 
 	test('whenEditorClosed (single editor)', async function () {

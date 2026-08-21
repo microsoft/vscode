@@ -666,6 +666,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	private updateTabActionSpaceReservation(): void {
 		// Wrapping tabs must always reserve the column: width changes would reflow rows (#331483).
 		this.parent.classList.toggle('tab-actions-reserve-space', this.groupsView.partOptions.tabActionReserveSpace || this.groupsView.partOptions.wrapTabs);
+		this.parent.classList.toggle('tabs-can-wrap', this.groupsView.partOptions.wrapTabs);
 	}
 
 	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
