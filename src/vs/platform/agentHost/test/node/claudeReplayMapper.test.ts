@@ -107,8 +107,7 @@ suite('claudeReplayMapper', () => {
 	});
 
 	test('replays the user prompt without the host-composed context blocks', () => {
-		// resolvePromptToContentBlocks sends the prompt first and appends the
-		// attachment representations and reference reminder as sibling blocks.
+		// resolvePromptToContentBlocks puts the prompt first, then the host-composed blocks.
 		const messages: SessionMessage[] = [
 			{
 				type: 'user',
