@@ -1088,7 +1088,7 @@ suite('AgentHostSessionTitleController', () => {
 
 		stateManager.announceSurfacedSession(createSummary(external));
 		await controller.generateExternalSessionTitle(external.toString(), 'Fix the flaky renderer test');
-		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Flaky renderer test', 'generated title should be persisted');
+		// No polling: awaiting the call must mean the title is applied and persisted.
 
 		assert.deepStrictEqual({
 			summaryTitles,
@@ -1111,11 +1111,12 @@ suite('AgentHostSessionTitleController', () => {
 		const external = URI.parse('agenthost-session://claude/external-session');
 
 		stateManager.announceSurfacedSession(createSummary(external));
-		await controller.generateExternalSessionTitle(external.toString(), 'Fix the flaky renderer test');
+		const generation = controller.generateExternalSessionTitle(external.toString(), 'Fix the flaky renderer test');
 		await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'title generation should start');
 		controller.markTitleRenamed(external.toString());
 		resolveTitle('Flaky renderer test');
-		await Promise.resolve();
+		// Also proves a cancelled generation settles rather than hanging its caller.
+		await generation;
 
 		assert.deepStrictEqual({
 			aborted: copilotApiService.utilityCalls[0].options?.signal?.aborted,

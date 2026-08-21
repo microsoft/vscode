@@ -3007,13 +3007,6 @@ suite('AgentService (node dispatcher)', () => {
 			await (service as unknown as { _sessionListReconciliation: Promise<void> })._sessionListReconciliation;
 		}
 
-		async function waitForUtilityCalls(copilotApiService: TestCopilotApiService, count: number): Promise<void> {
-			for (let i = 0; i < 20 && copilotApiService.utilityCalls.length < count; i++) {
-				await new Promise(resolve => setTimeout(resolve, 5));
-			}
-			assert.strictEqual(copilotApiService.utilityCalls.length, count, 'expected exactly this many title generations');
-		}
-
 		function exposeListedSessions(service: AgentService, sessions: readonly IAgentSessionMetadata[]): void {
 			const summaries = sessions.map((session): SessionSummary => {
 				const provider = AgentSession.provider(session.session);
@@ -3145,13 +3138,18 @@ suite('AgentService (node dispatcher)', () => {
 			const callsBeforeStartupSettled = copilotApiService.utilityCalls.length;
 			await svc.listSessions();
 			svc.markStartupComplete();
+			// The lane is serialized, so settling implies generation finished: no polling.
 			await svc.whenDeferredWorkSettled();
-			await waitForUtilityCalls(copilotApiService, 2);
 
 			const titled = [oldest, middle, newest].filter(session => copilotApiService.utilityCalls.some(
 				call => call.request.messages.some(message => message.content.includes(`prompt of ${buildDefaultChatUri(session)}`))));
-			assert.deepStrictEqual({ callsBeforeStartupSettled, titled: titled.map(session => AgentSession.id(session)) }, {
+			assert.deepStrictEqual({
+				callsBeforeStartupSettled,
+				callsAfterSettled: copilotApiService.utilityCalls.length,
+				titled: titled.map(session => AgentSession.id(session)),
+			}, {
 				callsBeforeStartupSettled: 0,
+				callsAfterSettled: 2,
 				titled: ['middle', 'newest'],
 			});
 		});
@@ -4445,6 +4443,38 @@ suite('AgentService (node dispatcher)', () => {
 				retriedBeforeFailure: true,
 				retriedAfterFailure: true,
 				listed: [existing.toString(), legacy.toString()].sort(),
+			});
+		});
+
+		test('a failed listing does not settle startup, so deferred work waits for a served one', async () => {
+			class UnavailableCatalogAgent extends MockAgent {
+				override readonly onDidDiscoverChats = Event.None;
+				enumerable = false;
+				override async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | undefined> {
+					return this.enumerable ? [] : undefined;
+				}
+			}
+			const svc = createExternalSessionService();
+			const agent = disposables.add(new UnavailableCatalogAgent('copilot'));
+			svc.registerProvider(agent);
+			svc.markStartupComplete();
+
+			await assert.rejects(svc.listSessions());
+			let deferredWorkSettled = false;
+			void svc.whenDeferredWorkSettled().then(() => { deferredWorkSettled = true; });
+			// Ample turns for the gated maintenance to run if the gate were open.
+			for (let i = 0; i < 50; i++) {
+				await timeout(0);
+			}
+			const settledByFailedListing = deferredWorkSettled;
+
+			agent.enumerable = true;
+			await svc.listSessions();
+			await svc.whenDeferredWorkSettled();
+
+			assert.deepStrictEqual({ settledByFailedListing, settledAfterServedListing: deferredWorkSettled }, {
+				settledByFailedListing: false,
+				settledAfterServedListing: true,
 			});
 		});
 

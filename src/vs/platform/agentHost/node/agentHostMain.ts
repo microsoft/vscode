@@ -457,13 +457,14 @@ async function startAgentHost(): Promise<void> {
 		handler => protocolHandlers.push(handler),
 	);
 	configuredWebSocketServer.settleWith(configuredWebSocketServerStart);
+	// Startup is complete once the last ingress has settled — successfully or
+	// not, since a failed WebSocket server is non-fatal. Deferred maintenance
+	// then runs after a client has also been served its first session listing.
 	void configuredWebSocketServerStart.catch(err => {
 		logService.error('Failed to start WebSocket server', err);
+	}).finally(() => {
+		agentService.markStartupComplete();
 	});
-
-	// Every ingress is wired: deferred maintenance may run once a client has
-	// also been served its first session listing.
-	agentService.markStartupComplete();
 
 	process.once('exit', () => {
 		agentService.dispose();

@@ -1903,10 +1903,17 @@ export class AgentService extends Disposable implements IAgentService {
 			if (this._inFlightListSessions.get(mode) === entry) {
 				this._inFlightListSessions.delete(mode);
 			}
-			this._firstListingServed = true;
-			this._openStartupSettled();
 		};
-		void promise.then(clear, clear);
+		void promise.then(
+			() => {
+				clear();
+				// Only a served listing ends startup: a failed one is retried, and
+				// deferred work must not compete with that retry.
+				this._firstListingServed = true;
+				this._openStartupSettled();
+			},
+			clear,
+		);
 		return [...await promise];
 	}
 

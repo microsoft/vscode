@@ -430,12 +430,15 @@ export class AgentHostSessionTitleController extends Disposable {
 	 * live state (it is materialized when opened), so the generated title is
 	 * persisted and pushed onto its surfaced summary. A session that already
 	 * carries a persisted title keeps it; a rename during generation cancels it.
+	 *
+	 * Unlike the other entry points this awaits generation, so the caller's
+	 * deferred-work lane stays serialized against it.
 	 */
 	async generateExternalSessionTitle(session: ProtocolURI, userPrompt: string): Promise<void> {
 		if (this._isEphemeralSession(session) || await this._readPersistedTitleMetadata(session, SESSION_CUSTOM_TITLE_KEY)) {
 			return;
 		}
-		this._generateTitleSoon(
+		await this._startTitleGeneration(
 			session,
 			{ content: userPrompt, isConversation: false, gitHubReferenceSource: userPrompt },
 			'',
@@ -517,10 +520,22 @@ export class AgentHostSessionTitleController extends Disposable {
 		currentTitleMatchesFallback: () => boolean,
 		persist: (title: string) => void,
 	): void {
+		void this._startTitleGeneration(key, prompt, fallbackTitle, apply, currentTitleMatchesFallback, persist);
+	}
+
+	/** Starts generation and resolves once the title has been applied and persisted. */
+	private _startTitleGeneration(
+		key: ProtocolURI,
+		prompt: ITitlePromptContext,
+		fallbackTitle: string,
+		apply: (title: string) => void,
+		currentTitleMatchesFallback: () => boolean,
+		persist: (title: string) => void,
+	): Promise<void> {
 		this._cancelTitleGeneration(key);
 		const source = new CancellationTokenSource();
 		this._titleGenerationCancellationSources.set(key, source);
-		void this._generateTitle(key, prompt, fallbackTitle, apply, currentTitleMatchesFallback, persist, source.token).catch(err => {
+		return this._generateTitle(key, prompt, fallbackTitle, apply, currentTitleMatchesFallback, persist, source.token).catch(err => {
 			if (!source.token.isCancellationRequested) {
 				this._logService.warn(`[AgentHostSessionTitleController] Failed to apply generated title for ${key}`, err);
 			}
