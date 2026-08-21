@@ -1331,7 +1331,10 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			}
 		}));
 
-		// focus on the row when first rendered or textarea if it has content
+		// Focus the listbox, or the textarea if it already has content. Focus stays on the list
+		// rather than moving to an option, because `aria-activedescendant` is declared on the list
+		// and is only honoured on the element that actually has DOM focus -- focusing an option
+		// instead leaves arrow key movement silent for screen reader users.
 		if (this._shouldAutoFocus()) {
 			if (freeformTextarea && previousFreeform) {
 				const capturedFreeform = freeformTextarea;
@@ -1339,13 +1342,12 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 					capturedFreeform.focus();
 				}));
 			} else if (listItems.length > 0) {
-				const focusIndex = selectedIndex >= 0 ? selectedIndex : 0;
 				// if no default and no freeform text, select the first answer
 				if (selectedIndex < 0) {
 					updateSelection(0);
 				}
 				this._inputBoxes.add(dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(selectContainer), () => {
-					listItems[focusIndex]?.focus();
+					selectContainer.focus();
 				}));
 			}
 		}

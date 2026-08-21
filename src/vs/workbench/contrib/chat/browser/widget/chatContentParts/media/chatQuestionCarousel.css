@@ -235,8 +235,12 @@
 			}
 		}
 
-		/* When the question list has focus, use active selection styling */
-		.chat-question-list:focus .chat-question-list-item.selected {
+		/*
+		 * When the question list has focus, use active selection styling. Written with `&` because
+		 * this rule is nested inside `.chat-question-list`; spelling the class out again would
+		 * compile to a list inside a list and never match.
+		 */
+		&:focus .chat-question-list-item.selected {
 			background-color: var(--vscode-list-activeSelectionBackground, var(--vscode-list-hoverBackground));
 			color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
 
