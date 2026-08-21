@@ -100,6 +100,83 @@ export class IndentationToTabsAction extends EditorAction {
 	}
 }
 
+export class ChangeIndentationWidthAction extends EditorAction {
+	public static readonly ID = 'editor.action.changeIndentationWidth';
+
+	constructor() {
+		super({
+			id: ChangeIndentationWidthAction.ID,
+			label: nls.localize2('changeIndentationWidth', "Change Indentation Width"),
+			precondition: EditorContextKeys.writable,
+			metadata: {
+				description: nls.localize2('changeIndentationWidthDescription', "Re-indent the file with a new indentation width. For space indentation, leading whitespace is rewritten; for tab indentation, only the tab size changes."),
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const quickInputService = accessor.get(IQuickInputService);
+
+		const model = editor.getModel();
+		if (!model) {
+			return;
+		}
+
+		const modelOpts = model.getOptions();
+		const currentTabSize = modelOpts.tabSize;
+		const currentIndentSize = modelOpts.indentSize;
+		const currentInsertSpaces = modelOpts.insertSpaces;
+
+		const picks = [1, 2, 3, 4, 5, 6, 7, 8].map(n => ({
+			id: n.toString(),
+			label: n.toString(),
+			description: n === currentIndentSize
+				? nls.localize('currentIndentationWidth', "Current Indentation Width")
+				: undefined
+		}));
+
+		const autoFocusIndex = Math.min(currentIndentSize - 1, 7);
+
+		setTimeout(() => {
+			quickInputService.pick(picks, {
+				placeHolder: nls.localize('selectIndentationWidth', "Select New Indentation Width"),
+				activeItem: picks[autoFocusIndex]
+			}).then(pick => {
+				if (!pick) {
+					return;
+				}
+				if (model.isDisposed()) {
+					return;
+				}
+
+				const newIndentSize = parseInt(pick.label, 10);
+				if (newIndentSize === currentIndentSize) {
+					return;
+				}
+
+				if (currentInsertSpaces) {
+					// Read selection now (after the picker closed) so we track the
+					// caret position the user actually has, not the one they had
+					// before opening the picker.
+					const selection = editor.getSelection();
+					if (selection) {
+						const command = new ChangeIndentationWidthCommand(selection, currentIndentSize, currentTabSize, newIndentSize);
+						editor.pushUndoStop();
+						editor.executeCommands(this.id, [command]);
+						editor.pushUndoStop();
+					}
+				}
+
+				model.updateOptions({
+					tabSize: newIndentSize,
+					indentSize: newIndentSize,
+					insertSpaces: currentInsertSpaces
+				});
+			});
+		}, 50 /* quick input is sensitive to being opened so soon after another */);
+	}
+}
+
 export class ChangeIndentationSizeAction extends EditorAction {
 
 	constructor(private readonly insertSpaces: boolean, private readonly displaySizeOnly: boolean, opts: IActionOptions) {
@@ -610,6 +687,53 @@ function getIndentationEditOperations(model: ITextModel, builder: IEditOperation
 	}
 }
 
+function getChangeIndentationWidthEditOperations(model: ITextModel, builder: IEditOperationBuilder, currentIndentSize: number, currentTabSize: number, newIndentSize: number): void {
+	if (model.getLineCount() === 1 && model.getLineMaxColumn(1) === 1) {
+		// Model is empty
+		return;
+	}
+
+	for (let lineNumber = 1, lineCount = model.getLineCount(); lineNumber <= lineCount; lineNumber++) {
+		let lastIndentationColumn = model.getLineFirstNonWhitespaceColumn(lineNumber);
+		if (lastIndentationColumn === 0) {
+			lastIndentationColumn = model.getLineMaxColumn(lineNumber);
+		}
+
+		if (lastIndentationColumn === 1) {
+			continue;
+		}
+
+		const originalIndentationRange = new Range(lineNumber, 1, lineNumber, lastIndentationColumn);
+		const originalIndentation = model.getValueInRange(originalIndentationRange);
+
+		// Tabs expand to tabSize columns visually, regardless of the indent unit.
+		const visualSpaceCount = indentUtils.getSpaceCnt(originalIndentation, currentTabSize);
+		const indentLevel = Math.floor(visualSpaceCount / currentIndentSize);
+		const remainder = visualSpaceCount - indentLevel * currentIndentSize;
+		const newIndentation = indentUtils.generateIndent(indentLevel * newIndentSize + remainder, newIndentSize, true);
+
+		if (newIndentation !== originalIndentation) {
+			builder.addEditOperation(originalIndentationRange, newIndentation);
+		}
+	}
+}
+
+export class ChangeIndentationWidthCommand implements ICommand {
+
+	private selectionId: string | null = null;
+
+	constructor(private readonly selection: Selection, private currentIndentSize: number, private currentTabSize: number, private newIndentSize: number) { }
+
+	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
+		this.selectionId = builder.trackSelection(this.selection);
+		getChangeIndentationWidthEditOperations(model, builder, this.currentIndentSize, this.currentTabSize, this.newIndentSize);
+	}
+
+	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
+		return helper.getTrackedSelection(this.selectionId!);
+	}
+}
+
 export class IndentationToSpacesCommand implements ICommand {
 
 	private selectionId: string | null = null;
@@ -645,6 +769,7 @@ export class IndentationToTabsCommand implements ICommand {
 registerEditorContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste, EditorContributionInstantiation.BeforeFirstInteraction);
 registerEditorAction(IndentationToSpacesAction);
 registerEditorAction(IndentationToTabsAction);
+registerEditorAction(ChangeIndentationWidthAction);
 registerEditorAction(IndentUsingTabs);
 registerEditorAction(IndentUsingSpaces);
 registerEditorAction(ChangeTabDisplaySize);
