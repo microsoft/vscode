@@ -13,3 +13,7 @@ import './checkpointAndChangeset/checkpointAndChangesetContribution.js';
 import './queueDrain/queueDrainContribution.js';
 import './gitRefresh/gitRefreshContribution.js';
 import './titleRefinement/titleRefinementContribution.js';
+import './markdownPlanRichLinks/markdownPlanRichLinksContribution.js';
+import './artifactTools/artifactToolsContribution.js';
+import './chatSurface/chatSurfaceContribution.js';
+import './renameInstruction/renameInstructionContribution.js';

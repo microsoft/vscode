@@ -13,18 +13,25 @@ Each contribution has its own subfolder so its implementation, helpers, and test
 
 - `TurnEndReason` intentionally omits `AgentHostTurnFailureStage`: current error-hook dispatch comes only from `ChatError`, where the stage is hardcoded `'provider'`; add it only when a contribution needs a stage that reflects every error source.
 
+## Completed `contributeSend` extractions
+
+- `markdownPlanRichLinks` (order 100) — adds Markdown plan rich-link guidance when `AgentHostMarkdownPlanRichLinksEnabledConfigKey` is enabled.
+- `artifactTools` (order 200) — adds artifact-tool guidance when `AgentHostArtifactToolsConfigKey` is enabled.
+- `chatSurface` (order 300) — adds terminal or editor-inline guidance from the session surface metadata.
+- `renameInstruction` (order 400) — asynchronously adds the automatic-title rename reminder.
+
 ## Future hooks
 
-- `onIncomingRequest` — unifies duplicated turn admission in `handleAction` ChatTurnStarted (`agentSideEffects.ts:1545`) and `_tryConsumeNextQueuedMessage` (`agentSideEffects.ts:2028`), folds in `ILocalChatCommand`, and moves the read-only/archived guard from `_sendTurnMessage` (`agentSideEffects.ts:2143`) into a `reject` disposition.
-- `contributeSend` — moves the four inline `hostInstructions` conditionals from `_sendTurnMessage` (`agentSideEffects.ts:2188`): `markdownPlanRichLinks`, `artifactTools`, `chatSurface`, and `renameInstruction`.
+- `onIncomingRequest` — unifies duplicated turn admission in `handleAction` ChatTurnStarted (`agentSideEffects.ts:1530`) and `_tryConsumeNextQueuedMessage` (`agentSideEffects.ts:1986`), folds in `ILocalChatCommand`, and moves the read-only/archived guard from `_sendTurnMessage` (`agentSideEffects.ts:2102`) into a `reject` disposition.
 - `onHydrateTurns` — registers whole-list stages for side-chat stripping and turn usage, replacing `worktreeAnnouncement` (`agentService.ts:_getChatMessages:3108`) and `persistedTurnUsage` (`agentService.ts:_applyPersistedTurnUsage:3136`); the list boundary avoids one DB read per turn.
+- **Open architectural question for the next step:** `onHydrateTurns` runs in `AgentService._getChatMessages` (`agentService.ts:3102`), while the dispatcher is instantiated in `AgentSideEffects`. Decide then whether to share/hoist the dispatcher or instantiate a second one; do not resolve that ownership here.
 - `onAgentSignal` — observes or redirects signals before they reach state.
 
 ## Payoff
 
-- Migrate btw/sideChat to one contribution (`contributeSend` plus `onHydrateTurns`), deleting the six per-harness wiring sites (`copilotAgent.ts:3524`, `:3629`, `:3775`; `claudeAgent.ts:1414`, `:1986`, `:2357`) and the `sideChat` field from both `IPersistedChat` blobs. Codex gains btw support by deletion rather than addition.
+- Migrate btw/sideChat to one contribution (`contributeSend` plus `onHydrateTurns`), deleting the six per-harness wiring sites (`copilot/copilotAgent.ts:3649`, `:3754`, `:3900`; `claude/claudeAgent.ts:1414`, `:1986`, `:2357`) and the `sideChat` field from both `IPersistedChat` blobs. Codex gains btw support by deletion rather than addition.
 
 ## Deliberately not contributions
 
-- Subagent signal routing/buffering (`_handleAgentSignal` `agentSideEffects.ts:840-963`) and turn-id remap (`agentSideEffects.ts:976`) are routing fabric and correctness invariants.
+- Subagent signal routing/buffering (`_handleAgentSignal` `agentSideEffects.ts:825-948`) and turn-id remap (`agentSideEffects.ts:975`) are routing fabric and correctness invariants.
 - The three SDK event mappers and three attachment serializers are genuinely provider-shaped.

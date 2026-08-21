@@ -17,13 +17,11 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostArtifactToolsConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, platformRootSchema, type SessionMode } from '../common/agentHostSchema.js';
-import { ARTIFACT_TOOLS_INSTRUCTION } from './shared/artifactServerTools.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, type SessionMode } from '../common/agentHostSchema.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { readAgentModelByokIdentifier } from '../common/agentModelByokMeta.js';
 import { AgentSession, AgentSignal, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, type IAgentModelCallCompletedSignal } from '../common/agent.js';
-import { createEditorInlineChatInstruction, createTerminalChatInstruction } from '../common/meta/agentChatSurfaceMeta.js';
 import { readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
@@ -210,21 +208,6 @@ function getConfiguredSessionMode(config: SessionState['config']): SessionMode |
 
 type AgentSignalTurnIdRouting = 'preserve' | 'remap';
 
-function createMarkdownPlanRichLinksInstruction(chat: ProtocolURI): string {
-	const currentChatLink = buildOpenSessionLinkForChatResource(chat);
-	return [
-		'<rich_plan_markdown>',
-		'When creating or editing a Markdown plan document, use these formats when the exact target is known:',
-		'- Use canonical HTTPS links for GitHub issues and pull requests.',
-		'- Use `commit://<sha>` for commits in the current Git repository.',
-		'- Preserve exact `agent-host-session://...` links returned by session and chat tools when referring to sessions, chats, or subagents. Do not construct these links yourself.',
-		...(currentChatLink ? [`- Link to the current chat as [Current chat](${currentChatLink}).`] : []),
-		'- Use `- [ ] :running: Description` for a task that is actively running, `- [ ]` for a pending task, and `- [x]` for a completed task.',
-		'- Keep link labels meaningful so the document remains readable without rich rendering.',
-		'</rich_plan_markdown>',
-	].join('\n');
-}
-
 /**
  * Shared implementation of agent side-effect handling.
  *
@@ -247,7 +230,7 @@ export class AgentSideEffects extends Disposable {
 
 	/** Registry-driven dispatcher for host-handled `/rename` / `!command` etc. */
 	private readonly _localCommands: AgentHostLocalCommands;
-	/** Registry-driven dispatcher for turn-end chat contributions. */
+	/** Registry-driven dispatcher for chat lifecycle contributions. */
 	private readonly _chatContributions: AgentHostChatContributions;
 
 	private readonly _subagentChats = new NKeyMap<ISubagentSessionRef, [ProtocolURI, string]>();
@@ -329,6 +312,8 @@ export class AgentSideEffects extends Disposable {
 			drainQueuedMessages: channel => this._tryConsumeNextQueuedMessage(channel),
 			notifyTurnComplete: session => this._options.onTurnComplete(session),
 			refineTitleFromFirstTurn: (session, chat) => this._titleController.refineTitleFromFirstTurn(session, chat),
+			getSessionSurfaceMeta: session => this._stateManager.getSessionSurfaceMeta(session),
+			prepareRenameInstruction: (session, chat) => this._titleController.prepareInstructionForAgent(session, chat),
 		}));
 		this._register(this._stateManager.onDidChangeSessionConfig(e => {
 			const previousMode = getConfiguredSessionMode(e.previous);
@@ -2185,23 +2170,7 @@ export class AgentSideEffects extends Disposable {
 			failureStage = 'sendMessage';
 			this._turnTracker.setCurrentStage(turnChannel, turnId, failureStage);
 			const resolvedAttachments = await this._resolveChatAttachments(message.attachments);
-			const renameInstruction = await this._titleController.prepareInstructionForAgent(sessionChannel, chat);
-			const chatSurface = this._stateManager.getSessionSurfaceMeta(sessionChannel);
-			const chatSurfaceInstruction = chatSurface?.surface === 'terminal'
-				? createTerminalChatInstruction(chatSurface)
-				: chatSurface?.surface === 'editorInline'
-					? createEditorInlineChatInstruction(chatSurface)
-					: undefined;
-			const hostInstructions = [
-				...(this._agentConfigService.getRootValue(platformRootSchema, AgentHostMarkdownPlanRichLinksEnabledConfigKey)
-					? [createMarkdownPlanRichLinksInstruction(chat)]
-					: []),
-				...(this._agentConfigService.getRootValue(platformRootSchema, AgentHostArtifactToolsConfigKey)
-					? [ARTIFACT_TOOLS_INSTRUCTION]
-					: []),
-				...(chatSurfaceInstruction ? [chatSurfaceInstruction] : []),
-				...(renameInstruction ? [renameInstruction] : []),
-			];
+			const hostInstructions = await this._chatContributions.contributeSend({ session: sessionChannel, chat, turnId });
 			const sendContext = { ...clientOperationContext, ...(hostInstructions.length ? { hostInstructions } : {}) };
 			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) { return; }
 			if (!this._stateManager.isEphemeralSession(sessionChannel)) {

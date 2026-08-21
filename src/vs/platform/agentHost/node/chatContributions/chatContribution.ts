@@ -8,6 +8,7 @@ import { ILogService } from '../../../log/common/log.js';
 import type { IAgentHostChangesetService } from '../../common/agentHostChangesetService.js';
 import type { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
+import type { IChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { StateAction } from '../../common/state/sessionActions.js';
 import { type ErrorInfo, type SessionSummary, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import type { IAgentConfigurationService } from '../agentConfigurationService.js';
@@ -35,6 +36,21 @@ export interface ITurnEnd {
 	readonly clientContext?: IAgentHostClientTelemetryContext;
 }
 
+/** A turn about to be sent to an agent. */
+export interface IOutgoingTurn {
+	/** The owning session URI (already normalized from a chat channel). */
+	readonly session: ProtocolURI;
+	/** The chat channel that will receive the outgoing turn. */
+	readonly chat: ProtocolURI;
+	/** The outgoing turn's id. */
+	readonly turnId: string;
+}
+
+/** Additive host context supplied by a contribution before a turn is sent. */
+export interface ISendContribution {
+	readonly instructions?: readonly string[];
+}
+
 /** The narrow host capabilities a contribution may use. */
 export interface IAgentHostChatContributionContext {
 	readonly logService: ILogService;
@@ -46,6 +62,8 @@ export interface IAgentHostChatContributionContext {
 	drainQueuedMessages(channel: ProtocolURI): void;
 	notifyTurnComplete(session: ProtocolURI): void;
 	refineTitleFromFirstTurn(session: ProtocolURI, chat?: ProtocolURI): void;
+	getSessionSurfaceMeta(session: ProtocolURI): IChatSurfaceMeta | undefined;
+	prepareRenameInstruction(session: ProtocolURI, chat: ProtocolURI): Promise<string | undefined>;
 }
 
 /** A self-contained behavior contributed to the agent host chat lifecycle. */
@@ -59,6 +77,8 @@ export interface IAgentHostChatContribution extends IDisposable {
 	readonly order?: number;
 	/** Fires on every terminal outcome — success, cancellation, and error. Must not throw; the dispatcher isolates failures. */
 	onTurnEnd?(turn: ITurnEnd): void;
+	/** Adds host context before an outgoing turn is sent. The dispatcher awaits and isolates each contribution. */
+	contributeSend?(turn: IOutgoingTurn): ISendContribution | undefined | Promise<ISendContribution | undefined>;
 }
 
 /** Constructs an {@link IAgentHostChatContribution} bound to a context. */
@@ -110,5 +130,27 @@ export class AgentHostChatContributions extends Disposable {
 				this._context.logService.error(`[AgentHostChatContributions] Contribution '${contribution.id}' failed: ${err instanceof Error ? err.message : String(err)}`, err);
 			}
 		}
+	}
+
+	/**
+	 * Collects outgoing host context sequentially, preserving contribution order and
+	 * the timing of the pre-contribution inline implementation.
+	 */
+	async contributeSend(turn: IOutgoingTurn): Promise<readonly string[]> {
+		const instructions: string[] = [];
+		for (const contribution of this._contributions) {
+			if (!contribution.contributeSend) {
+				continue;
+			}
+			try {
+				const result = await contribution.contributeSend(turn);
+				if (result?.instructions) {
+					instructions.push(...result.instructions);
+				}
+			} catch (err) {
+				this._context.logService.error(`[AgentHostChatContributions] Contribution '${contribution.id}' failed: ${err instanceof Error ? err.message : String(err)}`, err);
+			}
+		}
+		return instructions;
 	}
 }
