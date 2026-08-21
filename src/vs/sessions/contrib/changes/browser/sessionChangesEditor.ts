@@ -297,7 +297,8 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 
 	override async setInput(input: SessionChangesEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
-		this._inputSessionResource.set(this.sessionChangesService.getSessionResource(input.multiDiffSource), undefined);
+		const sessionResource = this.sessionChangesService.getSessionResource(input.multiDiffSource);
+		this._inputSessionResource.set(sessionResource, undefined);
 		const viewModel = await input.getViewModel();
 		if (token.isCancellationRequested) {
 			return;
@@ -309,7 +310,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		// of navigating to (and focusing) the first file.
 		const viewState = this.loadEditorViewState(input, context);
 		this._logger.log('changes editor set input', {
-			session: input.multiDiffSource,
+			session: sessionResource,
 			preserveFocus: !!options?.preserveFocus,
 			hasPersistedViewState: !!viewState,
 		});

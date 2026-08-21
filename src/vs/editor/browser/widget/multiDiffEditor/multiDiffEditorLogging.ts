@@ -143,7 +143,12 @@ export class MultiDiffEditorLogger extends Disposable {
 
 /** Short, log friendly name of a diff item resource. */
 export function formatUri(uri: URI | undefined): string {
-	return uri ? basename(uri) : '<none>';
+	if (!uri) {
+		return '<none>';
+	}
+	// Pathless URIs (e.g. `changes-multi-diff-source:?<query>`) have an empty
+	// basename, so fall back to something that still identifies the resource.
+	return basename(uri) || uri.authority || uri.scheme;
 }
 
 /** Turns a {@link DocumentDiffItemViewModel.getKey} value into a short log label. */
