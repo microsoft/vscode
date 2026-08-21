@@ -332,9 +332,7 @@ export class ActivitybarPart extends Part {
 		// Layout contents
 		const contentAreaSize = super.layoutContents(contentWidth, contentHeight).contentSize;
 
-		// Layout composite bar. `compositeSize` folds a trailing gap into every item, but the
-		// gap is only rendered *between* items, so the leading item does not have one. Hand
-		// that one gap back, otherwise the last item is overflowed a gap too early.
+		// The first item has no preceding gap, so give one gap back to the composite bar.
 		this.compositeBar.value?.layout(contentWidth, contentAreaSize.height + this.actionGap);
 	}
 
