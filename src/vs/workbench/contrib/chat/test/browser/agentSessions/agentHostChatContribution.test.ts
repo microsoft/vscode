@@ -2516,6 +2516,82 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
+		test('a worktree session adopted mid-window survives the post-adoption summary change', async () => {
+			// Repro of the migration symptom: the session is listed while adoptable,
+			// the user opens it, adoption clears `ehcliAdoptable`, and the summary
+			// change that follows must not evict it from the window's list.
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			const folder = URI.file('/src/repo');
+			instantiationService.stub(IWorkspaceContextService, {
+				getWorkbenchState: () => WorkbenchState.FOLDER,
+				getWorkspace: () => ({ id: 'folder', folders: [{ uri: folder, name: 'repo', index: 0, toResource: () => folder }] }),
+				getWorkspaceFolder: () => null,
+				onDidChangeWorkspaceFolders: Event.None,
+			});
+
+			const backendSession = AgentSession.uri('copilot', 'adopted-midflight');
+			agentHostService.addSession({
+				session: backendSession,
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'Worktree session',
+				workingDirectories: [URI.file('/src/repo.worktrees/feature')],
+				project: { uri: folder, displayName: 'repo' },
+				_meta: { [SESSION_META_EHCLI_ADOPTABLE_KEY]: true },
+			});
+			const listController = createSessionListController(disposables, instantiationService, agentHostService);
+			await listController.refresh(CancellationToken.None);
+			const beforeAdoption = listController.items.map(item => item.label);
+
+			// Post-adoption the host reports the session with the durable adopted
+			// marker in place of the transient adoptable one, so it keeps matching
+			// its repository folder even though it runs out of a sibling worktree.
+			agentHostService.fireNotification({
+				type: 'root/sessionSummaryChanged',
+				channel: ROOT_STATE_URI,
+				session: backendSession.toString(),
+				changes: { status: SessionStatus.Idle, _meta: { [SESSION_META_EHCLI_ADOPTED_KEY]: true } },
+			});
+
+			assert.deepStrictEqual({
+				beforeAdoption,
+				afterAdoption: listController.items.map(item => item.label),
+			}, {
+				beforeAdoption: ['Worktree session'],
+				afterAdoption: ['Worktree session'],
+			});
+		});
+
+		test('a summary change still clears host-cleared markers on a non-legacy session', async () => {
+			// The adoption carry-forward must not turn `_meta` into an append-only bag:
+			// a session that was never adoptable keeps the host's replacement verbatim.
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+			const backendSession = AgentSession.uri('copilot', 'clearable-meta');
+			agentHostService.addSession({
+				session: backendSession,
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'Plain session',
+				_meta: { workspaceless: true },
+			});
+			const listController = createSessionListController(disposables, instantiationService, agentHostService);
+			await listController.refresh(CancellationToken.None);
+
+			agentHostService.fireNotification({
+				type: 'root/sessionSummaryChanged',
+				channel: ROOT_STATE_URI,
+				session: backendSession.toString(),
+				changes: { _meta: {} },
+			});
+
+			const store = (listController as unknown as { _sessionListStore: { getSessions(provider: string): readonly { summary: SessionSummary }[] } })._sessionListStore;
+			assert.deepStrictEqual(
+				store.getSessions('copilot').map(entry => entry.summary._meta),
+				[{}],
+			);
+		});
+
 		test('archive mutations dispatch through AHP and reconcile server summaries', async () => {
 			const { instantiationService, agentHostService } = createTestServices(disposables);
 			const backendSession = AgentSession.uri('copilot', 'archivable');

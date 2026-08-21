@@ -12,6 +12,8 @@ import { AgentSession, type IAgentSessionMetadata } from '../../../../../../plat
 import { ActionType, type IIsArchivedChangedAction, type IIsReadChangedAction, type INotification, type SessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { readSessionMatchesByProjectRoot, readSessionMultiRootMetadata, SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService, type IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 
 /**
  * Minimal agent-host connection surface needed by the session list store.
@@ -91,6 +93,7 @@ export class AgentHostSessionListStore extends Disposable {
 	constructor(
 		private readonly _connection: IAgentHostSessionListConnection,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 
@@ -371,6 +374,17 @@ export class AgentHostSessionListStore extends Disposable {
 
 	/** Uses workspace-file provenance for multi-root workspaces and path containment otherwise. */
 	private _isSessionInWorkspace(entry: IAgentHostSessionListEntry): boolean {
+		const inWorkspace = this._computeSessionInWorkspace(entry);
+		// A legacy session is matched by its repository root, which must be a local
+		// path; a remote project (e.g. an `https://` repo URL) silently matches
+		// nothing. Excluding one is legitimate, so only report the broken input.
+		if (!inWorkspace && readSessionMatchesByProjectRoot(entry.summary._meta) && entry.summary.project && URI.parse(entry.summary.project.uri).scheme !== Schemas.file) {
+			this._logService.warn(`[AgentHost] legacy session ${entry.summary.resource} has a non-local project '${entry.summary.project.uri}' and cannot be matched to a workspace folder`);
+		}
+		return inWorkspace;
+	}
+
+	private _computeSessionInWorkspace(entry: IAgentHostSessionListEntry): boolean {
 		const workingDirectories = this._containmentCandidates(entry.summary);
 		const workspace = this._workspaceContextService.getWorkspace();
 		const folders = workspace.folders;
@@ -426,7 +440,12 @@ export class AgentHostSessionListStore extends Disposable {
 	private _containmentCandidates(summary: SessionSummary): readonly URI[] {
 		const candidates = summary.workingDirectories?.map(directory => URI.parse(directory)) ?? [];
 		if (summary.project?.uri && readSessionMatchesByProjectRoot(summary._meta)) {
-			candidates.push(URI.parse(summary.project.uri));
+			const project = URI.parse(summary.project.uri);
+			// A project can be a remote (e.g. `https://github.com/owner/repo`), whose
+			// `fsPath` is not a location on disk and would silently never match.
+			if (project.scheme === Schemas.file) {
+				candidates.push(project);
+			}
 		}
 		return candidates;
 	}

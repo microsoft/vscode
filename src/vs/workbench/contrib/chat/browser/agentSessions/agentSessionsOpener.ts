@@ -94,7 +94,7 @@ export async function openSessionByResource(accessor: ServicesAccessor, resource
 		if (await resolveMigratedSession(agentSessionsService, migrated)) {
 			resource = migrated;
 		} else {
-			logService.warn(`[AgentHost] migrated ${resource.toString()} to ${migrated.toString()} but it did not surface after refreshing provider '${getChatSessionType(migrated)}'; opening the legacy session. The host adopted it, so it is most likely filtered out of this window's list (workspace containment applies to the chat editor only) or missing its adopted-legacy marker.`);
+			logService.warn(`[AgentHost] migrated ${resource.toString()} to ${migrated.toString()} but it is not in this window's list after refreshing provider '${getChatSessionType(migrated)}'; opening the legacy session instead.`);
 		}
 	}
 
@@ -143,7 +143,7 @@ export async function openSession(accessor: ServicesAccessor, session: IAgentSes
 			if (migratedSession) {
 				session = migratedSession;
 			} else {
-				logService.warn(`[AgentHost] migrated ${session.resource.toString()} to ${migrated.toString()} but it did not surface after refreshing provider '${getChatSessionType(migrated)}'; opening the legacy session. The host adopted it, so it is most likely filtered out of this window's list (workspace containment applies to the chat editor only) or missing its adopted-legacy marker.`);
+				logService.warn(`[AgentHost] migrated ${session.resource.toString()} to ${migrated.toString()} but it is not in this window's list after refreshing provider '${getChatSessionType(migrated)}'; opening the legacy session instead.`);
 			}
 		}
 	}

@@ -2225,6 +2225,9 @@ export class AgentService extends Disposable implements IAgentService {
 	/** Adoptable keys retracted in this window; re-enabling also recovers earlier ones from the catalog. */
 	private readonly _retractedAdoptableKeys = new Set<string>();
 
+	/** Serializes adoptable re-surfacing, kept off the external-reconciliation chain. */
+	private _adoptableResurface: Promise<void> = Promise.resolve();
+
 	private _isMigrateLegacyEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostMigrateLegacyCopilotCliEnabledConfigKey) === true;
 	}
@@ -2242,12 +2245,13 @@ export class AgentService extends Disposable implements IAgentService {
 		this._lastMigrateLegacyEnabled = enabled;
 		if (enabled) {
 			// Discovery skips chats already in the registry, so it cannot re-announce
-			// what disabling retracted — restore exactly those from the registry.
-			if (this._retractedAdoptableKeys.size > 0) {
-				this._sessionListReconciliation = this._sessionListReconciliation
-					.then(() => this._resurfaceAdoptableSessions())
-					.catch(error => this._logService.warn('[AgentService] Re-surfacing adoptable legacy sessions failed', error));
-			}
+			// what disabling retracted. `_retractedAdoptableKeys` is process-local, so
+			// after a restart the catalog is the only record of them. Runs on its own
+			// chain: this scan on `_sessionListReconciliation` would stall external
+			// session reconciliation behind it.
+			this._adoptableResurface = this._adoptableResurface
+				.then(() => this._resurfaceAdoptableSessions())
+				.catch(error => this._logService.warn('[AgentService] Re-surfacing adoptable legacy sessions failed', error));
 			return;
 		}
 		for (const key of [...this._announcedSurfacedKeys]) {
@@ -2267,6 +2271,8 @@ export class AgentService extends Disposable implements IAgentService {
 	/**
 	 * A key is forgotten only once it is confirmed surfaced, so a failed listing —
 	 * or migration being disabled again before this runs — leaves it restorable.
+	 * Covers both what this process retracted and what the catalog still reports as
+	 * adoptable, so rows retracted before a restart are recovered too.
 	 */
 	private async _resurfaceAdoptableSessions(): Promise<void> {
 		if (!this._isMigrateLegacyEnabled()) {
@@ -2274,7 +2280,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		for (const metadata of await this.listSessions()) {
 			const key = metadata.session.toString();
-			if (!this._retractedAdoptableKeys.has(key)) {
+			if (!this._retractedAdoptableKeys.has(key) && !readSessionEhcliAdoptable(metadata._meta)) {
 				continue;
 			}
 			const provider = AgentSession.provider(metadata.session);
@@ -4849,6 +4855,10 @@ export class AgentService extends Disposable implements IAgentService {
 			const facts = await this._restoreSessionState(agent, session, sessionStr, adopted, external, registeredSession?.source ?? 'restore', awaitCatalogReadable, !!registeredSession, adoption.worktree);
 			await this._restoreAnnotations(session);
 			if (adopted) {
+				// Discovery never surfaced this chat when migration was enabled after
+				// startup, so clients have no entry for it and a restore alone stays
+				// silent. Publishing announces it with the adopted summary.
+				this._stateManager.setSessionSummaryPublished(sessionStr, true);
 				this._reportLegacyMigration(agent.id, 'migrated', migrationStartTime, { ...facts, reason: adoption.reason });
 			} else if (adoption.eligible) {
 				// Migrate setting on and a genuine legacy candidate, but not adopted

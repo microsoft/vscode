@@ -11156,6 +11156,138 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('adopts a deleted worktree with the local repository as its project, not the remote', async () => {
+			// Git resolution runs in the (missing) checkout and falls back to the
+			// remote, whose URI is not a path — the session could then never be
+			// matched to the repository folder a window has open.
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const repositoryRoot = await fs.mkdtemp(`${os.tmpdir()}/adopt-repo-`);
+			const worktreePath = join(repositoryRoot, '..', 'gone.worktrees', 'feature-y');
+			const sessionId = 'legacy-worktree-remote-project';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, worktreePath)]);
+			// No git root resolves for a checkout that is gone, so the project would
+			// otherwise come from `context.repository`.
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await writeExtensionHostMarker(userHome, sessionId, {
+					origin: 'vscode',
+					worktreeProperties: { worktreePath, repositoryPath: repositoryRoot, branchName: 'feature/y', baseBranchName: 'main' },
+				});
+
+				await ensureDefaultChatAdopted(agent, session);
+
+				const db = await sessionDataService.tryOpenDatabase(session);
+				const projectUri = await db?.object.getMetadata('copilot.project.uri');
+				db?.dispose();
+
+				assert.strictEqual(projectUri, URI.file(repositoryRoot).toString());
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(repositoryRoot, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('backfills the adopted-legacy marker for a session migrated by an older build', async () => {
+			// Those sessions already have a working directory, so adoption short-circuits
+			// as `alreadyNative` and never reaches the write. Without the backfill a
+			// migrated worktree session stays filtered out of its repository window.
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/adopt-old-`);
+			const sessionId = 'legacy-already-adopted';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await writeExtensionHostMarker(userHome, sessionId);
+				// Metadata an older build wrote: adopted, but without the provenance marker.
+				const seed = sessionDataService.openDatabase(session);
+				await seed.object.setMetadata('copilot.workingDirectory', URI.file(workingDirectory).toString());
+				seed.dispose();
+
+				const adopted = await ensureDefaultChatAdopted(agent, session);
+
+				const db = await sessionDataService.tryOpenDatabase(session);
+				const marker = await db?.object.getMetadata('agentHost.ehcliAdopted');
+				db?.dispose();
+
+				assert.deepStrictEqual(
+					{ reason: adopted.reason, marker },
+					{ reason: 'alreadyNative', marker: 'true' },
+				);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('does not backfill the adopted-legacy marker onto a native session', async () => {
+			// No extension-host marker means the session was never a legacy chat.
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/adopt-native-`);
+			const sessionId = 'native-session';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const seed = sessionDataService.openDatabase(session);
+				await seed.object.setMetadata('copilot.workingDirectory', URI.file(workingDirectory).toString());
+				seed.dispose();
+
+				await ensureDefaultChatAdopted(agent, session);
+
+				const db = await sessionDataService.tryOpenDatabase(session);
+				const marker = await db?.object.getMetadata('agentHost.ehcliAdopted');
+				db?.dispose();
+
+				assert.strictEqual(marker, undefined);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('sees an archive toggled in the extension host after the marker was cached', async () => {
+			// The marker cache memoizes successful reads for the agent's lifetime, but
+			// `archived` is user-toggled while both hosts run, so it must be re-read.
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/adopt-archive-`);
+			const sessionId = 'legacy-archived-later';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await writeExtensionHostMarker(userHome, sessionId, { origin: 'vscode', archived: false });
+				// Populate the marker cache, as discovery does when it classifies the chat.
+				await (agent as unknown as { _isExtensionHostCliSession(id: string): Promise<boolean> })._isExtensionHostCliSession(sessionId);
+				// The user archives it in the extension host list afterwards.
+				await writeExtensionHostMarker(userHome, sessionId, { origin: 'vscode', archived: true });
+
+				await ensureDefaultChatAdopted(agent, session);
+
+				const db = await sessionDataService.tryOpenDatabase(session);
+				const archived = await db?.object.getMetadata('isArchived');
+				db?.dispose();
+
+				assert.strictEqual(archived, 'true');
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
 		test('reports no recorded worktree when the checkout still exists', async () => {
 			// A live worktree is handled by the existing probe-the-directory bridge.
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));

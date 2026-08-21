@@ -14,7 +14,7 @@ import { CancellationError, getErrorMessage } from '../../../../base/common/erro
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, type IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
-import { FileAccess } from '../../../../base/common/network.js';
+import { FileAccess, Schemas } from '../../../../base/common/network.js';
 import { formatTokenCount } from '../../../../base/common/numbers.js';
 import { equals } from '../../../../base/common/objects.js';
 import { autorun, observableValue, observableValueOpts, type IObservable, type ISettableObservable } from '../../../../base/common/observable.js';
@@ -628,6 +628,15 @@ function extensionHostCliWorkingDirectoryPaths(marker: IExtensionHostCliMarker |
 		marker?.repositoryProperties?.repositoryPath,
 		marker?.worktreeProperties?.repositoryPath,
 	].filter((path): path is string => typeof path === 'string' && path.length > 0);
+}
+
+/**
+ * The local repository root the extension host recorded for a chat. Survives a
+ * deleted worktree checkout, unlike resolving git from the working directory.
+ */
+function extensionHostCliRepositoryPath(marker: IExtensionHostCliMarker | undefined): string | undefined {
+	const path = marker?.worktreeProperties?.repositoryPath ?? marker?.repositoryProperties?.repositoryPath;
+	return typeof path === 'string' && path.length > 0 ? path : undefined;
 }
 
 /**
@@ -2479,7 +2488,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 					modifiedTime,
 					// Always key the project off the resolved working directory: a worktree
 					// session's context repository/gitRoot would resolve to the repo root.
-					project: await this._resolveSessionProject({ ...s.context, cwd: workingDirectory.fsPath }, projectLimiter, projectByContext),
+					project: await this._localProject(
+						await this._resolveSessionProject({ ...s.context, cwd: workingDirectory.fsPath }, projectLimiter, projectByContext),
+						adoptable ? s.sessionId : undefined,
+					),
 					summary: s.summary,
 					workingDirectories: [workingDirectory],
 					_meta: adoptable ? withSessionEhcliAdoptable(undefined) : undefined,
@@ -3089,6 +3101,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return isExtensionHostCliMarker(await this._readExtensionHostCliMarker(sessionId));
 	}
 
+	/** Reads the marker from disk, bypassing the cache, for its mutable fields. */
+	private async _readExtensionHostCliMarkerUncached(sessionId: string): Promise<IExtensionHostCliMarker | undefined> {
+		try {
+			const marker = parseExtensionHostCliMarker(await fs.readFile(this._extensionHostCliSidecarPath(sessionId, EXTENSION_HOST_CLI_MARKER_FILE), 'utf8'));
+			if (marker) {
+				this._extensionHostCliMarkerCache.set(sessionId, Promise.resolve(marker));
+			}
+			return marker;
+		} catch {
+			return undefined;
+		}
+	}
+
 	/** Reads a legacy extension-host Copilot CLI custom title, if present. */
 	private async _readExtensionHostCliCustomTitle(sessionId: string): Promise<string | undefined> {
 		const title = (await this._readExtensionHostCliMarker(sessionId))?.customTitle;
@@ -3097,7 +3122,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/** Whether the user archived this session in the extension host list. */
 	private async _isExtensionHostCliSessionArchived(sessionId: string): Promise<boolean> {
-		return (await this._readExtensionHostCliMarker(sessionId))?.archived === true;
+		// Archive state is toggled in the extension host while this agent runs, so it
+		// cannot be served from the marker cache, which memoizes successful reads.
+		return (await this._readExtensionHostCliMarkerUncached(sessionId))?.archived === true;
 	}
 
 	/** Whether `path` is a directory that still exists on disk. */
@@ -3147,6 +3174,33 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 	}
 
+	/**
+	 * Records the durable adopted-legacy marker on a session adopted by a build
+	 * that predates it. Without this those sessions keep the extension-host marker
+	 * but no provenance, so a worktree one stays filtered out of the window opened
+	 * on its repository. Keyed off the marker, so it never claims a native session.
+	 */
+	private async _backfillAdoptedLegacyMarker(session: URI, sessionId: string): Promise<void> {
+		const ref = await this._sessionDataService.tryOpenDatabase(session);
+		if (!ref) {
+			return;
+		}
+		try {
+			if (await ref.object.getMetadata(AH_META_EHCLI_ADOPTED_DB_KEY) !== undefined) {
+				return;
+			}
+			if (!(await this._isExtensionHostCliSession(sessionId))) {
+				return;
+			}
+			await ref.object.setMetadata(AH_META_EHCLI_ADOPTED_DB_KEY, 'true');
+			this._logService.info(`[Copilot] Backfilled the adopted-legacy marker for ${sessionId}, migrated before it was recorded`);
+		} catch (err) {
+			this._logService.warn(`[Copilot] Failed to backfill the adopted-legacy marker for ${sessionId}`, err);
+		} finally {
+			ref.dispose();
+		}
+	}
+
 	/** Adopts a legacy extension-host Copilot CLI session in place when it is eligible on disk. */
 	async ensureChatAdopted(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatAdoptionResult> {
 		const session = resolveAgentChatContext(context, chat).configurationResource;
@@ -3159,6 +3213,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// existence — to avoid falsely treating an empty DB as migrated.
 			const existing = await this._readStoredSessionMetadata(session);
 			if (existing?.workingDirectory) {
+				await this._backfillAdoptedLegacyMarker(session, sessionId);
 				this._logService.trace(`[Copilot] Adoption skipped for ${sessionId}: already has Agent Host metadata (cwd=${existing.workingDirectory.fsPath})`);
 				return { adopted: false, eligible: false, native: true, reason: 'alreadyNative' };
 			}
@@ -3191,7 +3246,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Resolve the project from the SDK-derived cwd (authoritative) — the
 			// caller may not have supplied a working directory (e.g. the chat
 			// editor), so we cannot trust a hint.
-			const project = await projectFromCopilotContext({ cwd: (adoptedWorktree?.repositoryRoot ?? workingDirectory).fsPath }, this._gitService);
+			const project = await this._localProject(
+				await projectFromCopilotContext({ cwd: (adoptedWorktree?.repositoryRoot ?? workingDirectory).fsPath }, this._gitService),
+				sessionId,
+			);
 			// Carry over the user-chosen session name (EH `customTitle`) so the
 			// adopted session keeps its title instead of regenerating one.
 			const customTitle = await this._readExtensionHostCliCustomTitle(sessionId);
@@ -4988,6 +5046,25 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private async _storeSessionProjectResolution(session: URI, project: IAgentSessionProjectInfo | undefined): Promise<void> {
 		await this._storeSessionMetadata(session, undefined, undefined, undefined, undefined, project, true);
+	}
+
+	/**
+	 * Git resolution runs in the session's working directory, so a legacy session
+	 * whose worktree checkout was deleted falls back to the remote (e.g.
+	 * `https://github.com/owner/repo`). That is not a location on disk, so the
+	 * session could never be matched to the repository folder a window has open.
+	 * The extension host recorded the local repository root — prefer it.
+	 */
+	private async _localProject(project: IAgentSessionProjectInfo | undefined, adoptableSessionId: string | undefined): Promise<IAgentSessionProjectInfo | undefined> {
+		if (project?.uri.scheme === Schemas.file || adoptableSessionId === undefined) {
+			return project;
+		}
+		const repositoryPath = extensionHostCliRepositoryPath(await this._readExtensionHostCliMarker(adoptableSessionId));
+		if (!repositoryPath) {
+			return project;
+		}
+		const uri = URI.file(repositoryPath);
+		return { uri, displayName: resourceBasename(uri) || project?.displayName || uri.toString() };
 	}
 
 	private _resolveSessionProject(context: ICopilotSessionContext | undefined, limiter: Limiter<IAgentSessionProjectInfo | undefined>, projectByContext: Map<string, Promise<IAgentSessionProjectInfo | undefined>>): Promise<IAgentSessionProjectInfo | undefined> {

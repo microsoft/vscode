@@ -941,7 +941,8 @@ export class AgentHostStateManager extends Disposable {
 		// adoptable-legacy session) is already known to clients with a different
 		// summary. Emit the delta so they update the entry in place — clearing the
 		// adoptable marker — rather than dropping the just-opened session on the
-		// next list reconcile. Never-announced sessions record the summary silently.
+		// next list reconcile. Never-announced sessions record the summary silently
+		// and stay hidden until {@link setSessionSummaryPublished}.
 		if (this._summaryNotifier.isAnnounced(key)) {
 			this._summaryNotifier.flush(key);
 		} else {
