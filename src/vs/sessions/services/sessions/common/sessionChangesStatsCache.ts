@@ -48,7 +48,7 @@ export function readSessionChangesStats(session: ISession, reader: IReader | und
 	return { files: changes.length, insertions, deletions };
 }
 
-export function sessionChangesStatsEqual(a: ISessionChangesStats | undefined, b: ISessionChangesStats | undefined): boolean {
+function sessionChangesStatsEqual(a: ISessionChangesStats | undefined, b: ISessionChangesStats | undefined): boolean {
 	if (!a || !b) {
 		return a === b;
 	}
