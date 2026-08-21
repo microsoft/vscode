@@ -588,7 +588,7 @@ function splitLargeTokens(lineContent: string, tokens: LinePart[], onlyAtSpaces:
 		for (let i = 0, len = tokens.length; i < len; i++) {
 			const token = tokens[i];
 			const tokenEndIndex = token.endIndex;
-			if (lastTokenEndIndex + Constants.LongToken < tokenEndIndex) {
+			if (!token.fixedWidth && lastTokenEndIndex + Constants.LongToken < tokenEndIndex) {
 				const tokenType = token.type;
 				const tokenMetadata = token.metadata;
 				const tokenContainsRTL = token.containsRTL;
@@ -621,7 +621,7 @@ function splitLargeTokens(lineContent: string, tokens: LinePart[], onlyAtSpaces:
 			const token = tokens[i];
 			const tokenEndIndex = token.endIndex;
 			const diff = (tokenEndIndex - lastTokenEndIndex);
-			if (diff > Constants.LongToken) {
+			if (!token.fixedWidth && diff > Constants.LongToken) {
 				const tokenType = token.type;
 				const tokenMetadata = token.metadata;
 				const tokenContainsRTL = token.containsRTL;
@@ -1011,13 +1011,23 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 		const partEndIndex = part.endIndex;
 		const partType = part.type;
 		const partContainsRTL = part.containsRTL;
+		const partWidthInEm = part.fixedWidth?.widthInEm;
 		const partRendersWhitespace = (renderWhitespace !== RenderWhitespace.None && part.isWhitespace());
 		const partRendersWhitespaceWithWidth = partRendersWhitespace && !fontIsMonospace && (partType === 'mtkw'/*only whitespace*/ || !containsForeignElements);
 		const partIsEmptyAndHasPseudoAfter = (charIndex === partEndIndex && part.isPseudoAfter());
 		charOffsetInPart = 0;
 
 		sb.appendString('<span ');
-		if (partContainsRTL) {
+		if (partWidthInEm !== undefined) {
+			sb.appendString('style="');
+			if (partContainsRTL) {
+				sb.appendString('unicode-bidi:isolate;');
+			}
+			sb.appendString('display:inline-block;width:');
+			sb.appendString(String(partWidthInEm));
+			sb.appendString('em;');
+			sb.appendString('" ');
+		} else if (partContainsRTL) {
 			sb.appendString('style="unicode-bidi:isolate" ');
 		}
 		sb.appendString('class="');

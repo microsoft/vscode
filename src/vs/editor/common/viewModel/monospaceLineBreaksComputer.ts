@@ -46,7 +46,7 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 					if (previousLineBreakData && !previousLineBreakData.injectionOptions && !injectedText && !isLineFeedWrappingEnabled) {
 						result[i] = createLineBreaksFromPreviousLineBreaks(this.classifier, previousLineBreakData, lineText, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak);
 					} else {
-						result[i] = createLineBreaks(this.classifier, lineText, injectedText, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak, isLineFeedWrappingEnabled);
+						result[i] = createLineBreaks(this.classifier, lineText, injectedText, tabSize, wrappingColumn, columnsForFullWidthChar, fontInfo.fontSize / fontInfo.typicalHalfwidthCharacterWidth, wrappingIndent, wordBreak, isLineFeedWrappingEnabled);
 					}
 				}
 				arrPool1.length = 0;
@@ -356,8 +356,9 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 	return previousBreakingData;
 }
 
-function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: string, injectedTexts: LineInjectedText[] | null, tabSize: number, firstLineBreakColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean): ModelLineProjectionData | null {
+function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: string, injectedTexts: LineInjectedText[] | null, tabSize: number, firstLineBreakColumn: number, columnsForFullWidthChar: number, columnsPerEm: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean): ModelLineProjectionData | null {
 	const lineText = LineInjectedText.applyInjectedText(_lineText, injectedTexts);
+	const fixedWidthRanges = LineInjectedText.getFixedWidthRanges(injectedTexts);
 
 	let injectionOptions: InjectedTextOptions[] | null;
 	let injectionOffsets: number[] | null;
@@ -389,7 +390,7 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: st
 	}
 
 	const isKeepAll = (wordBreak === 'keepAll');
-	const wrappedTextIndentLength = computeWrappedTextIndentLength(lineText, tabSize, firstLineBreakColumn, columnsForFullWidthChar, wrappingIndent);
+	const wrappedTextIndentLength = computeWrappedTextIndentLength(lineText, tabSize, firstLineBreakColumn, columnsForFullWidthChar, wrappingIndent, fixedWidthRanges, columnsPerEm);
 	const wrappedLineBreakColumn = firstLineBreakColumn - wrappedTextIndentLength;
 
 	const breakingOffsets: number[] = [];
@@ -399,12 +400,17 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: st
 	let breakOffsetVisibleColumn = 0;
 
 	let breakingColumn = firstLineBreakColumn;
-	let prevCharCode = lineText.charCodeAt(0);
+	let fixedWidthRangeIndex = 0;
+	const firstFixedWidthRange = fixedWidthRanges?.[0];
+	const startsWithFixedWidth = firstFixedWidthRange?.startOffset === 0;
+	let prevCharCode = lineText.charCodeAt(startsWithFixedWidth ? firstFixedWidthRange.endOffset - 1 : 0);
 	let prevCharCodeClass = classifier.get(prevCharCode);
-	let visibleColumn = computeCharWidth(prevCharCode, 0, tabSize, columnsForFullWidthChar);
+	let visibleColumn = startsWithFixedWidth ? firstFixedWidthRange.widthInEm * columnsPerEm : computeCharWidth(prevCharCode, 0, tabSize, columnsForFullWidthChar);
 
-	let startOffset = 1;
-	if (strings.isHighSurrogate(prevCharCode)) {
+	let startOffset = startsWithFixedWidth ? firstFixedWidthRange.endOffset : 1;
+	if (startsWithFixedWidth) {
+		fixedWidthRangeIndex++;
+	} else if (strings.isHighSurrogate(prevCharCode)) {
 		// A surrogate pair must always be considered as a single unit, so it is never to be broken
 		visibleColumn += 1;
 		prevCharCode = lineText.charCodeAt(1);
@@ -414,18 +420,30 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: st
 
 	for (let i = startOffset; i < len; i++) {
 		const charStartOffset = i;
+		const fixedWidthRange = fixedWidthRanges?.[fixedWidthRangeIndex];
 		const charCode = lineText.charCodeAt(i);
 		let charCodeClass: CharacterClass;
 		let charWidth: number;
+		let trailingCharCode = charCode;
+		let trailingCharCodeClass: CharacterClass;
 		let wrapEscapedLineFeed = false;
 
-		if (strings.isHighSurrogate(charCode)) {
+		if (fixedWidthRange?.startOffset === i) {
+			charCodeClass = classifier.get(charCode);
+			charWidth = fixedWidthRange.widthInEm * columnsPerEm;
+			i = fixedWidthRange.endOffset - 1;
+			trailingCharCode = lineText.charCodeAt(i);
+			trailingCharCodeClass = classifier.get(trailingCharCode);
+			fixedWidthRangeIndex++;
+		} else if (strings.isHighSurrogate(charCode)) {
 			// A surrogate pair must always be considered as a single unit, so it is never to be broken
 			i++;
 			charCodeClass = CharacterClass.NONE;
+			trailingCharCodeClass = charCodeClass;
 			charWidth = 2;
 		} else {
 			charCodeClass = classifier.get(charCode);
+			trailingCharCodeClass = charCodeClass;
 			charWidth = computeCharWidth(charCode, visibleColumn, tabSize, columnsForFullWidthChar);
 		}
 
@@ -458,8 +476,8 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: st
 			breakOffset = 0;
 		}
 
-		prevCharCode = charCode;
-		prevCharCodeClass = charCodeClass;
+		prevCharCode = trailingCharCode;
+		prevCharCodeClass = trailingCharCodeClass;
 	}
 
 	if (breakingOffsetsCount === 0 && (!injectedTexts || injectedTexts.length === 0)) {
@@ -526,16 +544,25 @@ function canBreak(prevCharCode: number, prevCharCodeClass: CharacterClass, charC
 	);
 }
 
-function computeWrappedTextIndentLength(lineText: string, tabSize: number, firstLineBreakColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent): number {
+function computeWrappedTextIndentLength(lineText: string, tabSize: number, firstLineBreakColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, fixedWidthRanges: readonly { startOffset: number; endOffset: number; widthInEm: number }[] | null = null, columnsPerEm: number = 1): number {
 	let wrappedTextIndentLength = 0;
 	if (wrappingIndent !== WrappingIndent.None) {
 		const firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineText);
 		if (firstNonWhitespaceIndex !== -1) {
 			// Track existing indent
 
+			let fixedWidthRangeIndex = 0;
 			for (let i = 0; i < firstNonWhitespaceIndex; i++) {
-				const charWidth = (lineText.charCodeAt(i) === CharCode.Tab ? tabCharacterWidth(wrappedTextIndentLength, tabSize) : 1);
+				const fixedWidthRange = fixedWidthRanges?.[fixedWidthRangeIndex];
+				const isFixedWidthStart = fixedWidthRange?.startOffset === i;
+				const charWidth = isFixedWidthStart
+					? fixedWidthRange.widthInEm * columnsPerEm
+					: (lineText.charCodeAt(i) === CharCode.Tab ? tabCharacterWidth(wrappedTextIndentLength, tabSize) : 1);
 				wrappedTextIndentLength += charWidth;
+				if (isFixedWidthStart) {
+					i = fixedWidthRange.endOffset - 1;
+					fixedWidthRangeIndex++;
+				}
 			}
 
 			// Increase indent of continuation lines, if desired
