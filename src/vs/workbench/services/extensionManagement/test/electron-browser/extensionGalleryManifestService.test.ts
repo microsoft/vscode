@@ -134,6 +134,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 				resourceUrlTemplate: '',
 				nlsBaseUrl: '',
 				accessSKUs: ['copilot_business'],
+				accessScopes: ['openid', 'profile', 'email', 'offline_access'],
 			},
 			nameLong: 'VS Code Test',
 		});
@@ -580,6 +581,68 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
 	});
 
+
+	test('Microsoft — product.json accessScopes are the scopes requested', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		instantiationService.stub(IProductService, {
+			version: '1.0.0',
+			extensionsGallery: {
+				serviceUrl: 'https://default-marketplace.example.com',
+				controlUrl: '',
+				extensionUrlTemplate: '',
+				resourceUrlTemplate: '',
+				nlsBaseUrl: '',
+				accessSKUs: ['copilot_business'],
+				accessScopes: ['api://marketplace.example.com/.default', 'offline_access'],
+			},
+			nameLong: 'VS Code Test',
+		});
+		let requestedScopes: readonly string[] | undefined;
+		instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
+			override readonly onDidChangeSessions = onDidChangeSessions.event;
+			override async getSessions(providerId: string, scopes?: readonly string[]): Promise<readonly AuthenticationSession[]> {
+				requestedScopes = scopes;
+				return [createMicrosoftSession()];
+			}
+		}());
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.deepStrictEqual(requestedScopes, ['api://marketplace.example.com/.default', 'offline_access']);
+	});
+
+	test('Microsoft — no accessScopes configured → no session is requested and access is not granted', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		instantiationService.stub(IProductService, {
+			version: '1.0.0',
+			extensionsGallery: {
+				serviceUrl: 'https://default-marketplace.example.com',
+				controlUrl: '',
+				extensionUrlTemplate: '',
+				resourceUrlTemplate: '',
+				nlsBaseUrl: '',
+				accessSKUs: ['copilot_business'],
+			},
+			nameLong: 'VS Code Test',
+		});
+		let sessionsRequested = false;
+		instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
+			override readonly onDidChangeSessions = onDidChangeSessions.event;
+			override async getSessions(): Promise<readonly AuthenticationSession[]> {
+				sessionsRequested = true;
+				return [createMicrosoftSession()];
+			}
+		}());
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		// An unconfigured deployment must not fall back to scopes it did not ask for, and an
+		// eligible session must not be adopted on the strength of a guess.
+		assert.strictEqual(sessionsRequested, false);
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
+	});
 
 	test('Microsoft — getSessions throws → RequiresSignIn (not silent Unavailable)', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');

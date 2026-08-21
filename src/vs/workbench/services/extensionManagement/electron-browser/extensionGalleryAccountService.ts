@@ -12,7 +12,7 @@ import { CommandsRegistry } from '../../../../platform/commands/common/commands.
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
-import { ExtensionGalleryAuthProviderConfigKey, ExtensionGalleryMicrosoftSignInCommandId, CONTEXT_MARKETPLACE_AUTH_PROVIDER, PRIVATE_MARKETPLACE_SCOPES } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { ExtensionGalleryAuthProviderConfigKey, ExtensionGalleryMicrosoftSignInCommandId, CONTEXT_MARKETPLACE_AUTH_PROVIDER } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -27,6 +27,15 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 export type ExtensionGalleryAccessProviderId = 'github' | 'microsoft';
 
 const PREFERRED_ACCOUNT_KEY = 'marketplace.account';
+
+/**
+ * Session lookup and interactive sign-in must request the same scopes, or the session created by
+ * one is invisible to the other. Absent when the deployment did not configure them, in which case
+ * the Microsoft path reports no account rather than requesting an unusable session.
+ */
+function getMarketplaceScopes(productService: IProductService): string[] | undefined {
+	return productService.extensionsGallery?.accessScopes;
+}
 
 // Well-known MSA (personal account) tenant ids. Duplicated from the microsoft-authentication
 // extension, which lives in the extension host and is not importable here.
@@ -248,7 +257,12 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 			// connectAuthentication has not run yet; it re-signals once wired.
 			return undefined;
 		}
-		const sessions = await this.authenticationService.getSessions('microsoft', PRIVATE_MARKETPLACE_SCOPES);
+		const scopes = getMarketplaceScopes(this.productService);
+		if (!scopes) {
+			this.logService.error('[Marketplace] extensionsGallery.accessScopes is not configured — the Microsoft marketplace path cannot request a session.');
+			return undefined;
+		}
+		const sessions = await this.authenticationService.getSessions('microsoft', scopes);
 		if (sessions.length === 0) {
 			return undefined;
 		}
@@ -327,6 +341,11 @@ CommandsRegistry.registerCommand(ExtensionGalleryMicrosoftSignInCommandId, async
 	const authenticationService = accessor.get(IAuthenticationService);
 	const quickInputService = accessor.get(IQuickInputService);
 	const accountService = accessor.get(IExtensionGalleryAccountService);
+	const scopes = getMarketplaceScopes(accessor.get(IProductService));
+	if (!scopes) {
+		accessor.get(ILogService).error('[Marketplace] extensionsGallery.accessScopes is not configured — cannot sign in to the Microsoft marketplace path.');
+		return;
+	}
 
 	// Passing a known account binds to it without a fresh interactive login; omitting it falls back
 	// to interactive sign-in, which is also how the user adds a different account.
@@ -335,7 +354,7 @@ CommandsRegistry.registerCommand(ExtensionGalleryMicrosoftSignInCommandId, async
 		if (account) {
 			accountService.setPreferredAccount(account.id);
 		}
-		const session = await authenticationService.createSession('microsoft', PRIVATE_MARKETPLACE_SCOPES, account ? { account } : undefined);
+		const session = await authenticationService.createSession('microsoft', scopes, account ? { account } : undefined);
 		accountService.setPreferredAccount(session.account.id);
 	};
 

@@ -105,9 +105,6 @@ export const ExtensionGalleryServiceUrlConfigKey = 'extensions.gallery.serviceUr
 
 export const ExtensionGalleryAuthProviderConfigKey = 'extensions.gallery.authProvider';
 
-/** Standard OpenID Connect scopes — enough to identify the user for the eligibility check. */
-export const PRIVATE_MARKETPLACE_SCOPES: string[] = ['openid', 'profile', 'email', 'offline_access'];
-
 /**
  * Interactive Microsoft sign-in, registered in the Electron layer and invoked by id from the
  * browser-layer action so it need not cross the layer boundary.
