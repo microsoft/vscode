@@ -5904,6 +5904,130 @@ suite('CopilotAgent', () => {
 			usage: {},
 		};
 
+		suite('_forkSdkChat boundary', () => {
+			type ForkRequest = Parameters<CopilotClient['rpc']['sessions']['fork']>[0];
+			type ForkSdkChatInternals = {
+				_forkSdkChat: (client: CopilotClient, sourceEntry: CopilotAgentSession, turnId: string, targetDbDir: URI) => Promise<{ sessionId: string; inheritedTurnId: string | undefined }>;
+			};
+
+			function makeForkClient(forkCalls: ForkRequest[]): CopilotClient {
+				return {
+					rpc: {
+						sessions: {
+							fork: async (params: ForkRequest) => {
+								forkCalls.push(params);
+								return { sessionId: 'forked-session' };
+							},
+						},
+					},
+				} as unknown as CopilotClient;
+			}
+
+			function makeForkSource(options: {
+				readonly boundaryEventId?: string;
+				readonly getForkBoundaryEventId?: (turnId: string) => Promise<string | undefined>;
+			}): { source: CopilotAgentSession; boundaryCalls: string[] } {
+				const boundaryCalls: string[] = [];
+				const source = {
+					sessionId: 'source-sdk-session',
+					sessionUri: AgentSession.uri('copilotcli', 'fork-sdk-source'),
+					getMessages: async (): Promise<readonly Turn[]> => [sourceTurn],
+					getForkBoundaryEventId: async (turnId: string): Promise<string | undefined> => {
+						boundaryCalls.push(turnId);
+						return options.getForkBoundaryEventId
+							? options.getForkBoundaryEventId(turnId)
+							: options.boundaryEventId;
+					},
+				} as unknown as CopilotAgentSession;
+				return { source, boundaryCalls };
+			}
+
+			function forkSdkChat(agent: CopilotAgent, client: CopilotClient, source: CopilotAgentSession): Promise<{ sessionId: string; inheritedTurnId: string | undefined }> {
+				return (agent as unknown as ForkSdkChatInternals)._forkSdkChat(client, source, sourceTurn.id, URI.file('/fork-sdk-chat-target'));
+			}
+
+			test('omits the SDK boundary when there is no next turn', async () => {
+				const agent = createTestAgent(disposables);
+				const forkCalls: ForkRequest[] = [];
+				const { source, boundaryCalls } = makeForkSource({});
+				try {
+					await forkSdkChat(agent, makeForkClient(forkCalls), source);
+
+					assert.deepStrictEqual({ forkCalls, boundaryCalls }, {
+						forkCalls: [{ sessionId: 'source-sdk-session' }],
+						boundaryCalls: ['source-turn'],
+					});
+				} finally {
+					await disposeAgent(agent);
+				}
+			});
+
+			test('uses an already-resolved SDK boundary without waiting', async () => {
+				const agent = createTestAgent(disposables);
+				const forkCalls: ForkRequest[] = [];
+				const { source, boundaryCalls } = makeForkSource({ boundaryEventId: 'next-turn-event' });
+				try {
+					await forkSdkChat(agent, makeForkClient(forkCalls), source);
+
+					assert.deepStrictEqual({ forkCalls, boundaryCalls }, {
+						forkCalls: [{ sessionId: 'source-sdk-session', toEventId: 'next-turn-event' }],
+						boundaryCalls: ['source-turn'],
+					});
+				} finally {
+					await disposeAgent(agent);
+				}
+			});
+
+			test('waits for the source session to resolve the SDK boundary before forking', async () => {
+				const agent = createTestAgent(disposables);
+				const forkCalls: ForkRequest[] = [];
+				const { source, boundaryCalls } = makeForkSource({
+					getForkBoundaryEventId: async () => {
+						await timeout(5);
+						return 'active-next-turn-event';
+					},
+				});
+				try {
+					await forkSdkChat(agent, makeForkClient(forkCalls), source);
+
+					assert.deepStrictEqual({ forkCalls, boundaryCalls }, {
+						forkCalls: [{ sessionId: 'source-sdk-session', toEventId: 'active-next-turn-event' }],
+						boundaryCalls: ['source-turn'],
+					});
+				} finally {
+					await disposeAgent(agent);
+				}
+			});
+
+			test('fails the fork when an active next turn never produces an SDK boundary', async () => {
+				const agent = createTestAgent(disposables);
+				const forkCalls: ForkRequest[] = [];
+				const { source, boundaryCalls } = makeForkSource({
+					getForkBoundaryEventId: async () => { throw new Error('its next turn (active-next-turn) never produced an SDK event id: boom'); },
+				});
+				let error: Error | undefined;
+				try {
+					try {
+						await forkSdkChat(agent, makeForkClient(forkCalls), source);
+					} catch (err) {
+						error = err instanceof Error ? err : new Error(String(err));
+					}
+
+					assert.deepStrictEqual({
+						error: error?.message,
+						forkCalls,
+						boundaryCalls,
+					}, {
+						error: '[Copilot] fork: failed to resolve fork boundary for turn source-turn in source session source-sdk-session because its next turn (active-next-turn) never produced an SDK event id: boom',
+						forkCalls: [],
+						boundaryCalls: ['source-turn'],
+					});
+				} finally {
+					await disposeAgent(agent);
+				}
+			});
+		});
+
 		test('rejects a fork whose source is the chat being created', async () => {
 			const client = new TestCopilotClient([]);
 			const agent = createTestAgent(disposables, { copilotClient: client });
