@@ -6,19 +6,27 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { getMediaMime } from '../../../../base/common/mime.js';
 import { derived, IObservable, IReader } from '../../../../base/common/observable.js';
 import { basename, getComparisonKey } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { toAction } from '../../../../base/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import type { IChatPillEntry, IChatPillSection } from '../../../../workbench/browser/chatPills.js';
 import { openChatTurnFile, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
+import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
+import type { IImageCarouselCollection } from '../../../../workbench/contrib/imageCarousel/browser/imageCarouselTypes.js';
 import { SessionArtifactKind, SessionFileOperation, type ISessionArtifact, type ISessionFile } from '../../../services/sessions/common/session.js';
 import type { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+
+const OPEN_IMAGE_CAROUSEL_COMMAND_ID = 'workbench.action.chat.openImageInCarousel';
 
 const artifactIcons: ReadonlyMap<SessionArtifactKind, ThemeIcon> = new Map([
 	[SessionArtifactKind.PullRequest, Codicon.gitPullRequest],
@@ -42,7 +50,13 @@ const sectionOrder: readonly { readonly kind: SessionArtifactKind; readonly titl
 export interface ISessionArtifactActions {
 	openExternal(link: URI): void;
 	openResource(uri: URI): void;
+	openImages(images: readonly ISessionArtifactImage[], startIndex: number): void;
 	copy(text: string): void;
+}
+
+export interface ISessionArtifactImage {
+	readonly uri: URI;
+	readonly mimeType: string;
 }
 
 function artifactValueKey(artifact: ISessionArtifact): string {
@@ -60,6 +74,11 @@ function artifactLocation(uri: URI, label: string): Pick<IChatPillEntry, 'ariaDe
 		hover: { content: new MarkdownString().appendText(value) },
 		tooltip: value,
 	};
+}
+
+function getImageMimeType(uri: URI): string | undefined {
+	const mimeType = getMediaMime(uri.path);
+	return mimeType?.startsWith('image/') ? mimeType : undefined;
 }
 
 function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions): IChatPillEntry | undefined {
@@ -109,11 +128,20 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions): 
  * the previewable files the session wrote outside its workspace, de-duplicated
  * with the agent's own entries winning.
  */
-export function buildSessionArtifactSections(artifacts: readonly ISessionArtifact[], externalFiles: readonly ISessionFile[], actions: ISessionArtifactActions): readonly IChatPillSection[] {
+export function buildSessionArtifactSections(artifacts: readonly ISessionArtifact[], externalFiles: readonly ISessionFile[], actions: ISessionArtifactActions, imageCarouselEnabled: boolean): readonly IChatPillSection[] {
 	const entriesByKind = new Map<SessionArtifactKind, IChatPillEntry[]>();
+	const images: ISessionArtifactImage[] = [];
 	const seen = new Set<string>();
 
 	for (const artifact of artifacts) {
+		const imageMimeType = artifact.uri ? getImageMimeType(artifact.uri) : undefined;
+		if (artifact.kind === SessionArtifactKind.File && artifact.uri && imageMimeType) {
+			if (!seen.has(artifactValueKey(artifact))) {
+				seen.add(artifactValueKey(artifact));
+				images.push({ uri: artifact.uri, mimeType: imageMimeType });
+			}
+			continue;
+		}
 		const entry = toEntry(artifact, actions);
 		if (!entry || seen.has(artifactValueKey(artifact))) {
 			continue;
@@ -125,10 +153,15 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 	}
 
 	for (const file of externalFiles) {
-		if (file.operation === SessionFileOperation.Deleted || !previewKind(file.uri) || seen.has(getComparisonKey(file.uri))) {
+		const imageMimeType = getImageMimeType(file.uri);
+		if (file.operation === SessionFileOperation.Deleted || (!previewKind(file.uri) && !imageMimeType) || seen.has(getComparisonKey(file.uri))) {
 			continue;
 		}
 		seen.add(getComparisonKey(file.uri));
+		if (imageMimeType) {
+			images.push({ uri: file.uri, mimeType: imageMimeType });
+			continue;
+		}
 		const entries = entriesByKind.get(SessionArtifactKind.File) ?? [];
 		const label = basename(file.uri);
 		entries.push({ id: file.uri.toString(), label, resource: file.uri, ...artifactLocation(file.uri, label), open: () => actions.openResource(file.uri) });
@@ -137,6 +170,26 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 
 	const sections: IChatPillSection[] = [];
 	for (const { kind, title } of sectionOrder) {
+		if (kind === SessionArtifactKind.File && images.length) {
+			sections.push({
+				title: localize('sessionArtifacts.images', "Images"),
+				entries: images.map(({ uri }, index) => {
+					const label = basename(uri);
+					return {
+						id: uri.toString(),
+						label,
+						resource: uri,
+						...artifactLocation(uri, label),
+						...(imageCarouselEnabled
+							? {
+								ariaLabel: localize('sessionArtifacts.openImage', "Open {0} in Images Preview", label),
+								open: () => actions.openImages(images, index),
+							}
+							: { open: () => actions.openResource(uri) }),
+					};
+				}),
+			});
+		}
 		const entries = entriesByKind.get(kind);
 		if (entries?.length) {
 			sections.push({ title, entries });
@@ -153,10 +206,13 @@ export class SessionArtifacts extends Disposable {
 	constructor(
 		session: IObservable<IActiveSession | undefined>,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
+		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) {
 		super();
+
+		const imageCarouselEnabled = observableConfigValue<boolean>(ChatConfiguration.ImageCarouselEnabled, true, this._configurationService);
 
 		this.sections = derived(this, reader => {
 			const current = session.read(reader);
@@ -167,6 +223,7 @@ export class SessionArtifacts extends Disposable {
 				current.artifacts?.read(reader) ?? [],
 				this._readExternalFiles(current, reader),
 				this._actions(),
+				imageCarouselEnabled.read(reader),
 			);
 		});
 	}
@@ -184,6 +241,22 @@ export class SessionArtifacts extends Disposable {
 					return;
 				}
 				void this._openerService.open(uri, { fromUserGesture: true });
+			},
+			openImages: (images, startIndex) => {
+				const collection: IImageCarouselCollection = {
+					id: generateUuid(),
+					title: localize('sessionArtifacts.imageCarouselTitle', "Artifact Images"),
+					sections: [{
+						title: localize('sessionArtifacts.images', "Images"),
+						images: images.map(image => ({
+							id: image.uri.toString(),
+							name: basename(image.uri),
+							mimeType: image.mimeType,
+							uri: image.uri,
+						})),
+					}],
+				};
+				void this._commandService.executeCommand(OPEN_IMAGE_CAROUSEL_COMMAND_ID, { collection, startIndex });
 			},
 			copy: text => { void this._clipboardService.writeText(text); },
 		};
