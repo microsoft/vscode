@@ -726,8 +726,15 @@ suite('ChatQuestionCarouselPart', () => {
 			return widget.domNode.querySelector('.chat-question-list') as HTMLElement;
 		}
 
+		/**
+		 * `keyCode` is a legacy read-only property. Chromium does accept it in the init dict, but
+		 * that is non-standard and would need a cast, so define it explicitly as the survey test
+		 * helper does. `StandardKeyboardEvent` reads it to derive its own key code.
+		 */
 		function press(target: HTMLElement, keyCode: number, key: string): void {
-			target.dispatchEvent(new KeyboardEvent('keydown', { keyCode, key, bubbles: true, cancelable: true } as KeyboardEventInit));
+			const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+			Object.defineProperty(event, 'keyCode', { get: () => keyCode });
+			target.dispatchEvent(event);
 		}
 
 		/** The option index the list reports as selected, via the class the styling keys off. */

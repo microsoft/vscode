@@ -29,6 +29,20 @@
 	border-color: var(--vscode-focusBorder);
 }
 
+/*
+ * Plan review composes both tiers on one element: it is a confirmation widget presented as a large
+ * card. The two tier classes have equal specificity, so name them together to state which tier owns
+ * the shell rather than leaving it to the order the stylesheets happen to load in.
+ */
+.chat-card-large.chat-confirmation-widget2 {
+	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-chat-requestBorder));
+	border-radius: var(--vscode-cornerRadius-large);
+}
+
+.chat-card-large.chat-confirmation-widget2:focus-within {
+	border-color: var(--vscode-focusBorder);
+}
+
 /* In the agents window and the editor the surface is the editor background. */
 .agent-sessions-workbench .chat-card-large,
 .editor-instance .chat-card-large {
@@ -41,7 +55,7 @@
 	justify-content: space-between;
 	gap: var(--vscode-spacing-size80);
 	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size80) var(--vscode-spacing-size80) var(--vscode-spacing-size160);
-	border-bottom: 1px solid var(--vscode-chat-requestBorder);
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder);
 	flex-shrink: 0;
 }
 

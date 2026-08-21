@@ -1314,10 +1314,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			}
 		}));
 
-		// Focus the listbox, or the textarea if it already has content. Focus stays on the list
-		// rather than moving to an option, because `aria-activedescendant` is declared on the list
-		// and is only honoured on the element that actually has DOM focus -- focusing an option
-		// instead leaves arrow key movement silent for screen reader users.
+		// Focus the list itself, not an option: `aria-activedescendant` is only honoured on the
+		// focused element. Or the textarea, when it already has content.
 		if (this._shouldAutoFocus()) {
 			if (freeformTextarea && previousFreeform) {
 				const capturedFreeform = freeformTextarea;

@@ -6,19 +6,9 @@
 /**
  * The ARIA scaffolding for the small single select lists inside chat cards.
  *
- * Both the question carousel and the model feedback survey render a listbox by hand, and both have
- * to keep three things in agreement: the class that paints the active row, `aria-selected` on
- * every option, and `aria-activedescendant` on the container. Getting that wrong is silent -- the
- * list looks right and announces nothing -- so it is worth owning in one place.
- *
- * Focus belongs on the container, never on an option. `aria-activedescendant` is only honoured on
- * the element that actually has DOM focus, so moving focus into a row is exactly what breaks
- * announcement. `focus()` is the only way this class hands out focus, which keeps that invariant
- * enforceable rather than conventional.
- *
- * Keyboard handling and row rendering deliberately stay with the caller. The two consumers differ
- * on wrapping, digit shortcuts, and what a selection change commits, and those are real product
- * differences rather than duplication.
+ * Keeps the active row's class, `aria-selected`, and `aria-activedescendant` in agreement, which is
+ * silent to get wrong. Keyboard handling and row rendering stay with the caller, since the
+ * consumers differ on wrapping, digit shortcuts, and what a selection change commits.
  */
 export class ChatCardListbox {
 
@@ -72,7 +62,10 @@ export class ChatCardListbox {
 		}
 	}
 
-	/** Focuses the container, which is the element that carries `aria-activedescendant`. */
+	/**
+	 * Focuses the container. `aria-activedescendant` is only honoured on the element that actually
+	 * has DOM focus, so focus must never move into an option or arrowing goes unannounced.
+	 */
 	focus(): void {
 		this.domNode.focus();
 	}
