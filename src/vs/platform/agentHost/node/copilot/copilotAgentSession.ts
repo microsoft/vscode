@@ -1008,7 +1008,7 @@ export class CopilotAgentSession extends Disposable {
 		]);
 		this._projectedMcpServerLaunchEnablement = new Map(this._appliedSnapshot.plugins.flatMap(plugin =>
 			plugin.mcpServers
-				.filter(server => isMcpServerExplicitlyProjected(plugin, server))
+				.filter(isMcpServerExplicitlyProjected)
 				.map(server => [server.name, !disabledMcpServers.has(server.name)] as const)
 		));
 		this._appliedAdditionalDirectories = [...(this._launchPlan.additionalDirectories ?? [])];
