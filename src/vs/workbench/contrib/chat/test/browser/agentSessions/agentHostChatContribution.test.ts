@@ -62,7 +62,7 @@ import { IPathService } from '../../../../../services/path/common/pathService.js
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
-import { IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { AgentHostContribution, AgentHostSessionHandler } from '../../../browser/agentSessions/agentHost/agentHostChatContribution.js';
 import { AgentHostAuthTokenCache } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
@@ -788,7 +788,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		},
 		onDidChangeWorkspaceFolders: Event.None
 	});
-	const trustController: { result: boolean | undefined; workspaceTrustCalls: number; resourcesTrustCalls: number; resourcesTrustUris: URI[] } = { result: true, workspaceTrustCalls: 0, resourcesTrustCalls: 0, resourcesTrustUris: [] };
+	const trustController: { result: boolean | undefined; workspaceTrustCalls: number; resourcesTrustCalls: number; resourcesTrustUris: URI[]; trustedUris: Set<string> } = { result: true, workspaceTrustCalls: 0, resourcesTrustCalls: 0, resourcesTrustUris: [], trustedUris: new Set<string>() };
 	instantiationService.stub(IWorkspaceTrustRequestService, new class extends mock<IWorkspaceTrustRequestService>() {
 		override async requestWorkspaceTrust(): Promise<boolean | undefined> {
 			trustController.workspaceTrustCalls++;
@@ -798,6 +798,11 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 			trustController.resourcesTrustCalls++;
 			trustController.resourcesTrustUris.push(options.uri);
 			return trustController.result;
+		}
+	});
+	instantiationService.stub(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
+		override async getUriTrustInfo(uri: URI) {
+			return { uri, trusted: trustController.trustedUris.has(uri.toString()) };
 		}
 	});
 	instantiationService.stub(IChatEditingService, {
@@ -4113,6 +4118,26 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
 			assert.strictEqual(trustController.workspaceTrustCalls + trustController.resourcesTrustCalls, 1);
+		}));
+
+		test('sends without prompting when all session folders are already trusted', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const trustedFolder = URI.file('/repo-trusted');
+			const { sessionHandler, agentHostService, chatAgentService, trustController } = createContribution(disposables, { workspaceFolders: [trustedFolder] });
+			trustController.trustedUris.add(trustedFolder.toString());
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { message: 'Hi' });
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			// The folder is already trusted, so the parallel trust check short-circuits
+			// and the turn proceeds without any trust prompt.
+			assert.deepStrictEqual({
+				prompts: trustController.workspaceTrustCalls + trustController.resourcesTrustCalls,
+				created: agentHostService.createSessionCalls.length,
+			}, {
+				prompts: 0,
+				created: 1,
+			});
 		}));
 
 		test('resuming an existing session gates on its persisted folder and aborts on decline', async () => {

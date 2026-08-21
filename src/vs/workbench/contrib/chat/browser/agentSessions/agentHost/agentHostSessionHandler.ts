@@ -56,7 +56,7 @@ import { packErrorForTelemetry } from '../../../../../../platform/telemetry/comm
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
-import { IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { ITerminalChatService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import {
@@ -1071,6 +1071,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IModelService private readonly _modelService: IModelService,
 		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -5539,9 +5540,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	/**
 	 * Ensures every local (file-scheme) folder the agent will run in is trusted
-	 * before a session is spawned, prompting per folder as needed; returns `false`
-	 * if the user declines any. Remote and virtual folders are trusted by their
-	 * authority, and a folderless target falls back to whole-workspace trust.
+	 * before a session is spawned; returns `false` if the user declines any. Trust
+	 * is checked for all folders in parallel and only untrusted folders are prompted
+	 * for, one at a time.
 	 */
 	private async _ensureFoldersTrusted(folders: readonly URI[]): Promise<boolean> {
 		const message = localize('agentHost.workspaceTrust', "AI features are currently only supported in trusted workspaces.");
@@ -5549,7 +5550,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (localFolders.length === 0) {
 			return !!await this._workspaceTrustRequestService.requestWorkspaceTrust({ message });
 		}
-		for (const folder of localFolders) {
+
+		// Check every folder's trust in parallel so an already-trusted session (the
+		// common case) returns immediately without prompting or sequential awaits.
+		const trustInfos = await Promise.all(localFolders.map(folder => this._workspaceTrustManagementService.getUriTrustInfo(folder)));
+		const untrustedFolders = localFolders.filter((_, index) => !trustInfos[index].trusted);
+		if (untrustedFolders.length === 0) {
+			return true;
+		}
+
+		// Prompt for each untrusted folder one at a time (trust dialogs are modal).
+		// A folder in the open workspace is gated via whole-workspace trust (matching
+		// extension-host chat); others via per-resource trust.
+		for (const folder of untrustedFolders) {
 			const trusted = this._workspaceContextService.getWorkspaceFolder(folder)
 				? await this._workspaceTrustRequestService.requestWorkspaceTrust({ message })
 				: await this._workspaceTrustRequestService.requestResourcesTrust({ uri: folder, message });
