@@ -176,11 +176,12 @@ export interface ISessionsService {
 	openSession(sessionResource: URI, options?: { preserveFocus?: boolean }): Promise<void>;
 
 	/**
-	 * Whether the given session may be opened, honoring workspace trust. Resolves
-	 * to `false` only when the session requires workspace trust and the folder it
-	 * runs in is not trusted. Pure and side-effect-free: callers gate the act of
-	 * opening a session from the list on this, so a refused open leaves the
-	 * current session (or the empty new-session slot) untouched.
+	 * Whether the given session may be opened, honoring workspace trust. When the
+	 * session requires workspace trust and the folder it runs in is not trusted,
+	 * this surfaces VS Code's standard workspace-trust request and resolves to
+	 * `false` if the user declines — so callers can gate the act of opening a
+	 * session from the list, leaving the current session (or the empty
+	 * new-session slot) untouched when trust is refused.
 	 */
 	canOpenSession(session: ISession): Promise<boolean>;
 
@@ -833,7 +834,18 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// Only the mounted folder (index 0) governs window trust; any additional
 		// working directories are gated at agent-operation time by the send-side
 		// trust check, and a cold session persists only its primary folder.
-		return (await this.workspaceTrustManagementService.getUriTrustInfo(folder.workingDirectory)).trusted;
+		if ((await this.workspaceTrustManagementService.getUriTrustInfo(folder.workingDirectory)).trusted) {
+			return true;
+		}
+		// The folder is untrusted: surface VS Code's standard workspace-trust
+		// request. Opening proceeds only if the user grants trust; declining
+		// leaves the current session (or empty new-session slot) untouched. Run
+		// from this imperative open path (not the reactive mount), the prompt
+		// fires once per open and cannot loop.
+		return !!await this.workspaceTrustRequestService.requestResourcesTrust({
+			uri: folder.workingDirectory,
+			message: localize('sessionsService.trustFolderMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
+		});
 	}
 
 	showSession(sessionResource: URI, options?: { preserveFocus?: boolean }): void {

@@ -6,7 +6,6 @@
 import '../media/sessionsViewPane.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
-import Severity from '../../../../../base/common/severity.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
@@ -27,8 +26,6 @@ import { IViewDescriptorService } from '../../../../../workbench/common/views.js
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { localize } from '../../../../../nls.js';
 import { SessionsList, SessionsGrouping, SessionsSorting } from './sessionsList.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -116,8 +113,6 @@ export class SessionsView extends ViewPane {
 		@IHostService private readonly hostService: IHostService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IStorageService private readonly storageService: IStorageService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -235,7 +230,7 @@ export class SessionsView extends ViewPane {
 				}
 				this.sessionsService.openSession(resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
 			},
-			canOpenSession: session => this._canOpenSession(session),
+			canOpenSession: session => this.sessionsService.canOpenSession(session),
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
 
@@ -391,35 +386,6 @@ export class SessionsView extends ViewPane {
 
 	focusCustomizations(): void {
 		this._customizationsWidget?.focus();
-	}
-
-	/**
-	 * Trust gate for opening a session from the list. Refuses (returns `false`)
-	 * when the session requires workspace trust and its folder is untrusted,
-	 * surfacing a non-modal prompt with an explicit "Trust Folder" action so the
-	 * user has a clear path forward instead of a silently ignored click.
-	 */
-	private async _canOpenSession(session: ISession): Promise<boolean> {
-		if (await this.sessionsService.canOpenSession(session)) {
-			return true;
-		}
-		const folder = session.workspace.get()?.folders[0]?.workingDirectory;
-		if (folder) {
-			this.notificationService.prompt(
-				Severity.Info,
-				localize('sessionsView.untrustedSessionFolder', "This session's folder is not trusted. Trust the folder to open the session."),
-				[{
-					label: localize('sessionsView.trustFolder', "Trust Folder"),
-					run: () => {
-						this.workspaceTrustRequestService.requestResourcesTrust({
-							uri: folder,
-							message: localize('sessionsView.trustFolderMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
-						}).then(trusted => trusted ? this.sessionsService.openSession(session.resource) : undefined).catch(onUnexpectedError);
-					},
-				}]
-			);
-		}
-		return false;
 	}
 
 	private restoreLastSelectedSession(): void {
