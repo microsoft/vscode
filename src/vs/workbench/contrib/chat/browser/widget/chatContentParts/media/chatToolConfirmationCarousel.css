@@ -19,22 +19,16 @@
 	}
 }
 
+/* Card chrome comes from widget/media/chatCard.css. */
 .chat-tool-confirmation-carousel {
 	color: var(--vscode-foreground);
-	display: flex;
-	flex-direction: column;
 	max-height: min(300px, 45vh);
-	border: 1px solid var(--vscode-input-border, transparent);
-	border-radius: var(--vscode-cornerRadius-large);
-	background-color: var(--vscode-panel-background);
-	overflow: hidden;
 
 	&:focus {
 		outline: none !important;
 	}
 
-	&:focus-visible,
-	&:focus-within {
+	&:focus-visible {
 		border-color: var(--vscode-focusBorder);
 	}
 
@@ -99,10 +93,6 @@
 	}
 
 	.chat-tool-carousel-overlay-actions {
-		display: flex;
-		align-items: center;
-		gap: 4px;
-		flex-shrink: 0;
 		margin-left: auto;
 	}
 
@@ -254,8 +244,6 @@
 
 .agent-sessions-workbench .chat-tool-confirmation-carousel,
 .editor-instance .chat-tool-confirmation-carousel {
-	background-color: var(--vscode-editor-background);
-
 	.interactive-result-editor {
 		background-color: var(--vscode-interactive-result-editor-background-color, var(--vscode-editor-background));
 	}

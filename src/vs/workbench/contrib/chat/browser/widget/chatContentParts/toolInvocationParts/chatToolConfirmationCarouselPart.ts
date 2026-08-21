@@ -15,7 +15,7 @@ import { autorun } from '../../../../../../../base/common/observable.js';
 import { generateUuid } from '../../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../../nls.js';
 import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
-import { chatCardButtonStyles } from '../../chatCard.js';
+import { CHAT_CARD_HEADER_ACTIONS_CLASS, CHAT_CARD_LARGE_CLASS, chatCardButtonStyles } from '../../chatCard.js';
 import { IChatToolInvocation, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { ChatToolInvocationPart } from './chatToolInvocationPart.js';
 import '../media/chatToolConfirmationCarousel.css';
@@ -80,13 +80,13 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 	) {
 		super();
 
-		const elements = dom.h('.chat-tool-confirmation-carousel@root', [
+		const elements = dom.h(`.chat-tool-confirmation-carousel.${CHAT_CARD_LARGE_CLASS}@root`, [
 			dom.h('.chat-tool-carousel-overlay@overlay', [
 				dom.h('.chat-tool-carousel-title-group@titleGroup', [
 					dom.h('span.chat-tool-carousel-collapsed-title@collapsedTitle'),
 					dom.h('button.chat-tool-carousel-agent-label@agentLabel'),
 				]),
-				dom.h('.chat-tool-carousel-overlay-actions@overlayActions', [
+				dom.h(`.chat-tool-carousel-overlay-actions.${CHAT_CARD_HEADER_ACTIONS_CLASS}@overlayActions`, [
 					dom.h('.chat-tool-carousel-step-indicator@stepIndicator'),
 					dom.h('.chat-tool-carousel-nav-arrows@navArrows'),
 				]),
