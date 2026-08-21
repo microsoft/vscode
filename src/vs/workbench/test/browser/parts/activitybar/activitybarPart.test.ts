@@ -10,7 +10,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { TestStorageService } from '../../../common/workbenchTestServices.js';
 import { TestHostService, TestLayoutService } from '../../workbenchTestServices.js';
-import { ActivitybarPart } from '../../../../browser/parts/activitybar/activitybarPart.js';
+import { ActivitybarPart, ActivityBarCompositeBar } from '../../../../browser/parts/activitybar/activitybarPart.js';
 import { IViewSize } from '../../../../../base/browser/ui/grid/grid.js';
 import { LayoutSettings, Parts, Position } from '../../../../services/layout/browser/layoutService.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
@@ -23,6 +23,21 @@ import { Extensions, PaneCompositeDescriptor } from '../../../../browser/panecom
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ViewContainerLocation } from '../../../../common/views.js';
 import { ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND } from '../../../../common/theme.js';
+import { ActionsOrientation } from '../../../../../base/browser/ui/actionbar/actionbar.js';
+import { Dimension } from '../../../../../base/browser/dom.js';
+
+interface ILayoutTestHarness {
+	menuBarContainer: HTMLElement | undefined;
+	globalCompositeBar: { element: HTMLElement } | undefined;
+	options: { orientation: ActionsOrientation };
+	compositeBar: { layout: (dimension: Dimension) => void };
+}
+
+// `super.layout()` resolves through the prototype chain, so calling the extracted method
+// against a harness still runs the real `PaneCompositeBar.layout` and hands the resulting
+// dimension to `compositeBar`.
+const activityBarCompositeBarLayout = Reflect.get(ActivityBarCompositeBar.prototype, 'layout') as (this: ILayoutTestHarness, width: number, height: number) => void;
+
 
 class StubPaneCompositePart implements IPaneCompositePart {
 	declare readonly _serviceBrand: undefined;
@@ -534,6 +549,52 @@ suite('ActivitybarPart', () => {
 				// Floating reserves a bottom gutter; the 8px gap is then handed back.
 				modernDefault: 300 - margin + ActivitybarPart.FLOATING_ACTION_GAP,
 				modernCompact: 300 - margin,
+			}
+		);
+	});
+
+	// --- global activity icons reservation -----------------------------------
+
+	// The global (Accounts/Manage) icons are a separate action bar stacked beneath the view
+	// containers, so the room they take has to be measured rather than derived from the item
+	// size: the gap sits only *between* items, so N icons occupy N * height + (N - 1) * gap.
+	function heightLeftForCompositeBar(globalActionCount: number, itemHeight: number, gap: number): number {
+		const globalBarElement = document.createElement('div');
+		for (let i = 0; i < globalActionCount; i++) {
+			const item = document.createElement('div');
+			item.style.height = `${itemHeight}px`;
+			if (i > 0) {
+				item.style.marginTop = `${gap}px`;
+			}
+			globalBarElement.appendChild(item);
+		}
+		fixture.appendChild(globalBarElement);
+
+		let laidOut: Dimension | undefined;
+		activityBarCompositeBarLayout.call({
+			menuBarContainer: undefined,
+			globalCompositeBar: { element: globalBarElement },
+			options: { orientation: ActionsOrientation.VERTICAL },
+			compositeBar: { layout: dimension => { laidOut = dimension; } },
+		}, ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH, 300);
+
+		return laidOut!.height;
+	}
+
+	test('reserves the measured height of the global activity icons', () => {
+		const gap = ActivitybarPart.FLOATING_ACTION_GAP;
+		const itemHeight = ActivitybarPart.FLOATING_ACTION_HEIGHT;
+
+		assert.deepStrictEqual(
+			{
+				oneGlobalAction: heightLeftForCompositeBar(1, itemHeight, gap),
+				twoGlobalActions: heightLeftForCompositeBar(2, itemHeight, gap),
+			},
+			{
+				// A lone icon has no gap at all, so it occupies exactly its own height.
+				oneGlobalAction: 300 - itemHeight,
+				// Two icons share a single gap: 36 + 8 + 36 = 80, not 2 * (36 + 8) = 88.
+				twoGlobalActions: 300 - (itemHeight * 2 + gap),
 			}
 		);
 	});
