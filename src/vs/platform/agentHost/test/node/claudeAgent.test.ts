@@ -10951,7 +10951,7 @@ suite('ClaudeAgent — host seams', () => {
 		sdk.nextQueryMessages = [makeSystemInitMessage(peerSdkId), makeResultSuccess(peerSdkId)];
 
 		await agent.chats.sendMessage(peerChat, 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(peerChat));
-		const result = await sdk.toolHandlers.get(toolName)!({}, undefined);
+		const result = await sdk.toolHandlers.find(t => t.name === toolName)!.handler({}, undefined);
 
 		assert.deepStrictEqual({
 			executedChatUri,

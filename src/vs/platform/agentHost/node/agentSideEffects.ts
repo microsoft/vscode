@@ -32,7 +32,7 @@ import { ISessionDatabase, ISessionDataService } from '../common/sessionDataServ
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { resolveChatAttachment } from '../common/state/chatAttachmentContext.js';
 import { buildOpenSessionLinkForChatResource } from '../common/openSessionLink.js';
-import { type AgentInfo, type Customization, type SessionActiveClient, type SessionInputRequest, SessionInputRequestKind, ToolCallConfirmationReason, ToolCallContributorKind } from '../common/state/protocol/state.js';
+import { type AgentInfo, type SessionActiveClient, type SessionInputRequest, SessionInputRequestKind, ToolCallConfirmationReason, ToolCallContributorKind } from '../common/state/protocol/state.js';
 import type { CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
 import { ActionType, isChatAction, StateAction, type ChatAction, type ChatToolCallCompleteAction } from '../common/state/sessionActions.js';
 import {
