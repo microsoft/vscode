@@ -21,7 +21,11 @@ export class CustomEditorModelManager implements ICustomEditorModelManager {
 		const models = [];
 		for (const [key, entry] of this._references) {
 			if (key.startsWith(keyStart) && entry.model) {
-				models.push(await entry.model);
+				try {
+					models.push(await entry.model);
+				} catch {
+					// Ignore models that failed to load
+				}
 			}
 		}
 		return models;
@@ -47,11 +51,20 @@ export class CustomEditorModelManager implements ICustomEditorModelManager {
 				object: model,
 				dispose: createSingleCallFunction(() => {
 					if (--entry.counter <= 0) {
-						entry.model.then(x => x.dispose());
-						this._references.delete(key);
+						entry.model.then(x => x.dispose(), () => { });
+						if (this._references.get(key) === entry) {
+							this._references.delete(key);
+						}
 					}
 				}),
 			};
+		}, err => {
+			if (--entry.counter <= 0) {
+				if (this._references.get(key) === entry) {
+					this._references.delete(key);
+				}
+			}
+			throw err;
 		});
 	}
 
@@ -62,14 +75,23 @@ export class CustomEditorModelManager implements ICustomEditorModelManager {
 			throw new Error('Model already exists');
 		}
 
-		this._references.set(key, { viewType, model, counter: 0 });
+		const entry = { viewType, model, counter: 0 };
+		this._references.set(key, entry);
+
+		// If the model fails to load, remove it from the map so future attempts can retry
+		model.catch(() => {
+			if (this._references.get(key) === entry) {
+				this._references.delete(key);
+			}
+		});
+
 		return this.tryRetain(resource, viewType)!;
 	}
 
 	public disposeAllModelsForView(viewType: string): void {
 		for (const [key, value] of this._references) {
 			if (value.viewType === viewType) {
-				value.model.then(x => x.dispose());
+				value.model.then(x => x.dispose(), () => { });
 				this._references.delete(key);
 			}
 		}
@@ -79,7 +101,7 @@ export class CustomEditorModelManager implements ICustomEditorModelManager {
 		const keyStart = `${resource.toString()}@@@`;
 		for (const [key, value] of this._references) {
 			if (key.startsWith(keyStart)) {
-				value.model.then(x => x.dispose());
+				value.model.then(x => x.dispose(), () => { });
 				this._references.delete(key);
 			}
 		}
