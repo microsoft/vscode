@@ -71,7 +71,6 @@ export const enum AgentHostIpcChannels {
 export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLoggingEnabled';
 
 export type AgentHostDebugLogsArtifactKind = 'archive' | 'directory';
-export const AGENT_HOST_DEBUG_LOGS_MAX_BYTES = 256 * 1024 * 1024;
 /** Maximum number of files in one Agent Host debug-log artifact. */
 export const AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES = 1000;
 /**
