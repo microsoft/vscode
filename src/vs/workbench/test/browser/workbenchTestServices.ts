@@ -1658,6 +1658,11 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 	readonly activeModalEditorPart: IModalEditorPart | undefined = undefined;
 
 	readonly onDidCreateAuxiliaryEditorPart: Event<IAuxiliaryEditorPart> = Event.None;
+	testSupportsMultipleGroups = true;
+
+	protected override get supportsMultipleGroups(): boolean {
+		return this.testSupportsMultipleGroups;
+	}
 
 	testSaveState(): void {
 		return super.saveState();

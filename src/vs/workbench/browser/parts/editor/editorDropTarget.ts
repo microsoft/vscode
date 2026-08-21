@@ -392,23 +392,28 @@ class DropOverlay extends Themable {
 		const editorControlWidth = this.groupView.element.clientWidth;
 		const editorControlHeight = this.groupView.element.clientHeight - this.getOverlayOffsetHeight();
 
+		if (!enableSplitting) {
+			this.doPositionOverlay({ top: '0', left: '0', width: '100%', height: '100%' });
+			this.toggleDropIntoPrompt(true);
+			const overlay = assertReturnsDefined(this.overlay);
+			overlay.style.opacity = '1';
+			setTimeout(() => overlay.classList.add('overlay-move-transition'), 0);
+			this.currentDropOperation = { splitDirection: undefined };
+			return;
+		}
+
 		let edgeWidthThresholdFactor: number;
 		let edgeHeightThresholdFactor: number;
-		if (enableSplitting) {
-			if (isDraggingGroup) {
-				edgeWidthThresholdFactor = preferSplitVertically ? 0.3 : 0.1; // give larger threshold when dragging group depending on preferred split direction
-			} else {
-				edgeWidthThresholdFactor = 0.1; // 10% threshold to split if dragging editors
-			}
-
-			if (isDraggingGroup) {
-				edgeHeightThresholdFactor = preferSplitVertically ? 0.1 : 0.3; // give larger threshold when dragging group depending on preferred split direction
-			} else {
-				edgeHeightThresholdFactor = 0.1; // 10% threshold to split if dragging editors
-			}
+		if (isDraggingGroup) {
+			edgeWidthThresholdFactor = preferSplitVertically ? 0.3 : 0.1; // give larger threshold when dragging group depending on preferred split direction
 		} else {
-			edgeWidthThresholdFactor = 0;
-			edgeHeightThresholdFactor = 0;
+			edgeWidthThresholdFactor = 0.1; // 10% threshold to split if dragging editors
+		}
+
+		if (isDraggingGroup) {
+			edgeHeightThresholdFactor = preferSplitVertically ? 0.1 : 0.3; // give larger threshold when dragging group depending on preferred split direction
+		} else {
+			edgeHeightThresholdFactor = 0.1; // 10% threshold to split if dragging editors
 		}
 
 		const edgeWidthThreshold = editorControlWidth * edgeWidthThresholdFactor;

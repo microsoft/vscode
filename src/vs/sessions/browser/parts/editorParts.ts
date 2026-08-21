@@ -25,7 +25,7 @@ export class EditorParts extends EditorPartsBase {
 	}
 
 	override moveGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView {
-		if (this.mainPart instanceof SinglePaneMainEditorPart && this.getPart(location) === this.mainPart) {
+		if (this.involvesSinglePaneMainPart(group, location)) {
 			return this.resolveGroup(group);
 		}
 
@@ -33,11 +33,16 @@ export class EditorParts extends EditorPartsBase {
 	}
 
 	override copyGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView {
-		if (this.mainPart instanceof SinglePaneMainEditorPart && this.getPart(location) === this.mainPart) {
+		if (this.involvesSinglePaneMainPart(group, location)) {
 			return this.resolveGroup(group);
 		}
 
 		return super.copyGroup(group, location, direction);
+	}
+
+	private involvesSinglePaneMainPart(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier): boolean {
+		return this.mainPart instanceof SinglePaneMainEditorPart
+			&& (this.getPart(group) === this.mainPart || this.getPart(location) === this.mainPart);
 	}
 
 	private resolveGroup(group: IEditorGroupView | GroupIdentifier): IEditorGroupView {

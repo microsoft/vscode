@@ -1654,21 +1654,29 @@ suite('Sessions - Workbench', () => {
 
 	test('single-pane editor parts reject cross-part group moves and copies', () => {
 		const mainPart = Object.create(SinglePaneMainEditorPart.prototype) as SinglePaneMainEditorPart;
-		const sourceGroup = {};
+		const auxiliaryPart = {};
+		const mainGroup = {};
+		const auxiliaryGroup = {};
+		const involvesSinglePaneMainPart = Reflect.get(EditorParts.prototype, 'involvesSinglePaneMainPart') as (group: object, location: object) => boolean;
 		const host = {
 			mainPart,
-			getPart: () => mainPart,
-			resolveGroup: () => sourceGroup,
+			getPart: (group: object) => group === mainGroup ? mainPart : auxiliaryPart,
+			resolveGroup: (group: object) => group,
+			involvesSinglePaneMainPart,
 		};
 		const moveGroup = Reflect.get(EditorParts.prototype, 'moveGroup') as (group: object, location: object, direction: GroupDirection) => object;
 		const copyGroup = Reflect.get(EditorParts.prototype, 'copyGroup') as (group: object, location: object, direction: GroupDirection) => object;
 
 		assert.deepStrictEqual({
-			move: moveGroup.call(host, sourceGroup, {}, GroupDirection.RIGHT),
-			copy: copyGroup.call(host, sourceGroup, {}, GroupDirection.RIGHT),
+			moveFromMain: moveGroup.call(host, mainGroup, auxiliaryGroup, GroupDirection.RIGHT),
+			moveToMain: moveGroup.call(host, auxiliaryGroup, mainGroup, GroupDirection.RIGHT),
+			copyFromMain: copyGroup.call(host, mainGroup, auxiliaryGroup, GroupDirection.RIGHT),
+			copyToMain: copyGroup.call(host, auxiliaryGroup, mainGroup, GroupDirection.RIGHT),
 		}, {
-			move: sourceGroup,
-			copy: sourceGroup,
+			moveFromMain: mainGroup,
+			moveToMain: auxiliaryGroup,
+			copyFromMain: mainGroup,
+			copyToMain: auxiliaryGroup,
 		});
 	});
 
