@@ -571,7 +571,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private updateHarnessLabelPresentation(): void {
 		const harnessLabel = this.getActiveHarnessLabel();
-		AICustomizationManagementEditorInput.getOrCreate().setHarnessLabel(harnessLabel);
 		this.welcomePage?.setHarnessLabel(harnessLabel);
 	}
 
@@ -983,11 +982,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (hasSections.has(AICustomizationManagementSection.McpServers)) {
 			this.mcpContentContainer = DOM.append(contentInner, $('.mcp-content-container'));
 			this.mcpListWidget = this.editorDisposables.add(this.instantiationService.createInstance(McpListWidget));
-			this.mcpListWidget.setCloseCustomizationEditor(async () => {
-				if (this.input) {
-					await this.group.closeEditor(this.input);
-				}
-			});
 			this.mcpContentContainer.appendChild(this.mcpListWidget.element);
 
 			// Embedded MCP server detail view
@@ -1006,7 +1000,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		// Container for Plugins content
 		if (hasSections.has(AICustomizationManagementSection.Plugins)) {
 			this.pluginContentContainer = DOM.append(contentInner, $('.plugin-content-container'));
-			this.pluginListWidget = this.editorDisposables.add(this.instantiationService.createInstance(PluginListWidget));
+			this.pluginListWidget = this.editorDisposables.add(this.instantiationService.createInstance(PluginListWidget, undefined));
 			this.pluginContentContainer.appendChild(this.pluginListWidget.element);
 
 			// Embedded plugin detail view

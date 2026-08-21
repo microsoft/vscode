@@ -38,6 +38,7 @@ import {
 	isMcpServerCollectionVisible,
 	getMcpStatusRenderSignature,
 	getServerItemContextMenuActions,
+	getToggledMcpEnablementState,
 	McpServerItemRenderer,
 	registerMcpInlineButtonAction,
 	type IMcpStatusRenderInput,
@@ -123,6 +124,20 @@ suite('mcpListWidget', () => {
 			visible: true,
 			hidden: false,
 		});
+	});
+
+	test('toggles MCP enablement without changing its scope', () => {
+		assert.deepStrictEqual([
+			getToggledMcpEnablementState(ContributionEnablementState.EnabledProfile),
+			getToggledMcpEnablementState(ContributionEnablementState.DisabledProfile),
+			getToggledMcpEnablementState(ContributionEnablementState.EnabledWorkspace),
+			getToggledMcpEnablementState(ContributionEnablementState.DisabledWorkspace),
+		], [
+			ContributionEnablementState.DisabledProfile,
+			ContributionEnablementState.EnabledProfile,
+			ContributionEnablementState.DisabledWorkspace,
+			ContributionEnablementState.EnabledWorkspace,
+		]);
 	});
 
 	test('renders host-published disabled reasons without changing legacy rows', () => {

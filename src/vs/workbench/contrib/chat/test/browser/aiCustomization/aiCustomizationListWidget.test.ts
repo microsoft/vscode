@@ -13,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { AICustomizationListWidget } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
+import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, usesCustomizationCardLayout } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
 import { IAICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { extractExtensionIdFromPath, getCustomizationSecondaryText, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
@@ -21,13 +21,47 @@ import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../commo
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
-import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
+import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 
 suite('aiCustomizationListWidget', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses the inventory card layout for the redesigned sections only', () => {
+		assert.deepStrictEqual({
+			agents: usesCustomizationCardLayout(AICustomizationManagementSection.Agents),
+			skills: usesCustomizationCardLayout(AICustomizationManagementSection.Skills),
+			instructions: usesCustomizationCardLayout(AICustomizationManagementSection.Instructions),
+			hooks: usesCustomizationCardLayout(AICustomizationManagementSection.Hooks),
+			prompts: usesCustomizationCardLayout(AICustomizationManagementSection.Prompts),
+		}, {
+			agents: true,
+			skills: true,
+			instructions: true,
+			hooks: true,
+			prompts: false,
+		});
+	});
+
+	test('keeps editable source sections visible until search filtering starts', () => {
+		assert.deepStrictEqual({
+			agents: getAlwaysVisibleCustomizationGroupKeys(AICustomizationManagementSection.Agents, false),
+			skills: getAlwaysVisibleCustomizationGroupKeys(AICustomizationManagementSection.Skills, false),
+			instructions: getAlwaysVisibleCustomizationGroupKeys(AICustomizationManagementSection.Instructions, false),
+			hooks: getAlwaysVisibleCustomizationGroupKeys(AICustomizationManagementSection.Hooks, false),
+			filtered: getAlwaysVisibleCustomizationGroupKeys(AICustomizationManagementSection.Agents, true),
+			prompts: getAlwaysVisibleCustomizationGroupKeys(AICustomizationManagementSection.Prompts, false),
+		}, {
+			agents: [PromptsStorage.local, PromptsStorage.user],
+			skills: [PromptsStorage.local, PromptsStorage.user],
+			instructions: [PromptsStorage.local, PromptsStorage.user],
+			hooks: [PromptsStorage.local, PromptsStorage.user],
+			filtered: [],
+			prompts: [],
+		});
+	});
 
 	suite('truncateToFirstLine', () => {
 		test('keeps first line when text has multiple lines', () => {

@@ -26,6 +26,7 @@ import { PluginFormat } from '../../../../../platform/agentPlugins/common/plugin
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IRequestService } from '../../../../../platform/request/common/request.js';
+import { IRequestContext } from '../../../../../base/parts/request/common/request.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
@@ -611,6 +612,10 @@ interface IRenderEditorOptions {
 	readonly managementSections?: readonly AICustomizationManagementSection[];
 	readonly availableHarnesses?: readonly IHarnessDescriptor[];
 	readonly selectedSection?: AICustomizationManagementSection;
+	readonly customizationSearchQuery?: string;
+	readonly mcpSearchQuery?: string;
+	readonly emptyWorkspaceSection?: boolean;
+	readonly emptyUserSection?: boolean;
 	readonly scrollToBottom?: boolean;
 	readonly width?: number;
 	readonly height?: number;
@@ -706,7 +711,16 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	];
 
 	const allMcpServers = [...mcpWorkspaceServers, ...mcpUserServers];
-	const fixtureFiles = allFiles.map(file => ({ ...file }));
+	const selectedPromptType = options.selectedSection === AICustomizationManagementSection.Agents ? PromptsType.agent
+		: options.selectedSection === AICustomizationManagementSection.Skills ? PromptsType.skill
+			: options.selectedSection === AICustomizationManagementSection.Instructions ? PromptsType.instructions
+				: options.selectedSection === AICustomizationManagementSection.Hooks ? PromptsType.hook
+					: options.selectedSection === AICustomizationManagementSection.Prompts ? PromptsType.prompt
+						: undefined;
+	const fixtureFiles = allFiles
+		.filter(file => !(file.type === selectedPromptType && options.emptyWorkspaceSection && file.storage === PromptsStorage.local))
+		.filter(file => !(file.type === selectedPromptType && options.emptyUserSection && file.storage === PromptsStorage.user))
+		.map(file => ({ ...file }));
 	const fileContents = createFixtureContentMap(fixtureFiles, agentInstructions);
 	const promptFilesDidChangeEmitter = ctx.disposableStore.add(new Emitter<void>());
 	const createdFolders = new ResourceSet();
@@ -924,10 +938,27 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override readonly onReset = Event.None;
 				override readonly local = allMcpServers;
 				override async queryLocal() { return allMcpServers; }
+				override async queryGallery(options?: { text?: string }): Promise<IIterativePager<IWorkbenchMcpServer>> {
+					const query = options?.text?.toLowerCase().trim();
+					const items = query
+						? galleryServers.filter(server => server.label.toLowerCase().includes(query) || server.description.toLowerCase().includes(query))
+						: galleryServers;
+					return {
+						firstPage: { items, hasMore: false },
+						async getNextPage() { return { items: [], hasMore: false }; },
+					};
+				}
 				override canInstall() { return true as const; }
+				override async install(server: IWorkbenchMcpServer) { return server; }
 			}());
 			reg.defineInstance(IMcpService, new class extends mock<IMcpService>() {
 				override readonly servers = constObservable(mcpRuntimeServers as never[]);
+				override readonly enablementModel = {
+					readEnabled: () => ContributionEnablementState.EnabledProfile,
+					readProfileEnabled: () => true,
+					setEnabled: () => { },
+					remove: () => { },
+				};
 			}());
 			reg.defineInstance(IMcpRegistry, new class extends mock<IMcpRegistry>() {
 				override readonly collections = constObservable([]);
@@ -940,10 +971,15 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}());
 			reg.defineInstance(IPluginMarketplaceService, new class extends mock<IPluginMarketplaceService>() {
 				override readonly installedPlugins = constObservable([]);
-				override readonly recommendedPlugins = constObservable(new Set<string>());
+				override readonly recommendedPlugins = constObservable(new Set(['Figma@copilot', 'Stripe@copilot']));
 				override readonly onDidChangeMarketplaces = Event.None;
+				override async fetchMarketplacePlugins() { return marketplacePlugins; }
 			}());
-			reg.defineInstance(IPluginInstallService, new class extends mock<IPluginInstallService>() { }());
+			reg.defineInstance(IPluginInstallService, new class extends mock<IPluginInstallService>() {
+				override getPluginInstallUri(plugin: IMarketplacePlugin) {
+					return URI.file(`/home/dev/.vscode/agent-plugins/${plugin.source}`);
+				}
+			}());
 			reg.defineInstance(IProductService, new class extends mock<IProductService>() {
 				override readonly defaultChatAgent = new class extends mock<NonNullable<IProductService['defaultChatAgent']>>() {
 					override readonly chatExtensionId = 'GitHub.copilot-chat';
@@ -974,6 +1010,33 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		editor.selectSectionById(options.selectedSection);
 	}
 
+	if (options.customizationSearchQuery) {
+		const input = ctx.container.querySelector('.prompts-content-container input') as HTMLInputElement | null;
+		if (input) {
+			input.value = options.customizationSearchQuery;
+			input.dispatchEvent(new InputEvent('input', { bubbles: true, data: options.customizationSearchQuery, inputType: 'insertText' }));
+			input.blur();
+			await new Promise(resolve => setTimeout(resolve, 300));
+		}
+	}
+
+	if (options.mcpSearchQuery) {
+		const input = ctx.container.querySelector('.mcp-content-container input') as HTMLInputElement | null;
+		if (input) {
+			await new Promise(resolve => setTimeout(resolve, 100));
+			input.value = options.mcpSearchQuery;
+			input.dispatchEvent(new InputEvent('input', { bubbles: true, data: options.mcpSearchQuery, inputType: 'insertText' }));
+			await new Promise(resolve => setTimeout(resolve, 600));
+			input.blur();
+			for (const scrollbar of ctx.container.querySelectorAll<HTMLElement>('.mcp-content-container .scrollbar')) {
+				scrollbar.style.visibility = 'hidden';
+			}
+			await new Promise(resolve => setTimeout(resolve, 100));
+		}
+	} else if (options.selectedSection === AICustomizationManagementSection.McpServers) {
+		await new Promise(resolve => setTimeout(resolve, 100));
+	}
+
 	if (options.scrollToBottom) {
 		editor.revealLastItem();
 	}
@@ -988,7 +1051,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		const openItemLabel = options.openItemLabel;
 		const rowToOpen = openItemLabel
 			? [...(visibleContent?.querySelectorAll('.monaco-list-row') ?? [])].find((row): row is HTMLElement => row instanceof HTMLElement && row.textContent?.includes(openItemLabel))
-			: visibleContent?.querySelector('.monaco-list-row.ai-customization-list-item, .monaco-list-row.mcp-server-item') as HTMLElement | undefined;
+			: visibleContent?.querySelector('.monaco-list-row.ai-customization-list-item, .monaco-list-row.mcp-server-item, .plugin-home-row') as HTMLElement | undefined;
 		if (rowToOpen) {
 			rowToOpen.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
 			rowToOpen.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
@@ -1110,13 +1173,17 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 // Plugin Browse Mode — standalone widget with marketplace results
 // ============================================================================
 
-function makeInstalledPlugin(name: string, uri: URI, enabled: boolean): IAgentPlugin {
+function makeInstalledPlugin(name: string, uri: URI, enablement: boolean | ContributionEnablementState, policyBlocked = false): IAgentPlugin {
 	const contributionName = name.toLowerCase().replace(/\s+/g, '-');
+	const enablementState = typeof enablement === 'boolean'
+		? (enablement ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile)
+		: enablement;
 	return new class extends mock<IAgentPlugin>() {
 		override readonly uri = uri;
 		override readonly format = PluginFormat.Copilot;
 		override readonly label = name;
-		override readonly enablement = constObservable(enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile);
+		override readonly enablement = constObservable(enablementState);
+		override readonly policyBlocked = constObservable(policyBlocked);
 		override readonly hooks = constObservable([]);
 		override readonly commands = constObservable([
 			{ uri: URI.joinPath(uri, 'commands', `${contributionName}-lookup.md`), name: `${name} lookup`, description: `Search ${name} from chat.` },
@@ -1177,18 +1244,17 @@ const marketplacePlugins: IMarketplacePlugin[] = [
 	makeMarketplacePlugin('Vercel', 'Deployment and preview environments', 'vercel-plugin'),
 ];
 
-async function renderPluginBrowseMode(ctx: ComponentFixtureContext): Promise<void> {
-	const width = 650;
-	const height = 500;
+async function renderPluginCatalog(ctx: ComponentFixtureContext, browse: boolean, searchQuery?: string, width = browse ? 650 : 840, noInstalledPlugins = false): Promise<void> {
+	const height = browse ? 600 : 800;
 	ctx.container.style.width = `${width}px`;
 	ctx.container.style.height = `${height}px`;
 
 	// Some marketplace plugins match installed plugins by URI so the renderer
 	// shows them as "Installed" (exercises the installed-state check from #7379).
-	const browseInstalledPlugins = [
+	const browseInstalledPlugins = noInstalledPlugins ? [] : [
 		makeInstalledPlugin('Linear', URI.file('/home/dev/.vscode/agent-plugins/example/linear-plugin'), true),
 		makeInstalledPlugin('Sentry', URI.file('/home/dev/.vscode/agent-plugins/example/sentry-plugin'), true),
-		makeInstalledPlugin('Datadog', URI.file('/home/dev/.vscode/agent-plugins/example/datadog-plugin'), false),
+		makeInstalledPlugin('Datadog', URI.file('/home/dev/.vscode/agent-plugins/example/datadog-plugin'), false, true),
 	];
 
 	// Map plugin source descriptors to install URIs, matching installed URIs above
@@ -1208,6 +1274,11 @@ async function renderPluginBrowseMode(ctx: ComponentFixtureContext): Promise<voi
 				override readonly activeHarness = derived(reader => getChatSessionType(this.activeSessionResource.read(reader)));
 				override getActiveDescriptor() { return createVSCodeHarnessDescriptor(); }
 				override registerExternalHarness() { return { dispose() { } }; }
+			}());
+			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
+				override readonly isSessionsWindow = false;
+				override readonly activeProjectRoot = constObservable(URI.file('/workspace'));
+				override getActiveProjectRoot() { return URI.file('/workspace'); }
 			}());
 			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
 				override readonly plugins = constObservable(browseInstalledPlugins as readonly IAgentPlugin[]);
@@ -1230,18 +1301,23 @@ async function renderPluginBrowseMode(ctx: ComponentFixtureContext): Promise<voi
 	});
 
 	const widget = ctx.disposableStore.add(
-		instantiationService.createInstance(PluginListWidget)
+		instantiationService.createInstance(PluginListWidget, true)
 	);
 	ctx.container.appendChild(widget.element);
 	widget.layout(height, width);
 
-	// Click the Browse Marketplace button to enter browse mode
-	const browseButton = widget.element.querySelector('.list-add-button') as HTMLElement;
-	browseButton?.click();
+	if (browse) {
+		widget.showBrowseMarketplace();
+	}
+	if (searchQuery) {
+		const input = widget.element.querySelector('input') as HTMLInputElement;
+		input.value = searchQuery;
+		input.dispatchEvent(new InputEvent('input', { bubbles: true, data: searchQuery, inputType: 'insertText' }));
+	}
 
 	// Wait for the marketplace query to resolve, then wait for scrollbar fade transition
 	// (visible → invisible takes ~2s after programmatic scroll/list populate)
-	await new Promise(resolve => setTimeout(resolve, 100));
+	await new Promise(resolve => setTimeout(resolve, searchQuery ? 600 : 100));
 	// Blur the search input to prevent cursor blink instability in screenshots
 	(widget.element.querySelector('input') as HTMLElement)?.blur();
 	// Force-hide scrollbars to avoid fade-transition instability
@@ -1249,6 +1325,26 @@ async function renderPluginBrowseMode(ctx: ComponentFixtureContext): Promise<voi
 		scrollbar.style.visibility = 'hidden';
 	}
 	await new Promise(resolve => setTimeout(resolve, 200));
+}
+
+function renderPluginHomeMode(ctx: ComponentFixtureContext): Promise<void> {
+	return renderPluginCatalog(ctx, false);
+}
+
+function renderPluginBrowseMode(ctx: ComponentFixtureContext): Promise<void> {
+	return renderPluginCatalog(ctx, true);
+}
+
+function renderPluginSearchMode(ctx: ComponentFixtureContext): Promise<void> {
+	return renderPluginCatalog(ctx, false, 'a');
+}
+
+function renderPluginHomeNarrowMode(ctx: ComponentFixtureContext): Promise<void> {
+	return renderPluginCatalog(ctx, false, undefined, 420);
+}
+
+function renderPluginHomeEmptyInstalledMode(ctx: ComponentFixtureContext): Promise<void> {
+	return renderPluginCatalog(ctx, false, undefined, 840, true);
 }
 
 // ============================================================================
@@ -1347,6 +1443,11 @@ function renderPluginDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): 
 				override getActiveDescriptor() { return createVSCodeHarnessDescriptor(); }
 				override registerExternalHarness() { return { dispose() { } }; }
 			}());
+			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
+				override readonly isSessionsWindow = false;
+				override readonly activeProjectRoot = constObservable(URI.file('/workspace'));
+				override getActiveProjectRoot() { return URI.file('/workspace'); }
+			}());
 			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
 				override readonly plugins = constObservable([]);
 				override readonly enablementModel = undefined!;
@@ -1362,7 +1463,7 @@ function renderPluginDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): 
 		},
 	});
 
-	const widget = ctx.disposableStore.add(instantiationService.createInstance(PluginListWidget));
+	const widget = ctx.disposableStore.add(instantiationService.createInstance(PluginListWidget, undefined));
 	ctx.container.appendChild(widget.element);
 	widget.layout(height, width);
 }
@@ -1412,6 +1513,34 @@ function renderEmbeddedPluginDetail(ctx: ComponentFixtureContext, item: IAgentPl
 		colorTheme: ctx.theme,
 		additionalServices: (reg) => {
 			registerWorkbenchServices(reg);
+			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
+				override readonly activeHarness = constObservable('local');
+				override getActiveDescriptor() { return createVSCodeHarnessDescriptor(); }
+			}());
+			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
+				override readonly isSessionsWindow = false;
+				override readonly activeProjectRoot = constObservable(URI.file('/workspace'));
+				override getActiveProjectRoot() { return URI.file('/workspace'); }
+			}());
+			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
+				override readonly plugins = constObservable(item?.kind === AgentPluginItemKind.Installed ? [item.plugin] : []);
+				override readonly enablementModel = undefined!;
+			}());
+			reg.defineInstance(IPluginInstallService, new class extends mock<IPluginInstallService>() { }());
+			reg.defineInstance(IFileService, new class extends mock<IFileService>() {
+				override async readFile(): Promise<IFileContent> { throw new Error('Fixture README not found'); }
+			}());
+			reg.defineInstance(IRequestService, new class extends mock<IRequestService>() {
+				override async request(): Promise<IRequestContext> { throw new Error('Fixture request unavailable'); }
+			}());
+			reg.defineInstance(IMarkdownRendererService, new class extends mock<IMarkdownRendererService>() {
+				override render(markdown: IMarkdownString | string) {
+					return {
+						element: renderFixtureMarkdown(typeof markdown === 'string' ? markdown : markdown.value),
+						dispose() { },
+					};
+				}
+			}());
 		},
 	});
 
@@ -1426,13 +1555,13 @@ function renderEmbeddedPluginDetail(ctx: ComponentFixtureContext, item: IAgentPl
 	}
 }
 
-function makeInstalledPluginItem(name: string, description: string): IAgentPluginItem {
+function makeInstalledPluginItem(name: string, description: string, enablement = ContributionEnablementState.EnabledProfile, policyBlocked = false): IAgentPluginItem {
 	return {
 		kind: AgentPluginItemKind.Installed,
 		name,
 		description,
 		marketplace: 'GitHub',
-		plugin: makeInstalledPlugin(name, URI.file(`/workspace/.copilot/plugins/${name.toLowerCase()}`), true),
+		plugin: makeInstalledPlugin(name, URI.file(`/workspace/.copilot/plugins/${name.toLowerCase()}`), enablement, policyBlocked),
 	};
 }
 
@@ -1541,10 +1670,19 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	// MCP Servers tab with many servers to verify scrollable list layout
 	McpServersTab: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.McpServers,
+		}),
+	}),
+
+	McpServersSearch: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
+			mcpSearchQuery: 'search',
 		}),
 	}),
 
@@ -1560,10 +1698,28 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	// Agents tab — workspace and user agents, scrollable
 	AgentsTab: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.Agents,
+		}),
+	}),
+
+	AgentsSearch: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Agents,
+			customizationSearchQuery: 'review',
+		}),
+	}),
+
+	AgentsEmptyUser: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.Agents,
+			emptyUserSection: true,
 		}),
 	}),
 
@@ -1594,6 +1750,15 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
+	HooksEmptyWorkspace: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.Hooks,
+			emptyWorkspaceSection: true,
+		}),
+	}),
+
 	// Prompts tab — workspace and user prompts, scrollable
 	PromptsTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -1621,10 +1786,22 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	// Plugins tab
 	PluginsTab: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: true },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
+		}),
+	}),
+
+	SessionsPluginsTab: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			isSessionsWindow: true,
+			selectedSection: AICustomizationManagementSection.Plugins,
+			availableHarnesses: [
+				createVSCodeHarnessDescriptor(),
+			],
 		}),
 	}),
 
@@ -1639,6 +1816,26 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	PluginBrowseMode: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: renderPluginBrowseMode,
+	}),
+
+	PluginCatalogHome: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		render: renderPluginHomeMode,
+	}),
+
+	PluginCatalogSearch: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		render: renderPluginSearchMode,
+	}),
+
+	PluginCatalogHomeNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		render: renderPluginHomeNarrowMode,
+	}),
+
+	PluginCatalogHomeEmptyInstalled: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: renderPluginHomeEmptyInstalledMode,
 	}),
 
 	// MCP disabled splash — chat.mcp.access set to 'none' by user
@@ -1705,10 +1902,20 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	AgentsTabNarrow: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: true },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Agents,
+			width: 550,
+			height: 400,
+		}),
+	}),
+
+	PluginsTabNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.Plugins,
 			width: 550,
 			height: 400,
 		}),
@@ -1827,6 +2034,16 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	EmbeddedPluginDetailInstalled: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEmbeddedPluginDetail(ctx, makeInstalledPluginItem('Linear', 'Issue tracking and project management integration')),
+	}),
+
+	EmbeddedPluginDetailExcludedWorkspace: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEmbeddedPluginDetail(ctx, makeInstalledPluginItem('PagerDuty', 'Incident response and on-call management', ContributionEnablementState.DisabledWorkspace)),
+	}),
+
+	EmbeddedPluginDetailPolicyBlocked: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEmbeddedPluginDetail(ctx, makeInstalledPluginItem('Deployment Guard', 'Deployment controls managed by your organization', ContributionEnablementState.DisabledProfile, true)),
 	}),
 
 	// Standalone embedded plugin detail widget — marketplace plugin.

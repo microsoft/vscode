@@ -38,6 +38,11 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import type { IContextMenuProvider } from '../../../../../base/browser/contextmenu.js';
 import { AnchorAlignment } from '../../../../../base/browser/ui/contextview/contextview.js';
+import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { getActiveCustomizationTargetLabel, getPluginInclusionLabel, getPluginScopeLabel, getPluginStateSummary } from './aiCustomizationPresentation.js';
+import { getErrorMessage } from '../../../../../base/common/errors.js';
+import { autorun } from '../../../../../base/common/observable.js';
 
 const $ = DOM.$;
 
@@ -65,7 +70,11 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	private readonly statusBadgeEl: HTMLElement;
 	private readonly sourceEl: HTMLElement;
 	private readonly titleActionsEl: HTMLElement;
+	private readonly stateSummaryEl: HTMLElement;
 	private readonly descriptionEl: HTMLElement;
+	private readonly applicabilityEl: HTMLElement;
+	private readonly applicabilityFactsEl: HTMLElement;
+	private readonly sourceFactsEl: HTMLElement;
 	private readonly factsEl: HTMLElement;
 	private readonly contributionsEl: HTMLElement;
 	private readonly contributionsListEl: HTMLElement;
@@ -74,8 +83,11 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	private readonly emptyEl: HTMLElement;
 	private readonly renderDisposables = this._register(new DisposableStore());
 	private readonly copyStateReset = this._register(new MutableDisposable());
+	private readonly narrowLayoutUpdate = this._register(new MutableDisposable());
+	private readonly inputStateAutorun = this._register(new MutableDisposable());
 
 	private current: IAgentPluginItem | undefined;
+	private narrowLayout = false;
 
 	constructor(
 		parent: HTMLElement,
@@ -91,10 +103,24 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		@IFileService private readonly fileService: IFileService,
 		@IRequestService private readonly requestService: IRequestService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
+		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 	) {
 		super();
 
 		this.root = DOM.append(parent, $('.ai-customization-embedded-detail.embedded-plugin-detail'));
+		const targetWindow = DOM.getWindow(this.root);
+		const resizeObserver = this._register(new DOM.DisposableResizeObserver(
+			'EmbeddedAgentPluginDetail',
+			() => {
+				const narrow = this.root.offsetWidth < 520;
+				if (this.narrowLayout !== narrow) {
+					this.narrowLayoutUpdate.value = DOM.scheduleAtNextAnimationFrame(targetWindow, () => this.updateNarrowLayout(narrow));
+				}
+			},
+			targetWindow,
+		));
+		this._register(resizeObserver.observe(this.root));
 
 		this.headerEl = DOM.append(this.root, $('.embedded-detail-header'));
 		// Slot at the start of the header for callers to append leading chrome
@@ -108,9 +134,22 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		this.sourceEl = DOM.append(headerText, $('.embedded-detail-scope'));
 		this.titleActionsEl = DOM.append(this.headerEl, $('.embedded-detail-title-actions'));
 
+		this.stateSummaryEl = DOM.append(this.root, $('.plugin-detail-state-summary'));
 		this.descriptionEl = DOM.append(this.root, $('.embedded-detail-description'));
-		this.factsEl = DOM.append(this.root, $('.embedded-detail-facts'));
+
+		this.applicabilityEl = DOM.append(this.root, $('.embedded-detail-section.plugin-detail-applicability'));
+		const applicabilityTitle = DOM.append(this.applicabilityEl, $('h3.embedded-detail-section-title'));
+		applicabilityTitle.textContent = localize('pluginApplicabilityTitle', "Applies to");
+		this.applicabilityFactsEl = DOM.append(this.applicabilityEl, $('.embedded-detail-facts'));
+
+		this.sourceFactsEl = DOM.append(this.root, $('.embedded-detail-section.plugin-detail-source-facts'));
+		const sourceFactsTitle = DOM.append(this.sourceFactsEl, $('h3.embedded-detail-section-title'));
+		sourceFactsTitle.textContent = localize('pluginSourceFactsTitle', "Source and location");
+		this.factsEl = DOM.append(this.sourceFactsEl, $('.embedded-detail-facts'));
+
 		this.contributionsEl = DOM.append(this.root, $('.embedded-detail-section.plugin-detail-contributions'));
+		const contributionsTitle = DOM.append(this.contributionsEl, $('h3.embedded-detail-section-title'));
+		contributionsTitle.textContent = localize('pluginContributionsTitle', "Contains");
 		this.contributionsListEl = DOM.append(this.contributionsEl, $('.embedded-detail-chip-list'));
 		this.readmeEl = DOM.append(this.root, $('.embedded-detail-section.plugin-detail-readme'));
 		const readmeTitle = DOM.append(this.readmeEl, $('h3.plugin-detail-contribution-group-title'));
@@ -121,7 +160,19 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		this.emptyEl = DOM.append(this.root, $('.embedded-detail-empty'));
 		this.emptyEl.textContent = localize('pluginDetailEmpty', "No plugin selected.");
 
-		this.renderItem();
+		this._register(autorun(reader => {
+			this.harnessService.activeHarness.read(reader);
+			this.workspaceService.activeProjectRoot.read(reader);
+			this.renderItem();
+		}));
+	}
+
+	private updateNarrowLayout(narrow: boolean): void {
+		if (this.narrowLayout === narrow) {
+			return;
+		}
+		this.narrowLayout = narrow;
+		this.root.classList.toggle('narrow-layout', narrow);
 	}
 
 	get element(): HTMLElement {
@@ -142,11 +193,21 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 
 	setInput(item: IAgentPluginItem): void {
 		this.current = item;
-		this.renderItem();
+		if (item.kind === AgentPluginItemKind.Installed) {
+			this.inputStateAutorun.value = autorun(reader => {
+				item.plugin.enablement.read(reader);
+				item.plugin.policyBlocked?.read(reader);
+				this.renderItem();
+			});
+		} else {
+			this.inputStateAutorun.clear();
+			this.renderItem();
+		}
 	}
 
 	clearInput(): void {
 		this.current = undefined;
+		this.inputStateAutorun.clear();
 		this.renderItem();
 	}
 
@@ -162,8 +223,12 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			this.statusBadgeEl.style.display = 'none';
 			this.sourceEl.textContent = '';
 			DOM.clearNode(this.titleActionsEl);
+			this.stateSummaryEl.textContent = '';
 			this.descriptionEl.textContent = '';
+			DOM.clearNode(this.applicabilityFactsEl);
+			this.applicabilityEl.style.display = 'none';
 			DOM.clearNode(this.factsEl);
+			this.sourceFactsEl.style.display = 'none';
 			DOM.clearNode(this.contributionsListEl);
 			this.contributionsEl.style.display = 'none';
 			DOM.clearNode(this.readmeContentEl);
@@ -172,18 +237,20 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		}
 
 		this.nameEl.textContent = item.name;
-		if (item.kind === AgentPluginItemKind.Installed && !isContributionEnabled(item.plugin.enablement.get())) {
-			this.statusBadgeEl.textContent = getInstalledPluginDisabledLabel(item);
+		if (item.kind === AgentPluginItemKind.Installed && (!isContributionEnabled(item.plugin.enablement.get()) || isPluginPolicyBlocked(item.plugin))) {
+			this.statusBadgeEl.textContent = getPluginInclusionLabel(item.plugin);
 			this.statusBadgeEl.style.display = '';
 		} else {
 			this.statusBadgeEl.textContent = '';
 			this.statusBadgeEl.style.display = 'none';
 		}
 		DOM.clearNode(this.titleActionsEl);
+		DOM.clearNode(this.applicabilityFactsEl);
 		DOM.clearNode(this.factsEl);
 		DOM.clearNode(this.contributionsListEl);
 
 		const isMarketplace = item.kind === AgentPluginItemKind.Marketplace;
+		const targetLabel = getActiveCustomizationTargetLabel(this.harnessService, this.workspaceService);
 
 		const sourceLabel = item.marketplace
 			? (isMarketplace
@@ -193,7 +260,15 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 				? localize('pluginSourceMarketplaceUnknown', "Marketplace plugin")
 				: localize('pluginSourceLocal', "Installed plugin"));
 		this.sourceEl.textContent = sourceLabel;
+		if (item.kind === AgentPluginItemKind.Installed) {
+			this.stateSummaryEl.textContent = getPluginStateSummary(item.plugin, targetLabel);
+			this.stateSummaryEl.style.display = '';
+		} else {
+			this.stateSummaryEl.textContent = '';
+			this.stateSummaryEl.style.display = 'none';
+		}
 		this.renderTitleActions(item);
+		this.renderApplicability(item, targetLabel);
 		this.renderFacts(item);
 		this.renderContributions(item);
 		this.renderReadme(item);
@@ -224,13 +299,13 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 					});
 					const installed = this.getInstalledPluginForMarketplaceItem(item);
 					if (installed) {
-						this.current = installed;
-						this.renderItem();
+						this.setInput(installed);
 					}
 					installButton.label = localize('installed', "Installed");
-				} catch {
+				} catch (error) {
 					installButton.label = localize('install', "Install");
 					installButton.enabled = true;
+					this.notificationService.error(localize('pluginInstallFailed', "Unable to install plugin: {0}", getErrorMessage(error)));
 				}
 			}));
 			return;
@@ -255,8 +330,9 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	private renderEnablementSplitButton(item: Extract<IAgentPluginItem, { kind: AgentPluginItemKind.Installed }>): void {
 		if (isPluginPolicyBlocked(item.plugin)) {
 			const action = createPolicyBlockedEnableAction(item.plugin, this.notificationService);
-			const button = this.renderDisposables.add(new Button(this.titleActionsEl, { ...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: action.label }));
-			button.label = action.label;
+			const policyLabel = localize('pluginManagedByOrganization', "Managed by Organization");
+			const button = this.renderDisposables.add(new Button(this.titleActionsEl, { ...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: policyLabel }));
+			button.label = policyLabel;
 			this.renderDisposables.add(button.onDidClick(() => action.run()));
 			this.renderDisposables.add(action);
 			return;
@@ -264,11 +340,20 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 
 		const current = item.plugin.enablement.get();
 		const isEnabled = isContributionEnabled(current);
-		const primaryLabel = isEnabled ? localize('disable', "Disable") : localize('enable', "Enable");
-		const workspaceLabel = isEnabled ? localize('disableWorkspace', "Disable (Workspace)") : localize('enableWorkspace', "Enable (Workspace)");
-		const primaryState = isEnabled ? ContributionEnablementState.DisabledProfile : ContributionEnablementState.EnabledProfile;
+		const isWorkspaceScope = current === ContributionEnablementState.EnabledWorkspace || current === ContributionEnablementState.DisabledWorkspace;
+		const profileLabel = isEnabled ? localize('excludePluginProfile', "Exclude from Profile") : localize('includePluginProfile', "Include for Profile");
+		const workspaceLabel = isEnabled ? localize('excludePluginWorkspace', "Exclude from Workspace") : localize('includePluginWorkspace', "Include in Workspace");
+		const profileState = isEnabled ? ContributionEnablementState.DisabledProfile : ContributionEnablementState.EnabledProfile;
 		const workspaceState = isEnabled ? ContributionEnablementState.DisabledWorkspace : ContributionEnablementState.EnabledWorkspace;
+		const primaryLabel = isWorkspaceScope ? workspaceLabel : profileLabel;
+		const primaryState = isWorkspaceScope ? workspaceState : profileState;
+		const alternateLabel = isWorkspaceScope ? profileLabel : workspaceLabel;
+		const alternateState = isWorkspaceScope ? profileState : workspaceState;
 		const key = item.plugin.uri.toString();
+		const setEnablement = (state: ContributionEnablementState) => {
+			this.agentPluginService.enablementModel.setEnabled(key, state);
+			status(localize('pluginInclusionChanged', "{0}. {1}.", item.name, getPluginInclusionLabel(item.plugin)));
+		};
 		const contextMenuProvider: IContextMenuProvider = {
 			showContextMenu: delegate => this.contextMenuService.showContextMenu({
 				...delegate,
@@ -283,20 +368,14 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			addPrimaryActionToDropdown: false,
 			actions: {
 				getActions: () => [
-					this.renderDisposables.add(new Action(`plugin.${isEnabled ? 'disable' : 'enable'}Workspace`, workspaceLabel, undefined, true, async () => {
-						this.agentPluginService.enablementModel.setEnabled(key, workspaceState);
-						this.renderItem();
-					}))
+					this.renderDisposables.add(new Action(`plugin.${isEnabled ? 'exclude' : 'include'}AlternateScope`, alternateLabel, undefined, true, async () => setEnablement(alternateState)))
 				]
 			},
 			ariaLabel: primaryLabel,
 		}));
 		splitButton.element.classList.add(isEnabled ? 'embedded-detail-disable-button' : 'embedded-detail-enable-button');
 		splitButton.label = primaryLabel;
-		this.renderDisposables.add(splitButton.onDidClick(() => {
-			this.agentPluginService.enablementModel.setEnabled(key, primaryState);
-			this.renderItem();
-		}));
+		this.renderDisposables.add(splitButton.onDidClick(() => setEnablement(primaryState)));
 	}
 
 	private getInstalledPluginForMarketplaceItem(item: Extract<IAgentPluginItem, { kind: AgentPluginItemKind.Marketplace }>): IAgentPluginItem | undefined {
@@ -341,26 +420,45 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		}
 	}
 
+	private renderApplicability(item: IAgentPluginItem, targetLabel: string): void {
+		this.applicabilityEl.style.display = '';
+		this.appendFact(this.applicabilityFactsEl, localize('pluginDetailTarget', "Target"), targetLabel);
+		const projectRoot = this.workspaceService.getActiveProjectRoot();
+		this.appendFact(
+			this.applicabilityFactsEl,
+			this.workspaceService.isSessionsWindow ? localize('pluginDetailSessionProject', "Session project") : localize('pluginDetailWorkspace', "Workspace"),
+			projectRoot ? this.labelService.getUriLabel(projectRoot, { relative: true }) : localize('pluginDetailNoProject', "No project selected"),
+		);
+		if (item.kind === AgentPluginItemKind.Installed) {
+			this.appendFact(this.applicabilityFactsEl, localize('pluginDetailScope', "Inclusion scope"), getPluginScopeLabel(item.plugin));
+			this.appendFact(this.applicabilityFactsEl, localize('pluginDetailRuntimeStatus', "Runtime status"), localize('pluginDetailRuntimeStatusUnknown', "Not reported by {0}", targetLabel));
+		} else {
+			this.appendFact(this.applicabilityFactsEl, localize('pluginDetailInstallState', "Install state"), localize('pluginDetailNotInstalled', "Not installed"));
+			this.appendFact(this.applicabilityFactsEl, localize('pluginDetailRuntimeStatus', "Runtime status"), localize('pluginDetailRuntimeUnavailable', "Unavailable before installation"));
+		}
+	}
+
 	private renderFacts(item: IAgentPluginItem): void {
+		this.sourceFactsEl.style.display = '';
 		if (item.kind === AgentPluginItemKind.Marketplace) {
-			this.appendFact(localize('pluginDetailSource', "Source"), formatSourceKind(item.sourceDescriptor.kind));
-			this.appendFact(localize('pluginDetailMarketplace', "Marketplace"), this.renderMarketplaceLink(item.marketplace, getMarketplaceUri(item)));
+			this.appendFact(this.factsEl, localize('pluginDetailSource', "Source"), formatSourceKind(item.sourceDescriptor.kind));
+			this.appendFact(this.factsEl, localize('pluginDetailMarketplace', "Marketplace"), this.renderMarketplaceLink(item.marketplace, getMarketplaceUri(item)));
 			return;
 		}
 
 		if (item.plugin.fromMarketplace) {
-			this.appendFact(localize('pluginDetailSource', "Source"), formatSourceKind(item.plugin.fromMarketplace.sourceDescriptor.kind));
+			this.appendFact(this.factsEl, localize('pluginDetailSource', "Source"), formatSourceKind(item.plugin.fromMarketplace.sourceDescriptor.kind));
 		} else {
-			this.appendFact(localize('pluginDetailSource', "Source"), localize('pluginDetailSourceLocal', "Local"));
+			this.appendFact(this.factsEl, localize('pluginDetailSource', "Source"), localize('pluginDetailSourceLocal', "Local"));
 		}
 		if (item.marketplace) {
-			this.appendFact(localize('pluginDetailMarketplace', "Marketplace"), this.renderMarketplaceLink(item.marketplace, item.plugin.fromMarketplace ? getMarketplaceUri(item.plugin.fromMarketplace) : undefined));
+			this.appendFact(this.factsEl, localize('pluginDetailMarketplace', "Marketplace"), this.renderMarketplaceLink(item.marketplace, item.plugin.fromMarketplace ? getMarketplaceUri(item.plugin.fromMarketplace) : undefined));
 		}
-		this.appendFact(localize('pluginDetailLocation', "Location"), this.createLocationValue(item.plugin.uri));
+		this.appendFact(this.factsEl, localize('pluginDetailLocation', "Location"), this.createLocationValue(item.plugin.uri));
 	}
 
-	private appendFact(label: string, value: string | HTMLElement): void {
-		const row = DOM.append(this.factsEl, $('.embedded-detail-fact-row'));
+	private appendFact(parent: HTMLElement, label: string, value: string | HTMLElement): void {
+		const row = DOM.append(parent, $('.embedded-detail-fact-row'));
 		const labelEl = DOM.append(row, $('.embedded-detail-fact-label'));
 		labelEl.textContent = label;
 		const valueEl = DOM.append(row, $('.embedded-detail-fact-value'));
@@ -411,30 +509,44 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 
 	private async renderReadme(item: IAgentPluginItem): Promise<void> {
 		DOM.clearNode(this.readmeContentEl);
-		this.readmeEl.style.display = 'none';
-		const readme = await this.fetchReadme(item);
-		if (this.current !== item || !readme.trim()) {
+		this.readmeEl.style.display = '';
+		let readme: string | undefined;
+		try {
+			readme = await this.fetchReadme(item);
+		} catch {
+			if (this.current === item) {
+				const message = DOM.append(this.readmeContentEl, $('.plugin-detail-readme-message'));
+				message.textContent = localize('pluginReadmeLoadError', "The plugin README could not be loaded.");
+			}
+			return;
+		}
+		if (this.current !== item) {
+			return;
+		}
+		if (readme === undefined) {
+			const message = DOM.append(this.readmeContentEl, $('.plugin-detail-readme-message'));
+			message.textContent = localize('pluginReadmeMissing', "No README was provided for this plugin.");
+			return;
+		}
+		if (!readme.trim()) {
+			const message = DOM.append(this.readmeContentEl, $('.plugin-detail-readme-message'));
+			message.textContent = localize('pluginReadmeEmpty', "The plugin README is empty.");
 			return;
 		}
 		const rendered = this.renderDisposables.add(this.markdownRendererService.render(new MarkdownString(readme, { supportHtml: false })));
 		this.readmeContentEl.appendChild(rendered.element);
-		this.readmeEl.style.display = '';
 	}
 
-	private async fetchReadme(item: IAgentPluginItem): Promise<string> {
+	private async fetchReadme(item: IAgentPluginItem): Promise<string | undefined> {
 		const readmeUri = item.kind === AgentPluginItemKind.Installed
 			? joinPath(item.plugin.uri, 'README.md')
 			: item.readmeUri;
 		if (!readmeUri) {
-			return '';
+			return undefined;
 		}
 		if (readmeUri.scheme === Schemas.file || readmeUri.scheme === Schemas.vscodeRemote) {
-			try {
-				const content = await this.fileService.readFile(readmeUri);
-				return content.value.toString();
-			} catch {
-				return '';
-			}
+			const content = await this.fileService.readFile(readmeUri);
+			return content.value.toString();
 		}
 		if (readmeUri.scheme === Schemas.https) {
 			let rawUrl = readmeUri.toString();
@@ -442,14 +554,10 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			if (githubBlobMatch?.groups) {
 				rawUrl = `https://raw.githubusercontent.com/${githubBlobMatch.groups['owner']}/${githubBlobMatch.groups['repo']}/${githubBlobMatch.groups['rest']}`;
 			}
-			try {
-				const context = await this.requestService.request({ type: 'GET', url: rawUrl, callSite: 'aiCustomizationPluginDetail.fetchReadme' }, CancellationToken.None);
-				return await asText(context) ?? '';
-			} catch {
-				return '';
-			}
+			const context = await this.requestService.request({ type: 'GET', url: rawUrl, callSite: 'aiCustomizationPluginDetail.fetchReadme' }, CancellationToken.None);
+			return await asText(context) ?? '';
 		}
-		return '';
+		throw new Error(`Unsupported plugin README URI scheme: ${readmeUri.scheme}`);
 	}
 
 	private renderContributions(item: IAgentPluginItem): void {
@@ -529,12 +637,6 @@ function appendContributionEntry(entries: IPluginContributionEntry[], kind: stri
 	}
 }
 
-function getInstalledPluginDisabledLabel(item: Extract<IAgentPluginItem, { kind: AgentPluginItemKind.Installed }>): string {
-	return item.plugin.enablement.get() === ContributionEnablementState.DisabledWorkspace
-		? localize('pluginDetailDisabledWorkspaceBadge', "Disabled (workspace)")
-		: localize('pluginDetailDisabledBadge', "Disabled");
-}
-
 function formatSourceKind(sourceKind: PluginSourceKind): string {
 	switch (sourceKind) {
 		case PluginSourceKind.GitHub:
@@ -547,6 +649,8 @@ function formatSourceKind(sourceKind: PluginSourceKind): string {
 			return localize('pluginDetailSourcePip', "pip");
 		case PluginSourceKind.RelativePath:
 			return localize('pluginDetailSourceRelativePath', "Marketplace repository");
+		default:
+			return localize('pluginDetailSourceUnknown', "Unknown");
 	}
 }
 
