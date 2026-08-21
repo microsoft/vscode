@@ -126,6 +126,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	protected editorLayoutActionsSeparator: HTMLElement | undefined;
 	protected editorLayoutActionsToolbarContainer: HTMLElement | undefined;
 	private editorLayoutActionsToolbar: WorkbenchToolBar | undefined;
+	private editorLayoutActionsToolbarHasActions = false;
 	private readonly editorLayoutActionsToolbarDisposables = this._register(new DisposableStore());
 	private readonly editorLayoutActionsDisposables = this._register(new DisposableStore());
 
@@ -257,9 +258,8 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	}
 
 	private updateEditorLayoutActionsSeparator(): void {
-		const hasLayoutActions = (this.editorLayoutActionsToolbar?.getItemsLength() ?? 0) > 0;
 		if (this.editorLayoutActionsSeparator) {
-			setVisibility(hasLayoutActions
+			setVisibility(this.editorLayoutActionsToolbarHasActions
 				&& !this.editorActionsToolbarHasTrailingSeparator
 				&& !this.addTabControlHasTrailingSeparator
 				&& (this.editorActionsToolbarHasActions || this.addTabControlHasActions), this.editorLayoutActionsSeparator);
@@ -297,6 +297,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		else if (!editorActionsEnabled && editorActionsVisible) {
 			this.editorLayoutActionsToolbar?.getElement().remove();
 			this.editorLayoutActionsToolbar = undefined;
+			this.editorLayoutActionsToolbarHasActions = false;
 			this.editorLayoutActionsToolbarDisposables.clear();
 			this.editorLayoutActionsDisposables.clear();
 		}
@@ -428,6 +429,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.editorLayoutActionsToolbar.setActions(prepareActions(primary), prepareActions(secondary));
 
 		const hasLayoutActions = primary.length > 0 || secondary.length > 0;
+		this.editorLayoutActionsToolbarHasActions = hasLayoutActions;
 
 		// Only show the separator and the toolbar container when the layout toolbar
 		// has actions AND there are editor actions to its left to separate from.
@@ -454,6 +456,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.editorActionsToolbarHasActions = false;
 
 		this.editorLayoutActionsToolbar?.setActions([], []);
+		this.editorLayoutActionsToolbarHasActions = false;
 		if (this.editorLayoutActionsSeparator) {
 			setVisibility(false, this.editorLayoutActionsSeparator);
 		}
