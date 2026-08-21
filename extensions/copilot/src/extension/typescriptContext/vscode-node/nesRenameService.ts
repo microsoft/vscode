@@ -3,69 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
+import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
-import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { DisposableStore } from '../../../util/vs/base/common/lifecycle';
 import * as protocol from '../common/serverProtocol';
-
-enum ExecutionTarget {
-	Semantic,
-	Syntax
-}
-
-type ExecConfig = {
-	readonly lowPriority?: boolean;
-	readonly nonRecoverable?: boolean;
-	readonly cancelOnResourceChange?: vscode.Uri;
-	readonly executionTarget?: ExecutionTarget;
-};
-
-type PrepareNesRenameRequestArgs = Omit<protocol.PrepareNesRenameRequestArgs, 'file' | 'projectFileName' | 'line' | 'offset'> & {
-	file: vscode.Uri;
-	line: number;
-	offset: number;
-};
-
-namespace PrepareNesRenameRequestArgs {
-	export function create(document: vscode.TextDocument, position: vscode.Position, oldName: string, newName: string, lastSymbolRename: vscode.Range | undefined, startTime: number, timeBudget: number): PrepareNesRenameRequestArgs {
-		return {
-			file: vscode.Uri.file(document.fileName),
-			line: position.line + 1,
-			offset: position.character + 1,
-			oldName: oldName,
-			newName: newName,
-			lastSymbolRename: lastSymbolRename ? {
-				start: { line: lastSymbolRename.start.line + 1, character: lastSymbolRename.start.character + 1 },
-				end: { line: lastSymbolRename.end.line + 1, character: lastSymbolRename.end.character + 1 }
-			} : undefined,
-			startTime: startTime,
-			timeBudget: timeBudget
-		};
-	}
-}
-
-type NesRenameRequestArgs = Omit<protocol.NesRenameRequestArgs, 'file' | 'projectFileName' | 'line' | 'offset'> & {
-	file: vscode.Uri;
-	line: number;
-	offset: number;
-};
-
-namespace NesRenameRequestArgs {
-	export function create(document: vscode.TextDocument, position: vscode.Position, oldName: string, newName: string, lastSymbolRename: vscode.Range | undefined): NesRenameRequestArgs {
-		return {
-			file: vscode.Uri.file(document.fileName),
-			line: position.line + 1,
-			offset: position.character + 1,
-			oldName: oldName,
-			newName: newName,
-			lastSymbolRename: lastSymbolRename ? {
-				start: { line: lastSymbolRename.start.line + 1, character: lastSymbolRename.start.character + 1 },
-				end: { line: lastSymbolRename.end.line + 1, character: lastSymbolRename.end.character + 1 }
-			} : undefined
-		};
-	}
-}
+import { TS7NesRenameService } from './ts7/nesRenameService';
+import { TS6NesRenameService } from './tsc6/nesRenameService';
+import { TypeScript } from './tsService';
 
 type TextChange = {
 	range: protocol.Range;
@@ -75,6 +20,28 @@ type RenameGroup = {
 	file: vscode.Uri;
 	changes: TextChange[];
 };
+
+interface NesRenameService extends vscode.Disposable {
+	isActivated(documentOrLanguageId: vscode.TextDocument | string): Promise<boolean>;
+	prepare(document: vscode.TextDocument, position: vscode.Position, oldName: string, newName: string, lastSymbolRename: vscode.Range | undefined, startTime: number, timeBudget: number, token: vscode.CancellationToken): Promise<protocol.PrepareNesRenameResult | protocol.CustomResponse.Failed>;
+	postRename(document: vscode.TextDocument, position: vscode.Position, oldName: string, newName: string, lastSymbolRename: vscode.Range | undefined, token: vscode.CancellationToken): Promise<protocol.RenameGroup[]>;
+}
+
+class NullNesRenameService implements NesRenameService {
+	public dispose(): void { }
+
+	public isActivated(): Promise<boolean> {
+		return Promise.resolve(false);
+	}
+
+	public prepare(): Promise<protocol.PrepareNesRenameResult> {
+		return Promise.resolve({ canRename: protocol.RenameKind.no, timedOut: false });
+	}
+
+	public postRename(): Promise<protocol.RenameGroup[]> {
+		return Promise.resolve([]);
+	}
+}
 
 class TelemetrySender {
 
@@ -137,18 +104,23 @@ class TelemetrySender {
 
 export class NesRenameContribution implements vscode.Disposable {
 
-	private _isActivated: Promise<boolean> | undefined;
 	private readonly disposables: DisposableStore;
 	private readonly telemetrySender: TelemetrySender;
-
-	private static readonly ExecConfig: ExecConfig = { executionTarget: ExecutionTarget.Semantic };
+	private nesRenameService: NesRenameService;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		this.telemetrySender = new TelemetrySender(telemetryService, logService);
 		this.disposables = new DisposableStore();
+		this.nesRenameService = this.createNesRenameService();
+		this.disposables.add(this.configurationService.onDidChangeConfiguration(e => {
+			if (TypeScript.affectsVersion(e) || e.affectsConfiguration(ConfigKey.TypeScript7LanguageContext.fullyQualifiedId)) {
+				this.updateNesRenameService();
+			}
+		}));
 		this.disposables.add(vscode.commands.registerCommand('github.copilot.nes.prepareRename', async (uri: vscode.Uri | undefined, position: vscode.Position | undefined, oldName: string | undefined, newName: string | undefined, requestId: string | undefined, lastSymbolRename: vscode.Range | undefined): Promise<protocol.PrepareNesRenameResult> => {
 			const no: protocol.PrepareNesRenameResult.No = { canRename: protocol.RenameKind.no, timedOut: false };
 			const params = this.resolvePrepareParams(uri, position, oldName, newName, requestId);
@@ -160,31 +132,7 @@ export class NesRenameContribution implements vscode.Disposable {
 			oldName = params.oldName;
 			newName = params.newName;
 			requestId = params.requestId;
-
-			const activated = await this.isActivated(document);
-			if (!activated) {
-				return no;
-			}
-
-			const startTime = Date.now();
-			const args: PrepareNesRenameRequestArgs = PrepareNesRenameRequestArgs.create(document, position, oldName, newName, lastSymbolRename, startTime, 300);
-
-			const tokenSource = new vscode.CancellationTokenSource();
-			try {
-				const result = await vscode.commands.executeCommand<protocol.PrepareNesRenameResponse>('typescript.tsserverRequest', '_.copilot.prepareNesRename', args, NesRenameContribution.ExecConfig, tokenSource.token);
-				if (protocol.PrepareNesRenameResponse.isError(result)) {
-					this.telemetrySender.sendPrepareNesRenameFailureTelemetry(requestId, result.body);
-					return no;
-				} else if (protocol.PrepareNesRenameResponse.isOk(result)) {
-					const timedOut = result.body.canRename === protocol.RenameKind.no ? result.body.timedOut : false;
-					this.telemetrySender.sendPrepareNesRenameTelemetry(requestId, Date.now() - startTime, result.body.canRename, timedOut);
-					return result.body;
-				} else {
-					return no;
-				}
-			} finally {
-				tokenSource.dispose();
-			}
+			return this.prepareRename(document, position, oldName, newName, requestId, lastSymbolRename);
 		}));
 		this.disposables.add(vscode.commands.registerCommand('github.copilot.nes.postRename', async (uri: vscode.Uri | undefined, position: vscode.Position | undefined, oldName: string | undefined, newName: string | undefined, lastSymbolRename: vscode.Range | undefined): Promise<RenameGroup[]> => {
 			const params = this.resolveRenameParams(uri, position, oldName, newName);
@@ -195,23 +143,7 @@ export class NesRenameContribution implements vscode.Disposable {
 			position = params.position;
 			oldName = params.oldName;
 			newName = params.newName;
-			const args: NesRenameRequestArgs = NesRenameRequestArgs.create(document, position, oldName, newName, lastSymbolRename);
-			const tokenSource = new vscode.CancellationTokenSource();
-			try {
-				const result = await vscode.commands.executeCommand<protocol.NesRenameResponse>('typescript.tsserverRequest', '_.copilot.postNesRename', args, NesRenameContribution.ExecConfig, tokenSource.token);
-				if (protocol.NesRenameResponse.isError(result)) {
-					return [];
-				} else if (protocol.NesRenameResponse.isOk(result)) {
-					return result.body.groups.map(group => ({
-						changes: group.changes,
-						file: vscode.Uri.file(group.file)
-					}));
-				} else {
-					return [];
-				}
-			} finally {
-				tokenSource.dispose();
-			}
+			return this.postRename(document, position, oldName, newName, lastSymbolRename);
 		}));
 		this.disposables.add(vscode.commands.registerCommand('github.copilot.debug.validateNesRename', async () => {
 			const params = await this.getUserParams();
@@ -225,73 +157,102 @@ export class NesRenameContribution implements vscode.Disposable {
 				return;
 			}
 
-			const args: PrepareNesRenameRequestArgs = PrepareNesRenameRequestArgs.create(document, position, oldName, newName, new vscode.Range(1, 7, 1, 13), Date.now(), 300);
-			const tokenSource = new vscode.CancellationTokenSource();
-			try {
-				const result = await vscode.commands.executeCommand<protocol.PrepareNesRenameResponse>('typescript.tsserverRequest', '_.copilot.prepareNesRename', args, NesRenameContribution.ExecConfig, tokenSource.token);
-				if (protocol.PrepareNesRenameResponse.isError(result)) {
-					vscode.window.showErrorMessage(`Prepare NES Rename error: ${result.message}`);
-				} else if (protocol.PrepareNesRenameResponse.isOk(result)) {
-					const body = result.body;
-					if (body.canRename === protocol.RenameKind.yes) {
-						vscode.window.showInformationMessage(`Prepare NES Rename: Can rename '${oldName}' to '${newName}'.`);
-					} else if (body.canRename === protocol.RenameKind.maybe) {
-						vscode.window.showWarningMessage(`Prepare NES Rename: Maybe can rename '${oldName}' to '${newName}'.`);
-					} else {
-						vscode.window.showErrorMessage(`Prepare NES Rename: Cannot rename '${oldName}' to '${newName}'. Reason: ${body.reason ?? 'Not provided'}`);
-					}
-				}
-			} finally {
-				tokenSource.dispose();
+			const result = await this.prepareRename(document, position, oldName, newName, 'debug', new vscode.Range(1, 7, 1, 13));
+			if (result.canRename === protocol.RenameKind.yes) {
+				vscode.window.showInformationMessage(`Prepare NES Rename: Can rename '${oldName}' to '${newName}'.`);
+			} else if (result.canRename === protocol.RenameKind.maybe) {
+				vscode.window.showWarningMessage(`Prepare NES Rename: Maybe can rename '${oldName}' to '${newName}'.`);
+			} else {
+				vscode.window.showErrorMessage(`Prepare NES Rename: Cannot rename '${oldName}' to '${newName}'. Reason: ${result.reason ?? 'Not provided'}`);
 			}
 		}));
 	}
 
 	public dispose(): void {
+		this.nesRenameService.dispose();
 		this.disposables.dispose();
 	}
 
-	private async isActivated(documentOrLanguageId: vscode.TextDocument | string): Promise<boolean> {
-		const languageId = typeof documentOrLanguageId === 'string' ? documentOrLanguageId : documentOrLanguageId.languageId;
-		if (languageId !== 'typescript' && languageId !== 'typescriptreact') {
-			return false;
+	private async prepareRename(document: vscode.TextDocument, position: vscode.Position, oldName: string, newName: string, requestId: string, lastSymbolRename: vscode.Range | undefined): Promise<protocol.PrepareNesRenameResult> {
+		const no: protocol.PrepareNesRenameResult.No = { canRename: protocol.RenameKind.no, timedOut: false };
+		const service = this.nesRenameService;
+		if (!await service.isActivated(document)) {
+			return no;
 		}
-		if (this._isActivated === undefined) {
-			this._isActivated = this.doIsTypeScriptActivated(languageId);
+
+		const startTime = Date.now();
+		const timeBudget = 300;
+		const tokenSource = new vscode.CancellationTokenSource();
+		try {
+			const body = await service.prepare(document, position, oldName, newName, lastSymbolRename, startTime, timeBudget, tokenSource.token);
+			if ('error' in body) {
+				this.telemetrySender.sendPrepareNesRenameFailureTelemetry(requestId, body);
+				return no;
+			}
+			const timedOut = body.canRename === protocol.RenameKind.no ? body.timedOut : false;
+			this.telemetrySender.sendPrepareNesRenameTelemetry(requestId, Date.now() - startTime, body.canRename, timedOut);
+			return body;
+		} catch (error) {
+			const data: protocol.CustomResponse.Failed = error instanceof Error
+				? { error: protocol.ErrorCode.exception, message: error.message, stack: error.stack }
+				: { error: protocol.ErrorCode.exception, message: 'Unknown error' };
+			this.telemetrySender.sendPrepareNesRenameFailureTelemetry(requestId, data);
+			this.logService.error(`Error preparing TypeScript ${TypeScript.runsVersion7() ? '7' : '6'} NES rename:`, error);
+			return no;
+		} finally {
+			tokenSource.dispose();
 		}
-		return this._isActivated;
 	}
 
-	private async doIsTypeScriptActivated(languageId: string): Promise<boolean> {
-		let activated = false;
-
+	private async postRename(document: vscode.TextDocument, position: vscode.Position, oldName: string, newName: string, lastSymbolRename: vscode.Range | undefined): Promise<RenameGroup[]> {
+		const tokenSource = new vscode.CancellationTokenSource();
 		try {
-			// Check that the TypeScript extension is installed and runs in the same extension host.
-			const typeScriptExtension = vscode.extensions.getExtension('vscode.typescript-language-features');
-			if (typeScriptExtension === undefined) {
-				return false;
-			}
-
-			// Make sure the TypeScript extension is activated.
-			await typeScriptExtension.activate();
-
-			// Send a ping request to see if the TS server plugin got installed correctly.
-			const response: protocol.PingResponse | undefined = await vscode.commands.executeCommand('typescript.tsserverRequest', '_.copilot.ping', NesRenameContribution.ExecConfig, CancellationToken.None);
-			if (response !== undefined) {
-				if (response.body?.kind === 'ok') {
-					this.logService.info('TypeScript server plugin activated.');
-					activated = true;
-				} else {
-					this.logService.error('TypeScript server plugin not activated:', response.body?.message ?? 'Message not provided.');
-				}
-			} else {
-				this.logService.error('TypeScript server plugin not activated:', 'No ping response received.');
-			}
+			const groups = await this.nesRenameService.postRename(document, position, oldName, newName, lastSymbolRename, tokenSource.token);
+			return groups.map(group => ({
+				changes: group.changes,
+				file: vscode.Uri.file(group.file),
+			}));
 		} catch (error) {
-			this.logService.error('Error pinging TypeScript server plugin:', error);
+			this.logService.error(`Error computing TypeScript ${TypeScript.runsVersion7() ? '7' : '6'} NES rename edits:`, error);
+			return [];
+		} finally {
+			tokenSource.dispose();
 		}
+	}
 
-		return activated;
+	private async isActivated(documentOrLanguageId: vscode.TextDocument | string): Promise<boolean> {
+		return this.nesRenameService.isActivated(documentOrLanguageId);
+	}
+
+	private updateNesRenameService(): void {
+		const runsTS7 = TypeScript.runsVersion7();
+		const enableTS7 = TypeScript.isVersion7SupportEnabled(this.configurationService);
+		const oldService = this.nesRenameService;
+		if (runsTS7) {
+			if (oldService instanceof TS6NesRenameService) {
+				this.nesRenameService = enableTS7
+					? new TS7NesRenameService(this.logService)
+					: new NullNesRenameService();
+			} else if (oldService instanceof TS7NesRenameService && !enableTS7) {
+				this.nesRenameService = new NullNesRenameService();
+			} else if (oldService instanceof NullNesRenameService && enableTS7) {
+				this.nesRenameService = new TS7NesRenameService(this.logService);
+			}
+		} else if (!(oldService instanceof TS6NesRenameService)) {
+			this.nesRenameService = new TS6NesRenameService(this.logService);
+		}
+		if (oldService !== this.nesRenameService) {
+			oldService.dispose();
+		}
+	}
+
+	private createNesRenameService(): NesRenameService {
+		if (!TypeScript.runsVersion7()) {
+			return new TS6NesRenameService(this.logService);
+		}
+		return TypeScript.isVersion7SupportEnabled(this.configurationService)
+			? new TS7NesRenameService(this.logService)
+			: new NullNesRenameService();
 	}
 
 	private resolvePrepareParams(uri: vscode.Uri | undefined, position: vscode.Position | undefined, oldName: string | undefined, newName: string | undefined, requestId: string | undefined): { document: vscode.TextDocument; position: vscode.Position; oldName: string; newName: string; requestId: string } | undefined {
