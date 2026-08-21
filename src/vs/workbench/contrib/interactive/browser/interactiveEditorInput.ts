@@ -243,7 +243,7 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 	}
 
 	override async revert(_group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
-		if (this._editorModelReference && this._editorModelReference.isDirty()) {
+		if (this._editorModelReference) {
 			await this._editorModelReference.revert(options);
 		}
 	}
