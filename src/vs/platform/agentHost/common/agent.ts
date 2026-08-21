@@ -494,6 +494,8 @@ export function resolveAgentHostInstructions(context?: URI | IAgentChatContext):
 
 /** Fully resolved options for creating one chat. */
 export interface IAgentCreateChatOptions {
+	/** Whether the owning session is transient and should skip durable-only provider work. */
+	readonly isEphemeral?: boolean;
 	/** Optional display title for the new chat. */
 	readonly title?: string;
 	/** Optional model override; defaults to the session's model. */

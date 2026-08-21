@@ -14,6 +14,8 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatInputPickerOptions } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerActionItem.js';
+import { ChatPetAchievementIds, didExplicitlySwitchChatPetModel } from '../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
+import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { Menus } from '../../../browser/menus.js';
 import { IsPhoneLayoutContext, SessionUsesCombinedConfigPickerContext } from '../../../common/contextkeys.js';
@@ -49,6 +51,7 @@ export class ModelPicker extends Disposable {
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 		@ISessionContext private readonly _sessionContext: ISessionContext,
 		@ISessionModelSelection private readonly _selectionModel: ISessionModelSelection,
+		@IChatPetService private readonly _chatPetService: IChatPetService,
 	) {
 		super();
 		const currentModel = derived(this, reader => this._selectionModel.state.read(reader).currentModel);
@@ -58,6 +61,9 @@ export class ModelPicker extends Disposable {
 			setModel: model => {
 				const previousModel = this._selectionModel.state.get().currentModel;
 				if (this._selectionModel.selectModel(model.identifier)) {
+					if (didExplicitlySwitchChatPetModel(previousModel?.identifier, model.identifier)) {
+						this._chatPetService.unlockAchievement(ChatPetAchievementIds.ModelSwitch);
+					}
 					reportNewChatPickerClosed(this._telemetryService, {
 						id: 'NewChatModelPicker',
 						optionIdBefore: previousModel?.identifier,

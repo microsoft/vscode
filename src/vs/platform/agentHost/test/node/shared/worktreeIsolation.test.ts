@@ -13,7 +13,7 @@ import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
-import { GitRefType, IAgentHostGitService } from '../../../common/agentHostGitService.js';
+import { GitRefType, IAgentHostGitService, type IAddWorktreeOptions } from '../../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, MessageKind, ResponsePartKind, TurnState, type Turn } from '../../../common/state/sessionState.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from '../../../node/shared/agentBranchNameGenerator.js';
@@ -45,7 +45,7 @@ suite('WorktreeIsolation', () => {
 	let repoRoot: URI;
 	let worktreesRoot: URI;
 	let db: TestSessionDatabase;
-	let addWorktreeCalls: { worktree: URI; branchName: string; startPoint: string; track: boolean }[];
+	let addWorktreeCalls: IAddWorktreeOptions[];
 	let addExistingCalls: { worktree: URI; branchName: string }[];
 	let removeCalls: { worktree: URI; force: boolean }[];
 	let copyIncludeCalls: { repositoryRoot: URI; worktree: URI; globs: readonly string[] }[];
@@ -71,9 +71,9 @@ suite('WorktreeIsolation', () => {
 			],
 			branchExists: async () => branchExists,
 			hasUncommittedChanges: async () => hasUncommittedChanges,
-			addWorktree: async (_root, worktree, branch, startPoint, track) => {
-				addWorktreeCalls.push({ worktree, branchName: branch, startPoint, track });
-				mkdirSync(worktree.fsPath, { recursive: true });
+			addWorktree: async (_root, options) => {
+				addWorktreeCalls.push(options);
+				mkdirSync(options.path.fsPath, { recursive: true });
 			},
 			copyWorktreeIncludeFiles: async (repositoryRoot, worktree, globs) => {
 				copyIncludeCalls.push({ repositoryRoot, worktree, globs: [...globs] });
@@ -197,7 +197,7 @@ suite('WorktreeIsolation', () => {
 		assert.deepStrictEqual({
 			branchDefault: config.branchDefault,
 			branchEnum: config.branchProperty?.protocol.enum,
-			startPoint: addWorktreeCalls[0]?.startPoint,
+			startPoint: addWorktreeCalls[0]?.commitish,
 		}, {
 			branchDefault: 'main',
 			branchEnum: ['main'],
@@ -218,7 +218,7 @@ suite('WorktreeIsolation', () => {
 		assert.deepStrictEqual({
 			returnedWorktree: first!.toString(),
 			addWorktreeCallCount: addWorktreeCalls.length,
-			addWorktreeArgs: addWorktreeCalls.map(c => ({ worktree: c.worktree.toString(), branchName: c.branchName, startPoint: c.startPoint })),
+			addWorktreeArgs: addWorktreeCalls.map(c => ({ worktree: c.path.toString(), branchName: c.newBranchName, startPoint: c.commitish })),
 			metaBranch: meta?.branchName,
 			metaWorktree: meta?.worktreePath?.toString(),
 			metaRepo: meta?.repositoryRoot?.toString(),
@@ -246,10 +246,10 @@ suite('WorktreeIsolation', () => {
 		let addWorktreeRoot: URI | undefined;
 		gitService.getRepositoryRoot = async () => checkoutRoot;
 		gitService.getWorktreeRoots = async () => [repoRoot, checkoutRoot];
-		gitService.addWorktree = async (repositoryRoot, worktree, branch, startPoint, track) => {
+		gitService.addWorktree = async (repositoryRoot, options) => {
 			addWorktreeRoot = repositoryRoot;
-			addWorktreeCalls.push({ worktree, branchName: branch, startPoint, track });
-			mkdirSync(worktree.fsPath, { recursive: true });
+			addWorktreeCalls.push(options);
+			mkdirSync(options.path.fsPath, { recursive: true });
 		};
 		const isolation = createIsolation(disposables, { gitService });
 		const includeFiles = ['.env'];
@@ -309,14 +309,14 @@ suite('WorktreeIsolation', () => {
 
 	test('resolveWorkingDirectory names each creation phase, rounding percentages down and debouncing updates', async () => {
 		const gitService = createGitService();
-		gitService.addWorktree = async (_root, worktree, branch, startPoint, track, onProgress) => {
-			addWorktreeCalls.push({ worktree, branchName: branch, startPoint, track });
-			mkdirSync(worktree.fsPath, { recursive: true });
-			onProgress?.({ filesDone: 7, filesTotal: 800 });
-			onProgress?.({ filesDone: 96, filesTotal: 800 });
-			onProgress?.({ filesDone: 100, filesTotal: 800 });
+		gitService.addWorktree = async (_root, options) => {
+			addWorktreeCalls.push(options);
+			mkdirSync(options.path.fsPath, { recursive: true });
+			options.onProgress?.({ filesDone: 7, filesTotal: 800 });
+			options.onProgress?.({ filesDone: 96, filesTotal: 800 });
+			options.onProgress?.({ filesDone: 100, filesTotal: 800 });
 			await timeout(50);
-			onProgress?.({ filesDone: 800, filesTotal: 800 });
+			options.onProgress?.({ filesDone: 800, filesTotal: 800 });
 		};
 		gitService.copyWorktreeIncludeFiles = async (_root, _worktree, _globs, onProgress) => {
 			onProgress?.({ filesDone: 1, filesTotal: 4 });
@@ -368,7 +368,7 @@ suite('WorktreeIsolation', () => {
 		});
 
 		assert.deepStrictEqual({
-			branchName: addWorktreeCalls[0]?.branchName,
+			branchName: addWorktreeCalls[0]?.newBranchName,
 			worktree: resolved?.toString(),
 		}, {
 			branchName: 'agents/add-feature-12345678',
@@ -402,7 +402,7 @@ suite('WorktreeIsolation', () => {
 
 		assert.deepStrictEqual({
 			branchExistsCalls,
-			branchName: addWorktreeCalls[0]?.branchName,
+			branchName: addWorktreeCalls[0]?.newBranchName,
 			worktree: resolved?.toString(),
 		}, {
 			branchExistsCalls: 2,
@@ -421,13 +421,15 @@ suite('WorktreeIsolation', () => {
 		gitService.getRepositoryRoot = async workingDirectory => workingDirectory;
 		gitService.getWorktreeRoots = async () => [repoRoot, checkoutRootA, checkoutRootB];
 		gitService.branchExists = async (_repositoryRoot, candidate) => existingBranches.has(candidate);
-		gitService.addWorktree = async (_repositoryRoot, worktree, candidate, startPoint, track) => {
+		gitService.addWorktree = async (_repositoryRoot, options) => {
 			activeAddWorktrees++;
 			maxActiveAddWorktrees = Math.max(maxActiveAddWorktrees, activeAddWorktrees);
 			await timeout(10);
-			addWorktreeCalls.push({ worktree, branchName: candidate, startPoint, track });
-			existingBranches.add(candidate);
-			mkdirSync(worktree.fsPath, { recursive: true });
+			addWorktreeCalls.push(options);
+			if (options.newBranchName) {
+				existingBranches.add(options.newBranchName);
+			}
+			mkdirSync(options.path.fsPath, { recursive: true });
 			activeAddWorktrees--;
 		};
 		const isolation = createIsolation(disposables, {
@@ -443,7 +445,7 @@ suite('WorktreeIsolation', () => {
 
 		assert.deepStrictEqual({
 			maxActiveAddWorktrees,
-			branchNames: addWorktreeCalls.map(call => call.branchName),
+			branchNames: addWorktreeCalls.map(call => call.newBranchName),
 			worktrees: worktrees.map(worktree => worktree?.toString()),
 		}, {
 			maxActiveAddWorktrees: 1,

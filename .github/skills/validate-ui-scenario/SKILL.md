@@ -11,7 +11,7 @@ Use this to reproduce a reported bug, to show that a fix works, or to attach a r
 test-plan item. For deterministic regression coverage that runs on every build, write a smoke test
 instead (see the `smoke-tests` skill) — this skill is for one-off, issue-derived validation.
 
-A scenario is a small JavaScript file run by `test/mcp/out/runScenario.js`. Nothing else has to be
+A scenario is a small JavaScript file run by `test/scenario/out/runScenario.js`. Nothing else has to be
 configured: the runner launches VS Code, records video and a trace, captures a screenshot at every
 step boundary, writes the report, and captions the recording with each step and its result.
 
@@ -19,7 +19,7 @@ step boundary, writes the report, and captions the recording with each step and 
 
 ```bash
 npm install                        # once
-npm --prefix test/mcp run compile  # after any change under test/mcp
+npm --prefix test/scenario run compile  # after any change under test/scenario
 ```
 
 Add `ffmpeg` and `ffprobe` to `PATH` to get the caption band on the video. Without them the run still
@@ -130,7 +130,7 @@ Each step receives a `context` with `app`, `workbench`, `code`, `page`, and `ski
 ## Run it
 
 ```bash
-node test/mcp/out/runScenario.js <scenario.cjs> --build "<app-root>"
+node test/scenario/out/runScenario.js <scenario.cjs> --build "<app-root>"
 ```
 
 Exit code `0` means every step passed, `1` means the run failed or was aborted, `2` a usage error.
@@ -149,7 +149,7 @@ Evidence is written to `.build/vscode-playwright-mcp/evidence/<run-id>/`:
 The caption band is added **above** the recorded frame rather than drawn over it, so no recorded
 pixel is hidden and the recording keeps its original length. Each caption carries the step number
 and id, its status, the step title, and the validation detail the step reported. Re-render after
-editing a manifest with `node test/mcp/out/renderEvidenceChapters.js <run-dir>`.
+editing a manifest with `node test/scenario/out/renderEvidenceChapters.js <run-dir>`.
 
 ## What makes evidence trustworthy
 

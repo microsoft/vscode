@@ -6,7 +6,7 @@
 import './media/chatCompositeBar.css';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { $, addDisposableGenericMouseDownListener, addDisposableListener, addStandardDisposableListener, DisposableResizeObserver, EventType, getWindow, isMouseEvent, reset } from '../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableListener, addStandardDisposableListener, DisposableResizeObserver, EventType, getWindow, isMouseEvent } from '../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
@@ -32,9 +32,6 @@ import { ChatPillActionViewItem } from '../../../workbench/browser/chatPills.js'
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { observableConfigValue } from '../../../platform/observable/common/platformObservableUtils.js';
 import { SHOW_SESSION_METADATA_IN_CHAT_INPUT_SETTING } from '../../common/sessionConfig.js';
-import { getSessionWorkspaceDisplayInfo } from '../sessionWorkspace.js';
-import { ThemeIcon } from '../../../base/common/themables.js';
-import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { SessionActivatingActionRunner } from '../sessionActionRunner.js';
 
 /**
@@ -52,7 +49,6 @@ export class SessionHeader extends Disposable {
 	private readonly _iconEl: HTMLElement;
 	private readonly _titleEl: HTMLElement;
 	private readonly _titleTextEl: HTMLElement;
-	private readonly _workspaceMetaEl: HTMLElement;
 	private readonly _metaRow: HTMLElement;
 	private readonly _toolbar: MenuWorkbenchToolBar;
 	private readonly _metaToolbar: MenuWorkbenchToolBar;
@@ -62,6 +58,8 @@ export class SessionHeader extends Disposable {
 	private readonly _editingDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private _renameInput: HTMLInputElement | undefined;
 	private _session: IActiveSession | undefined;
+	private _sessionIsCreated = false;
+	private _requestedVisible = true;
 
 	// dragstart's own target is always the draggable container, so this tracks the
 	// preceding pointerdown's target to know where the gesture actually began.
@@ -79,7 +77,6 @@ export class SessionHeader extends Disposable {
 
 	private readonly _metaActionsSignal: IObservable<void>;
 	private readonly _showMetadataInChatInput: IObservable<boolean>;
-	private readonly _workspaceHover = this._register(new MutableDisposable());
 
 	private readonly _statusIcon: SessionStatusIcon;
 
@@ -103,7 +100,6 @@ export class SessionHeader extends Disposable {
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super();
 
@@ -135,9 +131,6 @@ export class SessionHeader extends Disposable {
 		this._titleTextEl = $('span.chat-composite-bar-session-title-text');
 		this._titleEl.appendChild(this._titleTextEl);
 
-		this._workspaceMetaEl = $('.chat-composite-bar-workspace-meta');
-		titleRow.appendChild(this._workspaceMetaEl);
-
 		// Click the title to start an inline rename. Click is preferred over
 		// mousedown so that initiating a drag from the title doesn't also
 		// flip into edit mode.
@@ -155,9 +148,6 @@ export class SessionHeader extends Disposable {
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			menuOptions: { shouldForwardArgs: true },
 			highlightToggledItems: true,
-			// Render every group in the primary slot with a separator between groups
-			// so the actions stay visually grouped.
-			toolbarOptions: { primaryGroup: () => true, useSeparatorsInPrimaryActions: true },
 		}));
 
 		this._metaRow = $('.chat-composite-bar-meta-row');
@@ -200,7 +190,7 @@ export class SessionHeader extends Disposable {
 		}));
 		this._register(heightObserver.observe(this._container));
 
-		this._setVisible(false);
+		this._applyVisibility(false);
 		this._updateStyles();
 		this._register(this._themeService.onDidColorThemeChange(() => this._updateStyles()));
 
@@ -293,7 +283,8 @@ export class SessionHeader extends Disposable {
 		this._sessionDisposables.value = store;
 
 		if (!session) {
-			this._setVisible(false);
+			this._sessionIsCreated = false;
+			this._updateVisibility();
 			return;
 		}
 
@@ -302,8 +293,21 @@ export class SessionHeader extends Disposable {
 		}));
 
 		store.add(autorun(reader => {
-			this._setVisible(session.isCreated.read(reader));
+			this._sessionIsCreated = session.isCreated.read(reader);
+			this._updateVisibility();
 		}));
+	}
+
+	setVisible(visible: boolean): void {
+		if (this._requestedVisible === visible) {
+			return;
+		}
+		this._requestedVisible = visible;
+		this._updateVisibility();
+	}
+
+	private _updateVisibility(): void {
+		this._applyVisibility(this._sessionIsCreated && this._requestedVisible);
 	}
 
 	private _updateHeader(session: IActiveSession, reader: IReader): void {
@@ -321,21 +325,6 @@ export class SessionHeader extends Disposable {
 		this._titleTextEl.textContent = session.title.read(reader) || getUntitledSessionTitle(isQuickChat);
 		this._titleEl.classList.toggle('editable', this._isTitleEditable());
 		const showMetadataInChatInput = this._showMetadataInChatInput.read(reader);
-		const workspaceInfo = showMetadataInChatInput && !isQuickChat ? getSessionWorkspaceDisplayInfo(session, reader) : undefined;
-		this._workspaceMetaEl.classList.toggle('hidden', !workspaceInfo);
-		this._workspaceHover.clear();
-		if (workspaceInfo) {
-			const label = $('span.chat-composite-bar-workspace-meta-label', undefined, workspaceInfo.label);
-			reset(
-				this._workspaceMetaEl,
-				$('span.chat-composite-bar-workspace-meta-separator', { 'aria-hidden': 'true' }, '·'),
-				$(`span.chat-composite-bar-workspace-meta-icon${ThemeIcon.asCSSSelector(workspaceInfo.icon)}`, { 'aria-hidden': 'true' }),
-				label,
-			);
-			this._workspaceHover.value = this._hoverService.setupDelayedHover(label, { content: workspaceInfo.label });
-		} else {
-			reset(this._workspaceMetaEl);
-		}
 
 		// Meta row: contributed action pills (workspace folder · diff stats · pull request).
 		// Reading the signal re-runs this on menu changes.
@@ -346,7 +335,7 @@ export class SessionHeader extends Disposable {
 		this._onDidChangeHeight.fire();
 	}
 
-	private _setVisible(visible: boolean): void {
+	private _applyVisibility(visible: boolean): void {
 		const wasVisible = this._visible;
 		this._visible = visible;
 		this._container.style.display = this._visible ? '' : 'none';
@@ -503,7 +492,6 @@ export class SessionViewFloatingToolbar extends Disposable {
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			menuOptions: { shouldForwardArgs: true },
 			highlightToggledItems: true,
-			toolbarOptions: { primaryGroup: () => true, useSeparatorsInPrimaryActions: true },
 		}));
 
 		this._setVisible(false);

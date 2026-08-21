@@ -23,7 +23,7 @@ import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { readAgentModelByokIdentifier } from '../common/agentModelByokMeta.js';
 import { AgentSession, AgentSignal, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, type IAgentModelCallCompletedSignal } from '../common/agent.js';
-import { createTerminalChatInstruction } from '../common/meta/agentChatSurfaceMeta.js';
+import { createEditorInlineChatInstruction, createTerminalChatInstruction } from '../common/meta/agentChatSurfaceMeta.js';
 import { readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
@@ -396,7 +396,8 @@ export class AgentSideEffects extends Disposable {
 						this._cancelledTurnIds.set(envelope.channel, turnIds);
 					}
 					turnIds.add(envelope.action.turnId);
-					void this._checkpointService.discardTurnStartCheckpoint(URI.parse(parseRequiredSessionUriFromChatUri(envelope.channel)), URI.parse(envelope.channel), envelope.action.turnId).catch(() => undefined);
+					const sessionChannel = parseRequiredSessionUriFromChatUri(envelope.channel);
+					void this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionChannel), URI.parse(envelope.channel), envelope.action.turnId).catch(() => undefined);
 				}
 				this._syncSessionInputNeededForChatAction(envelope.channel, envelope.action);
 				this._trackTurnUsage(envelope.channel, envelope.action);
@@ -1520,7 +1521,12 @@ export class AgentSideEffects extends Disposable {
 			requestSandboxBypass: e.requestSandboxBypass,
 			shellLanguage: e.shellLanguage,
 		};
-		const autoApproval = e.managedApprovalRequired
+		// A write to a read-only host snapshot under the session attachments dir must be refused when
+		// we get an interactive confirmation for it (#331154), so decide this before (and instead of)
+		// auto-approval. Providers that auto-approve upstream never raise this signal, so this is not a
+		// universal guarantee — the read-only attachment presentation is the primary defense there.
+		const forbiddenSnapshotWrite = this._permissionManager.isForbiddenSnapshotWrite(approvalEvent, sessionKey);
+		const autoApproval = e.managedApprovalRequired || forbiddenSnapshotWrite
 			? undefined
 			: await this._permissionManager.getAutoApproval(approvalEvent, sessionKey);
 		const part = this._stateManager.getSessionState(sessionKey)?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === e.state.toolCallId);
@@ -1538,6 +1544,16 @@ export class AgentSideEffects extends Disposable {
 		const contributor = e.state.contributor ?? toolCall?.contributor;
 		let effective = e;
 		const toolCallKey = `${sessionKey}:${e.state.toolCallId}`;
+		if (forbiddenSnapshotWrite) {
+			// Hard-deny: the model tried to edit a read-only attachment snapshot. Refusing lets the
+			// model recover (e.g. reply with the transformed content / edit the real file) instead of
+			// silently mutating the throwaway copy.
+			this._logService.warn(`[AgentSideEffects] Denying write to read-only attachment snapshot: toolCallId=${e.state.toolCallId}`);
+			this._toolCallAgents.delete(toolCallKey);
+			this._managedApprovalToolCalls.delete(toolCallKey);
+			agent.respondToPermissionRequest(e.state.toolCallId, false);
+			return;
+		}
 		if (e.managedApprovalRequired) {
 			this._managedApprovalToolCalls.add(toolCallKey);
 		} else {
@@ -2198,7 +2214,12 @@ export class AgentSideEffects extends Disposable {
 			this._turnTracker.setCurrentStage(turnChannel, turnId, failureStage);
 			const resolvedAttachments = await this._resolveChatAttachments(message.attachments);
 			const renameInstruction = await this._titleController.prepareInstructionForAgent(sessionChannel, chat);
-			const terminalSurface = this._stateManager.getSessionSurfaceMeta(sessionChannel);
+			const chatSurface = this._stateManager.getSessionSurfaceMeta(sessionChannel);
+			const chatSurfaceInstruction = chatSurface?.surface === 'terminal'
+				? createTerminalChatInstruction(chatSurface)
+				: chatSurface?.surface === 'editorInline'
+					? createEditorInlineChatInstruction(chatSurface)
+					: undefined;
 			const hostInstructions = [
 				...(this._agentConfigService.getRootValue(platformRootSchema, AgentHostMarkdownPlanRichLinksEnabledConfigKey)
 					? [createMarkdownPlanRichLinksInstruction(chat)]
@@ -2206,12 +2227,14 @@ export class AgentSideEffects extends Disposable {
 				...(this._agentConfigService.getRootValue(platformRootSchema, AgentHostArtifactToolsConfigKey)
 					? [ARTIFACT_TOOLS_INSTRUCTION]
 					: []),
-				...(terminalSurface ? [createTerminalChatInstruction(terminalSurface)] : []),
+				...(chatSurfaceInstruction ? [chatSurfaceInstruction] : []),
 				...(renameInstruction ? [renameInstruction] : []),
 			];
 			const sendContext = { ...clientOperationContext, ...(hostInstructions.length ? { hostInstructions } : {}) };
 			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) { return; }
-			await this._checkpointService.captureTurnStartCheckpoint(URI.parse(sessionChannel), chatUri, turnId, resolvedWorkingDirectories);
+			if (!this._stateManager.isEphemeralSession(sessionChannel)) {
+				await this._checkpointService.captureTurnStartCheckpoint(URI.parse(sessionChannel), chatUri, turnId, resolvedWorkingDirectories);
+			}
 			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
 				await this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionChannel), chatUri, turnId);
 				return;
