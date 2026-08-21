@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import type { SectionOverride, SystemMessageConfig, SystemMessageSection } from '@github/copilot-sdk';
-import { CopilotCliConfigKey, applyModelFamilyAlias, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeModelFamilyAlias, resolveModelCapabilityOverrideField } from '../../common/copilotCliConfig.js';
 import type { SchemaValues } from '../../common/agentHostSchema.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
 import { AgentHostPromptRegistry, agentHostPromptRegistry, type IAgentHostPromptContext } from '../../node/copilot/prompts/promptRegistry.js';
@@ -37,14 +37,17 @@ suite('AgentHostPromptRegistry', () => {
 	const LARGE_OUTPUT_LINE = COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION;
 
 	const withUniversalAgentHostInstructions = (config: SystemMessageConfig): SystemMessageConfig => {
-		const content = config.content ? `${config.content}\n\n${COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS}` : COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS;
-		if (config.mode !== 'customize' || config.sections?.tool_instructions) {
-			return { ...config, content };
+		const configWithToolInstructions = config.mode === 'replace'
+			? { ...config, content: `${config.content}\n\n${LARGE_OUTPUT_LINE}` }
+			: config;
+		const content = configWithToolInstructions.content ? `${configWithToolInstructions.content}\n\n${COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS}` : COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS;
+		if (configWithToolInstructions.mode !== 'customize' || configWithToolInstructions.sections?.tool_instructions) {
+			return { ...configWithToolInstructions, content };
 		}
 		return {
-			...config,
+			...configWithToolInstructions,
 			sections: {
-				...config.sections,
+				...configWithToolInstructions.sections,
 				tool_instructions: { action: 'append', content: `\n${LARGE_OUTPUT_LINE}` } satisfies SectionOverride,
 			},
 			content,
@@ -61,7 +64,7 @@ suite('AgentHostPromptRegistry', () => {
 		assert.deepStrictEqual(registry.resolveSystemMessageConfig({ id: 'unknown-model' }, context()), withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE));
 	});
 
-	test('a contributor can fully replace the system prompt (replace mode)', () => {
+	test('a contributor can fully replace the system prompt (replace mode, universal appends survive)', () => {
 		const registry = new AgentHostPromptRegistry();
 		registry.registerPrompt(class {
 			static readonly familyPrefixes = ['gpt-5'];
@@ -71,11 +74,27 @@ suite('AgentHostPromptRegistry', () => {
 		});
 		assert.deepStrictEqual(
 			registry.resolveSystemMessageConfig({ id: 'gpt-5-mini' }, context()),
-			{ mode: 'replace', content: 'FULL PROMPT' }
+			withUniversalAgentHostInstructions({ mode: 'replace', content: 'FULL PROMPT' })
 		);
 	});
 
-	test('a contributor can override individual sections (customize mode)', () => {
+	test('a replacement prompt retains active tool-search guidance', () => {
+		const registry = new AgentHostPromptRegistry();
+		registry.registerPrompt(class {
+			static readonly familyPrefixes = ['gpt-5'];
+			resolveFullSystemPrompt(): string {
+				return 'FULL PROMPT';
+			}
+		});
+		const resolved = registry.resolveSystemMessageConfig(
+			{ id: 'gpt-5-mini' },
+			context({}, [CLIENT_TOOL_SEARCH_REFERENCE_NAME], false, true)
+		);
+		assert.strictEqual(resolved.mode, 'replace');
+		assert.ok(resolved.content.includes('Most tools are deferred and hidden until you search for them.'));
+	});
+
+	test('a contributor can override individual sections (customize mode, default identity composed underneath)', () => {
 		const registry = new AgentHostPromptRegistry();
 		registry.registerPrompt(class {
 			static readonly familyPrefixes = ['claude'];
@@ -85,7 +104,27 @@ suite('AgentHostPromptRegistry', () => {
 		});
 		assert.deepStrictEqual(
 			registry.resolveSystemMessageConfig({ id: 'claude-sonnet' }, context()),
-			withUniversalAgentHostInstructions({ mode: 'customize', sections: { guidelines: { action: 'append', content: 'Be concise.' } } })
+			withUniversalAgentHostInstructions({
+				mode: 'customize',
+				sections: {
+					identity: COPILOT_AGENT_HOST_SYSTEM_MESSAGE.sections.identity,
+					guidelines: { action: 'append', content: 'Be concise.' },
+				},
+			})
+		);
+	});
+
+	test('a contributor identity override wins over the composed default identity', () => {
+		const registry = new AgentHostPromptRegistry();
+		registry.registerPrompt(class {
+			static readonly familyPrefixes = ['claude'];
+			resolveSectionOverrides(): Partial<Record<SystemMessageSection, SectionOverride>> {
+				return { identity: { action: 'replace', content: 'CUSTOM IDENTITY' } };
+			}
+		});
+		assert.deepStrictEqual(
+			registry.resolveSystemMessageConfig({ id: 'claude-sonnet' }, context()),
+			withUniversalAgentHostInstructions({ mode: 'customize', sections: { identity: { action: 'replace', content: 'CUSTOM IDENTITY' } } })
 		);
 	});
 
@@ -116,7 +155,7 @@ suite('AgentHostPromptRegistry', () => {
 		});
 		assert.deepStrictEqual(
 			registry.resolveSystemMessageConfig({ id: 'gpt-5-codex' }, context()),
-			{ mode: 'replace', content: 'CODEX' }
+			withUniversalAgentHostInstructions({ mode: 'replace', content: 'CODEX' })
 		);
 	});
 
@@ -130,7 +169,13 @@ suite('AgentHostPromptRegistry', () => {
 		});
 		assert.deepStrictEqual(
 			registry.resolveSystemMessageConfig({ id: 'claude-x' }, context({ [CopilotCliConfigKey.Opus48Prompt]: true })),
-			withUniversalAgentHostInstructions({ mode: 'customize', sections: { tone: { action: 'append', content: 'GATED' } } })
+			withUniversalAgentHostInstructions({
+				mode: 'customize',
+				sections: {
+					identity: COPILOT_AGENT_HOST_SYSTEM_MESSAGE.sections.identity,
+					tone: { action: 'append', content: 'GATED' },
+				},
+			})
 		);
 		assert.deepStrictEqual(
 			registry.resolveSystemMessageConfig({ id: 'claude-x' }, context()),
@@ -153,14 +198,13 @@ suite('AgentHostPromptRegistry', () => {
 	});
 
 	suite('model capability overrides (family alias)', () => {
-		// The launcher composes `applyModelFamilyAlias` with the registry (see
-		// `_buildSessionConfig`); this guards that composition end-to-end using
-		// the real Opus contributor, whose custom `matchesModel` checks the id.
-		// The alias helper's own behavior is covered in copilotCliConfig.test.ts.
+		// Mirrors the launcher's composition in `_buildSessionConfig`: the
+		// resolved family becomes the effective model id handed to the registry.
 		test('an aliased preview model routes to the family contributor', () => {
-			const overrides = { 'preview-model-x': { family: 'claude-opus-4-8' } };
+			const overrides = { 'preview-model-x': { family: 'claude-opus-4.8' } };
+			const family = resolveModelCapabilityOverrideField(overrides, 'preview-model-x', 'family', (value): value is string => normalizeModelFamilyAlias(value) !== undefined);
 			const result = agentHostPromptRegistry.resolveSystemMessageConfig(
-				applyModelFamilyAlias({ id: 'preview-model-x' }, overrides),
+				{ id: 'preview-model-x', ...(family ? { id: family } : {}) },
 				context({ [CopilotCliConfigKey.Opus48Prompt]: true })
 			);
 			assert.strictEqual(result.mode, 'customize');
@@ -204,6 +248,7 @@ suite('AgentHostPromptRegistry', () => {
 				{
 					mode: 'customize',
 					sections: {
+						identity: COPILOT_AGENT_HOST_SYSTEM_MESSAGE.sections.identity,
 						guidelines: { action: 'append', content: 'Be concise.' },
 						tool_instructions: { action: 'append', content: `\n${LARGE_OUTPUT_LINE}` },
 					},
@@ -212,7 +257,7 @@ suite('AgentHostPromptRegistry', () => {
 			);
 		});
 
-		test('does not append scratch instructions to a full replace prompt', () => {
+		test('appends scratch instructions after a full replace prompt', () => {
 			const registry = new AgentHostPromptRegistry();
 			registry.registerPrompt(class {
 				static readonly familyPrefixes = ['gpt-5'];
@@ -222,7 +267,7 @@ suite('AgentHostPromptRegistry', () => {
 			});
 			assert.deepStrictEqual(
 				registry.resolveSystemMessageConfig({ id: 'gpt-5-mini' }, context({}, [], true)),
-				{ mode: 'replace', content: 'FULL PROMPT' }
+				{ mode: 'replace', content: `FULL PROMPT\n\n${LARGE_OUTPUT_LINE}\n\n${COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS}\n\n${COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS}` }
 			);
 		});
 	});
@@ -262,7 +307,13 @@ suite('AgentHostPromptRegistry', () => {
 			});
 			assert.deepStrictEqual(
 				registry.resolveSystemMessageConfig({ id: 'claude-x' }, context({}, browserTools)),
-				withUniversalAgentHostInstructions({ mode: 'customize', sections: { tool_instructions: { action: 'append', content: `\nAlways prefer ripgrep.\n${LARGE_OUTPUT_LINE}\n${BROWSER_LINE}` } } })
+				withUniversalAgentHostInstructions({
+					mode: 'customize',
+					sections: {
+						identity: COPILOT_AGENT_HOST_SYSTEM_MESSAGE.sections.identity,
+						tool_instructions: { action: 'append', content: `\nAlways prefer ripgrep.\n${LARGE_OUTPUT_LINE}\n${BROWSER_LINE}` },
+					},
+				})
 			);
 		});
 
@@ -276,7 +327,27 @@ suite('AgentHostPromptRegistry', () => {
 			});
 			assert.deepStrictEqual(
 				registry.resolveSystemMessageConfig({ id: 'claude-x' }, context({}, ['anyTool'])),
-				withUniversalAgentHostInstructions({ mode: 'customize', sections: { tool_instructions: { action: 'append', content: `\nAlways prefer ripgrep.\n${LARGE_OUTPUT_LINE}` } } })
+				withUniversalAgentHostInstructions({
+					mode: 'customize',
+					sections: {
+						identity: COPILOT_AGENT_HOST_SYSTEM_MESSAGE.sections.identity,
+						tool_instructions: { action: 'append', content: `\nAlways prefer ripgrep.\n${LARGE_OUTPUT_LINE}` },
+					},
+				})
+			);
+		});
+
+		test('appends the browser line after a full replace prompt', () => {
+			const registry = new AgentHostPromptRegistry();
+			registry.registerPrompt(class {
+				static readonly familyPrefixes = ['gpt-5'];
+				resolveFullSystemPrompt(): string {
+					return 'FULL PROMPT';
+				}
+			});
+			assert.deepStrictEqual(
+				registry.resolveSystemMessageConfig({ id: 'gpt-5-mini' }, context({}, browserTools)),
+				{ mode: 'replace', content: `FULL PROMPT\n\n${LARGE_OUTPUT_LINE}\n${BROWSER_LINE}\n\n${COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS}` }
 			);
 		});
 	});
@@ -328,7 +399,13 @@ suite('AgentHostPromptRegistry', () => {
 			});
 			assert.deepStrictEqual(
 				registry.resolveSystemMessageConfig({ id: 'claude-x' }, context({}, [CLIENT_TOOL_SEARCH_REFERENCE_NAME], false, true)),
-				withUniversalAgentHostInstructions({ mode: 'customize', sections: { tool_instructions: { action: 'append', content: `\nAlways prefer ripgrep.\n${LARGE_OUTPUT_LINE}\n${TOOL_SEARCH_LINE}` } } })
+				withUniversalAgentHostInstructions({
+					mode: 'customize',
+					sections: {
+						identity: COPILOT_AGENT_HOST_SYSTEM_MESSAGE.sections.identity,
+						tool_instructions: { action: 'append', content: `\nAlways prefer ripgrep.\n${LARGE_OUTPUT_LINE}\n${TOOL_SEARCH_LINE}` },
+					},
+				})
 			);
 		});
 	});

@@ -4,16 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AgentSession } from '../../common/agentService.js';
+import { AgentSession } from '../../common/agent.js';
+import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, FileEditKind, SessionStatus, withSessionGitState, type Changeset, type ISessionFileDiff } from '../../common/state/sessionState.js';
+import { ChangesetStatus, FileEditKind, MessageKind, SessionStatus, withSessionGitState, type Changeset, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
 import { META_CHANGES_SUMMARY } from '../../common/agentHostChangesetService.js';
 import type { ChangesSummary } from '../../common/state/protocol/state.js';
@@ -1273,6 +1275,80 @@ class RecordingLogService extends NullLogService {
 	}
 }
 
+suite('AgentHostChangesetService - turn changeset lifecycle', () => {
+
+	const disposables = new DisposableStore();
+	const sessionStr = AgentSession.uri('mock', 'session-turn-lifecycle').toString();
+
+	teardown(() => {
+		disposables.clear();
+	});
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('marks a ready turn changeset as computing until recomputation completes', async () => {
+		const recomputeGate = new DeferredPromise<void>();
+		let computeCount = 0;
+		const git = createNoopGitService();
+		git.getRepositoryRoot = async wd => URI.parse(wd.toString());
+		git.computeFileDiffsBetweenRefs = async () => {
+			computeCount++;
+			if (computeCount > 1) {
+				await recomputeGate.p;
+			}
+			return [];
+		};
+		const checkpoint: IAgentHostCheckpointService = {
+			...NULL_CHECKPOINT_SERVICE,
+			getTurnCheckpointPair: async () => ({ parent: 'parent', current: 'current' }),
+		};
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const diffService = new TestDiffComputeService();
+		class TestableChangesetService extends AgentHostChangesetService {
+			protected override _createDiffComputeService() {
+				return diffService;
+			}
+		}
+		const svc = disposables.add(new TestableChangesetService(
+			stateManager,
+			new NullLogService(),
+			createSessionDataService(new TestSessionDatabase()),
+			git,
+			checkpoint,
+			disposables.add(new AgentConfigurationService(stateManager, new NullLogService())),
+			createOperationService(),
+			createSubscriptionService(),
+			NULL_REVIEW_SERVICE,
+			NullTelemetryService,
+		));
+		stateManager.createSession({
+			resource: sessionStr,
+			provider: 'mock',
+			title: 'Test',
+			status: SessionStatus.Idle,
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
+			workingDirectories: ['file:///repo'],
+		});
+		const turnUri = await svc.computeTurnChangeset(sessionStr, 'turn-1');
+
+		const recompute = svc.computeTurnChangeset(sessionStr, 'turn-1');
+		const whileRecomputing = stateManager.getChangesetState(turnUri)?.status;
+		recomputeGate.complete();
+		await recompute;
+
+		assert.deepStrictEqual({
+			whileRecomputing,
+			afterRecompute: stateManager.getChangesetState(turnUri),
+		}, {
+			whileRecomputing: ChangesetStatus.Computing,
+			afterRecompute: {
+				status: ChangesetStatus.Ready,
+				files: [],
+			},
+		});
+	});
+});
+
 /**
  * Multi-root turn changeset aggregation (AC-2). A separate top-level suite so
  * these run against the current service (the older `AgentHostChangesetService`
@@ -1309,6 +1385,7 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 		log?: RecordingLogService;
 		telemetry?: ITelemetryService;
 		subscriptions?: string[];
+		peer?: { resource: string; db: TestSessionDatabase; turnId: string; onDispose?: () => void };
 	}): { svc: AgentHostChangesetService; stateManager: AgentHostStateManager; log: RecordingLogService } {
 		const log = options.log ?? new RecordingLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -1322,10 +1399,27 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 				return diffService;
 			}
 		}
+		const sessionDataService = createSessionDataService(db);
+		const peerDataService = options.peer ? createSessionDataService(options.peer.db) : undefined;
 		const svc = disposables.add(new TestableChangesetService(
 			stateManager,
 			log,
-			createSessionDataService(db),
+			{
+				...sessionDataService,
+				openDatabase: resource => {
+					if (options.peer?.resource !== resource.toString()) {
+						return sessionDataService.openDatabase(resource);
+					}
+					const ref = peerDataService!.openDatabase(resource);
+					return {
+						object: ref.object,
+						dispose: () => {
+							options.peer?.onDispose?.();
+							ref.dispose();
+						},
+					};
+				},
+			},
 			options.git,
 			options.checkpoint,
 			disposables.add(new AgentConfigurationService(stateManager, new NullLogService())),
@@ -1343,6 +1437,20 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			modifiedAt: new Date().toISOString(),
 			workingDirectories: options.workingDirectories,
 		});
+		if (options.peer) {
+			stateManager.addChat(sessionStr, options.peer.resource);
+			stateManager.dispatchServerAction(options.peer.resource, {
+				type: ActionType.ChatTurnStarted,
+				turnId: options.peer.turnId,
+				startedAt: new Date(0).toISOString(),
+				message: { text: 'peer', origin: { kind: MessageKind.User } },
+			});
+			stateManager.dispatchServerAction(options.peer.resource, {
+				type: ActionType.ChatTurnComplete,
+				turnId: options.peer.turnId,
+				duration: 1,
+			});
+		}
 		return { svc, stateManager, log };
 	}
 
@@ -1400,6 +1508,38 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			1,
 			'the git-backed file must appear exactly once',
 		);
+	});
+
+	test('uses the owning peer database for multi-root non-git fallback', async () => {
+		const sessionDb = new TestSessionDatabase();
+		const lifecycle: string[] = [];
+		class DelayedPeerDatabase extends TestSessionDatabase {
+			override async getFileEditsByTurn(turnId: string) {
+				await timeout(0);
+				lifecycle.push('read');
+				return super.getFileEditsByTurn(turnId);
+			}
+		}
+		const peerDb = new DelayedPeerDatabase();
+		peerDb.addEdit({ turnId: 'peer-turn', toolCallId: 'tc1', filePath: '/folderA/peer.txt', kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString('a'), afterContent: encodeString('a\nb') });
+		const peerResource = 'ahp-chat://peer-1/session-mr';
+		const { svc, stateManager } = build({
+			workingDirectories: ['file:///folderA', 'file:///folderB'],
+			git: createNoopGitService(),
+			checkpoint: NULL_CHECKPOINT_SERVICE,
+			db: sessionDb,
+			peer: { resource: peerResource, db: peerDb, turnId: 'peer-turn', onDispose: () => lifecycle.push('dispose') },
+		});
+
+		const turnUri = await svc.computeTurnChangeset(sessionStr, 'peer-turn');
+
+		assert.deepStrictEqual({
+			files: stateManager.getChangesetState(turnUri)?.files.map(file => file.id),
+			lifecycle,
+		}, {
+			files: [URI.file('/folderA/peer.txt').toString()],
+			lifecycle: ['read', 'dispose'],
+		});
 	});
 
 	test('diffs a repository shared by two working directories exactly once (dedup by repo root)', async () => {
@@ -1959,13 +2099,26 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 				subscriptions: [buildTurnChangesetUri(sessionStr, 'turn-1')],
 			});
 
-			svc.onTurnComplete(sessionStr, 'turn-1');
+			svc.onTurnComplete(sessionStr, 'turn-1', {
+				clientType: AgentHostClientType.EditorWindow,
+				connectionKind: AgentHostClientConnectionKind.RemoteExtensionHost,
+				transportKind: AgentHostTransportKind.MessagePort,
+				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+				machineId: 'client-machine-id',
+				devDeviceId: 'client-dev-device-id',
+			});
 			const data = await waitForTelemetry(telemetry, 'agentHost.changesetComputed', d => d.kind === 'turn');
 
 			assert.deepStrictEqual({
 				provider: data.provider,
 				agentSessionId: data.agentSessionId,
 				turnId: data.turnId,
+				initiatorClientType: data.initiatorClientType,
+				initiatorConnectionKind: data.initiatorConnectionKind,
+				initiatorTransportKind: data.initiatorTransportKind,
+				hostLaunchKind: data.hostLaunchKind,
+				initiatorMachineId: data.initiatorMachineId,
+				initiatorDevDeviceId: data.initiatorDevDeviceId,
 				kind: data.kind,
 				outcome: data.outcome,
 				isMultiRoot: data.isMultiRoot,
@@ -1976,6 +2129,12 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 				provider: URI.parse(sessionStr).scheme,
 				agentSessionId: AgentSession.id(sessionStr),
 				turnId: 'turn-1',
+				initiatorClientType: 'editor_window',
+				initiatorConnectionKind: 'remote_extension_host',
+				initiatorTransportKind: 'message_port',
+				hostLaunchKind: 'vscode_main_process',
+				initiatorMachineId: 'client-machine-id',
+				initiatorDevDeviceId: 'client-dev-device-id',
 				kind: 'turn',
 				outcome: 'computed',
 				isMultiRoot: false,

@@ -557,7 +557,7 @@ export class WorkspacePicker extends Disposable {
 			if (generation !== this._selectionGeneration) {
 				return false;
 			}
-			this._selectFolder(folderUri);
+			this._selectFolder(folderUri, true, selection.providerId);
 			return true;
 		} else if (item.folderUri) {
 			if (item.providerId && !await this._connectProviderOnDemand(item.providerId)) {
@@ -572,7 +572,7 @@ export class WorkspacePicker extends Disposable {
 			if (generation !== this._selectionGeneration) {
 				return false;
 			}
-			this._selectFolder(item.folderUri);
+			this._selectFolder(item.folderUri, true, item.providerId);
 			return true;
 		}
 		return false;

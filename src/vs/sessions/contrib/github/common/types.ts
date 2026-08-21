@@ -6,6 +6,9 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { themeColorFromId, ThemeIcon } from '../../../../base/common/themables.js';
 
+export const OPEN_PULL_REQUEST_ACTION_ID = 'workbench.agentSessions.action.openPullRequest';
+export const OPEN_ISSUE_ACTION_ID = 'workbench.agentSessions.action.openIssue';
+
 //#region Session Context
 
 /**
@@ -77,6 +80,7 @@ export interface IGitHubPullRequestSummary {
 	readonly author: IGitHubUser;
 	readonly headRef: string;
 	readonly checkoutRef: string;
+	readonly isCrossRepository: boolean;
 	readonly isDraft: boolean;
 	readonly updatedAt: string;
 	readonly additions: number;
@@ -148,6 +152,8 @@ export interface IGitHubPullRequestReview {
  * Additional live status used to refine the icon of an open pull request.
  */
 export interface IPullRequestIconStatus {
+	/** Whether the pull request has merge conflicts. */
+	readonly hasMergeConflicts?: boolean;
 	/** Whether the pull request has at least one failing CI check. */
 	readonly hasFailingChecks?: boolean;
 	/** Whether the pull request has at least one unresolved review comment thread. */
@@ -172,13 +178,38 @@ export function computePullRequestIcon(state: GitHubPullRequestState | 'draft', 
 		case 'draft':
 			return { ...Codicon.gitPullRequestDraft, color: themeColorFromId('descriptionForeground') };
 		case GitHubPullRequestState.Open:
-			if (status?.hasFailingChecks) {
+			if (status?.hasMergeConflicts || status?.hasFailingChecks) {
 				return { ...Codicon.gitPullRequestError, color: themeColorFromId('charts.orange') };
 			}
 			if (status?.hasUnresolvedComments) {
 				return { ...Codicon.gitPullRequestComment, color: themeColorFromId('charts.green') };
 			}
 			return { ...Codicon.gitPullRequest, color: themeColorFromId('charts.green') };
+	}
+}
+
+/** Coarse pull request state, recoverable from the icon carried on session GitHub info. */
+export type PullRequestStatus = 'open' | 'closed' | 'merged' | 'draft';
+
+/**
+ * Inverse of {@link computePullRequestIcon}: recovers the coarse pull request
+ * status from an icon. Returns `undefined` when the icon is missing or is not
+ * one of the known pull request icons (i.e. the state was never resolved).
+ */
+export function getPullRequestStatusFromIcon(icon: ThemeIcon | undefined): PullRequestStatus | undefined {
+	switch (icon?.id) {
+		case Codicon.gitPullRequestDone.id:
+			return 'merged';
+		case Codicon.gitPullRequestClosed.id:
+			return 'closed';
+		case Codicon.gitPullRequestDraft.id:
+			return 'draft';
+		case Codicon.gitPullRequest.id:
+		case Codicon.gitPullRequestError.id:
+		case Codicon.gitPullRequestComment.id:
+			return 'open';
+		default:
+			return undefined;
 	}
 }
 

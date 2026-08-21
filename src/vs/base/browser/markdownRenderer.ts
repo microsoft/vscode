@@ -702,6 +702,16 @@ export function renderAsPlaintext(str: IMarkdownString | string, options?: {
 	readonly includeCodeBlocksFences?: boolean;
 	/** Controls if we want to format empty links from "Link [](file)" to "Link file" */
 	readonly useLinkFormatter?: boolean;
+	/**
+	 * Controls whether markdown syntax is reduced to its text everywhere, rather than only where
+	 * the renderer already does so.
+	 *
+	 * By default a list item is emitted as its raw source, so inline syntax survives into the
+	 * output — a link keeps its target, as in `- Added [src/](/some/path)`, and `**bold**` keeps
+	 * its asterisks. Enable this for callers that need the text a reader actually sees. Off by
+	 * default because it changes long-standing output for every caller.
+	 */
+	readonly omitMarkdownSyntax?: boolean;
 }) {
 	if (typeof str === 'string') {
 		return str;
@@ -719,6 +729,12 @@ export function renderAsPlaintext(str: IMarkdownString | string, options?: {
 	}
 	if (options?.useLinkFormatter) {
 		renderer.link = linkFormatter;
+	}
+	if (options?.omitMarkdownSyntax) {
+		renderer.listitem = parsedListItem;
+		// A tight list item's content arrives as a block-level text token carrying the inline
+		// tokens, so the list item alone is not enough to reach the inline renderers.
+		renderer.text = parsedText;
 	}
 
 	const html = marked.parse(value, { async: false, renderer });
@@ -814,6 +830,22 @@ const linkFormatter = ({ text, href }: marked.Tokens.Link): string => {
 		return text.trim() || pathBasename(href);
 	}
 	return text;
+};
+
+/**
+ * Renders a list item from its parsed tokens rather than its raw source, so inline markdown is
+ * reduced to text the way it already is in a paragraph. Opt-in via `omitMarkdownSyntax`.
+ *
+ * Parses as top-level so a tight item's text becomes a paragraph: without that boundary an item
+ * holding a nested list would run straight into it, as in `outerinner link`.
+ */
+const parsedListItem = function (this: marked.Renderer, { tokens }: marked.Tokens.ListItem): string {
+	return this.parser.parse(tokens, true);
+};
+
+/** Renders a block-level text token through its inline tokens. Opt-in via `omitMarkdownSyntax`. */
+const parsedText = function (this: marked.Renderer, token: marked.Tokens.Text): string {
+	return token.tokens ? this.parser.parseInline(token.tokens) : token.text;
 };
 
 function mergeRawTokenText(tokens: marked.Token[]): string {

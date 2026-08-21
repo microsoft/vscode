@@ -141,6 +141,30 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 		assert.ok(responseParts.length > 0, 'should have received at least one response part');
 	});
 
+	test('preserves a fenced multiline markdown response', async function () {
+		this.timeout(120_000);
+		const workspaceDir = mkdtempSync(join(tmpdir(), 'ahp-markdown-response-'));
+		tempDirs.push(workspaceDir);
+		const sessionUri = await createRealSession(
+			context.client,
+			config,
+			`markdown-response-${config.provider}`,
+			createdSessions,
+			URI.file(workspaceDir),
+		);
+		const expected = '```text\nALPHA\nBETA\n```';
+
+		const result = await driveTurnToCompletion(
+			context.client,
+			sessionUri,
+			'turn-markdown-response',
+			`Reply with exactly this Markdown code block and nothing else:\n${expected}`,
+			1,
+		);
+
+		assert.strictEqual(result.responseText, expected);
+	});
+
 	test('listModels returns well-shaped model entries after authenticate', async function () {
 		this.timeout(60_000);
 

@@ -444,6 +444,9 @@
 		"terminal.ansiBrightWhite": "#ffffff",
 		// modern ui
 		"surface.border": "#00000000",
+		"modernActivityBar.activeBackground": "#08286b",
+		"modernActivityBar.hoverBackground": "#08286b87",
+		"modernActivityBar.background": "#00000000",
 	},
 	"semanticHighlighting": true
 }

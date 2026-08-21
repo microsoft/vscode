@@ -9,7 +9,7 @@
 
 import assert from 'assert';
 import { execSync } from 'child_process';
-import { chmodSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from 'fs';
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from 'fs';
 import { homedir, tmpdir, userInfo } from 'os';
 import { fileURLToPath } from 'url';
 import { timeout } from '../../../../../../base/common/async.js';
@@ -200,7 +200,6 @@ const RECORDING_MODEL_RESPONSES = new Map<string, ICapiReplayResponse>([
 		status: 400,
 		headers: {
 			'content-type': 'application/json',
-			'x-request-id': 'agent-host-e2e-resume-error',
 		},
 		body: '{"error":{"message":"Injected recoverable E2E failure.","type":"invalid_request_error","code":"invalid_request_error"}}',
 	}],
@@ -382,6 +381,8 @@ export interface IAgentHostE2EProviderConfig {
 	readonly supportsPlanMode: boolean;
 	/** Whether the provider supports additional peer chats and chat forks. */
 	readonly supportsMultipleChats: boolean;
+	/** Whether model-backed multiple-chat parity scenarios have deterministic fixtures. */
+	readonly supportsMultipleChatsE2E?: boolean;
 	readonly supportsChatFork: boolean;
 	/** Whether provider-backed fork context can be tested end-to-end. */
 	readonly supportsChatForkE2E: boolean;
@@ -403,12 +404,13 @@ export async function createRealSession(
 	clientId: string,
 	trackingList: string[],
 	workingDirectory: URI,
+	beforeCreateSession?: () => Promise<void>,
 ): Promise<string> {
 	const sessionUri = await createProviderSession(c, {
 		provider: config.provider,
 		scheme: config.scheme,
 		githubToken: config.githubToken ?? resolveGitHubToken(),
-	}, clientId, trackingList, workingDirectory);
+	}, clientId, trackingList, workingDirectory, beforeCreateSession);
 	c.setAhpSnapshotNormalization({
 		workingDirectory: workingDirectory.fsPath,
 		homeDirectory: homedir(),
@@ -519,15 +521,28 @@ export interface IDrivenTurnResult {
 }
 
 export async function driveTurnToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number): Promise<IDrivenTurnResult> {
-	return driveTurn(c, session, turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq));
+	return driveTurn(c, buildDefaultChatUri(session), turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq));
+}
+
+export async function driveChatTurnToCompletion(c: TestProtocolClient, chat: string, turnId: string, text: string, clientSeq: number): Promise<IDrivenTurnResult> {
+	return driveTurn(c, chat, turnId, clientSeq, () => c.dispatch({
+		channel: chat,
+		clientSeq,
+		action: {
+			type: ActionType.ChatTurnStarted,
+			turnId,
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text, origin: { kind: MessageKind.User } },
+		},
+	}));
 }
 
 export async function driveTurnWithAttachmentsToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, attachments: readonly MessageAttachment[], clientSeq: number): Promise<IDrivenTurnResult> {
-	return driveTurn(c, session, turnId, clientSeq, () => dispatchTurnWithAttachments(c, session, turnId, text, attachments, clientSeq));
+	return driveTurn(c, buildDefaultChatUri(session), turnId, clientSeq, () => dispatchTurnWithAttachments(c, session, turnId, text, attachments, clientSeq));
 }
 
 export async function driveTurnWithModelToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, model: string, clientSeq: number): Promise<IDrivenTurnResult> {
-	return driveTurn(c, session, turnId, clientSeq, () => c.dispatch({
+	return driveTurn(c, buildDefaultChatUri(session), turnId, clientSeq, () => c.dispatch({
 		channel: buildDefaultChatUri(session),
 		clientSeq,
 		action: {
@@ -540,18 +555,17 @@ export async function driveTurnWithModelToCompletion(c: TestProtocolClient, sess
 }
 
 export async function driveTurnWithCancelledInputToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number): Promise<IDrivenTurnResult> {
-	return driveTurn(c, session, turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq), ChatInputResponseKind.Cancel);
+	return driveTurn(c, buildDefaultChatUri(session), turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq), ChatInputResponseKind.Cancel);
 }
 
 export async function driveTurnWithAnswersToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number, getAnswers: (request: ChatInputRequest) => Record<string, ChatInputAnswer>): Promise<IDrivenTurnResult> {
-	return driveTurn(c, session, turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq), ChatInputResponseKind.Accept, getAnswers);
+	return driveTurn(c, buildDefaultChatUri(session), turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq), ChatInputResponseKind.Accept, getAnswers);
 }
 
-async function driveTurn(c: TestProtocolClient, session: string, turnId: string, clientSeq: number, dispatch: () => void, inputResponse = ChatInputResponseKind.Accept, answerProvider = getAcceptedAnswers): Promise<IDrivenTurnResult> {
+async function driveTurn(c: TestProtocolClient, chat: string, turnId: string, clientSeq: number, dispatch: () => void, inputResponse = ChatInputResponseKind.Accept, answerProvider = getAcceptedAnswers): Promise<IDrivenTurnResult> {
 	c.clearReceived();
 	dispatch();
 
-	const chat = buildDefaultChatUri(session);
 	const seenNotifications = new Set<object>();
 	let nextClientSeq = clientSeq + 1;
 	let sawInputRequest = false;
@@ -586,7 +600,7 @@ async function driveTurn(c: TestProtocolClient, session: string, turnId: string,
 			if (!action.confirmed) {
 				sawPendingConfirmation = true;
 				c.dispatch({
-					channel: buildDefaultChatUri(session),
+					channel: chat,
 					clientSeq: nextClientSeq++,
 					action: {
 						type: ActionType.ChatToolCallConfirmed,
@@ -604,7 +618,7 @@ async function driveTurn(c: TestProtocolClient, session: string, turnId: string,
 			sawInputRequest = true;
 			const action = getActionEnvelope(notification).action as ChatInputRequestedAction;
 			c.dispatch({
-				channel: buildDefaultChatUri(session),
+				channel: chat,
 				clientSeq: nextClientSeq++,
 				action: {
 					type: ActionType.ChatInputCompleted,
@@ -857,7 +871,7 @@ export class AgentHostE2EServerLease {
 	private _testsOnCurrentServer = 0;
 	private _cleanupClientSeq = 1_000_000;
 	private _currentCapiReplay: ReturnType<typeof capiReplayFor> | undefined;
-	private readonly _startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly homeDir: string; readonly userDataDir: string; readonly env: Readonly<Record<string, string>> };
+	private readonly _startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly codexHomeDir: string; readonly homeDir: string; readonly userDataDir: string; readonly env: Readonly<Record<string, string>> };
 	private readonly _target: IAgentHostTarget;
 
 	constructor(
@@ -865,11 +879,14 @@ export class AgentHostE2EServerLease {
 		startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly target?: IAgentHostTarget } = {},
 	) {
 		const dataDir = mkdtempSync(join(tmpdir(), 'vscode-agent-host-e2e-'));
+		const codexHomeDir = join(dataDir, '.codex');
+		mkdirSync(codexHomeDir);
 		this._dataDir = dataDir;
 		this._target = startOptions.target ?? defaultAgentHostTarget;
 		this._startOptions = {
 			claudeSdkRoot: startOptions.claudeSdkRoot,
 			codexSdkRoot: startOptions.codexSdkRoot,
+			codexHomeDir,
 			homeDir: dataDir,
 			userDataDir: join(dataDir, 'user-data'),
 			env: { [AgentHostSessionReleaseGraceMsEnvVar]: '0' },

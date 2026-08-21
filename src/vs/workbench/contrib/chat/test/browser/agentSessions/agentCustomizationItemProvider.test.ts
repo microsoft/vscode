@@ -14,7 +14,8 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
-import { CustomizationType, type AgentCustomization, type ClientPluginCustomization, type Customization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { CustomizationType, type AgentCustomization, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { CustomizationEnablementKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AgentCustomizationItemProvider } from '../../../browser/agentSessions/agentHost/agentCustomizationItemProvider.js';
 import { NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
@@ -113,7 +114,6 @@ suite('AgentCustomizationItemProvider', () => {
 			id: bundleUri.toString(),
 			uri: bundleUri.toString(),
 			name: 'VS Code Synced Data',
-			enabled: true,
 			nonce: '1',
 		}]));
 
@@ -123,6 +123,59 @@ suite('AgentCustomizationItemProvider', () => {
 			{ type: PromptsType.agent, name: 'Reviewer', uri: workspaceAgentUri.toString() },
 			{ type: PromptsType.instructions, name: 'Review Instructions', uri: workspaceInstructionsUri.toString() },
 			{ type: PromptsType.skill, name: 'Review Skill', uri: workspaceSkillUri.toString() },
+		]);
+	});
+
+	test('surfaces only the host-published winning disabled reason', async () => {
+		const customizations: PluginCustomization[] = [
+			{
+				type: CustomizationType.Plugin,
+				id: 'plugin-1',
+				uri: 'file:///plugins/one',
+				name: 'Plugin One',
+				enablement: [
+					{ kind: CustomizationEnablementKind.Session, enabled: false },
+					{ kind: CustomizationEnablementKind.Global, enabled: true },
+				],
+			},
+			{
+				type: CustomizationType.Plugin,
+				id: 'plugin-2',
+				uri: 'file:///plugins/two',
+				name: 'Plugin Two',
+			},
+		];
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override getCustomizations(): readonly Customization[] {
+				return customizations;
+			}
+		}
+
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'local',
+			undefined,
+			undefined,
+			upcastPartial<IFileService>({}),
+			new NullLogService(),
+			new TestCustomizationService(),
+		));
+		const items = await provider.provideChatSessionCustomizations(URI.parse('agent-host-codex:///session'), CancellationToken.None);
+
+		assert.deepStrictEqual(items.map(item => ({
+			name: item.name,
+			enabled: item.enabled,
+			disabledReason: item.disabledReason,
+		})), [
+			{
+				name: 'Plugin One',
+				enabled: false,
+				disabledReason: { source: 'scope', scope: CustomizationEnablementKind.Session },
+			},
+			{
+				name: 'Plugin Two',
+				enabled: true,
+				disabledReason: undefined,
+			},
 		]);
 	});
 });

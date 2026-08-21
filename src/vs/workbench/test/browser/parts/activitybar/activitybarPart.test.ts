@@ -7,9 +7,9 @@ import assert from 'assert';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
+import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { TestStorageService } from '../../../common/workbenchTestServices.js';
-import { TestLayoutService } from '../../workbenchTestServices.js';
+import { TestHostService, TestLayoutService } from '../../workbenchTestServices.js';
 import { ActivitybarPart } from '../../../../browser/parts/activitybar/activitybarPart.js';
 import { IViewSize } from '../../../../../base/browser/ui/grid/grid.js';
 import { LayoutSettings, Parts, Position } from '../../../../services/layout/browser/layoutService.js';
@@ -21,6 +21,7 @@ import { IPaneComposite } from '../../../../common/panecomposite.js';
 import { Extensions, PaneCompositeDescriptor } from '../../../../browser/panecomposite.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ViewContainerLocation } from '../../../../common/views.js';
+import { ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND } from '../../../../common/theme.js';
 
 class StubPaneCompositePart implements IPaneCompositePart {
 	declare readonly _serviceBrand: undefined;
@@ -73,14 +74,15 @@ suite('ActivitybarPart', () => {
 		disposables.clear();
 	});
 
-	function createActivitybarPart(compact: boolean, floatingPanelsEnabled = false, sideBarPosition = Position.LEFT): { part: ActivitybarPart; configService: TestConfigurationService; layoutService: TestFloatingPanelsLayoutService } {
+	function createActivitybarPart(compact: boolean, floatingPanelsEnabled = false, sideBarPosition = Position.LEFT, colors: { [id: string]: string | undefined } = {}): { part: ActivitybarPart; configService: TestConfigurationService; layoutService: TestFloatingPanelsLayoutService; hostService: TestHostService } {
 		const configService = new TestConfigurationService({
 			[LayoutSettings.ACTIVITY_BAR_COMPACT]: compact,
 			[LayoutSettings.MODERN_UI]: floatingPanelsEnabled,
 		});
 		const storageService = disposables.add(new TestStorageService());
-		const themeService = new TestThemeService();
+		const themeService = new TestThemeService(new TestColorTheme(colors));
 		const layoutService = new TestFloatingPanelsLayoutService();
+		const hostService = new TestHostService();
 		layoutService.floatingPanelsEnabled = floatingPanelsEnabled;
 		layoutService.sideBarPosition = sideBarPosition;
 
@@ -100,9 +102,10 @@ suite('ActivitybarPart', () => {
 			themeService,
 			storageService,
 			configService,
+			hostService,
 		));
 
-		return { part, configService, layoutService };
+		return { part, configService, layoutService, hostService };
 	}
 
 	function fireConfigChange(configService: TestConfigurationService, key: string): void {
@@ -352,6 +355,33 @@ suite('ActivitybarPart', () => {
 		assert.strictEqual(el.classList.contains('compact'), false);
 	});
 
+	test('uses the inactive background only for inactive Modern UI windows', () => {
+		const { part, configService, hostService } = createActivitybarPart(false, true, Position.LEFT, {
+			[ACTIVITY_BAR_BACKGROUND]: '#123456',
+			[MODERN_ACTIVITY_BAR_BACKGROUND]: '#abcdef',
+			[MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND]: '#654321',
+		});
+		const el = document.createElement('div');
+		fixture.appendChild(el);
+		part.create(el);
+
+		const activeModernBackground = el.style.backgroundColor;
+		hostService.setFocus(false);
+		const inactiveModernBackground = el.style.backgroundColor;
+		configService.setUserConfiguration(LayoutSettings.MODERN_UI, false);
+		fireConfigChange(configService, LayoutSettings.MODERN_UI);
+
+		assert.deepStrictEqual({
+			activeModernBackground,
+			inactiveModernBackground,
+			inactiveClassicBackground: el.style.backgroundColor,
+		}, {
+			activeModernBackground: 'rgb(171, 205, 239)',
+			inactiveModernBackground: 'rgb(101, 67, 33)',
+			inactiveClassicBackground: 'rgb(18, 52, 86)',
+		});
+	});
+
 	// --- toJSON ------------------------------------------------------------
 
 	test('toJSON returns correct part type', () => {
@@ -399,10 +429,10 @@ suite('ActivitybarPart', () => {
 		};
 
 		assert.deepStrictEqual(actual, {
-			titleAndStatusBarVisible: 300 - margin * 2,
+			titleAndStatusBarVisible: 300 - margin,
 			titleBarHidden: 300 - margin * 2 - margin,
-			bannerInsteadOfTitleBar: 300 - margin * 2,
-			statusBarHidden: 300 - margin - margin * 2,
+			bannerInsteadOfTitleBar: 300 - margin,
+			statusBarHidden: 300 - margin * 2,
 			bothEdgesExposed: 300 - margin * 2 - margin * 2,
 			floatingPanelsDisabled: 300,
 		});

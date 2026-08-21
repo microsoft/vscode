@@ -381,6 +381,7 @@ export class SpotlightOverlay extends Disposable {
 
 		this._counter.textContent = localize('spotlight.counter', "{0} of {1}", content.stepIndex + 1, content.stepCount);
 
+		this._skipButton.element.style.display = content.isLastStep ? 'none' : '';
 		this._backButton.element.style.display = content.canGoBack ? '' : 'none';
 		this._nextButton.label = content.isLastStep
 			? localize('spotlight.done', "Done")

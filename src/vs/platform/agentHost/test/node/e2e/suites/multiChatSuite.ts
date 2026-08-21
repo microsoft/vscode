@@ -31,6 +31,8 @@ import { assertToolCallCompleteText, createRealSession } from '../harness/agentH
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { conformanceTest, providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 
+const RECORDING = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
+
 export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs } = context;
 	/** See the same constant in `fileOperationsSuite`. */
@@ -69,6 +71,22 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		return result.snapshot!.state as ChatState;
 	}
 
+	async function chatCompletions(chatUri: string, text: string): Promise<CompletionsResult> {
+		return context.client.call<CompletionsResult>('completions', {
+			channel: chatUri,
+			kind: CompletionItemKind.UserMessage,
+			text,
+			offset: text.length,
+		});
+	}
+
+	async function createCompletedPeer(sessionUri: string, id: string, title: string, turnId = `turn-${id}`): Promise<string> {
+		const peer = await createPeer(sessionUri, id);
+		await context.client.call<SubscribeResult>('subscribe', { channel: peer });
+		await driveTurn(peer, turnId, `/rename ${title}`, 1);
+		return peer;
+	}
+
 	async function rename(channel: string, title: string, clientSeq = 1): Promise<void> {
 		context.client.clearReceived();
 		context.client.dispatch({
@@ -97,7 +115,8 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		if (context.tier !== 'parity') {
 			return;
 		}
-		(enabled ? test : test.skip)(title, function () {
+		const providerReplayEnabled = config.supportsMultipleChats && (config.supportsMultipleChatsE2E !== false || RECORDING);
+		(enabled && providerReplayEnabled ? test : test.skip)(title, function () {
 			this.timeout(180_000);
 			return run.call(this);
 		});
@@ -156,7 +175,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		if (context.tier !== 'parity') {
 			return;
 		}
-		(config.supportsChatForkE2E ? test : test.skip)(title, function () {
+		(config.supportsChatFork && (config.supportsChatForkE2E || RECORDING) ? test : test.skip)(title, function () {
 			this.timeout(180_000);
 			return run.call(this);
 		});
@@ -389,6 +408,130 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		});
 
 		assert.deepStrictEqual(completions.items.map(item => item.insertText), ['@peer-target.txt']);
+	}, config.supportsMultipleChats);
+
+	conformanceTest(context, 'chat completion references a peer at its last completed turn', async function () {
+		const { sessionUri, defaultChatUri } = await createSession('chat-completion-basic');
+		const peer = await createCompletedPeer(sessionUri, 'peer', 'Referenced Peer', 'peer-reference-turn');
+
+		const completions = await chatCompletions(defaultChatUri, '#chat:');
+
+		assert.deepStrictEqual(completions.items, [{
+			insertText: '#chat:Referenced Peer ',
+			rangeStart: 0,
+			rangeEnd: 6,
+			attachment: {
+				type: MessageAttachmentKind.Chat,
+				resource: peer,
+				endTurn: 'peer-reference-turn',
+				label: 'Referenced Peer',
+			},
+		}]);
+	}, config.supportsMultipleChats);
+
+	conformanceTest(context, 'chat completion filters peer titles case-insensitively', async function () {
+		const { sessionUri, defaultChatUri } = await createSession('chat-completion-filter');
+		const target = await createCompletedPeer(sessionUri, 'target', 'Alpha Target');
+		await createCompletedPeer(sessionUri, 'other', 'Beta Reference');
+
+		const completions = await chatCompletions(defaultChatUri, '#chat:tArGeT');
+
+		assert.deepStrictEqual(completions.items.map(item => item.attachment), [{
+			type: MessageAttachmentKind.Chat,
+			resource: target,
+			endTurn: 'turn-target',
+			label: 'Alpha Target',
+		}]);
+	}, config.supportsMultipleChats);
+
+	conformanceTest(context, 'partial chat prefix offers completed peer chats', async function () {
+		const { sessionUri, defaultChatUri } = await createSession('chat-completion-partial');
+		await createCompletedPeer(sessionUri, 'peer', 'Partial Peer');
+
+		const completions = await chatCompletions(defaultChatUri, '#ch');
+
+		assert.deepStrictEqual(completions.items.map(item => ({
+			insertText: item.insertText,
+			rangeStart: item.rangeStart,
+			rangeEnd: item.rangeEnd,
+		})), [{
+			insertText: '#chat:Partial Peer ',
+			rangeStart: 0,
+			rangeEnd: 3,
+		}]);
+	}, config.supportsMultipleChats);
+
+	conformanceTest(context, 'chat completion replaces only the whitespace-delimited token', async function () {
+		const { sessionUri, defaultChatUri } = await createSession('chat-completion-range');
+		await createCompletedPeer(sessionUri, 'peer', 'Range Peer');
+		const text = 'Compare with #chat:Range';
+
+		const completions = await chatCompletions(defaultChatUri, text);
+
+		assert.deepStrictEqual(completions.items.map(item => ({
+			insertText: item.insertText,
+			rangeStart: item.rangeStart,
+			rangeEnd: item.rangeEnd,
+		})), [{
+			insertText: '#chat:Range Peer ',
+			rangeStart: 'Compare with '.length,
+			rangeEnd: text.length,
+		}]);
+	}, config.supportsMultipleChats);
+
+	conformanceTest(context, 'chat completion excludes peers without a completed turn', async function () {
+		const { sessionUri, defaultChatUri } = await createSession('chat-completion-empty');
+		await createPeer(sessionUri, 'empty');
+		const completed = await createCompletedPeer(sessionUri, 'completed', 'Completed Peer');
+
+		const completions = await chatCompletions(defaultChatUri, '#chat:');
+
+		assert.deepStrictEqual(completions.items.map(item =>
+			item.attachment?.type === MessageAttachmentKind.Chat ? item.attachment.resource : undefined
+		), [completed]);
+	}, config.supportsMultipleChats);
+
+	conformanceTest(context, 'chat completion excludes the chat being edited', async function () {
+		const { sessionUri } = await createSession('chat-completion-current');
+		const current = await createCompletedPeer(sessionUri, 'current', 'Current Peer');
+		const sibling = await createCompletedPeer(sessionUri, 'sibling', 'Sibling Peer');
+
+		const completions = await chatCompletions(current, '#chat:');
+
+		assert.deepStrictEqual(completions.items.map(item =>
+			item.attachment?.type === MessageAttachmentKind.Chat ? item.attachment.resource : undefined
+		), [sibling]);
+	}, config.supportsMultipleChats);
+
+	conformanceTest(context, 'peer chat completion can reference the completed default chat', async function () {
+		const { sessionUri, defaultChatUri } = await createSession('chat-completion-default');
+		await driveTurn(defaultChatUri, 'default-reference-turn', '/rename Default Reference', 1);
+		const peer = await createPeer(sessionUri, 'peer');
+
+		const completions = await chatCompletions(peer, '#chat:Default');
+
+		assert.deepStrictEqual(completions.items.map(item => item.attachment), [{
+			type: MessageAttachmentKind.Chat,
+			resource: defaultChatUri,
+			endTurn: 'default-reference-turn',
+			label: 'Default Reference',
+		}]);
+	}, config.supportsMultipleChats);
+
+	conformanceTest(context, 'chat completion sanitizes multiline titles', async function () {
+		const { sessionUri, defaultChatUri } = await createSession('chat-completion-title');
+		const peer = await createCompletedPeer(sessionUri, 'peer', 'Initial Title');
+		await rename(peer, 'Line One\n  Line Two', 2);
+
+		const completions = await chatCompletions(defaultChatUri, '#chat:Line');
+
+		assert.deepStrictEqual(completions.items.map(item => ({
+			insertText: item.insertText,
+			label: item.attachment?.label,
+		})), [{
+			insertText: '#chat:Line One Line Two ',
+			label: 'Line One Line Two',
+		}]);
 	}, config.supportsMultipleChats);
 
 	conformanceTest(context, 'first peer chat snapshots the session title onto the default chat', async function () {

@@ -7,10 +7,14 @@ import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
-import { AgentSession } from '../../common/agentService.js';
-import { getErrorResponsePart, MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
-import { appendSdkToolResultContent, mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';
+import { AgentSession } from '../../common/agent.js';
+import { getErrorResponsePart, MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
+import { appendSdkToolResultContent, mapSessionEvents as mapSessionEventsWithRouting, type IMapSessionEventsOptions } from '../../node/copilot/mapSessionEvents.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
+
+function mapSessionEvents(session: URI, db: undefined, events: Parameters<typeof mapSessionEventsWithRouting>[2], options: IMapSessionEventsOptions | undefined = undefined) {
+	return mapSessionEventsWithRouting(session, db, events, URI.parse(buildChatUri(session, 'default')), options);
+}
 
 suite('mapSessionEvents — history replay', () => {
 
@@ -223,15 +227,15 @@ suite('mapSessionEvents — history replay', () => {
 			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success: true } },
 		];
 
-		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events), URI.file('/workspace'));
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events), { workingDirectory: URI.file('/workspace') });
 		const part = turns[0].responseParts.find(part => part.kind === ResponsePartKind.ToolCall) as ToolCallResponsePart | undefined;
 		assert.ok(part);
 		assert.deepStrictEqual({
 			invocationMessage: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.invocationMessage : undefined,
 			pastTenseMessage: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.pastTenseMessage : undefined,
 		}, {
-			invocationMessage: { markdown: 'Editing [file.ts](file:///workspace/src/file.ts)' },
-			pastTenseMessage: { markdown: 'Edited [file.ts](file:///workspace/src/file.ts)' },
+			invocationMessage: { markdown: 'Edit [file.ts](file:///workspace/src/file.ts)' },
+			pastTenseMessage: { markdown: 'Edit [file.ts](file:///workspace/src/file.ts)' },
 		});
 	});
 
@@ -280,7 +284,9 @@ suite('mapSessionEvents — history replay', () => {
 			},
 		];
 
-		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+		const chatUri = URI.parse(buildChatUri(session, 'restored-chat'));
+		const sdkConversationUri = URI.parse('copilot-sdk:/conversation-123');
+		const { turns } = await mapSessionEventsWithRouting(sdkConversationUri, undefined, toSessionEvents(events), chatUri);
 
 		const part = turns[0].responseParts[0] as ToolCallResponsePart;
 		assert.strictEqual(part.kind, ResponsePartKind.ToolCall);
@@ -297,7 +303,7 @@ suite('mapSessionEvents — history replay', () => {
 				mcpToolName: 'get_me',
 				ui: {
 					resourceUri: 'ui://github-mcp-server/get-me',
-					channel: 'mcp://copilot/test-session/GitHub',
+					channel: `mcp://copilot/${encodeURIComponent(chatUri.toString())}/GitHub`,
 				},
 			},
 		});
@@ -492,6 +498,25 @@ suite('mapSessionEvents — history replay', () => {
 				label: 'example.ts',
 			}],
 		});
+	});
+
+	test('seeds the model from session.start selectedModel when no launch model is supplied', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'session.start', data: { selectedModel: 'opus-5' } },
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: 'hello' } },
+			{ type: 'user.message', data: { interactionId: 'm3', content: 'again' } },
+			{ type: 'session.model_change', data: { newModel: 'gpt-5' } },
+			{ type: 'user.message', data: { interactionId: 'm4', content: 'switched' } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns.map(t => t.message.model), [
+			{ id: 'opus-5' },
+			{ id: 'opus-5' },
+			{ id: 'gpt-5' },
+		]);
 	});
 
 	test('uses top-level user messages as turn boundaries', async () => {
@@ -942,6 +967,42 @@ suite('mapSessionEvents — subagent routing', () => {
 		]);
 	});
 
+	test('reconstructs subagent content when legacy completion precedes subagent start', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'summarize the service' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-task', name: 'task' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-task', toolName: 'task', arguments: { description: 'Summarize agent service', agent_type: 'explore' } } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-task', success: true, result: { content: 'Agent started in background.' } } },
+			{ type: 'subagent.started', agentId: 'agent-1', data: { toolCallId: 'tc-task', agentName: 'explore', agentDisplayName: 'Explore Agent', agentDescription: 'Explores' } },
+			{ type: 'user.message', agentId: 'agent-1', data: { interactionId: 'subagent-prompt', content: 'Inspect agentService.ts.' } },
+			{ type: 'assistant.message', agentId: 'agent-1', data: { messageId: 'm3', content: 'Summary complete.' } },
+		];
+
+		const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+		const toolCall = turns[0].responseParts.find((part): part is ToolCallResponsePart => part.kind === ResponsePartKind.ToolCall)?.toolCall;
+		const subagentContent = toolCall?.status === ToolCallStatus.Completed
+			? toolCall.content?.find(content => content.type === ToolResultContentType.Subagent)
+			: undefined;
+
+		assert.deepStrictEqual({
+			description: toolCall ? readToolCallMeta(toolCall).subagentDescription : undefined,
+			subagentContent,
+			childMarkdown: subagentTurnsByToolCallId.get('tc-task')?.flatMap(turn => turn.responseParts)
+				.filter(part => part.kind === ResponsePartKind.Markdown)
+				.map(part => part.content),
+		}, {
+			description: 'Summarize agent service',
+			subagentContent: {
+				type: ToolResultContentType.Subagent,
+				resource: 'copilot:/test-session/subagent/tc-task',
+				title: 'Explore Agent',
+				agentName: 'explore',
+				description: 'Explores',
+			},
+			childMarkdown: ['Summary complete.'],
+		});
+	});
+
 	test('drops subagent user messages whose agentId cannot be mapped', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', id: 'root-message', data: { interactionId: 'm1', content: 'Continue the task' } },
@@ -1122,5 +1183,26 @@ suite('appendSdkToolResultContent', () => {
 				result: { exitCode: 2, preview: 'boom\n', truncated: false },
 			},
 		]);
+	});
+
+	test('ignores a null shell_exit output preview', () => {
+		const content: ToolResultContent[] = [];
+
+		const result = appendSdkToolResultContent(content, [
+			{ type: 'shell_exit', shellId: '0', exitCode: 7, outputPreview: null, outputTruncated: false },
+		], { session: AgentSession.uri('copilot', 'test-session'), toolCallId: 'tc-1', title: 'Run Shell Command' });
+
+		assert.deepStrictEqual({ result, content }, {
+			result: { shellId: '0', result: { exitCode: 7, truncated: false } },
+			content: [
+				{
+					type: ToolResultContentType.Terminal,
+					resource: 'agenthost-terminal://shell/test-session/tc-1',
+					title: 'Run Shell Command',
+					isPty: false,
+					result: { exitCode: 7, truncated: false },
+				},
+			],
+		});
 	});
 });

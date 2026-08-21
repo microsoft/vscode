@@ -187,12 +187,16 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-failed-turn-resume-'));
 		tempDirs.push(workingDirectory);
 		const prompt = '$error';
-		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'copilot-failed-turn-resume', createdSessions, URI.file(workingDirectory));
-		const chatUri = buildDefaultChatUri(sessionUri);
-		const turnId = 'turn-failed-resume';
 		if (!lease) {
 			throw new Error('Agent Host E2E server lease was not initialized.');
 		}
+		await lease.release([], true);
+		await lease.dispose();
+		lease = new AgentHostE2EServerLease(COPILOT_CONFIG);
+		({ client } = await lease.acquire(this.test!.title));
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'copilot-failed-turn-resume', createdSessions, URI.file(workingDirectory));
+		const chatUri = buildDefaultChatUri(sessionUri);
+		const turnId = 'turn-failed-resume';
 		client.dispatch({
 			channel: sessionUri,
 			clientSeq: 1,

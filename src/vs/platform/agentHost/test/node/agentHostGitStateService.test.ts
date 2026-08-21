@@ -210,7 +210,7 @@ suite('AgentHostGitStateService', () => {
 		};
 	}
 
-	function seedSession(stateManager: AgentHostStateManager, options?: { workingDirectory?: string; project?: string; gitState?: ISessionGitState; gitHubState?: ISessionGitHubState; isolation?: 'folder' | 'worktree'; baseBranch?: string; createdAt?: number }): void {
+	function seedSession(stateManager: AgentHostStateManager, options?: { workingDirectory?: string; project?: string; gitState?: ISessionGitState; gitHubState?: ISessionGitHubState; isolation?: 'folder' | 'worktree'; baseBranch?: string; createNewBranch?: boolean; createdAt?: number }): void {
 		const summary: SessionSummary = {
 			resource: SESSION,
 			provider: 'mock',
@@ -230,6 +230,7 @@ suite('AgentHostGitStateService', () => {
 				values: {
 					[SessionConfigKey.Isolation]: options.isolation,
 					...(options.baseBranch ? { [SessionConfigKey.Branch]: options.baseBranch } : {}),
+					...(options.createNewBranch !== undefined ? { [SessionConfigKey.WorktreeCreateNewBranch]: options.createNewBranch } : {}),
 				},
 			});
 		}
@@ -314,6 +315,23 @@ suite('AgentHostGitStateService', () => {
 		assert.deepStrictEqual(h.gitBaseBranches, ['release']);
 	}));
 
+	test('uses the persisted base branch when the selected branch is checked out directly', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		seedSession(h.stateManager, {
+			workingDirectory: WORKING_DIRECTORY,
+			project: 'file:///repo',
+			isolation: 'worktree',
+			baseBranch: 'feature/pr',
+			createNewBranch: false,
+		});
+		await h.db.setMetadata(META_DIFF_BASE_BRANCH, 'origin/main');
+		h.setGitResult({ branchName: 'feature/pr', baseBranchName: 'main' });
+
+		await h.service.refreshSessionGitState(SESSION, undefined);
+
+		assert.deepStrictEqual(h.gitBaseBranches, ['main']);
+	}));
+
 	test('uses the persisted worktree base branch for an adopted linked worktree', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const h = createHarness();
 		seedSession(h.stateManager, {
@@ -395,6 +413,30 @@ suite('AgentHostGitStateService', () => {
 			await h.service.refreshSessionGitState(SESSION, undefined);
 
 			assert.deepStrictEqual(h.runEvents, [SESSION]);
+		});
+	});
+
+	test('unchanged git state backfills missing GitHub state', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const gitState: ISessionGitState = {
+				branchName: 'feature',
+				githubOwner: 'microsoft',
+				githubRepo: 'vscode',
+			};
+			const h = createHarness();
+			seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState });
+			h.setGitResult(gitState);
+
+			await h.service.refreshSessionGitState(SESSION, undefined);
+
+			const persistedGitHubState = await h.db.getMetadata(META_GITHUB_STATE);
+			assert.deepStrictEqual({
+				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta),
+				persistedGitHub: persistedGitHubState ? JSON.parse(persistedGitHubState) : undefined,
+			}, {
+				github: { owner: 'microsoft', repo: 'vscode' },
+				persistedGitHub: { owner: 'microsoft', repo: 'vscode' },
+			});
 		});
 	});
 

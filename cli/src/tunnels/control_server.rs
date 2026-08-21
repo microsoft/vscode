@@ -50,6 +50,7 @@ use super::code_server::{
 	SocketCodeServer,
 };
 use super::dev_tunnels::ActiveTunnel;
+use super::machine_status;
 use super::paths::prune_stopped_servers;
 use super::port_forwarder::{PortForwarding, PortForwardingProcessor};
 use super::protocol::{
@@ -198,6 +199,19 @@ async fn preload_extensions(
 	sb.install_extensions().await
 }
 
+/// Options controlling how a tunnel serves the agent host, all supplied by the
+/// editor that started the tunnel.
+#[derive(Clone, Debug, Default)]
+pub struct AgentHostServeOptions {
+	/// Overrides the user data directory whose agent-host endpoint registry the
+	/// selection gateway reads. `None` uses the platform default.
+	pub user_data_dir: Option<String>,
+	/// Serves only the agent-host port, without the control port.
+	pub agent_host_only: bool,
+	/// Pins the selection gateway to the live editor agent host.
+	pub delegate_to_editor: bool,
+}
+
 // Runs the launcher server. Exits on a ctrl+c or when requested by a user.
 // Note that client connections may not be closed when this returns; use
 // `close_all_clients()` on the ServerTermination to make this happen.
@@ -207,9 +221,19 @@ pub async fn serve(
 	launcher_paths: &LauncherPaths,
 	code_server_args: &CodeServerArgs,
 	platform: Platform,
+	agent_host_options: AgentHostServeOptions,
 	mut shutdown_rx: Barrier<ShutdownSignal>,
 ) -> Result<ServerTermination, AnyError> {
-	let mut port = tunnel.add_port_direct(CONTROL_PORT).await?;
+	let AgentHostServeOptions {
+		user_data_dir,
+		agent_host_only,
+		delegate_to_editor,
+	} = agent_host_options;
+	let mut port = if agent_host_only {
+		None
+	} else {
+		Some(tunnel.add_port_direct(CONTROL_PORT).await?)
+	};
 	let mut agent_host_port = tunnel.add_port_direct(AGENT_HOST_PORT).await?;
 	let mut forwarding = PortForwardingProcessor::new();
 	let (tx, mut rx) = mpsc::channel::<ServerSignal>(4);
@@ -237,13 +261,10 @@ pub async fn serve(
 		.boxed()
 		.shared()
 	};
-	// `code tunnel` has no `--user-data-dir` of its own -- the registry the
-	// selection gateway consults always lives under the platform default
-	// user data path here. Resolved once and passed explicitly into
-	// `serve_agent_host_tunnel_connection` below so the router never has
-	// to guess which directory to look at (see that function's doc
-	// comment).
-	let agent_host_user_data_path = super::user_data_path::resolve_user_data_path(None);
+	// Resolve once and pass the result to every agent-host connection so the
+	// selection gateway consults the same registry as the editor.
+	let agent_host_user_data_path =
+		super::user_data_path::resolve_user_data_path(user_data_dir.as_deref());
 
 	let code_server_args = code_server_args.clone();
 
@@ -266,6 +287,8 @@ pub async fn serve(
 			}
 		});
 	}
+
+	machine_status::emit_connected(&tunnel.name, Some(&tunnel.id), false, !agent_host_only);
 
 	loop {
 		tokio::select! {
@@ -304,11 +327,22 @@ pub async fn serve(
 						active_agent_host,
 						launcher_paths,
 						user_data_path,
+						delegate_to_editor,
 					)
 					.await;
 				});
 			},
-			l = port.recv() => {
+			// `select!` builds every branch's future up front and only the
+			// polling is gated by the `if` guard, so this must not touch
+			// `port` eagerly: in agent-host-only mode there is no control
+			// port and doing so would panic. Resolving to `Pending` forever
+			// keeps the branch inert without depending on the guard.
+			l = async {
+				match port.as_mut() {
+					Some(p) => p.recv().await,
+					None => std::future::pending().await,
+				}
+			} => {
 				let socket = match l {
 					Some(p) => p,
 					None => {

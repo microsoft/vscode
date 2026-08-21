@@ -54,10 +54,7 @@ rounds:
           turnId: ${turn_0}
           part:
             kind: markdown
-            content: |-
-              It looks like your message came through empty — I don't see an actual question or task, just an error/blank content.
-
-              Could you let me know what you'd like help with?
+            content: It looks like your message came through empty (just "$error" with no actual content). Could you let me know what you'd like help with?
       - channel: ${chat_0}
         action:
           type: chat/turnComplete

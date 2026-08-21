@@ -115,9 +115,12 @@ jobs:
       - name: Download Electron and Playwright
         shell: pwsh
         run: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
+
           for ($i = 1; $i -le 3; $i++) {
             try {
-              npm exec -- npm-run-all2 -lp "electron ${{ env.VSCODE_ARCH }}" "playwright-install"
+              exec { npm exec -- npm-run-all2 -lp "electron ${{ env.VSCODE_ARCH }}" "playwright-install" }
               break
             }
             catch {

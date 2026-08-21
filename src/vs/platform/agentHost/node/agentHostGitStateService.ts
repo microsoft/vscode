@@ -261,27 +261,30 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				if (gitState) {
 					const currentMeta = this._stateManager.getSessionState(sessionKey)?._meta;
 					const previousGitState = readSessionGitState(currentMeta);
-					if (!objectEquals(previousGitState, gitState)) {
+					const gitStateChanged = !objectEquals(previousGitState, gitState);
+					if (gitStateChanged) {
 						// Update the session's git state
 						await this._setSessionGitState(sessionKey, gitState);
+					}
 
-						// Update the session's GitHub state
-						if (gitState.githubOwner && gitState.githubRepo) {
+					if (gitState.githubOwner && gitState.githubRepo) {
+						const currentGitHubState = readSessionGitHubState(currentMeta);
+						if (currentGitHubState?.owner !== gitState.githubOwner || currentGitHubState.repo !== gitState.githubRepo) {
 							await this.setSessionGitHubState(sessionKey, {
 								owner: gitState.githubOwner,
 								repo: gitState.githubRepo
 							} satisfies ISessionGitHubState);
+						}
 
-							// The working copy switched to a different branch:
-							// look for a pull request that belongs to the new
-							// branch. The previously known pull request keeps
-							// being reported until a new one is found. Awaited
-							// so the refresh event below carries the pull
-							// request of the new branch rather than stale
-							// GitHub state.
-							if (previousGitState?.branchName !== gitState.branchName) {
-								await this._queuePullRequestLookup(sessionKey);
-							}
+						// The working copy switched to a different branch:
+						// look for a pull request that belongs to the new
+						// branch. The previously known pull request keeps
+						// being reported until a new one is found. Awaited
+						// so the refresh event below carries the pull
+						// request of the new branch rather than stale
+						// GitHub state.
+						if (gitStateChanged && previousGitState?.branchName !== gitState.branchName) {
+							await this._queuePullRequestLookup(sessionKey);
 						}
 					}
 				}
@@ -335,8 +338,10 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 	async resolveSessionBaseBranchName(sessionKey: string): Promise<string | undefined> {
 		const state = this._stateManager.getSessionState(sessionKey);
-		const configuredBranch = state?.config?.values[SessionConfigKey.Isolation] === 'worktree'
-			? state.config.values[SessionConfigKey.Branch]
+		const configValues = state?.config?.values;
+		const configuredBranch = configValues?.[SessionConfigKey.Isolation] === 'worktree'
+			&& configValues[SessionConfigKey.WorktreeCreateNewBranch] !== false
+			? configValues[SessionConfigKey.Branch]
 			: undefined;
 		if (typeof configuredBranch === 'string' && configuredBranch.trim()) {
 			return resolveDiffBaseBranchName(configuredBranch.trim(), undefined);

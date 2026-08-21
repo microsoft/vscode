@@ -40,25 +40,37 @@ suite('ChatInputTipPresenter', () => {
 			{ container, isEligible: options?.isEligible ?? (() => true), focusInput: () => { } },
 			noticeHost,
 		);
-		return { presenter, container, showing: () => container.childElementCount > 0, welcomeTipCalls: () => welcomeTipCalls };
+		return {
+			presenter,
+			container,
+			showing: () => container.childElementCount > 0,
+			// The slot only docks to the input while it is showing something, so the
+			// stack knows whose corners to square without inspecting descendants.
+			docked: () => container.classList.contains('chat-input-stack-docked'),
+			welcomeTipCalls: () => welcomeTipCalls
+		};
 	}
 
 	test('shows a tip, yields the space to a notification, and takes it back', () => {
 		const store = disposables.add(new DisposableStore());
 		const noticeHost = store.add(new ChatInputNoticeHost(() => { }));
-		const { presenter, showing } = createPresenter(store, noticeHost);
+		const { presenter, showing, docked } = createPresenter(store, noticeHost);
 		store.add(presenter);
 
-		const shownInitially = showing();
+		const initially = { showing: showing(), docked: docked() };
 		// A notification owns the space outright; the tip must come off screen and
 		// then return on its own once the notification goes away.
 		noticeHost.setOccupied(ChatInputNoticeLane.Notification, true, { hasFocus: () => false, focus: () => { } });
-		const shownUnderNotification = showing();
+		const underNotification = { showing: showing(), docked: docked() };
 		noticeHost.setOccupied(ChatInputNoticeLane.Notification, false);
 
 		assert.deepStrictEqual(
-			{ shownInitially, shownUnderNotification, shownAfter: showing() },
-			{ shownInitially: true, shownUnderNotification: false, shownAfter: true });
+			{ initially, underNotification, after: { showing: showing(), docked: docked() } },
+			{
+				initially: { showing: true, docked: true },
+				underNotification: { showing: false, docked: false },
+				after: { showing: true, docked: true }
+			});
 	});
 
 	test('evaluates the tip once per render', () => {

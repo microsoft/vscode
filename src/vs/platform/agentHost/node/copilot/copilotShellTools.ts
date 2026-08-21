@@ -57,7 +57,6 @@ interface IManagedShell {
  * the session ends.
  */
 export class ShellManager extends Disposable {
-
 	private readonly _shells = new Map<string, IManagedShell>();
 	private readonly _toolCallShells = new Map<string, string>();
 	private _resolvedExecutable: Promise<string> | undefined;

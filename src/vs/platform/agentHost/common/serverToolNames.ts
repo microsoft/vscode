@@ -21,7 +21,15 @@ export const enum SessionServerToolName {
 	GetCurrentSession = 'get_current_session',
 	CreateSession = 'create_session',
 	CreateChat = 'create_chat',
+	RenameChat = 'rename_chat',
 	SendMessage = 'send_message',
 	GetSessionContext = 'get_session_context',
 	DeleteSession = 'delete_session',
+}
+
+/** Names of the artifact server tools, shared between `common/` and `node/`. */
+export const enum ArtifactServerToolName {
+	AddArtifact = 'add_artifact',
+	RemoveArtifact = 'remove_artifact',
+	ListArtifacts = 'list_artifacts',
 }

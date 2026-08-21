@@ -50,10 +50,12 @@ import { IDefaultAccountService } from '../../../platform/defaultAccount/common/
 import { IAuthenticationService } from '../../services/authentication/common/authentication.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
 import { IPolicyService, PolicyValueSource } from '../../../platform/policy/common/policy.js';
+import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
+import { isVirtualWorkspace } from '../../../platform/workspace/common/virtualWorkspace.js';
 import { COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_STRICT_MARKETPLACES_KEY, INativeManagedSettingsService, IFileManagedSettingsService, ManagedSettingsChannel, ManagedSettingsSource, normalizeManagedSettings, projectManagedSettings, pickManagedSettings } from '../../../platform/policy/common/copilotManagedSettings.js';
 import { IManagedSettingPolicyDefinition, ManagedSettingsData } from '../../../base/common/policy.js';
 import { APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME, IAccountPolicyGateService } from '../../services/policies/common/accountPolicyService.js';
-import { adaptManagedSettings, IManagedSettingsResponse } from '../../services/accounts/browser/managedSettings.js';
+import { adaptManagedSettings, appendManagedSettingsClientIdentity, IManagedSettingsResponse } from '../../services/accounts/browser/managedSettings.js';
 import { isObject } from '../../../base/common/types.js';
 import * as json from '../../../base/common/json.js';
 import { getParseErrorMessage } from '../../../base/common/jsonErrorMessages.js';
@@ -735,6 +737,7 @@ interface IPolicyDiagnosticsSummary {
 	effectiveManagedSettings: string;
 	managedSettingsIssues: string;
 	agentRuntime: string;
+	chatHarnessEnforcement: string;
 	policyControlledSettings: string;
 }
 
@@ -751,6 +754,7 @@ interface IPolicyDiagnosticsServices {
 	accountPolicyGateService: IAccountPolicyGateService;
 	agentHostService: IAgentHostService;
 	agentHostEnablementService: IAgentHostEnablementService;
+	workspaceContextService: IWorkspaceContextService;
 	nativeManagedSettingsService: INativeManagedSettingsService | undefined;
 	fileManagedSettingsService: IFileManagedSettingsService | undefined;
 }
@@ -779,6 +783,7 @@ class PolicyDiagnosticsAction extends Action2 {
 		const accountPolicyGateService = accessor.get(IAccountPolicyGateService);
 		const agentHostService = accessor.get(IAgentHostService);
 		const agentHostEnablementService = accessor.get(IAgentHostEnablementService);
+		const workspaceContextService = accessor.get(IWorkspaceContextService);
 		const progressService = accessor.get(IProgressService);
 		// Native MDM is a desktop-only channel, registered in the renderer service collection on
 		// desktop and Agents windows but absent in web. Resolve it now, synchronously, because the
@@ -815,6 +820,7 @@ class PolicyDiagnosticsAction extends Action2 {
 			accountPolicyGateService,
 			agentHostService,
 			agentHostEnablementService,
+			workspaceContextService,
 			nativeManagedSettingsService,
 			fileManagedSettingsService,
 		}));
@@ -834,6 +840,7 @@ class PolicyDiagnosticsAction extends Action2 {
 			accountPolicyGateService,
 			agentHostService,
 			agentHostEnablementService,
+			workspaceContextService,
 			nativeManagedSettingsService,
 			fileManagedSettingsService,
 		} = services;
@@ -845,6 +852,7 @@ class PolicyDiagnosticsAction extends Action2 {
 			effectiveManagedSettings: 'Unavailable',
 			managedSettingsIssues: 'Unavailable',
 			agentRuntime: 'Unavailable',
+			chatHarnessEnforcement: 'Unavailable',
 			policyControlledSettings: 'Unavailable'
 		};
 
@@ -1062,13 +1070,16 @@ class PolicyDiagnosticsAction extends Action2 {
 
 			const fetchStatus = defaultAccountService.managedSettingsFetchStatus;
 			const fetchedAt = defaultAccountService.managedSettingsFetchedAt;
+			const clientIdentity = appendManagedSettingsClientIdentity('https://api.github.com/copilot_internal/managed_settings', productService);
+			const compatibilityError = defaultAccountService.managedSettingsCompatibilityError;
 			content += '#### GitHub Server API\n\n';
 			content += markdownTable(
 				['Property', 'Value'],
 				[
 					['Endpoint', '/copilot_internal/managed_settings'],
-					['Last fetch', fetchStatus === null ? 'never' : String(fetchStatus)],
-					['Last successful fetch', fetchedAt ? new Date(fetchedAt).toLocaleString() : 'n/a'],
+					['Last fetch', fetchStatus === null ? 'never' : `${fetchStatus}${fetchedAt ? ` at ${new Date(fetchedAt).toLocaleString()}` : ''}`],
+					['Client identity', new URL(clientIdentity).search.replace(/^\?/, '')],
+					['Compatibility', compatibilityError ? `update required (${compatibilityError.clientVersion ?? '?'} → ${compatibilityError.minimumClientVersion ?? '?'})` : 'compatible or not evaluated'],
 					['Contributes winning keys', channelContributes('server') ? 'yes' : 'no']
 				]
 			);
@@ -1226,6 +1237,29 @@ class PolicyDiagnosticsAction extends Action2 {
 			content += '*No policy-controlled settings found*\n\n';
 		}
 
+		content += '## Chat Harness Enforcement\n\n';
+		try {
+			const sandboxEnforced = agentHostEnablementService.managedSandboxEnforced.get();
+			const virtualWorkspace = isVirtualWorkspace(workspaceContextService.getWorkspace());
+			const agentHostEnabled = agentHostEnablementService.enabled.get();
+
+			if (!sandboxEnforced) {
+				summary.chatHarnessEnforcement = 'Not enforced';
+			} else if (virtualWorkspace) {
+				summary.chatHarnessEnforcement = 'Mandated, not applied (virtual workspace)';
+			} else if (!agentHostEnabled) {
+				summary.chatHarnessEnforcement = 'Mandated, not applied (Agent Host disabled)';
+			} else {
+				summary.chatHarnessEnforcement = 'Local harness hidden, new chats use the Agent Host Copilot SDK';
+			}
+
+			content += `**Effective decision:** ${summary.chatHarnessEnforcement}.\n\n`;
+		} catch (error) {
+			const message = getErrorMessage(error);
+			summary.chatHarnessEnforcement = `Unavailable (${message})`;
+			content += `*Error resolving chat harness enforcement: ${markdownText(message)}*\n\n`;
+		}
+
 		// Authentication diagnostics
 		content += '## Authentication Information\n\n';
 		try {
@@ -1289,6 +1323,7 @@ class PolicyDiagnosticsAction extends Action2 {
 					['Effective managed settings', summary.effectiveManagedSettings],
 					['Managed-settings issues', summary.managedSettingsIssues],
 					['Agent Runtime', summary.agentRuntime],
+					['Chat harness enforcement', summary.chatHarnessEnforcement],
 					['Policy-controlled settings', summary.policyControlledSettings]
 				]
 			) +

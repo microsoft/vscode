@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import '../../../../workbench/contrib/styleOverrides/browser/media/tabs.css';
+import '../../../../workbench/contrib/modernUI/browser/media/tabs.css';
 import './media/editorBreadcrumbs.css';
 import './media/editorHeader.css';
+import '../../../../workbench/services/themes/browser/modernTabColorCustomizations.js';
 import './diffEditor.sessions.contribution.js';
 import { NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from './addTabActions.js';
 import { localize2 } from '../../../../nls.js';
@@ -56,8 +57,7 @@ const editorTitleActionsWhen = ContextKeyExpr.and(
 	IsAuxiliaryWindowContext.toNegated(),
 	IsTopRightEditorGroupContext);
 // Maximize/restore renders first in the editor-title layout cluster.
-// Hide/Show Editor follow immediately after. Toggle Details remains
-// alone in the trailing editor-header layout group.
+// Hide/Show Editor remain registered but are hidden from the menu.
 const singlePaneLayoutMaximizeOrder = 10;
 const singlePaneLayoutHideEditorOrder = 20;
 
@@ -207,10 +207,7 @@ class HideMainEditorPartAction extends Action2 {
 				id: MenuId.EditorTitleLayout,
 				group: 'navigation',
 				order: singlePaneLayoutHideEditorOrder,
-				when: ContextKeyExpr.and(
-					editorTitleActionsWhen,
-					singlePaneDetailPanel,
-					MainEditorAreaVisibleContext)
+				when: ContextKeyExpr.false()
 			}
 		});
 	}
@@ -242,10 +239,7 @@ class ShowMainEditorPartAction extends Action2 {
 				id: MenuId.EditorTitleLayout,
 				group: 'navigation',
 				order: singlePaneLayoutHideEditorOrder,
-				when: ContextKeyExpr.and(
-					editorTitleActionsWhen,
-					singlePaneDetailPanel,
-					MainEditorAreaVisibleContext.toNegated())
+				when: ContextKeyExpr.false()
 			}
 		});
 	}

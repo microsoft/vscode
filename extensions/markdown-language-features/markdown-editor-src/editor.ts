@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AsyncClipboardStrategy, CommentModeController, CommentsModel, EditorController, EditorModel, EditorView, GutterMarker, OffsetRange, Selection, StringEdit, StringReplacement, StringValue, VsCodeV2CommentsView, commands, findNodeOffsetById, taskCheckboxRange, vscodeHostKeyboardProfile, vscodeLocalKeyboardProfile, type CodeBlockAstNode } from '@vscode/markdown-editor';
+import { AsyncClipboardStrategy, CommentModeController, CommentsModel, EditorController, EditorModel, EditorView, GutterMarker, OffsetRange, Selection, StringEdit, StringReplacement, StringValue, VsCodeV2CommentsView, commands, findNodeOffsetById, vscodeHostKeyboardProfile, vscodeLocalKeyboardProfile, type CodeBlockAstNode, type LinkPresentationKind } from '@vscode/markdown-editor';
 import { VirtualizedIframeEmbeddedEditorFactory, type IframeEmbeddedEditorProvider, type IframeEmbeddedEditorProviderSelector, type ResolvedIframeEmbeddedEditor } from '@vscode/markdown-editor/web-editors';
 import { Disposable, autorun, observableValue } from '@vscode/observables';
 import 'katex/dist/katex.min.css';
@@ -13,6 +13,7 @@ import '@vscode/markdown-editor/commentInput.css';
 import '@vscode/markdown-editor/vscodeCommentWidgetV2.css';
 import './markdownEditor.css';
 import { WebviewSyntaxHighlighter } from './syntaxHighlighter';
+import { WebviewLinkPresentationProvider } from './linkPresentationProvider';
 
 interface VsCodeApi {
 	postMessage(message: unknown): void;
@@ -42,6 +43,8 @@ interface InitialState {
 	readonly content: string;
 	readonly documentVersion: number;
 	readonly readonly: boolean;
+	readonly richLinksEnabled: boolean;
+	readonly linkPresentationRules: readonly { id: string; source: string; flags: string; initialKind: LinkPresentationKind }[];
 }
 
 class Editor extends Disposable {
@@ -64,6 +67,7 @@ class Editor extends Disposable {
 	readonly #messageSecret: string;
 	readonly #vscode = acquireVsCodeApi();
 	readonly #syntaxHighlighter = new WebviewSyntaxHighlighter((message) => this.#vscode.postMessage(message));
+	readonly #linkPresentationProvider: WebviewLinkPresentationProvider | undefined;
 
 	constructor(host: HTMLElement, initialState: InitialState) {
 		super();
@@ -73,6 +77,12 @@ class Editor extends Disposable {
 			throw new Error('Missing Markdown editor message secret');
 		}
 		this.#messageSecret = messageSecret;
+		this.#linkPresentationProvider = initialState.richLinksEnabled
+			? this._register(new WebviewLinkPresentationProvider(
+				initialState.linkPresentationRules,
+				message => this.#vscode.postMessage(message),
+			))
+			: undefined;
 
 		this.model.sourceText.set(new StringValue(initialState.content), undefined);
 		this.model.readonlyMode.set(initialState.readonly, undefined);
@@ -83,6 +93,9 @@ class Editor extends Disposable {
 				return;
 			}
 			if (this.#syntaxHighlighter.handleMessage(message)) {
+				return;
+			}
+			if (this.#linkPresentationProvider?.handleMessage(message)) {
 				return;
 			}
 			switch (message.type) {
@@ -181,6 +194,7 @@ class Editor extends Disposable {
 		const view = this._register(new EditorView(model, {
 			classNames: ['md-theme-vscode-default'],
 			syntaxHighlighter: this.#syntaxHighlighter,
+			linkPresentationProvider: this.#linkPresentationProvider,
 			embeddedCodeEditorFactory,
 			onEmbeddedCodeEditorEdit: (block: CodeBlockAstNode, contentEdit: StringEdit) => {
 				const doc = model.document.get();
@@ -194,29 +208,11 @@ class Editor extends Disposable {
 					)),
 				));
 			},
-			onOpenLink: (url) => {
-				const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(url)?.[1].toLowerCase();
-				if (scheme && scheme !== 'file') {
-					return false;
-				}
+			onOpenLink: url => {
 				this.#vscode.postMessage({ type: 'openLink', href: url });
-				return undefined;
 			},
 			onToggleCheckbox: (item, newChecked) => {
-				if (model.readonlyMode.get()) {
-					return;
-				}
-				const doc = model.document.get();
-				const itemOffset = findNodeOffsetById(doc, item);
-				if (itemOffset === undefined) { return; }
-				const range = taskCheckboxRange(item);
-				if (!range) { return; }
-				model.applyEdit(
-					StringEdit.replace(
-						range.delta(itemOffset),
-						newChecked ? '[x]' : '[ ]'
-					)
-				);
+				model.setTaskCheckboxChecked(item, newChecked);
 			},
 			renderCustomCodeBlock: (language, content) => {
 				if (language !== 'mermaid') {
@@ -478,7 +474,9 @@ function isInitialState(value: unknown): value is InitialState {
 	const candidate = value as Record<string, unknown>;
 	return typeof candidate.content === 'string'
 		&& typeof candidate.documentVersion === 'number'
-		&& typeof candidate.readonly === 'boolean';
+		&& typeof candidate.readonly === 'boolean'
+		&& typeof candidate.richLinksEnabled === 'boolean'
+		&& Array.isArray(candidate.linkPresentationRules);
 }
 
 function readCodeBlockEditorProviderDefinitions(value: unknown): readonly CodeBlockEditorProviderDefinition[] {

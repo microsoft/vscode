@@ -419,7 +419,6 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 			return {
 				...next,
 				status: withStatusFlag(summaryStatus(next), SessionStatus.IsRead, false),
-				modifiedAt: new Date(Date.now()).toISOString(),
 			};
 		}
 

@@ -45,10 +45,10 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { SessionIsActiveContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { defaultCountBadgeStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, WorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { fillEditorsDragData } from '../../../../workbench/browser/dnd.js';
 import { ResourceLabels } from '../../../../workbench/browser/labels.js';
 import { ViewPane, IViewPaneOptions, ViewAction } from '../../../../workbench/browser/parts/views/viewPane.js';
@@ -60,6 +60,7 @@ import { createFileIconThemableTreeContainerScope } from '../../../../workbench/
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { IWorkspaceFolderLabelService } from '../../../../workbench/services/workspaces/common/workspaceFolderLabelService.js';
 import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { getChangesEditorLabels } from './changesEditorLabels.js';
@@ -81,13 +82,13 @@ import { REVEAL_CI_CHECKS_COMMAND_ID } from './checksActions.js';
 // eslint-disable-next-line local/code-import-patterns -- TODO: move skill button constants out of providers
 import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, isAgentHostSkillButtonId } from '../../providers/agentHost/browser/agentHostSkillButtons.js';
 import { ActiveSessionContextKeys, CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, IsolationMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
-import { buildTreeChildren, ChangesTreeElement, ChangesTreeRenderer, IChangesFileItem, IChangesTreeRootInfo, isChangesFileItem, toIChangesFileItem } from './changesViewRenderer.js';
+import { buildTreeChildren, ChangesTreeElement, ChangesTreeRenderer, IChangesFileItem, IChangesTreeRootInfo, isChangesFileItem, isChangesFileResource, toIChangesFileItem } from './changesViewRenderer.js';
 import { ResourceTree } from '../../../../base/common/resourceTree.js';
 import { compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
-import { ChangesViewSection, IChangesViewService } from '../common/changesViewService.js';
+import { ChangesViewSection, IChangesDetailsViewState, IChangesDetailsViewStateTransfer, IChangesViewService } from '../common/changesViewService.js';
 import { ChangesSummaryWidget } from './changesSummaryWidget.js';
 import { Menus } from '../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
@@ -156,6 +157,7 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 		});
 
 		const runningLabelObs = observableValue<string | IMarkdownString | undefined>(this, undefined);
+		const sessionIsActiveObs = observableFromEvent(contextKeyService.onDidChangeContext, () => SessionIsActiveContext.getValue(contextKeyService) ?? false);
 
 		// Clear the running label override
 		this._register(autorun(reader => {
@@ -166,6 +168,7 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 
 		this._register(autorun(reader => {
 			const hasGitOperationInProgress = hasGitOperationInProgressObs.read(reader);
+			sessionIsActiveObs.read(reader);
 			const sessionResource = changesViewService.activeSessionResourceObs.read(reader);
 			const outgoingChanges = outgoingChangesObs.read(reader) ?? 0;
 
@@ -174,6 +177,7 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 				MenuId.AgentsChangesToolbar,
 				{
 					telemetrySource: 'changesView',
+					renderSecondaryActions: false,
 					menuOptions: sessionResource
 						? { arg: sessionResource }
 						: { shouldForwardArgs: true },
@@ -284,13 +288,14 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 	) {
 		super();
 
-		const menu = this._register(menuService.createMenu(MenuId.AgentsChangesToolbar, contextKeyService));
+		const menu = this._register(menuService.createMenu(MenuId.AgentsChangesToolbar, contextKeyService, { emitEventsForSubmenuChanges: true }));
 
 		const buttonBar = this._buttonBar = this._register(instantiationService.createInstance(
 			WorkbenchButtonBar,
 			container,
 			{
 				telemetrySource: 'changesView',
+				renderSecondaryActions: false,
 				buttonConfigProvider: (action, index) => {
 					return index === 0
 						? { showIcon: false, showLabel: true, customLabel: stripIcons(action.label) }
@@ -533,6 +538,8 @@ export class ChangesViewPane extends ViewPane {
 
 	private changesProgressBar!: ProgressBar;
 	private tree: WorkbenchCompressibleObjectTree<ChangesTreeElement> | undefined;
+	private renderedTreeState: { readonly sessionResource: URI; readonly viewMode: ChangesViewMode } | undefined;
+	private detailsViewStateTransfer: IChangesDetailsViewStateTransfer | undefined;
 	private ciStatusWidget: CIStatusWidget | undefined;
 	private sessionFilesWidget: SessionFilesWidget | undefined;
 	private splitView: SplitView | undefined;
@@ -582,6 +589,7 @@ export class ChangesViewPane extends ViewPane {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ISessionChangesService private readonly sessionChangesService: ISessionChangesService,
 		@IWorkbenchLayoutService private readonly workbenchLayoutService: IWorkbenchLayoutService,
+		@IWorkspaceFolderLabelService private readonly workspaceFolderLabelService: IWorkspaceFolderLabelService,
 	) {
 		super({ ...options, titleMenuId: MenuId.ChatEditingSessionTitleToolbar }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -809,6 +817,7 @@ export class ChangesViewPane extends ViewPane {
 			if (visible) {
 				this.onVisible();
 			} else {
+				this.captureDetailsViewState();
 				this.renderDisposables.clear();
 			}
 		}));
@@ -977,15 +986,38 @@ export class ChangesViewPane extends ViewPane {
 		this.renderDisposables.add(autorun(reader => {
 			const changes = changesObs.read(reader);
 			const viewMode = this.changesViewService.viewModeObs.read(reader);
-			const changesetLoading = this.changesViewService.activeSessionChangesetLoadingObs.read(reader);
+			const activeSessionLoading = this.changesViewService.activeSessionLoadingObs.read(reader);
+			const sessionResource = this.changesViewService.activeSessionResourceObs.read(reader);
 
 			// Read session state so this autorun re-runs when git state (e.g. branch
 			// name) arrives asynchronously, since the tree root label depends on it.
 			this.changesViewService.activeSessionStateObs.read(reader);
 
-			if (!this.tree || changesetLoading) {
+			if (!this.tree || activeSessionLoading) {
 				return;
 			}
+			const detailsViewStateTransfer = this.changesViewService.detailsViewStateTransferObs.read(reader);
+			if (detailsViewStateTransfer !== this.detailsViewStateTransfer) {
+				this.detailsViewStateTransfer = detailsViewStateTransfer;
+				if (detailsViewStateTransfer && this.renderedTreeState) {
+					const renderedSessionResource = this.renderedTreeState.sessionResource;
+					if (isEqual(renderedSessionResource, detailsViewStateTransfer.from)) {
+						this.captureDetailsViewState(detailsViewStateTransfer.to);
+						this.renderedTreeState = undefined;
+						if (sessionResource && isEqual(sessionResource, detailsViewStateTransfer.from)) {
+							return;
+						}
+					} else if (!isEqual(renderedSessionResource, detailsViewStateTransfer.to)) {
+						this.captureDetailsViewState();
+						if (sessionResource && isEqual(sessionResource, renderedSessionResource)) {
+							return;
+						}
+					}
+				}
+			} else {
+				this.captureDetailsViewState();
+			}
+			const detailsViewState = sessionResource ? this.changesViewService.getDetailsViewState(sessionResource, viewMode) : undefined;
 
 			// Toggle list-mode class to remove tree indentation in list mode
 			this.listContainer?.classList.toggle('list-mode', viewMode === ChangesViewMode.List);
@@ -994,19 +1026,73 @@ export class ChangesViewPane extends ViewPane {
 				// Tree mode: build hierarchical tree from file entries
 				const treeRootInfo = this.getTreeRootInfo(changes);
 				const treeChildren = buildTreeChildren(changes, treeRootInfo);
-				this.tree.setChildren(null, treeChildren);
+				this.setDetailsTreeChildren(sessionResource, viewMode, detailsViewState, treeChildren);
 			} else {
 				// List mode: flat list of file items
 				const listChildren = changes.map(item => ({
 					element: item,
 					collapsible: false,
 				} satisfies IObjectTreeElement<ChangesTreeElement>));
-				this.tree.setChildren(null, listChildren);
+				this.setDetailsTreeChildren(sessionResource, viewMode, detailsViewState, listChildren);
 			}
 
 			this.fireTreePaneSizeChange();
 			this.layoutSplitView();
 		}));
+	}
+
+	override saveState(): void {
+		this.captureDetailsViewState();
+		super.saveState();
+	}
+
+	private captureDetailsViewState(sessionResource?: URI): void {
+		if (!this.tree || !this.renderedTreeState) {
+			return;
+		}
+
+		const state = this.tree.getViewState().toJSON();
+		this.changesViewService.setDetailsViewState(sessionResource ?? this.renderedTreeState.sessionResource, this.renderedTreeState.viewMode, {
+			...state,
+			focus: Array.from(state.focus),
+			selection: Array.from(state.selection),
+		});
+	}
+
+	private setDetailsTreeChildren(sessionResource: URI | undefined, viewMode: ChangesViewMode, state: IChangesDetailsViewState | undefined, children: readonly IObjectTreeElement<ChangesTreeElement>[]): void {
+		if (!this.tree) {
+			return;
+		}
+
+		const elementsById = new Map<string, ChangesTreeElement>();
+		const restoredChildren = this.applyDetailsViewState(children, state, elementsById);
+
+		this.renderedTreeState = undefined;
+		this.tree.setChildren(null, restoredChildren);
+		this.tree.setFocus(state ? Array.from(state.focus, id => elementsById.get(id)).filter(element => element !== undefined) : []);
+		this.tree.setSelection(state ? Array.from(state.selection, id => elementsById.get(id)).filter(element => element !== undefined) : []);
+		this.tree.scrollTop = state?.scrollTop ?? 0;
+		this.renderedTreeState = sessionResource ? { sessionResource, viewMode } : undefined;
+	}
+
+	private applyDetailsViewState(
+		children: readonly IObjectTreeElement<ChangesTreeElement>[],
+		state: IChangesDetailsViewState | undefined,
+		elementsById: Map<string, ChangesTreeElement>,
+	): IObjectTreeElement<ChangesTreeElement>[] {
+		return children.map(child => {
+			const id = child.element.uri.toString();
+			elementsById.set(id, child.element);
+			const restoredChildren = child.children
+				? this.applyDetailsViewState(Array.from(child.children), state, elementsById)
+				: undefined;
+			const expanded = state?.expanded[id];
+			return {
+				...child,
+				children: restoredChildren,
+				collapsed: expanded === undefined ? child.collapsed : expanded === 0,
+			};
+		});
 	}
 
 	private _bindContextKeys(topLevelStats: IObservable<{ files: number } | undefined>): void {
@@ -1192,39 +1278,36 @@ export class ChangesViewPane extends ViewPane {
 			return undefined;
 		}
 
-		// Get the repository details for the session
-		// - uri: location of the repository
-		// - workingDirectory: location of the worktree
 		const activeSession = this.sessionsService.activeSession.get();
 		const folder = activeSession?.workspace.get()?.folders[0];
-		const workspaceFolderUri = folder?.workingDirectory;
-		if (!folder?.root || !workspaceFolderUri) {
+		if (!folder) {
 			return undefined;
 		}
 
-		let name: string = '';
-		let resourceTreeRootUri = workspaceFolderUri;
-
+		const workspaceFolderUri = folder.workingDirectory;
 		if (workspaceFolderUri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
-			// Cloud session
-			resourceTreeRootUri = URI.from({ scheme: Schemas.copilotPr, path: '/' });
 			const segments = workspaceFolderUri.path.split('/').filter(Boolean);
-			name = `${segments.slice(0, 2).join('/')} (${decodeURIComponent(segments[2])})`;
-		} else {
-			// Local session
-			const branchName = this.changesViewService.activeSessionStateObs.get()?.branchName;
-			name = branchName
-				? `${basename(folder.workingDirectory)} (${branchName})`
-				: basename(folder.workingDirectory);
+			return {
+				root: {
+					type: 'root',
+					uri: workspaceFolderUri,
+					name: `${segments.slice(0, 2).join('/')} (${decodeURIComponent(segments[2])})`
+				},
+				resourceTreeRootUri: URI.from({ scheme: Schemas.copilotPr, path: '/' })
+			};
 		}
 
+		const folderLabel = this.workspaceFolderLabelService.getWorkspaceFolderLabel(
+			new WorkspaceFolder({ uri: folder.workingDirectory, name: folder.name, index: 0 }),
+			true
+		) ?? folder.name;
 		return {
 			root: {
 				type: 'root',
 				uri: workspaceFolderUri,
-				name
+				name: folderLabel
 			},
-			resourceTreeRootUri
+			resourceTreeRootUri: workspaceFolderUri
 		};
 	}
 
@@ -1617,7 +1700,7 @@ export class ChangesViewPane extends ViewPane {
 		// current change list, so the multi-diff editor can navigate to it.
 		let options: IMultiDiffEditorOptions | undefined;
 		if (reveal) {
-			const target = changes.find(c => isEqual(c.modifiedUri, reveal));
+			const target = changes.find(c => isChangesFileResource(c, reveal));
 			if (target) {
 				options = {
 					viewState: {
@@ -1956,7 +2039,6 @@ registerAction2(ChangesDiffStatsAction);
 
 /**
  * Opens the Changes view and reveals (expands + focuses) the CI checks section.
- * Used by the CI failures banner above the chat input.
  */
 class RevealCIChecksAction extends Action2 {
 	static readonly ID = REVEAL_CI_CHECKS_COMMAND_ID;

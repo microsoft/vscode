@@ -120,12 +120,13 @@ suite('CopilotShellTools', () => {
 		const sandbox: Record<string, unknown> = { ...initialSandbox };
 		const configValues: Record<string, unknown> = { [AgentHostSandboxConfigKey.Sandbox]: sandbox };
 		const emitter = disposables.add(new Emitter<void>());
+		const workingDirectoryPendingEmitter = disposables.add(new Emitter<string>());
 		const service: IAgentConfigurationService = {
 			_serviceBrand: undefined,
 			onDidRootConfigChange: emitter.event,
 			onDidSessionConfigChange: Event.None,
+			onDidChangeWorkingDirectoryPending: workingDirectoryPendingEmitter.event,
 			getEffectiveValue: () => undefined,
-			getEffectiveWorkingDirectory: () => undefined,
 			getEffectiveWorkingDirectories: () => undefined,
 			isWorkingDirectoryPending: () => false,
 			resolveWorkingDirectoryForResume: async (_session, workingDirectory) => workingDirectory,
@@ -178,10 +179,10 @@ suite('CopilotShellTools', () => {
 		if (options?.sandboxEnabled) {
 			initialSandboxValues[AgentHostSandboxKey.Enabled] = AgentSandboxEnabledValue.On;
 			// Windows uses a separate enable key; the engine treats
-			// `Enabled=On` on non-Windows and `WindowsEnabled=AllowNetwork`
+			// `Enabled=On` on non-Windows and `WindowsEnabled=On`
 			// on Windows as "sandbox active". Set both so tests exercise
 			// the sandbox path on every OS.
-			initialSandboxValues[AgentHostSandboxKey.WindowsEnabled] = AgentSandboxEnabledValue.AllowNetwork;
+			initialSandboxValues[AgentHostSandboxKey.WindowsEnabled] = AgentSandboxEnabledValue.On;
 		}
 		const agentConfigurationService = createFakeAgentConfigurationService(initialSandboxValues);
 		const services = new ServiceCollection();

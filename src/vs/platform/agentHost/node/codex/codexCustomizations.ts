@@ -6,9 +6,11 @@
 import { createHash } from 'crypto';
 import { Schemas } from '../../../../base/common/network.js';
 import { isAbsolute, normalize } from '../../../../base/common/path.js';
-import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
+import { basename, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CustomizationLoadStatus, CustomizationType, customizationId, type DirectoryCustomization, type HookCustomization, type SkillCustomization } from '../../common/state/sessionState.js';
+import { readAgentComponents, toParsedAgent, type IParsedAgent } from '../../../agentPlugins/common/pluginParsers.js';
+import type { IFileService } from '../../../files/common/files.js';
 import type { HookMetadata } from './protocol/generated/v2/HookMetadata.js';
 import type { HooksListResponse } from './protocol/generated/v2/HooksListResponse.js';
 import type { SelectedCapabilityRoot } from './protocol/generated/v2/SelectedCapabilityRoot.js';
@@ -35,6 +37,77 @@ import type { SkillsListResponse } from './protocol/generated/v2/SkillsListRespo
 const CODEX_SKILLS_SCHEME = 'codex-skills';
 /** Synthetic URI scheme for the codex hooks container. */
 const CODEX_HOOKS_SCHEME = 'codex-hooks';
+
+export interface ICodexWorkspaceAgentDiscovery {
+	readonly agents: readonly IParsedAgent[];
+	readonly containers: readonly DirectoryCustomization[];
+}
+
+/**
+ * Discovers custom agents owned by the session's workspace roots.
+ */
+export async function discoverCodexWorkspaceAgents(
+	workingDirectories: readonly URI[],
+	fileService: IFileService,
+): Promise<ICodexWorkspaceAgentDiscovery> {
+	const agents: IParsedAgent[] = [];
+	const containers: DirectoryCustomization[] = [];
+	const seenDirectories = new Set<string>();
+	const seenNames = new Set<string>();
+
+	for (const workingDirectory of workingDirectories) {
+		const directory = URI.joinPath(workingDirectory, '.github', 'agents');
+		const directoryKey = extUriBiasedIgnorePathCase.getComparisonKey(directory);
+		if (seenDirectories.has(directoryKey)) {
+			continue;
+		}
+		seenDirectories.add(directoryKey);
+
+		let candidateFiles: readonly URI[];
+		try {
+			const stat = await fileService.resolve(directory);
+			candidateFiles = stat.children
+				?.filter(child => {
+					const filename = basename(child.resource);
+					return child.isFile && filename.endsWith('.md') && filename !== 'README.md';
+				})
+				.map(child => child.resource) ?? [];
+		} catch {
+			continue;
+		}
+
+		const children: IParsedAgent[] = [];
+		// Candidate filtering happens before frontmatter parsing and name
+		// de-duplication so README metadata cannot suppress a real agent.
+		for (const resource of await readAgentComponents(candidateFiles, fileService)) {
+			if (seenNames.has(resource.name)) {
+				continue;
+			}
+			seenNames.add(resource.name);
+			const agent = toParsedAgent(resource);
+			agents.push(agent);
+			children.push(agent);
+		}
+
+		if (children.length === 0) {
+			continue;
+		}
+		const uri = directory.toString();
+		containers.push({
+			type: CustomizationType.Directory,
+			id: customizationId(uri),
+			uri,
+			name: '.github',
+			enabled: true,
+			contents: CustomizationType.Agent,
+			writable: true,
+			load: { kind: CustomizationLoadStatus.Loaded },
+			children: children.map(agent => agent.customization),
+		});
+	}
+
+	return { agents, containers };
+}
 
 function localFileComparisonKey(resource: URI): { readonly key: string; readonly resource: URI } | undefined {
 	if (resource.scheme !== Schemas.file || !resource.path.startsWith('/') || !isAbsolute(resource.fsPath)) {

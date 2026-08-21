@@ -34,6 +34,7 @@ class TestRestrictedTelemetry implements IAgentHostRestrictedTelemetry {
 		this.events.push({ destination: 'internalMSFT', eventName, properties, measurements });
 	}
 	setCopilotTrackingId(): void { }
+	setCommonProperty(): void { }
 	setRestrictedTelemetryEndpoint(): void { }
 	setRestrictedTelemetryEnabled(): void { }
 	setInternalTelemetryContext(): void { }

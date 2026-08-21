@@ -18,7 +18,8 @@ import { AgentHostCommitOperationHandler } from '../../node/agentHostCommitOpera
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { CopilotApiError, type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
-import { GITHUB_COPILOT_PROTECTED_RESOURCE, IAgentService } from '../../common/agentService.js';
+import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
+import { IAgentService } from '../../common/agentService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ChangesSummary } from '../../common/state/protocol/state.js';
 import type { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
@@ -293,10 +294,10 @@ suite('AgentHostCommitOperationHandler', () => {
 		});
 	});
 
-	test('maps Copilot token mint auth failures to AHP_AUTH_REQUIRED before committing', async () => {
+	test('maps Copilot API auth failures to AHP_AUTH_REQUIRED before committing', async () => {
 		const gitService = new TestGitService();
 		const copilotApiService = new TestCopilotApiService();
-		copilotApiService.error = new Error('Copilot session token mint failed: 403 Forbidden');
+		copilotApiService.error = new Error('Copilot API authorization failed: 403 Forbidden');
 		const changesets = new TestChangesetService();
 		const { handler, session, committedSessions } = setup(disposables, gitService, copilotApiService, changesets);
 
