@@ -237,7 +237,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 	async refreshSessionGitState(sessionKey: string, workingDirectory: URI | undefined): Promise<void> {
 		const sessionState = this._stateManager.getSessionState(sessionKey);
-		if (sessionState?.lifecycle === SessionLifecycle.CreationFailed) {
+		if (sessionState?.lifecycle === SessionLifecycle.Failed) {
 			return;
 		}
 
@@ -338,8 +338,10 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 	async resolveSessionBaseBranchName(sessionKey: string): Promise<string | undefined> {
 		const state = this._stateManager.getSessionState(sessionKey);
-		const configuredBranch = state?.config?.values[SessionConfigKey.Isolation] === 'worktree'
-			? state.config.values[SessionConfigKey.Branch]
+		const configValues = state?.config?.values;
+		const configuredBranch = configValues?.[SessionConfigKey.Isolation] === 'worktree'
+			&& configValues[SessionConfigKey.WorktreeCreateNewBranch] !== false
+			? configValues[SessionConfigKey.Branch]
 			: undefined;
 		if (typeof configuredBranch === 'string' && configuredBranch.trim()) {
 			return resolveDiffBaseBranchName(configuredBranch.trim(), undefined);

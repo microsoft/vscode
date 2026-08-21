@@ -8,9 +8,13 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { AgentSession } from '../../common/agent.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
-import { appendSdkToolResultContent, mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
+import { appendSdkToolResultContent, mapSessionEvents as mapSessionEventsWithRouting, type IMapSessionEventsOptions } from '../../node/copilot/mapSessionEvents.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
+
+function mapSessionEvents(session: URI, db: undefined, events: Parameters<typeof mapSessionEventsWithRouting>[2], options: IMapSessionEventsOptions | undefined = undefined) {
+	return mapSessionEventsWithRouting(session, db, events, URI.parse(buildChatUri(session, 'default')), options);
+}
 
 suite('mapSessionEvents — history replay', () => {
 
@@ -141,7 +145,7 @@ suite('mapSessionEvents — history replay', () => {
 			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success: true } },
 		];
 
-		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events), URI.file('/workspace'));
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events), { workingDirectory: URI.file('/workspace') });
 		const part = turns[0].responseParts.find(part => part.kind === ResponsePartKind.ToolCall) as ToolCallResponsePart | undefined;
 		assert.ok(part);
 		assert.deepStrictEqual({
@@ -198,7 +202,9 @@ suite('mapSessionEvents — history replay', () => {
 			},
 		];
 
-		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+		const chatUri = URI.parse(buildChatUri(session, 'restored-chat'));
+		const sdkConversationUri = URI.parse('copilot-sdk:/conversation-123');
+		const { turns } = await mapSessionEventsWithRouting(sdkConversationUri, undefined, toSessionEvents(events), chatUri);
 
 		const part = turns[0].responseParts[0] as ToolCallResponsePart;
 		assert.strictEqual(part.kind, ResponsePartKind.ToolCall);
@@ -215,7 +221,7 @@ suite('mapSessionEvents — history replay', () => {
 				mcpToolName: 'get_me',
 				ui: {
 					resourceUri: 'ui://github-mcp-server/get-me',
-					channel: 'mcp://copilot/test-session/GitHub',
+					channel: `mcp://copilot/${encodeURIComponent(chatUri.toString())}/GitHub`,
 				},
 			},
 		});

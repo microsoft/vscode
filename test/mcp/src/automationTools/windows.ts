@@ -5,7 +5,7 @@
 
 import { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { ApplicationService } from '../application';
+import { ApplicationService } from '../../../scenario';
 
 /**
  * Create a standardized text response for window tools

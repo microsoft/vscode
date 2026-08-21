@@ -215,7 +215,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	private _hasWorkingDirectory(session: ProtocolURI): boolean {
-		return !!this._configurationService.getEffectiveWorkingDirectories(session)?.[0];
+		return !this._configurationService.isWorkingDirectoryPending(session)
+			&& !!this._configurationService.getEffectiveWorkingDirectories(session)?.[0];
 	}
 
 	registerStaticChangesets(session: ProtocolURI): void {
@@ -378,7 +379,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	refreshChangesetCatalog(session: ProtocolURI): void {
 		const state = this._stateManager.getSessionState(session);
-		if (!state || state?.lifecycle === SessionLifecycle.CreationFailed) {
+		if (!state || state?.lifecycle === SessionLifecycle.Failed) {
 			return;
 		}
 
@@ -470,6 +471,12 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	private async _computeTurnChangeset(session: ProtocolURI, turnId: string, reportTelemetry: boolean, clientContext?: IAgentHostClientTelemetryContext): Promise<ProtocolURI> {
 		const turnUri = this._stateManager.registerChangeset(buildTurnChangesetUri(session, turnId));
+		if (this._stateManager.getChangesetState(turnUri)?.status !== ChangesetStatus.Computing) {
+			this._stateManager.dispatchServerAction(turnUri, {
+				type: ActionType.ChangesetStatusChanged,
+				status: ChangesetStatus.Computing,
+			});
+		}
 		const stopWatch = StopWatch.create();
 		let outcome: TurnChangesetOutcome = 'error';
 		let result: ITurnDiffResult | undefined;
@@ -712,7 +719,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 			const workingDirectories = this._configurationService.getEffectiveWorkingDirectories(session);
 			if (isMultiRootSession(workingDirectories)) {
-				return this._computeMultiFolderTurnDiffs(session, trackedSource.sessionUri, trackedSource.db, turnId, workingDirectories!);
+				return await this._computeMultiFolderTurnDiffs(session, trackedSource.sessionUri, trackedSource.db, turnId, workingDirectories!);
 			}
 			const diffs = await this._computeSingleFolderTurnDiffs(session, trackedSource.sessionUri, trackedSource.db, turnId);
 			return { diffs, outcome: 'computed' };

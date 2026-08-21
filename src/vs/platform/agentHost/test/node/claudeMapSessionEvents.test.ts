@@ -92,6 +92,37 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		assert.deepStrictEqual(signals, []);
 	});
 
+	test('canonical assistant message reports one completed model call', () => {
+		const signals = mapSDKMessageToAgentSignals(
+			makeAssistantMessage(SESSION_ID, []),
+			SESSION,
+			TURN_ID,
+			new ClaudeMapperState(),
+			new NullLogService(),
+			r(),
+		);
+
+		assert.deepStrictEqual(signals, [{
+			kind: 'model_call_completed',
+			resource: SESSION,
+			turnId: TURN_ID,
+			modelCallId: 'msg_test',
+		}]);
+	});
+
+	test('aborted canonical assistant message does not report a completed model call', () => {
+		const signals = mapSDKMessageToAgentSignals(
+			{ ...makeAssistantMessage(SESSION_ID, []), aborted: true as const },
+			SESSION,
+			TURN_ID,
+			new ClaudeMapperState(),
+			new NullLogService(),
+			r(),
+		);
+
+		assert.deepStrictEqual(signals, []);
+	});
+
 	test('error_during_execution result emits a ChatError carrying duration and _meta', () => {
 		const marker = encodeForwardedChatError({ fetchError: { type: 'quotaExceeded', capiError: { code: 'quota_exceeded', message: 'You have exceeded your monthly quota' } } });
 		const signals = mapSDKMessageToAgentSignals(
@@ -778,7 +809,12 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			r(),
 		);
 
-		assert.deepStrictEqual(signals, []);
+		assert.deepStrictEqual(signals, [{
+			kind: 'model_call_completed',
+			resource: SESSION,
+			turnId: TURN_ID,
+			modelCallId: 'msg_test',
+		}]);
 		assert.deepStrictEqual(log.warns, []);
 	});
 
@@ -796,7 +832,12 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			r(),
 		);
 
-		assert.deepStrictEqual(signals, []);
+		assert.deepStrictEqual(signals, [{
+			kind: 'model_call_completed',
+			resource: SESSION,
+			turnId: TURN_ID,
+			modelCallId: 'msg_test',
+		}]);
 		assert.deepStrictEqual(log.warns, []);
 	});
 

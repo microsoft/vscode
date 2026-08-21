@@ -24,10 +24,28 @@ export enum SessionTypeAvailability {
 	NoModels,
 }
 
-export function getSessionTypePickerAvailability(type: string, availability: SessionTypeAvailability, allowSignedOutWhenUsable: boolean): SessionTypeAvailability {
-	return allowSignedOutWhenUsable && type === SessionType.AgentHostCopilot && availability === SessionTypeAvailability.SignInRequired
-		? SessionTypeAvailability.Available
-		: availability;
+/**
+ * The picker's view of {@link getSessionTypeAvailability}, which keeps a harness
+ * selectable in the two cases where the raw answer would grey out something the
+ * user can still act on.
+ *
+ * `hasSetupBanner` is the second: a harness whose SDK setup banner is on offer
+ * has no models *yet*, and the banner saying how to fix that renders inside a
+ * session of that very type. Not a static allow-list of session types — a
+ * signed-in user whose Claude harness has no models gets no banner and stays
+ * greyed out, which is the honest answer for them.
+ */
+export function getSessionTypePickerAvailability(type: string, availability: SessionTypeAvailability, allowSignedOutWhenUsable: boolean, hasSetupBanner: boolean): SessionTypeAvailability {
+	if (!allowSignedOutWhenUsable) {
+		return availability;
+	}
+	if (type === SessionType.AgentHostCopilot && availability === SessionTypeAvailability.SignInRequired) {
+		return SessionTypeAvailability.Available;
+	}
+	if (hasSetupBanner && availability === SessionTypeAvailability.NoModels) {
+		return SessionTypeAvailability.Available;
+	}
+	return availability;
 }
 
 /**
@@ -71,7 +89,7 @@ export function getSessionTypeAvailability(
 		return SessionTypeAvailability.Available;
 	}
 	const entitlement = chatEntitlementService.entitlement;
-	const hasTargetedModels = hasModelsTargetingSessionType(languageModelsService, type);
+	const hasTargetedModels = hasAnyModelTargetingSessionType(languageModelsService, type);
 	const hasVisibleByokModels = allowSignedOutWhenUsable && chatEntitlementService.clientByokEnabled && hasVisibleByokModelsTargetingSessionType(languageModelsService, type);
 	// A visible Agent Host BYOK model can run without a Copilot account.
 	if (entitlement === ChatEntitlement.Unknown && !chatEntitlementService.anonymous && chatSessionsService.requiresCopilotSignInForSessionType(type) && !hasVisibleByokModels) {
@@ -100,7 +118,7 @@ export function getSessionTypeAvailability(
  * type (e.g. a user-configured BYOK model). General-pool models are ignored
  * since a session type that requires its own models cannot use them.
  */
-function hasModelsTargetingSessionType(languageModelsService: ILanguageModelsService, type: string): boolean {
+export function hasAnyModelTargetingSessionType(languageModelsService: ILanguageModelsService, type: string): boolean {
 	return languageModelsService.getLanguageModelIds().some(id => {
 		const metadata = languageModelsService.lookupLanguageModel(id);
 		return metadata?.targetChatSessionType === type;

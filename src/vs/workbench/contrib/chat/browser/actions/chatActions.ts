@@ -597,7 +597,8 @@ export function registerChatActions() {
 	 * honoring the remembered harness preference and then the configured default.
 	 */
 	function getNewChatEditorSessionUri(accessor: ServicesAccessor): URI {
-		return getDefaultNewChatSessionResource(accessor.get(IConfigurationService), accessor.get(IChatSessionsService), accessor.get(IStorageService), accessor.get(IWorkspaceContextService).getWorkspace(), accessor.get(IAgentHostEnablementService).enabled.get());
+		const agentHostEnablementService = accessor.get(IAgentHostEnablementService);
+		return getDefaultNewChatSessionResource(accessor.get(IConfigurationService), accessor.get(IChatSessionsService), accessor.get(IStorageService), accessor.get(IWorkspaceContextService).getWorkspace(), agentHostEnablementService.enabled.get(), undefined, agentHostEnablementService.managedSandboxEnforced.get());
 	}
 
 	registerAction2(PrimaryOpenChatGlobalAction);

@@ -6,8 +6,11 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { buildClaudeTelemetryEnv, buildOptions, buildSubprocessEnv } from '../../node/claude/claudeSdkOptions.js';
+import { buildClaudeTelemetryEnv, buildOptions, buildSubprocessEnv, toClaudeMcpServers } from '../../node/claude/claudeSdkOptions.js';
 import type { ClaudeTransport, IClaudeProxyHandle } from '../../node/claude/claudeProxyService.js';
+import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
+import { CustomizationType, McpServerStatus, type McpServerCustomization } from '../../common/state/protocol/state.js';
+import type { IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
 
 suite('claudeSdkOptions / buildSubprocessEnv', () => {
 
@@ -178,6 +181,57 @@ suite('claudeSdkOptions / buildSubprocessEnv', () => {
 	});
 });
 
+suite('claudeSdkOptions / MCP server projection', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const customization: McpServerCustomization = {
+		type: CustomizationType.McpServer,
+		id: 'mcp',
+		uri: 'file:///mcp',
+		name: 'mcp',
+		state: { kind: McpServerStatus.Stopped },
+	};
+	const definition = (name: string, defaultCwd: URI, remote = false): IMcpServerDefinition => ({
+		name,
+		defaultCwd,
+		uri: URI.file('/mcp.json'),
+		configuration: remote
+			? { type: McpServerType.REMOTE, url: 'https://example.com/mcp' }
+			: { type: McpServerType.LOCAL, command: name },
+		customization: { ...customization, name },
+	});
+
+	test('keeps primary stdio and all remote servers while skipping additional-root stdio', () => {
+		const primary = URI.file('/primary');
+		const remotePrimary = URI.parse('vscode-remote://ssh-remote+linux/primary');
+		const relativePrimary = {
+			...definition('relative-primary', primary),
+			configuration: { type: McpServerType.LOCAL, command: 'relative-primary', cwd: '.' },
+		} satisfies IMcpServerDefinition;
+		const normalizedPrimary = {
+			...definition('normalized-primary', primary),
+			configuration: { type: McpServerType.LOCAL, command: 'normalized-primary', cwd: `${primary.fsPath}/child/..` },
+		} satisfies IMcpServerDefinition;
+		const result = toClaudeMcpServers([
+			definition('primary', primary),
+			definition('remote-primary', remotePrimary),
+			relativePrimary,
+			normalizedPrimary,
+			definition('additional', URI.file('/additional')),
+			definition('remote', URI.file('/additional'), true),
+			{
+				...definition('sse', URI.file('/additional'), true),
+				configuration: { type: McpServerType.REMOTE, transport: 'sse', url: 'https://example.com/sse' },
+			},
+		], primary);
+
+		assert.deepStrictEqual(Object.keys(result.servers), ['primary', 'remote-primary', 'relative-primary', 'normalized-primary', 'remote', 'sse']);
+		assert.strictEqual(result.servers.sse.type, 'sse');
+		assert.deepStrictEqual(result.skipped, ['additional']);
+	});
+});
+
 suite('claudeSdkOptions / buildOptions plugins projection', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -189,7 +243,7 @@ suite('claudeSdkOptions / buildOptions plugins projection', () => {
 	};
 	const proxyTransport: ClaudeTransport = { kind: 'proxy', handle: proxyHandle };
 
-	function input(plugins: readonly URI[] | undefined) {
+	function input(pluginUris: readonly URI[] | undefined) {
 		return {
 			sessionId: 's1',
 			workingDirectory: URI.file('/tmp/x'),
@@ -200,19 +254,19 @@ suite('claudeSdkOptions / buildOptions plugins projection', () => {
 			onElicitation: async () => ({ action: 'cancel' as const }),
 			isResume: false,
 			mcpServers: undefined,
-			...(plugins !== undefined ? { plugins } : {}),
+			...(pluginUris !== undefined ? { plugins: pluginUris.map(uri => ({ uri, skipMcpDiscovery: true })) } : {}),
 		};
 	}
 
-	test('non-empty plugins project to Options.plugins as local entries', async () => {
+	test('non-empty plugins project without duplicate SDK MCP discovery', async () => {
 		const opts = await buildOptions(
 			input([URI.file('/p/a'), URI.file('/p/b')]),
 			proxyTransport,
 			() => { },
 		);
 		assert.deepStrictEqual(opts.plugins, [
-			{ type: 'local', path: URI.file('/p/a').fsPath },
-			{ type: 'local', path: URI.file('/p/b').fsPath },
+			{ type: 'local', path: URI.file('/p/a').fsPath, skipMcpDiscovery: true },
+			{ type: 'local', path: URI.file('/p/b').fsPath, skipMcpDiscovery: true },
 		]);
 	});
 
@@ -224,6 +278,20 @@ suite('claudeSdkOptions / buildOptions plugins projection', () => {
 	test('undefined plugins omits Options.plugins', async () => {
 		const opts = await buildOptions(input(undefined), proxyTransport, () => { });
 		assert.strictEqual(opts.plugins, undefined);
+	});
+
+	test('projects denied workspace MCP servers into startup settings', async () => {
+		const opts = await buildOptions({
+			...input(undefined),
+			deniedMcpServers: [
+				{ serverCommand: ['node', 'server.js'] },
+				{ serverUrl: 'https://disabled.example.com/mcp' },
+			],
+		}, proxyTransport, () => { });
+		assert.deepStrictEqual(typeof opts.settings === 'string' ? undefined : opts.settings?.deniedMcpServers, [
+			{ serverCommand: ['node', 'server.js'] },
+			{ serverUrl: 'https://disabled.example.com/mcp' },
+		]);
 	});
 
 	test('UserPromptSubmit adds transient host context', async () => {

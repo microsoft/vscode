@@ -52,7 +52,7 @@ interface StylesheetScanResult {
 /**
  * Whether a selector contains a `:has()` attached to a compound that anchors on
  * `body`, `html`, `:root` or `.monaco-workbench` - complete tokens only, at any
- * position within the compound (`.style-override.monaco-workbench:has()` counts,
+ * position within the compound (`.modern-ui.monaco-workbench:has()` counts,
  * `.monaco-workbench .foo:has()` and `.monaco-workbench-like:has()` do not).
  * Such rules make DOM mutations anywhere pay workbench-wide style invalidation
  * (microsoft/vscode#324985).

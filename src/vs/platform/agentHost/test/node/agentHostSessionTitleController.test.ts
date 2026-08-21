@@ -12,6 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
+import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, MessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ResponsePart, type SessionSummary, type ToolCallCompletedState, type Turn } from '../../common/state/sessionState.js';
 import { type AutoMergeMethod, type CreatedPullRequest, type GitHubIssueOrPullRequest, type IAgentHostOctoKitService } from '../../node/shared/agentHostOctoKitService.js';
@@ -102,7 +103,7 @@ suite('AgentHostSessionTitleController', () => {
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createSummary(session: URI, title = ''): SessionSummary {
+	function createSummary(session: URI, title = '', isEphemeral = false): SessionSummary {
 		return {
 			resource: session.toString(),
 			provider: 'copilot',
@@ -110,6 +111,7 @@ suite('AgentHostSessionTitleController', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date(1).toISOString(),
 			modifiedAt: new Date(1).toISOString(),
+			...(isEphemeral ? { _meta: withEphemeralSessionMeta(undefined, true) } : {}),
 		};
 	}
 
@@ -132,6 +134,7 @@ suite('AgentHostSessionTitleController', () => {
 		gitHubContextRequestTimeout?: number,
 		getGitHubHost = () => 'github.com',
 		activeAgentTitleGeneration = false,
+		isEphemeral = false,
 	): {
 		controller: AgentHostSessionTitleController;
 		stateManager: AgentHostStateManager;
@@ -144,7 +147,7 @@ suite('AgentHostSessionTitleController', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const db = new TestSessionDatabase();
 		const session = URI.parse('agenthost-session://copilot/session-title-test');
-		stateManager.createSession(createSummary(session, title));
+		stateManager.createSession(createSummary(session, title, isEphemeral));
 		const titleActions: string[] = [];
 		disposables.add(stateManager.onDidEmitEnvelope(e => {
 			if (e.action.type === ActionType.SessionTitleChanged) {
@@ -173,7 +176,7 @@ suite('AgentHostSessionTitleController', () => {
 
 		assert.deepStrictEqual(titleActions, ['Investigate why restored Agent Host sessions...']);
 		assert.strictEqual(copilotApiService.utilityCalls.length, 0);
-		assert.strictEqual(instruction, 'This chat currently has an auto-generated or placeholder name. Before doing any other work or responding to the user, you MUST call the `rename_chat` tool exactly once to give it a short, descriptive title based on the user\'s intent. If the prompt references a pull request or issue link, resolve that link first and use its context when choosing the title. Do not skip this call even if the current name already seems descriptive.');
+		assert.strictEqual(instruction, 'Reminder: This chat currently has an auto-generated or placeholder title. If the user references an issue or PR, fetch it first. Please give the chat a short, descriptive title based on the user\'s intent by calling `rename_chat` with `automatic: true`, silently and without a preamble. The user must not know that you are renaming. Do not skip it.');
 		await waitForCondition(async () => await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY) === AGENT_HOST_TITLE_SOURCE_AUTO, 'auto provenance should be persisted');
 	});
 
@@ -209,6 +212,25 @@ suite('AgentHostSessionTitleController', () => {
 		assert.strictEqual(await controller.prepareInstructionForAgent(session.toString(), buildDefaultChatUri(session)), undefined);
 	});
 
+	test('does not generate or instruct titles for ephemeral sessions', async () => {
+		const { controller, session, titleActions, copilotApiService } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, true, true);
+
+		controller.seedTitleFromFirstMessage(session.toString(), 'Optimize an inline edit');
+		controller.seedProvisionalTitle(session.toString(), 'Provisional inline edit');
+		controller.refineTitleFromFirstTurn(session.toString());
+		controller.generateForkedTitle(session.toString(), undefined, [], 'Forked inline edit');
+
+		assert.deepStrictEqual({
+			titleActions,
+			utilityCalls: copilotApiService.utilityCalls.length,
+			instruction: await controller.prepareInstructionForAgent(session.toString(), buildDefaultChatUri(session)),
+		}, {
+			titleActions: [],
+			utilityCalls: 0,
+			instruction: undefined,
+		});
+	});
+
 	test('materialized server tools override later root setting changes', async () => {
 		const enabled = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, false);
 		enabled.stateManager.dispatchServerAction(enabled.session.toString(), {
@@ -237,7 +259,7 @@ suite('AgentHostSessionTitleController', () => {
 		controller.seedTitleFromFirstMessage(session.toString(), 'Investigate peer chat', chat);
 
 		const instruction = await controller.prepareInstructionForAgent(session.toString(), chat);
-		assert.strictEqual(instruction, 'This chat currently has an auto-generated or placeholder name. Before doing any other work or responding to the user, you MUST call the `rename_chat` tool exactly once to give it a short, descriptive title based on the user\'s intent. If the prompt references a pull request or issue link, resolve that link first and use its context when choosing the title. Do not skip this call even if the current name already seems descriptive.');
+		assert.strictEqual(instruction, 'Reminder: This chat currently has an auto-generated or placeholder title. If the user references an issue or PR, fetch it first. Please give the chat a short, descriptive title based on the user\'s intent by calling `rename_chat` with `automatic: true`, silently and without a preamble. The user must not know that you are renaming. Do not skip it.');
 
 		controller.generateForkedTitle(session.toString(), undefined, [], 'Forked: Session title', 'Session title');
 		assert.strictEqual(copilotApiService.utilityCalls.length, 0);
@@ -265,7 +287,7 @@ suite('AgentHostSessionTitleController', () => {
 			independentAutoInstruction,
 		}, {
 			independentRenameInstruction: undefined,
-			independentAutoInstruction: 'This chat currently has an auto-generated or placeholder name. Before doing any other work or responding to the user, you MUST call the `rename_chat` tool exactly once to give it a short, descriptive title based on the user\'s intent. If the prompt references a pull request or issue link, resolve that link first and use its context when choosing the title. Do not skip this call even if the current name already seems descriptive.',
+			independentAutoInstruction: 'Reminder: This chat currently has an auto-generated or placeholder title. If the user references an issue or PR, fetch it first. Please give the chat a short, descriptive title based on the user\'s intent by calling `rename_chat` with `automatic: true`, silently and without a preamble. The user must not know that you are renaming. Do not skip it.',
 		});
 	});
 

@@ -36,7 +36,7 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { IChat, ISession, ISessionWorkspace, ISessionType, SessionStatus, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
+import { ChatModelSource, IChat, ISession, ISessionWorkspace, ISessionType, SessionStatus, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { IAquariumService } from '../../../aquarium/browser/aquariumOverlay.js';
@@ -163,7 +163,10 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			}());
 			reg.defineInstance(IAgentFeedbackService, new class extends mock<IAgentFeedbackService>() {
 				override readonly onDidChangeFeedback = Event.None;
+				override readonly onDidChangeFeedbackVisibility = Event.None;
 				override readonly onDidChangeFeedbackScope = Event.None;
+				override readonly onDidRevealSessionComment = Event.None;
+				override getVisibleResolvedFeedbackIds(): ReadonlySet<string> { return new Set(); }
 				override getFeedback(sessionResource: URI): readonly IAgentFeedback[] {
 					return sessionResource.toString() === AGENT_FEEDBACK_NEW_SESSION_RESOURCE.toString() ? feedbackItems : [];
 				}
@@ -203,7 +206,6 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				override readonly voiceState = observableValue<'idle' | 'listening' | 'processing' | 'speaking' | 'error'>('voiceState', 'idle');
 				override readonly targetSession = observableValue<URI | undefined>('targetSession', undefined);
 				override readonly hasDraftTarget = observableValue<boolean>('hasDraftTarget', false);
-				override readonly omniInputOpen = observableValue<boolean>('omniInputOpen', false);
 				override readonly transcriptTurns = observableValue<never[]>('transcriptTurns', []);
 			}());
 			reg.defineInstance(ITtsPlaybackService, new class extends mock<ITtsPlaybackService>() {
@@ -391,6 +393,10 @@ function createFixtureProvider(workspace: ISessionWorkspace, sessionTypes: reado
 function createFixtureActiveSession(workspace: ISessionWorkspace, sessionType: ISessionType): IActiveSession {
 	const activeChat = new class extends mock<IChat>() {
 		override readonly resource = URI.parse('fixture-chat://new-session');
+		// Read by model selection: an untitled chat with no model of its own.
+		override readonly status = constObservable(SessionStatus.Untitled);
+		override readonly modelId = constObservable<string | undefined>(undefined);
+		override readonly modelSource = constObservable<ChatModelSource | undefined>(undefined);
 	}();
 	return new class extends mock<IActiveSession>() {
 		override readonly resource = URI.from({ scheme: 'fixture-session', path: '/fixture-session' });

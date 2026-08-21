@@ -661,15 +661,20 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		let singleToastHeightToGive = heightToGive;
 		let multipleToastsHeightToGive = Math.round(heightToGive * 0.618);
 
-		let visibleToasts = 0;
-		for (const toast of this.getToasts(ToastVisibility.HIDDEN_OR_VISIBLE)) {
-
+		const toasts = this.getToasts(ToastVisibility.HIDDEN_OR_VISIBLE);
+		for (const toast of toasts) {
 			// In order to measure the client height, the element cannot have display: none
 			toast.container.style.opacity = '0';
 			this.updateToastVisibility(toast, true);
+		}
 
-			singleToastHeightToGive -= toast.container.offsetHeight;
-			multipleToastsHeightToGive -= toast.container.offsetHeight;
+		const toastHeights = toasts.map(toast => toast.container.offsetHeight);
+		let visibleToasts = 0;
+		for (let i = 0; i < toasts.length; i++) {
+			const toast = toasts[i];
+			const toastHeight = toastHeights[i];
+			singleToastHeightToGive -= toastHeight;
+			multipleToastsHeightToGive -= toastHeight;
 
 			let makeVisible = false;
 			if (visibleToasts === NotificationsToasts.MAX_NOTIFICATIONS) {

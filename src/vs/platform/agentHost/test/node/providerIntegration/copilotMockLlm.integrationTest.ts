@@ -39,16 +39,23 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 
 	let server: IServerHandle;
 	let client: TestProtocolClient;
+	let suiteHome: string;
 	const createdSessions: string[] = [];
 	const tempDirs: string[] = [];
 
 	suiteSetup(async function () {
 		this.timeout(120_000);
-		server = await startRealServer({ mockLlm: true });
+		suiteHome = await mkdtemp(`${tmpdir()}/test-mock-copilot-home-`);
+		server = await startRealServer({
+			mockLlm: true,
+			homeDir: suiteHome,
+			userDataDir: join(suiteHome, 'user-data'),
+		});
 	});
 
-	suiteTeardown(function () {
-		server?.process.kill();
+	suiteTeardown(async function () {
+		await stopServer(server);
+		await rm(suiteHome, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 	});
 
 	setup(async function () {

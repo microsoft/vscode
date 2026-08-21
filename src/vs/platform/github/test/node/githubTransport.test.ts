@@ -123,6 +123,66 @@ suite('GitHubTransport', () => {
 		});
 	});
 
+	test('adopts a reissued validator when revalidating with a 304', async () => {
+		await withServer(async server => {
+			server.enqueue(
+				gitHubRestStep({ method: 'GET', path: '/repos/o/r/pulls', response: gitHubJsonResponse([{ number: 1 }], { etag: '"old"', link: '</old>; rel="next"' }) }),
+				gitHubRestStep({
+					method: 'GET',
+					path: '/repos/o/r/pulls',
+					assert: request => assert.strictEqual(request.headers['if-none-match'], '"old"'),
+					// GitHub may answer a conditional request with a reissued validator.
+					response: gitHubNotModifiedResponse({ etag: 'W/"new"', link: '</new>; rel="next"' }),
+				}),
+				gitHubRestStep({
+					method: 'GET',
+					path: '/repos/o/r/pulls',
+					// The reissued validator must be stored, otherwise the stale one is resent forever.
+					assert: request => assert.strictEqual(request.headers['if-none-match'], 'W/"new"'),
+					response: gitHubNotModifiedResponse({ etag: 'W/"new"' }),
+				}),
+			);
+			const transport = disposables.add(new GitHubTransport(nodeFetch));
+			const request = { method: 'GET' as const, url: `${server.apiBaseUrl}/repos/o/r/pulls` };
+
+			await transport.rest(accountA, 'token-a', request, signal());
+			const revalidated = await transport.rest<readonly { number: number }[]>(accountA, 'token-a', request, signal());
+			const again = await transport.rest<readonly { number: number }[]>(accountA, 'token-a', request, signal());
+
+			assert.deepStrictEqual({
+				data: revalidated.data,
+				statusCode: revalidated.statusCode,
+				etag: revalidated.etag,
+				link: revalidated.link,
+				againData: again.data,
+			}, {
+				data: [{ number: 1 }],
+				statusCode: 304,
+				etag: 'W/"new"',
+				link: '</new>; rel="next"',
+				againData: [{ number: 1 }],
+			});
+			server.assertSatisfied();
+		});
+	});
+
+	test('rejects a 304 that answers no cached representation', async () => {
+		await withServer(async server => {
+			server.enqueue(gitHubRestStep({
+				method: 'GET',
+				path: '/repos/o/r/pulls',
+				response: gitHubNotModifiedResponse({ etag: '"phantom"' }),
+			}));
+			const transport = disposables.add(new GitHubTransport(nodeFetch));
+
+			await assert.rejects(
+				() => transport.rest(accountA, 'token-a', { method: 'GET', url: `${server.apiBaseUrl}/repos/o/r/pulls` }, signal()),
+				/GitHub returned 304 without a cached representation/,
+			);
+			server.assertSatisfied();
+		});
+	});
+
 	test('removes an old validator when a 200 response has no ETag', async () => {
 		await withServer(async server => {
 			server.enqueue(

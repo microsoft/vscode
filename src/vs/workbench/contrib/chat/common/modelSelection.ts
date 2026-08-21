@@ -145,16 +145,31 @@ export function resolveConfiguredModel(
 export const enum ModelSelectionReason {
 	ConfiguredDefault = 'configuredDefault',
 	FirstAvailable = 'firstAvailable',
-	NoModels = 'noModels',
 	ProgrammaticSelection = 'programmaticSelection',
 	Remembered = 'remembered',
-	RemovedModelFallback = 'removedModelFallback',
+	/** A model carried onto the conversation rather than chosen inside it. */
 	SessionRestore = 'sessionRestore',
-	NewChatRepush = 'newChatRepush',
+	/** A model the conversation chose, restored onto it. Outranks `chat.defaultModel`. */
+	RestoredChoice = 'restoredChoice',
 	UserSelection = 'userSelection',
 }
 
-export type ModelSelectionApplyReason = Exclude<ModelSelectionReason, ModelSelectionReason.NoModels>;
+/**
+ * How a model already on a conversation is recorded: as the conversation's own, or as one carried
+ * onto it.
+ *
+ * The distinction decides whether `chat.defaultModel` may still seed the conversation, and it
+ * cannot be read off the model identifier: the same model can arrive because the user picked it,
+ * because it was inherited from the chat this one branched off, or because an input picked it in
+ * the absence of anything better. Each surface knows which of those happened and says so.
+ */
+export type RestoredModelReason = ModelSelectionReason.RestoredChoice | ModelSelectionReason.SessionRestore;
+
+/** Whether a reason describes a model restored onto a conversation, whoever chose it. */
+export function isRestoredModelReason(reason: ModelSelectionReason | undefined): boolean {
+	return reason === ModelSelectionReason.SessionRestore
+		|| reason === ModelSelectionReason.RestoredChoice;
+}
 
 /**
  * The model a conversation is meant to run on, and the authority that put it there — regardless of
@@ -168,18 +183,21 @@ export interface IIntendedModelSelection {
 	readonly modelId: string;
 	/** Present when the model itself was seen; absent when only an id was restored from storage. */
 	readonly model?: ILanguageModelChatMetadataAndIdentifier;
-	readonly reason: ModelSelectionApplyReason;
+	readonly reason: ModelSelectionReason;
 	readonly configuration?: Record<string, unknown>;
 }
 
 /**
  * Whether a reason represents a choice made inside the current conversation. `chat.defaultModel`
  * seeds every new conversation but must never override one of these. `SessionRestore` is excluded
- * deliberately: on an empty session it is spillover from the previous one, not a choice.
+ * deliberately: it is a model carried onto the conversation rather than chosen in it, which on an
+ * empty session came from the previous one. A restore the surface can vouch for arrives as
+ * {@link ModelSelectionReason.RestoredChoice} instead and does block the default.
  */
-export function isInConversationModelChoice(reason: ModelSelectionApplyReason | undefined): boolean {
+export function isInConversationModelChoice(reason: ModelSelectionReason | undefined): boolean {
 	return reason === ModelSelectionReason.UserSelection
-		|| reason === ModelSelectionReason.ProgrammaticSelection;
+		|| reason === ModelSelectionReason.ProgrammaticSelection
+		|| reason === ModelSelectionReason.RestoredChoice;
 }
 
 export interface IPendingModelSelection {
@@ -189,14 +207,14 @@ export interface IPendingModelSelection {
 export type InitialModelSelectionResult =
 	| { readonly kind: 'none' }
 	| { readonly kind: 'pending'; readonly selection: IPendingModelSelection }
-	| { readonly kind: 'apply'; readonly model: ILanguageModelChatMetadataAndIdentifier; readonly reason: ModelSelectionApplyReason };
+	| { readonly kind: 'apply'; readonly model: ILanguageModelChatMetadataAndIdentifier; readonly reason: ModelSelectionReason };
 
 export interface IInitialModelSelectionInput {
 	readonly configuredModel: ILanguageModelChatMetadataAndIdentifier | undefined;
 	readonly desiredModelResolution: ModelIdentifierResolution;
 	readonly desiredReason: ModelSelectionReason.SessionRestore | ModelSelectionReason.Remembered;
 	readonly fallbackModel: ILanguageModelChatMetadataAndIdentifier | undefined;
-	readonly fallbackReason: ModelSelectionReason.FirstAvailable | ModelSelectionReason.RemovedModelFallback;
+	readonly fallbackReason: ModelSelectionReason.FirstAvailable;
 }
 
 /** Applies the shared configured, desired, pending, then fallback precedence. */
@@ -213,202 +231,4 @@ export function resolveInitialModelSelection(input: IInitialModelSelectionInput)
 	return input.fallbackModel
 		? { kind: 'apply', model: input.fallbackModel, reason: input.fallbackReason }
 		: { kind: 'none' };
-}
-
-export type ModelSelectionEffect =
-	| { readonly kind: 'none' }
-	| { readonly kind: 'clear'; readonly reason: ModelSelectionReason.NoModels | ModelSelectionReason.SessionRestore }
-	| { readonly kind: 'apply'; readonly model: ILanguageModelChatMetadataAndIdentifier; readonly reason: ModelSelectionApplyReason };
-
-export type IModelSelectionSessionContext =
-	| { readonly kind: 'none' }
-	| {
-		readonly kind: 'untitled' | 'existing';
-		readonly key: string;
-		readonly chatKey: string | undefined;
-		readonly modelId: string | undefined;
-	};
-
-export interface IModelSelectionModelsContext {
-	readonly available: readonly ILanguageModelChatMetadataAndIdentifier[];
-	readonly configuredModel: string | undefined;
-	readonly rememberedModelId: string | undefined;
-	readonly desiredModelResolution: ModelIdentifierResolution;
-	readonly fallbackModel: ILanguageModelChatMetadataAndIdentifier | undefined;
-}
-
-export interface IModelSelectionMemory {
-	readonly sessionKey: string | undefined;
-	readonly lastPushedChatKey: string | undefined;
-	readonly currentModel: ILanguageModelChatMetadataAndIdentifier | undefined;
-	readonly currentReason: ModelSelectionApplyReason | undefined;
-}
-
-export interface IModelSelectionTransitionInput {
-	readonly session: IModelSelectionSessionContext;
-	readonly models: IModelSelectionModelsContext;
-	readonly previous: IModelSelectionMemory;
-}
-
-export interface IModelSelectionTransitionResult {
-	readonly currentModel: ILanguageModelChatMetadataAndIdentifier | undefined;
-	readonly currentReason: ModelSelectionApplyReason | undefined;
-	readonly pendingSelection: IPendingModelSelection | undefined;
-	readonly effect: ModelSelectionEffect;
-	readonly sessionKey: string | undefined;
-	readonly lastPushedChatKey: string | undefined;
-}
-
-export function transitionModelSelection(input: IModelSelectionTransitionInput): IModelSelectionTransitionResult {
-	const { session, models, previous } = input;
-	const sessionKey = session.kind === 'none' ? undefined : session.key;
-	const chatKey = session.kind === 'none' ? undefined : session.chatKey;
-	const sessionModelId = session.kind === 'none' ? undefined : session.modelId;
-	const sessionChanged = sessionKey !== previous.sessionKey;
-	const currentModel = sessionChanged ? undefined : previous.currentModel;
-	const currentReason = sessionChanged ? undefined : previous.currentReason;
-	const sessionModel = sessionModelId ? models.available.find(model => model.identifier === sessionModelId) : undefined;
-	const fallbackModel = models.available.find(model => model.identifier === models.rememberedModelId) ?? models.fallbackModel;
-	const newConversation = session.kind === 'untitled' && !sessionChanged && chatKey !== previous.lastPushedChatKey;
-	const automaticSelection = currentReason === ModelSelectionReason.ConfiguredDefault
-		|| currentReason === ModelSelectionReason.FirstAvailable
-		|| currentReason === ModelSelectionReason.Remembered
-		|| currentReason === ModelSelectionReason.NewChatRepush;
-	const configuredModelValue = session.kind === 'untitled'
-		&& !isInConversationModelChoice(currentReason)
-		&& (newConversation || (!newConversation && (!sessionModelId || automaticSelection)))
-		? models.configuredModel
-		: undefined;
-	const configuredModel = configuredModelValue
-		? resolveConfiguredModel(models.configuredModel, models.available)
-		: undefined;
-	if (configuredModel) {
-		if (chatKey === previous.lastPushedChatKey && currentReason === ModelSelectionReason.ConfiguredDefault && currentModel?.identifier === configuredModel.identifier) {
-			return { currentModel, currentReason, pendingSelection: undefined, effect: { kind: 'none' }, sessionKey, lastPushedChatKey: previous.lastPushedChatKey };
-		}
-		return applyResult(sessionKey, chatKey, configuredModel, ModelSelectionReason.ConfiguredDefault);
-	}
-	if (session.kind === 'existing' && models.desiredModelResolution.kind === 'pending') {
-		return {
-			currentModel: undefined,
-			currentReason: undefined,
-			pendingSelection: { reference: models.desiredModelResolution.identifier },
-			effect: currentModel ? { kind: 'clear', reason: ModelSelectionReason.SessionRestore } : { kind: 'none' },
-			sessionKey,
-			lastPushedChatKey: chatKey,
-		};
-	}
-	if (!currentModel && session.kind === 'untitled' && sessionModel) {
-		return {
-			currentModel: sessionModel,
-			currentReason: ModelSelectionReason.SessionRestore,
-			pendingSelection: undefined,
-			effect: { kind: 'none' },
-			sessionKey,
-			lastPushedChatKey: chatKey,
-		};
-	}
-
-	if (!currentModel && session.kind === 'untitled') {
-		const initial = resolveInitialModelSelection({
-			configuredModel,
-			desiredModelResolution: models.desiredModelResolution,
-			desiredReason: sessionModelId ? ModelSelectionReason.SessionRestore : ModelSelectionReason.Remembered,
-			fallbackModel,
-			fallbackReason: ModelSelectionReason.FirstAvailable,
-		});
-		if (initial.kind === 'pending') {
-			return { currentModel: undefined, currentReason: undefined, pendingSelection: initial.selection, effect: { kind: 'none' }, sessionKey, lastPushedChatKey: previous.lastPushedChatKey };
-		}
-		if (initial.kind === 'apply') {
-			return applyResult(sessionKey, chatKey, initial.model, initial.reason);
-		}
-	}
-
-	if (models.available.length === 0) {
-		return {
-			currentModel: undefined,
-			currentReason: undefined,
-			pendingSelection: undefined,
-			effect: currentModel ? { kind: 'clear', reason: ModelSelectionReason.NoModels } : { kind: 'none' },
-			sessionKey,
-			lastPushedChatKey: previous.lastPushedChatKey,
-		};
-	}
-
-	if (session.kind === 'existing') {
-		if (sessionModel) {
-			return {
-				currentModel: sessionModel,
-				currentReason: ModelSelectionReason.SessionRestore,
-				pendingSelection: undefined,
-				effect: { kind: 'none' },
-				sessionKey,
-				lastPushedChatKey: chatKey,
-			};
-		}
-		if (fallbackModel) {
-			return applyResult(sessionKey, chatKey, fallbackModel, sessionModelId ? ModelSelectionReason.RemovedModelFallback : ModelSelectionReason.FirstAvailable);
-		}
-	}
-
-	const currentModelAvailable = !!currentModel && models.available.some(model => model.identifier === currentModel.identifier);
-	if (currentModel && !currentModelAvailable) {
-		if (models.desiredModelResolution.kind === 'pending') {
-			return {
-				currentModel: undefined,
-				currentReason: undefined,
-				pendingSelection: { reference: models.desiredModelResolution.identifier },
-				effect: { kind: 'clear', reason: ModelSelectionReason.SessionRestore },
-				sessionKey,
-				lastPushedChatKey: previous.lastPushedChatKey,
-			};
-		}
-		if (fallbackModel) {
-			return applyResult(sessionKey, chatKey, fallbackModel, ModelSelectionReason.RemovedModelFallback);
-		}
-		return {
-			currentModel: undefined,
-			currentReason: undefined,
-			pendingSelection: undefined,
-			effect: { kind: 'clear', reason: ModelSelectionReason.NoModels },
-			sessionKey,
-			lastPushedChatKey: previous.lastPushedChatKey,
-		};
-	}
-
-	if (session.kind === 'untitled' && currentModel && currentReason === ModelSelectionReason.FirstAvailable) {
-		const initial = resolveInitialModelSelection({
-			configuredModel,
-			desiredModelResolution: models.desiredModelResolution,
-			desiredReason: ModelSelectionReason.Remembered,
-			fallbackModel,
-			fallbackReason: ModelSelectionReason.FirstAvailable,
-		});
-		if (initial.kind === 'pending') {
-			return { currentModel: undefined, currentReason: undefined, pendingSelection: initial.selection, effect: { kind: 'clear', reason: ModelSelectionReason.SessionRestore }, sessionKey, lastPushedChatKey: previous.lastPushedChatKey };
-		}
-		if (initial.kind === 'apply' && initial.model.identifier !== currentModel.identifier) {
-			return applyResult(sessionKey, chatKey, initial.model, initial.reason);
-		}
-	}
-
-	if (sessionModel && currentModel && sessionModel.identifier !== currentModel.identifier) {
-		return { currentModel: sessionModel, currentReason: ModelSelectionReason.SessionRestore, pendingSelection: undefined, effect: { kind: 'none' }, sessionKey, lastPushedChatKey: chatKey };
-	}
-
-	if (session.kind === 'untitled' && chatKey !== previous.lastPushedChatKey && currentModel && models.available.some(model => model.identifier === currentModel.identifier)) {
-		return applyResult(sessionKey, chatKey, currentModel, ModelSelectionReason.NewChatRepush);
-	}
-
-	return { currentModel, currentReason, pendingSelection: undefined, effect: { kind: 'none' }, sessionKey, lastPushedChatKey: previous.lastPushedChatKey };
-}
-
-function applyResult(
-	sessionKey: string | undefined,
-	chatKey: string | undefined,
-	model: ILanguageModelChatMetadataAndIdentifier,
-	reason: ModelSelectionApplyReason,
-): IModelSelectionTransitionResult {
-	return { currentModel: model, currentReason: reason, pendingSelection: undefined, effect: { kind: 'apply', model, reason }, sessionKey, lastPushedChatKey: chatKey };
 }

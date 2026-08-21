@@ -67,7 +67,9 @@ import { formatChatRequestTimestamp, formatChatResponseDetails, formatChatRespon
 import { ClickAnimation } from '../../../../../base/browser/ui/animations/animations.js';
 import { ForkConversationActionId } from '../actions/chatForkActions.js';
 import { MarkHelpfulActionId } from '../actions/chatTitleActions.js';
+import { focusChatModelFeedbackSurveyAction } from '../actions/chatModelFeedbackSurveyActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from '../chat.js';
+import { ChatModelFeedbackSurveyWidget } from '../feedbackSurvey/chatModelFeedbackSurveyWidget.js';
 import { AgentHostSnapshotController } from '../agentSessions/agentHost/agentHostSnapshotController.js';
 import { RestoreCheckpointActionId, StartOverActionId } from '../chatEditing/chatEditingActions.js';
 import { ChatForkActionViewItem } from './chatForkActionViewItem.js';
@@ -192,6 +194,8 @@ export interface IChatListItemTemplate {
 	readonly checkpointRestoreToolbar: MenuWorkbenchToolBar;
 	readonly checkpointContainer: HTMLElement;
 	readonly checkpointRestoreContainer: HTMLElement;
+	/** Inline model feedback survey shown beneath the footer, when an experiment offers one. */
+	readonly feedbackSurveyWidget: ChatModelFeedbackSurveyWidget;
 }
 
 function escapeMarkdownLinkLabel(label: string): string {
@@ -334,45 +338,59 @@ export function getVisibleCompletedResponseItemCount(nodes: ReadonlyArray<Node>)
 }
 
 /**
- * Token consumption summary shown when hovering the response footer's model and
- * credits stat. Provider call-level reports are aggregated by model for the
- * whole turn.
+ * Response details shown when hovering the response footer's model and credits
+ * stat. Provider call-level token reports are aggregated by model for the whole
+ * turn.
  *
  * Returns `undefined` when the provider reported no totals, in which case no
  * hover should be shown at all. The result doubles as managed-hover content and
- * carries an `ariaLabel` with exact, unabbreviated counts.
+ * carries a footer label with exact counts but no completion time, since the
+ * verbose footer already includes it in its accessible name.
  */
-export function formatResponseTokenStats(modelTotals: readonly IChatUsageModelTotal[] | undefined): { readonly markdown: MarkdownString; readonly markdownNotSupportedFallback: string; readonly ariaLabel: string } | undefined {
+export function formatResponseTokenStats(modelTotals: readonly IChatUsageModelTotal[] | undefined, completedAt?: number): { readonly markdown: MarkdownString; readonly markdownNotSupportedFallback: string; readonly footerAriaLabel: string } | undefined {
 	if (!modelTotals?.length) {
 		return undefined;
 	}
 
-	const title = localize('chat.responseTokenStats.title', "Tokens used this turn");
+	const title = localize('chat.responseTokenStats.title', "Response details");
 	const markdown = new MarkdownString();
 	markdown.appendMarkdown(`**${escapeMarkdownSyntaxTokens(title)}**\n\n`);
 
-	const ariaParts: string[] = [title];
-	for (const total of modelTotals) {
-		// Cached tokens are the portion of the input a provider served from cache; a
-		// zero is noise rather than information, so it gets its own shorter phrasing.
-		const line = total.cachedTokens > 0
-			? localize('chat.responseTokenStats.modelLineCached', "{0} — {1} in, {2} out, {3} cached",
-				total.model, formatTokenCount(total.inputTokens), formatTokenCount(total.outputTokens), formatTokenCount(total.cachedTokens))
-			: localize('chat.responseTokenStats.modelLine', "{0} — {1} in, {2} out",
-				total.model, formatTokenCount(total.inputTokens), formatTokenCount(total.outputTokens));
-		markdown.appendMarkdown(`${escapeMarkdownSyntaxTokens(line)}\n\n`);
-
-		// Screen readers get exact counts and spelled-out units; the visible line
-		// abbreviates (e.g. "12K") to stay compact.
-		ariaParts.push(total.cachedTokens > 0
-			? localize('chat.responseTokenStats.modelAriaCached', "{0}: {1} input tokens, {2} output tokens, {3} cached tokens",
-				total.model, total.inputTokens, total.outputTokens, total.cachedTokens)
-			: localize('chat.responseTokenStats.modelAria', "{0}: {1} input tokens, {2} output tokens",
-				total.model, total.inputTokens, total.outputTokens));
+	const formatInputTokens = (count: number | string) => localize('chat.responseTokenStats.input', "Input tokens: {0}", count);
+	const formatOutputTokens = (count: number | string) => localize('chat.responseTokenStats.output', "Output tokens: {0}", count);
+	const formatCachedInputTokens = (count: number | string) => localize('chat.responseTokenStats.cachedInput', "Cached input tokens: {0}", count);
+	const tokenDetailsAriaParts: string[] = [];
+	const completion = formatChatRequestTimestamp(completedAt);
+	let completed: string | undefined;
+	if (completion) {
+		completed = localize('chat.responseTokenStats.completed', "Completed: {0}", completion.fullText);
+		markdown.appendMarkdown(`${escapeMarkdownSyntaxTokens(completed)}\n\n`);
 	}
 
-	const ariaLabel = ariaParts.join('. ');
-	return { markdown, markdownNotSupportedFallback: ariaLabel, ariaLabel };
+	for (const total of modelTotals) {
+		const model = localize('chat.responseTokenStats.model', "Model: {0}", total.model);
+		const input = formatInputTokens(formatTokenCount(total.inputTokens));
+		markdown.appendMarkdown(`${escapeMarkdownSyntaxTokens(model)}\n\n`);
+		markdown.appendMarkdown(`- ${escapeMarkdownSyntaxTokens(input)}\n`);
+
+		const exactInput = formatInputTokens(total.inputTokens);
+		tokenDetailsAriaParts.push(model, exactInput);
+		if (total.cachedTokens > 0) {
+			const cachedInput = formatCachedInputTokens(formatTokenCount(total.cachedTokens));
+			const exactCachedInput = formatCachedInputTokens(total.cachedTokens);
+			markdown.appendMarkdown(`- ${escapeMarkdownSyntaxTokens(cachedInput)}\n`);
+			tokenDetailsAriaParts.push(exactCachedInput);
+		}
+		const output = formatOutputTokens(formatTokenCount(total.outputTokens));
+		const exactOutput = formatOutputTokens(total.outputTokens);
+		markdown.appendMarkdown(`- ${escapeMarkdownSyntaxTokens(output)}\n`);
+		tokenDetailsAriaParts.push(exactOutput);
+		markdown.appendMarkdown('\n');
+	}
+
+	const footerAriaLabel = [title, ...tokenDetailsAriaParts].join('. ');
+	const markdownNotSupportedFallback = [title, completed, ...tokenDetailsAriaParts].filter(value => value !== undefined).join('. ');
+	return { markdown, markdownNotSupportedFallback, footerAriaLabel };
 }
 
 export function shouldCollapseCompletedResponsePart(part: IChatRendererContent): boolean {
@@ -561,6 +579,7 @@ export interface IChatRendererDelegate {
 	container: HTMLElement;
 	getListLength(): number;
 	currentChatMode(): ChatModeKind;
+	getEditingValue?(): string | undefined;
 
 	readonly onDidScroll?: Event<ScrollEvent>;
 }
@@ -743,6 +762,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private fireItemHeightChange(template: IChatListItemTemplate, measuredHeight?: number): void {
 		if (!template.currentElement || !template.rowContainer.isConnected) {
+			return;
+		}
+
+		if (dom.findParentWithClass(template.rowContainer, 'monaco-tree-sticky-row')) {
 			return;
 		}
 
@@ -1021,6 +1044,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const footerDetailsContainer = dom.append(footerToolbar.getElement(), $('.chat-footer-details'));
 		footerDetailsContainer.tabIndex = 0;
 
+		// Sits below the footer toolbar so opening a survey never moves the footer icons.
+		const feedbackSurveyContainer = dom.append(rowContainer, $('.chat-feedback-survey-widget.hidden'));
+		const feedbackSurveyWidget = templateDisposables.add(scopedInstantiationService.createInstance(ChatModelFeedbackSurveyWidget, feedbackSurveyContainer, () => focusChatModelFeedbackSurveyAction(footerToolbar)));
+
 		const checkpointRestoreContainer = dom.append(rowContainer, $('.checkpoint-restore-container'));
 		dom.append(checkpointRestoreContainer, $('.checkpoint-line-left'));
 		const label = dom.append(checkpointRestoreContainer, $('span.checkpoint-label-text'));
@@ -1071,7 +1098,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}));
 		const connectionObserver = document.createElement('connection-observer') as dom.ConnectionObserverElement;
 		dom.append(container, connectionObserver);
-		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, requestTimestampContainer, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, footerToolbarContainer, footerDetailsContainer, disabledOverlay, checkpointToolbar, checkpointRestoreToolbar, checkpointContainer, checkpointRestoreContainer, completedResponseDisclosureDisposables, responseTokenStatsHover };
+		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, requestTimestampContainer, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, footerToolbarContainer, footerDetailsContainer, disabledOverlay, checkpointToolbar, checkpointRestoreToolbar, checkpointContainer, checkpointRestoreContainer, completedResponseDisclosureDisposables, responseTokenStatsHover, feedbackSurveyWidget };
 		this.templateDataByRow.set(rowContainer, template);
 
 		templateDisposables.add(this._onDidUpdateViewModel.event(() => {
@@ -1196,7 +1223,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		templateData.currentElement = element;
-		this.templateDataByRequestId.set(element.id, templateData);
+		// Don't update the template map for sticky scroll renders - their templates
+		// get disposed independently and would leave stale references.
+		if (!dom.findParentWithClass(templateData.rowContainer, 'monaco-tree-sticky-row')) {
+			this.templateDataByRequestId.set(element.id, templateData);
+		}
 
 		// Clear pending-related classes and drag handle from previous renders
 		// Do this before element-type checks to ensure dividers also get cleaned up
@@ -1227,8 +1258,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (isResponseVM(element)) {
 			ChatContextKeys.responseSupportsIssueReporting.bindTo(templateData.contextKeyService).set(!!element.agent?.metadata.supportIssueReporting);
 			ChatContextKeys.responseVote.bindTo(templateData.contextKeyService).set(element.vote === ChatAgentVoteDirection.Up ? 'up' : element.vote === ChatAgentVoteDirection.Down ? 'down' : '');
+			templateData.feedbackSurveyWidget.render(element);
 		} else {
 			ChatContextKeys.responseVote.bindTo(templateData.contextKeyService).set('');
+			templateData.feedbackSurveyWidget.render(undefined);
 		}
 
 		if (templateData.titleToolbar) {
@@ -1243,7 +1276,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			// rendered, so the breakdown is recomputed on every render pass. Sessions
 			// whose provider reports no totals get no hover rather than an empty one.
 			const tokenStats = isResponseVM(element)
-				? formatResponseTokenStats(element.model.usage?.modelTotals)
+				? formatResponseTokenStats(element.model.usage?.modelTotals, element.model.completionTimestamp)
 				: undefined;
 			const completedAtElement = renderChatResponseDetails(
 				templateData.footerDetailsContainer,
@@ -1251,7 +1284,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				isResponseVM(element) ? element.model.completionTimestamp : undefined,
 				isResponseVM(element) ? element.model.elapsedMs : undefined,
 				isResponseVM(element) && this.configService.getValue<boolean>(ChatConfiguration.Verbose),
-				tokenStats?.ariaLabel,
+				tokenStats?.footerAriaLabel,
 			);
 			// The container (rather than the stat span) is the hover target because it
 			// is the focusable element, which keeps the breakdown reachable by keyboard
@@ -1399,11 +1432,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			templateData.elementDisposables.add(toDisposable(() => setGroupHover(false)));
 		}
 
-		// Only show restore container when we have a checkpoint and not editing, and not a pending request
-		const shouldShowRestore = this.viewModel?.model.checkpoint && !this.viewModel?.editing && (index === this.delegate.getListLength() - 1) && !isPendingRequest;
+		const isStickyScrollRow = !!dom.findParentWithClass(templateData.rowContainer, 'monaco-tree-sticky-row');
+
+		// Only show restore container when we have a checkpoint and not editing, and not a pending request.
+		// Hide it in sticky scroll rows — only the checkpoint toolbar is shown there.
+		const shouldShowRestore = !isStickyScrollRow && this.viewModel?.model.checkpoint && !this.viewModel?.editing && (index === this.delegate.getListLength() - 1) && !isPendingRequest;
 		templateData.checkpointRestoreContainer.classList.toggle('hidden', !(shouldShowRestore && checkpointEnabled));
 
-		const editing = element.id === this.viewModel?.editing?.id;
+		const editing = !isStickyScrollRow && element.id === this.viewModel?.editing?.id;
 		const isInput = this.configService.getValue<string>('chat.editRequests') === 'input';
 
 		templateData.elementDisposables.add(autorun(r => {
@@ -1964,7 +2000,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}
 
-		if (element.id === this.viewModel?.editing?.id) {
+		const isStickyScrollRow = !!dom.findParentWithClass(templateData.rowContainer, 'monaco-tree-sticky-row');
+		if (element.id === this.viewModel?.editing?.id && !isStickyScrollRow) {
 			this._onDidRerender.fire(templateData);
 		}
 
@@ -1986,7 +2023,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const explicitImageVariables = explicitFileOrImageVariables.filter(variable => variable.kind === 'image');
 		const explicitFileOrDirectoryVariables = element.variables.filter(variable => variable.kind === 'file' || variable.kind === 'directory' || isPasteVariableEntry(variable));
 		const otherVariables = element.variables.filter(variable => !isExplicitFileOrImageVariableEntry(variable) && !isPasteVariableEntry(variable));
-		if (!element.confirmation) {
+		const isStickyAndEditing = !element.confirmation && isStickyScrollRow && element.id === this.viewModel?.editing?.id;
+		if (!element.confirmation && !isStickyAndEditing) {
 			const markdown = isChatFollowup(element.message) ?
 				element.message.message :
 				this.markdownDecorationsRenderer.convertParsedRequestToMarkdown(element.sessionResource, element.message);
@@ -2030,6 +2068,63 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			templateData.elementDisposables.add(explicitFileAttachmentsPart);
 		}
 		const contentContainer = templateData.value;
+
+		if (isStickyAndEditing) {
+			const store = new DisposableStore();
+			templateData.elementDisposables.add(store);
+
+			const editingText = this.delegate.getEditingValue?.() || '';
+			const editingTextContent = dom.$('span', undefined, editingText);
+
+			const container = dom.$('.rendered-markdown');
+			const innerContent = dom.$('.chat-request-text');
+			innerContent.classList.add('sticky-editing');
+			innerContent.appendChild(editingTextContent);
+			container.appendChild(innerContent);
+
+			if (this.rendererOptions.renderStyle === 'minimal' && !element.isComplete) {
+				templateData.value.classList.add('inline-progress');
+				templateData.elementDisposables.add(toDisposable(() => templateData.value.classList.remove('inline-progress')));
+				container.appendChild(dom.$('span'));
+			} else {
+				templateData.value.classList.remove('inline-progress');
+			}
+
+			container.tabIndex = 0;
+			if (this.configService.getValue<string>('chat.editRequests') === 'inline' && this.rendererOptions.editable) {
+				container.classList.add('clickable');
+				store.add(dom.addDisposableListener(container, dom.EventType.CLICK, (e: MouseEvent) => {
+					if (this.viewModel?.editing?.id === element.id) {
+						return;
+					}
+
+					const selection = dom.getWindow(templateData.rowContainer).getSelection();
+					if (selection && !selection.isCollapsed && selection.toString().length > 0) {
+						return;
+					}
+
+					e.preventDefault();
+					e.stopPropagation();
+					this._onDidClickRequest.fire(templateData);
+				}));
+				store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), container, localize('requestMarkdownPartTitle', "Click to Edit"), { trapFocus: true }));
+			}
+			store.add(dom.addDisposableListener(container, dom.EventType.FOCUS, () => {
+				this.hoverVisible(templateData.requestHover);
+			}));
+			store.add(dom.addDisposableListener(container, dom.EventType.BLUR, () => {
+				this.hoverHidden(templateData.requestHover);
+			}));
+
+			contentContainer.appendChild(container);
+			const editingTextPart: IChatContentPart = {
+				domNode: container,
+				hasSameContent: other => other.kind === 'markdownContent',
+				dispose: () => store.dispose(),
+				addDisposable: disposable => store.add(disposable),
+			};
+			parts.push(editingTextPart);
+		}
 
 		let inlineSlashCommandRendered = false;
 		let codeBlockStartIndex = 0;
@@ -3807,7 +3902,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 			const part = this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, {
 				shouldAutoFocus: false,
-				fitContent: this.rendererOptions.questionCarouselFitContent,
 				onSubmit: async (answers) => handleSubmit(answers, part)
 			});
 			return part;
@@ -3817,7 +3911,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const isEditing = !!this.viewModel?.editing;
 		const part = isEditing ? undefined : widget?.input.renderQuestionCarousel(carousel, context, {
 			shouldAutoFocus,
-			fitContent: this.rendererOptions.questionCarouselFitContent,
 			onSubmit: async (answers) => handleSubmit(answers, part!)
 		});
 
@@ -3825,7 +3918,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (!part) {
 			const fallbackPart = this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, {
 				shouldAutoFocus,
-				fitContent: this.rendererOptions.questionCarouselFitContent,
 				onSubmit: async (answers) => handleSubmit(answers, fallbackPart)
 			});
 			return fallbackPart;
@@ -4180,7 +4272,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}));
 		}
 
-		this.handleRenderedCodeblocks(element, markdownPart, codeBlockStartIndex);
+		if (!dom.findParentWithClass(templateData.rowContainer, 'monaco-tree-sticky-row')) {
+			this.handleRenderedCodeblocks(element, markdownPart, codeBlockStartIndex);
+		}
 
 		const collapsedToolsMode = this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools');
 		if (isResponseVM(context.element) && collapsedToolsMode !== CollapsedToolsDisplayMode.Off) {
@@ -4305,21 +4399,29 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	disposeElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate, details?: IListElementRenderDetails): void {
 		this.traceLayout('disposeElement', `Disposing element, index=${index}`);
 		templateData.elementDisposables.clear();
+		const ownsElementMappings = this.templateDataByRequestId.get(node.element.id) === templateData;
 
 		if (templateData.currentElement && !this.viewModel?.editing) {
-			this.templateDataByRequestId.delete(templateData.currentElement.id);
+			// Only delete if the map currently points to this template instance,
+			// to avoid removing the main row's entry when a sticky scroll row is disposed.
+			const mapped = this.templateDataByRequestId.get(templateData.currentElement.id);
+			if (mapped === templateData) {
+				this.templateDataByRequestId.delete(templateData.currentElement.id);
+			}
 		}
 
 		// These maps are only read for the focused response which is always visible,
 		// so we can clean up entries for elements that leave the viewport.
-		const codeBlocks = this.codeBlocksByResponseId.get(node.element.id);
-		if (codeBlocks) {
-			for (const info of codeBlocks) {
-				if (info?.uri) {
-					this.codeBlocksByEditorUri.delete(info.uri);
+		if (ownsElementMappings) {
+			const codeBlocks = this.codeBlocksByResponseId.get(node.element.id);
+			if (codeBlocks) {
+				for (const info of codeBlocks) {
+					if (info?.uri) {
+						this.codeBlocksByEditorUri.delete(info.uri);
+					}
 				}
+				this.codeBlocksByResponseId.delete(node.element.id);
 			}
-			this.codeBlocksByResponseId.delete(node.element.id);
 		}
 		this.fileTreesByResponseId.delete(node.element.id);
 		this.focusedFileTreesByResponseId.delete(node.element.id);
