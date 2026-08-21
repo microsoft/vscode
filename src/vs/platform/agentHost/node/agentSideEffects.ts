@@ -86,6 +86,8 @@ import { AgentHostTurnTracker } from './agentHostTurnTracker.js';
 import type { IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
 import { AgentHostLocalCommands } from './localCommands/localChatCommand.js';
 import './localCommands/localChatCommands.contribution.js';
+import { AgentHostChatContributions } from './chatContributions/chatContribution.js';
+import './chatContributions/chatContributions.contribution.js';
 import { SessionPermissionManager } from './sessionPermissions.js';
 import type { IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import type { ICopilotApiService } from './shared/copilotApiService.js';
@@ -245,6 +247,8 @@ export class AgentSideEffects extends Disposable {
 
 	/** Registry-driven dispatcher for host-handled `/rename` / `!command` etc. */
 	private readonly _localCommands: AgentHostLocalCommands;
+	/** Registry-driven dispatcher for turn-end chat contributions. */
+	private readonly _chatContributions: AgentHostChatContributions;
 
 	private readonly _subagentChats = new NKeyMap<ISubagentSessionRef, [ProtocolURI, string]>();
 	private readonly _cancelledTurnIds = new Map<ProtocolURI, Set<string>>();
@@ -315,6 +319,11 @@ export class AgentSideEffects extends Disposable {
 			(turnChannel: ProtocolURI) => this._tryConsumeNextQueuedMessage(turnChannel),
 			(session: ProtocolURI, chat?: ProtocolURI) => this._titleController.markTitleRenamed(session, chat),
 		));
+		this._chatContributions = this._register(new AgentHostChatContributions({
+			logService: this._logService,
+			dispatch: (channel, action) => this._stateManager.dispatchServerAction(channel, action),
+			getSessionSummary: session => this._stateManager.getSessionSummary(session),
+		}));
 		this._register(this._stateManager.onDidChangeSessionConfig(e => {
 			const previousMode = getConfiguredSessionMode(e.previous);
 			const currentMode = getConfiguredSessionMode(e.current);
@@ -1097,9 +1106,10 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		if (action.type === ActionType.ChatTurnCancelled) {
+			const clientContext = this._turnTracker.getClientTelemetryContext(sessionKey, turnId);
 			this._completeTurn(sessionKey, turnId, 'cancelled');
 			this._toolCallTracker.clearSession(sessionKey);
-			this._markSessionUnread(sessionUri);
+			this._chatContributions.turnEnd({ session: sessionUri, channel: sessionKey, turnId, reason: { kind: 'cancelled' }, clientContext });
 		}
 
 		if (action.type === ActionType.ChatError) {
@@ -1107,7 +1117,7 @@ export class AgentSideEffects extends Disposable {
 			this._completeTurn(sessionKey, turnId, 'error', { stage: 'provider', error: action.error });
 			this._toolCallTracker.clearSession(sessionKey);
 			this._captureTurnCheckpointAndRefresh(sessionKey, turnId, clientContext);
-			this._markSessionUnread(sessionUri);
+			this._chatContributions.turnEnd({ session: sessionUri, channel: sessionKey, turnId, reason: { kind: 'error', error: action.error }, clientContext });
 		}
 	}
 
@@ -1189,20 +1199,7 @@ export class AgentSideEffects extends Disposable {
 		const titleChatChannel = isAhpChatChannel(sessionKey) && !isDefaultChatUri(sessionKey) ? sessionKey : undefined;
 		this._titleController.refineTitleFromFirstTurn(sessionUri, titleChatChannel);
 
-		// A completed turn produces new output the user may not have seen. Route
-		// subagent turns to their owning session too (a background subagent can
-		// complete after the parent turn). Each client keeps its active session
-		// read; `_markSessionUnread` is idempotent.
-		this._markSessionUnread(sessionUri);
-	}
-
-	private _markSessionUnread(session: ProtocolURI): void {
-		const status = this._stateManager.getSessionSummary(session)?.status ?? 0;
-		if (!(status & SessionStatus.IsRead)) {
-			return;
-		}
-		// Persistence rides the envelope observer set up in the constructor.
-		this._stateManager.dispatchServerAction(session, { type: ActionType.SessionIsReadChanged, isRead: false });
+		this._chatContributions.turnEnd({ session: sessionUri, channel: sessionKey, turnId, reason: { kind: 'success' }, clientContext });
 	}
 
 	private _describeSignal(signal: AgentSignal): string {
