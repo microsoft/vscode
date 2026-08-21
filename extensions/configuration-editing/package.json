@@ -47,6 +47,7 @@
         "id": "jsonc",
         "extensions": [
           ".code-workspace",
+          ".code-workspace.local",
           "language-configuration.json",
           "icon-theme.json",
           "color-theme.json"
@@ -106,6 +107,10 @@
       },
       {
         "fileMatch": "**/*.code-workspace",
+        "url": "vscode://schemas/workspaceConfig"
+      },
+      {
+        "fileMatch": "**/*.code-workspace.local",
         "url": "vscode://schemas/workspaceConfig"
       },
       {
