@@ -135,6 +135,36 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 		assertLineBreaks(factory, 4, 5, 'aa.|(.).|aaa');
 	});
 
+	test('accounts for fixed injected text width when wrapping', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('', '');
+		const lineBreakData = getLineBreakData(factory, 4, 5, 2, WrappingIndent.None, 'normal', false, 'abcdef', null, [
+			new LineInjectedText(0, 1, 5, { content: '\xa0', widthInEm: 1 }, 0)
+		]);
+
+		assert.deepStrictEqual({
+			breakOffsets: lineBreakData?.breakOffsets,
+			breakOffsetsVisibleColumn: lineBreakData?.breakOffsetsVisibleColumn
+		}, {
+			breakOffsets: [4, 7],
+			breakOffsetsVisibleColumn: [4, 8]
+		});
+	});
+
+	test('treats multi-character fixed-width injected text as an atomic span', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('', '');
+		const lineBreakData = getLineBreakData(factory, 4, 5, 2, WrappingIndent.None, 'normal', false, 'abcdef', null, [
+			new LineInjectedText(0, 1, 4, { content: 'hello', widthInEm: 1 }, 0)
+		]);
+
+		assert.deepStrictEqual({
+			breakOffsets: lineBreakData?.breakOffsets,
+			breakOffsetsVisibleColumn: lineBreakData?.breakOffsetsVisibleColumn
+		}, {
+			breakOffsets: [8, 11],
+			breakOffsetsVisibleColumn: [5, 8]
+		});
+	});
+
 	function assertLineBreakDataEqual(a: ModelLineProjectionData | null, b: ModelLineProjectionData | null): void {
 		if (!a || !b) {
 			assert.deepStrictEqual(a, b);

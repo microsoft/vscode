@@ -191,6 +191,17 @@ suite('renderViewLine', () => {
 		assertParts('xyz', 4, [createPart(2, 1), createPart(3, 2)], '<span class="mtk1">xy</span><span class="mtk2">z</span>', [[0, [0, 0]], [1, [0, 1]], [2, [1, 0]], [3, [1, 1]]]);
 	});
 
+	test('enforces fixed injected text width without changing decorated spans', () => {
+		const fixedWidth = { widthInEm: 1 };
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent: 'hello',
+			lineTokens: createViewLineTokens([createPart(2, 0), createPart(5, 1)]),
+			lineDecorations: [new LineDecoration(1, 6, 'injected', InlineDecorationType.RegularAffectingLetterSpacing, fixedWidth)]
+		}));
+
+		assert.strictEqual(actual.html, '<span><span style="display:inline-block;width:1em;"><span class="mtk0 injected">he</span><span class="mtk1 injected">llo</span></span></span>');
+	});
+
 	// overflow
 	test('overflow', async () => {
 		const _actual = renderViewLine(createRenderLineInput({
