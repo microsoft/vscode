@@ -11,6 +11,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
+import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -20,7 +21,7 @@ import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptConte
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, inputRequestResponsePartToProgress, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 // ---- Helper factories -------------------------------------------------------
 
@@ -1242,6 +1243,41 @@ suite('stateToProgressAdapter', () => {
 			}, 'local');
 
 			assert.strictEqual(carousel.answerPresentation, 'conversation');
+		});
+
+		test('maps restored plan review URIs to the owning Agent Host', () => {
+			const originalPlanUri = 'file:///C:/Users/test/.copilot/session-state/session/plan.md';
+			const request: ChatInputRequestWithPlanReview = {
+				id: 'plan-1',
+				planReview: {
+					title: 'Review Plan',
+					content: 'Plan summary',
+					canProvideFeedback: true,
+					answerQuestionId: 'action',
+					planUri: originalPlanUri,
+					actions: [{ id: 'implement', label: 'Implement Plan' }],
+				},
+				questions: [],
+			};
+			const progress = inputRequestResponsePartToProgress({
+				kind: ResponsePartKind.InputRequest,
+				request,
+				response: ChatInputResponseKind.Accept,
+			}, 'windows-host');
+
+			assert.strictEqual(progress.kind, 'planReview');
+			const planUri = URI.revive(progress.planUri!);
+			assert.deepStrictEqual({
+				scheme: planUri.scheme,
+				authority: planUri.authority,
+				path: planUri.path,
+				originalPath: fromAgentHostUri(planUri).path,
+			}, {
+				scheme: 'vscode-agent-host',
+				authority: 'windows-host',
+				path: '/C:/Users/test/.copilot/session-state/session/plan.md',
+				originalPath: '/C:/Users/test/.copilot/session-state/session/plan.md',
+			});
 		});
 
 		test('attaches automation result data to live and restored configureAutomation calls', () => {

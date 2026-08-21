@@ -275,7 +275,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		return toLocalProjectUri(uri, this._connectionAuthority);
 	}
 
-	protected override _diffUriMapper(): (uri: URI) => URI {
+	protected override _resourceUriMapper(): (uri: URI) => URI {
 		return uri => toAgentHostUri(uri, this._connectionAuthority);
 	}
 

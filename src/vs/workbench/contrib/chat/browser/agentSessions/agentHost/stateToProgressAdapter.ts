@@ -292,7 +292,7 @@ export function createInputRequestCarousel(inputReq: ChatInputRequest, connectio
 	return carousel;
 }
 
-export function createInputRequestPlanReview(inputReq: ChatInputRequest, planReview: IAgentHostPlanReview): ChatPlanReviewData {
+export function createInputRequestPlanReview(inputReq: ChatInputRequest, planReview: IAgentHostPlanReview, connectionAuthority: string): ChatPlanReviewData {
 	return new ChatPlanReviewData(
 		planReview.title,
 		planReview.content,
@@ -304,7 +304,7 @@ export function createInputRequestPlanReview(inputReq: ChatInputRequest, planRev
 			...(action.permissionLevel ? { permissionLevel: action.permissionLevel } : {}),
 		})),
 		planReview.canProvideFeedback,
-		planReview.planUri ? URI.parse(planReview.planUri).toJSON() : undefined,
+		planReview.planUri ? toAgentHostUri(URI.parse(planReview.planUri), connectionAuthority).toJSON() : undefined,
 		inputReq.id,
 	);
 }
@@ -331,7 +331,7 @@ export function inputRequestResponsePartToProgress(part: InputRequestResponsePar
 	const inputReq = part.request;
 	const planReview = (inputReq as ChatInputRequestWithPlanReview).planReview;
 	if (planReview) {
-		const review = createInputRequestPlanReview(inputReq, planReview);
+		const review = createInputRequestPlanReview(inputReq, planReview, connectionAuthority);
 		review.data = part.response === undefined
 			? undefined
 			: convertProtocolPlanReviewResult(planReview, part.response, inputReq.answers);

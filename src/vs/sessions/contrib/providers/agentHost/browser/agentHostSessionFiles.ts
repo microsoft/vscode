@@ -103,7 +103,7 @@ export function createSessionOutputObs(
 	workspaceObs: IObservable<ISessionWorkspace | undefined>,
 	cache: Map<string, unknown>,
 ): ISessionOutputObs {
-	const mapDiffUri = options.mapDiffUri;
+	const mapDiffUri = options.mapResourceUri;
 
 	// Session output is only computed for the active, non-archived session. The
 	// subscriptions and parsing below are all gated on this so an archived

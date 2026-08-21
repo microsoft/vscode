@@ -25,6 +25,7 @@ import { createTextModel } from '../../../../../../editor/test/common/testTextMo
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
+import { fromAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { VSCODE_EPHEMERAL_SESSION_META_KEY } from '../../../../../../platform/agentHost/common/meta/agentEphemeralSessionMeta.js';
@@ -991,7 +992,7 @@ function createSessionListController(disposables: DisposableStore, instantiation
 	return disposables.add(instantiationService.createInstance(AgentHostSessionListController, sessionType, provider, sessionListStore, description, 'local'));
 }
 
-function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>; languageModelsServiceOverride?: Partial<ILanguageModelsService>; workspaceFolders?: readonly URI[] }) {
+function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; connectionAuthority?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>; languageModelsServiceOverride?: Partial<ILanguageModelsService>; workspaceFolders?: readonly URI[] }) {
 	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, false, opts?.languageModelToolsServiceOverride, opts?.configOverrides, opts?.chatSessionsServiceOverride, opts?.chatDebugServiceOverride, opts?.remoteAgentHostServiceOverride, opts?.customizationServiceOverride, opts?.agentHostTerminalServiceOverride, opts?.languageModelsServiceOverride, opts?.workspaceFolders);
 
 	const listController = createSessionListController(disposables, instantiationService, agentHostService);
@@ -1002,7 +1003,7 @@ function createContribution(disposables: DisposableStore, opts?: { authServiceOv
 		fullName: 'Agent Host - Copilot',
 		description: 'Copilot SDK agent running in the local agent host process',
 		connection: agentHostService,
-		connectionAuthority: 'local',
+		connectionAuthority: opts?.connectionAuthority ?? 'local',
 		isNewSession: sessionResource => listController.isNewSession(sessionResource),
 		onSessionMaterialized: sessionResource => listController.notifySessionMaterialized(sessionResource),
 	}));
@@ -4684,7 +4685,7 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('plan-review input request renders a plan review instead of a question carousel', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { connectionAuthority: 'windows-host' });
 			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			const request: ChatInputRequestWithPlanReview = {
@@ -4694,7 +4695,7 @@ suite('AgentHostChatContribution', () => {
 					content: '## Plan summary',
 					canProvideFeedback: true,
 					answerQuestionId: 'action',
-					planUri: URI.file('/sessions/abc/plan.md').toString(),
+					planUri: 'file:///C:/Users/test/.copilot/session-state/session/plan.md',
 					actions: [
 						{ id: 'interactive', label: 'Implement Plan', default: true },
 						{ id: 'autopilot', label: 'Implement with Autopilot', permissionLevel: 'autopilot' },
@@ -4717,7 +4718,16 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(review.title, 'Review Plan');
 			assert.strictEqual(review.content, '## Plan summary');
 			assert.ok(review.planUri);
-			assert.strictEqual(URI.revive(review.planUri).toString(), URI.file('/sessions/abc/plan.md').toString());
+			const planUri = URI.revive(review.planUri);
+			assert.deepStrictEqual({
+				scheme: planUri.scheme,
+				authority: planUri.authority,
+				originalPath: fromAgentHostUri(planUri).path,
+			}, {
+				scheme: 'vscode-agent-host',
+				authority: 'windows-host',
+				originalPath: '/C:/Users/test/.copilot/session-state/session/plan.md',
+			});
 			assert.deepStrictEqual(review.actions, [
 				{ id: 'interactive', label: 'Implement Plan', default: true },
 				{ id: 'autopilot', label: 'Implement with Autopilot', permissionLevel: 'autopilot' },

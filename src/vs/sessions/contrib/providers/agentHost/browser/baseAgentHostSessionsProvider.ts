@@ -498,8 +498,8 @@ export interface IAgentHostAdapterOptions {
 	readonly loading: IObservable<boolean>;
 	/** Builds the session workspace from session metadata; provider-specific (icon, providerLabel, requiresWorkspaceTrust). */
 	readonly buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => ISessionWorkspace | undefined;
-	/** Optional URI mapping for diff entries (remote uses `toAgentHostUri`; local uses identity). */
-	readonly mapDiffUri?: (uri: URI) => URI;
+	/** Optional URI mapping for host-owned resources (remote uses `toAgentHostUri`; local uses identity). */
+	readonly mapResourceUri?: (uri: URI) => URI;
 	/**
 	 * GitHub service used to resolve the pull request that targets the
 	 * session's branch and refresh its live state. Optional so tests / hosts
@@ -926,7 +926,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this.isExternal = derived(this, reader => readSessionExternal(this._metaObs.read(reader)));
 		this.artifacts = derivedOpts<readonly ISessionArtifact[]>({ owner: this, equalsFn: structuralEquals }, reader => {
 			const meta = this._metaObs.read(reader);
-			return getPresentedArtifacts(partitionSessionArtifacts(meta), toGitHubPromotion(meta).surfacedLinks);
+			return getPresentedArtifacts(partitionSessionArtifacts(meta, this._options.mapResourceUri), toGitHubPromotion(meta).surfacedLinks);
 		});
 
 		const baseGitHubInfoObs = derivedOpts<IGitHubInfo | undefined>({
@@ -2711,7 +2711,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	/**
 	 * Subclass-specific portion of the adapter options. Base fills in
 	 * the bits that are uniform across hosts (`icon`, `loading`,
-	 * `mapDiffUri`) from the corresponding hooks.
+	 * `mapResourceUri`) from the corresponding hooks.
 	 */
 	protected abstract _adapterOptions(): Pick<IAgentHostAdapterOptions, 'buildWorkspace' | 'readOnly'>;
 
@@ -2752,7 +2752,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const options = {
 			icon: this.iconForAgentProvider(provider) ?? this.icon,
 			loading: this.authenticationPending,
-			mapDiffUri: this._diffUriMapper(),
+			mapResourceUri: this._resourceUriMapper(),
 			gitHubService: this._gitHubService,
 			instantiationService: this._instantiationService,
 			getConnection: () => this.connection,
@@ -3131,7 +3131,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}, {
 				icon: this.iconForAgentProvider(sessionType.id) ?? this.icon,
 				loading: this.authenticationPending,
-				mapDiffUri: this._diffUriMapper(),
+				mapResourceUri: this._resourceUriMapper(),
 				gitHubService: this._gitHubService,
 				instantiationService: this._instantiationService,
 				getConnection: () => this.connection,
@@ -5662,8 +5662,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	/**
-	 * Optional URI mapper used when applying diff changes. Subclasses
-	 * override to translate remote diff URIs into agent-host URIs.
+	 * Optional URI mapper for host-owned resources. Subclasses override to
+	 * translate remote resources into agent-host URIs.
 	 */
-	protected _diffUriMapper(): ((uri: URI) => URI) | undefined { return undefined; }
+	protected _resourceUriMapper(): ((uri: URI) => URI) | undefined { return undefined; }
 }

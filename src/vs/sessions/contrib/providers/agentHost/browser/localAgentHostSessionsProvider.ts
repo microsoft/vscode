@@ -252,7 +252,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		return agentLabel;
 	}
 
-	protected override _diffUriMapper(): (uri: URI) => URI {
+	protected override _resourceUriMapper(): (uri: URI) => URI {
 		return uri => toAgentHostUri(uri, LOCAL_AGENT_HOST_AUTHORITY);
 	}
 

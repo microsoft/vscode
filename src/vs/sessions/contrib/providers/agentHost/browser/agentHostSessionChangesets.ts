@@ -277,7 +277,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 			return changesetState.status === ChangesetStatus.Computing;
 		});
 
-		const mapDiffUri = this._options.mapDiffUri;
+		const mapDiffUri = this._options.mapResourceUri;
 
 		// Hold the raw `ChangesetFile[]` (with last-value semantics) so unchanged
 		// files keep their reference across reducer updates, enabling the
@@ -400,7 +400,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 
 		const files = resources.map(resource => {
 			const file = this._changesetFilesObs.get()?.find(candidate => {
-				const change = changesetFileToChange(candidate, this._options.mapDiffUri);
+				const change = changesetFileToChange(candidate, this._options.mapResourceUri);
 				return isEqual(change?.modifiedUri, resource) || isEqual(change?.originalUri, resource);
 			});
 			if (!file) {

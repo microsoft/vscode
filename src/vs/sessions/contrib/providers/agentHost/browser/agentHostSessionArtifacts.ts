@@ -30,14 +30,15 @@ function parseUri(value: string | undefined): URI | undefined {
 	}
 }
 
-function toSessionArtifact(artifact: IProtocolSessionArtifact): ISessionArtifact | undefined {
+function toSessionArtifact(artifact: IProtocolSessionArtifact, mapResourceUri?: (uri: URI) => URI): ISessionArtifact | undefined {
 	const kind = kindByType.get(artifact.type);
 	if (!kind) {
 		return undefined;
 	}
 
 	const link = parseUri(artifact.link);
-	const uri = parseUri(artifact.uri);
+	const parsedUri = parseUri(artifact.uri);
+	const uri = parsedUri && mapResourceUri ? mapResourceUri(parsedUri) : parsedUri;
 	// An artifact the client cannot act on is not worth surfacing.
 	if (!link && !uri && !artifact.commitHash) {
 		return undefined;
@@ -110,14 +111,14 @@ function promotedLink(artifact: IProtocolSessionArtifact): string | undefined {
 	return undefined;
 }
 
-export function partitionSessionArtifacts(meta: SessionMeta | undefined): ISessionArtifactPartition {
+export function partitionSessionArtifacts(meta: SessionMeta | undefined, mapResourceUri?: (uri: URI) => URI): ISessionArtifactPartition {
 	const entries: ISessionArtifactEntry[] = [];
 	const createdPullRequestUrls: string[] = [];
 	const referencedPullRequestUrls: string[] = [];
 	const issueUrls: string[] = [];
 
 	for (const artifact of readSessionArtifacts(meta)) {
-		const mapped = toSessionArtifact(artifact);
+		const mapped = toSessionArtifact(artifact, mapResourceUri);
 		if (!mapped) {
 			continue;
 		}
