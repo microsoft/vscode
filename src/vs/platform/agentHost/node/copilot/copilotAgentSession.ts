@@ -2655,7 +2655,9 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _computeMappedEvents(): Promise<IMappedSessionEvents> {
+		this._logService.trace(`[Copilot:${this.sessionId}] Reading persisted session events`);
 		const events = await this._wrapper.session.getEvents();
+		this._logService.trace(`[Copilot:${this.sessionId}] Read ${events.length} persisted event(s); reconstructing turns`);
 		let db: ISessionDatabase | undefined;
 		try {
 			db = this._databaseRef.object;
@@ -2668,6 +2670,7 @@ export class CopilotAgentSession extends Disposable {
 				? this._launchPlan.model
 				: this._launchPlan.fallback.model,
 		});
+		this._logService.trace(`[Copilot:${this.sessionId}] Reconstructed ${result.turns.length} turn(s) from ${events.length} event(s)`);
 		return result;
 	}
 

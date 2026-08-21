@@ -3066,7 +3066,10 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private async _getChatMessages(provider: IAgent, chat: URI, session: URI, origin?: ChatOrigin): Promise<readonly Turn[]> {
 		const context = { ...this._chatContext(session, chat), ...(origin ? { origin } : {}) };
-		const turns = await this._applyPersistedTurnUsage(chat, await provider.chats.getMessages(chat, context));
+		this._logService.trace(`[AgentService] getChatMessages start: chat=${chat.toString()}`);
+		const providerTurns = await provider.chats.getMessages(chat, context);
+		this._logService.trace(`[AgentService] getChatMessages: provider returned ${providerTurns.length} turn(s) for chat=${chat.toString()}`);
+		const turns = await this._applyPersistedTurnUsage(chat, providerTurns);
 		// Host-owned worktree restore announcement: re-inject the "Created isolated
 		// worktree" message at the top of the default chat's first turn from
 		// persisted metadata. No-op for folder sessions and non-default chats (peer
@@ -3111,6 +3114,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		try {
 			usages = await ref.object.getTurnUsages();
+			this._logService.trace(`[AgentService] getTurnUsages done: ${usages.size} row(s) for ${storage.toString()}`);
 		} catch (err) {
 			this._logService.warn(`[AgentService] Failed to read persisted turn usage for ${storage.toString()}`, err);
 			return turns;
@@ -3790,6 +3794,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 
 			let snapshot = this._stateManager.getSnapshot(resourceStr);
+			const servedFromMemory = !!snapshot;
 			const parsedChangeset = parseChangesetUri(resourceStr);
 			if (snapshot && parsedChangeset && !this._stateManager.getSessionState(parsedChangeset.sessionUri)) {
 				await this._changesetCoordinator.restoreSessionIfChangesetSubscription(resource, s => this.restoreSession(s));
@@ -3876,6 +3881,7 @@ export class AgentService extends Disposable implements IAgentService {
 				void this._gitStateService.refreshSessionGitState(resourceStr, workingDirectory);
 			}
 
+			this._logService.trace(`[AgentService] subscribe done: ${resourceStr} (servedFromMemory=${servedFromMemory})`);
 			return snapshot;
 		} catch (err) {
 			this.unsubscribe(resource, clientId);
@@ -4689,6 +4695,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 		const inFlight = this._restoreSessionInFlight.get(sessionStr);
 		if (inFlight) {
+			this._logService.trace(`[AgentService] restoreSession: joining in-flight restore for ${sessionStr}`);
 			return inFlight;
 		}
 
@@ -4696,10 +4703,12 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 
+		this._logService.trace(`[AgentService] restoreSession start: ${sessionStr}`);
 		const restore = this._doRestoreSession(session, sessionStr);
 		this._restoreSessionInFlight.set(sessionStr, restore);
 		try {
 			await restore;
+			this._logService.trace(`[AgentService] restoreSession done: ${sessionStr}`);
 		} finally {
 			if (this._restoreSessionInFlight.get(sessionStr) === restore) {
 				this._restoreSessionInFlight.delete(sessionStr);
@@ -4762,6 +4771,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const registeredSession = (await this._listRegisteredSessions()).find(entry => entry.session.toString() === sessionStr);
 		const external = registeredSession?.external ?? false;
+		this._logService.trace(`[AgentService] restore: catalog and registry resolved for ${sessionStr} (registered=${!!registeredSession}, external=${external})`);
 
 		// Adopt-on-open for a surfaced un-adopted legacy Copilot CLI session, strictly gated on the live migrate setting (a no-op for native / already-adopted sessions).
 		const migrateLegacyEnabled = this._configurationService.getRootValue(platformRootSchema, AgentHostMigrateLegacyCopilotCliEnabledConfigKey) === true;
@@ -4891,6 +4901,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * fails so the caller can report the outcome accurately.
 	 */
 	private async _restoreSessionState(agent: IAgent, session: URI, sessionStr: string, adopted: boolean, external: boolean, registrationSource: IRegisteredSession['source'], catalogReadable: boolean, sessionKnownToRegistry: boolean): Promise<{ turnCount: number; hasProject: boolean; hasWorktree: boolean; workingDirectoryCount: number }> {
+		this._logService.trace(`[AgentService] restore: reading provider metadata for ${sessionStr}`);
 		let meta = await this._getSessionMetadataForRestore(agent, session, external);
 		if (!meta) {
 			// Authoritative absence only when the catalog was readable this run and
@@ -4901,6 +4912,7 @@ export class AgentService extends Disposable implements IAgentService {
 				? new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found on backend: ${sessionStr}`)
 				: new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Provider ${agent.id} could not describe ${sessionStr} yet`);
 		}
+		this._logService.trace(`[AgentService] restore: provider metadata resolved for ${sessionStr}`);
 
 		// A freshly-adopted legacy session whose working directory is a
 		// pre-existing git worktree keeps no worktree metadata (adoption seeds
@@ -5079,6 +5091,7 @@ export class AgentService extends Disposable implements IAgentService {
 				// Best-effort: fall back to agent-provided metadata
 			}
 		}
+		this._logService.trace(`[AgentService] restore: persisted session metadata read for ${sessionStr}`);
 
 		// Encode isRead/isArchived as status bitmask flags
 		let status: SessionStatus = SessionStatus.Idle;
@@ -5127,6 +5140,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		this._invalidateSessionList();
 		this._stateManager.restoreSession(summary, mergedTurns, { draft: restoredDraft, defaultChatTitle });
+		this._logService.trace(`[AgentService] restore: hydrated state for ${sessionStr} with ${mergedTurns.length} turn(s)`);
 		this._serverToolHost.advertise(sessionStr);
 
 		// A freshly-adopted legacy session bridges its git checkpoints into the
