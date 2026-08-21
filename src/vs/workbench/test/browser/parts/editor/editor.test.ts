@@ -15,7 +15,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { whenEditorClosed } from '../../../../browser/editor.js';
-import { GroupDirection, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { EditorService } from '../../../../services/editor/browser/editorService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
@@ -425,36 +425,6 @@ suite('Workbench editor utils', () => {
 
 		enforcedOverride.dispose();
 		assert.strictEqual(part.partOptions.tabActionReserveSpace, false);
-	});
-
-	test('restoring state retains editors while collapsing unsupported groups', async () => {
-		const part = await createEditorPart(instantiationService, disposables);
-		const firstEditor = disposables.add(new TestFileEditorInput(URI.file('/first.txt'), TEST_EDITOR_ID));
-		const secondEditor = disposables.add(new TestFileEditorInput(URI.file('/second.txt'), TEST_EDITOR_ID));
-		firstEditor.setDirty();
-		secondEditor.setDirty();
-		await part.activeGroup.openEditor(firstEditor);
-		const secondGroup = part.addGroup(part.activeGroup, GroupDirection.RIGHT);
-		await secondGroup.openEditor(secondEditor);
-		part.activateGroup(secondGroup);
-		const state = part.createState();
-
-		part.testSupportsMultipleGroups = false;
-		await part.applyState(state);
-
-		assert.deepStrictEqual({
-			groupCount: part.count,
-			editors: part.activeGroup.editors.map(editor => editor.resource?.path).sort(),
-			activeEditor: part.activeGroup.activeEditor?.resource?.path,
-		}, {
-			groupCount: 1,
-			editors: ['/first.txt', '/second.txt'],
-			activeEditor: '/second.txt',
-		});
-
-		firstEditor.dirty = false;
-		secondEditor.dirty = false;
-		await part.activeGroup.closeAllEditors({ force: true });
 	});
 
 	test('whenEditorClosed (single editor)', async function () {

@@ -11,7 +11,6 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
-import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpression, ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -37,14 +36,11 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from '../../browser/addTabActions.js';
 import { EmptyFileEditorInput, EmptyFileEditorSerializer } from '../../browser/emptyFileEditorInput.js';
-import { EditorPartSupportsMultipleGroupsContext, EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../../workbench/common/contextkeys.js';
-import { DuplicateGroupRightAction, EditorLayoutSingleAction, EditorLayoutTwoColumnsAction, MoveEditorToNextGroupAction, MoveGroupRightAction, SplitEditorAction } from '../../../../../workbench/browser/parts/editor/editorActions.js';
-import { SPLIT_EDITOR, SPLIT_EDITOR_RIGHT } from '../../../../../workbench/browser/parts/editor/editorCommands.js';
+import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../../workbench/common/contextkeys.js';
 import { TestEnvironmentService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IsQuickChatSessionContext, SessionIsCreatedContext, SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
 
-// Import editor contributions to trigger action registration.
-import '../../../../../workbench/browser/parts/editor/editor.contribution.js';
+// Import editor contribution to trigger action registration.
 import '../../browser/editor.contribution.js';
 
 suite('Sessions - Editor Contribution', () => {
@@ -57,48 +53,6 @@ suite('Sessions - Editor Contribution', () => {
 		const css = generateColorThemeCSS(theme, '.sessions-tab-customization-theme', themingRegistry.getThemingParticipants(), TestEnvironmentService).code;
 
 		assert.strictEqual(css.includes('--modern-ui-editor-tab-active-background: #123456;'), true);
-	});
-
-	test('editor split and grid actions require multiple-group support', () => {
-		assert.deepStrictEqual({
-			splitEditor: new SplitEditorAction().desc.precondition?.serialize(),
-			moveToNextGroup: new MoveEditorToNextGroupAction().desc.precondition?.serialize(),
-			moveGroup: new MoveGroupRightAction().desc.precondition?.serialize(),
-			duplicateGroup: new DuplicateGroupRightAction().desc.precondition?.serialize(),
-			twoColumns: new EditorLayoutTwoColumnsAction().desc.precondition?.serialize(),
-			singleColumn: new EditorLayoutSingleAction().desc.precondition?.serialize(),
-		}, {
-			splitEditor: EditorPartSupportsMultipleGroupsContext.key,
-			moveToNextGroup: EditorPartSupportsMultipleGroupsContext.key,
-			moveGroup: EditorPartSupportsMultipleGroupsContext.key,
-			duplicateGroup: EditorPartSupportsMultipleGroupsContext.key,
-			twoColumns: EditorPartSupportsMultipleGroupsContext.key,
-			singleColumn: undefined,
-		});
-	});
-
-	test('editor split menu items require multiple-group support', () => {
-		const findWhen = (menuId: MenuId, commandId: string): ContextKeyExpression | undefined => {
-			const item = MenuRegistry.getMenuItems(menuId).find(item => isIMenuItem(item) && item.command.id === commandId);
-			return item && isIMenuItem(item) ? item.when : undefined;
-		};
-		const evaluate = (expression: ContextKeyExpression | undefined, supportsMultipleGroups: boolean): boolean => expression?.evaluate({
-			getValue: <T extends ContextKeyValue>(key: string) => (key === EditorPartSupportsMultipleGroupsContext.key ? supportsMultipleGroups : false) as T
-		} satisfies IContext) ?? true;
-
-		const editorTitleWhen = findWhen(MenuId.EditorTitleContext, SPLIT_EDITOR);
-		const emptyGroupWhen = findWhen(MenuId.EmptyEditorGroupContext, SPLIT_EDITOR_RIGHT);
-		assert.deepStrictEqual({
-			editorTitleSupported: evaluate(editorTitleWhen, true),
-			editorTitleUnsupported: evaluate(editorTitleWhen, false),
-			emptyGroupSupported: evaluate(emptyGroupWhen, true),
-			emptyGroupUnsupported: evaluate(emptyGroupWhen, false),
-		}, {
-			editorTitleSupported: true,
-			editorTitleUnsupported: false,
-			emptyGroupSupported: true,
-			emptyGroupUnsupported: false,
-		});
 	});
 
 	function stubEditorGroupCount(instantiationService: TestInstantiationService, count: number): void {

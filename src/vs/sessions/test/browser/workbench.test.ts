@@ -1680,6 +1680,36 @@ suite('Sessions - Workbench', () => {
 		});
 	});
 
+	test('single-pane editor retains restored editors when collapsing restored groups', () => {
+		const firstEditor = { id: 'first' };
+		const secondEditor = { id: 'second' };
+		const activeGroup = { editors: [secondEditor], activeEditor: secondEditor };
+		const sourceGroup = { editors: [firstEditor], activeEditor: firstEditor };
+		const host = {
+			count: 2,
+			activeGroup,
+			groups: [sourceGroup, activeGroup],
+			mergeAllGroups(target: typeof activeGroup) {
+				target.editors.unshift(...sourceGroup.editors);
+				this.groups = [target];
+				this.count = 1;
+			},
+		};
+		const ensureSingleEditorGroup = Reflect.get(SinglePaneMainEditorPart.prototype, '_ensureSingleEditorGroup') as () => void;
+
+		ensureSingleEditorGroup.call(host);
+
+		assert.deepStrictEqual({
+			groupCount: host.count,
+			editors: host.activeGroup.editors.map(editor => editor.id),
+			activeEditor: host.activeGroup.activeEditor.id,
+		}, {
+			groupCount: 1,
+			editors: ['first', 'second'],
+			activeEditor: 'second',
+		});
+	});
+
 	test('applies an even split when revealing the docked editor with no captured width even after the initial split', () => {
 		const host = createHost({ single: true, sessionsWidth: 1000, windowWidth: 1300, hasAppliedInitialEditorSplit: true, dockedWidth: 300, editorWidth: 300, partVisibility: { editor: false, auxiliaryBar: true } });
 

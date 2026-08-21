@@ -27,8 +27,6 @@ import { GroupDirection, IEditorDropTargetDelegate, IEditorGroup, IEditorGroupsS
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ITreeViewsDnDService } from '../../../../editor/common/services/treeViewsDndService.js';
 import { DraggedTreeItemsIdentifier } from '../../../../editor/common/services/treeViewsDnd.js';
-import { EditorPartSupportsMultipleGroupsContext } from '../../../common/contextkeys.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 
 interface IDropOperation {
 	splitDirection?: GroupDirection;
@@ -65,14 +63,14 @@ class DropOverlay extends Themable {
 
 	constructor(
 		private readonly groupView: IEditorGroupView,
+		private readonly supportsSplitting: boolean,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@ITreeViewsDnDService private readonly treeViewsDragAndDropService: ITreeViewsDnDService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
 		super(themeService);
 
@@ -184,9 +182,8 @@ class DropOverlay extends Themable {
 				// Position overlay and conditionally enable or disable
 				// editor group splitting support based on setting and
 				// keymodifiers used.
-				const supportsMultipleGroups = this.contextKeyService.contextMatchesRules(EditorPartSupportsMultipleGroupsContext);
-				let splitOnDragAndDrop = supportsMultipleGroups && !!this.groupView.groupsView.partOptions.splitOnDragAndDrop;
-				if (supportsMultipleGroups && this.isToggleSplitOperation(e)) {
+				let splitOnDragAndDrop = this.supportsSplitting && !!this.groupView.groupsView.partOptions.splitOnDragAndDrop;
+				if (this.supportsSplitting && this.isToggleSplitOperation(e)) {
 					splitOnDragAndDrop = !splitOnDragAndDrop;
 				}
 				this.positionOverlay(e.offsetX, e.offsetY, isDraggingGroup, splitOnDragAndDrop);
@@ -404,16 +401,21 @@ class DropOverlay extends Themable {
 
 		let edgeWidthThresholdFactor: number;
 		let edgeHeightThresholdFactor: number;
-		if (isDraggingGroup) {
-			edgeWidthThresholdFactor = preferSplitVertically ? 0.3 : 0.1; // give larger threshold when dragging group depending on preferred split direction
-		} else {
-			edgeWidthThresholdFactor = 0.1; // 10% threshold to split if dragging editors
-		}
+		if (enableSplitting) {
+			if (isDraggingGroup) {
+				edgeWidthThresholdFactor = preferSplitVertically ? 0.3 : 0.1; // give larger threshold when dragging group depending on preferred split direction
+			} else {
+				edgeWidthThresholdFactor = 0.1; // 10% threshold to split if dragging editors
+			}
 
-		if (isDraggingGroup) {
-			edgeHeightThresholdFactor = preferSplitVertically ? 0.1 : 0.3; // give larger threshold when dragging group depending on preferred split direction
+			if (isDraggingGroup) {
+				edgeHeightThresholdFactor = preferSplitVertically ? 0.1 : 0.3; // give larger threshold when dragging group depending on preferred split direction
+			} else {
+				edgeHeightThresholdFactor = 0.1; // 10% threshold to split if dragging editors
+			}
 		} else {
-			edgeHeightThresholdFactor = 0.1; // 10% threshold to split if dragging editors
+			edgeWidthThresholdFactor = 0;
+			edgeHeightThresholdFactor = 0;
 		}
 
 		const edgeWidthThreshold = editorControlWidth * edgeWidthThresholdFactor;
@@ -653,7 +655,7 @@ export class EditorDropTarget extends Themable {
 			if (!this.overlay) {
 				const targetGroupView = this.findTargetGroupView(target);
 				if (targetGroupView) {
-					this._overlay = this.instantiationService.createInstance(DropOverlay, targetGroupView);
+					this._overlay = this.instantiationService.createInstance(DropOverlay, targetGroupView, this.delegate.supportsSplitting !== false);
 				}
 			}
 		}

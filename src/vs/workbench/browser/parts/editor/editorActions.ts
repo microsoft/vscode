@@ -13,7 +13,7 @@ import { GoFilter, IHistoryService } from '../../../services/history/common/hist
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, SelectedEditorsMoveCopyArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, COPY_ACTIVE_EDITOR_COMMAND_ID, SPLIT_EDITOR, TOGGLE_MAXIMIZE_EDITOR_GROUP, MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, MOVE_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID, MOVE_EDITOR_INTO_RIGHT_GROUP, MOVE_EDITOR_INTO_LEFT_GROUP, MOVE_EDITOR_INTO_ABOVE_GROUP, MOVE_EDITOR_INTO_BELOW_GROUP, REOPEN_ACTIVE_EDITOR_WITH_COMMAND_ID } from './editorCommands.js';
-import { IEditorGroupsService, IEditorGroup, GroupsArrangement, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupLayoutArgument, GroupsOrder, MergeGroupMode } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorGroupsService, IEditorGroup, GroupsArrangement, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder, MergeGroupMode } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
@@ -32,7 +32,7 @@ import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { IKeybindingRule, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { ActiveEditorAvailableEditorIdsContext, ActiveEditorCannotCloseContext, ActiveEditorContext, ActiveEditorGroupEmptyContext, AuxiliaryBarVisibleContext, EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, EditorPartSupportsMultipleGroupsContext, InAutomationContext, IsAuxiliaryWindowFocusedContext, MultipleEditorGroupsContext, SideBarVisibleContext } from '../../../common/contextkeys.js';
+import { ActiveEditorAvailableEditorIdsContext, ActiveEditorCannotCloseContext, ActiveEditorContext, ActiveEditorGroupEmptyContext, AuxiliaryBarVisibleContext, EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, InAutomationContext, IsAuxiliaryWindowFocusedContext, MultipleEditorGroupsContext, SideBarVisibleContext } from '../../../common/contextkeys.js';
 import { getActiveDocument } from '../../../../base/browser/dom.js';
 import { ICommandActionTitle } from '../../../../platform/action/common/action.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
@@ -47,7 +47,7 @@ class ExecuteCommandAction extends Action2 {
 		private readonly commandId: string,
 		private readonly commandArgs?: unknown
 	) {
-		super(requiresMultipleEditorGroups(commandId, commandArgs) ? { ...desc, precondition: ContextKeyExpr.and(desc.precondition, EditorPartSupportsMultipleGroupsContext) } : desc);
+		super(desc);
 	}
 
 	override run(accessor: ServicesAccessor): Promise<void> {
@@ -57,50 +57,7 @@ class ExecuteCommandAction extends Action2 {
 	}
 }
 
-const editorGroupCommands = new Set([
-	SPLIT_EDITOR_LEFT,
-	SPLIT_EDITOR_RIGHT,
-	SPLIT_EDITOR_UP,
-	SPLIT_EDITOR_DOWN,
-	MOVE_EDITOR_INTO_LEFT_GROUP,
-	MOVE_EDITOR_INTO_RIGHT_GROUP,
-	MOVE_EDITOR_INTO_ABOVE_GROUP,
-	MOVE_EDITOR_INTO_BELOW_GROUP,
-]);
-
-function requiresMultipleEditorGroups(commandId: string, commandArgs: unknown): boolean {
-	if (editorGroupCommands.has(commandId)) {
-		return true;
-	}
-
-	if ((commandId === MOVE_ACTIVE_EDITOR_COMMAND_ID || commandId === COPY_ACTIVE_EDITOR_COMMAND_ID) && isGroupMoveCopyArgument(commandArgs)) {
-		return true;
-	}
-
-	return commandId === LAYOUT_EDITOR_GROUPS_COMMAND_ID && isEditorGroupLayout(commandArgs) && countEditorGroups(commandArgs.groups) > 1;
-}
-
-function isGroupMoveCopyArgument(value: unknown): value is SelectedEditorsMoveCopyArguments & { by: 'group' } {
-	return typeof value === 'object' && value !== null && 'by' in value && value.by === 'group';
-}
-
-function isEditorGroupLayout(value: unknown): value is EditorGroupLayout {
-	return typeof value === 'object' && value !== null && 'groups' in value && Array.isArray(value.groups);
-}
-
-function countEditorGroups(groups: GroupLayoutArgument[]): number {
-	let count = 0;
-	for (const group of groups) {
-		count += group.groups ? countEditorGroups(group.groups) : 1;
-	}
-	return count;
-}
-
 abstract class AbstractSplitEditorAction extends Action2 {
-
-	constructor(desc: Readonly<IAction2Options>) {
-		super({ ...desc, precondition: ContextKeyExpr.and(desc.precondition, EditorPartSupportsMultipleGroupsContext) });
-	}
 
 	protected getDirection(configurationService: IConfigurationService): GroupDirection {
 		return preferredSideBySideGroupDirection(configurationService);
@@ -1010,7 +967,7 @@ abstract class AbstractMoveGroupAction extends AbstractMoveCopyGroupAction {
 		desc: Readonly<IAction2Options>,
 		direction: GroupDirection
 	) {
-		super({ ...desc, precondition: ContextKeyExpr.and(desc.precondition, EditorPartSupportsMultipleGroupsContext) }, direction, true);
+		super(desc, direction, true);
 	}
 }
 
@@ -1084,7 +1041,7 @@ abstract class AbstractDuplicateGroupAction extends AbstractMoveCopyGroupAction 
 		desc: Readonly<IAction2Options>,
 		direction: GroupDirection
 	) {
-		super({ ...desc, precondition: ContextKeyExpr.and(desc.precondition, EditorPartSupportsMultipleGroupsContext) }, direction, false);
+		super(desc, direction, false);
 	}
 }
 
@@ -2504,7 +2461,7 @@ abstract class AbstractCreateEditorGroupAction extends Action2 {
 		desc: Readonly<IAction2Options>,
 		private readonly direction: GroupDirection
 	) {
-		super({ ...desc, precondition: ContextKeyExpr.and(desc.precondition, EditorPartSupportsMultipleGroupsContext) });
+		super(desc);
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {

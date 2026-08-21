@@ -34,7 +34,7 @@ import { IBoundarySashes } from '../../../../base/browser/ui/sash/sash.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { EditorAreaFocusContext, EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, EditorPartSupportsMultipleGroupsContext, EditorTabsVisibleContext, IsTopRightEditorGroupContext } from '../../../common/contextkeys.js';
+import { EditorAreaFocusContext, EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, EditorTabsVisibleContext, IsTopRightEditorGroupContext } from '../../../common/contextkeys.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 
 /**
@@ -515,10 +515,6 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	}
 
 	applyLayout(layout: EditorGroupLayout): void {
-		if (!this.supportsMultipleGroups && countEditorGroups(layout.groups) > 1) {
-			return;
-		}
-
 		const restoreFocus = this.shouldRestoreFocus(this.container);
 
 		// Determine how many groups we need overall
@@ -622,9 +618,6 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 
 	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, groupToCopy?: IEditorGroupView): IEditorGroupView {
 		const locationView = this.assertGroupView(location);
-		if (!this.supportsMultipleGroups) {
-			return locationView;
-		}
 
 		let newGroupView: IEditorGroupView;
 
@@ -1076,7 +1069,6 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		// Grid control
 		this._willRestoreState = !options || options.restorePreviousState;
 		this.doCreateGridControl();
-		this.ensureSupportedGroupLayout();
 
 		// Centered layout widget
 		this.centeredLayoutWidget = this._register(new CenteredViewLayout(this.container, this.gridWidgetView, this.profileMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY], this._partOptions.centeredLayoutFixedWidth));
@@ -1106,7 +1098,6 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		// Applies to all editor parts (main, modal, auxiliary) so callers can gate
 		// shortcuts on focus being in any editor area regardless of which part.
 		EditorAreaFocusContext.bindTo(this.scopedContextKeyService).set(true);
-		EditorPartSupportsMultipleGroupsContext.bindTo(this.scopedContextKeyService).set(this.supportsMultipleGroups);
 
 		const multipleEditorGroupsContext = EditorPartMultipleEditorGroupsContext.bindTo(this.scopedContextKeyService);
 		const maximizedEditorGroupContext = EditorPartMaximizedEditorGroupContext.bindTo(this.scopedContextKeyService);
@@ -1177,10 +1168,6 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			this.applyContentRightInset();
 		}));
 		this._register(this.onDidLayout(() => updateTopRightGroupContextKey()));
-	}
-
-	protected get supportsMultipleGroups(): boolean {
-		return true;
 	}
 
 	private setupDragAndDropSupport(parent: HTMLElement, container: HTMLElement): void {
@@ -1521,19 +1508,11 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		};
 	}
 
-	async applyState(state: IEditorPartUIState | 'empty', options?: IEditorGroupViewOptions): Promise<void> {
+	applyState(state: IEditorPartUIState | 'empty', options?: IEditorGroupViewOptions): Promise<void> {
 		if (state === 'empty') {
-			await this.doApplyEmptyState();
+			return this.doApplyEmptyState();
 		} else {
-			await this.doApplyState(state, options);
-		}
-
-		this.ensureSupportedGroupLayout();
-	}
-
-	private ensureSupportedGroupLayout(): void {
-		if (!this.supportsMultipleGroups && this.count > 1) {
-			this.mergeAllGroups(this.activeGroup);
+			return this.doApplyState(state, options);
 		}
 	}
 
@@ -1687,12 +1666,4 @@ export class MainEditorPart extends EditorPart {
 	) {
 		super(editorPartsView, Parts.EDITOR_PART, '', mainWindow.vscodeWindowId, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
 	}
-}
-
-function countEditorGroups(groups: GroupLayoutArgument[]): number {
-	let count = 0;
-	for (const group of groups) {
-		count += group.groups ? countEditorGroups(group.groups) : 1;
-	}
-	return count;
 }
