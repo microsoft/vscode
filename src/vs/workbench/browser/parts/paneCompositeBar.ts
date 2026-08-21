@@ -74,6 +74,7 @@ export interface IPaneCompositeBarOptions {
 	readonly viewContainersWorkspaceStateKey: string;
 	readonly icon: boolean;
 	readonly compact?: boolean;
+	readonly reserveBadgeSpace?: boolean;
 	readonly iconSize: number;
 	readonly recomputeSizes: boolean;
 	readonly orientation: ActionsOrientation;
@@ -134,6 +135,7 @@ export class PaneCompositeBar extends Disposable {
 		return this._register(this.instantiationService.createInstance(CompositeBar, cachedItems, {
 			icon: this.options.icon,
 			compact: this.options.compact,
+			reserveBadgeSpace: this.options.reserveBadgeSpace,
 			orientation: this.options.orientation,
 			activityHoverOptions: this.options.activityHoverOptions,
 			preventLoopNavigation: this.options.preventLoopNavigation,
