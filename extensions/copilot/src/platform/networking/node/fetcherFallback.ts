@@ -18,6 +18,8 @@ const fetcherConfigKeys: Partial<Record<FetcherId, Config<boolean>>> = {
 	'node-http': ConfigKey.Shared.DebugUseNodeFetcher,
 };
 
+const TERMINAL_RESPONSE_STATUS_CODES = new Set([429, 502, 503]);
+
 export async function fetchWithFallbacks(availableFetchers: readonly IFetcher[], url: string, options: FetchOptions, knownBadFetchers: Set<string>, configurationService: IConfigurationService, logService: ILogService, telemetryService: ITelemetryService | undefined, experimentationService: IExperimentationService | undefined): Promise<{ response: Response; updatedFetchers?: IFetcher[]; updatedKnownBadFetchers?: Set<string> }> {
 	if (options.retryFallbacks && availableFetchers.length > 1) {
 		let firstResult: { ok: boolean; response: Response } | { ok: false; err: any } | undefined;
@@ -52,7 +54,7 @@ export async function fetchWithFallbacks(availableFetchers: readonly IFetcher[],
 			if (fetcher === availableFetchers[0]) {
 				firstResult = result;
 			}
-			if ('response' in result && result.response.status >= 400) {
+			if ('response' in result && TERMINAL_RESPONSE_STATUS_CODES.has(result.response.status)) {
 				return fetcher === availableFetchers[0]
 					? { response: result.response }
 					: useFallbackFetcher(fetcher, result.response);

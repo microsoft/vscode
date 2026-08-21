@@ -61,11 +61,11 @@ suite('FetcherFallback Test Suite', function () {
 		assert.deepStrictEqual(json, JSON.parse(someJSON));
 	});
 
-	test('redirect response falls back to another fetcher', async function () {
+	test.each([302, 401, 500])('HTTP %i response falls back to another fetcher', async status => {
 		const fetcherSpec = [
-			{ name: 'electron-fetch', response: createFakeResponse(302, someHTML) },
+			{ name: 'electron-fetch', response: createFakeResponse(status, someHTML) },
 			{ name: 'node-fetch', response: createFakeResponse(200, someJSON) },
-			{ name: 'electron-fetch', response: createFakeResponse(302, someHTML) },
+			{ name: 'electron-fetch', response: createFakeResponse(status, someHTML) },
 		];
 		const testFetchers = createTestFetchers(fetcherSpec);
 		const { response, updatedFetchers, updatedKnownBadFetchers } = await fetchWithFallbacks(testFetchers.fetchers, 'https://example.com', { callSite: 'test', expectJSON: true, retryFallbacks: true }, knownBadFetchers, configurationService, logService, telemetryService, experimentationService);
@@ -83,8 +83,8 @@ suite('FetcherFallback Test Suite', function () {
 	});
 
 	test.each([
-		{ status: 401, fetchers: ['electron-fetch', 'node-fetch', 'node-http'] },
-		{ status: 429, fetchers: ['node-fetch', 'electron-fetch', 'node-http'] },
+		{ status: 429, fetchers: ['electron-fetch', 'node-fetch', 'node-http'] },
+		{ status: 502, fetchers: ['node-fetch', 'electron-fetch', 'node-http'] },
 		{ status: 503, fetchers: ['node-http', 'electron-fetch', 'node-fetch'] },
 	])('HTTP $status response from $fetchers.0 does not fall back', async ({ status, fetchers }) => {
 		const serverResponse = createFakeResponse(status, someHTML);
