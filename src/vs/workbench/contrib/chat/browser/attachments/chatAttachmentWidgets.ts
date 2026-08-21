@@ -9,6 +9,7 @@ import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { toAction } from '../../../../../base/common/actions.js';
 import { HoverStyle, IDelayedHoverOptions, type IHoverLifecycleOptions, type IHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
@@ -807,10 +808,16 @@ export async function openPastedTextArtifact(accessor: ServicesAccessor, attachm
 
 export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 
+	private readonly _onDidRequestInsertInPrompt = this._register(new event.Emitter<void>());
+	/** Fired when the user asks for the attachment's text to be put back into the prompt. */
+	get onDidRequestInsertInPrompt(): event.Event<void> {
+		return this._onDidRequestInsertInPrompt.event;
+	}
+
 	constructor(
 		attachment: IChatRequestPasteVariableEntry,
 		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
-		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
+		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean; isCurrentInput?: boolean },
 		container: HTMLElement,
 		contextResourceLabels: ResourceLabels,
 		@ICommandService commandService: ICommandService,
@@ -818,10 +825,17 @@ export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
-		const ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
+		const isTextArtifact = !attachment.copiedFrom && isPastedTextArtifact(attachment);
+		// Only the live input can take the text back; the same pill on a past
+		// request is a record of what was sent and cannot be edited.
+		const canInsertInPrompt = isTextArtifact && !!options.isCurrentInput;
+		const ariaLabel = canInsertInPrompt
+			? localize('chat.pastedTextAttachment', "Attached context, {0}, open to view it or use the context menu to insert its text in the prompt", attachment.name)
+			: localize('chat.attachment', "Attached context, {0}", attachment.name);
 		this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
 
 		const classNames = ['file-icon', `${attachment.language}-lang-file-icon`];
@@ -841,7 +855,14 @@ export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 		this.element.style.position = 'relative';
 
 		const sourceUri = attachment.copiedFrom?.uri;
-		const hoverContent = new MarkdownString(`${sourceUri ? this.instantiationService.invokeFunction(accessor => accessor.get(ILabelService).getUriLabel(sourceUri, { relative: true })) : attachment.fileName}\n\n---\n\n\`\`\`${attachment.language}\n\n${attachment.code}\n\`\`\``);
+		const hoverHeader = sourceUri
+			? this.instantiationService.invokeFunction(accessor => accessor.get(ILabelService).getUriLabel(sourceUri, { relative: true }))
+			: attachment.fileName;
+		// The text of an artifact lives only in this pill, so say how to get it back.
+		const hoverHint = canInsertInPrompt
+			? `\n\n${localize('chat.pastedTextAttachment.hoverHint', "Right-click to insert this text in the prompt.")}`
+			: '';
+		const hoverContent = new MarkdownString(`${hoverHeader}${hoverHint}\n\n---\n\n\`\`\`${attachment.language}\n\n${attachment.code}\n\`\`\``);
 		this._register(this.hoverService.setupDelayedHover(this.element, {
 			...commonHoverOptions,
 			content: hoverContent,
@@ -851,12 +872,37 @@ export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 		if (copiedFromResource) {
 			this._register(this.instantiationService.invokeFunction(hookUpResourceAttachmentDragAndContextMenu, this.element, copiedFromResource));
 			this.addResourceOpenHandlers(copiedFromResource, range);
-		} else if (isPastedTextArtifact(attachment)) {
+		} else if (isTextArtifact) {
 			this.element.style.cursor = 'pointer';
 			this._register(registerOpenEditorListeners(this.element, async () => {
 				await this.instantiationService.invokeFunction(openPastedTextArtifact, attachment);
 			}));
+			if (canInsertInPrompt) {
+				this.addInsertInPromptContextMenu();
+			}
 		}
+	}
+
+	/**
+	 * A paste that became an attachment is otherwise a one-way door: the text
+	 * lives only in the pill and cannot be edited. This offers the way back.
+	 */
+	private addInsertInPromptContextMenu(): void {
+		this._register(dom.addDisposableListener(this.element, dom.EventType.CONTEXT_MENU, domEvent => {
+			const event = new StandardMouseEvent(dom.getWindow(domEvent), domEvent);
+			dom.EventHelper.stop(domEvent, true);
+
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => event,
+				getActions: () => [
+					toAction({
+						id: 'chat.pastedTextAttachment.insertInPrompt',
+						label: localize('chat.pastedTextAttachment.insertInPrompt', "Insert in Prompt"),
+						run: () => this._onDidRequestInsertInPrompt.fire(),
+					}),
+				],
+			});
+		}));
 	}
 }
 

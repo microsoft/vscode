@@ -8,6 +8,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
 import { IActionRunner } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, markAsSingleton, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
@@ -18,6 +19,7 @@ import { Action2, MenuId, MenuItemAction, registerAction2 } from '../../../../..
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { katexContainerClassName, katexContainerLatexAttributeName } from '../../../markdown/common/markedKatexExtension.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
@@ -143,6 +145,16 @@ export class ChatCopyActionRendering extends Disposable implements IWorkbenchCon
 }
 
 export function registerChatCopyActions() {
+	// The chat input turns a plain paste into Markdown or an attachment depending
+	// on the clipboard, so reserve the conventional "paste without formatting"
+	// chord for text that is inserted exactly as it sits on the clipboard.
+	KeybindingsRegistry.registerKeybindingRule({
+		id: 'editor.action.pasteAsText',
+		weight: KeybindingWeight.WorkbenchContrib,
+		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyV,
+		when: ChatContextKeys.inputHasFocus,
+	});
+
 	registerAction2(class CopyAllAction extends Action2 {
 		constructor() {
 			super({

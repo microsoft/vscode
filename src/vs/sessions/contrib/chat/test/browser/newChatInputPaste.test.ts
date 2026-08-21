@@ -21,8 +21,9 @@ import { createTextModel } from '../../../../../editor/test/common/testTextModel
 import { withTestCodeEditor } from '../../../../../editor/test/browser/testCodeEditor.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IChatPasteTarget, IChatPasteTargetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
-import { PasteTextProvider } from '../../../../../workbench/contrib/chat/browser/widget/input/editor/chatPasteProviders.js';
+import { PasteTextProvider, pastedTextArtifactDefaultMinLength } from '../../../../../workbench/contrib/chat/browser/widget/input/editor/chatPasteProviders.js';
 import { IChatRequestVariableEntry, isPastedTextArtifact } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -83,7 +84,7 @@ suite('NewChatInputPasteTarget', () => {
 	 * inserted text is one undo element and the attachment is a second, so undo
 	 * runs the custom edit first and the text edit second, and redo the reverse.
 	 */
-	async function runPasteLifecycle(pastedText: string, act?: (attachments: INewChatAttachments) => void) {
+	async function runPasteLifecycle(pastedText: string, act?: (attachments: INewChatAttachments, completionHandler: AgentHostInputCompletionHandler) => void) {
 		const snapshots: { stage: string; value: string; attachments: string[]; code: string | undefined; sent: { name: string; text: string }[] }[] = [];
 
 		const model = store.add(createTextModel('', null, undefined, URI.from({ scheme: Schemas.sessionsChatInput, path: 'input-test' })));
@@ -113,6 +114,9 @@ suite('NewChatInputPasteTarget', () => {
 					pasteTargetService,
 					new class extends mock<IModelService>() { },
 					new class extends mock<ILogService>() { },
+					new class extends mock<IConfigurationService>() {
+						override getValue<T>(): T { return pastedTextArtifactDefaultMinLength as T; }
+					},
 				);
 
 				const transfer = new VSDataTransfer();
@@ -156,7 +160,7 @@ suite('NewChatInputPasteTarget', () => {
 				await customEdit.redo();
 				snapshot('redo');
 
-				act?.(attachments);
+				act?.(attachments, completionHandler);
 				snapshot('afterAct');
 			} finally {
 				local.dispose();
@@ -167,7 +171,7 @@ suite('NewChatInputPasteTarget', () => {
 	}
 
 	test('keeps the attachment and its inline reference consistent across undo and redo', async () => {
-		const pastedText = 'x'.repeat(1200);
+		const pastedText = `${'x'.repeat(1200)}\n`.repeat(10);
 		const snapshots = await runPasteLifecycle(pastedText);
 
 		const attached = { attachments: ['Pasted text #1'], codeIsPreserved: true, sent: [{ name: 'Pasted text #1', text: '#attachment:Pasted text #1' }] };
@@ -188,7 +192,7 @@ suite('NewChatInputPasteTarget', () => {
 	});
 
 	test('removing the attachment takes its inline reference out of the input', async () => {
-		const pastedText = 'x'.repeat(1200);
+		const pastedText = `${'x'.repeat(1200)}\n`.repeat(10);
 		const snapshots = await runPasteLifecycle(pastedText, attachments => {
 			attachments.removeAttachment(attachments.attachments[0].id);
 		});
@@ -196,6 +200,23 @@ suite('NewChatInputPasteTarget', () => {
 		assert.deepStrictEqual(snapshots.at(-1), {
 			stage: 'afterAct',
 			value: '',
+			attachments: [],
+			code: undefined,
+			sent: [],
+		});
+	});
+
+	test('inserting in the prompt puts the pasted text back in place of its reference', async () => {
+		const pastedText = `${'x'.repeat(1200)}\n`.repeat(10);
+		const snapshots = await runPasteLifecycle(pastedText, (attachments, completionHandler) => {
+			completionHandler.insertArtifactTextInPrompt(attachments.attachments[0]);
+		});
+
+		assert.deepStrictEqual(snapshots.at(-1), {
+			stage: 'afterAct',
+			// The reference is gone, the text it stood in for is back, and the
+			// trailing space the paste added is left alone.
+			value: `${pastedText} `,
 			attachments: [],
 			code: undefined,
 			sent: [],

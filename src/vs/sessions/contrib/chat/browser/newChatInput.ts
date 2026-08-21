@@ -893,6 +893,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._agentHostInputCompletionHandler = this._register(this._scopedInstantiationService.createInstance(
 			AgentHostInputCompletionHandler, this._editor, this._contextAttachments,
 		));
+		this._contextAttachments.setInsertInPromptHandler(entry => this._agentHostInputCompletionHandler?.insertArtifactTextInPrompt(entry));
 
 		this._register(this.chatPasteTargetService.registerTarget(textModel.uri, new NewChatInputPasteTarget(
 			this._editor,
