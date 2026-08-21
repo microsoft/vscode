@@ -573,6 +573,7 @@
 	flex-shrink: 0;
 	width: 16px;
 	text-align: center;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 .chat-debug-file-link {
 	color: var(--vscode-textLink-foreground);
@@ -1197,7 +1198,7 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 	color: var(--vscode-descriptionForeground);
 }
 .chat-debug-cache-session-health-chip .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 .chat-debug-cache-session-health-chip.cause-tools,
 .chat-debug-cache-session-health-chip.cause-system,

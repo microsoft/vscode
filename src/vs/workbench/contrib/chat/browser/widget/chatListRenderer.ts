@@ -69,6 +69,7 @@ import { ForkConversationActionId } from '../actions/chatForkActions.js';
 import { MarkHelpfulActionId } from '../actions/chatTitleActions.js';
 import { focusChatModelFeedbackSurveyAction } from '../actions/chatModelFeedbackSurveyActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from '../chat.js';
+import { getCompactCodicon } from '../chatIcons.js';
 import { ChatModelFeedbackSurveyWidget } from '../feedbackSurvey/chatModelFeedbackSurveyWidget.js';
 import { AgentHostSnapshotController } from '../agentSessions/agentHost/agentHostSnapshotController.js';
 import { RestoreCheckpointActionId, StartOverActionId } from '../chatEditing/chatEditingActions.js';
@@ -1616,7 +1617,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			avatarIcon.src = FileAccess.uriToBrowserUri(icon).toString(true);
 			templateData.avatarContainer.replaceChildren(dom.$('.avatar', undefined, avatarIcon));
 		} else {
-			const avatarIcon = dom.$(ThemeIcon.asCSSSelector(icon));
+			const avatarIcon = dom.$(ThemeIcon.asCSSSelector(templateData.rowContainer.classList.contains('interactive-item-compact') ? getCompactCodicon(icon) : icon));
 			templateData.avatarContainer.replaceChildren(dom.$('.avatar.codicon-avatar', undefined, avatarIcon));
 		}
 	}

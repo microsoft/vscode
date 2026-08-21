@@ -7,10 +7,10 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/5902ba6014c618379aa053bb3893b9763e673bea94aa13af222b07e3ee0807d0)
 
 #### chat/aiCustomizations/aiCustomizationManagementEditor/UserDataMigration/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/9d088c26a5039a8d33db61aee6d2f4df8c62000a7d48fd9dd6a3e4d05146add6)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/c0f6964579d22dc38e9701a837f8d45fe06692d563cdd44818e257c5f98cf38a)
 
 #### chat/aiCustomizations/aiCustomizationManagementEditor/UserDataMigration/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/b2c09ec89048a30ced6b193bea98d2e88455c46c89383853405936abbafe8ee0)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/17f7907ede552371d2164be2b4f346496890646e966eac2f7eef50c9c81b5f9f)
 
 #### chat/chatPetAccessoryRig/chatPetAccessoryRig/AllAccessoriesFacing/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/5b70ae9273fabf3a5302943c59cecd674f1f7fe7b7b08168af3e684e8c4ab6d2)

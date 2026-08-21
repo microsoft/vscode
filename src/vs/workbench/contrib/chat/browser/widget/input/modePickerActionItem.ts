@@ -26,6 +26,7 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatMode, IChatMode, IChatModes } from '../../../common/chatModes.js';
+import { getCompactCodicon } from '../../chatIcons.js';
 import { isOrganizationPromptFile } from '../../../common/promptSyntax/utils/promptsServiceUtils.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
@@ -307,7 +308,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 		const labelElements = [];
 		const collapsed = this.pickerOptions.compact.get();
 		if (icon) {
-			labelElements.push(...renderLabelWithIcons(`$(${icon.id})`));
+			labelElements.push(...renderLabelWithIcons(`$(${getCompactCodicon(icon).id})`));
 		}
 		if (!collapsed || !icon) {
 			labelElements.push(dom.$('span.chat-input-picker-label', undefined, state));

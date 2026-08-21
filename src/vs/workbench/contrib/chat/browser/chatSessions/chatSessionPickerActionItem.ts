@@ -26,6 +26,7 @@ import { autorun } from '../../../../../base/common/observable.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IActionListItemHover } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { getModelHoverContent } from '../widget/input/modelPicker/modelPickerHover.js';
+import { getCompactCodicon } from '../chatIcons.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 
 
@@ -241,7 +242,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 		const isDefaultWithIcon = this.currentOption?.default && this.currentOption?.icon;
 
 		if (this.currentOption?.icon) {
-			domChildren.push(renderIcon(this.currentOption.icon));
+			domChildren.push(renderIcon(getCompactCodicon(this.currentOption.icon)));
 		}
 
 		if (!isDefaultWithIcon) {

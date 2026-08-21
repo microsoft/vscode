@@ -500,16 +500,16 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		// Note: wrapper is created lazily in initContent(), so we can't set its style here
 
 		if (this._collapseButton && this.isActive) {
-			this._collapseButton.icon = Codicon.circleFilled;
+			this._collapseButton.icon = Codicon.circleFilledCompact;
 		}
 
 		this._register(autorun(r => {
 			this.expanded.read(r);
 			if (this._collapseButton) {
 				if (this.isActive) {
-					this._collapseButton.icon = Codicon.circleFilled;
+					this._collapseButton.icon = Codicon.circleFilledCompact;
 				} else {
-					this._collapseButton.icon = Codicon.check;
+					this._collapseButton.icon = Codicon.checkCompact;
 				}
 			}
 		}));
@@ -771,7 +771,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		this._updateOpenChatToolbarContext();
 		this.domNode.classList.remove('chat-thinking-active');
 		if (this._collapseButton) {
-			this._collapseButton.icon = Codicon.check;
+			this._collapseButton.icon = Codicon.checkCompact;
 		}
 
 		this.removeWorkingSpinner();
@@ -794,7 +794,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		this.setContentAnimationEnabled(false);
 		this.domNode.classList.add('chat-thinking-active');
 		if (this._collapseButton) {
-			this._collapseButton.icon = Codicon.circleFilled;
+			this._collapseButton.icon = Codicon.circleFilledCompact;
 		}
 		if (this.wrapper && !this.hasToolsWaitingForConfirmation) {
 			this.showWorkingSpinner();
@@ -822,7 +822,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	public finalizeTitle(): void {
 		this.updateTitle();
 		if (this._collapseButton) {
-			this._collapseButton.icon = Codicon.check;
+			this._collapseButton.icon = Codicon.checkCompact;
 		}
 	}
 
