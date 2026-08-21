@@ -10,7 +10,12 @@ import { ConfigKey, IConfigurationService } from '../../../../platform/configura
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../../platform/endpoint/common/endpointProvider';
 import { CustomDataPartMimeTypes } from '../../../../platform/endpoint/common/endpointTypes';
 import { ChatEndpoint } from '../../../../platform/endpoint/node/chatEndpoint';
+import { ILogService } from '../../../../platform/log/common/logService';
+import { IResponseDelta } from '../../../../platform/networking/common/fetch';
 import { ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions } from '../../../../platform/networking/common/networking';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { TelemetryData } from '../../../../platform/telemetry/common/telemetryData';
+import { createFakeStreamResponse } from '../../../../platform/test/node/fetcher';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
@@ -576,6 +581,46 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 
 			expect(body.previous_response_id).toBeUndefined();
 			expect(body.store).toBe(false);
+		});
+
+		it.each([
+			{ zeroDataRetentionEnabled: true, expectedMarker: undefined },
+			{ zeroDataRetentionEnabled: false, expectedMarker: 'resp_123' },
+		])('publishes only resumable Responses state when ZDR is $zeroDataRetentionEnabled', async ({ zeroDataRetentionEnabled, expectedMarker }) => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				{
+					...modelMetadata,
+					vendor: 'OpenAI',
+					zeroDataRetentionEnabled,
+				},
+				'test-api-key',
+				'https://api.openai.com/v1/responses');
+			const response = createFakeStreamResponse(`data: ${JSON.stringify({
+				type: 'response.completed',
+				response: {
+					id: 'resp_123',
+					model: modelMetadata.id,
+					created_at: 123,
+					usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 },
+					output: [],
+				},
+			})}\n\n`);
+			const deltas: IResponseDelta[] = [];
+			const stream = await endpoint.processResponseFromChatEndpoint(
+				accessor.get(ITelemetryService),
+				accessor.get(ILogService),
+				response,
+				1,
+				async (_text, _index, delta) => {
+					deltas.push(delta);
+					return undefined;
+				},
+				TelemetryData.createAndMarkAsIssued(),
+			);
+
+			for await (const _ of stream) { }
+
+			expect(deltas.at(-1)?.statefulMarker).toBe(expectedMarker);
 		});
 	});
 
