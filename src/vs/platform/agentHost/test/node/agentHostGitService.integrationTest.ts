@@ -746,12 +746,35 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		}
 	});
 
+	(hasGit ? test : test.skip)('addWorktree attaches a worktree without creating a new branch', async () => {
+		const dir = initRepo();
+		cp.execFileSync('git', ['branch', 'feature'], { cwd: dir, env, stdio: 'pipe' });
+		const wtPath = join(dir, '..', `wt-${Date.now()}`);
+		try {
+			await svc!.addWorktree(URI.file(dir), {
+				path: URI.file(wtPath),
+				commitish: 'feature',
+				track: false,
+			});
+
+			assert.strictEqual(cp.execFileSync('git', ['branch', '--show-current'], { cwd: wtPath, env, encoding: 'utf8' }).trim(), 'feature');
+		} finally {
+			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
+			rmDirWithRetry(wtPath);
+		}
+	});
+
 	(hasGit ? test : test.skip)('removeWorktree preserves dirty work unless forced', async () => {
 		const dir = initRepo();
 		const fs = await import('fs/promises');
 		const wtPath = join(dir, '..', `wt-dirty-${Date.now()}`);
 		try {
-			await svc!.addWorktree(URI.file(dir), URI.file(wtPath), 'agents/dirty-worktree', 'main');
+			await svc!.addWorktree(URI.file(dir), {
+				path: URI.file(wtPath),
+				commitish: 'main',
+				newBranchName: 'agents/dirty-worktree',
+				track: false,
+			});
 			await fs.writeFile(join(wtPath, 'untracked.txt'), 'keep me');
 
 			let safeRemovalFailed = false;
@@ -785,7 +808,12 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		const suffix = `wt-prune-${Date.now()}`;
 		const wtPath = join(dir, '..', suffix);
 		try {
-			await svc!.addWorktree(URI.file(dir), URI.file(wtPath), 'agents/prune-worktree', 'main');
+			await svc!.addWorktree(URI.file(dir), {
+				path: URI.file(wtPath),
+				commitish: 'main',
+				newBranchName: 'agents/prune-worktree',
+				track: false,
+			});
 			// Reproduce the CI teardown race: the working tree directory is gone
 			// but git still holds the `.git/worktrees/<id>` admin entry, so a plain
 			// `git worktree remove` fails — removeWorktree must fall back to prune.
@@ -815,7 +843,12 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		const wtPath = join(dir, '..', suffix);
 		let worktreeLocked = false;
 		try {
-			await svc!.addWorktree(URI.file(dir), URI.file(wtPath), 'agents/leak-worktree', 'main');
+			await svc!.addWorktree(URI.file(dir), {
+				path: URI.file(wtPath),
+				commitish: 'main',
+				newBranchName: 'agents/leak-worktree',
+				track: false,
+			});
 			cp.execFileSync('git', ['worktree', 'lock', wtPath], { cwd: dir, env, stdio: 'pipe' });
 			worktreeLocked = true;
 			// A locked missing worktree makes prune exit 0 while retaining the admin entry on every OS.
@@ -846,7 +879,12 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		const suffix = `wt-orphan-${Date.now()}`;
 		const wtPath = join(dir, '..', suffix);
 		try {
-			await svc!.addWorktree(URI.file(dir), URI.file(wtPath), 'agents/orphan-worktree', 'main');
+			await svc!.addWorktree(URI.file(dir), {
+				path: URI.file(wtPath),
+				commitish: 'main',
+				newBranchName: 'agents/orphan-worktree',
+				track: false,
+			});
 			// De-register the worktree (delete git's admin entries) while leaving the working-tree directory in place.
 			const adminRoot = join(dir, '.git', 'worktrees');
 			for (const entry of readdirSync(adminRoot)) {
@@ -896,7 +934,12 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 
 		const wtPath = join(dir, '..', `wt-${Date.now()}`);
 		try {
-			await svc!.addWorktree(URI.file(dir), URI.file(wtPath), 'agents/test-origin-start-point', 'main');
+			await svc!.addWorktree(URI.file(dir), {
+				path: URI.file(wtPath),
+				commitish: 'main',
+				newBranchName: 'agents/test-origin-start-point',
+				track: false,
+			});
 			const stat = await fs.stat(join(wtPath, 'upstream.txt'));
 			assert.ok(stat.isFile(), 'worktree should start from origin/main, not stale local main');
 			assert.throws(() => cp.execFileSync('git', ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], { cwd: wtPath, env, stdio: 'pipe' }), /fatal:/);
@@ -941,7 +984,12 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 
 		const wtPath = join(dir, '..', `wt-${Date.now()}`);
 		try {
-			await svc!.addWorktree(URI.file(dir), URI.file(wtPath), 'agents/include-files', 'main');
+			await svc!.addWorktree(URI.file(dir), {
+				path: URI.file(wtPath),
+				commitish: 'main',
+				newBranchName: 'agents/include-files',
+				track: false,
+			});
 			const progress: { filesDone: number; filesTotal: number }[] = [];
 			await svc!.copyWorktreeIncludeFiles(URI.file(dir), URI.file(wtPath), ['.env', 'secrets/**', 'partial/*.txt', 'app/**'], sample => progress.push(sample));
 
