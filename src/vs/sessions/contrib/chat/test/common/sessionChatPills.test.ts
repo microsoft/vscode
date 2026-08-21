@@ -19,14 +19,14 @@ suite('SessionChatPills', () => {
 
 		assert.deepStrictEqual(menu, {
 			withData: [
-				{ kind: SessionChatPillKind.PullRequests, label: 'Pull Requests', checked: false, enabled: true },
-				{ kind: SessionChatPillKind.Subagents, label: 'Subagents', checked: true, enabled: true },
+				{ kind: SessionChatPillKind.PullRequests, label: 'Pull Requests', checked: false },
+				{ kind: SessionChatPillKind.Subagents, label: 'Subagents', checked: true },
 			],
 			withoutData: [
-				{ kind: SessionChatPillKind.Artifacts, label: 'Artifacts', checked: true, enabled: false },
-				{ kind: SessionChatPillKind.Customizations, label: 'Customizations', checked: true, enabled: false },
-				{ kind: SessionChatPillKind.Issues, label: 'Issues', checked: true, enabled: false },
-				{ kind: SessionChatPillKind.Browsers, label: 'Browsers', checked: true, enabled: false },
+				{ kind: SessionChatPillKind.Artifacts, label: 'Artifacts', checked: true },
+				{ kind: SessionChatPillKind.Customizations, label: 'Customizations', checked: true },
+				{ kind: SessionChatPillKind.Issues, label: 'Issues', checked: true },
+				{ kind: SessionChatPillKind.Browsers, label: 'Browsers', checked: true },
 			],
 		});
 	});
