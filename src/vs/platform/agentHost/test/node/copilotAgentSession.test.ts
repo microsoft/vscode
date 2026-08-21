@@ -1102,6 +1102,7 @@ suite('CopilotAgentSession', () => {
 				agentId: 'agent-1',
 				data: {
 					turnId: 'sdk-turn-1',
+					interactionId: 'interaction-1',
 					dispatchDurationMs: 125,
 					outcome: 'success',
 					containsBuiltInFileEditRequest: true,
@@ -1125,6 +1126,7 @@ suite('CopilotAgentSession', () => {
 				agentId: 'agent-1',
 				data: {
 					turnId: 'sdk-turn-1',
+					interactionId: 'interaction-1',
 					dispatchDurationMs: 125,
 					outcome: 'success',
 					containsBuiltInFileEditRequest: true,
@@ -5309,14 +5311,15 @@ suite('CopilotAgentSession', () => {
 		test('maps model.call_finished to the owning host turn', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('host-turn-1');
-			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-1' });
+			mockSession.fire('assistant.turn_start', { turnId: '0', interactionId: 'interaction-1' });
 
 			mockSession.fireRaw({
 				type: 'model.call_finished',
 				ephemeral: true,
 				id: 'model-call-1',
 				data: {
-					turnId: 'sdk-turn-1',
+					turnId: '0',
+					interactionId: 'interaction-1',
 					dispatchDurationMs: 250,
 					outcome: 'success',
 					containsBuiltInFileEditRequest: true,
@@ -5324,17 +5327,31 @@ suite('CopilotAgentSession', () => {
 				},
 			});
 
-			assert.deepStrictEqual(signals.filter(signal => signal.kind === 'model_call_finished'), [{
-				kind: 'model_call_finished',
-				resource: session.chatUri,
-				turnId: 'host-turn-1',
-				modelCallId: 'model-call-1',
-				dispatchDurationMs: 250,
-				outcome: 'success',
-				containsBuiltInFileEditRequest: true,
-				editClassifierVersion: 1,
-				parentToolCallId: undefined,
-			}]);
+			session.resetTurnState('host-turn-2');
+			mockSession.fire('assistant.turn_start', { turnId: '0', interactionId: 'interaction-2' });
+			mockSession.fireRaw({
+				type: 'model.call_finished',
+				ephemeral: true,
+				id: 'model-call-2',
+				data: {
+					turnId: '0',
+					interactionId: 'interaction-2',
+					dispatchDurationMs: 125,
+					outcome: 'success',
+					containsBuiltInFileEditRequest: false,
+					editClassifierVersion: 1,
+				},
+			});
+
+			assert.deepStrictEqual(
+				signals
+					.filter(signal => signal.kind === 'model_call_finished')
+					.map(signal => ({ modelCallId: signal.modelCallId, turnId: signal.turnId })),
+				[
+					{ modelCallId: 'model-call-1', turnId: 'host-turn-1' },
+					{ modelCallId: 'model-call-2', turnId: 'host-turn-2' },
+				],
+			);
 		});
 
 		test('resumes a subagent on turn start before mapping model.call_finished', async () => {

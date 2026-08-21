@@ -15,6 +15,7 @@ export interface ICopilotModelCallFinishedEvent {
 	readonly agentId?: string;
 	readonly data: {
 		readonly turnId: string;
+		readonly interactionId?: string;
 		readonly dispatchDurationMs: number;
 		readonly outcome: CopilotModelCallFinishedOutcome;
 		readonly containsBuiltInFileEditRequest?: boolean;
@@ -344,6 +345,7 @@ function parseModelCallFinishedEvent(event: unknown): ICopilotModelCallFinishedE
 	const data = event.data;
 	if (
 		typeof data.turnId !== 'string'
+		|| (data.interactionId !== undefined && typeof data.interactionId !== 'string')
 		|| typeof data.dispatchDurationMs !== 'number'
 		|| !Number.isFinite(data.dispatchDurationMs)
 		|| data.dispatchDurationMs < 0
@@ -361,6 +363,7 @@ function parseModelCallFinishedEvent(event: unknown): ICopilotModelCallFinishedE
 		agentId: event.agentId,
 		data: {
 			turnId: data.turnId,
+			interactionId: data.interactionId,
 			dispatchDurationMs: data.dispatchDurationMs,
 			outcome: data.outcome,
 			containsBuiltInFileEditRequest: data.containsBuiltInFileEditRequest,

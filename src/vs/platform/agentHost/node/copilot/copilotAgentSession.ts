@@ -700,6 +700,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _parentToolCallIdsByAgentId = new Map<string, string>();
 	/** Maps SDK root-agent turn ids to their owning host protocol turn ids. */
 	private readonly _hostTurnIdsBySdkTurnId = new Map<string, string>();
+	/** Maps runtime interactions to their owning host protocol turn ids. */
+	private readonly _hostTurnIdsByInteractionId = new Map<string, string>();
 	private _activeRootSdkTurnId: string | undefined;
 	private readonly _activeSubagentAgentIds = new Set<string>();
 	private readonly _unroutableSubagentToolCallIds = new Set<string>();
@@ -1106,7 +1108,14 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.trace(`[Copilot:${this.sessionId}] Ignoring unroutable subagent model.call_finished: agentId=${event.agentId}, sdkTurnId=${event.data.turnId}`);
 			return;
 		}
-		const turnId = event.agentId ? this._turnId : this._hostTurnIdsBySdkTurnId.get(event.data.turnId);
+		let turnId: string | undefined;
+		if (event.agentId) {
+			turnId = this._turnId;
+		} else if (event.data.interactionId) {
+			turnId = this._hostTurnIdsByInteractionId.get(event.data.interactionId);
+		} else {
+			turnId = this._hostTurnIdsBySdkTurnId.get(event.data.turnId);
+		}
 		if (!turnId) {
 			this._logService.trace(`[Copilot:${this.sessionId}] Ignoring model.call_finished without a host turn mapping: sdkTurnId=${event.data.turnId}`);
 			return;
@@ -5571,6 +5580,9 @@ export class CopilotAgentSession extends Disposable {
 				this._activeRootSdkTurnId = e.data.turnId;
 				if (this._currentTurn.value) {
 					this._hostTurnIdsBySdkTurnId.set(e.data.turnId, this._currentTurn.value.id);
+					if (e.data.interactionId) {
+						this._hostTurnIdsByInteractionId.set(e.data.interactionId, this._currentTurn.value.id);
+					}
 				}
 				const telemetryMessageId = this._currentTurn.value?.id ?? e.data.turnId;
 				if (this._activeRepoInfoTurn?.telemetryMessageId === telemetryMessageId) {
