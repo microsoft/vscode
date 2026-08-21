@@ -56,7 +56,9 @@ export class BrowserSession {
 	 * ID derivation rules (one-to-one with Electron sessions):
 	 *  - Global scope         -> `"global"`
 	 *  - Workspace scope      -> `"workspace:${workspaceId}"`
-	 *  - Ephemeral scope      -> `"ephemeral:${affinityHash}"` or `"${type}:${affinityHash}"` for custom types
+	 *  - Ephemeral per-view   -> `"ephemeral:${viewId}"`
+	 *  - Ephemeral affinity   -> `"ephemeral-affinity:${affinityHash}"`
+	 *  - Custom type          -> `"${type}:${viewId}"`
 	 */
 	private static readonly _byId = new Map<string, WeakRef<BrowserSession>>();
 

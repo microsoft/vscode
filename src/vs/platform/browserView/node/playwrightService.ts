@@ -532,16 +532,20 @@ class PlaywrightSession extends Disposable {
 
 	private async _waitForPage(viewId: string, deadline: number): Promise<Page> {
 		while (true) {
-			const page = await this._tryGetPage(viewId);
-			if (page) {
-				return page;
-			}
-
 			const remaining = deadline - Date.now();
 			if (remaining <= 0) {
 				throw new Error(`Timed out waiting for browser page "${viewId}" to become available. The page is open and can be reused.`);
 			}
-			await timeout(Math.min(50, remaining));
+
+			const page = await raceTimeout(this._tryGetPage(viewId), remaining);
+			if (page) {
+				return page;
+			}
+
+			const delay = Math.min(50, deadline - Date.now());
+			if (delay > 0) {
+				await timeout(delay);
+			}
 		}
 	}
 
