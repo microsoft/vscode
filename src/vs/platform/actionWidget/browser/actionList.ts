@@ -114,6 +114,11 @@ export interface IActionListItem<T> {
 	readonly keybinding?: ResolvedKeybinding;
 	canPreview?: boolean | undefined;
 	readonly hideIcon?: boolean;
+	/**
+	 * CSS classes rendered in the item's icon slot, for icons that are not
+	 * codicons (e.g. themed file icons). Takes precedence over `group.icon`.
+	 */
+	readonly iconClasses?: readonly string[];
 	readonly tooltip?: string;
 	/**
 	 * Optional toolbar actions shown when the item is focused or hovered.
@@ -292,7 +297,10 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		// Clear previous element disposables
 		data.elementDisposables.clear();
 
-		if (element.group?.icon) {
+		if (element.iconClasses?.length) {
+			data.icon.className = ['icon', ...element.iconClasses].join(' ');
+			data.icon.style.color = '';
+		} else if (element.group?.icon) {
 			data.icon.className = ThemeIcon.asClassName(element.group.icon);
 			if (element.group.icon.color) {
 				data.icon.style.color = asCssVariable(element.group.icon.color.id);

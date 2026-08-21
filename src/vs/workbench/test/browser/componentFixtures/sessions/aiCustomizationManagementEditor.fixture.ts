@@ -41,7 +41,7 @@ import { IOutputService } from '../../../../services/output/common/output.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IWebviewService } from '../../../../contrib/webview/browser/webview.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection, AICustomizationSource } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationSourceFolder, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../../../contrib/chat/common/model/chatUri.js';
 import { IPromptsService, AgentInstructionFileType, PromptsStorage, IAgentSkill, IChatPromptSlashCommand, IAgentInstructionFile } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
@@ -157,8 +157,8 @@ function createMockAgentHostCustomizationService(mcpServers: readonly FixtureAge
 
 // Agent-host harnesses supply their customization items directly through an
 // item provider (bypassing the prompts-service discovery used by local
-// harnesses). Provide one backed by the fixture files so the agent-host
-// editor does not fall back to an empty source and log a warning.
+// harnesses). Provide items and writable folders so the fixture exercises
+// the same discovery and migration availability as the real provider.
 function createFixtureAgentHostItemProvider(files: readonly IFixtureFile[]): ICustomizationItemProvider {
 	return {
 		onDidChange: Event.None,
@@ -172,6 +172,34 @@ function createFixtureAgentHostItemProvider(files: readonly IFixtureFile[]): ICu
 				extensionId: file.extensionId,
 				pluginUri: undefined,
 			}));
+		},
+		async provideSourceFolders(_sessionResource, type): Promise<readonly ICustomizationSourceFolder[]> {
+			let folderName: string;
+			switch (type) {
+				case PromptsType.agent:
+					folderName = 'agents';
+					break;
+				case PromptsType.instructions:
+					folderName = 'instructions';
+					break;
+				case PromptsType.skill:
+					folderName = 'skills';
+					break;
+				default:
+					return [];
+			}
+			return [
+				{
+					uri: URI.file(`/workspace/.github/${folderName}`),
+					label: '.github',
+					source: PromptsStorage.local,
+				},
+				{
+					uri: URI.file(`/home/dev/.copilot/${folderName}`),
+					label: '~/.copilot',
+					source: PromptsStorage.user,
+				},
+			];
 		},
 	};
 }
@@ -741,6 +769,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			reg.defineInstance(ICodeReviewService, codeReviewService);
 			reg.defineInstance(IChatEditingService, new class extends mock<IChatEditingService>() {
 				override readonly editingSessionsObs = constObservable([]);
+				override getEditingSession() { return undefined; }
 			}());
 			reg.defineInstance(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
 				override readonly model = new class extends mock<IAgentSessionsService['model']>() {

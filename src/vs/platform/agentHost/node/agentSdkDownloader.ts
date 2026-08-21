@@ -21,7 +21,9 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IRequestService } from '../../request/common/request.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IRequestContext } from '../../../base/parts/request/common/request.js';
+import { reportAgentSdkDownload } from './agentSdkDownloadTelemetry.js';
 
 // #region Per-package strategy
 
@@ -273,6 +275,7 @@ export class AgentSdkDownloader extends Disposable implements IAgentSdkDownloade
 		@IRequestService private readonly _requestService: IRequestService,
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 	}
@@ -320,9 +323,11 @@ export class AgentSdkDownloader extends Disposable implements IAgentSdkDownloade
 			return override;
 		}
 
-		// 2. Negative cache: a recent failure short-circuits without I/O.
+		// 2. Negative cache: a recent failure short-circuits without I/O. Not for a
+		// user who asked by hand, though — the latch exists to stop background retry
+		// storms, not to leave a Download button doing nothing for half a minute.
 		const latched = this._failureLatch.get(pkg.id);
-		if (latched && latched.expiresAt > Date.now()) {
+		if (latched && latched.expiresAt > Date.now() && !this._explicitProgressInterest.has(pkg.id)) {
 			throw latched.error;
 		}
 
@@ -380,8 +385,14 @@ export class AgentSdkDownloader extends Disposable implements IAgentSdkDownloade
 		// that crashed mid-way never write it. See `_download` for why
 		// the sentinel is written inside the tmp dir before the rename.
 		if (await this._fileService.exists(sentinel)) {
+			// Logged, not counted: a cache hit happens on every SDK method call
+			// and would drown the download funnel. It matters here because "was
+			// the SDK already there?" is the first question asked of a log where
+			// no download was ever attempted.
+			this._logService.trace(`[AgentSdkDownloader] ${pkg.id}: cache hit at ${cacheDir}`);
 			return cacheDir;
 		}
+		this._logService.info(`[AgentSdkDownloader] ${pkg.id}: cache miss for version ${config.version} (${sdkTarget}); a download is required`);
 
 		// Download (deduped across concurrent callers in the same process).
 		// cacheDir is already unique per (pkg, version, sdkTarget) — within
@@ -439,14 +450,14 @@ export class AgentSdkDownloader extends Disposable implements IAgentSdkDownloade
 		const downloadId = generateUuid();
 		let lastReceived = 0;
 		let lastTotal: number | undefined;
-		this._fireProgress(pkg, downloadId, 'started', 0, undefined);
+		this._fireProgress(pkg, downloadId, start, 'started', 0, undefined);
 
 		try {
 			const tarballPath = path.join(tmpDir, 'sdk.tgz');
 			await this._fetch(url, tarballPath, token, (receivedBytes, totalBytes) => {
 				lastReceived = receivedBytes;
 				lastTotal = totalBytes;
-				this._fireProgress(pkg, downloadId, 'progress', receivedBytes, totalBytes);
+				this._fireProgress(pkg, downloadId, start, 'progress', receivedBytes, totalBytes);
 			});
 			await this._extractTarGz(tarballPath, tmpDir);
 			await this._fileService.del(URI.file(tarballPath));
@@ -469,24 +480,24 @@ export class AgentSdkDownloader extends Disposable implements IAgentSdkDownloade
 			} catch (err) {
 				if (await this._handleRenameLoser(err, sentinel, tmpDirUri)) {
 					this._logService.info(`[AgentSdkDownloader] ${pkg.id}: lost rename race, using existing cache`);
-					this._fireProgress(pkg, downloadId, 'completed', lastReceived, lastTotal);
+					this._fireProgress(pkg, downloadId, start, 'completed', lastReceived, lastTotal);
 					return cacheDir;
 				}
 				throw err;
 			}
 
 			const elapsed = Math.round((Date.now() - start) / 1000);
-			this._logService.info(`[AgentSdkDownloader] ${pkg.id}: downloaded in ${elapsed}s`);
-			this._fireProgress(pkg, downloadId, 'completed', lastTotal ?? lastReceived, lastTotal);
+			this._logService.info(`[AgentSdkDownloader] ${pkg.id}: downloaded ${lastTotal ?? lastReceived} bytes in ${elapsed}s`);
+			this._fireProgress(pkg, downloadId, start, 'completed', lastTotal ?? lastReceived, lastTotal);
 			return cacheDir;
 		} catch (err) {
 			await this._delIgnoringMissing(tmpDirUri);
 			if (token.isCancellationRequested) {
-				this._fireProgress(pkg, downloadId, 'failed', lastReceived, lastTotal, 'cancelled');
+				this._fireProgress(pkg, downloadId, start, 'failed', lastReceived, lastTotal, 'cancelled');
 				throw new CancellationError();
 			}
 			const message = err instanceof Error ? err.message : String(err);
-			this._fireProgress(pkg, downloadId, 'failed', lastReceived, lastTotal, message);
+			this._fireProgress(pkg, downloadId, start, 'failed', lastReceived, lastTotal, message);
 			throw new Error(
 				`Failed to download ${pkg.id} SDK from ${url} ` +
 				`(cache target: ${cacheDir}). ` +
@@ -499,12 +510,13 @@ export class AgentSdkDownloader extends Disposable implements IAgentSdkDownloade
 	private _fireProgress(
 		pkg: IAgentSdkPackage,
 		downloadId: string,
+		startedAt: number,
 		phase: AgentSdkDownloadPhase,
 		receivedBytes: number,
 		totalBytes: number | undefined,
 		error?: string,
 	): void {
-		this._onDidDownloadProgress.fire({
+		const progress: IAgentSdkDownloadProgress = {
 			downloadId,
 			packageId: pkg.id,
 			displayName: pkg.displayName,
@@ -513,7 +525,12 @@ export class AgentSdkDownloader extends Disposable implements IAgentSdkDownloade
 			totalBytes,
 			explicitlyRequested: this._explicitProgressInterest.has(pkg.id),
 			...(error !== undefined ? { error } : {}),
-		});
+		};
+		this._onDidDownloadProgress.fire(progress);
+		// Endpoints only — the throttled `progress` frames would flood the funnel.
+		if (phase !== 'progress') {
+			reportAgentSdkDownload(this._telemetryService, this._logService, progress, Date.now() - startedAt);
+		}
 	}
 
 	private async _handleRenameLoser(

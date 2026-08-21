@@ -7,12 +7,14 @@ import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { Dimension, getActiveWindow, IFocusTracker, trackFocus } from '../../../../../base/browser/dom.js';
 import { CancelablePromise, createCancelablePromise, DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, observableValue, type IObservable } from '../../../../../base/common/observable.js';
 import { MicrotaskDelay } from '../../../../../base/common/symbols.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { OS } from '../../../../../base/common/platform.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -22,6 +24,7 @@ import { IChatModel, IChatResponseModel, isCellTextEditOperationArray } from '..
 import { ChatMode } from '../../../chat/common/chatModes.js';
 import { IChatModelReference, IChatProgress, IChatService } from '../../../chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
+import { IChatSessionsService } from '../../../chat/common/chatSessionsService.js';
 import { IInlineChatWidgetConstructionOptions, InlineChatWidget } from '../../../inlineChat/browser/inlineChatWidget.js';
 import { MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../../../inlineChat/common/inlineChat.js';
 import { ITerminalInstance, type IXtermTerminal } from '../../../terminal/browser/terminal.js';
@@ -41,6 +44,7 @@ import { IMarkdownRendererService } from '../../../../../platform/markdown/brows
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IChatWidgetLocationOptions } from '../../../chat/browser/widget/chatWidget.js';
 import { Selection } from '../../../../../editor/common/core/selection.js';
+import { getTerminalChatSessionMeta, ITerminalChatSessionResolver } from './terminalChatSessionResolver.js';
 
 const enum Constants {
 	HorizontalMargin = 10,
@@ -98,6 +102,7 @@ export class TerminalChatWidget extends Disposable {
 	private readonly _sessionDisposables: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 
 	private _sessionCtor: CancelablePromise<void> | undefined;
+	private _agentHostSessionResource: IChatModel['sessionResource'] | undefined;
 
 	private _currentRequestId: string | undefined;
 	private _activeRequestCts?: CancellationTokenSource;
@@ -111,6 +116,8 @@ export class TerminalChatWidget extends Disposable {
 		private readonly _xterm: IXtermTerminal & { raw: RawXtermTerminal },
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatService private readonly _chatService: IChatService,
+		@ITerminalChatSessionResolver private readonly _sessionResolver: ITerminalChatSessionResolver,
+		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
@@ -167,6 +174,7 @@ export class TerminalChatWidget extends Disposable {
 			Event.fromObservableLight(this._inlineChatWidget.chatWidget.input.selectedLanguageModel),
 			Event.debounce(this._xterm.raw.onCursorMove, () => void 0, MicrotaskDelay),
 		)(() => this._relayout()));
+		this._register(this._instance.onDidChangeShellType(() => this._refreshAgentHostSessionMetadata()));
 
 		const observer = new ResizeObserver(() => this._relayout());
 		observer.observe(this._terminalElement);
@@ -247,7 +255,7 @@ export class TerminalChatWidget extends Disposable {
 	}
 
 	async reveal(): Promise<void> {
-		await this._createSession();
+		this._createSession();
 		this._doLayout();
 		this._container.classList.remove('hide');
 		this._visibleContextKey.set(true);
@@ -339,17 +347,71 @@ export class TerminalChatWidget extends Disposable {
 		return this._focusTracker;
 	}
 
-	private async _createSession(): Promise<void> {
-		this._sessionCtor = createCancelablePromise<void>(async token => {
-			if (!this._model.value) {
-				const modelRef = this._chatService.startNewLocalSession(ChatAgentLocation.Terminal);
-				this._model.value = modelRef;
-				const model = modelRef.object;
-				this._inlineChatWidget.setChatModel(model);
-				this._resetPlaceholder();
+	private _createSession(): void {
+		if (this._model.value || this._sessionCtor) {
+			return;
+		}
+		// Intentionally only starts asynchronous creation so `reveal` can display and focus immediately.
+		const sessionCtor = createCancelablePromise<void>(async token => {
+			const resolution = await this._sessionResolver.resolve(token, this._instance.shellType ?? this._instance.processName, this._instance.os ?? OS);
+			if (!resolution || token.isCancellationRequested) {
+				resolution?.modelRef.dispose();
+				return;
+			}
+			this._model.value = resolution.modelRef;
+			const model = resolution.modelRef.object;
+			this._inlineChatWidget.setChatModel(model);
+			// A contributed session type is not the default agent for its locations, so the widget
+			// must be locked for requests to carry `agentIdSilent` and reach the Agent Host agent.
+			const lockToAgent = resolution.lockToAgent;
+			if (lockToAgent) {
+				this._inlineChatWidget.chatWidget.lockToCodingAgent(lockToAgent.name, lockToAgent.displayName, lockToAgent.type, lockToAgent.agentHostProviderId);
+				this._agentHostSessionResource = model.sessionResource;
+				this._refreshAgentHostSessionMetadata();
+			} else {
+				this._inlineChatWidget.chatWidget.unlockFromCodingAgent();
+				this._agentHostSessionResource = undefined;
+			}
+			this._resetPlaceholder();
+		});
+		this._sessionCtor = sessionCtor;
+		this._sessionDisposables.value = toDisposable(() => sessionCtor.cancel());
+		void sessionCtor.catch(error => {
+			if (this._sessionCtor === sessionCtor) {
+				this._sessionCtor = undefined;
+			}
+			if (!isCancellationError(error)) {
+				onUnexpectedError(error);
 			}
 		});
-		this._sessionDisposables.value = toDisposable(() => this._sessionCtor?.cancel());
+	}
+
+	private _refreshAgentHostSessionMetadata(): void {
+		if (this._agentHostSessionResource) {
+			this._chatSessionsService.updateChatSessionMetadata(
+				this._agentHostSessionResource,
+				getTerminalChatSessionMeta(this._instance.shellType ?? this._instance.processName, this._instance.os ?? OS),
+			);
+		}
+	}
+
+	private async _waitForSession(): Promise<boolean> {
+		if (this._model.value) {
+			return true;
+		}
+		const sessionCtor = this._sessionCtor;
+		if (!sessionCtor) {
+			return false;
+		}
+		try {
+			await sessionCtor;
+			return !!this._model.value;
+		} catch (error) {
+			if (isCancellationError(error)) {
+				return false;
+			}
+			throw error;
+		}
 	}
 
 	private _saveInputState() {
@@ -362,6 +424,8 @@ export class TerminalChatWidget extends Disposable {
 	clear(): void {
 		this.cancel();
 		this._model.clear();
+		this._agentHostSessionResource = undefined;
+		this._inlineChatWidget.chatWidget.unlockFromCodingAgent();
 		this._responseContainsCodeBlockContextKey.reset();
 		this._requestActiveContextKey.reset();
 		this.hide();
@@ -371,6 +435,9 @@ export class TerminalChatWidget extends Disposable {
 	async acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
 		if (!this._model.value) {
 			await this.reveal();
+		}
+		if (!await this._waitForSession()) {
+			return undefined;
 		}
 		this._messages.fire(Message.AcceptInput);
 		const lastInput = this._inlineChatWidget.value;

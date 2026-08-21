@@ -107,6 +107,7 @@
 		"terminal.ansiBrightWhite": "#f8f8f2",
 		// modern ui
 		"surface.border": "#272822",
+		"modernActivityBar.background": "#00000000",
 	},
 	"tokenColors": [
 		{

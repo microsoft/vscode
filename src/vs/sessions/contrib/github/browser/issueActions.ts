@@ -24,7 +24,7 @@ import { IURLService } from '../../../../platform/url/common/url.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { Menus } from '../../../browser/menus.js';
-import { SessionHeaderMetaActionViewItem } from '../../../browser/parts/sessionHeaderMetaActionViewItem.js';
+import { ChatPillActionViewItem } from '../../../../workbench/browser/chatPills.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { SessionHasIssuesContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
@@ -124,7 +124,7 @@ function getSessionIssues(session: ISession | undefined): readonly IGitHubIssueR
  * The issues are read from the {@link ISessionContext} so the correct per-session issues are
  * shown even when several session views are visible at once.
  */
-export class OpenIssueActionViewItem extends SessionHeaderMetaActionViewItem {
+export class OpenIssueActionViewItem extends ChatPillActionViewItem {
 
 	private readonly _issueRefsObs: IObservable<readonly IGitHubIssueRef[]>;
 	private readonly _issuesObs: IObservable<readonly IResolvedSessionIssue[]>;
@@ -202,7 +202,7 @@ export class OpenIssueActionViewItem extends SessionHeaderMetaActionViewItem {
 
 	protected override getIconElement(): HTMLElement | undefined {
 		const icon = this._computeIcon();
-		const iconElement = $(`span.chat-composite-bar-meta-item-icon${ThemeIcon.asCSSSelector(icon)}`);
+		const iconElement = $(`span.chat-pill-icon${ThemeIcon.asCSSSelector(icon)}`, { 'aria-hidden': 'true' });
 		if (icon.color) {
 			// Inline `!important` wins over `button.css`'s `.monaco-text-button .codicon
 			// { color: inherit !important }`, so the glyph reflects the live issue state color.

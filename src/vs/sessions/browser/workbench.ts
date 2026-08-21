@@ -9,7 +9,7 @@ import './media/workbench.css';
 import './media/phoneLayout.css';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { Emitter, Event, setGlobalLeakWarningThreshold } from '../../base/common/event.js';
-import { addDisposableGenericMouseDownListener, addDisposableListener, EventType, getActiveDocument, getActiveElement, getClientArea, getWindowId, getWindows, IDimension, isAncestorUsingFlowTo, isHTMLElement, size, Dimension, runWhenWindowIdle } from '../../base/browser/dom.js';
+import { addDisposableGenericMouseDownListener, addDisposableListener, EventType, getActiveDocument, getActiveElement, getClientArea, getWindowId, getWindows, IDimension, isAncestorUsingFlowTo, size, Dimension, runWhenWindowIdle } from '../../base/browser/dom.js';
 import { DeferredPromise, RunOnceScheduler } from '../../base/common/async.js';
 import { isFullscreen, onDidChangeFullscreen, isChrome, isFirefox, isSafari } from '../../base/browser/browser.js';
 import { mark } from '../../base/common/performance.js';
@@ -61,6 +61,7 @@ import { NotificationsStatus } from '../../workbench/browser/parts/notifications
 import { registerNotificationCommands } from '../../workbench/browser/parts/notifications/notificationsCommands.js';
 import { CommandsRegistry } from '../../platform/commands/common/commands.js';
 import { NotificationsToasts } from '../../workbench/browser/parts/notifications/notificationsToasts.js';
+import { COMPACT_NOTIFICATION_ROW_HEIGHT, DEFAULT_NOTIFICATION_ROW_HEIGHT, setNotificationRowHeight } from '../../workbench/browser/parts/notifications/notificationsViewer.js';
 import { IMarkdownRendererService } from '../../platform/markdown/browser/markdownRenderer.js';
 import { EditorMarkdownCodeBlockRenderer } from '../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.js';
@@ -68,11 +69,6 @@ import { TitleService } from './parts/titlebarPart.js';
 import { EDITOR_PART_DEFAULT_WIDTH, EDITOR_PART_MINIMUM_WIDTH } from './parts/editorPartSizing.js';
 import { IContextKey, IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
 import { CustomViewVisibleContext, EditorMaximizedContext, IsPhoneLayoutContext, SinglePaneLayoutEnabledContext } from '../common/contextkeys.js';
-import {
-	NotificationsPosition,
-	NotificationsSettings,
-	getNotificationsPosition
-} from '../../workbench/common/notifications.js';
 import { SessionsLayoutPolicy } from './layoutPolicy.js';
 import { AGENTS_PART_CARD_CLASS } from './parts/agentsPartCard.js';
 import { MobileNavigationStack } from './mobileNavigationStack.js';
@@ -86,6 +82,8 @@ import { ICustomViewGridPartService } from '../services/customView/browser/custo
 import { ICustomViewDescriptor } from '../services/customView/browser/customView.js';
 import { ISessionsSetUpService } from './sessionsSetUpService.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../common/layoutConstants.js';
+
+const PHONE_NOTIFICATION_ROW_HEIGHT = 44;
 
 //#region Workbench Options
 
@@ -102,6 +100,7 @@ export interface IWorkbenchOptions {
 
 enum LayoutClasses {
 	MODERN_UI_TABS = 'modern-ui-tabs',
+	MODERN_UI_NOTIFICATIONS_DIALOGS = 'modern-ui-notifications-dialogs',
 	SIDEBAR_HIDDEN = 'nosidebar',
 	MAIN_EDITOR_AREA_HIDDEN = 'nomaineditorarea',
 	PANEL_HIDDEN = 'nopanel',
@@ -905,6 +904,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			'monaco-workbench',
 			'agent-sessions-workbench',
 			LayoutClasses.MODERN_UI_TABS,
+			LayoutClasses.MODERN_UI_NOTIFICATIONS_DIALOGS,
 			// LayoutClasses.SHELL_GRADIENT_BACKGROUND,
 			platformClass,
 			isWeb ? 'web' : undefined,
@@ -945,7 +945,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.createCustomViewGridPart();
 
 		// Notification Handlers
-		this.createNotificationsHandlers(instantiationService, notificationService, configurationService);
+		this.createNotificationsHandlers(instantiationService, notificationService);
 
 		// Add Workbench to DOM
 		this.parent.appendChild(this.mainContainer);
@@ -1010,9 +1010,10 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 	private createNotificationsHandlers(
 		instantiationService: IInstantiationService,
-		notificationService: NotificationService,
-		configurationService: IConfigurationService
+		notificationService: NotificationService
 	): void {
+		this.registerNotificationRowHeight();
+
 		// Instantiate Notification components
 		const notificationsCenter = this._register(instantiationService.createInstance(NotificationsCenter, this.mainContainer, notificationService.model));
 		const notificationsToasts = this._register(instantiationService.createInstance(NotificationsToasts, this.mainContainer, notificationService.model));
@@ -1035,11 +1036,6 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		// Register notification accessible view
 		AccessibleViewRegistry.register(new NotificationAccessibleView());
 
-		// The shared notification controllers apply a top-right inline offset based on the
-		// default workbench custom titlebar height. The sessions workbench has its own
-		// fixed chrome, so re-apply the sessions-specific top-right offset after they run.
-		this.registerSessionsNotificationOffsets(configurationService, notificationsCenter, notificationsToasts);
-
 		// Register with Layout
 		this.registerNotifications({
 			onDidChangeNotificationsVisibility: Event.map(
@@ -1049,40 +1045,11 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		});
 	}
 
-	private registerSessionsNotificationOffsets(
-		configurationService: IConfigurationService,
-		notificationsCenter: NotificationsCenter,
-		notificationsToasts: NotificationsToasts
-	): void {
-		const applySessionsNotificationOffsets = () => {
-			const position = getNotificationsPosition(configurationService);
-			const notificationsCenterContainer = this.getWorkbenchChildByClassName('notifications-center');
-			const notificationsToastsContainer = this.getWorkbenchChildByClassName('notifications-toasts');
-
-			if (position === NotificationsPosition.TOP_RIGHT) {
-				notificationsCenterContainer?.style.setProperty('top', '40px');
-				notificationsToastsContainer?.style.setProperty('top', '40px');
-			}
-		};
-
-		this._register(this.onDidLayoutMainContainer(() => applySessionsNotificationOffsets()));
-		this._register(notificationsCenter.onDidChangeVisibility(() => applySessionsNotificationOffsets()));
-		this._register(notificationsToasts.onDidChangeVisibility(() => applySessionsNotificationOffsets()));
-		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(NotificationsSettings.NOTIFICATIONS_POSITION)) {
-				applySessionsNotificationOffsets();
-			}
+	private registerNotificationRowHeight(): void {
+		this._register(autorun(reader => {
+			setNotificationRowHeight(this.layoutPolicy.isPhoneLayout.read(reader) ? PHONE_NOTIFICATION_ROW_HEIGHT : COMPACT_NOTIFICATION_ROW_HEIGHT);
 		}));
-	}
-
-	private getWorkbenchChildByClassName(className: string): HTMLElement | undefined {
-		for (const child of this.mainContainer.children) {
-			if (isHTMLElement(child) && child.classList.contains(className)) {
-				return child;
-			}
-		}
-
-		return undefined;
+		this._register(toDisposable(() => setNotificationRowHeight(DEFAULT_NOTIFICATION_ROW_HEIGHT)));
 	}
 
 	private createPartContainer(id: string, role: string, classes: string[]): HTMLElement {

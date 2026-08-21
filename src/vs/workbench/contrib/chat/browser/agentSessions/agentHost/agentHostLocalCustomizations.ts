@@ -9,7 +9,6 @@ import { ResourceSet } from '../../../../../../base/common/map.js';
 import { basename, isEqualOrParent } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { CustomizationEnablementKind, type AgentCustomization, CustomizationType, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { parseRemoteAgentHostHarness } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
@@ -25,16 +24,24 @@ import { IConfigurationResolverService } from '../../../../../services/configura
 import { ConfigurationResolverExpression } from '../../../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { IWorkspaceFolderData } from '../../../../../../platform/workspace/common/workspace.js';
 import type { ISyncableFile, ISyncableMcpServer, SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
-import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE } from './agentHostToolSetEnablementService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { isDefined } from '../../../../../../base/common/types.js';
 import { PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
 
 const COPILOT_CHAT_EXTENSION_ID = 'github.copilot-chat';
-const COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID = extensionPrefixedIdentifier(new ExtensionIdentifier(COPILOT_CHAT_EXTENSION_ID), 'github');
+export const COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID = extensionPrefixedIdentifier(new ExtensionIdentifier(COPILOT_CHAT_EXTENSION_ID), 'github');
+const LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX = 'agent-host-';
+const AGENT_HOST_PROVIDERS_WITH_GITHUB_MCP = new Set(['copilotcli', 'claude', 'codex']);
+
+export function agentHostProviderHasBuiltInGitHubMcpServer(provider: string): boolean {
+	return AGENT_HOST_PROVIDERS_WITH_GITHUB_MCP.has(provider);
+}
 
 function hasBuiltInGitHubMcpServer(sessionType: string): boolean {
-	return sessionType === AGENT_HOST_COPILOT_CLI_SESSION_TYPE || parseRemoteAgentHostHarness(sessionType) === 'copilotcli';
+	const localProvider = sessionType.startsWith(LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX)
+		? sessionType.slice(LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX.length)
+		: undefined;
+	return agentHostProviderHasBuiltInGitHubMcpServer(localProvider ?? '');
 }
 
 /**
@@ -291,9 +298,8 @@ async function resolveConfigurationForSync(
  * exception is `.vscode/mcp.json`, which the agent host does not discover
  * (despite what the SDK's `enableConfigDiscovery` docs imply) — those are
  * synced, but only when their config can be resolved without requiring user
- * interaction. For Copilot CLI agent-host sessions, the Copilot Chat
- * extension's GitHub MCP provider is excluded because the SDK supplies its own
- * built-in GitHub server.
+ * interaction. For agent-host providers with their own GitHub MCP server, the
+ * Copilot Chat extension's duplicate provider is excluded.
  */
 export async function collectNonPluginMcpServers(mcpService: IMcpService, configurationResolverService: IConfigurationResolverService, sessionType: string, workingDirectories: readonly URI[]): Promise<ISyncableMcpServer[]> {
 	const result: ISyncableMcpServer[] = [];

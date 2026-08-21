@@ -494,6 +494,8 @@ export function resolveAgentHostInstructions(context?: URI | IAgentChatContext):
 
 /** Fully resolved options for creating one chat. */
 export interface IAgentCreateChatOptions {
+	/** Whether the owning session is transient and should skip durable-only provider work. */
+	readonly isEphemeral?: boolean;
 	/** Optional display title for the new chat. */
 	readonly title?: string;
 	/** Optional model override; defaults to the session's model. */
@@ -1030,6 +1032,8 @@ export interface IAgentChatAdoptionResult {
 	readonly adopted: boolean;
 	/** Whether the chat was a genuine legacy adoption candidate. */
 	readonly eligible: boolean;
+	/** Whether the chat already has Agent Host metadata, i.e. it is ours regardless of adoption. */
+	readonly native?: boolean;
 }
 
 /**
@@ -1148,12 +1152,7 @@ export interface IAgent {
 	/** Optional recovery hook for providers with historical backings but no persisted provider data. */
 	recoverLegacyChat?(chat: URI, context: URI | IAgentChatContext): Promise<IAgentCreateChatResult | void>;
 
-	/**
-	 * Enumerate provider-native chats for one-time registry migration.
-	 *
-	 * Returns `undefined` when the provider cannot enumerate yet; `[]` is an
-	 * authoritative result indicating there are no legacy chats to migrate.
-	 */
+	/** Enumerate provider-native chats for registry migration; `undefined` means the catalog is unavailable. */
 	listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | undefined>;
 
 	/** Optional migration codec for providers that persisted peer backings before the host catalog. */
@@ -1185,6 +1184,9 @@ export interface IAgent {
 
 	/** Optional managed-settings snapshot for providers with an enterprise policy surface. */
 	getManagedSettingsDiagnostics?(): Promise<IAgentHostManagedSettingsSnapshot>;
+
+	/** Return the provider-owned state file for a session, when one exists. */
+	getSessionStateFile?(session: URI): Promise<URI | undefined>;
 
 	/** Add provider-owned diagnostics to an Agent Host debug-log staging directory. */
 	collectDebugLogs?(session: URI | undefined, outputDirectory: URI): Promise<boolean>;

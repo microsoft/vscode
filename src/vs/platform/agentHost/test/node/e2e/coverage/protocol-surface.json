@@ -22,9 +22,9 @@
 		]
 	},
 	"actions": {
-		"covered": 75,
+		"covered": 76,
 		"total": 85,
-		"percentage": 88.23,
+		"percentage": 89.41,
 		"uncovered": [
 			"changeset/fileRemoved",
 			"changeset/fileSet",
@@ -33,7 +33,6 @@
 			"chat/toolCallAuthRequired",
 			"chat/toolCallAuthResolved",
 			"session/activityChanged",
-			"session/customizationRemoved",
 			"session/defaultChatChanged",
 			"terminal/commandDetectionAvailable"
 		]

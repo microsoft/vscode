@@ -1366,6 +1366,12 @@ export interface ISessionGitState {
 	readonly hasGitHubRemote?: boolean;
 	/** Current branch name. */
 	readonly branchName?: string;
+	/**
+	 * Whether `HEAD` is detached, which is why {@link branchName} is absent.
+	 * Distinguishes a legitimately branch-less checkout from git state left
+	 * behind by a probe that failed before it could resolve the branch.
+	 */
+	readonly isDetachedHead?: boolean;
 	/** Base branch the work targets (e.g. `main`). */
 	readonly baseBranchName?: string;
 	/** Upstream tracking branch (e.g. `origin/feature`). */
@@ -1581,6 +1587,7 @@ export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitS
 	const result: {
 		hasGitHubRemote?: boolean;
 		branchName?: string;
+		isDetachedHead?: boolean;
 		baseBranchName?: string;
 		upstreamBranchName?: string;
 		incomingChanges?: number;
@@ -1593,6 +1600,7 @@ export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitS
 	} = {};
 	if (typeof raw['hasGitHubRemote'] === 'boolean') { result.hasGitHubRemote = raw['hasGitHubRemote']; }
 	if (typeof raw['branchName'] === 'string') { result.branchName = raw['branchName']; }
+	if (typeof raw['isDetachedHead'] === 'boolean') { result.isDetachedHead = raw['isDetachedHead']; }
 	if (typeof raw['baseBranchName'] === 'string') { result.baseBranchName = raw['baseBranchName']; }
 	if (typeof raw['upstreamBranchName'] === 'string') { result.upstreamBranchName = raw['upstreamBranchName']; }
 	if (typeof raw['incomingChanges'] === 'number') { result.incomingChanges = raw['incomingChanges']; }
@@ -1603,6 +1611,23 @@ export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitS
 	if (typeof raw['githubHeadOwner'] === 'string') { result.githubHeadOwner = raw['githubHeadOwner']; }
 	if (typeof raw['githubRepo'] === 'string') { result.githubRepo = raw['githubRepo']; }
 	return result;
+}
+
+/**
+ * Whether a session's git state should be recomputed because it does not
+ * describe a usable checkout.
+ *
+ * A state that was never computed obviously qualifies. So does one that is
+ * missing its branch without a detached `HEAD` to explain it: `git status` is
+ * the only probe that reports the branch, so such a state is the residue of a
+ * probe that failed, and consumers that key off the branch (Agent Merge binds
+ * its pull request that way) stay stranded until it is recomputed. A detached
+ * `HEAD` is a legitimate branch-less checkout and must not be mistaken for it,
+ * or every caller would refresh in a loop against a repository that will never
+ * report a branch.
+ */
+export function needsSessionGitStateRefresh(gitState: ISessionGitState | undefined): boolean {
+	return gitState === undefined || (gitState.branchName === undefined && !gitState.isDetachedHead);
 }
 
 /**

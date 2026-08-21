@@ -6,6 +6,18 @@
 import type { ToolDefinition, URI } from './state/sessionState.js';
 
 /**
+ * A server tool definition plus agent-host-local metadata that is not part of
+ * the wire protocol.
+ */
+export interface IAgentServerToolDefinition extends ToolDefinition {
+	/**
+	 * Whether this tool is offered to ephemeral sessions. Defaults to `false` so
+	 * throwaway surfaces do not pay for session-management tooling.
+	 */
+	readonly enabledForEphemeralSessions?: boolean;
+}
+
+/**
  * Server-side host for the agent host's **server tools** — tools that the
  * agent host owns and executes in-process (against a session's own state
  * channels) rather than round-tripping to the workbench. Providers (Copilot,
@@ -22,7 +34,9 @@ import type { ToolDefinition, URI } from './state/sessionState.js';
  */
 export interface IAgentServerToolHost {
 	/** Every server tool definition across the contributed groups. */
-	readonly definitions: readonly ToolDefinition[];
+	readonly definitions: readonly IAgentServerToolDefinition[];
+	/** Server tools eligible for the given session, honoring ephemeral eligibility. */
+	getDefinitionsForSession(sessionUri: URI): readonly IAgentServerToolDefinition[];
 	/** Names of every server tool across the contributed groups. */
 	readonly toolNames: readonly string[];
 	/** Advertises all server tools on the session's `serverTools`. */

@@ -23,6 +23,7 @@
  */
 
 import { createRequire } from 'module';
+import { Buffer } from 'buffer';
 import * as fs from 'fs';
 import * as https from 'https';
 import * as os from 'os';
@@ -30,6 +31,9 @@ import * as path from 'path';
 import { SDK_PACKAGE_NAME } from './common.ts';
 
 const SCRIPT = 'nuget.ts';
+const VSCODE_FEED_PREFIX = 'https://pkgs.dev.azure.com/monacotools/';
+const VSS_NUGET_ACCESSTOKEN = 'VSS_NUGET_ACCESSTOKEN';
+export const VSCODE_NUGET_FEED = 'https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/nuget/v3/index.json';
 
 /**
  * `adm-zip`, resolved through `foundry-local-sdk`'s own dependency tree (it is a
@@ -42,16 +46,25 @@ function loadAdmZip(): any {
 	return fromSdk('adm-zip');
 }
 
-/**
- * NuGet feeds tried in order, matching `foundry-local-sdk`'s installer: the
- * stable nuget.org feed first, then the public ORT-Nightly Azure DevOps feed
- * (where pre-release Foundry Local Core / ORT / ORT-GenAI builds live before
- * they reach nuget.org).
- */
+/** The authenticated VS Code NuGet feed used for native runtime packages. */
 const FEEDS: readonly string[] = [
-	'https://api.nuget.org/v3/index.json',
-	'https://pkgs.dev.azure.com/aiinfra/PublicPackages/_packaging/ORT-Nightly/nuget/v3/index.json',
+	VSCODE_NUGET_FEED,
 ];
+
+function getRequestOptions(url: string): https.RequestOptions {
+	if (!url.startsWith(VSCODE_FEED_PREFIX)) {
+		return {};
+	}
+	const token = process.env[VSS_NUGET_ACCESSTOKEN];
+	if (!token) {
+		throw new Error(`${VSS_NUGET_ACCESSTOKEN} is required to access the VS Code NuGet feed.`);
+	}
+	return {
+		headers: {
+			Authorization: `Basic ${Buffer.from(`vscode:${token}`).toString('base64')}`,
+		},
+	};
+}
 
 /** The NuGet Runtime IDentifier for each supported runtime target. */
 const RID_BY_TARGET: Readonly<Record<string, string>> = {
@@ -72,18 +85,54 @@ export interface INugetArtifact {
 	readonly version: string;
 }
 
+export interface IFoundryDependencyVersions {
+	readonly 'foundry-local-core': { readonly nuget: string };
+	readonly onnxruntime: { readonly version: string };
+	readonly 'onnxruntime-genai': { readonly version: string };
+}
+
+export interface IFetchCoreLibrariesOptions {
+	readonly feeds?: readonly string[];
+	readonly skipIfPresent?: boolean;
+}
+
+export function supportsCoreLibraryTarget(target: string): boolean {
+	return Object.hasOwn(RID_BY_TARGET, target);
+}
+
+export function getStandardArtifacts(target: string, dependencies: IFoundryDependencyVersions): readonly INugetArtifact[] {
+	const ortPackageName = target === 'linux-x64' ? 'Microsoft.ML.OnnxRuntime.Gpu.Linux' : 'Microsoft.ML.OnnxRuntime.Foundry';
+	return [
+		{ name: 'Microsoft.AI.Foundry.Local.Core', version: dependencies['foundry-local-core'].nuget },
+		{ name: ortPackageName, version: dependencies.onnxruntime.version },
+		{ name: 'Microsoft.ML.OnnxRuntimeGenAI.Foundry', version: dependencies['onnxruntime-genai'].version },
+	];
+}
+
+export function requiredCoreLibraryNames(target: string): readonly string[] {
+	const isWin = target.startsWith('win32-');
+	const ext = isWin ? '.dll' : target.startsWith('darwin-') ? '.dylib' : '.so';
+	const prefix = isWin ? '' : 'lib';
+	return [
+		`Microsoft.AI.Foundry.Local.Core${ext}`,
+		`${prefix}onnxruntime${ext}`,
+		`${prefix}onnxruntime-genai${ext}`,
+	];
+}
+
 /**
  * Download each `artifact` `.nupkg` for `target`'s RID and extract its native
  * shared libraries into `binDir`. Throws if a package can't be fetched from any
  * feed; callers verify the resulting library set separately.
  */
-export async function fetchCoreLibraries(target: string, artifacts: readonly INugetArtifact[], binDir: string): Promise<void> {
+export async function fetchCoreLibraries(target: string, artifacts: readonly INugetArtifact[], binDir: string, options?: IFetchCoreLibrariesOptions): Promise<void> {
 	const rid = RID_BY_TARGET[target];
 	if (!rid) {
 		throw new Error(`[${SCRIPT}] No NuGet RID mapping for target '${target}'.`);
 	}
 	const ext = libExt(target);
 	const AdmZip = loadAdmZip();
+	const feeds = options?.feeds ?? FEEDS;
 
 	fs.mkdirSync(binDir, { recursive: true });
 	const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dictation-nuget-'));
@@ -91,7 +140,7 @@ export async function fetchCoreLibraries(target: string, artifacts: readonly INu
 	try {
 		console.log(`[${SCRIPT}] Fetching native libraries for RID ${rid} (target ${target})...`);
 		for (const artifact of artifacts) {
-			await installPackage(artifact, rid, ext, tempDir, binDir, AdmZip, serviceIndexCache);
+			await installPackage(artifact, target, rid, ext, tempDir, binDir, AdmZip, serviceIndexCache, feeds, options?.skipIfPresent ?? false);
 		}
 	} finally {
 		fs.rmSync(tempDir, { recursive: true, force: true });
@@ -100,16 +149,27 @@ export async function fetchCoreLibraries(target: string, artifacts: readonly INu
 
 async function installPackage(
 	artifact: INugetArtifact,
+	target: string,
 	rid: string,
 	ext: string,
 	tempDir: string,
 	binDir: string,
 	AdmZip: any,
 	serviceIndexCache: Map<string, unknown>,
+	feeds: readonly string[],
+	skipIfPresent: boolean,
 ): Promise<void> {
+	if (skipIfPresent) {
+		const expectedFile = expectedCoreLibraryName(target, artifact.name);
+		if (expectedFile && fs.existsSync(path.join(binDir, expectedFile))) {
+			console.log(`[${SCRIPT}]   ${artifact.name}: already present, skipping download.`);
+			return;
+		}
+	}
+
 	let lastError: unknown;
-	for (let i = 0; i < FEEDS.length; i++) {
-		const feedUrl = FEEDS[i];
+	for (let i = 0; i < feeds.length; i++) {
+		const feedUrl = feeds[i];
 		const feedHost = new URL(feedUrl).host;
 		try {
 			const baseAddress = await getBaseAddress(feedUrl, serviceIndexCache);
@@ -134,13 +194,27 @@ async function installPackage(
 		} catch (err) {
 			lastError = err;
 			const reason = err instanceof Error ? err.message : String(err);
-			if (i < FEEDS.length - 1) {
+			if (i < feeds.length - 1) {
 				console.warn(`[${SCRIPT}]   ${artifact.name} ${artifact.version}: download from ${feedHost} failed (${reason}); trying next feed...`);
 			}
 		}
 	}
-	const feeds = FEEDS.map(f => new URL(f).host).join(', ');
-	throw new Error(`[${SCRIPT}] Failed to download ${artifact.name} ${artifact.version} from any feed (${feeds}): ${lastError instanceof Error ? lastError.message : lastError}`);
+	const feedHosts = feeds.map(feed => new URL(feed).host).join(', ');
+	throw new Error(`[${SCRIPT}] Failed to download ${artifact.name} ${artifact.version} from any feed (${feedHosts}): ${lastError instanceof Error ? lastError.message : lastError}`);
+}
+
+function expectedCoreLibraryName(target: string, packageName: string): string | undefined {
+	const [foundryCore, onnxRuntime, onnxRuntimeGenAI] = requiredCoreLibraryNames(target);
+	if (packageName.includes('Foundry.Local.Core')) {
+		return foundryCore;
+	}
+	if (packageName.includes('OnnxRuntimeGenAI')) {
+		return onnxRuntimeGenAI;
+	}
+	if (packageName.includes('OnnxRuntime')) {
+		return onnxRuntime;
+	}
+	return undefined;
 }
 
 /**
@@ -204,7 +278,7 @@ function downloadToFile(url: string, dest: string): Promise<void> {
 function followRedirects<T>(url: string, onOk: (res: import('http').IncomingMessage) => Promise<T>): Promise<T> {
 	return new Promise<T>((resolve, reject) => {
 		const request = (currentUrl: string, redirectsLeft: number): void => {
-			https.get(currentUrl, res => {
+			https.get(currentUrl, getRequestOptions(currentUrl), res => {
 				const status = res.statusCode ?? 0;
 				if (status >= 300 && status < 400 && res.headers.location) {
 					res.resume();

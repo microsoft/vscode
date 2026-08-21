@@ -319,8 +319,8 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 
 			this._dataStore.clear();
 			this._viewModel.set(data.viewModel, tx);
-			this.editor.setDiffModel(data.viewModel.diffEditorViewModelRef, tx);
 			this.editor.updateOptions(updateOptions(value.options ?? {}));
+			this.editor.setDiffModel(data.viewModel.diffEditorViewModelRef, tx);
 		});
 		if (value.onOptionsDidChange) {
 			this._dataStore.add(value.onOptionsDidChange(() => {

@@ -13,6 +13,8 @@ import type { ResolveSessionConfigResult } from '../../platform/agentHost/common
  */
 export const DOCK_DETAIL_PANEL_SETTING = 'sessions.layout.singlePaneDetailPanel';
 
+export const SHOW_SESSION_METADATA_IN_CHAT_INPUT_SETTING = 'chat.agentSessions.showSessionMetadataInInput';
+
 export function isSessionConfigComplete(config: ResolveSessionConfigResult): boolean {
 	return (config.schema.required ?? []).every(property => config.values[property] !== undefined);
 }

@@ -73,6 +73,10 @@ export class ObjectTree<T, TFilterData = void> extends AbstractTree<T | null, TF
 		this.view.updateElementHeight(elementIndex, height);
 	}
 
+	getListRenderCount(element: T | null): number {
+		return this.model.getListRenderCount(element);
+	}
+
 	resort(element: T | null, recursive = true): void {
 		this.model.resort(element, recursive);
 	}

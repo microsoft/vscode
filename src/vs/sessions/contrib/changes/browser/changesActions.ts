@@ -26,7 +26,7 @@ import { MultiDiffEditor } from '../../../../workbench/contrib/multiDiffEditor/b
 import { DiffEditorWidget } from '../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';
-import { SessionHeaderMetaActionViewItem } from '../../../browser/parts/sessionHeaderMetaActionViewItem.js';
+import { ChatPillActionViewItem } from '../../../../workbench/browser/chatPills.js';
 import { IsQuickChatSessionContext, SessionHasChangesContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -235,7 +235,7 @@ interface IDiffStats {
 /**
  * Renders the {@link ViewAllChangesAction} menu item contributed into {@link Menus.SessionHeaderMeta}
  * (the session header meta row) as a `<diff-icon> <n> files +insertions -deletions` pill. It extends the
- * generic {@link SessionHeaderMetaActionViewItem} (so the icon and label render consistently with other
+ * generic {@link ChatPillActionViewItem} (so the icon and label render consistently with other
  * meta actions) and appends the session's live aggregate diff stats. Activating the item runs the
  * action, which opens the multi-file diff editor.
  *
@@ -245,7 +245,7 @@ interface IDiffStats {
  * changeset the provider marks as {@link ISessionChangeset.isDefault} (or the session's
  * top-level {@link IActiveSession.changes} when none is default).
  */
-export class ViewAllChangesActionViewItem extends SessionHeaderMetaActionViewItem {
+export class ViewAllChangesActionViewItem extends ChatPillActionViewItem {
 
 	private readonly _diffStatsObs: IObservable<IDiffStats>;
 
@@ -309,8 +309,8 @@ export class ViewAllChangesActionViewItem extends SessionHeaderMetaActionViewIte
 	protected override getAdditionalLabelContent(): Array<HTMLElement | string> {
 		const { insertions, deletions } = this._diffStatsObs.get();
 		return [
-			$('span.chat-composite-bar-meta-added', undefined, `+${insertions}`),
-			$('span.chat-composite-bar-meta-removed', undefined, `-${deletions}`),
+			$('span.chat-pill-added', undefined, `+${insertions}`),
+			$('span.chat-pill-removed', undefined, `-${deletions}`),
 		];
 	}
 

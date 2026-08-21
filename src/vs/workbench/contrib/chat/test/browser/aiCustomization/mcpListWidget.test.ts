@@ -35,6 +35,7 @@ import {
 	getLocalMcpServerEnablementActions,
 	getMcpServerOutputHandler,
 	getMcpStatusPresentation,
+	isMcpServerCollectionVisible,
 	getMcpStatusRenderSignature,
 	getServerItemContextMenuActions,
 	McpServerItemRenderer,
@@ -110,6 +111,18 @@ suite('mcpListWidget', () => {
 			type: 'session-server-item',
 			server,
 		}]);
+	});
+
+	test('filters local MCP collections hidden by the active harness', () => {
+		assert.deepStrictEqual({
+			defaultVisible: isMcpServerCollectionVisible('extension/github', undefined),
+			visible: isMcpServerCollectionVisible('extension/context7', ['extension/github']),
+			hidden: isMcpServerCollectionVisible('extension/github', ['extension/github']),
+		}, {
+			defaultVisible: true,
+			visible: true,
+			hidden: false,
+		});
 	});
 
 	test('renders host-published disabled reasons without changing legacy rows', () => {

@@ -46,6 +46,8 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType, IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { ChatPetAchievementIds, shouldUnlockChatPetIntegratedBrowserShare } from '../../../chat/browser/chatPetAchievements.js';
+import { IChatPetService } from '../../../chat/browser/chatPetService.js';
 
 // Register tools
 import '../tools/browserTools.contribution.js';
@@ -180,6 +182,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IAccessibleViewService private readonly accessibleViewService: IAccessibleViewService,
+		@IChatPetService private readonly chatPetService: IChatPetService,
 	) {
 		super(editor);
 		this._elementSelectionModeContext = CONTEXT_BROWSER_ELEMENT_SELECTION_MODE.bindTo(contextKeyService);
@@ -204,7 +207,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		this._shareButton.label = '$(share-window)';
 
 		this._register(this._shareButton.onDidClick(() => {
-			this._toggleShareWithAgent();
+			void this._toggleShareWithAgent();
 		}));
 
 		// Auto-disable element selection when the user sends a chat request.
@@ -303,12 +306,22 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 
 	// -- Sharing -------------------------------------------------------
 
-	private _toggleShareWithAgent(): void {
+	private async _toggleShareWithAgent(): Promise<void> {
 		const model = this.editor.model;
 		if (!model) {
 			return;
 		}
-		model.setSharedWithAgent(model.sharingState !== BrowserViewSharingState.Shared);
+		const shared = model.sharingState !== BrowserViewSharingState.Shared;
+		let succeeded: boolean;
+		try {
+			succeeded = await model.setSharedWithAgent(shared);
+		} catch (error) {
+			this.logService.error('BrowserEditor.toggleShareWithAgent: Failed to update sharing state', error);
+			return;
+		}
+		if (shouldUnlockChatPetIntegratedBrowserShare(shared, succeeded)) {
+			this.chatPetService.unlockAchievement(ChatPetAchievementIds.IntegratedBrowserShared);
+		}
 	}
 
 	private _updateSharingState(isInitialState: boolean): void {

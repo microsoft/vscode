@@ -225,6 +225,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._requireClient().diagnosticsFetch(url);
 	}
 
+	getSessionStateFile(session: URI): Promise<URI | undefined> {
+		return this._requireClient().getSessionStateFile(session);
+	}
+
 	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> {
 		return this._requireClient().collectDebugLogs(session, kind);
 	}

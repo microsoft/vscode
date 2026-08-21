@@ -15,108 +15,212 @@
 <body>
 	<header>
 		<div class="header-content">
-			<h1>Mock Policy Server</h1>
-			<button id="clear-cache" type="button" class="btn-warn">Clear Policy Cache</button>
+			<div class="brand">
+				<h1>Mock Policy Server</h1>
+				<p>Test Copilot policy responses against a local server.</p>
+			</div>
+			<div class="header-actions">
+				<nav class="page-nav" aria-label="Mock policy server">
+					<div class="setup-status-group">
+						<button id="setup-nav" type="button" class="setup-trigger" aria-haspopup="dialog"
+							aria-controls="setup-dialog" aria-expanded="false">Setup</button>
+						<div id="global-connection-status" class="global-status" data-state="checking" role="status" aria-live="polite">
+							<span class="status-indicator" aria-hidden="true"></span>
+							<span id="global-connection-label">Checking connection…</span>
+						</div>
+					</div>
+					<a id="policies-nav" href="#policies" aria-current="page">Policies</a>
+				</nav>
+				<button id="clear-cache" type="button" class="btn-header">Clear Policy Cache</button>
+			</div>
 		</div>
 	</header>
 
-	<main>
-		<section class="editor-panel">
-			<div class="tabs-header">
-				<nav id="tabs" class="tabs" aria-label="Policy endpoints"></nav>
+	<main class="app-main">
+		<dialog id="setup-dialog" class="setup-dialog" aria-labelledby="setup-title">
+			<div class="dialog-actions">
+				<button id="close-setup" type="button" class="btn-secondary">Close Setup</button>
+			</div>
+			<section id="setup-page" class="setup-page" aria-labelledby="setup-title">
+			<div class="setup-intro">
+				<div>
+					<p class="eyebrow">Connect a client</p>
+					<h2 id="setup-title">Route policy requests to this server</h2>
+					<p class="setup-lede">Select a connection method below to enable its steps. You can switch methods at any time.</p>
+				</div>
 			</div>
 
-			<div class="content-section">
-				<p id="endpoint-meta" class="endpoint-meta"></p>
-
-				<div class="form-group">
-					<label for="preset">Preset</label>
-					<select id="preset"></select>
-				</div>
-
-				<div class="form-group">
-					<label for="response-status">HTTP status code</label>
-					<input id="response-status" class="status-code-input" type="number" min="200" max="599" step="1"
-						inputmode="numeric" aria-describedby="response-status-validation">
-					<p id="response-status-validation" class="status" aria-live="polite"></p>
-				</div>
-
-				<div id="schema-section" class="section-block" hidden>
-					<h2 class="schema-heading">
-						<button type="button" class="section-header section-header-toggle" id="schema-toggle"
-							aria-expanded="false" aria-controls="schema-details">
-							<span class="chevron" id="schema-chevron" aria-hidden="true">&#9654;</span>
-							<span>Schema</span>
-							<span id="schema-badge" class="schema-badge" data-tooltip="">&hellip;</span>
-						</button>
-					</h2>
-					<div id="schema-details" class="schema-details" hidden>
-						<span class="label-small">Schema source</span>
-						<code id="schema-source" class="block"></code>
-						<button id="hydrate-schema" type="button" class="btn-secondary">Generate Example</button>
+			<fieldset class="setup-method-picker">
+				<legend class="sr-only">Connection method</legend>
+				<div class="setup-methods">
+				<article id="proxy-method" class="setup-method recommended" data-selected="true">
+					<div class="method-heading">
+						<div class="method-choice">
+							<input id="setup-method-proxy" type="radio" name="setup-method" value="proxy" checked>
+							<label class="method-label" for="setup-method-proxy">
+								<span class="method-badge">Recommended</span>
+								<h3>System Proxy</h3>
+								<span class="method-recommendation">Recommended on macOS: Proxyman</span>
+								<p>Routes policy requests from Code OSS, Stable, Insiders, Copilot CLI, and SDK/runtime clients.</p>
+							</label>
+						</div>
+						<div class="method-status">
+							<div id="proxy-status" class="status-pill" data-state="checking" role="status" aria-live="polite">Checking…</div>
+							<p id="proxy-check-detail">Waiting for the automatic connection check.</p>
+						</div>
 					</div>
-				</div>
 
-				<div class="form-group">
-					<div class="label-row">
-						<label for="editor">Response body (JSON)</label>
-						<span id="save-state" class="save-state" aria-live="polite"></span>
+					<ol id="proxy-method-steps" class="setup-steps">
+						<li>
+							<div class="step-number" aria-hidden="true">1</div>
+							<div class="step-content">
+								<h4>Configure the system proxy</h4>
+								<p>Redirect the managed settings URL to this local server. In Proxyman, create a Map Remote rule using these values.</p>
+								<div class="mapping-grid">
+									<div class="code-field">
+										<span class="label-small">Map from</span>
+										<code id="map-from" class="block"></code>
+									</div>
+									<div class="mapping-arrow" aria-hidden="true">→</div>
+									<div class="code-field">
+										<span class="label-small">Map to</span>
+										<code id="map-to" class="block"></code>
+									</div>
+								</div>
+								<button id="copy-map" type="button" class="btn-secondary">Copy Mapping</button>
+								<details>
+									<summary>Proxyman tips</summary>
+									<ul>
+										<li>Turn on macOS Proxy in Proxyman before checking the connection.</li>
+										<li>If HTTPS requests do not appear, install and trust Proxyman's certificate.</li>
+										<li>Keep the source and destination paths identical.</li>
+									</ul>
+								</details>
+								<details>
+									<summary>Optional: configure VS Code explicitly</summary>
+									<p>VS Code normally uses the system proxy. If it does not in your environment, add this to the client's <code>settings.json</code>.</p>
+									<div class="code-field">
+										<span class="label-small">VS Code settings.json</span>
+										<code id="proxy-settings" class="block settings-json"></code>
+									</div>
+									<button id="copy-proxy-settings" type="button" class="btn-secondary">Copy VS Code Setting</button>
+								</details>
+							</div>
+						</li>
+						<li>
+							<div class="step-number" aria-hidden="true">2</div>
+							<div class="step-content">
+								<h4>Request fresh policy in VS Code</h4>
+								<p>Open the Command Palette and run <code>&gt; Developer: Sync Account Policy</code>.</p>
+								<p>To refresh the policy used by Local Agent Host, also run <code>&gt; Developer: Restart Local Agent Host</code>.</p>
+								<p class="helper-text">If no request appears under Live Requests on the Policies page, clear the policy cache from the header and run the commands again.</p>
+							</div>
+						</li>
+					</ol>
+				</article>
+
+				<article id="overrides-method" class="setup-method alternative" data-selected="false">
+					<div class="method-heading">
+						<div class="method-choice">
+							<input id="setup-method-overrides" type="radio" name="setup-method" value="overrides">
+							<label class="method-label" for="setup-method-overrides">
+								<span class="method-badge secondary">Code OSS only</span>
+								<h3>Product overrides</h3>
+								<p>The fastest option for Code OSS built from this checkout. It does not route SDK/runtime requests.</p>
+							</label>
+						</div>
+						<div id="override-status" class="status-pill" data-state="pending" role="status" aria-live="polite">Not applied</div>
 					</div>
-					<textarea id="editor" spellcheck="false" autocomplete="off"
-						aria-describedby="editor-status"></textarea>
-					<p id="editor-status" class="status" aria-live="polite"></p>
-					<div id="validation-results" hidden></div>
+
+					<ol id="overrides-method-steps" class="setup-steps compact" inert>
+						<li>
+							<div class="step-number" aria-hidden="true">1</div>
+							<div class="step-content">
+								<h4>Apply the local endpoint URLs</h4>
+								<p>The server updates <code>product.overrides.json</code> and preserves any other top-level overrides.</p>
+								<button id="overrides-action" type="button" class="btn-primary">Apply Overrides</button>
+							</div>
+						</li>
+						<li>
+							<div class="step-number" aria-hidden="true">2</div>
+							<div class="step-content">
+								<h4>Reload and request policy</h4>
+								<p>Reload Code OSS, sign in, open the Command Palette, and run <code>&gt; Developer: Sync Account Policy</code>.</p>
+								<p class="helper-text">If no request appears under Live Requests on the Policies page, clear the policy cache from the header and run the command again.</p>
+							</div>
+						</li>
+					</ol>
+				</article>
 				</div>
+			</fieldset>
+
+			</section>
+		</dialog>
+
+		<section id="policies-page" class="policies-page" aria-labelledby="policies-title">
+			<h2 id="policies-title" class="sr-only" tabindex="-1">Policy Editor</h2>
+			<div class="policies-layout">
+				<section class="editor-panel">
+					<div class="tabs-header">
+						<nav id="tabs" class="tabs" aria-label="Policy endpoints"></nav>
+					</div>
+
+					<div class="content-section">
+						<p id="endpoint-meta" class="endpoint-meta"></p>
+
+						<div class="form-group">
+							<label for="preset">Preset</label>
+							<select id="preset"></select>
+						</div>
+
+						<div class="form-group">
+							<label for="response-status">HTTP status code</label>
+							<input id="response-status" class="status-code-input" type="number" min="200" max="599" step="1"
+								inputmode="numeric" aria-describedby="response-status-validation">
+							<p id="response-status-validation" class="status" aria-live="polite"></p>
+						</div>
+
+						<div id="schema-section" class="section-block" hidden>
+							<h2 class="schema-heading">
+								<button type="button" class="section-header section-header-toggle" id="schema-toggle"
+									aria-expanded="false" aria-controls="schema-details">
+									<span class="chevron" id="schema-chevron" aria-hidden="true">&#9654;</span>
+									<span>Schema</span>
+									<span id="schema-badge" class="schema-badge" data-tooltip="">&hellip;</span>
+								</button>
+							</h2>
+							<div id="schema-details" class="schema-details" hidden>
+								<span class="label-small">Schema source</span>
+								<code id="schema-source" class="block"></code>
+								<button id="hydrate-schema" type="button" class="btn-secondary">Generate Example</button>
+							</div>
+						</div>
+
+						<div class="form-group">
+							<div class="label-row">
+								<label for="editor">Response body (JSON)</label>
+								<span id="save-state" class="save-state" aria-live="polite"></span>
+							</div>
+							<textarea id="editor" spellcheck="false" autocomplete="off"
+								aria-describedby="editor-status"></textarea>
+							<p id="editor-status" class="status" aria-live="polite"></p>
+							<div id="validation-results" hidden></div>
+						</div>
+					</div>
+				</section>
+
+				<aside class="sidebar-panel">
+					<div class="section-block">
+						<div class="section-header">
+							<h2>Live Requests</h2>
+							<button id="clear-log" type="button" class="btn-link">Clear</button>
+						</div>
+						<p id="log-empty" class="helper-text">No requests yet.</p>
+						<ul id="log" class="log"></ul>
+					</div>
+				</aside>
 			</div>
 		</section>
-
-		<aside class="sidebar-panel">
-			<div class="section-block">
-				<div class="section-header">
-					<h2>Live requests</h2>
-					<button id="clear-log" type="button" class="btn-link">Clear</button>
-				</div>
-				<p id="log-empty" class="helper-text">No requests yet.</p>
-				<ul id="log" class="log"></ul>
-			</div>
-
-			<div class="section-block">
-				<div class="section-header">
-					<h2>Code OSS Overrides</h2>
-					<button type="button" class="info-button"
-						aria-label="About Code OSS overrides"
-						data-tooltip="Code OSS from sources only. Writes product.overrides.json; reload after applying or restoring. Does not redirect the independent Agent Runtime Resolution probe.">&#9432;</button>
-				</div>
-				<div class="status-box">
-					<span class="label-small">Status</span>
-					<strong id="wired-status">&hellip;</strong>
-				</div>
-				<button id="overrides-action" type="button" class="btn-primary btn-full">Apply Overrides</button>
-			</div>
-
-			<div class="section-block">
-				<div class="section-header">
-					<h2>System Proxy</h2>
-					<button type="button" class="info-button"
-						aria-label="About system proxy setup"
-						data-tooltip="Redirects policy requests for VS Code, Copilot SDK sessions, and Agent Runtime Resolution. After clearing the policy cache, run Developer: Restart Local Agent Host.">&#9432;</button>
-				</div>
-				<div class="kv">
-					<span class="label-small">Map from</span>
-					<code id="map-from" class="block"></code>
-				</div>
-				<div class="kv">
-					<span class="label-small">Map to</span>
-					<code id="map-to" class="block"></code>
-				</div>
-				<button id="copy-map" type="button" class="btn-secondary btn-full">Copy Mapping</button>
-				<div class="kv">
-					<span class="label-small">VS Code settings.json</span>
-					<code id="proxy-settings" class="block settings-json"></code>
-				</div>
-				<button id="copy-proxy-settings" type="button" class="btn-secondary btn-full">Copy VS Code Setting</button>
-			</div>
-		</aside>
 	</main>
 
 	<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>

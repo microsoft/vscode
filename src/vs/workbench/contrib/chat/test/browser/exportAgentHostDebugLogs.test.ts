@@ -5,10 +5,15 @@
 
 import assert from 'assert';
 import { VSBuffer, streamToBuffer } from '../../../../../base/common/buffer.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import type { IAgentHostDebugLogsArtifact, IAgentHostDebugLogsChunk } from '../../../../../platform/agentHost/common/agentService.js';
-import { createHostArtifactStream } from '../../browser/actions/exportAgentHostDebugLogsAction.js';
+import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { collectRotatedLogFiles, createHostArtifactStream } from '../../browser/actions/exportAgentHostDebugLogsAction.js';
 
 function artifactOfSize(size: number): IAgentHostDebugLogsArtifact {
 	return {
@@ -57,5 +62,76 @@ suite('createHostArtifactStream', () => {
 		const stream = createHostArtifactStream(artifactOfSize(10), async () => ({ data: VSBuffer.alloc(0), eof: false }));
 
 		await assert.rejects(streamToBuffer(stream), /empty debug log chunk/);
+	});
+});
+
+suite('collectRotatedLogFiles', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('collects local rotated logs as resources', async () => {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+		const logs = URI.file('/logs');
+		await fileService.createFolder(logs);
+		await Promise.all([
+			fileService.writeFile(URI.joinPath(logs, 'renderer.log'), VSBuffer.fromString('current')),
+			fileService.writeFile(URI.joinPath(logs, 'renderer.1.log'), VSBuffer.fromString('previous')),
+			fileService.writeFile(URI.joinPath(logs, 'renderer.5.log'), VSBuffer.fromString('oldest')),
+			fileService.writeFile(URI.joinPath(logs, 'renderer.old.log'), VSBuffer.fromString('not rotated')),
+			fileService.writeFile(URI.joinPath(logs, 'network.log'), VSBuffer.fromString('different log')),
+		]);
+
+		const files = await collectRotatedLogFiles('vscode-logs/Window', URI.joinPath(logs, 'renderer.log'), fileService);
+
+		assert.deepStrictEqual(files.map(file => ({
+			path: file.path,
+			resource: hasKey(file, { resource: true }) ? file.resource.toString() : undefined,
+			size: file.size,
+		})).sort((a, b) => a.path.localeCompare(b.path)), [
+			{ path: 'vscode-logs/Window/renderer.1.log', resource: 'file:///logs/renderer.1.log', size: 8 },
+			{ path: 'vscode-logs/Window/renderer.5.log', resource: 'file:///logs/renderer.5.log', size: 6 },
+			{ path: 'vscode-logs/Window/renderer.log', resource: 'file:///logs/renderer.log', size: 7 },
+		]);
+	});
+
+	test('bounds inline content for non-local rotated logs', async () => {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		const logs = URI.from({ scheme: Schemas.inMemory, path: '/logs' });
+		await fileService.createFolder(logs);
+		await Promise.all([
+			fileService.writeFile(URI.joinPath(logs, 'renderer.log'), VSBuffer.fromString('abcd')),
+			fileService.writeFile(URI.joinPath(logs, 'renderer.1.log'), VSBuffer.fromString('efgh')),
+		]);
+
+		const files = await collectRotatedLogFiles('vscode-logs/Window', URI.joinPath(logs, 'renderer.log'), fileService, 6);
+
+		assert.deepStrictEqual({
+			count: files.length,
+			allInline: files.every(file => hasKey(file, { contents: true })),
+			totalSize: files.reduce((total, file) => total + file.size, 0),
+		}, {
+			count: 2,
+			allInline: true,
+			totalSize: 6,
+		});
+	});
+
+	test('collects local user data logs as resources', async () => {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new InMemoryFileSystemProvider())));
+		const logs = URI.from({ scheme: Schemas.vscodeUserData, path: '/logs' });
+		await fileService.createFolder(logs);
+		await fileService.writeFile(URI.joinPath(logs, 'usage.jsonl'), VSBuffer.fromString('usage'));
+
+		const files = await collectRotatedLogFiles('sidecars', URI.joinPath(logs, 'usage.jsonl'), fileService);
+
+		assert.deepStrictEqual(files.map(file => ({
+			path: file.path,
+			resource: hasKey(file, { resource: true }) ? file.resource.toString() : undefined,
+			size: file.size,
+		})), [
+			{ path: 'sidecars/usage.jsonl', resource: 'vscode-userdata:/logs/usage.jsonl', size: 5 },
+		]);
 	});
 });

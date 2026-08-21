@@ -76,6 +76,7 @@ class MockAgentConnection implements IAgentConnection {
 	async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> { return { version: 'test', os: 'test', arch: 'test', proxySettings: {}, proxyEnv: {}, endpoints: [] }; }
 	async getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]> { return []; }
 	async diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> { return { url }; }
+	async getSessionStateFile(_session: URI): Promise<URI | undefined> { throw new Error('Not implemented'); }
 	async collectDebugLogs(_session: URI | undefined, _kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> { throw new Error('Not implemented'); }
 	async readDebugLogsChunk(_resource: URI, _position: number): Promise<IAgentHostDebugLogsChunk> { throw new Error('Not implemented'); }
 	async listSessions(): Promise<IAgentSessionMetadata[]> { return []; }

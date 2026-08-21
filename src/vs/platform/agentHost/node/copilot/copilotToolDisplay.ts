@@ -37,7 +37,7 @@ import { getServerToolDisplay } from '../shared/serverToolGroups.js';
  * Known Copilot CLI tool names. These are the `toolName` values that appear
  * in `tool.execution_start` events from the SDK.
  */
-const enum CopilotToolName {
+export const enum CopilotToolName {
 	StrReplaceEditor = 'str_replace_editor',
 	StrReplace = 'str_replace',
 	Insert = 'insert',
@@ -95,6 +95,14 @@ const enum CopilotToolName {
 	ToolSearchToolRegex = 'tool_search_tool_regex',
 	CodeqlChecker = 'codeql_checker',
 }
+
+/**
+ * Copilot CLI tools withheld from ephemeral sessions, where subagents only add
+ * latency.
+ */
+export const EPHEMERAL_DISABLED_COPILOT_TOOLS: readonly CopilotToolName[] = [
+	CopilotToolName.Task,
+];
 
 /** Parameters for the `bash` / `powershell` shell tools. */
 interface ICopilotShellToolArgs {

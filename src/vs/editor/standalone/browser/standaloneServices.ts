@@ -1005,14 +1005,14 @@ class StandaloneContextViewService extends ContextViewService {
 		super(layoutService);
 	}
 
-	override showContextView(delegate: IContextViewDelegate, container?: HTMLElement, shadowRoot?: boolean): IOpenContextView {
+	override showContextView(delegate: IContextViewDelegate, container?: HTMLElement, shadowRoot?: boolean, useWindowContainerForShadowRoot?: boolean): IOpenContextView {
 		if (!container) {
 			const codeEditor = this._codeEditorService.getFocusedCodeEditor() || this._codeEditorService.getActiveCodeEditor();
 			if (codeEditor) {
 				container = codeEditor.getContainerDomNode();
 			}
 		}
-		return super.showContextView(delegate, container, shadowRoot);
+		return super.showContextView(delegate, container, shadowRoot, useWindowContainerForShadowRoot);
 	}
 }
 

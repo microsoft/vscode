@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { URI } from '../../../../../base/common/uri.js';
 import type { IResponsePartAction } from '../../../common/state/sessionActions.js';
 import { ResponsePartKind, type MarkdownResponsePart } from '../../../common/state/sessionState.js';
 import {
@@ -81,7 +82,7 @@ suite('Protocol WebSocket — Permissions & Auto-Approve', function () {
 	test('auto-approves write to regular file (no pending confirmation)', async function () {
 		this.timeout(10_000);
 
-		const sessionUri = await createAndSubscribeSession(client, 'test-autoapprove', 'file:///workspace');
+		const sessionUri = await createAndSubscribeSession(client, 'test-autoapprove', URI.file(process.cwd()).toString());
 		client.clearReceived();
 
 		// Start a turn that triggers a write permission request for a regular .ts file
@@ -107,7 +108,7 @@ suite('Protocol WebSocket — Permissions & Auto-Approve', function () {
 	test('blocks write to .env file (requires manual confirmation)', async function () {
 		this.timeout(10_000);
 
-		const sessionUri = await createAndSubscribeSession(client, 'test-autoapprove-deny', 'file:///workspace');
+		const sessionUri = await createAndSubscribeSession(client, 'test-autoapprove-deny', URI.file(process.cwd()).toString());
 		client.clearReceived();
 
 		// Start a turn that tries to write .env (blocked by default patterns)
@@ -195,7 +196,7 @@ suite('Protocol WebSocket — Permissions & Auto-Approve', function () {
 	test('dispatches pending_confirmation that arrives without an active turn (does not hang)', async function () {
 		this.timeout(10_000);
 
-		const sessionUri = await createAndSubscribeSession(client, 'test-orphan-confirmation', 'file:///workspace');
+		const sessionUri = await createAndSubscribeSession(client, 'test-orphan-confirmation', URI.file(process.cwd()).toString());
 		client.clearReceived();
 
 		// The mock completes the turn, then simulates a hook-triggered

@@ -25,9 +25,12 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { AutomationStore } from '../../../automations/browser/automationService.js';
 import { providerAutomationStorageKey } from '../../../automations/common/automationStorageService.js';
-import { ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ISessionsProviderAutomations, type SessionResourceResolveReason } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { getCopilotCliSessionRawId, migratedCopilotCliResource } from '../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
+import { adoptLegacyCopilotCliResource, LEGACY_MIGRATION_RESTORE_TIMEOUT_MS, LEGACY_MIGRATION_TIMEOUT_MS } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLegacyMigration.js';
+import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
@@ -74,6 +77,32 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 
 	override get order(): number {
 		return -1;
+	}
+
+	/**
+	 * Redirects a legacy extension-host Copilot CLI resource to its agent-host
+	 * twin, adopting it on the way.
+	 *
+	 * Subscribing to the twin is what performs adoption: the host restores the
+	 * session, which runs its own provenance and working-directory checks. A
+	 * session that is not ours to adopt fails that subscribe, and the caller falls
+	 * back to the legacy resource, so an external session is never worse off.
+	 *
+	 * Local-only by definition: `copilotcli:` and `agent-host-copilotcli:` name
+	 * sessions on this machine, so a remote host must never claim or probe them.
+	 */
+	async resolveSessionResource(resource: URI, reason?: SessionResourceResolveReason): Promise<URI | undefined> {
+		if (this._configurationService.getValue<boolean>(ChatConfiguration.MigrateLegacyCopilotCliSessions) !== true) {
+			return undefined;
+		}
+		const rawId = getCopilotCliSessionRawId(migratedCopilotCliResource(resource));
+		if (rawId && this._sessionCache.has(rawId)) {
+			return migratedCopilotCliResource(resource); // already adopted; no round-trip
+		}
+		// Startup restore reopens persisted slots against a cold host, where the
+		// first catalog pass is far slower than an interactive open.
+		const timeoutMs = reason === 'restore' ? LEGACY_MIGRATION_RESTORE_TIMEOUT_MS : LEGACY_MIGRATION_TIMEOUT_MS;
+		return adoptLegacyCopilotCliResource(this.connection, resource, this._logService, this._configurationService, timeoutMs);
 	}
 
 	constructor(

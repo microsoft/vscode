@@ -90,6 +90,7 @@ export class ChatGroupsView extends Themable {
 	private _mainChatResource: IObservable<string> | undefined;
 	private _sessionActive = true;
 	private _sessionVisible = true;
+	private readonly _singleGroupTabsReplaceHeader = observableValue(this, false);
 
 	/** While restoring a persisted layout: routes (late-loading) chats back to their saved groups. */
 	private _restoreAssignment: Map<string, number> | undefined;
@@ -102,6 +103,7 @@ export class ChatGroupsView extends Themable {
 	private _lastSessionActiveChatId: string | undefined;
 
 	private _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
+	private _gridDidLayout = false;
 
 	constructor(
 		@IThemeService themeService: IThemeService,
@@ -110,6 +112,10 @@ export class ChatGroupsView extends Themable {
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super(themeService);
+	}
+
+	setSingleGroupTabsReplaceHeader(enabled: boolean): void {
+		this._singleGroupTabsReplaceHeader.set(enabled, undefined);
 	}
 
 	/** Sets (or clears) the session whose chats this view partitions into groups. */
@@ -129,6 +135,7 @@ export class ChatGroupsView extends Themable {
 		this._groupDisposables.clearAndDisposeAll();
 		this._currentSessionStore = store;
 		this._grid = undefined;
+		this._gridDidLayout = false;
 		this._groups = [];
 		this._activeGroup = undefined;
 		this._restoreAssignment = undefined;
@@ -163,7 +170,6 @@ export class ChatGroupsView extends Themable {
 		store.add(this._instantiationService.createInstance(ChatGroupDropTarget, this.element, dropDelegate));
 
 		store.add(autorun(reader => this._reconcile(reader)));
-
 		this._applyLayout();
 	}
 
@@ -279,6 +285,7 @@ export class ChatGroupsView extends Themable {
 			}
 			return session.shouldShowChatTabs.read(reader);
 		});
+		const showSessionActions = derived(reader => this._singleGroupTabsReplaceHeader.read(reader) && this._groupCount.read(reader) === 1 && tabsVisible.read(reader));
 
 		const view = store.add(this._instantiationService.createInstance(ChatGroupView));
 		const entry: IGroupEntry = { id, view, resourceIds, activeResourceId, chats, tabsVisible };
@@ -294,6 +301,7 @@ export class ChatGroupsView extends Themable {
 			activeChatResource: activeResourceId,
 			mainChatResource: this._mainChatResource!,
 			tabsVisible,
+			showSessionActions,
 			openChat: resource => this._openChat(entry, resource),
 			newChat: () => this._newChat(entry).catch(onUnexpectedError),
 			onTabDragStart: () => { },
@@ -560,7 +568,7 @@ export class ChatGroupsView extends Themable {
 	}
 
 	private _findAdjacentGroup(reference: IGroupEntry): IGroupEntry | undefined {
-		if (this._grid && this._lastLayout) {
+		if (this._grid && this._gridDidLayout) {
 			for (const direction of [Direction.Right, Direction.Left, Direction.Down, Direction.Up]) {
 				const neighbor = this._grid.getNeighborViews(reference.view, direction)[0];
 				const group = neighbor && this._groups.find(candidate => candidate.view === neighbor);
@@ -829,7 +837,10 @@ export class ChatGroupsView extends Themable {
 		}
 		const { width, height, top, left } = this._lastLayout;
 		size(this.element, width, height);
-		this._grid?.layout(width, height, top, left);
+		if (this._grid) {
+			this._grid.layout(width, height, top, left);
+			this._gridDidLayout = true;
+		}
 	}
 
 	private get _separatorBorder(): Color {

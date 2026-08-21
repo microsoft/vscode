@@ -30,6 +30,8 @@ const DEFAULT_SCHEMA_SOURCE = resolveDefaultSchemaSource();
 /** Real API that un-mocked requests are forwarded to. */
 const DEFAULT_UPSTREAM = 'https://api.github.com';
 const PORT = 3000;
+const SETUP_PROBE_PARAM = 'mockPolicySetupProbe';
+const MOCK_SERVER_HEADER = 'X-Mock-Policy-Server';
 
 const args = parseArgs(process.argv.slice(2));
 const HOST = args.host || '127.0.0.1';
@@ -109,14 +111,24 @@ const server = http.createServer((req, res) => {
 			return;
 		}
 
+		// A credential-free browser probe to the upstream URL is redirected here
+		// by a correctly configured system proxy. Keep it out of the request log
+		// so setup checks are not mistaken for real client traffic.
+		const endpoint = endpoints.find(endpoint => pathname === endpoint.path);
+		if (endpoint && url.searchParams.has(SETUP_PROBE_PARAM)) {
+			setMockResponseHeaders(res);
+			if (req.method === 'OPTIONS' || req.method === 'GET') {
+				res.writeHead(204);
+				res.end();
+				return;
+			}
+		}
+
 		// Mocked Copilot endpoints. Only these get permissive CORS, so the web
 		// build (browser) of Code OSS can call them cross-origin.
-		const endpoint = endpoints.find(endpoint => pathname === endpoint.path);
 		if (endpoint && state.get(endpoint.id)?.active) {
 			const entry = state.get(endpoint.id)!;
-			res.setHeader('Access-Control-Allow-Origin', '*');
-			res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-			res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, Editor-Version, Copilot-Runtime-Version');
+			setMockResponseHeaders(res);
 			if (req.method === 'OPTIONS') {
 				res.writeHead(204);
 				res.end();
@@ -135,6 +147,14 @@ const server = http.createServer((req, res) => {
 		sendJson(res, 500, { error: errorMessage(e) });
 	}
 });
+
+function setMockResponseHeaders(res: ServerResponse): void {
+	res.setHeader(MOCK_SERVER_HEADER, 'true');
+	res.setHeader('Access-Control-Allow-Origin', '*');
+	res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+	res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, Editor-Version, Copilot-Runtime-Version');
+	res.setHeader('Access-Control-Expose-Headers', MOCK_SERVER_HEADER);
+}
 
 /** Same-origin control API used by the GUI. */
 function handleControlApi(req: IncomingMessage, res: ServerResponse, pathname: string): void {

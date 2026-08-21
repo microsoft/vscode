@@ -20,6 +20,8 @@ import { INativeEnvironmentService } from '../../../environment/common/environme
 import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
+import { IAgentSdkDownloader } from '../agentSdkDownloader.js';
+import { AgentSdkSetupChannel } from '../agentSdkSetupChannel.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
 import { buildSideChatSourceContext, prepareSideChatPrompt, sliceSideChatTurns } from '../agentPeerChats.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
@@ -44,9 +46,9 @@ import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointSer
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { projectFromCopilotContext } from '../copilot/copilotGitProject.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
-import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
+import { ClaudeSdkPackage, IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { buildModelEnumerationOptions } from './claudeSdkOptions.js';
-import { detectExistingClaudeSetup, resolveClaudeTransportMode, type ClaudeTransportMode } from './claudeTransportMode.js';
+import { isClaudeAccountSetUp, resolveClaudeTransportMode, type ClaudeTransportMode } from './claudeTransportMode.js';
 import { mergeClaudeModelCatalogs, resolveClaudeSessionTransport } from './claudeModelSelection.js';
 import { mapSessionMessagesToTurns, resolveForkAnchorUuid } from './claudeReplayMapper.js';
 import { getSubagentTranscript } from './claudeSubagentResolver.js';
@@ -65,6 +67,9 @@ import { IAgentHostSessionTitleSignal } from '../agentHostSessionTitleSignal.js'
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 
 const USER_AGENT_PREFIX = 'vscode_claude_code';
+
+/** Where a user goes to establish Claude credentials; the workbench labels the link. */
+const CLAUDE_SETUP_DOCS_URL = 'https://code.claude.com/docs/en/third-party-integrations';
 
 /**
  * Returns true if `m` is a Claude-family model that should be advertised
@@ -605,6 +610,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
 		@IClaudeProxyService private readonly _claudeProxyService: IClaudeProxyService,
 		@IClaudeAgentSdkService private readonly _sdkService: IClaudeAgentSdkService,
+		@IAgentSdkDownloader private readonly _agentSdkDownloader: IAgentSdkDownloader,
 		@IAgentHostSessionTitleSignal private readonly _sessionTitleSignal: IAgentHostSessionTitleSignal,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
@@ -645,7 +651,27 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// (see {@link _defaultTransportMode}), so a sign-in state change needs no
 		// reactive re-resolve — the next session simply reads it live.
 		queueMicrotask(() => { void this._startModelRefresh(); });
+
+		this._sdkSetupChannel = this._register(new AgentSdkSetupChannel({
+			id: this.id,
+			sdkPackage: ClaudeSdkPackage,
+			// Every Claude credential — subscription or `ANTHROPIC_API_KEY` — is
+			// established outside the app, and the SDK exposes no login control
+			// request, so the docs link is the only route this agent can offer.
+			setupInfo: { setupDocsUrl: CLAUDE_SETUP_DOCS_URL },
+			isSdkLocal: () => this._sdkService.canLoadWithoutDownload(),
+			downloadSdk: () => this._sdkService.ensureAvailable(),
+			restartChatDiscovery: () => this._restartChatDiscovery(),
+			refreshModels: () => this._startModelRefresh(),
+		}, this._configurationService, this._agentSdkDownloader, this._logService));
 	}
+
+	/**
+	 * Publishes whether the SDK is on disk — and deliberately nothing about the
+	 * account, which the workbench derives from the model list (`ready` + zero
+	 * models → no account). Two wire sources for one truth could disagree.
+	 */
+	private readonly _sdkSetupChannel: AgentSdkSetupChannel;
 
 	/**
 	 * The fallback transport for a session whose model names no provider (model-less
@@ -657,19 +683,14 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 */
 	private _defaultTransportMode(): ClaudeTransportMode {
 		const allowSignedOutWhenUsable = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.AllowSignedOutWhenUsable) === true;
-		return resolveClaudeTransportMode({ allowSignedOutWhenUsable, hasGitHubToken: this._proxyHandle !== undefined, hasExistingSetup: this._hasUsableNativeSetup() });
+		return resolveClaudeTransportMode({ allowSignedOutWhenUsable, hasGitHubToken: this._proxyHandle !== undefined, hasExistingSetup: this._nativeAccountSetUp });
 	}
 
 	/**
-	 * Whether Claude can run without GitHub right now: the signed-out opt-in is on
-	 * AND a BYO-Anthropic credential is discoverable (see
-	 * {@link detectExistingClaudeSetup}). Backs both the advertised requirement and
-	 * the model-less transport default so the two cannot disagree.
+	 * The SDK's last answer to {@link isClaudeAccountSetUp}, kept current by
+	 * {@link _refreshModels}. Starts `false`: unasked is not evidence of an account.
 	 */
-	private _hasUsableNativeSetup(): boolean {
-		return this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.AllowSignedOutWhenUsable) === true
-			&& detectExistingClaudeSetup(this._environmentService.userHome.fsPath);
-	}
+	private _nativeAccountSetUp = false;
 
 	// #region Descriptor + auth
 
@@ -690,14 +711,14 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	getProtectedResources(): ProtectedResourceMetadata[] {
-		// Kept in the list even when optional, never dropped:
-		// `authenticateProtectedResources` matches on `resource` and ignores
-		// `required`, so advertising it is what lets the host silently forward a
-		// token to an already-signed-in user — and acquire the proxy handle
-		// Copilot-routed models need — without forcing sign-in on anyone else.
+		// Always listed, always optional. Listing it is what lets the host forward a
+		// token to an already-signed-in user (matching ignores `required`); the
+		// unconditional `required: false` is what stops `resolveSignedOutWindowGate`
+		// walling off the whole Agents window before the user reaches a surface that
+		// could explain itself.
 		const copilotResource = this._gitHubEndpointService.getCopilotResource();
 		return [
-			this._hasUsableNativeSetup() ? { ...copilotResource, required: false } : copilotResource,
+			{ ...copilotResource, required: false },
 			this._gitHubEndpointService.getRepoResource(),
 		];
 	}
@@ -858,14 +879,14 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	/**
 	 * Enumerate both providers' catalogs in parallel and publish them as one
 	 * provider-qualified list via {@link mergeClaudeModelCatalogs}. Each source is
-	 * optional — the proxy catalog needs a GitHub token, the native catalog needs a
-	 * local Claude setup — so a source we can't attempt contributes an empty list
-	 * rather than failing the whole refresh. {@link Promise.allSettled} tolerates
-	 * one source erroring; only when *every* source we attempted fails do we keep
-	 * the last known-good catalog instead of blanking, so a transient double
-	 * failure never wipes the picker.
+	 * optional — the proxy catalog needs a GitHub token, the native catalog needs the
+	 * SDK on disk — so a source we can't attempt contributes an empty list rather
+	 * than failing the whole refresh. {@link Promise.allSettled} tolerates one source
+	 * erroring; only when *every* source we attempted fails do we keep the last
+	 * known-good catalog instead of blanking, so a transient double failure never
+	 * wipes the picker.
 	 *
-	 * Gating the native half on {@link detectExistingClaudeSetup} is deliberate and
+	 * Gating the native half on the SDK's own account report is deliberate and
 	 * load-bearing, not just an optimization. `supportedModels()` returns a *static*
 	 * list of models the SDK understands — it is not an entitlement or credential
 	 * check, and it answers even with no `ANTHROPIC_API_KEY`, no
@@ -874,14 +895,24 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * reads downstream as "usable without GitHub" and would hold the Agents window
 	 * open on an agent that fails on its first turn. An empty catalog is the honest
 	 * signal: it surfaces as "no models" (`SessionTypeAuthRequirement.Unusable`)
-	 * rather than a sign-in prompt that would not help.
+	 * rather than a sign-in prompt that would not help. The empty list is also what
+	 * the window reads account state *from*, so it must never be a guess.
+	 *
+	 * The native attempt is skipped while the SDK is not on disk: asking it anything
+	 * costs a multi-hundred-megabyte download, and that download is the user's
+	 * explicit choice to make.
 	 */
 	private async _refreshModels(): Promise<void> {
 		const tokenAtStart = this._githubToken;
-		const hasNativeSetup = detectExistingClaudeSetup(this._environmentService.userHome.fsPath);
+		// True only for a dev override, a dev bare import, or an already-cached SDK.
+		const canAttemptNative = await this._sdkService.canLoadWithoutDownload();
+		if (!canAttemptNative) {
+			// No SDK, so no evidence of an account — say so rather than retaining a stale `true`.
+			this._nativeAccountSetUp = false;
+		}
 		const [proxyOutcome, nativeOutcome] = await Promise.allSettled([
 			tokenAtStart ? this._fetchProxyModels(tokenAtStart) : Promise.resolve<readonly IAgentModelInfo[]>([]),
-			hasNativeSetup ? this._fetchNativeModels() : Promise.resolve<readonly IAgentModelInfo[]>([]),
+			canAttemptNative ? this._fetchNativeModels() : Promise.resolve<readonly IAgentModelInfo[]>([]),
 		]);
 		// Stale-write guard: a newer refresh superseded this one while we were
 		// awaiting — the proxy token rotated (sign-in / sign-out). A merged write
@@ -889,29 +920,33 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		if (this._githubToken !== tokenAtStart) {
 			return;
 		}
-		const attempted = (tokenAtStart ? 1 : 0) + (hasNativeSetup ? 1 : 0);
+		const attempted = (tokenAtStart ? 1 : 0) + (canAttemptNative ? 1 : 0);
 		const failed = (proxyOutcome.status === 'rejected' ? 1 : 0) + (nativeOutcome.status === 'rejected' ? 1 : 0);
 		if (attempted > 0 && failed === attempted) {
 			// Every source we attempted failed — keep the last known-good catalog
 			// rather than blanking. Sources we didn't attempt resolve fulfilled-empty
 			// and are not counted as failures.
 			this._logService.error('[Claude] All attempted model sources failed (merged refresh); keeping last known-good catalog');
-			return;
+		} else {
+			// Unwrap each settled fetch: its models on success, or an empty list on
+			// rejection (logged) so the other provider's catalog still publishes.
+			const settledCatalog = (outcome: PromiseSettledResult<readonly IAgentModelInfo[]>, label: string): readonly IAgentModelInfo[] => {
+				if (outcome.status === 'fulfilled') {
+					return outcome.value;
+				}
+				this._logService.error(outcome.reason, `[Claude] Failed to fetch ${label} models (merged refresh); keeping the other provider`);
+				return [];
+			};
+			const proxyModels = settledCatalog(proxyOutcome, 'proxy');
+			const nativeModels = settledCatalog(nativeOutcome, 'native');
+			const merged = mergeClaudeModelCatalogs(proxyModels, nativeModels);
+			this._logService.info(`[Claude] Models refreshed (merged). Count: ${merged.length}, ${merged.map(m => m.name).join(', ')}`);
+			this._models.set(merged, undefined);
 		}
-		// Unwrap each settled fetch: its models on success, or an empty list on
-		// rejection (logged) so the other provider's catalog still publishes.
-		const settledCatalog = (outcome: PromiseSettledResult<readonly IAgentModelInfo[]>, label: string): readonly IAgentModelInfo[] => {
-			if (outcome.status === 'fulfilled') {
-				return outcome.value;
-			}
-			this._logService.error(outcome.reason, `[Claude] Failed to fetch ${label} models (merged refresh); keeping the other provider`);
-			return [];
-		};
-		const proxyModels = settledCatalog(proxyOutcome, 'proxy');
-		const nativeModels = settledCatalog(nativeOutcome, 'native');
-		const merged = mergeClaudeModelCatalogs(proxyModels, nativeModels);
-		this._logService.info(`[Claude] Models refreshed (merged). Count: ${merged.length}, ${merged.map(m => m.name).join(', ')}`);
-		this._models.set(merged, undefined);
+		// Last, never first: this is a free republish of "is the SDK on disk" (some
+		// other path may have fetched it), but announcing `ready` before the catalog
+		// lands is exactly how the window renders "no account found".
+		this._sdkSetupChannel.publishWith(canAttemptNative);
 	}
 
 	/**
@@ -922,6 +957,11 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * yields, so no turn runs and no session transcript is written (verified
 	 * Phase 19 E2E). Projected with no commercial metadata, minus the SDK's
 	 * {@link isSdkDefaultModel} alias row.
+	 *
+	 * `accountInfo()` rides the *same* query, so asking is effectively free — and it
+	 * is the only honest source for "does this user have a Claude setup": a
+	 * `claude login` credential lives in the login keychain, where nothing on the
+	 * filesystem can see it. When it says no, the catalog is published empty.
 	 */
 	private async _fetchNativeModels(): Promise<readonly IAgentModelInfo[]> {
 		// A prompt iterable that never yields: enumeration only needs the
@@ -932,7 +972,14 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const options = buildModelEnumerationOptions();
 		const query = await this._sdkService.query({ prompt: neverYieldingPrompt, options });
 		try {
-			const models = await query.supportedModels();
+			const [account, models] = await Promise.all([query.accountInfo(), query.supportedModels()]);
+			const setUp = isClaudeAccountSetUp(account);
+			this._nativeAccountSetUp = setUp;
+			// Origin only — never the credential itself.
+			this._logService.info(`[Claude] Native account check: setUp=${setUp}, provider=${account.apiProvider ?? 'none'}, tokenSource=${account.tokenSource ?? 'absent'}, apiKeySource=${account.apiKeySource ?? 'absent'}`);
+			if (!setUp) {
+				return [];
+			}
 			return models
 				.filter(m => !isSdkDefaultModel(m))
 				.map(m => fromSdkModelInfo(m, this.id));
@@ -2047,10 +2094,11 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	async listChatsToMigrate(): Promise<IAgentChatMetadata[] | undefined> {
-		try {
-			await this._sdkService.ensureAvailableForDiscovery();
-		} catch (err) {
-			this._logService.warn('[Claude] SDK unavailable while listing chats to migrate', err);
+		// `undefined` is "can't enumerate yet", which is the honest answer while the
+		// SDK is absent: the catalog lives inside it, but fetching one is the user's
+		// call. {@link _restartChatDiscovery} revisits this once they make it.
+		if (!(await this._sdkService.canLoadWithoutDownload())) {
+			this._logService.info('[Claude] SDK not downloaded yet; deferring the migratable chat list');
 			return undefined;
 		}
 		const chats = await this._listClaudeCodeChats();
@@ -2067,7 +2115,13 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	private _startClaudeCodeChatDiscovery(): Promise<void> {
 		if (!this._claudeCodeChatDiscovery) {
 			this._claudeCodeChatDiscovery = retry(async () => {
-				await this._sdkService.ensureAvailableForDiscovery();
+				// Waits for the SDK rather than pulling it down — see
+				// {@link listChatsToMigrate}. Returning leaves the retry loop happy,
+				// since no amount of retrying will make the user press Download.
+				if (!(await this._sdkService.canLoadWithoutDownload())) {
+					this._logService.info('[Claude] SDK not downloaded yet; deferring chat discovery');
+					return;
+				}
 				if (!(await this._emitClaudeCodeChats())) {
 					throw new Error('Claude chat catalog is not available');
 				}
@@ -2075,6 +2129,14 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				.catch(err => this._logService.warn('[Claude] Chat discovery failed', err));
 		}
 		return this._claudeCodeChatDiscovery;
+	}
+
+	/** Runs discovery again for whoever is still subscribed, after it deferred for want of an SDK. */
+	private _restartChatDiscovery(): void {
+		if (this._claudeCodeChatDiscovery) {
+			this._claudeCodeChatDiscovery = undefined;
+			void this._startClaudeCodeChatDiscovery();
+		}
 	}
 
 	private async _emitClaudeCodeChats(): Promise<boolean> {

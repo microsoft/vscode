@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout } from '../../../../base/common/async.js';
+import { disposableTimeout, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -31,6 +31,9 @@ import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { setActiveSessionContextKeys } from '../common/sessionContextKeys.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
+
+/** Upper bound on redirecting every persisted slot before the grid is restored. */
+const RESTORE_RESOLVE_BUDGET_MS = 10_000;
 
 /**
  * Upper bound on how long restore waits for a persisted session to resurface
@@ -320,6 +323,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 	private readonly _restoreCts = this._register(new MutableDisposable<CancellationTokenSource>());
 
 	private readonly _sessionStates: ResourceMap<ISessionState>;
+	private readonly _pendingRestoredChatResources = new ResourceMap<URI>();
 	private readonly _navigation: SessionsNavigation;
 	/**
 	 * The single source of truth for session recency (most-recently-opened
@@ -489,6 +493,21 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	private _activeSessionViewListeners(activeSession: IActiveSession): IDisposable {
 		const disposables = new DisposableStore();
+		const initialChatResource = activeSession.activeChat.get()?.resource;
+		let pendingRestoredChatResource: URI | undefined;
+		this._pendingRestoredChatResources.delete(activeSession.resource);
+		const storedActiveChatResource = this._sessionStates.get(activeSession.resource)?.activeChatResource;
+		if (storedActiveChatResource) {
+			try {
+				const resource = URI.parse(storedActiveChatResource);
+				if (!initialChatResource || !this.uriIdentityService.extUri.isEqual(resource, initialChatResource)) {
+					pendingRestoredChatResource = resource;
+					this._pendingRestoredChatResources.set(activeSession.resource, resource);
+				}
+			} catch (error) {
+				this.logService.warn('[SessionsView] Failed to restore active chat from stored session state', error);
+			}
+		}
 
 		// When the active session becomes archived, return to the new-session
 		// view (or the quick-chat composer for a quick chat), keeping context.
@@ -524,6 +543,23 @@ export class SessionsService extends Disposable implements ISessionsService {
 			}));
 		}
 
+		if (pendingRestoredChatResource) {
+			disposables.add(autorun(reader => {
+				const resource = pendingRestoredChatResource;
+				if (!resource) {
+					return;
+				}
+				const chat = activeSession.chats.read(reader).find(candidate =>
+					this.uriIdentityService.extUri.isEqual(candidate.resource, resource));
+				if (chat) {
+					pendingRestoredChatResource = undefined;
+					this._pendingRestoredChatResources.delete(activeSession.resource);
+					this._visibility.openChat(activeSession, chat);
+					this._visibility.setActiveChat(activeSession, chat);
+				}
+			}));
+		}
+
 		// Track active chat changes to persist per-session state. The visible /
 		// active / sticky flags are snapshotted from the live grid at save time
 		// (see `_snapshotVisibleSessionStates`); here we only remember the last
@@ -534,6 +570,11 @@ export class SessionsService extends Disposable implements ISessionsService {
 		disposables.add(autorun(reader => {
 			const chat = activeSession.activeChat.read(reader);
 			if (chat && chat.status.read(undefined) !== SessionStatus.Untitled) {
+				if (pendingRestoredChatResource && initialChatResource && this.uriIdentityService.extUri.isEqual(chat.resource, initialChatResource)) {
+					return;
+				}
+				pendingRestoredChatResource = undefined;
+				this._pendingRestoredChatResources.delete(activeSession.resource);
 				const existing = this._sessionStates.get(activeSession.resource);
 				this._sessionStates.set(activeSession.resource, {
 					...existing,
@@ -745,9 +786,18 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	async openSession(sessionResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
+		// Claim the open before resolving: resolution can take seconds for a legacy
+		// Copilot CLI resource, and a newer open must win regardless of which
+		// resolution finishes first.
 		this._cancelRestore();
 		const token = this._startOpenSession();
-		const sessionData = this._showSession(sessionResource, options);
+		// Redirect a superseded resource (legacy Copilot CLI) before lookup, so an
+		// open by URI migrates rather than reaching the old provider.
+		const resolved = await this.sessionsManagementService.resolveSessionResource(sessionResource, 'open');
+		if (token.isCancellationRequested) {
+			return;
+		}
+		const sessionData = this._showSession(resolved, options);
 		await this._waitForOpenSessionToLoad(sessionData, token);
 	}
 
@@ -1091,7 +1141,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			const existing = this._sessionStates.get(session.resource);
 			const state: ISessionState = {
 				sessionResource: session.resource.toString(),
-				activeChatResource: session.activeChat.get()?.resource.toString() ?? existing?.activeChatResource,
+				activeChatResource: this._pendingRestoredChatResources.get(session.resource)?.toString() ?? session.activeChat.get()?.resource.toString() ?? existing?.activeChatResource,
 				closedChatResources: existing?.closedChatResources ?? session.closedChats.get().map(c => c.resource.toString()),
 				visibleOrder: index,
 				isSticky: session.sticky.get(),
@@ -1191,12 +1241,38 @@ export class SessionsService extends Disposable implements ISessionsService {
 			readonly order: number;
 		}
 
-		const targets: IRestoreTarget[] = this._getVisibleSessionStates().map(state => ({
+		// Use a dedicated cancellation token (not the shared open-session one)
+		// so that a new-session draft created during restore (e.g. by the
+		// new-chat composer on startup) does not abort restoring the grid. The
+		// token is cancelled only when the user explicitly opens a session.
+		// Installed before resolving targets, which can wait on a cold agent
+		// host, so an explicit open during that wait can cancel this restore.
+		const cts = new CancellationTokenSource();
+		this._restoreCts.value = cts;
+		const token = cts.token;
+
+		const persisted = this._getVisibleSessionStates();
+		const unresolved: IRestoreTarget[] = persisted.map(state => ({
 			resource: URI.parse(state.sessionResource),
 			isSticky: !!state.isSticky,
 			isActive: !!state.isActive,
 			order: state.visibleOrder!,
 		}));
+		// Redirecting a persisted slot can wait on a cold agent host. Bound the whole
+		// pass so one slow slot cannot hold the entire grid blank; an unredirected
+		// slot still opens, just against its persisted resource.
+		const targets: IRestoreTarget[] = await raceTimeout(Promise.all(persisted.map(async (state, index) => ({
+			// Persisted state names a session by URI, so a legacy Copilot CLI slot
+			// restores through the old provider unless it is redirected here.
+			resource: await this.sessionsManagementService.resolveSessionResource(URI.parse(state.sessionResource), 'restore'),
+			isSticky: unresolved[index].isSticky,
+			isActive: unresolved[index].isActive,
+			order: unresolved[index].order,
+		}))), RESTORE_RESOLVE_BUDGET_MS) ?? unresolved;
+
+		if (token.isCancellationRequested) {
+			return;
+		}
 
 		if (targets.length === 0) {
 			targets.push({ resource: undefined, isSticky: false, isActive: true, order: 1 });
@@ -1208,14 +1284,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (activeIdx < 0) {
 			activeIdx = 0;
 		}
-
-		// Use a dedicated cancellation token (not the shared open-session one)
-		// so that a new-session draft created during restore (e.g. by the
-		// new-chat composer on startup) does not abort restoring the grid. The
-		// token is cancelled only when the user explicitly opens a session.
-		const cts = new CancellationTokenSource();
-		this._restoreCts.value = cts;
-		const token = cts.token;
 
 		// Sessions resolved so far, indexed by their position in `targets`.
 		// `null` marks the empty (new-session) slot, which has no session.

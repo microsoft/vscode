@@ -30,14 +30,8 @@ export interface IPullRequestSessionRepository {
 	readonly repo: string;
 }
 
-export interface IRepositoryRemote {
-	readonly name: string;
-	readonly fetchUrl?: string;
-}
-
 export async function resolvePullRequestSessionRepository(
 	sectionSessions: readonly ISession[],
-	resolveGitHubRepository: (folderUri: URI) => Promise<{ readonly owner: string; readonly repo: string } | undefined>,
 ): Promise<IPullRequestSessionRepository | undefined> {
 	let folderUri: URI | undefined;
 	for (const session of sectionSessions) {
@@ -55,23 +49,8 @@ export async function resolvePullRequestSessionRepository(
 	if (!folderUri) {
 		return undefined;
 	}
-	const identity = getFirstGitHubRepository(sectionSessions) ?? await resolveGitHubRepository(folderUri);
+	const identity = getFirstGitHubRepository(sectionSessions);
 	return identity ? { folderUri, owner: identity.owner, repo: identity.repo } : undefined;
-}
-
-export function getGitHubRepositoryFromRemotes(remotes: readonly IRepositoryRemote[]): { readonly owner: string; readonly repo: string } | undefined {
-	const orderedRemotes = [...remotes].sort((a, b) => Number(b.name === 'origin') - Number(a.name === 'origin'));
-	for (const remote of orderedRemotes) {
-		const fetchUrl = remote.fetchUrl?.trim().replace(/\/$/, '').replace(/\.git$/, '');
-		if (!fetchUrl) {
-			continue;
-		}
-		const match = /^(?:(?:https?|ssh):\/\/(?:git@)?github\.com\/|git@github\.com:)(?<owner>[^/\s]+)\/(?<repo>[^/\s]+)$/i.exec(fetchUrl);
-		if (match?.groups) {
-			return { owner: match.groups.owner, repo: match.groups.repo };
-		}
-	}
-	return undefined;
 }
 
 export function getExistingPullRequests(sessions: readonly ISession[], owner: string, repo: string, repositorySessions: readonly ISession[] = []): IExistingPullRequests {

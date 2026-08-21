@@ -1374,6 +1374,62 @@ suite('ChatService', () => {
 		assert.strictEqual(model.getPendingRequests().length, 0);
 	});
 
+	test('does not locally dequeue pending requests for remote agent host sessions', async () => {
+		const sessionType = 'remote-neat-cat-copilotcli';
+		const sessionResource = URI.from({ scheme: sessionType, path: '/session-server-managed-queue' });
+
+		const mockSessionsService = new MockChatSessionsService();
+		mockSessionsService.setContributions([{
+			type: sessionType,
+			name: 'Remote Agent Host',
+			displayName: 'Remote Agent Host',
+			description: 'Remote Agent Host',
+			agentHostProviderId: 'copilotcli',
+		}]);
+		testDisposables.add(mockSessionsService.registerChatSessionContentProvider(sessionType, {
+			provideChatSessionContent: resource => Promise.resolve({
+				sessionResource: resource,
+				history: [],
+				onWillDispose: Event.None,
+				dispose: () => { },
+			}),
+		}));
+		instantiationService.stub(IChatSessionsService, mockSessionsService);
+
+		const invokedMessages: string[] = [];
+		testDisposables.add(chatAgentService.registerAgent(sessionType, { ...getAgentData(sessionType), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, {
+			async invoke(request) {
+				invokedMessages.push(request.message);
+				return {};
+			},
+		}));
+
+		const testService = createChatService();
+		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.ok(ref);
+		testDisposables.add(ref);
+
+		const result = await testService.sendRequest(sessionResource, 'queued message', { agentIdSilent: sessionType, queue: ChatRequestQueueKind.Queued });
+		assert.ok(ChatSendResult.isQueued(result));
+		await timeout(0);
+
+		const model = testService.getSession(sessionResource) as ChatModel;
+		const pendingRequests = model.getPendingRequests();
+		const actual = {
+			invokedMessages,
+			pendingMessages: pendingRequests.map(request => request.request.message.text),
+		};
+		for (const pendingRequest of pendingRequests) {
+			testService.removePendingRequest(sessionResource, pendingRequest.request.id);
+		}
+
+		assert.deepStrictEqual(actual, {
+			invokedMessages: [],
+			pendingMessages: ['queued message'],
+		});
+	});
+
 	test('sendPendingRequestImmediately re-sends a steering message as a turn on agent host sessions', async () => {
 		const sessionType = 'agent-host-copilot';
 		const sessionResource = URI.from({ scheme: sessionType, path: '/session-send-immediately' });
@@ -1384,6 +1440,7 @@ suite('ChatService', () => {
 			name: 'Agent Host',
 			displayName: 'Agent Host',
 			description: 'Agent Host',
+			agentHostProviderId: 'copilot',
 		}]);
 		testDisposables.add(mockSessionsService.registerChatSessionContentProvider(sessionType, {
 			provideChatSessionContent: resource => Promise.resolve({
@@ -1546,6 +1603,53 @@ suite('ChatService', () => {
 		assert.ok(lastThree[0].includes('queued-1'));
 		assert.ok(lastThree[1].includes('queued-2'));
 		assert.ok(lastThree[2].includes('queued-3'));
+	});
+
+	test('external sessions from transient surfaces are not persisted to chat history (inline chat)', async () => {
+		// Inline chat and terminal chat create throwaway agent-host sessions. Their
+		// resources are not local, so they used to fall into the external-session
+		// persistence path and show up in the chat session list.
+		const remoteScheme = 'transient-surface-provider';
+
+		const mockSessionsService = new MockChatSessionsService();
+		testDisposables.add(mockSessionsService.registerChatSessionContentProvider(remoteScheme, {
+			provideChatSessionContent: (resource: URI) => Promise.resolve({
+				sessionResource: resource,
+				history: [],
+				onWillDispose: Event.None,
+				dispose: () => { },
+			}),
+		}));
+		instantiationService.stub(IChatSessionsService, mockSessionsService);
+
+		const agent: IChatAgentImplementation = { async invoke() { return {}; } };
+		testDisposables.add(chatAgentService.registerAgent(remoteScheme, { ...getAgentData(remoteScheme), locations: [ChatAgentLocation.Chat, ChatAgentLocation.EditorInline], isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation(remoteScheme, agent));
+
+		const testService = createChatService();
+
+		const send = async (resource: URI, location: ChatAgentLocation) => {
+			const ref = await testService.acquireOrLoadSession(resource, location, CancellationToken.None);
+			assert.ok(ref);
+			const response = await testService.sendRequest(resource, 'hello', { agentId: remoteScheme });
+			ChatSendResult.assertSent(response);
+			await response.data.responseCompletePromise;
+			ref.dispose();
+		};
+
+		const inlineResource = URI.from({ scheme: remoteScheme, path: '/inline-session' });
+		const panelResource = URI.from({ scheme: remoteScheme, path: '/panel-session' });
+		await send(inlineResource, ChatAgentLocation.EditorInline);
+		await send(panelResource, ChatAgentLocation.Chat);
+		await Promise.all(testServices.map(service => service.waitForModelDisposals()));
+
+		assert.deepStrictEqual(
+			{
+				inline: !!await testService.getMetadataForSession(inlineResource),
+				panel: !!await testService.getMetadataForSession(panelResource),
+			},
+			{ inline: false, panel: true }
+		);
 	});
 
 	test('acquireOrLoadSession returns undefined when remote provider is not registered (fix for #301203)', async () => {

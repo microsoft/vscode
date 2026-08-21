@@ -27,7 +27,7 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILifecycleMainService, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
-import { FocusMode, ICommonNativeHostService, INativeHostOptions, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, IOpenAgentsWindowOptions, IOSProperties, IOSProxy, IOSProxyConfig, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
+import { FocusMode, ICommonNativeHostService, INativeHostOptions, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, INativeZipOptions, IOpenAgentsWindowOptions, IOSProperties, IOSProxy, IOSProxyConfig, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
 import { IGlobalKeybindingsMainService } from '../../globalKeybindings/electron-main/globalKeybindingsMainService.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
@@ -50,13 +50,10 @@ import { IProxyAuthService } from './auth.js';
 import { AuthInfo, Credentials, IRequestService } from '../../request/common/request.js';
 import { randomPath } from '../../../base/common/extpath.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, AGENT_HOST_DEBUG_LOGS_MAX_STAGED_BYTES } from '../../agentHost/common/agentService.js';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
 export const INativeHostMainService = createDecorator<INativeHostMainService>('nativeHostMainService');
-const MAX_MERGED_ZIP_SIZE = 16 * 1024 * 1024;
-
 export class NativeHostMainService extends Disposable implements INativeHostMainService {
 
 	declare readonly _serviceBrand: undefined;
@@ -1424,7 +1421,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#region Zip
 
-	async createZipFile(windowId: number | undefined, zipPath: URI, files: INativeZipFile[]): Promise<void> {
+	async createZipFile(windowId: number | undefined, zipPath: URI, files: INativeZipFile[], options?: INativeZipOptions): Promise<void> {
 		const zipFiles: IFile[] = [];
 		const temporaryDirectories: string[] = [];
 		try {
@@ -1441,13 +1438,15 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 					const temporaryDirectory = join(this.environmentMainService.tmpDir.fsPath, `vscode-zip-merge-${randomPath()}`);
 					temporaryDirectories.push(temporaryDirectory);
 					const archiveSize = (await fs.promises.stat(sourceArchive.fsPath)).size;
-					if (archiveSize > MAX_MERGED_ZIP_SIZE) {
-						throw new Error(`ZIP is too large to merge (${archiveSize} bytes; limit ${MAX_MERGED_ZIP_SIZE} bytes)`);
+					if (options && archiveSize > options.maxSize) {
+						throw new Error(`ZIP is too large to merge (${archiveSize} bytes; limit ${options.maxSize} bytes)`);
 					}
-					await validateZip(sourceArchive.fsPath, {
-						maxEntries: AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES,
-						maxUncompressedSize: AGENT_HOST_DEBUG_LOGS_MAX_STAGED_BYTES,
-					});
+					if (options) {
+						await validateZip(sourceArchive.fsPath, {
+							maxEntries: options.maxEntries,
+							maxUncompressedSize: options.maxSize,
+						});
+					}
 					await extract(sourceArchive.fsPath, temporaryDirectory, {}, CancellationToken.None);
 					zipFiles.push(...await collectZipFiles(temporaryDirectory));
 					continue;
@@ -1460,13 +1459,31 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			}
 
 			const paths = new Set<string>();
+			let uncompressedSize = 0;
 			for (const file of zipFiles) {
 				if (paths.has(file.path)) {
 					throw new Error(`Duplicate ZIP entry '${file.path}'`);
 				}
 				paths.add(file.path);
+				if (file.contents !== undefined) {
+					uncompressedSize += typeof file.contents === 'string' ? Buffer.byteLength(file.contents) : file.contents.byteLength;
+				} else if (file.localPath) {
+					const size = (await fs.promises.stat(file.localPath)).size;
+					uncompressedSize += file.localPathSize === undefined ? size : Math.min(size, file.localPathSize);
+				}
+				if (options && uncompressedSize > options.maxSize) {
+					throw new Error(`ZIP expands beyond the allowed size (${uncompressedSize} bytes; limit ${options.maxSize} bytes)`);
+				}
+			}
+			if (options && zipFiles.length > options.maxEntries) {
+				throw new Error(`ZIP contains too many entries (${zipFiles.length}; limit ${options.maxEntries})`);
 			}
 			await zip(zipPath.fsPath, zipFiles);
+			const zipSize = (await fs.promises.stat(zipPath.fsPath)).size;
+			if (options && zipSize > options.maxSize) {
+				await fs.promises.rm(zipPath.fsPath, { force: true });
+				throw new Error(`ZIP is too large (${zipSize} bytes; limit ${options.maxSize} bytes)`);
+			}
 		} finally {
 			await Promise.all(temporaryDirectories.map(directory => Promises.rm(directory)));
 		}

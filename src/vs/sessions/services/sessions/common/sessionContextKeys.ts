@@ -196,8 +196,7 @@ export function setActiveSessionContextKeys(session: IActiveSession | undefined,
 	keys.hasMultipleCommittedChats.set(committedChatCount > 1);
 
 	// The tab strip is shown when the session has more than one chat (counting
-	// closed chats) or its single remaining chat's title diverged from the
-	// session title; the header then hides its own New Chat button.
+	// closed chats) or its single remaining chat's title diverged from the session title.
 	keys.shouldShowChatTabs.set(session?.shouldShowChatTabs.read(reader) ?? false);
 
 	// More than one open chat tab (incl. drafts): scopes chat-to-chat navigation

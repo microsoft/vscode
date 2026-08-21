@@ -56,6 +56,8 @@ type TestTerminalInstance = ITerminalInstance & {
 
 type TestActiveSession = IActiveSession & {
 	loading: ReturnType<typeof observableValue<boolean>>;
+	isArchived: ReturnType<typeof observableValue<boolean>>;
+	worktreePending: ReturnType<typeof observableValue<boolean>>;
 };
 
 function makeAgentSession(opts: {
@@ -64,6 +66,7 @@ function makeAgentSession(opts: {
 	providerType?: string;
 	isArchived?: boolean;
 	loading?: boolean;
+	worktreePending?: boolean;
 	sessionId?: string;
 	providerId?: string;
 }): TestActiveSession {
@@ -74,7 +77,7 @@ function makeAgentSession(opts: {
 		description: undefined,
 		gitRepository: { uri: opts.repository ?? opts.worktree!, workTreeUri: opts.worktree, baseBranchName: undefined, gitHubInfo: constObservable(undefined) },
 	} : undefined;
-	const chat: IChat = {
+	const chat = {
 		resource: URI.parse('file:///session'),
 		createdAt: new Date(),
 		title: observableValue('test.title', 'Test Session'),
@@ -84,7 +87,7 @@ function makeAgentSession(opts: {
 		modelId: observableValue('test.modelId', undefined),
 		modelSource: observableValue('test.modelSource', undefined),
 		mode: observableValue('test.mode', undefined),
-		isArchived: observableValue('test.isArchived', opts.isArchived ?? false),
+		isArchived: observableValue<boolean>('test.isArchived', opts.isArchived ?? false),
 		isRead: observableValue('test.isRead', true),
 		interactivity: observableValue('test.interactivity', ChatInteractivity.Full),
 		checkpoints: observableValue('test.checkpoints', undefined),
@@ -116,6 +119,7 @@ function makeAgentSession(opts: {
 		modelId: chat.modelId,
 		mode: chat.mode,
 		loading: observableValue('test.loading', opts.loading ?? false),
+		worktreePending: observableValue('test.worktreePending', opts.worktreePending ?? false),
 		isArchived: chat.isArchived,
 		isRead: chat.isRead,
 		lastTurnEnd: chat.lastTurnEnd,
@@ -259,6 +263,8 @@ suite('SessionsTerminalContribution', () => {
 	let showBackgroundCalls: number[];
 	let disposeOnCreatePaths: Set<string>;
 	let defaultCwdCalls: (URI | undefined)[];
+	let vetoSafeDispose: boolean;
+	let safeDisposeBarrier: DeferredPromise<void> | undefined;
 	let logService: TestLogService;
 	let allSessions: ISession[];
 	let sessionProviders: Map<string, ISessionsProvider>;
@@ -280,6 +286,8 @@ suite('SessionsTerminalContribution', () => {
 		showBackgroundCalls = [];
 		disposeOnCreatePaths = new Set();
 		defaultCwdCalls = [];
+		vetoSafeDispose = false;
+		safeDisposeBarrier = undefined;
 		logService = new TestLogService();
 		allSessions = [];
 		sessionProviders = new Map();
@@ -343,6 +351,10 @@ suite('SessionsTerminalContribution', () => {
 				focusCalls++;
 			}
 			override async safeDisposeTerminal(instance: ITerminalInstance): Promise<void> {
+				await safeDisposeBarrier?.p;
+				if (vetoSafeDispose) {
+					return;
+				}
 				disposedInstances.push(instance);
 				(instance as TestTerminalInstance)._testSetDisposed(true);
 				terminalInstances.delete(instance.instanceId);
@@ -491,6 +503,52 @@ suite('SessionsTerminalContribution', () => {
 
 		assert.strictEqual(createdTerminals.length, 1);
 		assert.strictEqual(createdTerminals[0].cwd.fsPath, worktreeUri.fsPath);
+	});
+
+	test('waits for the worktree before creating a terminal', async () => {
+		const worktreeUri = URI.file('/worktree');
+		const session = makeAgentSession({
+			worktree: worktreeUri,
+			providerType: AgentSessionProviders.Background,
+			worktreePending: true,
+		});
+
+		activeSessionObs.set(session, undefined);
+		await tick();
+		assert.strictEqual(createdTerminals.length, 0);
+
+		session.worktreePending.set(false, undefined);
+		await tick();
+		assert.deepStrictEqual(createdTerminals.map(terminal => terminal.cwd.fsPath), [worktreeUri.fsPath]);
+	});
+
+	test('disposes terminal creation that becomes stale while the worktree is pending', async () => {
+		const worktreeUri = URI.file('/worktree');
+		const session = makeAgentSession({
+			worktree: worktreeUri,
+			providerType: AgentSessionProviders.Background,
+		});
+		const creationBarrier = new DeferredPromise<void>();
+		terminalCreationBarriers.set(worktreeUri.fsPath, creationBarrier);
+
+		activeSessionObs.set(session, undefined);
+		await tick();
+		session.worktreePending.set(true, undefined);
+		await creationBarrier.complete();
+		await tick();
+
+		session.worktreePending.set(false, undefined);
+		await tick();
+
+		assert.deepStrictEqual({
+			created: createdTerminals.map(terminal => terminal.cwd.fsPath),
+			disposed: disposedInstances.map(instance => instance.instanceId),
+			remaining: [...terminalInstances.keys()],
+		}, {
+			created: [worktreeUri.fsPath, worktreeUri.fsPath],
+			disposed: [1],
+			remaining: [2],
+		});
 		assert.strictEqual(defaultCwdCalls.at(-1)?.fsPath, worktreeUri.fsPath);
 	});
 
@@ -615,6 +673,33 @@ suite('SessionsTerminalContribution', () => {
 			agentHostAddresses: ['ssh-remote+one'],
 			transferredTerminalId: firstTerminal.instanceId,
 			disposed: [],
+		});
+	});
+
+	test('does not accept stale terminal creation after worktree readiness toggles back', async () => {
+		const worktreeUri = URI.file('/worktree');
+		const session = makeAgentSession({
+			worktree: worktreeUri,
+			providerType: AgentSessionProviders.Background,
+		});
+		const creationBarrier = new DeferredPromise<void>();
+		terminalCreationBarriers.set(worktreeUri.fsPath, creationBarrier);
+
+		activeSessionObs.set(session, undefined);
+		await tick();
+		session.worktreePending.set(true, undefined);
+		session.worktreePending.set(false, undefined);
+		await creationBarrier.complete();
+		await tick();
+
+		assert.deepStrictEqual({
+			created: createdTerminals.map(terminal => terminal.cwd.fsPath),
+			disposed: disposedInstances.map(instance => instance.instanceId),
+			remaining: [...terminalInstances.keys()],
+		}, {
+			created: [worktreeUri.fsPath, worktreeUri.fsPath],
+			disposed: [1],
+			remaining: [2],
 		});
 	});
 
@@ -805,7 +890,7 @@ suite('SessionsTerminalContribution', () => {
 
 	// --- onDidChangeSessions (archived) ---
 
-	test('hides (does not dispose) terminals when session is archived', async () => {
+	test('disposes terminals when session is archived', async () => {
 		const worktreeUri = URI.file('/worktree');
 		await contribution.ensureTerminal(worktreeUri, false, makeAgentSession({ sessionId: 'test:archived-session', worktree: worktreeUri, providerType: AgentSessionProviders.Background })); // terminal 1 at /worktree
 
@@ -817,7 +902,7 @@ suite('SessionsTerminalContribution', () => {
 		activeSessionObs.set(otherSession, undefined);
 		await tick();
 
-		// Isolate the archive-driven hide from the visibility-switch hide above.
+		// Isolate archive cleanup from the visibility switch above.
 		moveToBackgroundCalls.length = 0;
 
 		const session = makeAgentSession({
@@ -829,8 +914,382 @@ suite('SessionsTerminalContribution', () => {
 		onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
 		await tick();
 
-		assert.strictEqual(disposedInstances.length, 0, 'archived session terminal must be hidden, not disposed');
-		assert.deepStrictEqual(moveToBackgroundCalls, [1], 'archived session terminal should be moved to background');
+		assert.deepStrictEqual({
+			disposed: disposedInstances.map(instance => instance.instanceId),
+			backgrounded: moveToBackgroundCalls,
+		}, {
+			disposed: [1],
+			backgrounded: [],
+		});
+	});
+
+	test('disposes the active terminal when its session is archived', async () => {
+		const worktreeUri = URI.file('/worktree');
+		const session = makeAgentSession({
+			sessionId: 'test:active-archived-session',
+			worktree: worktreeUri,
+			providerType: AgentSessionProviders.Background,
+		});
+		await contribution.ensureTerminal(worktreeUri, false, session);
+		assert.strictEqual(activeInstanceId, 1);
+
+		onDidChangeSessions.fire({
+			added: [],
+			removed: [],
+			changed: [makeAgentSession({
+				sessionId: session.sessionId,
+				isArchived: true,
+				worktree: worktreeUri,
+				providerType: AgentSessionProviders.Background,
+			})],
+		});
+		await tick();
+
+		assert.deepStrictEqual({
+			disposed: disposedInstances.map(instance => instance.instanceId),
+			remaining: [...terminalInstances.keys()],
+		}, {
+			disposed: [1],
+			remaining: [],
+		});
+	});
+
+	test('recreates the active restored terminal when archive cleanup completes late', async () => {
+		const worktreeUri = URI.file('/worktree');
+		const session = makeAgentSession({
+			sessionId: 'test:restore-during-cleanup',
+			worktree: worktreeUri,
+			providerType: AgentSessionProviders.Background,
+		});
+		activeSessionObs.set(session, undefined);
+		await tick();
+		assert.strictEqual(activeInstanceId, 1);
+		safeDisposeBarrier = new DeferredPromise<void>();
+
+		session.isArchived.set(true, undefined);
+		onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
+		await tick();
+		session.isArchived.set(false, undefined);
+		await tick();
+		await safeDisposeBarrier.complete();
+		await tick();
+
+		assert.deepStrictEqual({
+			created: createdTerminals.map(terminal => terminal.cwd.fsPath),
+			disposed: disposedInstances.map(instance => instance.instanceId),
+			remaining: [...terminalInstances.keys()],
+			activeInstanceId,
+		}, {
+			created: [worktreeUri.fsPath, worktreeUri.fsPath],
+			disposed: [1],
+			remaining: [2],
+			activeInstanceId: 2,
+		});
+	});
+
+	test('disposes an untracked restored terminal at the archived session worktree', async () => {
+		const worktreeUri = URI.file('/worktree');
+		const restoredTerminal = makeTerminalInstance(nextInstanceId++, worktreeUri.fsPath);
+		restoredTerminal._testSetShellLaunchConfig({ attachPersistentProcess: { id: 1 } } as ITerminalInstance['shellLaunchConfig']);
+		terminalInstances.set(restoredTerminal.instanceId, restoredTerminal);
+
+		onDidChangeSessions.fire({
+			added: [],
+			removed: [],
+			changed: [makeAgentSession({
+				sessionId: 'test:archived-session',
+				isArchived: true,
+				worktree: worktreeUri,
+				providerType: AgentSessionProviders.Background,
+			})],
+		});
+		await tick();
+
+		assert.deepStrictEqual({
+			disposed: disposedInstances.map(instance => instance.instanceId),
+			remaining: [...terminalInstances.keys()],
+		}, {
+			disposed: [1],
+			remaining: [],
+		});
+	});
+
+	test('does not dispose an untracked terminal at an archived repository cwd', async () => {
+		const repositoryUri = URI.file('/repository');
+		const untrackedTerminal = makeTerminalInstance(nextInstanceId++, repositoryUri.fsPath);
+		untrackedTerminal._testSetShellLaunchConfig({ attachPersistentProcess: { id: 1 } } as ITerminalInstance['shellLaunchConfig']);
+		terminalInstances.set(untrackedTerminal.instanceId, untrackedTerminal);
+
+		onDidChangeSessions.fire({
+			added: [],
+			removed: [],
+			changed: [makeAgentSession({
+				sessionId: 'test:archived-session',
+				isArchived: true,
+				repository: repositoryUri,
+				providerType: AgentSessionProviders.Background,
+			})],
+		});
+		await tick();
+
+		assert.deepStrictEqual({
+			disposed: disposedInstances.map(instance => instance.instanceId),
+			remaining: [...terminalInstances.keys()],
+		}, {
+			disposed: [],
+			remaining: [1],
+		});
+	});
+
+	test('does not dispose an untracked terminal whose cwd differs only by case from the archived worktree', async () => {
+		const worktreeUri = URI.file('/Worktree');
+		const untrackedTerminal = makeTerminalInstance(nextInstanceId++, '/worktree');
+		untrackedTerminal._testSetShellLaunchConfig({ attachPersistentProcess: { id: 1 } } as ITerminalInstance['shellLaunchConfig']);
+		terminalInstances.set(untrackedTerminal.instanceId, untrackedTerminal);
+
+		onDidChangeSessions.fire({
+			added: [],
+			removed: [],
+			changed: [makeAgentSession({
+				sessionId: 'test:archived-session',
+				isArchived: true,
+				worktree: worktreeUri,
+				providerType: AgentSessionProviders.Background,
+			})],
+		});
+		await tick();
+
+		assert.deepStrictEqual({
+			disposed: disposedInstances.map(instance => instance.instanceId),
+			remaining: [...terminalInstances.keys()],
+		}, {
+			disposed: [],
+			remaining: [1],
+		});
+	});
+
+	test('does not cwd-match an untracked terminal for a remote archived worktree', async () => {
+		const remoteWorktree = toAgentHostUri(URI.file('C:\\repo\\worktree'), 'remote-windows');
+		const untrackedTerminal = makeTerminalInstance(nextInstanceId++, 'C:\\repo\\worktree');
+		untrackedTerminal._testSetShellLaunchConfig({ attachPersistentProcess: { id: 1 } } as ITerminalInstance['shellLaunchConfig']);
+		terminalInstances.set(untrackedTerminal.instanceId, untrackedTerminal);
+
+		onDidChangeSessions.fire({
+			added: [],
+			removed: [],
+			changed: [makeAgentSession({
+				sessionId: 'test:archived-session',
+				isArchived: true,
+				worktree: remoteWorktree,
+				providerType: AgentSessionProviders.Background,
+			})],
+		});
+		await tick();
+
+		assert.deepStrictEqual({
+			disposed: disposedInstances.map(instance => instance.instanceId),
+			remaining: [...terminalInstances.keys()],
+		}, {
+			disposed: [],
+			remaining: [1],
+		});
+	});
+
+	test('does not dispose an active untracked restored terminal at the archived worktree', async () => {
+		const worktreeUri = URI.file('/worktree');
+		const restoredTerminal = makeTerminalInstance(nextInstanceId++, worktreeUri.fsPath);
+		restoredTerminal._testSetShellLaunchConfig({ attachPersistentProcess: { id: 1 } } as ITerminalInstance['shellLaunchConfig']);
+		terminalInstances.set(restoredTerminal.instanceId, restoredTerminal);
+		activeInstanceId = restoredTerminal.instanceId;
+
+		onDidChangeSessions.fire({
+			added: [],
+			removed: [],
+			changed: [makeAgentSession({
+				sessionId: 'test:archived-session',
+				isArchived: true,
+				worktree: worktreeUri,
+				providerType: AgentSessionProviders.Background,
+			})],
+		});
+		await tick();
+
+		assert.deepStrictEqual({
+			disposed: disposedInstances.map(instance => instance.instanceId),
+			remaining: [...terminalInstances.keys()],
+		}, {
+			disposed: [],
+			remaining: [1],
+		});
+	});
+
+	test('does not dispose an untracked restored terminal when another live session shares the worktree', async () => {
+		const worktreeUri = URI.file('/worktree');
+		const archivedSession = makeAgentSession({
+			sessionId: 'test:archived-session',
+			isArchived: true,
+			worktree: worktreeUri,
+			providerType: AgentSessionProviders.Background,
+		});
+		const liveSession = makeAgentSession({
+			sessionId: 'test:live-session',
+			worktree: worktreeUri,
+			providerType: AgentSessionProviders.Background,
+		});
+		allSessions = [archivedSession, liveSession];
+		const restoredTerminal = makeTerminalInstance(nextInstanceId++, worktreeUri.fsPath);
+		restoredTerminal._testSetShellLaunchConfig({ attachPersistentProcess: { id: 1 } } as ITerminalInstance['shellLaunchConfig']);
+		terminalInstances.set(restoredTerminal.instanceId, restoredTerminal);
+
+		onDidChangeSessions.fire({
+			added: [],
+			removed: [],
+			changed: [archivedSession],
+		});
+		await tick();
+
+		assert.deepStrictEqual({
+			disposed: disposedInstances.map(instance => instance.instanceId),
+			remaining: [...terminalInstances.keys()],
+		}, {
+			disposed: [],
+			remaining: [1],
+		});
+	});
+
+	test('does not dispose a manually created untracked terminal at the archived worktree', async () => {
+		const worktreeUri = URI.file('/worktree');
+		const manualTerminal = makeTerminalInstance(nextInstanceId++, worktreeUri.fsPath);
+		terminalInstances.set(manualTerminal.instanceId, manualTerminal);
+
+		onDidChangeSessions.fire({
+			added: [],
+			removed: [],
+			changed: [makeAgentSession({
+				sessionId: 'test:archived-session',
+				isArchived: true,
+				worktree: worktreeUri,
+				providerType: AgentSessionProviders.Background,
+			})],
+		});
+		await tick();
+
+		assert.deepStrictEqual({
+			disposed: disposedInstances.map(instance => instance.instanceId),
+			remaining: [...terminalInstances.keys()],
+		}, {
+			disposed: [],
+			remaining: [1],
+		});
+	});
+
+	test('disposes a terminal whose creation completes after its session is archived', async () => {
+		const worktreeUri = URI.file('/worktree');
+		const session = makeAgentSession({ sessionId: 'test:archived-during-create', worktree: worktreeUri, providerType: AgentSessionProviders.Background });
+		const creationBarrier = new DeferredPromise<void>();
+		terminalCreationBarriers.set(worktreeUri.fsPath, creationBarrier);
+
+		activeSessionObs.set(session, undefined);
+		await tick();
+		onDidChangeSessions.fire({
+			added: [],
+			removed: [],
+			changed: [makeAgentSession({
+				sessionId: session.sessionId,
+				isArchived: true,
+				worktree: worktreeUri,
+				providerType: AgentSessionProviders.Background,
+			})],
+		});
+		await creationBarrier.complete();
+		await tick();
+
+		assert.deepStrictEqual({
+			created: createdTerminals.map(terminal => terminal.cwd.fsPath),
+			disposed: disposedInstances.map(instance => instance.instanceId),
+			remaining: [...terminalInstances.keys()],
+		}, {
+			created: [worktreeUri.fsPath],
+			disposed: [1],
+			remaining: [],
+		});
+	});
+
+	test('keeps an in-flight terminal tracked when archive disposal is vetoed', async () => {
+		const worktreeUri = URI.file('/worktree');
+		const session = makeAgentSession({ sessionId: 'test:archived-during-create', worktree: worktreeUri, providerType: AgentSessionProviders.Background });
+		const creationBarrier = new DeferredPromise<void>();
+		terminalCreationBarriers.set(worktreeUri.fsPath, creationBarrier);
+		vetoSafeDispose = true;
+
+		activeSessionObs.set(session, undefined);
+		await tick();
+		onDidChangeSessions.fire({
+			added: [],
+			removed: [],
+			changed: [makeAgentSession({
+				sessionId: session.sessionId,
+				isArchived: true,
+				worktree: worktreeUri,
+				providerType: AgentSessionProviders.Background,
+			})],
+		});
+		await creationBarrier.complete();
+		await tick();
+
+		const otherSessionTerminal = await contribution.ensureTerminal(
+			worktreeUri,
+			false,
+			makeAgentSession({ sessionId: 'test:other-session', worktree: worktreeUri, providerType: AgentSessionProviders.Background }),
+		);
+
+		assert.deepStrictEqual({
+			disposed: disposedInstances.map(instance => instance.instanceId),
+			otherSessionTerminal: otherSessionTerminal.map(instance => instance.instanceId),
+			remaining: [...terminalInstances.keys()],
+		}, {
+			disposed: [],
+			otherSessionTerminal: [2],
+			remaining: [1, 2],
+		});
+	});
+
+	test('creates a fresh terminal when an archived session is restored and activated', async () => {
+		const worktreeUri = URI.file('/worktree');
+		const archivedSession = makeAgentSession({ sessionId: 'test:archived-session', worktree: worktreeUri, providerType: AgentSessionProviders.Background });
+		await contribution.ensureTerminal(worktreeUri, false, archivedSession);
+
+		const otherSession = makeAgentSession({ sessionId: 'test:other-session', worktree: URI.file('/other'), providerType: AgentSessionProviders.Background });
+		activeSessionObs.set(otherSession, undefined);
+		await tick();
+
+		const archived = makeAgentSession({
+			sessionId: archivedSession.sessionId,
+			isArchived: true,
+			worktree: worktreeUri,
+			providerType: AgentSessionProviders.Background,
+		});
+		onDidChangeSessions.fire({ added: [], removed: [], changed: [archived] });
+		await tick();
+
+		const restored = makeAgentSession({
+			sessionId: archivedSession.sessionId,
+			worktree: worktreeUri,
+			providerType: AgentSessionProviders.Background,
+		});
+		activeSessionObs.set(restored, undefined);
+		await tick();
+		onDidChangeSessions.fire({ added: [], removed: [], changed: [restored] });
+
+		assert.deepStrictEqual({
+			created: createdTerminals.map(terminal => terminal.cwd.fsPath),
+			disposed: disposedInstances.map(instance => instance.instanceId),
+			remaining: [...terminalInstances.keys()],
+		}, {
+			created: [worktreeUri.fsPath, URI.file('/other').fsPath, worktreeUri.fsPath],
+			disposed: [1],
+			remaining: [2, 3],
+		});
 	});
 
 	test('does not hide or dispose terminals when session is not archived', async () => {
@@ -878,7 +1337,7 @@ suite('SessionsTerminalContribution', () => {
 		assert.strictEqual(moveToBackgroundCalls.length, 0);
 	});
 
-	test('hides terminals when archived session has only a repository (no worktree)', async () => {
+	test('disposes terminals when archived session has only a repository (no worktree)', async () => {
 		const repoUri = URI.file('/repo');
 		const session = makeAgentSession({ sessionId: 'test:repo-session', repository: repoUri, providerType: AgentSessionProviders.Background, isArchived: false });
 		activeSessionObs.set(session, undefined);
@@ -900,8 +1359,13 @@ suite('SessionsTerminalContribution', () => {
 		onDidChangeSessions.fire({ added: [], removed: [], changed: [archivedSession] });
 		await tick();
 
-		assert.strictEqual(disposedInstances.length, 0, 'archived repo-only session terminal must be hidden, not disposed');
-		assert.deepStrictEqual(moveToBackgroundCalls, [1]);
+		assert.deepStrictEqual({
+			disposed: disposedInstances.map(instance => instance.instanceId),
+			backgrounded: moveToBackgroundCalls,
+		}, {
+			disposed: [1],
+			backgrounded: [],
+		});
 	});
 
 	test('does not hide the terminal at the active session cwd when archiving (just-opened terminal is protected)', async () => {
@@ -926,7 +1390,7 @@ suite('SessionsTerminalContribution', () => {
 		assert.strictEqual(moveToBackgroundCalls.length, 0, 'terminal at the active session cwd must not be hidden');
 	});
 
-	test('does not re-hide a newly-opened terminal when an already-archived session is re-emitted', async () => {
+	test('does not re-dispose a newly-opened terminal when an already-archived session is re-emitted', async () => {
 		// Mirrors the "every new terminal keeps dying" repro (#313510, #318645):
 		// the provider keeps archived sessions cached and re-emits them in `changed`
 		// on every sync. The archive cleanup must only run on the first archived
@@ -939,11 +1403,11 @@ suite('SessionsTerminalContribution', () => {
 
 		moveToBackgroundCalls.length = 0;
 
-		// First archive event hides the terminal at the archived cwd (not active).
+		// First archive event disposes the terminal owned by the archived session.
 		onDidChangeSessions.fire({ added: [], removed: [], changed: [archivedSession] });
 		await tick();
-		assert.strictEqual(disposedInstances.length, 0);
-		assert.deepStrictEqual(moveToBackgroundCalls, [1]);
+		assert.deepStrictEqual(disposedInstances.map(instance => instance.instanceId), [1]);
+		assert.deepStrictEqual(moveToBackgroundCalls, []);
 
 		// The user opens a new terminal at the same cwd, then moves focus elsewhere.
 		await contribution.ensureTerminal(worktreeUri, false, makeAgentSession({ sessionId: 'test:later-session', worktree: worktreeUri, providerType: AgentSessionProviders.Background })); // terminal 3 at /worktree, active
@@ -957,8 +1421,8 @@ suite('SessionsTerminalContribution', () => {
 		// keeps it alive: the re-emit must be a no-op so the newly-opened terminal survives.
 		onDidChangeSessions.fire({ added: [], removed: [], changed: [archivedSession] });
 		await tick();
-		assert.strictEqual(disposedInstances.length, 0, 're-emitted archived session must not dispose any terminal');
-		assert.strictEqual(moveToBackgroundCalls.length, 0, 're-emitted archived session must not re-hide the newly-opened terminal');
+		assert.deepStrictEqual(disposedInstances.map(instance => instance.instanceId), [1], 're-emitted archived session must not dispose the later terminal');
+		assert.strictEqual(moveToBackgroundCalls.length, 0, 're-emitted archived session must not affect the newly-opened terminal');
 	});
 
 	test('does not hide terminals for a session that was already archived when the contribution started', async () => {
@@ -1055,7 +1519,7 @@ suite('SessionsTerminalContribution', () => {
 		assert.ok(terminalInstances.has(2), 'the surviving session terminal should remain');
 	});
 
-	test('hides only the archived session terminal when sessions share a cwd', async () => {
+	test('disposes only the archived session terminal when sessions share a cwd', async () => {
 		const worktreeUri = URI.file('/worktree');
 		await contribution.ensureTerminal(worktreeUri, false, makeAgentSession({ sessionId: 'test:live', worktree: worktreeUri, providerType: AgentSessionProviders.Background }));
 		await contribution.ensureTerminal(worktreeUri, false, makeAgentSession({ sessionId: 'test:archived', worktree: worktreeUri, providerType: AgentSessionProviders.Background }));
@@ -1073,8 +1537,15 @@ suite('SessionsTerminalContribution', () => {
 		onDidChangeSessions.fire({ added: [], removed: [], changed: [archivedSession] });
 		await tick();
 
-		assert.strictEqual(disposedInstances.length, 0, 'terminal should be hidden, not disposed');
-		assert.deepStrictEqual(moveToBackgroundCalls, [2], 'only the archived session terminal should be hidden');
+		assert.deepStrictEqual({
+			disposed: disposedInstances.map(instance => instance.instanceId),
+			backgrounded: moveToBackgroundCalls,
+			remaining: [...terminalInstances.keys()],
+		}, {
+			disposed: [2],
+			backgrounded: [],
+			remaining: [1],
+		});
 	});
 
 	test('closes terminal when the only session at a cwd is removed even if other live sessions exist elsewhere', async () => {
@@ -1322,7 +1793,7 @@ suite('SessionsTerminalContribution', () => {
 
 	// --- Hidden tool terminals (hideFromUser) ---
 
-	test('does not hide hidden tool terminals when session is archived', async () => {
+	test('does not dispose hidden tool terminals when session is archived', async () => {
 		const worktreeUri = URI.file('/worktree');
 		await contribution.ensureTerminal(worktreeUri, false, makeAgentSession({ sessionId: 'test:regular-session', worktree: worktreeUri, providerType: AgentSessionProviders.Background })); // terminal 1 (regular) at /worktree
 
@@ -1348,9 +1819,15 @@ suite('SessionsTerminalContribution', () => {
 		onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
 		await tick();
 
-		// The regular terminal should be hidden, but the tool terminal must survive untouched.
-		assert.strictEqual(disposedInstances.length, 0, 'archived session terminal must be hidden, not disposed');
-		assert.deepStrictEqual(moveToBackgroundCalls, [1], 'only the regular terminal should be hidden, not the tool terminal');
+		assert.deepStrictEqual({
+			disposed: disposedInstances.map(instance => instance.instanceId),
+			backgrounded: moveToBackgroundCalls,
+			toolTerminalDisposed: toolTerminal.isDisposed,
+		}, {
+			disposed: [1],
+			backgrounded: [],
+			toolTerminalDisposed: false,
+		});
 	});
 
 	test('does not dispose hidden tool terminals when session is removed', async () => {

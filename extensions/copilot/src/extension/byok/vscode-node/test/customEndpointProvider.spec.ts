@@ -11,7 +11,8 @@ import { IChatMLFetcher, type IFetchMLOptions } from '../../../../platform/chat/
 import { ChatLocation, type ChatResponse, type ChatResponses } from '../../../../platform/chat/common/commonTypes';
 import { MockChatMLFetcher } from '../../../../platform/chat/test/common/mockChatMLFetcher';
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../../platform/endpoint/common/endpointProvider';
-import type { IChatEndpoint } from '../../../../platform/networking/common/networking';
+import { CustomDataPartMimeTypes } from '../../../../platform/endpoint/common/endpointTypes';
+import type { IChatEndpoint, IEndpointBody } from '../../../../platform/networking/common/networking';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
 import { TokenizerType } from '../../../../util/common/tokenizer';
 import { Event } from '../../../../util/vs/base/common/event';
@@ -21,7 +22,10 @@ import { IInstantiationService } from '../../../../util/vs/platform/instantiatio
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
 import type { OpenAICompatibleLanguageModelChatInformation } from '../abstractLanguageModelChatProvider';
 import type { IBYOKStorageService } from '../byokStorageService';
-import { CustomEndpointBYOKModelProvider, type CustomEndpointModelProviderConfig, CustomEndpointOAIEndpoint, hasExplicitApiPath, resolveCustomEndpointUrl } from '../customEndpointProvider';
+import { CustomEndpointBYOKModelProvider, type CustomEndpointModelConfig, type CustomEndpointModelProviderConfig, CustomEndpointOAIEndpoint, hasExplicitApiPath, resolveCustomEndpointUrl } from '../customEndpointProvider';
+
+const customResponsesModelId = 'custom-responses-model';
+const customResponsesMarker = 'resp_custom_previous';
 
 class TestCustomEndpointBYOKModelProvider extends CustomEndpointBYOKModelProvider {
 	public createEndpoint(model: OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>): Promise<IChatEndpoint> {
@@ -55,6 +59,40 @@ function createStorageService(): IBYOKStorageService {
 		saveModelConfig: async () => undefined,
 		removeModelConfig: async () => undefined,
 	};
+}
+
+function createResponsesBody(endpoint: IChatEndpoint): IEndpointBody {
+	return endpoint.createRequestBody({
+		debugName: 'test',
+		messages: [
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'before marker' }]
+			},
+			{
+				role: Raw.ChatRole.Assistant,
+				content: [{
+					type: Raw.ChatCompletionContentPartKind.Opaque,
+					value: {
+						type: CustomDataPartMimeTypes.StatefulMarker,
+						value: {
+							modelId: customResponsesModelId,
+							marker: customResponsesMarker,
+						}
+					}
+				}]
+			},
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'after marker' }]
+			}
+		],
+		requestId: 'test-custom-responses-store',
+		postOptions: {},
+		ignoreStatefulMarker: false,
+		finishedCb: undefined,
+		location: ChatLocation.Other,
+	});
 }
 
 describe('CustomEndpointBYOKModelProvider', () => {
@@ -136,6 +174,32 @@ describe('CustomEndpointBYOKModelProvider', () => {
 	});
 
 	describe('CustomEndpointOAIEndpoint', () => {
+		async function createConfiguredResponsesEndpoint(zeroDataRetentionEnabled?: boolean): Promise<IChatEndpoint> {
+			const provider = instaService.createInstance(TestCustomEndpointBYOKModelProvider, createStorageService());
+			const tokenSource = disposables.add(new vscode.CancellationTokenSource());
+			const modelConfiguration: CustomEndpointModelConfig = {
+				id: customResponsesModelId,
+				name: 'Custom Responses Model',
+				url: 'https://api.example.com',
+				apiType: 'responses',
+				maxInputTokens: 128000,
+				maxOutputTokens: 16000,
+				toolCalling: true,
+				vision: false,
+			};
+			if (zeroDataRetentionEnabled !== undefined) {
+				modelConfiguration.zeroDataRetentionEnabled = zeroDataRetentionEnabled;
+			}
+			const [model] = await provider.provideLanguageModelChatInformation({
+				silent: true,
+				configuration: {
+					apiKey: 'test-api-key',
+					models: [modelConfiguration],
+				}
+			}, tokenSource.token);
+			return provider.createEndpoint(model);
+		}
+
 		function makeMetadata(supportedEndpoints: ModelSupportedEndpoint[] | undefined): IChatModelInformation {
 			return {
 				id: 'custom-model',
@@ -166,6 +230,51 @@ describe('CustomEndpointBYOKModelProvider', () => {
 				}
 			};
 		}
+
+		it('omits store after cloning a Custom Endpoint Responses endpoint when zeroDataRetentionEnabled is omitted', async () => {
+			const endpoint = (await createConfiguredResponsesEndpoint()).cloneWithTokenOverride(64000);
+			const body = createResponsesBody(endpoint);
+
+			expect({
+				storePresent: 'store' in body,
+				store: body.store,
+				previousResponseId: body.previous_response_id,
+			}).toEqual({
+				storePresent: false,
+				store: undefined,
+				previousResponseId: customResponsesMarker,
+			});
+		});
+
+		it('enables store and previous_response_id for Custom Endpoint Responses requests when zeroDataRetentionEnabled is false', async () => {
+			const endpoint = await createConfiguredResponsesEndpoint(false);
+			const body = createResponsesBody(endpoint);
+
+			expect({
+				storePresent: 'store' in body,
+				store: body.store,
+				previousResponseId: body.previous_response_id,
+			}).toEqual({
+				storePresent: true,
+				store: true,
+				previousResponseId: customResponsesMarker,
+			});
+		});
+
+		it('disables store and previous_response_id for Custom Endpoint ZDR Responses requests', async () => {
+			const endpoint = await createConfiguredResponsesEndpoint(true);
+			const body = createResponsesBody(endpoint);
+
+			expect({
+				storePresent: 'store' in body,
+				store: body.store,
+				previousResponseId: body.previous_response_id,
+			}).toEqual({
+				storePresent: true,
+				store: false,
+				previousResponseId: undefined,
+			});
+		});
 
 		it('uses Messages API and sends x-api-key + anthropic-version when supported_endpoints includes Messages', () => {
 			const endpoint = instaService.createInstance(CustomEndpointOAIEndpoint,

@@ -336,6 +336,7 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 			}());
 			reg.defineInstance(IChatEditingService, new class extends mock<IChatEditingService>() {
 				override editingSessionsObs = observableValue('editingSessionsObs', []);
+				override getEditingSession() { return undefined; }
 			}());
 			reg.defineInstance(IChatInputNotificationService, new class extends mock<IChatInputNotificationService>() {
 				override readonly onDidChange = Event.None;

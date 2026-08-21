@@ -1,5 +1,9 @@
 # Base Session Layout Controller — Spec
 
+> **Specification change gate:** A bug fix that restores an existing `B*` rule
+> belongs in a regression test. Update this file only when the intended base
+> controller behavior changes.
+
 Specifies [`baseSessionLayoutController.ts`](./baseSessionLayoutController.ts) (`BaseLayoutController`),
 the abstract, platform-agnostic controller that manages the per-session layout state shared by every
 layout. Platform-specific auxiliary bar behaviour lives in the desktop / mobile subclasses

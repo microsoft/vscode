@@ -135,7 +135,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 			clientSeq: 1,
 			action: {
 				type: 'root/configChanged',
-				config: { [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.All },
+				config: { [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days },
 			},
 		});
 		await client.call('ping');

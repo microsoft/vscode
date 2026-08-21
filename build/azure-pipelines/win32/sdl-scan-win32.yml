@@ -48,6 +48,10 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
+  - template: ../common/foundry-local.yml@self
+    parameters:
+      phase: prepare
+
   - pwsh: |
       $includes = @'
         {
@@ -91,6 +95,10 @@ steps:
       GITHUB_TOKEN: "$(github-token-code-oss)"
     retryCountOnTaskFailure: 5
     displayName: Install dependencies
+
+  - template: ../common/foundry-local.yml@self
+    parameters:
+      phase: install
 
   - script: node build/azure-pipelines/distro/mixin-npm.ts
     displayName: Mixin distro node modules

@@ -12,7 +12,7 @@ import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../..
 import { DefaultConfiguration, PolicyConfiguration } from '../../../../../platform/configuration/common/configurations.js';
 import { IDefaultAccountProvider, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_SANDBOX_ENABLED_KEY, INativeManagedSettingsService, IFileManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_SANDBOX_ENABLED_KEY, INativeManagedSettingsService, IFileManagedSettingsService, thirdPartyAgentEnabledValue } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue, PolicyValueSource } from '../../../../../platform/policy/common/policy.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { TestProductService } from '../../../../test/common/workbenchTestServices.js';
@@ -185,6 +185,19 @@ suite('AccountPolicyService', () => {
 						[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: { type: 'string' },
 						[COPILOT_ENABLED_PLUGINS_KEY]: { type: 'string' },
 					}
+				}
+			},
+			'setting.J': {
+				'type': 'boolean',
+				'default': true,
+				policy: {
+					name: 'PolicySettingJ',
+					category: PolicyCategory.Extensions,
+					minimumVersion: '1.0.0',
+					localization: { description: { key: '', value: '' } },
+					// Mirrors the third-party harness policies: keys off the presence of managed
+					// settings, so it deliberately declares no `managedSettings`.
+					value: thirdPartyAgentEnabledValue,
 				}
 			}
 		}
@@ -495,6 +508,43 @@ suite('AccountPolicyService', () => {
 		}, {
 			value: false,
 			source: PolicyValueSource.MixedManagedSettings,
+		});
+	});
+
+	test('managed settings: their mere presence disables the third-party harnesses', async () => {
+		// A runtime-owned key VS Code never declares still counts as governance.
+		const fileManagedSettingsService = new FakeFileManagedSettingsService({ 'permissions.deny': '["Bash"]' });
+		policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService, undefined, undefined, fileManagedSettingsService));
+		const defaultConfiguration = disposables.add(new DefaultConfiguration(new NullLogService()));
+		await defaultConfiguration.initialize();
+		policyConfiguration = disposables.add(new PolicyConfiguration(defaultConfiguration, policyService, new NullLogService()));
+
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, {}));
+		await defaultAccountService.refresh();
+		await policyConfiguration.initialize();
+
+		assert.deepStrictEqual({
+			setting: policyConfiguration.configurationModel.getValue('setting.J'),
+			value: policyService.getPolicyValue('PolicySettingJ'),
+			source: policyService.getPolicyValueSource('PolicySettingJ'),
+		}, {
+			setting: false,
+			value: false,
+			source: PolicyValueSource.FileManagedSettings,
+		});
+	});
+
+	test('managed settings: an ungoverned account leaves the third-party harnesses alone', async () => {
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, { chat_preview_features_enabled: true }));
+		await defaultAccountService.refresh();
+		await policyConfiguration.initialize();
+
+		assert.deepStrictEqual({
+			setting: policyConfiguration.configurationModel.getValue('setting.J'),
+			value: policyService.getPolicyValue('PolicySettingJ'),
+		}, {
+			setting: undefined,
+			value: undefined,
 		});
 	});
 

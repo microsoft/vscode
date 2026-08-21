@@ -32,7 +32,7 @@ steps:
       versionSource: fromFile
       versionFilePath: .nvmrc
 
-  - ${{ if eq(parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL, true) }}:
+  - ${{ if or(eq(parameters.VSCODE_CIBUILD, true), eq(parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL, true)) }}:
     - script: node build/azure-pipelines/common/disableFoundryLocalInstall.ts
       displayName: Disable Foundry Local Native Install
 
@@ -100,6 +100,11 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
+  - ${{ if and(eq(parameters.VSCODE_CIBUILD, false), eq(parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL, false)) }}:
+    - template: ../../common/foundry-local.yml@self
+      parameters:
+        phase: prepare
+
   - script: |
       set -e
 
@@ -158,6 +163,11 @@ steps:
       GITHUB_TOKEN: "$(github-token-code-oss)"
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+  - ${{ if and(eq(parameters.VSCODE_CIBUILD, false), eq(parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL, false)) }}:
+    - template: ../../common/foundry-local.yml@self
+      parameters:
+        phase: install
 
   - script: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
     displayName: Verify native optional dependency binaries

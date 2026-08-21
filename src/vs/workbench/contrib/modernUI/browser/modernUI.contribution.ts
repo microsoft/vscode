@@ -8,21 +8,17 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IWorkbenchLayoutService, LayoutSettings } from '../../../services/layout/browser/layoutService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { DEFAULT_SCROLLBAR_SIZE, setGlobalDefaultScrollbarSize } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
-import { DEFAULT_NOTIFICATION_ROW_HEIGHT, setNotificationRowHeight } from '../../../browser/parts/notifications/notificationsViewer.js';
+import { COMPACT_NOTIFICATION_ROW_HEIGHT, DEFAULT_NOTIFICATION_ROW_HEIGHT, setNotificationRowHeight } from '../../../browser/parts/notifications/notificationsViewer.js';
 import { DEFAULT_PANE_HEADER_SIZE, setGlobalPaneHeaderSize } from '../../../../base/browser/ui/splitview/paneview.js';
 
 /** Reduced scrollbar size (px) applied when Modern UI is on. */
 const MODERN_UI_SCROLLBAR_SIZE = 8;
 
-/** Reduced collapsed notification row height (px) applied when Modern UI is on. */
-const MODERN_UI_NOTIFICATION_ROW_HEIGHT = 34;
-
 /** Increased pane header size (px) applied when Modern UI is on. */
 const MODERN_UI_PANE_HEADER_SIZE = 28;
 
-// Bundle the CSS for every Modern UI module. Every file gates all of its
-// rules behind the single `.modern-ui` ancestor class, so the styles are
-// inert until that class is toggled onto the workbench container(s) below.
+// Bundle the CSS for every Modern UI module. Styles remain inert until their
+// corresponding classes are toggled onto the workbench container(s) below.
 import './media/activityBar.css';
 import './media/commandCenter.css';
 import './media/editorBorder.css';
@@ -49,22 +45,19 @@ interface IModernUIModule {
 }
 
 /**
- * The single class toggled onto the workbench container(s) when the Modern UI
- * Update experiment is enabled. Every Modern UI module's CSS is gated
- * behind this class (`.modern-ui ...`), so all modules are applied together
- * as a group.
+ * The primary class toggled when the Modern UI experiment is enabled. Modules
+ * that can be reused independently also receive dedicated classes below.
  */
 const MODERN_UI_CLASS = 'modern-ui';
 const MODERN_UI_TABS_CLASS = 'modern-ui-tabs';
+const MODERN_UI_NOTIFICATIONS_DIALOGS_CLASS = 'modern-ui-notifications-dialogs';
 const MODERN_UI_UPPERCASE_VIEW_HEADERS_CLASS = 'modern-ui-uppercase-view-headers';
 
 /**
  * The fixed catalog of built-in Modern UI modules. The CSS for each module
- * ships with the product (imported above) and is gated behind the shared
- * `.modern-ui` class. All modules are enabled together as part of the
- * Modern UI Update experiment (`LayoutSettings.MODERN_UI`). This catalog is
- * retained to track per-module metadata (e.g. whether a module is
- * layout-affecting).
+ * ships with the product (imported above), and all modules are enabled together
+ * as part of the Modern UI experiment (`LayoutSettings.MODERN_UI`). This catalog
+ * tracks per-module metadata such as whether a module affects layout.
  */
 const MODERN_UI_MODULES: readonly IModernUIModule[] = [
 	{ id: 'activityBar' },
@@ -158,6 +151,7 @@ export class ModernUIContribution extends Disposable implements IWorkbenchContri
 	private applyTo(container: HTMLElement, enabled: boolean, useUppercaseViewHeaders: boolean): void {
 		container.classList.toggle(MODERN_UI_CLASS, enabled);
 		container.classList.toggle(MODERN_UI_TABS_CLASS, enabled);
+		container.classList.toggle(MODERN_UI_NOTIFICATIONS_DIALOGS_CLASS, enabled);
 		container.classList.toggle(MODERN_UI_UPPERCASE_VIEW_HEADERS_CLASS, useUppercaseViewHeaders);
 	}
 
@@ -166,7 +160,7 @@ export class ModernUIContribution extends Disposable implements IWorkbenchContri
 	}
 
 	private applyNotificationRowHeight(enabled: boolean): void {
-		setNotificationRowHeight(enabled ? MODERN_UI_NOTIFICATION_ROW_HEIGHT : DEFAULT_NOTIFICATION_ROW_HEIGHT);
+		setNotificationRowHeight(enabled ? COMPACT_NOTIFICATION_ROW_HEIGHT : DEFAULT_NOTIFICATION_ROW_HEIGHT);
 	}
 
 	private applyPaneHeaderSize(enabled: boolean): void {
@@ -178,6 +172,7 @@ export class ModernUIContribution extends Disposable implements IWorkbenchContri
 		for (const container of this.layoutService.containers) {
 			container.classList.remove(MODERN_UI_CLASS);
 			container.classList.remove(MODERN_UI_TABS_CLASS);
+			container.classList.remove(MODERN_UI_NOTIFICATIONS_DIALOGS_CLASS);
 			container.classList.remove(MODERN_UI_UPPERCASE_VIEW_HEADERS_CLASS);
 		}
 		setGlobalDefaultScrollbarSize(DEFAULT_SCROLLBAR_SIZE);

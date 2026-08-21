@@ -68,6 +68,9 @@
 		"surface.border": "#00000000",
 		// "agentsBottomPanel.border": "#00000000",
 		// "agentsCard.border": "#00000000",
+		"modernActivityBar.background": "#00000000",
+		"modernActivityBar.activeBackground": "#580000",
+		"modernActivityBar.hoverBackground": "#58000087",
 	},
 	"tokenColors": [
 		{

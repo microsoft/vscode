@@ -134,15 +134,11 @@
 }
 
 /*
- * File Explorer titles — respect the real casing of the workspace / folder name
- * (user input). `text-transform: none` overrides both the base `uppercase` rule
- * and the `capitalize` override above. System labels such as "Untitled
- * (Workspace)" are already title-cased in source, so they still render
- * correctly; only user-provided folder names (e.g. "vscode-dev") are left
- * untouched.
+ * Named File Explorer workspace titles preserve the casing supplied by the
+ * user. Untitled workspaces continue to use the standard capitalized header.
  */
-.modern-ui.monaco-workbench .part:not(.editor)[data-active-composite="workbench.view.explorer"] > .title > .title-label h2,
-.modern-ui .monaco-pane-view .pane > .pane-header > .icon.codicon-explorer-view-icon + .title {
+.modern-ui.monaco-workbench .part.preserve-merged-workspace-name-case > .title > .title-label h2,
+.modern-ui .pane.preserve-workspace-name-case > .pane-header > .icon.codicon-explorer-view-icon + .title {
 	text-transform: none;
 }
 

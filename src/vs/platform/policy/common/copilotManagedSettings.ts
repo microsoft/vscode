@@ -205,6 +205,21 @@ export function managedModelValue(): (policyData: IPolicyData) => ManagedSetting
 	return managedModelValueCallback;
 }
 
+/**
+ * `value` callback shared by the third-party agent harness policies (`Claude3PIntegration`,
+ * `Codex3PIntegration`): forces the harness off when the account disables chat preview features,
+ * or when the user is governed by managed settings at all.
+ *
+ * Managed settings are composed and enforced by the Copilot runtime and never reach the Claude or
+ * Codex harnesses, so leaving them available would hand a governed user an ungoverned path around
+ * every managed control the enterprise set.
+ */
+export function thirdPartyAgentEnabledValue(policyData: IPolicyData): boolean | undefined {
+	return policyData.chat_preview_features_enabled === false || policyData.managedSettingsActive === true
+		? false
+		: undefined;
+}
+
 export const INativeManagedSettingsService = createDecorator<INativeManagedSettingsService>('nativeManagedSettingsService');
 
 export interface INativeManagedSettingsService {

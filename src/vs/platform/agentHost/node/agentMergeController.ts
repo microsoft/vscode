@@ -6,6 +6,7 @@
 import { RunOnceScheduler, SequencerByKey } from '../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { structuralEquals } from '../../../base/common/equals.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { autorun } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
@@ -20,7 +21,7 @@ import { deriveGitHubEndpoints } from '../common/githubEndpoints.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ActionType } from '../common/state/protocol/common/actions.js';
 import { AuthRequiredReason } from '../common/state/sessionActions.js';
-import { getSessionRelatedPullRequestUrls, isAhpChatChannel, isSessionStatusArchived, parseRequiredSessionUriFromChatUri, readSessionGitHubState, readSessionGitState, SessionLifecycle, TurnState } from '../common/state/sessionState.js';
+import { getSessionRelatedPullRequestUrls, isAhpChatChannel, isSessionStatusArchived, needsSessionGitStateRefresh, parseRequiredSessionUriFromChatUri, readSessionGitHubState, readSessionGitState, SessionLifecycle, TurnState } from '../common/state/sessionState.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
@@ -31,7 +32,7 @@ const backstopInterval = 10 * 60_000;
 const maximumRepeatedPromptCount = 3;
 const maximumTotalPromptCount = 6;
 
-interface IAgentMergeControllerOptions {
+export interface IAgentMergeControllerOptions {
 	readonly startTurn: (session: string, turnId: string, prompt: string) => boolean;
 	readonly cancelTurn: (session: string, turnId: string) => void;
 	readonly getAutonomousSessionConfig: (session: string, config: Readonly<Record<string, unknown>>) => Record<string, unknown> | undefined;
@@ -46,6 +47,13 @@ class AgentMergeRuntime extends Disposable {
 	readonly evaluationScheduler: RunOnceScheduler;
 	readonly backstopScheduler: RunOnceScheduler;
 	ref: PullRequestRef | undefined;
+	/**
+	 * Whether this runtime already tried to recompute git state that reported
+	 * no usable branch. Caps that repair at one git call per runtime so a
+	 * checkout that can never report a branch does not spawn one on every
+	 * backstop.
+	 */
+	didRefreshForMissingBranch = false;
 
 	constructor(
 		readonly session: string,
@@ -64,6 +72,13 @@ export class AgentMergeController extends Disposable {
 	private readonly _runtimes = this._register(new DisposableMap<string, AgentMergeRuntime>());
 	private readonly _evaluations = new SequencerByKey<string>();
 	private readonly _activeTurns = new Map<string, IAgentMergeTurnContext>();
+
+	private readonly _onDidReleaseHold = this._register(new Emitter<string>());
+	/** Fires when Agent Merge stops holding a session, so the host can re-arm its idle release. */
+	readonly onDidReleaseHold: Event<string> = this._onDidReleaseHold.event;
+
+	/** Sessions kept resident so their monitoring survives with no client subscriber. */
+	private readonly _heldSessions = new Set<string>();
 
 	constructor(
 		private readonly _options: IAgentMergeControllerOptions,
@@ -115,6 +130,15 @@ export class AgentMergeController extends Disposable {
 		return this._isFeatureEnabled();
 	}
 
+	/**
+	 * Whether Agent Merge is keeping `session` resident. The host consults this
+	 * before releasing an idle session, and re-arms that release when
+	 * {@link onDidReleaseHold} reports the hold has ended.
+	 */
+	holdsSession(session: string): boolean {
+		return this._heldSessions.has(session);
+	}
+
 	onSessionAvailable(session: string): void {
 		this._logService.trace(`[AgentMergeController] Session available: session=${session}`);
 		this._syncSession(session);
@@ -129,7 +153,53 @@ export class AgentMergeController extends Disposable {
 		return context;
 	}
 
+	/**
+	 * Whether monitoring needs `session` in memory. Persisted enablement counts
+	 * even before a runtime starts, so a restore is not evicted out from under
+	 * the runtime that is about to claim it.
+	 */
+	private _shouldHoldSession(session: string): boolean {
+		if (this._runtimes.has(session)) {
+			return true;
+		}
+		if (!this._isFeatureEnabled()) {
+			return false;
+		}
+		const state = this._stateManager.getSessionState(session);
+		if (!state || isSessionStatusArchived(state.status)) {
+			return false;
+		}
+		return readAgentMergeSessionState(state.config?.values)?.enabled === true;
+	}
+
+	/**
+	 * Recomputes the hold after a state transition. Tracking it here — rather
+	 * than lazily when the host happens to ask — keeps the answer correct for a
+	 * session the host has never had reason to evict.
+	 */
+	private _updateHold(session: string): void {
+		const shouldHold = this._shouldHoldSession(session);
+		if (shouldHold === this._heldSessions.has(session)) {
+			return;
+		}
+		if (shouldHold) {
+			this._heldSessions.add(session);
+			return;
+		}
+		this._heldSessions.delete(session);
+		this._logService.debug(`[AgentMergeController] Released session hold: session=${session}`);
+		this._onDidReleaseHold.fire(session);
+	}
+
 	private _syncSession(session: string): void {
+		try {
+			this._doSyncSession(session);
+		} finally {
+			this._updateHold(session);
+		}
+	}
+
+	private _doSyncSession(session: string): void {
 		const state = this._stateManager.getSessionState(session);
 		const agentMerge = readAgentMergeSessionState(state?.config?.values);
 		if (!state || !agentMerge?.enabled) {
@@ -274,8 +344,10 @@ export class AgentMergeController extends Disposable {
 		if (!runtime || !state || !agentMerge?.enabled || this._stateManager.hasActiveTurn(session)) {
 			return;
 		}
-		const gitState = readSessionGitState(state._meta);
-		const branchName = gitState?.branchName;
+		const branchName = await this._resolveCurrentBranch(session, runtime, state);
+		if (!this._isCurrentRuntime(session, runtime)) {
+			return;
+		}
 		if (!branchName) {
 			this._logService.trace(`[AgentMergeController] Waiting for a current branch: session=${session}`);
 			runtime.backstopScheduler.schedule();
@@ -414,6 +486,46 @@ export class AgentMergeController extends Disposable {
 				await this._merge(session, runtime, ref, snapshot, configuration, agentMerge);
 				return;
 		}
+	}
+
+	/**
+	 * Resolves the branch Agent Merge should act on, repairing session git
+	 * state that does not report one.
+	 *
+	 * A failed git probe can leave persisted git state without a branch. The
+	 * refresh that would repair it normally rides along with a client watching
+	 * the session or an edit landing in the worktree, and neither happens for a
+	 * session this controller is holding resident on its own. Every later step
+	 * — binding the pull request, subscribing to it, acting on its feedback —
+	 * is gated on the branch, so without this the session idles on the backstop
+	 * indefinitely and Agent Merge silently never runs.
+	 *
+	 * A detached `HEAD` is excluded: it reports no branch by design, so
+	 * refreshing would never produce one. The attempt is capped at once per
+	 * runtime regardless, so any other checkout that cannot report a branch
+	 * costs a single git call rather than one per backstop.
+	 */
+	private async _resolveCurrentBranch(session: string, runtime: AgentMergeRuntime, state: NonNullable<ReturnType<AgentHostStateManager['getSessionState']>>): Promise<string | undefined> {
+		const gitState = readSessionGitState(state._meta);
+		if (gitState?.branchName) {
+			return gitState.branchName;
+		}
+		if (runtime.didRefreshForMissingBranch || !needsSessionGitStateRefresh(gitState)) {
+			return undefined;
+		}
+		runtime.didRefreshForMissingBranch = true;
+		this._logService.debug(`[AgentMergeController] Refreshing git state because the session reports no branch: session=${session}`);
+		await this._gitStateService.refreshSessionGitState(session, state.workingDirectories?.[0] ? URI.parse(state.workingDirectories[0]) : undefined);
+		if (!this._isCurrentRuntime(session, runtime)) {
+			return undefined;
+		}
+		const refreshed = readSessionGitState(this._stateManager.getSessionState(session)?._meta)?.branchName;
+		if (refreshed) {
+			this._logService.info(`[AgentMergeController] Recovered the session branch after refreshing git state: session=${session}`);
+		} else {
+			this._logService.warn(`[AgentMergeController] Session still reports no branch after refreshing git state: session=${session}`);
+		}
+		return refreshed;
 	}
 
 	private async _resolveRef(parsed: IParsedPullRequestUrl, signal: AbortSignal): Promise<PullRequestRef | undefined> {
@@ -653,6 +765,9 @@ export class AgentMergeController extends Disposable {
 			this._runtimes.deleteAndDispose(session);
 			this._logService.debug(`[AgentMergeController] Disposed session runtime: session=${session}`);
 		}
+		// Also reached directly when the session is removed from state, which
+		// does not go through `_syncSession`.
+		this._updateHold(session);
 	}
 
 	private _hasTargetBranch(state: ReturnType<AgentHostStateManager['getSessionState']>, branchName: string): boolean {

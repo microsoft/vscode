@@ -140,6 +140,45 @@ suite('ObjectTree', function () {
 			assert.strictEqual(navigator.last(), 2);
 		});
 
+		test('reports the flattened visible render count', () => {
+			tree.setChildren(null, [
+				{
+					element: 0,
+					collapsible: true,
+					collapsed: false,
+					children: [
+						{ element: 10 },
+						{ element: 11 },
+					]
+				},
+				{
+					element: 1,
+					collapsible: true,
+					collapsed: true,
+					children: [
+						{ element: 20 },
+					]
+				},
+				{ element: 2 }
+			]);
+
+			const expandedRoot = tree.getListRenderCount(null);
+			const expandedSubtree = tree.getListRenderCount(0);
+			tree.collapse(0);
+
+			assert.deepStrictEqual({
+				expandedRoot,
+				expandedSubtree,
+				collapsedRoot: tree.getListRenderCount(null),
+				collapsedSubtree: tree.getListRenderCount(0),
+			}, {
+				expandedRoot: 5,
+				expandedSubtree: 3,
+				collapsedRoot: 3,
+				collapsedSubtree: 1,
+			});
+		});
+
 		test('should skip filtered elements', () => {
 			filter = el => el % 2 === 0;
 

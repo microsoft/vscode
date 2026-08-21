@@ -10,12 +10,12 @@ import { IProgressIndicator } from '../../../platform/progress/common/progress.j
 import { PaneComposite, PaneCompositeDescriptor, PaneCompositeRegistry } from '../panecomposite.js';
 import { IPaneComposite } from '../../common/panecomposite.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../common/views.js';
-import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IView } from '../../../base/browser/ui/grid/grid.js';
 import { IWorkbenchLayoutService, Parts, SINGLE_WINDOW_PARTS, getFloatingOuterGutterEdges, getFloatingPaneCompositeHorizontalMargins, getFloatingPaneCompositeVerticalMargins } from '../../services/layout/browser/layoutService.js';
 import { CompositePart, ICompositePartOptions, ICompositeTitleLabel } from './compositePart.js';
 import { IPaneCompositeBarOptions, PaneCompositeBar } from './paneCompositeBar.js';
-import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow } from '../../../base/browser/dom.js';
+import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow, scheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
@@ -124,6 +124,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	protected readonly headerFooterCompositeBarDispoables = this._register(new DisposableStore());
 	private paneCompositeBarContainer: HTMLElement | undefined;
 	private readonly paneCompositeBar = this._register(new MutableDisposable<PaneCompositeBar>());
+	private readonly pendingCompositeBarLayout = this._register(new MutableDisposable<IDisposable>());
 	private compositeBarPosition: CompositeBarPosition | undefined = undefined;
 	private emptyPaneMessageElement: HTMLElement | undefined;
 
@@ -492,8 +493,12 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	protected override onTitleAreaUpdate(compositeId: string): void {
 		super.onTitleAreaUpdate(compositeId);
 
-		// If title actions change, relayout the composite bar
-		this.layoutCompositeBar();
+		if (!this.pendingCompositeBarLayout.value) {
+			this.pendingCompositeBarLayout.value = scheduleAtNextAnimationFrame(getWindow(this.element), () => {
+				this.pendingCompositeBarLayout.clear();
+				this.layoutCompositeBar();
+			});
+		}
 	}
 
 	async openPaneComposite(id?: string, focus?: boolean): Promise<PaneComposite | undefined> {
@@ -677,6 +682,8 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	}
 
 	private layoutCompositeBar(): void {
+		this.pendingCompositeBarLayout.clear();
+
 		if (this.contentDimension && this.dimension && this.paneCompositeBar.value) {
 			const padding = this.compositeBarPosition === CompositeBarPosition.TITLE ? 16 : 8;
 			const borderWidth = this.partId === Parts.PANEL_PART ? 0 : 1;

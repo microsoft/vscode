@@ -35,7 +35,7 @@ export class SessionsChangesAccessibilityHelp implements IAccessibleViewImplemen
 		content.push(localize('sessionsChanges.checks', "The Checks section lists the continuous integration checks for the session's pull request. Its header is a button: press Enter or Space to collapse or expand it{0}.", '<keybinding:sessions.action.revealCIChecks>'));
 		content.push(localize('sessionsChanges.viewMode', "The Changes view can show files as a tree or a flat list. Use the view's toolbar actions to switch between Tree and List modes."));
 		content.push(localize('sessionsChanges.operations', "When available, the toolbar also provides actions to commit, merge, sync, or create a pull request. Use Tab and Shift+Tab to move between the file list and toolbar actions."));
-		content.push(localize('sessionsChanges.diffView', "File diffs can be shown side by side or inline. Use the Toggle Diff View command to switch between them{0}.", '<keybinding:toggle.diff.renderSideBySide>'));
+		content.push(localize('sessionsChanges.diffView', "File diffs can prefer side-by-side or inline layout. Unless screen reader optimized mode is enabled, side-by-side diffs automatically use inline layout when space is limited. Use the Toggle Preferred Diff View command to switch the preference{0}.", '<keybinding:toggle.diff.renderSideBySide>'));
 
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.SessionsChanges,

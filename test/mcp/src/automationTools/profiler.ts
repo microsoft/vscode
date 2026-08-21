@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { ApplicationService } from '../application';
+import { ApplicationService } from '../../../scenario';
 
 /**
  * Profiler Tools
