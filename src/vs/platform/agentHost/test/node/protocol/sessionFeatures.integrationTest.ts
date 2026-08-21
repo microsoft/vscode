@@ -172,7 +172,7 @@ suite('Protocol WebSocket — Session Features', function () {
 			action: {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-model',
-				startedAt: '2025-01-01T00:00:00.000Z',
+				startedAt: new Date().toISOString(),
 				message: { text: 'hello', origin: { kind: MessageKind.User }, model: { id: 'mock-model' } },
 			},
 		});
