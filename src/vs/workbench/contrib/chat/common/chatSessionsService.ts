@@ -337,6 +337,8 @@ export interface IChatSessionServerRequest {
 	readonly isHidden?: boolean;
 	readonly systemInitiatedLabel?: string;
 	readonly isTerminalRequest?: boolean;
+	/** Reopen the existing request with this id instead of adding another request. */
+	readonly resume?: boolean;
 }
 
 /**

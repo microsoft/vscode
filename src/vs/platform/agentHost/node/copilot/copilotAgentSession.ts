@@ -46,7 +46,7 @@ import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } fr
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment, type ToolCallContributor } from '../../common/state/protocol/state.js';
 import { ActionType, isChatAction, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, getToolSubagentContent, isDefaultChatUri, isSubagentSession, readSessionPromptCacheState, withSessionPromptCacheState, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type UsageInfoMeta, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, createErrorResponsePart, getToolSubagentContent, isDefaultChatUri, isSubagentSession, readSessionPromptCacheState, withSessionPromptCacheState, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type UsageInfoMeta, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { clientToolNamesFromSnapshot, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
@@ -823,6 +823,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _onDidSessionProgress: Emitter<AgentSignal>;
 	private readonly _sessionLauncher: ICopilotSessionLauncher;
 	private readonly _launchPlan: CopilotSessionLaunchPlan;
+	private _detectInterruptedTurnOnRestore: boolean;
 	private readonly _isLaunchTokenStillCurrent: () => boolean;
 	/** Notifies the agent that this chat's turn ended. See {@link ICopilotAgentSessionOptions.onTurnEnded}. */
 	private readonly _onTurnEnded: () => void;
@@ -906,6 +907,7 @@ export class CopilotAgentSession extends Disposable {
 		this._onDidSessionProgress = options.onDidSessionProgress;
 		this._sessionLauncher = options.sessionLauncher;
 		this._launchPlan = options.launchPlan;
+		this._detectInterruptedTurnOnRestore = options.launchPlan.kind === 'resume';
 		this._isLaunchTokenStillCurrent = options.isLaunchTokenCurrent ?? (() => true);
 		this._onTurnEnded = options.onTurnEnded ?? (() => { });
 		this._shellManager = options.shellManager;
@@ -1218,6 +1220,7 @@ export class CopilotAgentSession extends Disposable {
 	 * response part. The turn becomes `running` on the first SDK event.
 	 */
 	resetTurnState(turnId: string, senderClientId?: string, clientType = AgentHostClientType.Unknown): void {
+		this._detectInterruptedTurnOnRestore = false;
 		this._streamingToolCalls.clear();
 		this._streamingToolDisplaySchedulers.clearAndDisposeAll();
 		this._currentTurn = new CopilotTurn(turnId, this._nextTurnOrdinal++, senderClientId, clientType);
@@ -1309,7 +1312,7 @@ export class CopilotAgentSession extends Disposable {
 			type: ActionType.ChatError,
 			turnId: turn.id,
 			duration: turn.duration,
-			error,
+			part: createErrorResponsePart(error, true),
 		});
 		this._clearActiveTurn();
 		return turn.id;
@@ -2154,13 +2157,42 @@ export class CopilotAgentSession extends Disposable {
 
 		const sdkAttachments = await this._toSdkAttachments(attachments);
 
+		await this._prepareSdkTurn(mode);
+		const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.sessionUri.toString());
+		await this._otelService.withTraceContext(traceContext, () => {
+			if (!this._environmentService.isBuilt && prompt === '$error' && !sdkAttachments?.length) {
+				return this._wrapper.session.rpc.sendMessages({
+					messages: [{ prompt }],
+					requestHeaders: { Authorization: '******' },
+				});
+			}
+			return this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined });
+		});
+		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
+	}
+
+	async resume(turnId: string, mode?: CopilotSdkMode, senderClientId?: string, clientType = AgentHostClientType.Unknown): Promise<void> {
+		this._resetAbortToken();
+		this.resetTurnState(turnId, senderClientId, clientType);
+		const turn = this._currentTurn;
+		try {
+			await this._prepareSdkTurn(mode);
+			const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.sessionUri.toString());
+			await this._otelService.withTraceContext(traceContext, () => this._wrapper.session.rpc.sendMessages({ messages: [] }));
+			this._logService.info(`[Copilot:${this.sessionId}] zero-message continuation returned`);
+		} catch (error) {
+			if (turn && this._currentTurn === turn) {
+				this._clearActiveTurn();
+			}
+			throw error;
+		}
+	}
+
+	private async _prepareSdkTurn(mode: CopilotSdkMode | undefined): Promise<void> {
 		await this.applyMode(mode);
 		await this.syncPermissionMode('turn-start');
 		await this._applyEffectiveSandboxConfig();
 		await this._reconcileMcpServerEnablement();
-		const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.sessionUri.toString());
-		await this._otelService.withTraceContext(traceContext, () => this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined }));
-		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
 	}
 
 	private async _toSdkAttachments(attachments: readonly MessageAttachment[] | undefined): Promise<CopilotSdkAttachment[] | undefined> {
@@ -2425,6 +2457,12 @@ export class CopilotAgentSession extends Disposable {
 			model: this._launchPlan.kind === 'create'
 				? this._launchPlan.model
 				: this._launchPlan.fallback.model,
+			...(this._detectInterruptedTurnOnRestore ? {
+				interruptedTurnError: {
+					errorType: 'executionInterrupted',
+					message: localize('copilotAgent.interruptedTurn', "The agent host stopped before this request finished."),
+				},
+			} : {}),
 		});
 		return result;
 	}
@@ -3312,7 +3350,7 @@ export class CopilotAgentSession extends Disposable {
 
 			this._emitAction({
 				type: ActionType.ChatInputRequested,
-				request: { ...inputRequest, purpose: ChatInputRequestPurpose.AskUser },
+				request: inputRequest,
 			});
 
 			const result = await pendingInput;
@@ -3384,7 +3422,6 @@ export class CopilotAgentSession extends Disposable {
 
 			const inputRequest: ChatInputRequest = {
 				id: requestId,
-				purpose: ChatInputRequestPurpose.Elicitation,
 				message: context.message,
 				...(context.mode === 'url' && context.url ? { url: context.url } : {}),
 				...(questions && questions.length > 0 ? { questions } : {}),
@@ -4318,6 +4355,7 @@ export class CopilotAgentSession extends Disposable {
 		this._register(wrapper.onSessionError(e => {
 			this._logService.error(`[Copilot:${sessionId}] Session error: ${e.data.errorType} - ${e.data.message}`);
 			reportCopilotSdkSessionError(this._telemetryService, e, createCopilotFailureCorrelation(this.sessionUri, this._chatChannelUri, this._turnId, this.sessionId));
+			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 			if (this._currentTurn) {
 				this._reportToolCallDetails(this._currentTurn, 'failed');
 			}
@@ -4325,8 +4363,11 @@ export class CopilotAgentSession extends Disposable {
 				type: ActionType.ChatError,
 				turnId: this._turnId,
 				duration: this._currentTurn?.duration ?? 0,
-				error: buildChatErrorInfoFromCopilotSdkFields(e.data),
-			});
+				part: createErrorResponsePart(buildChatErrorInfoFromCopilotSdkFields(e.data), !parentToolCallId && this._currentTurn !== undefined),
+			}, parentToolCallId);
+			if (!parentToolCallId) {
+				this._clearActiveTurn();
+			}
 		}));
 
 		this._register(wrapper.onModelCallFailure(e => {
@@ -4950,7 +4991,6 @@ export class CopilotAgentSession extends Disposable {
 
 		const inputRequest: ChatInputRequestWithPlanReview = {
 			id: requestId,
-			purpose: ChatInputRequestPurpose.PlanReview,
 			planReview: {
 				title: localize('agentHost.planReview.title', "Review Plan"),
 				content: data.summary || localize('agentHost.planReview.fallbackSummary', "A plan is ready for review."),

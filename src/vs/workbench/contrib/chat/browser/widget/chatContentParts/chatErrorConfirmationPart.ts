@@ -55,12 +55,22 @@ export class ChatErrorConfirmationContentPart extends Disposable implements ICha
 					{ acceptedConfirmationData: [buttonData.data] };
 				options.agentId = element.agent?.id;
 				options.slashCommand = element.slashCommand?.name;
-				options.confirmation = buttonData.label;
+				if (!buttonData.resend) {
+					options.confirmation = buttonData.label;
+				}
 				const widget = chatWidgetService.getWidgetBySessionResource(element.sessionResource);
 				Object.assign(options, widget?.getSelectedModelRequestOptions());
 				Object.assign(options, widget?.getModeRequestOptions());
 				this.chatAccessibilityService.acceptRequest(element.sessionResource);
-				await chatService.sendRequest(element.sessionResource, prompt, options);
+				if (buttonData.resend) {
+					const request = chatService.getSession(element.sessionResource)?.getRequests().find(request => request.id === element.requestId);
+					if (!request) {
+						throw new Error(`Cannot resend missing chat request: ${element.requestId}`);
+					}
+					await chatService.resendRequest(request, options, buttonData.preserveRequestId);
+				} else {
+					await chatService.sendRequest(element.sessionResource, prompt, options);
+				}
 			}));
 		});
 	}

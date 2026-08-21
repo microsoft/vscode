@@ -8,6 +8,7 @@ import { toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import {
 	MessageKind,
 	ResponsePartKind,
+	createErrorResponsePart,
 	ToolCallConfirmationReason,
 	ToolCallStatus,
 	ToolResultContentType,
@@ -152,10 +153,11 @@ function replayTurnToTurn(codexTurn: CodexTurn): Turn | undefined {
 		id: codexTurn.id,
 		...codexTurnTiming(codexTurn),
 		message: { text: userText, origin: { kind: MessageKind.User } },
-		responseParts: parts,
+		responseParts: codexTurn.status === 'failed' && codexTurn.error
+			? [...parts, createErrorResponsePart(mapCodexTurnError(codexTurn.error))]
+			: parts,
 		usage: undefined,
 		state: turnStateFromStatus(codexTurn.status),
-		...(codexTurn.status === 'failed' && codexTurn.error ? { error: mapCodexTurnError(codexTurn.error) } : {}),
 	};
 }
 

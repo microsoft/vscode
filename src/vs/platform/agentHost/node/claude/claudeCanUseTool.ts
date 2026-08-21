@@ -6,7 +6,7 @@
 import type { PermissionResult, PermissionUpdate } from '@anthropic-ai/claude-agent-sdk';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ClaudePermissionMode, ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
-import { ChatInputRequestPurpose, ChatInputResponseKind, ToolCallPendingConfirmationState, ToolCallStatus } from '../../common/state/protocol/state.js';
+import { ChatInputResponseKind, ToolCallPendingConfirmationState, ToolCallStatus } from '../../common/state/protocol/state.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { ClaudeAgentSession } from './claudeAgentSession.js';
 import { extractServerToolName } from './claudeServerToolMcpServer.js';
@@ -275,7 +275,6 @@ async function handleAskUserQuestion(
 	const parentToolCallId = resolveSubagentParent(session, options);
 	const answer = await session.requestUserInput({
 		id: toolUseID,
-		purpose: ChatInputRequestPurpose.AskUser,
 		questions: buildAskUserSessionInputQuestions(askInput),
 	}, parentToolCallId);
 	if (answer.response !== ChatInputResponseKind.Accept || !answer.answers) {

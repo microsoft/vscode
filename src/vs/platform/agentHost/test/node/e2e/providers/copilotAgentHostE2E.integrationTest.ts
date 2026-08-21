@@ -30,14 +30,15 @@ import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { readToolCallMeta } from '../../../../common/meta/agentToolCallMeta.js';
-import { MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildDefaultChatUri, getInlineToolInput, type MessageAttachment } from '../../../../common/state/sessionState.js';
-import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatUsageAction } from '../../../../common/state/sessionActions.js';
+import { MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildDefaultChatUri, getErrorResponsePart, getInlineToolInput, type MessageAttachment } from '../../../../common/state/sessionState.js';
+import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction } from '../../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import {
 	AgentHostE2EServerLease, assertToolCallCompleteText, createRealSession, dispatchTurn,
 	driveTurnToCompletion, driveTurnWithAttachmentsToCompletion, removeTempDirs, resolveGitHubToken, runAhpSnapshotTest,
 } from '../harness/agentHostE2ETestHarness.js';
 import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
+import { summarizeAnthropicRequest, summarizeResponsesRequest } from '../harness/capiWireCodec.js';
 import { defineAgentHostE2ETests } from '../suites/agentHostE2ESuites.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification, TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
@@ -156,7 +157,8 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			&& getActionEnvelope(notification).channel === chatUri,
 			90_000,
 		);
-		const liveError = (getActionEnvelope(liveNotification).action as ChatErrorAction).error;
+		const liveErrorPart = (getActionEnvelope(liveNotification).action as ChatErrorAction).part;
+		assert.strictEqual(liveErrorPart.resumable, true);
 
 		client = await lease.restart();
 		client.setWorkingDirectory(workingDirectory);
@@ -171,10 +173,95 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		const restoredTurn = reopened.turns.find(turn => turn.message.text === prompt);
 		assert.deepStrictEqual({
 			state: restoredTurn?.state,
-			error: restoredTurn?.error,
+			error: getErrorResponsePart(restoredTurn)?.error,
+			resumable: getErrorResponsePart(restoredTurn)?.resumable,
 		}, {
 			state: TurnState.Error,
-			error: liveError,
+			error: liveErrorPart.error,
+			resumable: true,
+		});
+	});
+
+	test('resumes a failed turn in place', async function () {
+		this.timeout(180_000);
+		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-failed-turn-resume-'));
+		tempDirs.push(workingDirectory);
+		const prompt = '$error';
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'copilot-failed-turn-resume', createdSessions, URI.file(workingDirectory));
+		const chatUri = buildDefaultChatUri(sessionUri);
+		const turnId = 'turn-failed-resume';
+		if (!lease) {
+			throw new Error('Agent Host E2E server lease was not initialized.');
+		}
+		client.dispatch({
+			channel: sessionUri,
+			clientSeq: 1,
+			action: { type: ActionType.SessionTitleChanged, title: 'Recovery test' },
+		});
+		await client.waitForNotification(notification =>
+			isActionNotification(notification, ActionType.SessionTitleChanged)
+			&& getActionEnvelope(notification).channel === sessionUri,
+			30_000,
+		);
+
+		client.beginAhpSnapshotRound();
+		dispatchTurn(client, sessionUri, turnId, prompt, 2);
+		const errorNotification = await client.waitForNotification(notification =>
+			isActionNotification(notification, ActionType.ChatError)
+			&& getActionEnvelope(notification).channel === chatUri,
+			90_000,
+		);
+		const errorAction = getActionEnvelope(errorNotification).action as ChatErrorAction;
+		assert.strictEqual(errorAction.part.resumable, true);
+
+		client.beginAhpSnapshotRound();
+		client.dispatch({
+			channel: chatUri,
+			clientSeq: 3,
+			action: { type: ActionType.ChatTurnResume, turnId },
+		});
+		await client.waitForNotification(notification =>
+			isActionNotification(notification, ActionType.ChatTurnResume)
+			&& getActionEnvelope(notification).channel === chatUri,
+			30_000,
+		);
+		await client.waitForNotification(notification =>
+			isActionNotification(notification, ActionType.ChatTurnComplete)
+			&& getActionEnvelope(notification).channel === chatUri
+			&& (getActionEnvelope(notification).action as ChatTurnCompleteAction).turnId === turnId,
+			90_000,
+		);
+		await assertRecordedAhpSnapshot(this.test!, client, { profile: 'behavior' });
+
+		const finalState = await fetchSessionWithChat(client, sessionUri);
+		const resumedRequest = lease.observedModelRequestBodies.at(-1);
+		assert.ok(resumedRequest);
+		const summarizedRequest = summarizeAnthropicRequest(resumedRequest) ?? summarizeResponsesRequest(resumedRequest);
+		assert.ok(summarizedRequest);
+		const promptOccurrences = summarizedRequest.messages
+			.filter(message => message.role === 'user')
+			.reduce((count, message) => count + (JSON.stringify(message.content).split(prompt).length - 1), 0);
+
+		assert.deepStrictEqual({
+			modelRequestCount: lease.observedModelRequestBodies.length,
+			promptOccurrences,
+			activeTurn: finalState.activeTurn,
+			turns: finalState.turns.map(turn => ({
+				id: turn.id,
+				message: turn.message.text,
+				state: turn.state,
+				errorCount: turn.responseParts.filter(part => part.kind === ResponsePartKind.Error).length,
+			})),
+		}, {
+			modelRequestCount: 2,
+			promptOccurrences: 1,
+			activeTurn: undefined,
+			turns: [{
+				id: turnId,
+				message: prompt,
+				state: TurnState.Complete,
+				errorCount: 1,
+			}],
 		});
 	});
 
@@ -699,7 +786,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			);
 			if (isActionNotification(next, 'chat/error')) {
 				const action = getActionEnvelope(next).action as ChatErrorAction;
-				throw new Error(`cd-strip turn failed: ${JSON.stringify(action.error)}`);
+				throw new Error(`cd-strip turn failed: ${JSON.stringify(action.part.error)}`);
 			}
 			if (isActionNotification(next, 'chat/turnComplete')) {
 				break;

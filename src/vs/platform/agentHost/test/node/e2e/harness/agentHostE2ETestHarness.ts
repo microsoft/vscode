@@ -195,6 +195,17 @@ const STALE_RECORDED_REQUEST_EXCEPTIONS = new Set<string>([
 	'claude:side chat receives bounded source context without copied history',
 ]);
 
+const RECORDING_MODEL_RESPONSES = new Map<string, ICapiReplayResponse>([
+	['copilotcli:resumes a failed turn in place', {
+		status: 400,
+		headers: {
+			'content-type': 'application/json',
+			'x-request-id': 'agent-host-e2e-resume-error',
+		},
+		body: '{"error":{"message":"Injected recoverable E2E failure.","type":"invalid_request_error","code":"invalid_request_error"}}',
+	}],
+]);
+
 /** Identifies one provider's capture of a test, matching `fixturePathFor`. */
 function captureKey(provider: string, testTitle: string): string {
 	return `${provider}:${testTitle}`;
@@ -206,14 +217,14 @@ function captureKey(provider: string, testTitle: string): string {
  * `AGENT_HOST_REPLAY_RECORD=1` or `AGENT_HOST_UPDATE_SNAPSHOTS=1`. Tests that
  * declare no model traffic always use the strict shared empty replay fixture.
  */
-export function capiReplayFor(provider: string, testTitle: string, modelTraffic: AgentHostE2EModelTraffic = 'recorded'): { fixturePath: string; real: true; mode: CapiReplayMode; allowPosixCommands: boolean; allowStaleRecordedRequest: boolean } {
+export function capiReplayFor(provider: string, testTitle: string, modelTraffic: AgentHostE2EModelTraffic = 'recorded'): { fixturePath: string; real: true; mode: CapiReplayMode; allowPosixCommands: boolean; allowStaleRecordedRequest: boolean; recordingModelResponse?: ICapiReplayResponse } {
 	const key = captureKey(provider, testTitle);
 	const allowPosixCommands = POSIX_COMMAND_EXCEPTIONS.has(key);
 	const allowStaleRecordedRequest = STALE_RECORDED_REQUEST_EXCEPTIONS.has(key);
 	if (modelTraffic === 'none') {
 		return { fixturePath: EMPTY_CAPTURE_PATH, real: true, mode: 'replay', allowPosixCommands, allowStaleRecordedRequest };
 	}
-	return { fixturePath: fixturePathFor(provider, testTitle), real: true, mode: REPLAY_MODE, allowPosixCommands, allowStaleRecordedRequest };
+	return { fixturePath: fixturePathFor(provider, testTitle), real: true, mode: REPLAY_MODE, allowPosixCommands, allowStaleRecordedRequest, recordingModelResponse: RECORDING_MODEL_RESPONSES.get(key) };
 }
 
 // #endregion
@@ -567,7 +578,7 @@ async function driveTurn(c: TestProtocolClient, session: string, turnId: string,
 
 		if (isActionNotification(notification, 'chat/error')) {
 			const action = getActionEnvelope(notification).action as ChatErrorAction;
-			throw new Error(`Session error while driving ${turnId}: ${action.error.errorType}: ${action.error.message}`);
+			throw new Error(`Session error while driving ${turnId}: ${action.part.error.errorType}: ${action.part.error.message}`);
 		}
 
 		if (isActionNotification(notification, 'chat/toolCallReady')) {
@@ -947,12 +958,12 @@ export class AgentHostE2EServerLease {
 		return client;
 	}
 
-	setRecordingModelResponse(response: ICapiReplayResponse): void {
+	setRecordingModelResponse(response: ICapiReplayResponse, path?: string): void {
 		const proxy = this._server?.capiReplay;
 		if (!proxy) {
 			throw new Error('[agent-host-e2e] no replay-backed server');
 		}
-		proxy.setRecordingModelResponse(response);
+		proxy.setRecordingModelResponse(response, path);
 	}
 
 	/**

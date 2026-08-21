@@ -1577,6 +1577,29 @@ suite('ChatResponseModel', () => {
 		}
 	});
 
+	test('reopen clears terminal error state and keeps the request pending', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const text = 'hello';
+		const request = model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('partial') });
+		model.setResponse(request, { errorDetails: { message: 'failed' } });
+		request.response!.complete();
+
+		request.response!.reopen();
+
+		assert.deepStrictEqual({
+			state: request.response!.state,
+			isIncomplete: request.response!.isIncomplete.get(),
+			errorDetails: request.response!.result?.errorDetails,
+			response: request.response!.response.value,
+		}, {
+			state: ResponseModelState.Pending,
+			isIncomplete: true,
+			errorDetails: undefined,
+			response: [],
+		});
+	});
+
 	test('MCP tool authentication marks the response as needing input', () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 		const text = 'hello';

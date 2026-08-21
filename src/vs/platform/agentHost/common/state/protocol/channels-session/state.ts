@@ -315,6 +315,11 @@ export interface SessionToolConfirmationRequest extends SessionInputRequestBase 
  * `chat/toolCallContentChanged`) to {@link SessionInputRequestBase.chat |
  * `chat`}, keyed by `turnId` and `toolCall.toolCallId`.
  *
+ * Unlike the other variants this does **not** raise
+ * {@link SessionStatus.InputNeeded}: the call has already cleared its
+ * confirmation gate and is merely executing elsewhere, so the session stays
+ * {@link SessionStatus.InProgress} while it runs.
+ *
  * @category Session Input Types
  */
 export interface SessionToolClientExecutionRequest extends SessionInputRequestBase {

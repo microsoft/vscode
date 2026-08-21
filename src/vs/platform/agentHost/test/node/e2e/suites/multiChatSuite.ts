@@ -199,7 +199,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 			seen.add(notification as object);
 			if (isActionNotification(notification, 'chat/error')) {
 				const action = getActionEnvelope(notification).action as ChatErrorAction;
-				throw new Error(`Peer chat error during ${turnId}: ${JSON.stringify(action.error)}`);
+				throw new Error(`Peer chat error during ${turnId}: ${JSON.stringify(action.part.error)}`);
 			}
 			if (isActionNotification(notification, 'chat/turnComplete')) {
 				break;

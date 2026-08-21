@@ -1260,6 +1260,9 @@ export interface IAgentChats {
 	 */
 	sendMessage(chat: URI, prompt: string, workingDirectories: readonly URI[] | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType?: AgentHostClientType): Promise<void>;
 
+	/** Resume a failed turn without adding another user message. */
+	resumeTurn?(chat: URI, turnId: string, senderClientId?: string, clientType?: AgentHostClientType): Promise<void>;
+
 	/** Abort the in-flight turn for `chat`. */
 	abort(chat: URI): Promise<void>;
 

@@ -8,7 +8,7 @@ import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { basename } from '../../../../../../base/common/resources.js';
 import { localize } from '../../../../../../nls.js';
-import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type ErrorInfo, type ResponsePart, type ToolCallCompletedState, type ToolResultContent, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { createErrorResponsePart, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type ErrorInfo, type ResponsePart, type ToolCallCompletedState, type ToolResultContent, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocation, type IChatContentInlineReference, type IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import type { IChatModel, IChatRequestModel } from '../../../common/model/chatModel.js';
 import { isToolResultInputOutputDetails } from '../../../common/tools/languageModelToolsService.js';
@@ -238,20 +238,20 @@ export function importedTurnsFromChatModel(model: IChatModel): Turn[] {
 			const previous = turns[turns.length - 1];
 			if (previous) {
 				previous.responseParts.push(...responseParts);
+				if (outcome.error) {
+					previous.responseParts.push(createErrorResponsePart(outcome.error));
+				}
 				previous.state = outcome.state;
-				previous.error = outcome.error;
 			}
 			continue;
 		}
 		turns.push({
 			id: generateUuid(),
 			message: { text: request.message.text, origin: { kind: MessageKind.User } },
-			responseParts,
+			responseParts: outcome.error ? [...responseParts, createErrorResponsePart(outcome.error)] : responseParts,
 			usage: undefined,
 			state: outcome.state,
-			...(outcome.error ? { error: outcome.error } : {}),
 		} satisfies Turn);
 	}
 	return turns;
 }
-

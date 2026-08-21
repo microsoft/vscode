@@ -19,7 +19,7 @@ import { AgentSession, IAgent } from '../../common/agentService.js';
 import type { SessionMode } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType, type ChatAction } from '../../common/state/sessionActions.js';
-import { buildDefaultChatUri, buildSubagentChatUri, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, buildSubagentChatUri, createErrorResponsePart, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus } from '../../common/state/sessionState.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { AgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
@@ -320,7 +320,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	test('emits result=error on ChatError', () => {
 		setupSession();
 		startTurn('turn-1');
-		fire({ type: ActionType.ChatError, turnId: 'turn-1', duration: 1000, error: { errorType: 'oops', message: 'fail' } });
+		fire({ type: ActionType.ChatError, turnId: 'turn-1', duration: 1000, part: createErrorResponsePart({ errorType: 'oops', message: 'fail' }) });
 
 		const events = completedEvents();
 		assert.strictEqual(events.length, 1);
@@ -335,7 +335,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			type: ActionType.ChatError,
 			turnId: 'turn-1',
 			duration: 1000,
-			error: {
+			part: createErrorResponsePart({
 				errorType: 'quota',
 				message: 'quota exceeded',
 				_meta: {
@@ -346,7 +346,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 						},
 					},
 				},
-			},
+			}),
 		});
 
 		assert.deepStrictEqual(failedEvents().map(event => {
@@ -377,7 +377,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		startTurn('subagent-complete', 'hello', undefined, subagentChatUri);
 		fire({ type: ActionType.ChatTurnComplete, turnId: 'subagent-complete', duration: 1000 }, subagentChatUri);
 		startTurn('subagent-failed', 'hello', undefined, subagentChatUri);
-		fire({ type: ActionType.ChatError, turnId: 'subagent-failed', duration: 1000, error: { errorType: 'oops', message: 'fail' } }, subagentChatUri);
+		fire({ type: ActionType.ChatError, turnId: 'subagent-failed', duration: 1000, part: createErrorResponsePart({ errorType: 'oops', message: 'fail' }) }, subagentChatUri);
 
 		assert.deepStrictEqual({
 			completed: completedEvents().map(event => {

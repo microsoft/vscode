@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { replayThreadToTurns } from '../../../node/codex/codexReplayMapper.js';
-import { MessageKind, ResponsePartKind, ToolCallStatus, TurnState } from '../../../common/state/sessionState.js';
+import { getErrorResponsePart, MessageKind, ResponsePartKind, ToolCallStatus, TurnState } from '../../../common/state/sessionState.js';
 
 suite('codexReplayMapper', () => {
 
@@ -90,7 +90,7 @@ suite('codexReplayMapper', () => {
 				startedAt: null, completedAt: null, durationMs: null,
 			}],
 		} as never);
-		assert.deepStrictEqual(turns.map(turn => ({ state: turn.state, error: turn.error })), [{
+		assert.deepStrictEqual(turns.map(turn => ({ state: turn.state, error: getErrorResponsePart(turn)?.error })), [{
 			state: TurnState.Error,
 			error: { errorType: 'CodexError', message: 'oops' },
 		}]);

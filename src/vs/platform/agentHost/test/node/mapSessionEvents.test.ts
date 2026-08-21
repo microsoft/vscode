@@ -8,7 +8,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { AgentSession } from '../../common/agentService.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
+import { getErrorResponsePart, MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
 import { appendSdkToolResultContent, mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
 
@@ -86,6 +86,88 @@ suite('mapSessionEvents — history replay', () => {
 		assert.deepStrictEqual(partKinds(turns[0].responseParts), [
 			{ kind: ResponsePartKind.Markdown, content: 'All set.' },
 		]);
+	});
+
+	test('restored completed task_complete is not marked interrupted', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'turn-task-complete', data: { interactionId: 'm1', content: 'finish the task' } },
+			{ type: 'assistant.turn_start', data: { turnId: 'sdk-turn' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: 'All done.', toolRequests: [{ toolCallId: 'tc-1', name: 'task_complete' }] } },
+			{ type: 'assistant.turn_end', data: { turnId: 'sdk-turn' } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'task_complete', arguments: {} } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success: true } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events), {
+			interruptedTurnError: { errorType: 'executionInterrupted', message: 'interrupted' },
+		});
+
+		assert.deepStrictEqual({
+			state: turns[0].state,
+			error: getErrorResponsePart(turns[0]),
+		}, {
+			state: TurnState.Complete,
+			error: undefined,
+		});
+	});
+
+	test('restores an unfinished request as a resumable error on the same turn', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'interrupted-turn', data: { interactionId: 'm1', content: 'Keep working' } },
+			{ type: 'assistant.turn_start', data: { turnId: 'sdk-turn' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: 'Partial response' } },
+		];
+		const interruptedTurnError = {
+			errorType: 'executionInterrupted',
+			message: 'The agent host stopped before this request finished.',
+		};
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events), { interruptedTurnError });
+
+		assert.deepStrictEqual({
+			turnCount: turns.length,
+			id: turns[0].id,
+			state: turns[0].state,
+			errorPart: getErrorResponsePart(turns[0]),
+		}, {
+			turnCount: 1,
+			id: 'interrupted-turn',
+			state: TurnState.Error,
+			errorPart: {
+				kind: ResponsePartKind.Error,
+				error: interruptedTurnError,
+				resumable: true,
+			},
+		});
+	});
+
+	test('restores a continued failed request as one completed turn', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'turn-1', timestamp: '2026-08-11T00:00:00.000Z', data: { interactionId: 'm1', content: 'Keep working' } },
+			{ type: 'assistant.turn_start', timestamp: '2026-08-11T00:00:00.100Z', data: { turnId: 'sdk-turn-1' } },
+			{ type: 'session.error', timestamp: '2026-08-11T00:00:02.000Z', data: { errorType: 'requestFailed', message: 'First failure' } },
+			{ type: 'assistant.turn_start', timestamp: '2026-08-11T00:10:00.000Z', data: { turnId: 'sdk-turn-2' } },
+			{ type: 'assistant.message', timestamp: '2026-08-11T00:10:03.000Z', data: { messageId: 'm2', content: 'Finished response' } },
+			{ type: 'assistant.turn_end', timestamp: '2026-08-11T00:10:03.000Z', data: { turnId: 'sdk-turn-2' } },
+			{ type: 'session.idle', timestamp: '2026-08-11T00:10:03.000Z', data: {} },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns.map(turn => ({
+			id: turn.id,
+			state: turn.state,
+			duration: turn.duration,
+			parts: partKinds(turn.responseParts),
+		})), [{
+			id: 'turn-1',
+			state: TurnState.Complete,
+			duration: 5000,
+			parts: [
+				{ kind: ResponsePartKind.Error },
+				{ kind: ResponsePartKind.Markdown, content: 'Finished response' },
+			],
+		}]);
 	});
 
 	test('fallback task_complete marks the turn complete', async () => {
@@ -727,7 +809,7 @@ suite('mapSessionEvents — history replay', () => {
 			id: turn.id,
 			state: turn.state,
 			duration: turn.duration,
-			error: turn.error,
+			error: getErrorResponsePart(turn)?.error,
 			parts: partKinds(turn.responseParts),
 		})), [{
 			id: 'user-event',
@@ -754,7 +836,7 @@ suite('mapSessionEvents — history replay', () => {
 			},
 			parts: [
 				{ kind: ResponsePartKind.Markdown, content: 'Working on it.' },
-				{ kind: ResponsePartKind.Markdown, content: 'Late completion.' },
+				{ kind: ResponsePartKind.Error },
 			],
 		}]);
 	});
@@ -987,9 +1069,9 @@ suite('mapSessionEvents — subagent routing', () => {
 
 		assert.deepStrictEqual({
 			parentState: turns[0].state,
-			parentError: turns[0].error,
+			parentError: getErrorResponsePart(turns[0])?.error,
 			subagentState: subagentTurn?.state,
-			subagentError: subagentTurn?.error,
+			subagentError: getErrorResponsePart(subagentTurn)?.error,
 			subagentParts: partKinds(subagentTurn?.responseParts ?? []),
 		}, {
 			parentState: TurnState.Complete,
@@ -1012,6 +1094,7 @@ suite('mapSessionEvents — subagent routing', () => {
 			},
 			subagentParts: [
 				{ kind: ResponsePartKind.Markdown, content: 'Partial result.' },
+				{ kind: ResponsePartKind.Error },
 			],
 		});
 	});

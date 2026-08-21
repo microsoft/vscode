@@ -14,7 +14,7 @@ import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/c
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { fromAgentHostUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, createErrorResponsePart, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptContextVariableEntry, toChatTranscriptContextAttachmentMeta } from '../../../common/attachments/chatVariableEntries.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
@@ -977,7 +977,7 @@ suite('stateToProgressAdapter', () => {
 		test('error turn produces error details in history', () => {
 			const turn = createTurn({
 				state: TurnState.Error,
-				error: { errorType: 'test', message: 'boom' },
+				responseParts: [createErrorResponsePart({ errorType: 'test', message: 'boom' })],
 			});
 
 			const history = turnsToHistory(URI.file('/'), [turn], 'p');
@@ -988,14 +988,32 @@ suite('stateToProgressAdapter', () => {
 			assert.ok(!response.parts.some(p => p.kind === 'markdownContent' && (p as IChatMarkdownContent).content.value.includes('boom')), 'Error should not be duplicated as a markdown part');
 		});
 
+		test('historical resumable errors can restore Try Again without rendering completed errors', () => {
+			const resumableError = createErrorResponsePart({ errorType: 'test', message: 'boom' }, true);
+			const errorTurn = createTurn({ state: TurnState.Error, responseParts: [resumableError] });
+			const completeTurn = createTurn({ state: TurnState.Complete, responseParts: [resumableError] });
+			const errorDetails = {
+				message: 'boom',
+				confirmationButtons: [{ data: { resume: true }, label: 'Try Again' }],
+			};
+
+			const history = rawTurnsToHistory(URI.file('/'), [errorTurn, completeTurn], 'p', '', undefined, undefined, undefined, () => errorDetails);
+			const responses = history.filter(item => item.type === 'response');
+
+			assert.deepStrictEqual(responses.map(response => response.type === 'response' ? response.errorDetails : undefined), [
+				errorDetails,
+				undefined,
+			]);
+		});
+
 		test('forwarded quota error turn produces quota-exceeded error details', () => {
 			const turn = createTurn({
 				state: TurnState.Error,
-				error: {
+				responseParts: [createErrorResponsePart({
 					errorType: 'quota',
 					message: 'raw',
 					_meta: { chatError: { fetchError: { type: 'quotaExceeded', capiError: { code: 'quota_exceeded' } } } },
-				},
+				})],
 			});
 
 			const history = turnsToHistory(URI.file('/'), [turn], 'p');

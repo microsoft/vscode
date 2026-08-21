@@ -331,6 +331,7 @@ export interface IChatResponseModel {
 	setVote(vote: ChatAgentVoteDirection): void;
 	setUsage(usage: IChatUsage): void;
 	setElapsedMs(elapsedMs: number): void;
+	setResult(result: IChatAgentResult): void;
 	setEditApplied(edit: IChatTextEditGroup, editCount: number): boolean;
 	resolveInlineReference(resolveId: string, resolvedReference: IChatContentInlineReference): boolean;
 	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatTask | IChatExternalToolInvocationUpdate, quiet?: boolean): void;
@@ -1622,6 +1623,21 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 	completeWithoutTimestamp(): void {
 		this._complete(Date.now(), undefined);
+	}
+
+	reopen(): void {
+		if (!this.isComplete) {
+			return;
+		}
+		this._response.clear();
+		if (this._result?.errorDetails) {
+			const { errorDetails: _errorDetails, ...result } = this._result;
+			this._result = result;
+		}
+		this._completionTimestamp = undefined;
+		this._elapsedMs = undefined;
+		this._modelState.set({ value: ResponseModelState.Pending }, undefined);
+		this._onDidChange.fire(defaultChatResponseModelChangeReason);
 	}
 
 	private _complete(completedAt: number, completionTimestamp: number | undefined): void {

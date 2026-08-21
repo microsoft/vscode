@@ -393,17 +393,6 @@ export type ChatInputQuestion = ChatInputTextQuestion
 	| ChatInputMultiSelectQuestion;
 
 /**
- * Why the agent requested chat input.
- *
- * @category Chat Input Types
- */
-export const enum ChatInputRequestPurpose {
-	AskUser = 'askUser',
-	Elicitation = 'elicitation',
-	PlanReview = 'planReview',
-}
-
-/**
  * The request payload carried by an {@link InputRequestResponsePart}.
  *
  * The server creates or replaces the containing response part with
@@ -415,8 +404,6 @@ export const enum ChatInputRequestPurpose {
 export interface ChatInputRequest {
 	/** Stable request identifier */
 	id: string;
-	/** Input lifecycle classification. Missing for requests from older clients or persisted sessions. */
-	purpose?: ChatInputRequestPurpose;
 	/** Display message for the request as a whole */
 	message?: string;
 	/** URL the user should review or open, for URL-style elicitations */
@@ -570,8 +557,6 @@ export interface Turn {
 	usage: UsageInfo | undefined;
 	/** How the turn ended */
 	state: TurnState;
-	/** Error details if state is `'error'` */
-	error?: ErrorInfo;
 }
 
 /**
@@ -867,6 +852,7 @@ export const enum ResponsePartKind {
 	Reasoning = 'reasoning',
 	SystemNotification = 'systemNotification',
 	InputRequest = 'inputRequest',
+	Error = 'error',
 }
 
 /**
@@ -930,7 +916,8 @@ export type ResponsePart =
 	| ToolCallResponsePart
 	| ReasoningResponsePart
 	| SystemNotificationResponsePart
-	| InputRequestResponsePart;
+	| InputRequestResponsePart
+	| ErrorResponsePart;
 
 /**
  * A live or resolved input request (elicitation) in the turn response stream.
@@ -959,6 +946,28 @@ export interface InputRequestResponsePart {
 	 * `decline`, or `cancel` with `chat/inputCompleted`.
 	 */
 	response?: ChatInputResponseKind;
+}
+
+/**
+ * An error encountered while processing a turn.
+ *
+ * This is the detailed source of truth for the error. {@link Turn.state}
+ * remains {@link TurnState.Error} while the turn is stopped at this error so
+ * clients can detect the terminal state without inspecting response parts.
+ *
+ * When {@link resumable} is present, a client may dispatch `chat/turnResume`
+ * while this is the latest turn and its state is {@link TurnState.Error}.
+ * Clients decide whether and how to present that affordance.
+ *
+ * @category Response Parts
+ */
+export interface ErrorResponsePart {
+	/** Discriminant */
+	kind: ResponsePartKind.Error;
+	/** Error details. */
+	error: ErrorInfo;
+	/** Whether the host can resume the turn from this error. */
+	resumable?: true;
 }
 
 /**

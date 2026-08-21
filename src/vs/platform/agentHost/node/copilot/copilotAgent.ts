@@ -2164,6 +2164,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		sendMessage: (chatUri: URI, prompt: string, workingDirectories: readonly URI[] | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType?: AgentHostClientType): Promise<void> => {
 			return this._sendMessage(chatUri, prompt, attachments, turnId, senderClientId, clientType, workingDirectories);
 		},
+		resumeTurn: (chatUri: URI, turnId: string, senderClientId?: string, clientType?: AgentHostClientType): Promise<void> => {
+			return this._resumeTurn(chatUri, turnId, senderClientId, clientType);
+		},
 		abort: (chatUri: URI): Promise<void> => {
 			return this._abortSession(chatUri);
 		},
@@ -2370,6 +2373,31 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		this._logService.info(`[Copilot] Session created (provisional): ${sessionUri.toString()}`);
 		return { session: sessionUri, resolvedWorkingDirectory: workingDirectory, provisional: true, ...(project ? { project } : {}) };
+	}
+
+	private async _resumeTurn(chat: URI, turnId: string, senderClientId?: string, clientType = AgentHostClientType.Unknown): Promise<void> {
+		const context = this._getChatContext(chat);
+		if (context.isPeerChat) {
+			const entry = await this._ensureChatSession(context.session, chat);
+			if (!entry) {
+				throw new Error(`[Copilot] resumeTurn for unknown chat: ${chat.toString()}`);
+			}
+			await entry.resume(turnId, this._resolveSdkMode(context.session), senderClientId, clientType);
+			return;
+		}
+
+		await this._queueSession(context.sessionId, async () => {
+			let entry = this._getChatContext(chat).target;
+			const activeClient = this._activeClients.get(context.session);
+			if (entry && activeClient && await activeClient.requiresRestart(entry.appliedSnapshot)) {
+				this._sdkSessionsById.delete(entry.sessionId);
+				await entry.destroySession();
+				this._sessions.get(context.sessionId)?.clearDefaultChat();
+				entry = undefined;
+			}
+			entry ??= await this._resumeSession(context.sessionId);
+			await entry.resume(turnId, this._resolveSdkMode(context.session), senderClientId, clientType);
+		});
 	}
 
 	/**

@@ -32,7 +32,7 @@ import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { TerminalClaimKind } from '../../common/state/protocol/state.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
 import { CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization } from '../../common/state/protocol/channels-session/state.js';
@@ -70,6 +70,8 @@ import { createTestGitHubEndpointService } from './testGitHubEndpointService.js'
 class MockCopilotSession {
 	readonly sessionId = 'test-session-1';
 	readonly sendRequests: unknown[] = [];
+	readonly sendMessagesRequests: unknown[] = [];
+	sendMessagesError: Error | undefined;
 	readonly modeSetCalls: Array<{ mode: 'interactive' | 'plan' | 'autopilot' }> = [];
 	readonly permissionModeSetCalls: PermissionAllowAllMode[] = [];
 	permissionModeSetSuccess = true;
@@ -222,6 +224,12 @@ class MockCopilotSession {
 	}
 
 	readonly rpc = {
+		sendMessages: async (request: unknown) => {
+			this.sendMessagesRequests.push(request);
+			if (this.sendMessagesError) {
+				throw this.sendMessagesError;
+			}
+		},
 		mode: {
 			get: async () => ({ mode: 'interactive' as const }),
 			set: async (params: { mode: 'interactive' | 'plan' | 'autopilot' }) => {
@@ -3998,6 +4006,31 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(mockSession.sendRequests.length, 1);
 		});
 
+		test('resumes the same turn with zero SDK messages', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+
+			await session.resume('turn-1', 'plan', 'client-1');
+
+			assert.deepStrictEqual({
+				sendRequests: mockSession.sendRequests,
+				sendMessagesRequests: mockSession.sendMessagesRequests,
+				modeSetCalls: mockSession.modeSetCalls,
+			}, {
+				sendRequests: [],
+				sendMessagesRequests: [{ messages: [] }],
+				modeSetCalls: [{ mode: 'plan' }],
+			});
+		});
+
+		test('clears the active turn when zero-message continuation fails immediately', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			mockSession.sendMessagesError = new Error('continuation failed');
+
+			await assert.rejects(() => session.resume('turn-1'), /continuation failed/);
+
+			assert.strictEqual(session.hasActiveTurn, false);
+		});
+
 		test('fires steering_consumed on abort when the steering never reached its turn', async () => {
 			const { session, signals } = await createAgentSession(disposables);
 
@@ -5750,7 +5783,7 @@ suite('CopilotAgentSession', () => {
 			assert.ok(isAction(signals[0], ActionType.ChatError));
 			if (isAction(signals[0], ActionType.ChatError)) {
 				const action = signals[0].action as ChatErrorAction;
-				assert.deepStrictEqual(action.error, {
+				assert.deepStrictEqual(action.part.error, {
 					errorType: 'TestError',
 					message: 'something went wrong',
 					stack: 'Error: something went wrong',
@@ -6350,7 +6383,7 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(signals.length, 1);
 			const request = getInputRequest(signals[0]);
 			const requestId = request.id;
-			assert.strictEqual(request.purpose, ChatInputRequestPurpose.AskUser);
+			assert.strictEqual(request.message, undefined);
 			assert.ok(request.questions);
 			assert.strictEqual(request.questions[0].message, 'What is your name?');
 			const questionId = request.questions[0].id;
@@ -6494,7 +6527,7 @@ suite('CopilotAgentSession', () => {
 				ActionType.ChatInputCompleted,
 			]);
 			const requested = getActions(signals)[0];
-			assert.strictEqual(requested.type === ActionType.ChatInputRequested ? requested.request.purpose : undefined, undefined);
+			assert.strictEqual(requested.type === ActionType.ChatInputRequested ? requested.request.message : undefined, undefined);
 			const completed = getActions(signals)[1];
 			assert.deepStrictEqual(completed.type === ActionType.ChatInputCompleted ? Object.values(completed.answers ?? {}) : [], [{
 				state: ChatInputAnswerState.Submitted,
@@ -6545,7 +6578,7 @@ suite('CopilotAgentSession', () => {
 				ActionType.ChatInputCompleted,
 			]);
 			const requested = getActions(signals)[0];
-			assert.strictEqual(requested.type === ActionType.ChatInputRequested ? requested.request.purpose : undefined, undefined);
+			assert.strictEqual(requested.type === ActionType.ChatInputRequested ? requested.request.message : undefined, undefined);
 			const completed = getActions(signals)[1];
 			assert.deepStrictEqual(completed.type === ActionType.ChatInputCompleted ? Object.values(completed.answers ?? {}) : [], [{
 				state: ChatInputAnswerState.Submitted,
@@ -6584,7 +6617,7 @@ suite('CopilotAgentSession', () => {
 
 			assert.strictEqual(signals.length, 1);
 			const request = getInputRequest(signals[0]);
-			assert.strictEqual(request.purpose, ChatInputRequestPurpose.Elicitation);
+			assert.strictEqual(request.message, 'Configure deployment');
 			assert.strictEqual(request.message, 'Configure deployment');
 			assert.ok(request.questions);
 			assert.deepStrictEqual(request.questions.map(q => ({ id: q.id, kind: q.kind, required: q.required })), [
@@ -8017,7 +8050,7 @@ suite('CopilotAgentSession', () => {
 
 			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
 			const request = getInputRequest(signal);
-			assert.strictEqual(request.purpose, ChatInputRequestPurpose.PlanReview);
+			assert.strictEqual(request.message, undefined);
 
 			const planReview = (request as ChatInputRequestWithPlanReview).planReview;
 			assert.deepStrictEqual(planReview, {

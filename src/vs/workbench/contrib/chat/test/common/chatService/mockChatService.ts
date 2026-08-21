@@ -121,7 +121,7 @@ export class MockChatService implements IChatService {
 		throw new Error('Method not implemented.');
 	}
 
-	resendRequest(_request: IChatRequestModel, _options?: IChatSendRequestOptions): Promise<void> {
+	resendRequest(_request: IChatRequestModel, _options?: IChatSendRequestOptions, _preserveRequestId?: boolean): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 

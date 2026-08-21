@@ -5,7 +5,8 @@
 
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import type { ChatInputCompletedAction } from '../common/state/sessionActions.js';
-import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, ResponsePartKind, isAhpChatChannel, parseRequiredSessionUriFromChatUri, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ChatState } from '../common/state/sessionState.js';
+import { isChatInputRequestWithPlanReview } from '../common/agentHostPlanReview.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ResponsePartKind, isAhpChatChannel, parseRequiredSessionUriFromChatUri, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ChatState } from '../common/state/sessionState.js';
 import type { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
 
 interface IInputRequestTiming {
@@ -30,7 +31,7 @@ export class AgentHostInputRequestTracker {
 
 	inputRequested(provider: string, session: string, turnId: string, request: ChatInputRequest): void {
 		const key = this._key(session, request.id);
-		if (request.purpose !== ChatInputRequestPurpose.AskUser) {
+		if (!this._isAskUserRequest(request)) {
 			this._pending.delete(key);
 			return;
 		}
@@ -67,7 +68,7 @@ export class AgentHostInputRequestTracker {
 			&& part.request.id === action.requestId
 			&& part.response === ChatInputResponseKind.Accept
 		);
-		if (!part || part.kind !== ResponsePartKind.InputRequest || part.request.purpose !== ChatInputRequestPurpose.AskUser) {
+		if (!part || part.kind !== ResponsePartKind.InputRequest || !this._isAskUserRequest(part.request)) {
 			return;
 		}
 
@@ -87,6 +88,10 @@ export class AgentHostInputRequestTracker {
 			recommendedSelectedCount: questions.filter(question => this._isRecommendedSelected(question, answers[question.id])).length,
 			duration: timing.stopWatch.elapsed(),
 		});
+	}
+
+	private _isAskUserRequest(request: ChatInputRequest): boolean {
+		return request.message === undefined && request.url === undefined && !isChatInputRequestWithPlanReview(request);
 	}
 
 	clearTurn(session: string, turnId: string): void {

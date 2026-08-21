@@ -26,7 +26,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
 import { ChangesSummary, ChatOriginKind, CustomizationType, McpAuthRequiredReason, SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, type ChatAction, type INotification, type SessionAction } from '../../common/state/sessionActions.js';
-import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInteractivity, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
+import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInteractivity, createErrorResponsePart, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -641,10 +641,12 @@ suite('AgentSideEffects', () => {
 			const envelope = await error;
 			assert.deepStrictEqual({
 				sendMessageCalls: agent.sendMessageCalls.length,
-				errorType: envelope.action.type === ActionType.ChatError ? envelope.action.error.errorType : undefined,
+				errorType: envelope.action.type === ActionType.ChatError ? envelope.action.part.error.errorType : undefined,
+				resumable: envelope.action.type === ActionType.ChatError ? envelope.action.part.resumable : undefined,
 			}, {
 				sendMessageCalls: 0,
 				errorType: 'sendFailed',
+				resumable: undefined,
 			});
 		});
 
@@ -680,7 +682,7 @@ suite('AgentSideEffects', () => {
 			const envelope = await error;
 			assert.deepStrictEqual({
 				sendMessageCalls: agent.sendMessageCalls.length,
-				errorType: envelope.action.type === ActionType.ChatError ? envelope.action.error.errorType : undefined,
+				errorType: envelope.action.type === ActionType.ChatError ? envelope.action.part.error.errorType : undefined,
 			}, {
 				sendMessageCalls: 0,
 				errorType: 'sendFailed',
@@ -884,7 +886,7 @@ suite('AgentSideEffects', () => {
 				await originalSendMessage(...args);
 				agent.fireProgress({
 					kind: 'action', resource: URI.parse(defaultChatUri),
-					action: { type: ActionType.ChatError, turnId: 'turn-1', duration: 1, error: { errorType: 'CodexMaterializeFailed', message: 'workspace root rejected' } },
+					action: { type: ActionType.ChatError, turnId: 'turn-1', duration: 1, part: createErrorResponsePart({ errorType: 'CodexMaterializeFailed', message: 'workspace root rejected' }) },
 				});
 				agent.fireProgress({
 					kind: 'action', resource: URI.parse(defaultChatUri),
@@ -1590,7 +1592,7 @@ suite('AgentSideEffects', () => {
 
 			agent.fireProgress({
 				kind: 'action', resource: URI.parse(defaultChatUri),
-				action: { type: ActionType.ChatError, turnId: 'turn-1', duration: 1000, error: { errorType: 'Error', message: 'boom' } },
+				action: { type: ActionType.ChatError, turnId: 'turn-1', duration: 1000, part: createErrorResponsePart({ errorType: 'Error', message: 'boom' }) },
 			});
 
 			assert.deepStrictEqual({
@@ -5095,7 +5097,6 @@ suite('AgentSideEffects', () => {
 				type: ActionType.ChatInputRequested,
 				request: {
 					id: 'req-1',
-					purpose: ChatInputRequestPurpose.AskUser,
 					questions: [{ kind: ChatInputQuestionKind.Text, id: 'question-1', message: 'Which value?' }],
 				},
 			});
@@ -5146,7 +5147,6 @@ suite('AgentSideEffects', () => {
 
 			const request: ChatInputRequest = {
 				id: 'req-1',
-				purpose: ChatInputRequestPurpose.AskUser,
 				questions: [{ kind: ChatInputQuestionKind.Text, id: 'question-1', message: 'Which value?' }],
 			};
 			stateManager.dispatchServerAction(defaultChatUri, {
