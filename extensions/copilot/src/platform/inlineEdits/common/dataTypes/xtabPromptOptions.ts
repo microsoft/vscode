@@ -542,6 +542,8 @@ export enum PromptingStrategy {
 	PatchBased02 = 'patchBased02',
 	/** PatchBased02 variant: line numbers on recent docs. */
 	PatchBased02WithRecentLineNumbers = 'patchBased02WithRecentLineNumbers',
+	/** Optimized PatchBased02 variant with line numbers on recent docs. */
+	PatchBased02Optimized = 'patchBased02Optimized',
 	/** PatchBased02 variant: no line numbers on recent docs. */
 	PatchBased02WithoutRecentLineNumbers = 'patchBased02WithoutRecentLineNumbers',
 	/**
@@ -608,6 +610,7 @@ export namespace ResponseFormat {
 			case PromptingStrategy.PatchBased01:
 			case PromptingStrategy.PatchBased02:
 			case PromptingStrategy.PatchBased02WithRecentLineNumbers:
+			case PromptingStrategy.PatchBased02Optimized:
 			case PromptingStrategy.PatchBased02WithoutRecentLineNumbers:
 				return ResponseFormat.CustomDiffPatch;
 			case PromptingStrategy.Xtab275EditIntent:
@@ -703,19 +706,22 @@ export interface ModelConfiguration {
  * declares values here, those values override anything provided by the upstream
  * model configuration. A strategy without an entry contributes no overrides.
  */
+const PATCH_BASED_02_WITH_RECENT_LINE_NUMBERS_CONFIG: Partial<ModelConfiguration> = {
+	includeTagsInCurrentFile: false,
+	includePostScript: true,
+	currentFile: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace },
+	recentlyViewedDocuments: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace },
+	supportsNextCursorLinePrediction: false,
+	allowImportChanges: ImportChanges.All,
+};
+
 const STRATEGY_CONFIG: Partial<Record<PromptingStrategy, Partial<ModelConfiguration>>> = {
 	// proxy /models doesn't know about includeTagsInCurrentFile field as of now, so hard-code it for CopilotNesXtab
 	[PromptingStrategy.CopilotNesXtab]: {
 		includeTagsInCurrentFile: true,
 	},
-	[PromptingStrategy.PatchBased02WithRecentLineNumbers]: {
-		includeTagsInCurrentFile: false,
-		includePostScript: true,
-		currentFile: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace },
-		recentlyViewedDocuments: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace },
-		supportsNextCursorLinePrediction: false,
-		allowImportChanges: ImportChanges.All,
-	},
+	[PromptingStrategy.PatchBased02WithRecentLineNumbers]: PATCH_BASED_02_WITH_RECENT_LINE_NUMBERS_CONFIG,
+	[PromptingStrategy.PatchBased02Optimized]: PATCH_BASED_02_WITH_RECENT_LINE_NUMBERS_CONFIG,
 	[PromptingStrategy.PatchBased02WithoutRecentLineNumbers]: {
 		includeTagsInCurrentFile: false,
 		includePostScript: true,
