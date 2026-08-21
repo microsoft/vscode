@@ -158,7 +158,7 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('preferred diff view is contributed to multi-file and single-file diff editor overflow menus with state-appropriate titles', () => {
+	test('always show inline diff is contributed to multi-file and single-file diff editor overflow menus', () => {
 		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'toggle.diff.renderSideBySide');
@@ -166,7 +166,7 @@ suite('Changes View Actions', () => {
 		assert.ok(item, 'expected the preferred diff view action in the single-pane editor header overflow menu');
 		const when = item.when?.serialize() ?? '';
 		const toggled = item.command.toggled;
-		const toggledInfo = isICommandActionToggleInfo(toggled) ? toggled : undefined;
+		const toggledCondition = isICommandActionToggleInfo(toggled) ? toggled.condition : toggled;
 		const nonTextDiffContext = new Context(1, null);
 		nonTextDiffContext.setValue(IsSessionsWindowContext.key, true);
 		nonTextDiffContext.setValue(SinglePaneDiffEditorInputActiveContext.key, true);
@@ -174,6 +174,10 @@ suite('Changes View Actions', () => {
 		nonTextDiffContext.setValue(IsAuxiliaryWindowContext.key, false);
 		nonTextDiffContext.setValue(IsTopRightEditorGroupContext.key, true);
 		nonTextDiffContext.setValue(MainEditorAreaVisibleContext.key, true);
+		const toggleContext = new Context(1, null);
+		toggleContext.setValue(SessionsDiffRenderSideBySideContext.key, true);
+		const toggledWhenSideBySide = toggledCondition?.evaluate(toggleContext);
+		toggleContext.setValue(SessionsDiffRenderSideBySideContext.key, false);
 		assert.deepStrictEqual({
 			id: item.command.id,
 			title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
@@ -181,9 +185,9 @@ suite('Changes View Actions', () => {
 			order: item.order,
 			icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
 			tooltip: typeof item.command.tooltip === 'string' ? item.command.tooltip : item.command.tooltip?.value,
-			toggledTitle: toggledInfo?.title,
-			toggledTooltip: toggledInfo?.tooltip,
-			toggledOnSharedPreference: toggledInfo?.condition.serialize().includes(SessionsDiffRenderSideBySideContext.key),
+			hasStateSpecificTitle: isICommandActionToggleInfo(toggled),
+			toggledWhenSideBySide,
+			toggledWhenInline: toggledCondition?.evaluate(toggleContext),
 			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
 			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
 			hasTextCompareEditorGate: when.includes(TextCompareEditorActiveContext.key),
@@ -192,14 +196,14 @@ suite('Changes View Actions', () => {
 			matchesNonTextDiffContext: item.when?.evaluate(nonTextDiffContext) ?? false,
 		}, {
 			id: 'toggle.diff.renderSideBySide',
-			title: 'Prefer Side by Side Diff View',
+			title: 'Always Show Inline Diff',
 			group: 'secondary/1_diff',
 			order: 20,
 			icon: Codicon.diffSidebyside.id,
-			tooltip: 'Uses inline layout when space is limited unless screen reader optimized mode is enabled.',
-			toggledTitle: 'Prefer Inline Diff View',
-			toggledTooltip: 'Always uses inline layout.',
-			toggledOnSharedPreference: true,
+			tooltip: 'Always uses inline layout.',
+			hasStateSpecificTitle: false,
+			toggledWhenSideBySide: false,
+			toggledWhenInline: true,
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
 			hasTextCompareEditorGate: true,
@@ -245,7 +249,7 @@ suite('Changes View Actions', () => {
 		const content = provider.provideContent();
 		provider.dispose();
 
-		assert.strictEqual(content.includes('Use the editor header\'s More Actions menu or the Toggle Preferred Diff View command'), true);
+		assert.strictEqual(content.includes('Use Always Show Inline Diff in the editor header\'s More Actions menu'), true);
 	});
 
 	test('view mode toggles include non-text single-file diff editor headers', () => {

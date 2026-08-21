@@ -332,17 +332,10 @@ registerAction2(ExpandAllSessionChangesDiffsAction);
 MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, {
 	command: {
 		id: TOGGLE_DIFF_SIDE_BY_SIDE,
-		title: localize('preferSideBySideDiffView', "Prefer Side by Side Diff View"),
-		tooltip: localize('preferSideBySideDiff.tooltip', "Uses inline layout when space is limited unless screen reader optimized mode is enabled."),
+		title: localize('alwaysShowInlineDiff', "Always Show Inline Diff"),
+		tooltip: localize('alwaysShowInlineDiff.tooltip', "Always uses inline layout."),
 		icon: Codicon.diffSidebyside,
-		toggled: {
-			condition: ContextKeyExpr.or(
-				ContextKeyExpr.and(singlePaneChangesEditorActive, SessionsDiffRenderSideBySideContext),
-				ContextKeyExpr.and(singlePaneFileDiffEditorActive, SessionsDiffRenderSideBySideContext)
-			)!,
-			title: localize('preferInlineDiffView', "Prefer Inline Diff View"),
-			tooltip: localize('preferInlineDiff.tooltip', "Always uses inline layout."),
-		},
+		toggled: SessionsDiffRenderSideBySideContext.negate(),
 	},
 	group: 'secondary/1_diff',
 	order: 20,
