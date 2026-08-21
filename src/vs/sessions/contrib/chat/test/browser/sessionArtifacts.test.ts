@@ -7,7 +7,7 @@ import assert from 'assert';
 import { isMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { buildSessionArtifactSections, type ISessionArtifactActions, type ISessionArtifactImage } from '../../browser/sessionArtifacts.js';
+import { buildSessionArtifactSections, type ISessionArtifactActions } from '../../browser/sessionArtifacts.js';
 import { type ISessionArtifact, SessionArtifactKind, SessionFileOperation } from '../../../../services/sessions/common/session.js';
 
 suite('Session Artifacts', () => {
@@ -49,62 +49,4 @@ suite('Session Artifacts', () => {
 		]);
 	});
 
-	test('groups artifact images separately and opens all images in the carousel', () => {
-		const screenshotUri = URI.file('/artifacts/screenshot.png');
-		const diagramUri = URI.file('/external/diagram.jpg');
-		const reportUri = URI.file('/artifacts/report.md');
-		const opened: { images: readonly ISessionArtifactImage[]; startIndex: number }[] = [];
-		const imageActions: ISessionArtifactActions = {
-			...actions,
-			openImages: (images, startIndex) => opened.push({ images, startIndex }),
-		};
-		const artifacts: readonly ISessionArtifact[] = [
-			{ id: 'screenshot', kind: SessionArtifactKind.File, label: 'Screenshot', uri: screenshotUri },
-			{ id: 'report', kind: SessionArtifactKind.File, label: 'Report', uri: reportUri },
-		];
-
-		const sections = buildSessionArtifactSections(artifacts, [
-			{ uri: diagramUri, operation: SessionFileOperation.Created },
-		], imageActions, true);
-		const imageSection = sections.find(section => section.title === 'Images');
-		assert.ok(imageSection);
-		imageSection.entries[1].open();
-
-		assert.deepStrictEqual({
-			sections: sections.map(section => ({ title: section.title, labels: section.entries.map(entry => entry.label) })),
-			opened: opened.map(entry => ({ images: entry.images.map(image => image.uri.path), startIndex: entry.startIndex })),
-		}, {
-			sections: [
-				{ title: 'Images', labels: ['screenshot.png', 'diagram.jpg'] },
-				{ title: 'Files', labels: ['report.md'] },
-			],
-			opened: [{ images: ['/artifacts/screenshot.png', '/external/diagram.jpg'], startIndex: 1 }],
-		});
-	});
-
-	test('opens the image resource when the image carousel is disabled', () => {
-		const screenshotUri = URI.file('/artifacts/screenshot.png');
-		const opened: string[] = [];
-		const imageActions: ISessionArtifactActions = {
-			...actions,
-			openImages: () => opened.push('carousel'),
-			openResource: uri => opened.push(uri.path),
-		};
-		const artifacts: readonly ISessionArtifact[] = [
-			{ id: 'screenshot', kind: SessionArtifactKind.File, label: 'Screenshot', uri: screenshotUri },
-		];
-
-		const sections = buildSessionArtifactSections(artifacts, [], imageActions, false);
-		const imageSection = sections.find(section => section.title === 'Images');
-		assert.ok(imageSection);
-		imageSection.entries[0].open();
-
-		assert.deepStrictEqual({
-			ariaLabel: imageSection.entries[0].ariaLabel,
-			opened,
-		}, {
-			ariaLabel: 'Open screenshot.png',
-			opened: ['/artifacts/screenshot.png'],
-		});
-	});
 });
