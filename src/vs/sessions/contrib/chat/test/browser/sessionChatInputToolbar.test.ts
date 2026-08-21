@@ -15,7 +15,7 @@ import { SESSION_CUSTOMIZATIONS_PILL_ID } from '../../browser/sessionCustomizati
 suite('SessionChatInputToolbar', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('maps turn-status, contributed metadata and hosted pill actions onto togglable pill kinds', () => {
+	test('maps turn-status and hosted pill actions onto togglable pill kinds', () => {
 		assert.deepStrictEqual([
 			getSessionChatPillKindForAction(CHAT_TURN_CHANGES_PILL_ID),
 			getSessionChatPillKindForAction(VIEW_SESSION_CHANGES_COMMAND_ID),
@@ -25,7 +25,6 @@ suite('SessionChatInputToolbar', () => {
 			getSessionChatPillKindForAction(OPEN_ISSUE_ACTION_ID),
 			getSessionChatPillKindForAction(SESSION_BROWSERS_PILL_ID),
 			getSessionChatPillKindForAction(SESSION_SUBAGENTS_PILL_ID),
-			getSessionChatPillKindForAction('workbench.agentSessions.action.openFilesView'),
 		], [
 			SessionChatPillKind.Changes,
 			SessionChatPillKind.Changes,
@@ -35,7 +34,6 @@ suite('SessionChatInputToolbar', () => {
 			SessionChatPillKind.Issues,
 			SessionChatPillKind.Browsers,
 			SessionChatPillKind.Subagents,
-			undefined,
 		]);
 	});
 });
