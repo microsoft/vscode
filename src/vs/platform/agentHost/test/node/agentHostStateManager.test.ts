@@ -713,6 +713,22 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(readSessionEhcliAdoptable(changed[0].changes._meta), false);
 	});
 
+	test('publishing a restored session announces it to clients that never saw it', () => {
+		// A legacy chat adopted after startup was never surfaced by discovery, so
+		// restore records it silently and clients have no entry. Publishing is what
+		// makes an adopted session appear instead of existing only on the host.
+		manager.restoreSession(makeSessionSummary(), []);
+		const notifications: INotification[] = [];
+		disposables.add(manager.onDidEmitNotification(n => notifications.push(n)));
+
+		manager.setSessionSummaryPublished(sessionUri, true);
+
+		assert.deepStrictEqual(
+			notifications.filter(n => n.type === NotificationType.SessionAdded).map(n => (n as { summary: { resource: string } }).summary.resource),
+			[sessionUri],
+		);
+	});
+
 	suite('unused-draft tracking', () => {
 
 		test('reports draft status by origin, addressable by session or chat URI', () => {
@@ -1138,6 +1154,43 @@ suite('AgentHostStateManager', () => {
 					defaultChatTitle: 'Chat A',
 				},
 			);
+		});
+
+		test('restored peer chat snapshots the inherited default chat title', () => {
+			manager.restoreSession(makeSessionSummary(), []);
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const beforeRestore = manager.getSessionState(sessionUri)?.chats.find(chat => chat.resource === defaultChat)?.title;
+
+			manager.registerRestoredChatSummary(sessionUri, peerChat, { title: 'Peer' });
+
+			assert.deepStrictEqual({
+				beforeRestore,
+				afterRestore: manager.getSessionState(sessionUri)?.chats.find(chat => chat.resource === defaultChat)?.title,
+			}, {
+				beforeRestore: '',
+				afterRestore: 'Test',
+			});
+		});
+
+		test('adding a chat snapshots the canonical default when routing defaults to a peer', () => {
+			manager.createSession(makeSessionSummary());
+			const canonicalDefault = buildDefaultChatUri(sessionUri);
+			const peer2 = buildChatUri(sessionUri, 'peer-2');
+			manager.addChat(sessionUri, peerChat, { title: 'Peer' });
+			manager.updateChatTitle(sessionUri, canonicalDefault, '');
+			manager.updateChatTitle(sessionUri, peerChat, '');
+			manager.dispatchServerAction(sessionUri, { type: ActionType.SessionDefaultChatChanged, defaultChat: peerChat });
+
+			manager.addChat(sessionUri, peer2, { title: 'Peer 2' });
+
+			const state = manager.getSessionState(sessionUri);
+			assert.deepStrictEqual({
+				canonicalDefaultTitle: state?.chats.find(chat => chat.resource === canonicalDefault)?.title,
+				routingDefaultTitle: state?.chats.find(chat => chat.resource === peerChat)?.title,
+			}, {
+				canonicalDefaultTitle: 'Test',
+				routingDefaultTitle: '',
+			});
 		});
 
 		test('addChat is idempotent for an existing chat URI', () => {
