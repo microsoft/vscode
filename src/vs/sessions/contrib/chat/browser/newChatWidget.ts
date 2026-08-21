@@ -638,11 +638,10 @@ export class NewChatWidget extends Disposable {
 				if (!this._isPreferredServable(folderUri, userPick)) {
 					return; // the preferred provider still cannot serve the folder
 				}
-				// The draft already runs the pick, so recreating it would throw
-				// away an untouched draft to land on the same session type. A pick
-				// naming no provider matches on the type alone.
+				// Already running the pick: nothing left to upgrade to, so stop watching.
 				if (userPick.sessionTypeId === active.sessionType
 					&& (userPick.providerId === undefined || userPick.providerId === active.providerId)) {
+					this._pendingPreferredUpgrade.clear();
 					return;
 				}
 			} else {
