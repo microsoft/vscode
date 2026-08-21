@@ -7,6 +7,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { EditorOptions, WrappingIndent } from '../../../common/config/editorOptions.js';
 import { FontInfo } from '../../../common/config/fontInfo.js';
 import { ILineBreaksComputerContext, ILineBreaksComputerFactory, ModelLineProjectionData } from '../../../common/modelLineProjectionData.js';
+import { LineInjectedText } from '../../../common/textModelEvents.js';
 import { MonospaceLineBreaksComputerFactory } from '../../../common/viewModel/monospaceLineBreaksComputer.js';
 
 function parseAnnotatedText(annotatedText: string): { text: string; indices: number[] } {
@@ -44,7 +45,7 @@ function toAnnotatedText(text: string, lineBreakData: ModelLineProjectionData | 
 	return actualAnnotatedText;
 }
 
-function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, breakAfter: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean, text: string, previousLineBreakData: ModelLineProjectionData | null): ModelLineProjectionData | null {
+function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, breakAfter: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean, text: string, previousLineBreakData: ModelLineProjectionData | null, injectedText: LineInjectedText[] | null = null): ModelLineProjectionData | null {
 	const fontInfo = new FontInfo({
 		pixelRatio: 1,
 		fontFamily: 'testFontFamily',
@@ -68,7 +69,7 @@ function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, 
 			return text;
 		},
 		getLineInjectedText(lineNumber) {
-			return null;
+			return injectedText;
 		}
 	};
 	const lineBreaksComputer = factory.createLineBreaksComputer(context, fontInfo, tabSize, breakAfter, wrappingIndent, wordBreak, wrapOnEscapedLineFeeds);
