@@ -44,6 +44,9 @@ export const SessionHasPullRequestContext = new RawContextKey<boolean>('sessionH
 export const SessionHasIssuesContext = new RawContextKey<boolean>('sessionHasIssues', false, localize('sessionHasIssues', "Whether the session view's session references at least one GitHub issue"));
 export const SessionHasWorkspaceContext = new RawContextKey<boolean>('sessionHasWorkspace', false, localize('sessionHasWorkspace', "Whether the session view's session has an associated workspace folder"));
 export const IsQuickChatSessionContext = new RawContextKey<boolean>('isQuickChatSession', false, localize('isQuickChatSession', "Whether the session in scope is a workspace-less quick chat"));
+export const TransientSideChatDismissibleContext = new RawContextKey<boolean>('transientSideChatDismissible', false, localize('transientSideChatDismissible', "Whether the session view has a transient side question that can be dismissed"));
+export const TransientSideChatFocusedContext = new RawContextKey<boolean>('transientSideChatFocused', false, localize('transientSideChatFocused', "Whether keyboard focus is inside a transient side-question card"));
+export const TransientSideChatSourceContext = new RawContextKey<string>('transientSideChatSource', '', localize('transientSideChatSource', "The source chat resource for the transient side question in scope"));
 
 //#endregion
 

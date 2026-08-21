@@ -108,6 +108,7 @@ export function getSessionChatPillKindForAction(actionId: string): SessionChatPi
 export class SessionChatInputToolbar extends Disposable {
 
 	readonly element: HTMLElement;
+	readonly isVisible: IObservable<boolean>;
 	private readonly _content: HTMLElement;
 	private readonly _scrollable: DomScrollableElement;
 
@@ -333,12 +334,12 @@ export class SessionChatInputToolbar extends Disposable {
 		this._register(resizeObserver.observe(pills.element));
 		this._register(addDisposableListener(this._content, EventType.FOCUS_IN, () => this._scrollable.scanDomNode()));
 
+		this.isVisible = derived(this, reader => pills.isVisible.read(reader) || kindsWithData.read(reader).size > 0);
 		this._register(autorun(reader => {
 			const anyVisible = pills.isVisible.read(reader);
 			// Keep the (empty) row present while hidden pills have data so its
 			// context menu stays reachable and they can be shown again.
-			const anyHidden = kindsWithData.read(reader).size > 0;
-			this.element.classList.toggle('hidden', !anyVisible && !anyHidden);
+			this.element.classList.toggle('hidden', !this.isVisible.read(reader));
 			this.element.classList.toggle('empty', !anyVisible);
 			this._scrollable.scanDomNode();
 		}));

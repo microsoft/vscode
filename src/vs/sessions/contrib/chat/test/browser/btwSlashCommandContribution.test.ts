@@ -29,11 +29,22 @@ import { ISessionsPartService } from '../../../../services/sessions/browser/sess
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISendRequestOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ITransientSideChatService } from '../../browser/transientSideChatService.js';
+import { ISideChatOrchestrationService, SideChatOrchestrationService, SideChatPresentation } from '../../browser/sideChatOrchestration.js';
 
 suite('BtwSlashCommandContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('opens the created side chat through the sessions service before sending attached context', async () => {
+	class RecordingNotificationService extends TestNotificationService {
+		readonly errors: string[] = [];
+
+		override error(error: string | Error) {
+			this.errors.push(error instanceof Error ? error.message : error);
+			return super.error(error);
+		}
+	}
+
+	test('presents the created side chat transiently before sending attached context', async () => {
 		const store = disposables.add(new DisposableStore());
 		const instantiationService = store.add(new TestInstantiationService());
 		let registered: { data: IChatSlashData; callback: IChatSlashCallback } | undefined;
@@ -111,6 +122,13 @@ suite('BtwSlashCommandContribution', () => {
 		instantiationService.stub(ISessionsPartService, upcastPartial<ISessionsPartService>({
 			getSessionView: () => undefined,
 		}));
+		instantiationService.stub(ITransientSideChatService, upcastPartial<ITransientSideChatService>({
+			show: async (_session, source, target, question) => {
+				callOrder.push(`show:${source.resource.toString()}:${target.resource.toString()}:${question}`);
+				return true;
+			},
+		}));
+		instantiationService.stub(ISideChatOrchestrationService, instantiationService.createInstance(SideChatOrchestrationService));
 		instantiationService.stub(INotificationService, new TestNotificationService());
 		instantiationService.stub(ILogService, new NullLogService());
 
@@ -133,10 +151,66 @@ suite('BtwSlashCommandContribution', () => {
 
 		assert.deepStrictEqual(callOrder, [
 			'create',
-			`open:${sideChat.resource.toString()}`,
+			`show:${sourceChat.resource.toString()}:${sideChat.resource.toString()}:what about this?`,
 			`send:${sideChat.resource.toString()}:what about this?`,
 		]);
 		assert.deepStrictEqual(createArgs, { selection: { text: '  selected text  ' } });
-		assert.deepStrictEqual(sendOptions?.attachedContext, [pastedText]);
+		assert.deepStrictEqual({
+			attachedContext: sendOptions?.attachedContext,
+			preserveActiveChat: sendOptions?.preserveActiveChat,
+		}, {
+			attachedContext: [pastedText],
+			preserveActiveChat: true,
+		});
+	});
+
+	test('uses the transient failure card without an additional error notification', async () => {
+		const store = disposables.add(new DisposableStore());
+		const instantiationService = store.add(new TestInstantiationService());
+		let callback: IChatSlashCallback | undefined;
+		instantiationService.stub(IChatSlashCommandService, {
+			_serviceBrand: undefined,
+			onDidChangeCommands: Event.None,
+			registerSlashCommand: (_data, registeredCallback) => {
+				callback = registeredCallback;
+				return toDisposable(() => undefined);
+			},
+			executeCommand: async () => undefined,
+			getCommands: () => [],
+			hasCommand: () => false,
+		});
+		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: true }));
+		instantiationService.stub(IChatService, upcastPartial<IChatService>({
+			getSession: () => upcastPartial<IChatModel>({ getRequests: () => [upcastPartial<IChatRequestModel>({ id: 'turn-1' })] }),
+		}));
+		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ getWidgetBySessionResource: () => undefined }));
+		const sourceChat = upcastPartial<IChat>({ resource: URI.parse('test:///chat/source') });
+		const sideChat = upcastPartial<IChat>({ resource: URI.parse('test:///chat/side') });
+		const session = upcastPartial<ISession>({
+			sessionId: 'session',
+			status: constObservable(SessionStatus.Completed),
+			isArchived: constObservable(false),
+			capabilities: constObservable({ supportsMultipleChats: true, supportsSideChat: true }),
+		});
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			getSessionForChatResource: () => ({ session, chat: sourceChat }),
+			createSideChatInSession: async () => sideChat,
+		}));
+		instantiationService.stub(ISideChatOrchestrationService, upcastPartial<ISideChatOrchestrationService>({
+			prepare: async () => ({
+				sideChat,
+				presentation: SideChatPresentation.Transient,
+				send: async () => { throw new Error('send failed'); },
+			}),
+		}));
+		const notificationService = new RecordingNotificationService();
+		instantiationService.stub(INotificationService, notificationService);
+		instantiationService.stub(ILogService, new NullLogService());
+		store.add(instantiationService.createInstance(BtwSlashCommandContribution));
+		assert.ok(callback);
+
+		await callback('question', { report: () => undefined }, [], ChatAgentLocation.Chat, sourceChat.resource, CancellationToken.None, undefined);
+
+		assert.deepStrictEqual(notificationService.errors, []);
 	});
 });

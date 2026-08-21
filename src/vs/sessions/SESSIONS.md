@@ -246,13 +246,43 @@ the management service. Opening an existing chat is view orchestration:
 `ISessionsService` activates the session, resolves the chat from
 `session.chats`, and updates visible and active state.
 
+### Transient side questions
+
+`/btw` and the response-selection side-question affordance create normal
+provider-backed side chats. The experiment-driven
+`chat.agentSessions.transientSideChat` setting defaults to false.
+`ISideChatOrchestrationService` owns the shared create, presentation, and send
+sequence for slash-command, selection, and generic side-chat entry points.
+When it is enabled and the source `ChatView` has a live transient host, the new
+chat is closed with `skipHistory` and represented by an in-memory answer card
+above the unchanged source composer. Its send uses `preserveActiveChat`, so
+normal send lifecycle notifications and failures still propagate without
+navigating away from the source chat. When the setting is disabled or no
+transient host is available, the side chat opens in a group beside the source
+before sending.
+
+Closing the card removes only its transient presentation; the side chat remains
+recoverable from Closed chats. **Open Full Chat** reopens the same chat in the
+normal chat UI. Transient state stores resource identities and resolves current
+provider facades reactively from `session.chats`, so removed or replaced chats
+cannot leave a stale card. A replacement is scoped to the source chat, and
+asynchronous presentation, promotion, or failure handling must revalidate a
+monotonic ownership token after each await without removing a newer card.
+Transient send failures are reported by the card; full-chat failures propagate
+to their caller.
+The card grows to its content up to 60% of the source view height, then scrolls
+internally without the full-chat go-to-bottom control. Escape dismissal is a
+scoped keybinding that yields to active suggestions, confirmations, elicitation,
+hovers, editing, and dictation.
+
 ## State propagation
 
 Use the narrowest mechanism that represents a change:
 
 - observables for mutable session or chat state;
 - provider events for catalog membership;
-- management events for operation lifecycle notifications;
+- management events for operation lifecycle notifications, including send start
+  and settlement paired by a service-issued request id;
 - direct service calls for orchestration and control flow.
 
 Do not mirror observable state with events or use storage and provider internals
