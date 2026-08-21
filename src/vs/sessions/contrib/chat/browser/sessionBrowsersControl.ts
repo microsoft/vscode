@@ -99,7 +99,7 @@ export class SessionBrowsersControl extends Disposable {
 	private _collectBrowsers(ownerIds: ReadonlySet<string>, chat: IChat | undefined): IChatPillEntry[] {
 		const entries: IChatPillEntry[] = [];
 		for (const input of this._browserViewService.getKnownBrowserViews().values()) {
-			const ownerId = input.model?.owner.sessionId;
+			const ownerId = input.model?.owner.type === 'agent' ? input.model.owner.sessionId : undefined;
 			if (ownerId && ownerIds.has(ownerId)) {
 				entries.push(this._entry(input.title?.trim() || localize('browsers.browser', "Browser"), input, chat));
 			}
