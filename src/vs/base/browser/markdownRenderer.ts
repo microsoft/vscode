@@ -835,9 +835,12 @@ const linkFormatter = ({ text, href }: marked.Tokens.Link): string => {
 /**
  * Renders a list item from its parsed tokens rather than its raw source, so inline markdown is
  * reduced to text the way it already is in a paragraph. Opt-in via `omitMarkdownSyntax`.
+ *
+ * Parses as top-level so a tight item's text becomes a paragraph: without that boundary an item
+ * holding a nested list would run straight into it, as in `outerinner link`.
  */
-const parsedListItem = function (this: marked.Renderer, { tokens, loose }: marked.Tokens.ListItem): string {
-	return this.parser.parse(tokens, !!loose) + '\n';
+const parsedListItem = function (this: marked.Renderer, { tokens }: marked.Tokens.ListItem): string {
+	return this.parser.parse(tokens, true);
 };
 
 /** Renders a block-level text token through its inline tokens. Opt-in via `omitMarkdownSyntax`. */

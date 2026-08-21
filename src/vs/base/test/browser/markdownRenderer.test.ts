@@ -469,14 +469,14 @@ suite('MarkdownRenderer', () => {
 
 			assert.strictEqual(
 				renderAsPlaintext(markdown),
-				'Added [src/](/some/path/to/src)\nUses **bold** and `code`',
+				'Added [src/](/some/path/to/src)\n\nUses **bold** and `code`',
 				'default output is unchanged');
 			assert.strictEqual(
 				renderAsPlaintext(markdown, { omitMarkdownSyntax: true }),
-				'Added src/\nUses bold and code');
+				'Added src/\n\nUses bold and code');
 		});
 
-		test('reduces inline syntax inside nested list items when omitMarkdownSyntax is set', () => {
+		test('separates a nested list from the item holding it when omitMarkdownSyntax is set', () => {
 			const markdown = { value: '- outer\n    - inner [link](/target)' };
 			assert.strictEqual(renderAsPlaintext(markdown, { omitMarkdownSyntax: true }), 'outer\ninner link');
 		});
