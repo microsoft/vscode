@@ -101,17 +101,16 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 
 				let fixedWidthRangeIndex = 0;
 				for (let i = 0; i < firstNonWhitespaceIndex; i++) {
-					const fixedWidthRange = fixedWidthRanges?.[fixedWidthRangeIndex];
+					const fixedWidthRange = fixedWidthRanges[fixedWidthRangeIndex];
 					const isFixedWidthStart = fixedWidthRange?.startOffset === i;
-					const charWidth = isFixedWidthStart
-						? fixedWidthRange.widthInEm * fontInfo.fontSize / fontInfo.spaceWidth
-						: lineContent.charCodeAt(i) === CharCode.Tab
-							? (tabSize - (wrappedTextIndentLength % tabSize))
-							: 1;
-					wrappedTextIndentLength += charWidth;
 					if (isFixedWidthStart) {
+						wrappedTextIndentLength += fixedWidthRange.widthInEm * fontInfo.fontSize / fontInfo.spaceWidth;
 						i = fixedWidthRange.endOffset - 1;
 						fixedWidthRangeIndex++;
+					} else if (lineContent.charCodeAt(i) === CharCode.Tab) {
+						wrappedTextIndentLength += tabSize - (wrappedTextIndentLength % tabSize);
+					} else {
+						wrappedTextIndentLength++;
 					}
 				}
 
@@ -135,10 +134,17 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 				endOffset: range.endOffset - firstNonWhitespaceIndex,
 				widthInEm: range.widthInEm
 			})).filter(range => range.endOffset > 0) ?? null;
-		const renderLineFixedWidthRanges = shiftedFixedWidthRanges?.length ? shiftedFixedWidthRanges : null;
-		const tmp = renderLineFixedWidthRanges
-			? renderLineWithFixedWidths(renderLineContent, wrappedTextIndentLength, tabSize, width, sb, additionalIndentLength, renderLineFixedWidthRanges, fontInfo.fontSize / fontInfo.typicalHalfwidthCharacterWidth)
-			: renderLine(renderLineContent, wrappedTextIndentLength, tabSize, width, sb, additionalIndentLength);
+		const renderLineFixedWidthRanges = shiftedFixedWidthRanges ?? null;
+		const tmp = renderLine(
+			renderLineContent,
+			wrappedTextIndentLength,
+			tabSize,
+			width,
+			sb,
+			additionalIndentLength,
+			renderLineFixedWidthRanges,
+			fontInfo.fontSize / fontInfo.typicalHalfwidthCharacterWidth
+		);
 		firstNonWhitespaceIndices[i] = firstNonWhitespaceIndex;
 		wrappedTextIndentLengths[i] = wrappedTextIndentLength;
 		renderLineContents[i] = renderLineContent;
@@ -214,7 +220,7 @@ const enum Constants {
 	SPAN_MODULO_LIMIT = 16384
 }
 
-function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: number, width: number, sb: StringBuilder, wrappingIndentLength: number): [number[], number[], null] {
+function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: number, width: number, sb: StringBuilder, wrappingIndentLength: number, fixedWidthRanges: readonly LineInjectedTextWidth[] | null, columnsPerEm: number): [number[], number[], number[] | null] {
 
 	if (wrappingIndentLength !== 0) {
 		const hangingOffset = String(wrappingIndentLength);
@@ -235,13 +241,23 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 	const len = lineContent.length;
 	let visibleColumn = initialVisibleColumn;
 	let charOffset = 0;
+	let fixedWidthRangeIndex = 0;
 	const charOffsets: number[] = [];
+	const spanStartOffsets: number[] | null = fixedWidthRanges ? [0] : null;
 	const visibleColumns: number[] = [];
 	let nextCharCode = (0 < len ? lineContent.charCodeAt(0) : CharCode.Null);
+	let spanOpen = true;
 
 	sb.appendString('<span>');
 	for (let charIndex = 0; charIndex < len; charIndex++) {
-		if (charIndex !== 0 && charIndex % Constants.SPAN_MODULO_LIMIT === 0) {
+		const fixedWidthRange = fixedWidthRanges?.[fixedWidthRangeIndex];
+		const startsFixedWidth = fixedWidthRange?.startOffset === charIndex;
+		spanStartOffsets!.push(charOffset);
+		if (startsFixedWidth) {
+			sb.appendString('</span><span style="display:inline-block;width:');
+			sb.appendString(String(fixedWidthRange.widthInEm));
+			sb.appendString('em;">');
+		} else if ((!fixedWidthRange || charIndex < fixedWidthRange.startOffset) && charIndex !== 0 && charIndex % Constants.SPAN_MODULO_LIMIT === 0) {
 			sb.appendString('</span><span>');
 		}
 		charOffsets[charIndex] = charOffset;
@@ -306,109 +322,6 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 		}
 
 		charOffset += producedCharacters;
-		visibleColumn += charWidth;
-	}
-	sb.appendString('</span>');
-
-	charOffsets[lineContent.length] = charOffset;
-	visibleColumns[lineContent.length] = visibleColumn;
-
-	sb.appendString('</div>');
-
-	return [charOffsets, visibleColumns, null];
-}
-
-function renderLineWithFixedWidths(lineContent: string, initialVisibleColumn: number, tabSize: number, width: number, sb: StringBuilder, wrappingIndentLength: number, fixedWidthRanges: readonly LineInjectedTextWidth[], columnsPerEm: number): [number[], number[], number[]] {
-	if (wrappingIndentLength !== 0) {
-		const hangingOffset = String(wrappingIndentLength);
-		sb.appendString('<div style="text-indent: -');
-		sb.appendString(hangingOffset);
-		sb.appendString('px; padding-left: ');
-		sb.appendString(hangingOffset);
-		sb.appendString('px; box-sizing: border-box; width:');
-	} else {
-		sb.appendString('<div style="width:');
-	}
-	sb.appendString(String(width));
-	sb.appendString('px;">');
-
-	const len = lineContent.length;
-	let visibleColumn = initialVisibleColumn;
-	let charOffset = 0;
-	let fixedWidthRangeIndex = 0;
-	const charOffsets: number[] = [];
-	const spanStartOffsets: number[] = [0];
-	const visibleColumns: number[] = [];
-	let nextCharCode = (0 < len ? lineContent.charCodeAt(0) : CharCode.Null);
-
-	sb.appendString('<span>');
-	for (let charIndex = 0; charIndex < len; charIndex++) {
-		const fixedWidthRange = fixedWidthRanges[fixedWidthRangeIndex];
-		const startsFixedWidth = fixedWidthRange?.startOffset === charIndex;
-		if (startsFixedWidth) {
-			sb.appendString('</span><span style="display:inline-block;width:');
-			sb.appendString(String(fixedWidthRange.widthInEm));
-			sb.appendString('em;">');
-			spanStartOffsets.push(charOffset);
-		} else if ((!fixedWidthRange || charIndex < fixedWidthRange.startOffset) && charIndex !== 0 && charIndex % Constants.SPAN_MODULO_LIMIT === 0) {
-			sb.appendString('</span><span>');
-			spanStartOffsets.push(charOffset);
-		}
-
-		charOffsets[charIndex] = charOffset;
-		visibleColumns[charIndex] = visibleColumn;
-		const charCode = nextCharCode;
-		nextCharCode = (charIndex + 1 < len ? lineContent.charCodeAt(charIndex + 1) : CharCode.Null);
-		let producedCharacters = 1;
-		let charWidth = 1;
-		switch (charCode) {
-			case CharCode.Tab:
-				producedCharacters = (tabSize - (visibleColumn % tabSize));
-				charWidth = producedCharacters;
-				for (let space = 1; space <= producedCharacters; space++) {
-					if (space < producedCharacters) {
-						sb.appendCharCode(0xA0);
-					} else {
-						sb.appendASCIICharCode(CharCode.Space);
-					}
-				}
-				break;
-			case CharCode.Space:
-				if (nextCharCode === CharCode.Space) {
-					sb.appendCharCode(0xA0);
-				} else {
-					sb.appendASCIICharCode(CharCode.Space);
-				}
-				break;
-			case CharCode.LessThan:
-				sb.appendString('&lt;');
-				break;
-			case CharCode.GreaterThan:
-				sb.appendString('&gt;');
-				break;
-			case CharCode.Ampersand:
-				sb.appendString('&amp;');
-				break;
-			case CharCode.Null:
-				sb.appendString('&#00;');
-				break;
-			case CharCode.UTF8_BOM:
-			case CharCode.LINE_SEPARATOR:
-			case CharCode.PARAGRAPH_SEPARATOR:
-			case CharCode.NEXT_LINE:
-				sb.appendCharCode(0xFFFD);
-				break;
-			default:
-				if (strings.isFullWidthCharacter(charCode)) {
-					charWidth++;
-				}
-				if (charCode < 32) {
-					sb.appendCharCode(9216 + charCode);
-				} else {
-					sb.appendCharCode(charCode);
-				}
-		}
-		charOffset += producedCharacters;
 		if (startsFixedWidth) {
 			charWidth = fixedWidthRange.widthInEm * columnsPerEm;
 		} else if (fixedWidthRange && charIndex > fixedWidthRange.startOffset && charIndex < fixedWidthRange.endOffset) {
@@ -418,19 +331,24 @@ function renderLineWithFixedWidths(lineContent: string, initialVisibleColumn: nu
 
 		if (fixedWidthRange && charIndex + 1 === fixedWidthRange.endOffset) {
 			sb.appendString('</span>');
+			spanOpen = false;
 			if (fixedWidthRange.endOffset < len) {
 				sb.appendString('<span>');
-				spanStartOffsets.push(charOffset);
+				spanStartOffsets!.push(charOffset);
+				spanOpen = true;
 			}
 			fixedWidthRangeIndex++;
 		}
 	}
-	if (fixedWidthRanges[fixedWidthRanges.length - 1].endOffset < len) {
+	if (spanOpen) {
 		sb.appendString('</span>');
 	}
+
 	charOffsets[lineContent.length] = charOffset;
 	visibleColumns[lineContent.length] = visibleColumn;
+
 	sb.appendString('</div>');
+
 	return [charOffsets, visibleColumns, spanStartOffsets];
 }
 
