@@ -4,21 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import type { IAgentHostChatContribution, IOutgoingTurn, ISendContribution } from '../../../common/agentHostChatContributionsService.js';
 import { createEditorInlineChatInstruction, createTerminalChatInstruction } from '../../../common/meta/agentChatSurfaceMeta.js';
-import { AgentHostChatContributionRegistry, IAgentHostChatContribution, IAgentHostChatContributionContext, IOutgoingTurn, ISendContribution } from '../chatContribution.js';
+import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 
 /** Adds guidance tailored to the chat surface that created the session. */
-class ChatSurfaceContribution extends Disposable implements IAgentHostChatContribution {
+export class ChatSurfaceContribution extends Disposable implements IAgentHostChatContribution {
 
 	readonly id = 'chatSurface';
 	readonly order = 300;
 
-	constructor(private readonly _context: IAgentHostChatContributionContext) {
+	constructor(
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+	) {
 		super();
 	}
 
 	contributeSend(turn: IOutgoingTurn): ISendContribution | undefined {
-		const surface = this._context.getSessionSurfaceMeta(turn.session);
+		const surface = this._stateManager.getSessionSurfaceMeta(turn.session);
 		const instruction = surface?.surface === 'terminal'
 			? createTerminalChatInstruction(surface)
 			: surface?.surface === 'editorInline'
@@ -27,5 +30,3 @@ class ChatSurfaceContribution extends Disposable implements IAgentHostChatContri
 		return instruction ? { instructions: [instruction] } : undefined;
 	}
 }
-
-AgentHostChatContributionRegistry.register(ChatSurfaceContribution);

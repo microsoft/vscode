@@ -1,6 +1,7 @@
 # Chat Contributions Backlog
 
 Each contribution has its own subfolder so its implementation, helpers, and tests can grow without path churn.
+`IAgentHostChatContributions` owns explicitly registered, dependency-injected contributions; their `order` controls sequencing, with registration order only breaking ties.
 
 ## Completed `onTurnEnd` extractions
 
@@ -23,8 +24,7 @@ Each contribution has its own subfolder so its implementation, helpers, and test
 ## Future hooks
 
 - `onIncomingRequest` — unifies duplicated turn admission in `handleAction` ChatTurnStarted (`agentSideEffects.ts:1530`) and `_tryConsumeNextQueuedMessage` (`agentSideEffects.ts:1986`), folds in `ILocalChatCommand`, and moves the read-only/archived guard from `_sendTurnMessage` (`agentSideEffects.ts:2102`) into a `reject` disposition.
-- `onHydrateTurns` — registers whole-list stages for side-chat stripping and turn usage, replacing `worktreeAnnouncement` (`agentService.ts:_getChatMessages:3108`) and `persistedTurnUsage` (`agentService.ts:_applyPersistedTurnUsage:3136`); the list boundary avoids one DB read per turn.
-- **Open architectural question for the next step:** `onHydrateTurns` runs in `AgentService._getChatMessages` (`agentService.ts:3102`), while the dispatcher is instantiated in `AgentSideEffects`. Decide then whether to share/hoist the dispatcher or instantiate a second one; do not resolve that ownership here.
+- `onHydrateTurns` — registers whole-list stages for side-chat stripping and turn usage, replacing `worktreeAnnouncement` (`agentService.ts:_getChatMessages:3108`) and `persistedTurnUsage` (`agentService.ts:_applyPersistedTurnUsage:3136`); the list boundary avoids one DB read per turn. The prior ownership blocker is resolved: `AgentService` can inject `IAgentHostChatContributions`.
 - `onAgentSignal` — observes or redirects signals before they reach state.
 
 ## Payoff

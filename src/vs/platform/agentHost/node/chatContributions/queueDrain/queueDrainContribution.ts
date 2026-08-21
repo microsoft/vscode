@@ -4,23 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { AgentHostChatContributionRegistry, IAgentHostChatContribution, IAgentHostChatContributionContext, ITurnEnd } from '../chatContribution.js';
+import { ILogService } from '../../../../log/common/log.js';
+import { IAgentHostChatContributions, type IAgentHostChatContribution, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 
 /** Starts the next queued message after a successful turn. */
-class QueueDrainContribution extends Disposable implements IAgentHostChatContribution {
+export class QueueDrainContribution extends Disposable implements IAgentHostChatContribution {
 
 	readonly id = 'queueDrain';
 	readonly order = 200;
 
-	constructor(private readonly _context: IAgentHostChatContributionContext) {
+	constructor(
+		@IAgentHostChatContributions private readonly _chatContributions: IAgentHostChatContributions,
+		@ILogService private readonly _logService: ILogService,
+	) {
 		super();
 	}
 
 	onTurnEnd(turn: ITurnEnd): void {
 		if (turn.reason.kind === 'success') {
-			this._context.drainQueuedMessages(turn.channel);
+			const host = this._chatContributions.getHost();
+			if (!host) {
+				this._logService.warn('[QueueDrainContribution] Chat contribution host is not registered');
+				return;
+			}
+			host.drainQueuedMessages(turn.channel);
 		}
 	}
 }
-
-AgentHostChatContributionRegistry.register(QueueDrainContribution);

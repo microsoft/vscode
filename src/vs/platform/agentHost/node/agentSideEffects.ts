@@ -17,6 +17,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
+import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, type SessionMode } from '../common/agentHostSchema.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
@@ -84,8 +85,6 @@ import { AgentHostTurnTracker } from './agentHostTurnTracker.js';
 import type { IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
 import { AgentHostLocalCommands } from './localCommands/localChatCommand.js';
 import './localCommands/localChatCommands.contribution.js';
-import { AgentHostChatContributions } from './chatContributions/chatContribution.js';
-import './chatContributions/chatContributions.contribution.js';
 import { SessionPermissionManager } from './sessionPermissions.js';
 import type { IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import type { ICopilotApiService } from './shared/copilotApiService.js';
@@ -230,9 +229,6 @@ export class AgentSideEffects extends Disposable {
 
 	/** Registry-driven dispatcher for host-handled `/rename` / `!command` etc. */
 	private readonly _localCommands: AgentHostLocalCommands;
-	/** Registry-driven dispatcher for chat lifecycle contributions. */
-	private readonly _chatContributions: AgentHostChatContributions;
-
 	private readonly _subagentChats = new NKeyMap<ISubagentSessionRef, [ProtocolURI, string]>();
 	private readonly _cancelledTurnIds = new Map<ProtocolURI, Set<string>>();
 	/** Serializes refreshes per session so state-based deduplication observes the preceding dispatch. */
@@ -274,6 +270,7 @@ export class AgentSideEffects extends Disposable {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
 		@IAgentConfigurationService private readonly _agentConfigService: IAgentConfigurationService,
+		@IAgentHostChatContributions private readonly _chatContributions: IAgentHostChatContributions,
 	) {
 		super();
 		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
@@ -302,17 +299,10 @@ export class AgentSideEffects extends Disposable {
 			(turnChannel: ProtocolURI) => this._tryConsumeNextQueuedMessage(turnChannel),
 			(session: ProtocolURI, chat?: ProtocolURI) => this._titleController.markTitleRenamed(session, chat),
 		));
-		this._chatContributions = this._register(new AgentHostChatContributions({
-			logService: this._logService,
-			checkpointService: this._checkpointService,
-			changesets: this._changesets,
-			agentConfigService: this._agentConfigService,
-			dispatch: (channel, action) => this._stateManager.dispatchServerAction(channel, action),
-			getSessionSummary: session => this._stateManager.getSessionSummary(session),
+		this._register(this._chatContributions.registerHost({
 			drainQueuedMessages: channel => this._tryConsumeNextQueuedMessage(channel),
 			notifyTurnComplete: session => this._options.onTurnComplete(session),
 			refineTitleFromFirstTurn: (session, chat) => this._titleController.refineTitleFromFirstTurn(session, chat),
-			getSessionSurfaceMeta: session => this._stateManager.getSessionSurfaceMeta(session),
 			prepareRenameInstruction: (session, chat) => this._titleController.prepareInstructionForAgent(session, chat),
 		}));
 		this._register(this._stateManager.onDidChangeSessionConfig(e => {

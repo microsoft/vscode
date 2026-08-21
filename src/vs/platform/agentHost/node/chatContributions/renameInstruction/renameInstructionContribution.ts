@@ -4,22 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { AgentHostChatContributionRegistry, IAgentHostChatContribution, IAgentHostChatContributionContext, IOutgoingTurn, ISendContribution } from '../chatContribution.js';
+import { ILogService } from '../../../../log/common/log.js';
+import { IAgentHostChatContributions, type IAgentHostChatContribution, type IOutgoingTurn, type ISendContribution } from '../../../common/agentHostChatContributionsService.js';
 
 /** Adds a deferred rename reminder when the current chat still has an automatic title. */
-class RenameInstructionContribution extends Disposable implements IAgentHostChatContribution {
+export class RenameInstructionContribution extends Disposable implements IAgentHostChatContribution {
 
 	readonly id = 'renameInstruction';
 	readonly order = 400;
 
-	constructor(private readonly _context: IAgentHostChatContributionContext) {
+	constructor(
+		@IAgentHostChatContributions private readonly _chatContributions: IAgentHostChatContributions,
+		@ILogService private readonly _logService: ILogService,
+	) {
 		super();
 	}
 
 	async contributeSend(turn: IOutgoingTurn): Promise<ISendContribution | undefined> {
-		const instruction = await this._context.prepareRenameInstruction(turn.session, turn.chat);
+		const host = this._chatContributions.getHost();
+		if (!host) {
+			this._logService.warn('[RenameInstructionContribution] Chat contribution host is not registered');
+			return undefined;
+		}
+		const instruction = await host.prepareRenameInstruction(turn.session, turn.chat);
 		return instruction ? { instructions: [instruction] } : undefined;
 	}
 }
-
-AgentHostChatContributionRegistry.register(RenameInstructionContribution);

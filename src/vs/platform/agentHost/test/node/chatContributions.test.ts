@@ -5,16 +5,22 @@
 
 import assert from 'assert';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { NullLogService } from '../../../log/common/log.js';
+import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
+import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
+import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { NULL_CHECKPOINT_SERVICE, type IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
-import type { IAgentHostChangesetService } from '../../common/agentHostChangesetService.js';
+import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
+import { IAgentHostChangesetService } from '../../common/agentHostChangesetService.js';
+import { IAgentHostChatContributions, type IAgentHostChatContribution, type IAgentHostChatContributionHost, type IOutgoingTurn, type ITurnEnd } from '../../common/agentHostChatContributionsService.js';
 import { AgentHostArtifactToolsConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, type ISchema, type SchemaDefinition, type SchemaValue } from '../../common/agentHostSchema.js';
-import { SessionStatus, type SessionSummary } from '../../common/state/sessionState.js';
-import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
-import { type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IOutgoingTurn, type ITurnEnd, AgentHostChatContributionRegistry, AgentHostChatContributions } from '../../node/chatContributions/chatContribution.js';
+import { withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
+import { ActionType } from '../../common/state/sessionActions.js';
+import { SessionStatus } from '../../common/state/sessionState.js';
+import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
+import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
 import { ARTIFACT_TOOLS_INSTRUCTION } from '../../node/shared/artifactServerTools.js';
-import '../../node/chatContributions/chatContributions.contribution.js';
 
 let calls: string[] = [];
 
@@ -155,23 +161,7 @@ class EmptySendContribution extends Disposable implements IAgentHostChatContribu
 	}
 }
 
-AgentHostChatContributionRegistry.register(OrderedFirstContribution);
-AgentHostChatContributionRegistry.register(OrderedSecondContribution);
-AgentHostChatContributionRegistry.register(OrderedThirdContribution);
-AgentHostChatContributionRegistry.register(ThrowingContribution);
-AgentHostChatContributionRegistry.register(FollowingContribution);
-AgentHostChatContributionRegistry.register(ReasonContribution);
-AgentHostChatContributionRegistry.register(OptionalContribution);
-AgentHostChatContributionRegistry.register(SendOrderFirstContribution);
-AgentHostChatContributionRegistry.register(SendOrderSecondContribution);
-AgentHostChatContributionRegistry.register(AsyncSendContribution);
-AgentHostChatContributionRegistry.register(ThrowingSendContribution);
-AgentHostChatContributionRegistry.register(FollowingSendContribution);
-AgentHostChatContributionRegistry.register(EmptySendContribution);
-
-function createContext(observed?: string[], enableSendInstructions = false): IAgentHostChatContributionContext {
-	const changesets = { _serviceBrand: undefined } as IAgentHostChangesetService;
-	changesets.onTurnComplete = () => { };
+function createConfigurationService(enableSendInstructions: boolean): IAgentConfigurationService {
 	const agentConfigService = { _serviceBrand: undefined } as IAgentConfigurationService;
 	agentConfigService.getEffectiveWorkingDirectories = () => undefined;
 	agentConfigService.getRootValue = <D extends SchemaDefinition, K extends keyof D & string>(_schema: ISchema<D>, key: K): SchemaValue<D[K]> | undefined => {
@@ -179,29 +169,59 @@ function createContext(observed?: string[], enableSendInstructions = false): IAg
 			? true as SchemaValue<D[K]>
 			: undefined;
 	};
+	return agentConfigService;
+}
 
-	return {
-		logService: new NullLogService(),
-		checkpointService: observed ? {
-			...NULL_CHECKPOINT_SERVICE,
-			captureTurnCheckpoint: async () => { observed.push('checkpointAndChangeset'); },
-		} as IAgentHostCheckpointService : NULL_CHECKPOINT_SERVICE,
-		changesets,
-		agentConfigService,
-		dispatch: () => { },
-		getSessionSummary: () => {
-			if (!observed) {
-				return undefined;
-			}
-			observed.push('markUnread');
-			return { status: SessionStatus.IsRead } as SessionSummary;
-		},
+function createContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, ...contributions: readonly IAgentHostChatContribution[]): AgentHostChatContributions {
+	const service = new AgentHostChatContributions(new NullLogService());
+	for (const contribution of contributions) {
+		disposables.add(service.registerContribution(contribution));
+	}
+	return service;
+}
+
+function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, observed?: string[], enableSendInstructions = false): AgentHostChatContributions {
+	const logService = new NullLogService();
+	const stateManager = disposables.add(new AgentHostStateManager(logService));
+	stateManager.createSession({
+		resource: 'agent-host-session://test',
+		provider: 'test',
+		title: 'Test',
+		status: SessionStatus.IsRead,
+		createdAt: '2025-01-01T00:00:00.000Z',
+		modifiedAt: '2025-01-01T00:00:00.000Z',
+		_meta: withChatSurfaceMeta(undefined, enableSendInstructions ? { surface: 'terminal', osName: 'Linux' } : undefined),
+	});
+	disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+		if (envelope.action.type === ActionType.SessionIsReadChanged) {
+			observed?.push('markUnread');
+		}
+	}));
+	const changesets = { _serviceBrand: undefined } as IAgentHostChangesetService;
+	changesets.onTurnComplete = () => { };
+	const checkpointService = observed ? {
+		...NULL_CHECKPOINT_SERVICE,
+		captureTurnCheckpoint: async () => { observed.push('checkpointAndChangeset'); },
+	} as IAgentHostCheckpointService : NULL_CHECKPOINT_SERVICE;
+	const service = disposables.add(new AgentHostChatContributions(logService));
+	const agentConfigService = createConfigurationService(enableSendInstructions);
+	const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
+		[ILogService, logService],
+		[IAgentHostCheckpointService, checkpointService],
+		[IAgentHostChangesetService, changesets],
+		[IAgentConfigurationService, agentConfigService],
+		[IAgentHostStateManager, stateManager],
+		[IAgentHostChatContributions, service],
+	), /*strict*/ true));
+	const host: IAgentHostChatContributionHost = {
 		drainQueuedMessages: () => observed?.push('queueDrain'),
 		notifyTurnComplete: () => observed?.push('gitRefresh'),
 		refineTitleFromFirstTurn: () => observed?.push('titleRefinement'),
-		getSessionSurfaceMeta: () => enableSendInstructions ? { surface: 'terminal' as const, osName: 'Linux' } : undefined,
 		prepareRenameInstruction: async () => enableSendInstructions ? 'rename instruction' : undefined,
 	};
+	disposables.add(service.registerHost(host));
+	disposables.add(registerBuiltInChatContributions(service, instantiationService));
+	return service;
 }
 
 function turnEnd(turnId: string, reason: ITurnEnd['reason'] = { kind: 'success' }): ITurnEnd {
@@ -220,7 +240,7 @@ suite('AgentHostChatContributions', () => {
 	});
 
 	test('runs contributions in order while preserving registration order for ties', () => {
-		const contributions = disposables.add(new AgentHostChatContributions(createContext()));
+		const contributions = disposables.add(createContributions(disposables, new OrderedFirstContribution(), new OrderedSecondContribution(), new OrderedThirdContribution()));
 		contributions.turnEnd(turnEnd('ordered'));
 
 		assert.deepStrictEqual(calls, ['second', 'first', 'third']);
@@ -228,14 +248,14 @@ suite('AgentHostChatContributions', () => {
 
 	test('runs built-in turn-end contributions in the original sequence', () => {
 		const observed: string[] = [];
-		const contributions = disposables.add(new AgentHostChatContributions(createContext(observed)));
+		const contributions = createBuiltInContributions(disposables, observed);
 		contributions.turnEnd(turnEnd('built-in-order'));
 
 		assert.deepStrictEqual(observed, ['checkpointAndChangeset', 'queueDrain', 'gitRefresh', 'titleRefinement', 'markUnread']);
 	});
 
 	test('runs built-in send contributions in the original sequence', async () => {
-		const contributions = disposables.add(new AgentHostChatContributions(createContext(undefined, true)));
+		const contributions = createBuiltInContributions(disposables, undefined, true);
 		const instructions = await contributions.contributeSend(outgoingTurn('built-in-send-order'));
 
 		assert.deepStrictEqual(instructions.map(instruction => {
@@ -256,47 +276,47 @@ suite('AgentHostChatContributions', () => {
 	});
 
 	test('isolates a throwing contribution', () => {
-		const contributions = disposables.add(new AgentHostChatContributions(createContext()));
+		const contributions = disposables.add(createContributions(disposables, new ThrowingContribution(), new FollowingContribution()));
 		contributions.turnEnd(turnEnd('throwing'));
 
 		assert.deepStrictEqual(calls, ['following']);
 	});
 
 	test('propagates the terminal outcome reason', () => {
-		const contributions = disposables.add(new AgentHostChatContributions(createContext()));
+		const contributions = disposables.add(createContributions(disposables, new ReasonContribution()));
 		contributions.turnEnd(turnEnd('reason', { kind: 'cancelled' }));
 
 		assert.deepStrictEqual(calls, ['cancelled']);
 	});
 
 	test('skips contributions without an onTurnEnd hook', () => {
-		const contributions = disposables.add(new AgentHostChatContributions(createContext()));
+		const contributions = disposables.add(createContributions(disposables, new OptionalContribution()));
 		contributions.turnEnd(turnEnd('optional'));
 
 		assert.deepStrictEqual(calls, []);
 	});
 
 	test('collects send instructions in contribution order', async () => {
-		const contributions = disposables.add(new AgentHostChatContributions(createContext()));
+		const contributions = disposables.add(createContributions(disposables, new SendOrderFirstContribution(), new SendOrderSecondContribution()));
 
 		assert.deepStrictEqual(await contributions.contributeSend(outgoingTurn('send-order')), ['second', 'first']);
 	});
 
 	test('awaits asynchronous send contributions', async () => {
-		const contributions = disposables.add(new AgentHostChatContributions(createContext()));
+		const contributions = disposables.add(createContributions(disposables, new AsyncSendContribution()));
 
 		assert.deepStrictEqual(await contributions.contributeSend(outgoingTurn('send-async')), ['async']);
 		assert.deepStrictEqual(calls, ['async']);
 	});
 
 	test('isolates a failing send contribution', async () => {
-		const contributions = disposables.add(new AgentHostChatContributions(createContext()));
+		const contributions = disposables.add(createContributions(disposables, new ThrowingSendContribution(), new FollowingSendContribution()));
 
 		assert.deepStrictEqual(await contributions.contributeSend(outgoingTurn('send-failure')), ['following']);
 	});
 
 	test('omits empty send contribution results', async () => {
-		const contributions = disposables.add(new AgentHostChatContributions(createContext()));
+		const contributions = disposables.add(createContributions(disposables, new EmptySendContribution()));
 
 		assert.deepStrictEqual(await contributions.contributeSend(outgoingTurn('send-empty-array')), []);
 		assert.deepStrictEqual(await contributions.contributeSend(outgoingTurn('send-empty-object')), []);

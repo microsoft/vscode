@@ -5,8 +5,9 @@
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { AgentHostMarkdownPlanRichLinksEnabledConfigKey, platformRootSchema } from '../../../common/agentHostSchema.js';
+import type { IAgentHostChatContribution, IOutgoingTurn, ISendContribution } from '../../../common/agentHostChatContributionsService.js';
 import { buildOpenSessionLinkForChatResource } from '../../../common/openSessionLink.js';
-import { AgentHostChatContributionRegistry, IAgentHostChatContribution, IAgentHostChatContributionContext, IOutgoingTurn, ISendContribution } from '../chatContribution.js';
+import { IAgentConfigurationService } from '../../agentConfigurationService.js';
 
 function createMarkdownPlanRichLinksInstruction(chat: IOutgoingTurn['chat']): string {
 	const currentChatLink = buildOpenSessionLinkForChatResource(chat);
@@ -24,21 +25,21 @@ function createMarkdownPlanRichLinksInstruction(chat: IOutgoingTurn['chat']): st
 }
 
 /** Adds Markdown plan rich-link guidance when the feature is enabled. */
-class MarkdownPlanRichLinksContribution extends Disposable implements IAgentHostChatContribution {
+export class MarkdownPlanRichLinksContribution extends Disposable implements IAgentHostChatContribution {
 
 	readonly id = 'markdownPlanRichLinks';
 	// Send contributions reserve 100-400 for the original host-instruction sequence.
 	readonly order = 100;
 
-	constructor(private readonly _context: IAgentHostChatContributionContext) {
+	constructor(
+		@IAgentConfigurationService private readonly _agentConfigService: IAgentConfigurationService,
+	) {
 		super();
 	}
 
 	contributeSend(turn: IOutgoingTurn): ISendContribution | undefined {
-		return this._context.agentConfigService.getRootValue(platformRootSchema, AgentHostMarkdownPlanRichLinksEnabledConfigKey)
+		return this._agentConfigService.getRootValue(platformRootSchema, AgentHostMarkdownPlanRichLinksEnabledConfigKey)
 			? { instructions: [createMarkdownPlanRichLinksInstruction(turn.chat)] }
 			: undefined;
 	}
 }
-
-AgentHostChatContributionRegistry.register(MarkdownPlanRichLinksContribution);

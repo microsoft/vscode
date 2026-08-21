@@ -4,16 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { ILogService } from '../../../../log/common/log.js';
+import { IAgentHostChatContributions, type IAgentHostChatContribution, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 import { isAhpChatChannel, isDefaultChatUri } from '../../../common/state/sessionState.js';
-import { AgentHostChatContributionRegistry, IAgentHostChatContribution, IAgentHostChatContributionContext, ITurnEnd } from '../chatContribution.js';
 
 /** Refines a chat's automatic title after its first successful turn. */
-class TitleRefinementContribution extends Disposable implements IAgentHostChatContribution {
+export class TitleRefinementContribution extends Disposable implements IAgentHostChatContribution {
 
 	readonly id = 'titleRefinement';
 	readonly order = 400;
 
-	constructor(private readonly _context: IAgentHostChatContributionContext) {
+	constructor(
+		@IAgentHostChatContributions private readonly _chatContributions: IAgentHostChatContributions,
+		@ILogService private readonly _logService: ILogService,
+	) {
 		super();
 	}
 
@@ -22,8 +26,11 @@ class TitleRefinementContribution extends Disposable implements IAgentHostChatCo
 			return;
 		}
 		const chat = isAhpChatChannel(turn.channel) && !isDefaultChatUri(turn.channel) ? turn.channel : undefined;
-		this._context.refineTitleFromFirstTurn(turn.session, chat);
+		const host = this._chatContributions.getHost();
+		if (!host) {
+			this._logService.warn('[TitleRefinementContribution] Chat contribution host is not registered');
+			return;
+		}
+		host.refineTitleFromFirstTurn(turn.session, chat);
 	}
 }
-
-AgentHostChatContributionRegistry.register(TitleRefinementContribution);

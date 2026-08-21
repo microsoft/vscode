@@ -4,23 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { AgentHostChatContributionRegistry, IAgentHostChatContribution, IAgentHostChatContributionContext, ITurnEnd } from '../chatContribution.js';
+import { ILogService } from '../../../../log/common/log.js';
+import { IAgentHostChatContributions, type IAgentHostChatContribution, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 
 /** Notifies the host to refresh the owning session's git state after success. */
-class GitRefreshContribution extends Disposable implements IAgentHostChatContribution {
+export class GitRefreshContribution extends Disposable implements IAgentHostChatContribution {
 
 	readonly id = 'gitRefresh';
 	readonly order = 300;
 
-	constructor(private readonly _context: IAgentHostChatContributionContext) {
+	constructor(
+		@IAgentHostChatContributions private readonly _chatContributions: IAgentHostChatContributions,
+		@ILogService private readonly _logService: ILogService,
+	) {
 		super();
 	}
 
 	onTurnEnd(turn: ITurnEnd): void {
 		if (turn.reason.kind === 'success') {
-			this._context.notifyTurnComplete(turn.session);
+			const host = this._chatContributions.getHost();
+			if (!host) {
+				this._logService.warn('[GitRefreshContribution] Chat contribution host is not registered');
+				return;
+			}
+			host.notifyTurnComplete(turn.session);
 		}
 	}
 }
-
-AgentHostChatContributionRegistry.register(GitRefreshContribution);
