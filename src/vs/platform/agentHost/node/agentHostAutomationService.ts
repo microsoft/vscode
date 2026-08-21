@@ -236,7 +236,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			operations: [
 				AutomationOperation.Update,
 				AutomationOperation.Remove,
-				...(this._migrationCompletedAt ? [AutomationOperation.Run] : []),
+				...(this._migrationCompletedAt && this._isAutomationsEnabled() ? [AutomationOperation.Run] : []),
 			],
 			createdAt: timestamp,
 			modifiedAt: timestamp,
