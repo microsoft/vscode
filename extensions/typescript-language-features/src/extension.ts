@@ -50,7 +50,7 @@ export function activate(
 		context.subscriptions.push(experimentTelemetryReporter);
 
 		const experimentationService = new ExperimentationService(experimentTelemetryReporter, id, version, context.globalState);
-		suggestNativePreview(context, experimentationService);
+		suggestNativePreview(context, experimentationService, pluginManager);
 	}
 
 	// Register features that work in both TSGO and non-TSGO modes
