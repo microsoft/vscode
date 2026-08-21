@@ -7,7 +7,7 @@ import { getWindowId } from '../../../base/browser/dom.js';
 import { PixelRatio } from '../../../base/browser/pixelRatio.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { CharWidthRequest, CharWidthRequestType, readCharWidths } from './charWidthReader.js';
+import { CharWidthRequest, CharWidthRequestType, readCharWidths, readFontMetrics } from './charWidthReader.js';
 import { EditorFontLigatures } from '../../common/config/editorOptions.js';
 import { BareFontInfo, FontInfo, SERIALIZED_FONT_INFO_VERSION } from '../../common/config/fontInfo.js';
 
@@ -32,6 +32,8 @@ export interface ISerializedFontInfo {
 	readonly middotWidth: number;
 	readonly wsmiddotWidth: number;
 	readonly maxDigitWidth: number;
+	readonly fontAscent: number;
+	readonly fontDescent: number;
 }
 
 export class FontMeasurementsImpl extends Disposable {
@@ -149,6 +151,8 @@ export class FontMeasurementsImpl extends Disposable {
 					middotWidth: Math.max(readConfig.middotWidth, 5),
 					wsmiddotWidth: Math.max(readConfig.wsmiddotWidth, 5),
 					maxDigitWidth: Math.max(readConfig.maxDigitWidth, 5),
+					fontAscent: readConfig.fontAscent,
+					fontDescent: readConfig.fontDescent,
 				}, false);
 			}
 
@@ -224,6 +228,8 @@ export class FontMeasurementsImpl extends Disposable {
 			canUseHalfwidthRightwardsArrow = false;
 		}
 
+		const fontMetrics = readFontMetrics(bareFontInfo);
+
 		return new FontInfo({
 			pixelRatio: PixelRatio.getInstance(targetWindow).value,
 			fontFamily: bareFontInfo.fontFamily,
@@ -240,7 +246,9 @@ export class FontMeasurementsImpl extends Disposable {
 			spaceWidth: space.width,
 			middotWidth: middot.width,
 			wsmiddotWidth: wsmiddotWidth.width,
-			maxDigitWidth: maxDigitWidth
+			maxDigitWidth: maxDigitWidth,
+			fontAscent: fontMetrics.ascent,
+			fontDescent: fontMetrics.descent
 		}, true);
 	}
 }

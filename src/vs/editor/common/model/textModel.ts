@@ -1863,7 +1863,9 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	public getFontDecorationsInRange(range: IRange, ownerId: number = 0): model.IModelDecoration[] {
 		const startOffset = this._buffer.getOffsetAt(range.startLineNumber, range.startColumn);
 		const endOffset = this._buffer.getOffsetAt(range.endLineNumber, range.endColumn);
-		return this._decorationsTree.getFontDecorationsInInterval(this, startOffset, endOffset, ownerId);
+		const decs = this._decorationsTree.getFontDecorationsInInterval(this, startOffset, endOffset, ownerId);
+		pushMany(decs, this._fontTokenDecorationsProvider.getDecorationsInRange(Range.lift(range), ownerId));
+		return decs;
 	}
 
 	public getAllDecorations(ownerId: number = 0, filterOutValidation: boolean = false, filterFontDecorations: boolean = false): model.IModelDecoration[] {
@@ -2500,7 +2502,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	readonly glyphMarginHoverMessage: IMarkdownString | IMarkdownString[] | null;
 	readonly isWholeLine: boolean;
 	readonly lineHeight: number | null;
-	readonly fontSize: string | null;
+	readonly fontSize: number | null;
 	readonly showIfCollapsed: boolean;
 	readonly collapseOnReplaceEdit: boolean;
 	readonly overviewRuler: ModelDecorationOverviewRulerOptions | null;
