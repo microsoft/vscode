@@ -5,6 +5,7 @@
 
 import { stringDiff } from '../../../base/common/diff/diff.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
+import { isHighSurrogate, isLowSurrogate } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
 import { IWebWorkerServerRequestHandler } from '../../../base/common/worker/webWorker.js';
 import { Position } from '../core/position.js';
@@ -277,10 +278,37 @@ export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelSer
 			const editOffset = model.offsetAt(Range.lift(range).getStartPosition());
 
 			for (const change of changes) {
-				const start = model.positionAt(editOffset + change.originalStart);
-				const end = model.positionAt(editOffset + change.originalStart + change.originalLength);
+				// Adjust the change boundaries so they do not split surrogate pairs.
+				// stringDiff operates on UTF-16 code units, so its offsets can land
+				// in the middle of a surrogate pair, producing broken edits.
+				let { originalStart, originalLength, modifiedStart, modifiedLength } = change;
+
+				// If the start of the change lands on a low surrogate,
+				// expand backward to include the preceding high surrogate.
+				if (originalStart > 0 && isLowSurrogate(original.charCodeAt(originalStart))) {
+					originalStart--;
+					originalLength++;
+				}
+				if (modifiedStart > 0 && isLowSurrogate(text.charCodeAt(modifiedStart))) {
+					modifiedStart--;
+					modifiedLength++;
+				}
+
+				// If the end of the change lands on a high surrogate
+				// (i.e. the next char is its low surrogate), expand forward.
+				const originalEnd = originalStart + originalLength;
+				if (originalEnd < original.length && isHighSurrogate(original.charCodeAt(originalEnd - 1)) && isLowSurrogate(original.charCodeAt(originalEnd))) {
+					originalLength++;
+				}
+				const modifiedEnd = modifiedStart + modifiedLength;
+				if (modifiedEnd < text.length && isHighSurrogate(text.charCodeAt(modifiedEnd - 1)) && isLowSurrogate(text.charCodeAt(modifiedEnd))) {
+					modifiedLength++;
+				}
+
+				const start = model.positionAt(editOffset + originalStart);
+				const end = model.positionAt(editOffset + originalStart + originalLength);
 				const newEdit: TextEdit = {
-					text: text.substr(change.modifiedStart, change.modifiedLength),
+					text: text.substr(modifiedStart, modifiedLength),
 					range: { startLineNumber: start.lineNumber, startColumn: start.column, endLineNumber: end.lineNumber, endColumn: end.column }
 				};
 
