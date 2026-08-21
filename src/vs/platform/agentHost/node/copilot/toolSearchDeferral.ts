@@ -30,8 +30,8 @@ export function agentHostModelSupportsToolSearch(modelId: string | undefined): b
 	const id = modelId.toLowerCase();
 	const normalizedId = id.replace(/\./g, '-');
 	// GPT-5.4 / 5.5 / 5.6 supported tool search and were turned off pending
-	// microsoft/vscode-copilot-evaluation#6323; restoring them means restoring
-	// `isGpt56Model` here, not just deleting this comment.
+	// microsoft/vscode-copilot-evaluation#6323; re-enabling them requires restoring
+	// the GPT-5.4/5.5 exact checks and the `isGpt56Model` import/check.
 	if (!normalizedId.startsWith('claude')) {
 		return false;
 	}
