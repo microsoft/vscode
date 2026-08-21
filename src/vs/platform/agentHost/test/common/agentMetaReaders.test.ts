@@ -15,7 +15,7 @@ import type { SessionModelInfo, SimpleMessageAttachment } from '../../common/sta
 import { createAgentModelByokMeta, readAgentModelByokIdentifier } from '../../common/agentModelByokMeta.js';
 import { createAgentModelSourceMeta, readAgentModelSourceId } from '../../common/agentModelSource.js';
 import { URI } from '../../../../base/common/uri.js';
-import { hasClientPluginMcpDefaultCwds, readClientPluginMcpDefaultCwd, toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
+import { hasClientPluginMcpDefaultCwd, hasClientPluginMcpDefaultCwds, readClientPluginMcpDefaultCwd, toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 
 /** Wraps a `_meta` bag in a minimal {@link ToolCallState} so the reader sees the right source type. */
 function toolCall(meta: Record<string, unknown> | undefined): ToolCallState {
@@ -382,6 +382,8 @@ suite('Agent host _meta readers', () => {
 			const additionalCwd = URI.parse('vscode-remote://ssh-remote+host/workspace');
 			const meta = toClientPluginMcpDefaultCwdsMeta({ primary: null, additional: additionalCwd });
 			assert.strictEqual(hasClientPluginMcpDefaultCwds(plugin(meta)), true);
+			assert.strictEqual(hasClientPluginMcpDefaultCwd(plugin(meta), 'primary'), true);
+			assert.strictEqual(hasClientPluginMcpDefaultCwd(plugin(meta), 'missing'), false);
 			assert.strictEqual(readClientPluginMcpDefaultCwd(plugin(meta), 'primary', primaryCwd), primaryCwd);
 			assert.strictEqual(readClientPluginMcpDefaultCwd(plugin(meta), 'additional', primaryCwd)?.toString(), additionalCwd.toString());
 		});
@@ -391,6 +393,8 @@ suite('Agent host _meta readers', () => {
 			assert.strictEqual(hasClientPluginMcpDefaultCwds(plugin(undefined)), false);
 			assert.strictEqual(readClientPluginMcpDefaultCwd(plugin({ mcpDefaultCwds: { server: 42 } }), 'server', URI.file('/workspace')), undefined);
 			assert.strictEqual(readClientPluginMcpDefaultCwd(plugin({ mcpDefaultCwds: { server: 'relative/path' } }), 'server', URI.file('/workspace')), undefined);
+			assert.strictEqual(hasClientPluginMcpDefaultCwd(plugin({ mcpDefaultCwds: { server: 42 } }), 'server'), false);
+			assert.strictEqual(hasClientPluginMcpDefaultCwd(plugin({ mcpDefaultCwds: { server: 'relative/path' } }), 'server'), false);
 		});
 	});
 });

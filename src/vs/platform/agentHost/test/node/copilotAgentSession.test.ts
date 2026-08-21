@@ -9761,7 +9761,7 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(mockSession.mcpEnableCalls, [{ serverName }]);
 		});
 
-		test('re-enabling a plugin server with an explicit cwd defers to a session refresh', async () => {
+		test('re-enabling an explicitly projected plugin server defers to a session refresh', async () => {
 			const serverName = 'vscode_probe';
 			const pluginUri = 'https://bundle';
 			const pluginDir = URI.file('/bundle');
@@ -9790,6 +9790,7 @@ suite('CopilotAgentSession', () => {
 							name: serverName,
 							configuration: { type: McpServerType.LOCAL, command: 'node', args: ['server.js'] },
 							defaultCwd: URI.file('/workspace'),
+							sdkRegistration: 'sessionConfig',
 							uri: URI.joinPath(pluginDir, '.mcp.json'),
 							customization: child,
 						}],

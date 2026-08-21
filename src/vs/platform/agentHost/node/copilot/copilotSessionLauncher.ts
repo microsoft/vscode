@@ -6,7 +6,6 @@
 import type { ContextTier, CopilotClient, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ModelCapabilitiesOverride, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { isEqual } from '../../../../base/common/resources.js';
 import { isObject, isStringArray } from '../../../../base/common/types.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -28,8 +27,7 @@ import { IAgentHostManagedSettingsService } from '../agentHostManagedSettingsSer
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyService.js';
-import type { IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
-import type { ICopilotPluginInfo } from './copilotAgent.js';
+import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.js';
 import { toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSessionCustomAgents, toSdkSkillDirectories } from './copilotPluginConverters.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { ShellManager, createShellTools, type IUnsandboxedCommandConfirmationRequest } from './copilotShellTools.js';
@@ -76,10 +74,11 @@ function disabledMcpServersSessionOption(plugins: readonly ICopilotPluginInfo[],
 	return disabledMcpServers.length > 0 ? { disabledMcpServers } : {};
 }
 
-export function isMcpServerExplicitlyProjected(plugin: ICopilotPluginInfo, server: IMcpServerDefinition): boolean {
-	return !plugin.pluginDir
-		|| plugin.pluginDir.scheme !== Schemas.file
-		|| server.defaultCwd !== undefined && !isEqual(server.defaultCwd, plugin.pluginDir);
+/**
+ * Returns whether Agent Host must include the server in `SessionConfig.mcpServers` instead of leaving it to SDK plugin discovery.
+ */
+export function isMcpServerExplicitlyProjected(server: ICopilotMcpServerInfo): boolean {
+	return server.sdkRegistration === 'sessionConfig';
 }
 
 /**
@@ -753,7 +752,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const pluginsWithoutDirs = plugins.filter(p => !p.pluginDir || p.pluginDir.scheme !== Schemas.file);
 		const explicitMcpServers = plan.isEphemeral ? [] : plugins.flatMap(plugin => plugin.mcpServers.filter(server =>
 			!plugin.disabledMcpServers?.includes(server.name)
-			&& isMcpServerExplicitlyProjected(plugin, server)
+			&& isMcpServerExplicitlyProjected(server)
 		));
 		// An ephemeral session skips the explicit enumeration (and its file I/O). The SDK can
 		// still discover agents from `pluginDirectories`; suppressing that too would also drop

@@ -9,7 +9,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
+import { PluginFormat, type IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
 import type { IFileService } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
@@ -18,11 +18,12 @@ import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { AgentHostByokModelsEnabledConfigKey, type SchemaValues } from '../../common/agentHostSchema.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
+import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import type { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels } from '../../common/reasoningEffort.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
-import { CustomizationType, McpServerStatus, type ModelSelection } from '../../common/state/protocol/state.js';
+import { CustomizationType, McpServerStatus, type ClientPluginCustomization, type ModelSelection } from '../../common/state/protocol/state.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -30,7 +31,7 @@ import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } fro
 import type { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService, IByokLmProxyService, type IByokLmProxyHandle } from '../../node/copilot/byokLmProxyService.js';
-import type { ICopilotPluginInfo } from '../../node/copilot/copilotAgent.js';
+import { resolveCopilotMcpServerInfo, type ICopilotPluginInfo } from '../../node/copilot/copilotAgent.js';
 import { CopilotSessionLauncher, filterClientToolNames, getCopilotReasoningEffort, isCopilotReasoningEffort, resolveByokSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 
 const testRuntime: ICopilotSessionRuntime = {
@@ -350,6 +351,46 @@ suite('CopilotSessionLauncher shared session config', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('derives explicit MCP registration from client metadata rather than cwd equality', () => {
+		const pluginDir = URI.file('/tmp/plugin');
+		const workspace = URI.file('/workspace');
+		const definition: IMcpServerDefinition = {
+			name: 'server',
+			configuration: { type: McpServerType.REMOTE, url: 'https://example.com/mcp' },
+			defaultCwd: pluginDir,
+			uri: URI.joinPath(pluginDir, '.mcp.json'),
+			customization: {
+				type: CustomizationType.McpServer,
+				id: 'server',
+				uri: URI.joinPath(pluginDir, '.mcp.json').toString(),
+				name: 'server',
+				state: { kind: McpServerStatus.Stopped },
+			},
+		};
+		const input = (meta: Record<string, unknown>): ClientPluginCustomization => ({
+			type: CustomizationType.Plugin,
+			id: 'plugin',
+			uri: 'file:///plugin',
+			name: 'Plugin',
+			_meta: meta,
+		});
+
+		assert.deepStrictEqual([
+			resolveCopilotMcpServerInfo(definition, pluginDir),
+			resolveCopilotMcpServerInfo(definition, pluginDir, input(toClientPluginMcpDefaultCwdsMeta({ server: null })), workspace),
+			resolveCopilotMcpServerInfo(definition, pluginDir, input({ mcpDefaultCwds: { server: 42 } }), workspace),
+			resolveCopilotMcpServerInfo(definition, undefined),
+		].map(server => ({
+			defaultCwd: server.defaultCwd?.toString(),
+			sdkRegistration: server.sdkRegistration,
+		})), [
+			{ defaultCwd: pluginDir.toString(), sdkRegistration: 'pluginDiscovery' },
+			{ defaultCwd: workspace.toString(), sdkRegistration: 'sessionConfig' },
+			{ defaultCwd: pluginDir.toString(), sdkRegistration: 'pluginDiscovery' },
+			{ defaultCwd: pluginDir.toString(), sdkRegistration: 'sessionConfig' },
+		]);
+	});
+
 	test('passes Agent Host defaults, managed permissions, and exit-plan handler to create and resume', async () => {
 		const createConfigs: Parameters<CopilotClient['createSession']>[0][] = [];
 		const resumeConfigs: Parameters<CopilotClient['resumeSession']>[1][] = [];
@@ -383,7 +424,8 @@ suite('CopilotSessionLauncher shared session config', () => {
 			mcpServers: [{
 				name: 'native-plugin-server',
 				uri: URI.joinPath(pluginDir, '.mcp.json'),
-				defaultCwd: pluginDir,
+				defaultCwd: testWorkingDirectory,
+				sdkRegistration: 'pluginDiscovery',
 				configuration: { type: McpServerType.LOCAL, command: 'native-plugin-server' },
 				customization: {
 					type: CustomizationType.McpServer,
@@ -414,6 +456,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				name: 'synced-server',
 				uri: URI.joinPath(syntheticPluginDir, '.mcp.json'),
 				defaultCwd: testWorkingDirectory,
+				sdkRegistration: 'sessionConfig',
 				configuration: { type: McpServerType.LOCAL, command: 'synced-server' },
 				customization: {
 					type: CustomizationType.McpServer,
