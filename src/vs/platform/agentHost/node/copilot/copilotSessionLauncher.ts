@@ -815,21 +815,29 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// summary at info for prompt observability; the full config at trace.
 		const systemMessage = agentHostPromptRegistry.resolveSystemMessageConfig(effectiveModel, promptContext);
 		this._logService.info(`[Copilot:${plan.sessionId}] Resolved system message: ${describeSystemMessageConfig(systemMessage)}`);
+		const additionalDisabledMcpServers = plan.isEphemeral ? [
+			...plugins.flatMap(plugin => plugin.mcpServers.map(server => server.name)),
+			...Object.keys(plan.snapshot.mcpServers),
+		] : undefined;
+		const disabledMcpServers = disabledMcpServersSessionOption(plugins, plan.disabledRootMcpServers, additionalDisabledMcpServers);
+		const mcpServers = plan.isEphemeral ? {} : { ...toSdkMcpServersFromConfigMap(plan.snapshot.mcpServers), ...toSdkMcpServers(explicitMcpServers) };
 		if (this._logService.getLevel() <= LogLevel.Trace) {
 			// Guarded: a `replace`-mode prompt's content can be multiple KB, so only
 			// serialize it when trace output is actually emitted.
 			this._logService.trace(`[Copilot:${plan.sessionId}] System message config: ${JSON.stringify(systemMessage, (_key, value) => typeof value === 'function' ? '[transform fn]' : value)}`);
+			const sortedUnique = (names: readonly string[]) => [...new Set(names)].sort();
+			this._logService.trace(`[Copilot:${plan.sessionId}] MCP launch projection: ${JSON.stringify({
+				ephemeral: plan.isEphemeral === true,
+				pluginDiscovery: sortedUnique(plugins.flatMap(plugin => plugin.mcpServers.filter(server => server.sdkRegistration === 'pluginDiscovery').map(server => server.name))),
+				sessionConfig: sortedUnique(plugins.flatMap(plugin => plugin.mcpServers.filter(server => server.sdkRegistration === 'sessionConfig').map(server => server.name))),
+				rootConfig: Object.keys(plan.snapshot.mcpServers).sort(),
+				disabled: [...(disabledMcpServers.disabledMcpServers ?? [])].sort(),
+				finalSessionConfig: Object.keys(mcpServers).sort(),
+			})}`);
 		}
 		return {
 			...byok,
-			...disabledMcpServersSessionOption(
-				plugins,
-				plan.disabledRootMcpServers,
-				plan.isEphemeral ? [
-					...plugins.flatMap(plugin => plugin.mcpServers.map(server => server.name)),
-					...Object.keys(plan.snapshot.mcpServers),
-				] : undefined,
-			),
+			...disabledMcpServers,
 			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
 			// Resume only: `_createSession` re-resolves the full effort for a create,
 			// while a resumed session keeps the effort the runtime journaled unless
@@ -850,7 +858,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				onPostToolUse: input => runtime.handlePostToolUse(input),
 				onUserPromptSubmitted: () => runtime.handleUserPromptSubmitted(),
 			}),
-			mcpServers: plan.isEphemeral ? {} : { ...toSdkMcpServersFromConfigMap(plan.snapshot.mcpServers), ...toSdkMcpServers(explicitMcpServers) },
+			mcpServers,
 			onExitPlanModeRequest: (request, invocation) => runtime.handleExitPlanModeRequest(request, invocation),
 			workingDirectory: plan.workingDirectory?.fsPath,
 			customAgents,
