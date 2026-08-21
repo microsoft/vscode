@@ -2987,6 +2987,35 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(connectCalls, 0);
 	});
 
+	test('prepareNewSession releases the Dev Container connection when post-connect setup fails', async () => {
+		const remoteWorkspace = URI.parse('agent-host://devcontainer/workspaces/project');
+		const setupError = new Error('failed to trust mapped workspace');
+		let releaseCalls = 0;
+		const devContainerAgentHostService = new class extends mock<IDevContainerAgentHostService>() {
+			override async isAvailable(): Promise<boolean> { return true; }
+			override async connect() {
+				return {
+					providerId: 'agenthost-devcontainer',
+					workspaceUri: remoteWorkspace,
+					release: async () => { releaseCalls++; },
+				};
+			}
+		}();
+		const provider = createProvider(disposables, agentHost, undefined, {
+			devContainerAgentHostService,
+			setUrisTrust: async () => { throw setupError; },
+		});
+		const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+		await timeout(0);
+		provider.setDevContainerEnabled(session.sessionId, true);
+
+		await assert.rejects(
+			provider.prepareNewSession(session.sessionId, CancellationToken.None),
+			error => error === setupError,
+		);
+		assert.strictEqual(releaseCalls, 1);
+	});
+
 	test('prepareNewSession routes an enabled Dev Container draft to the connected provider', async () => {
 		agentHost.resolveSessionConfigResult = {
 			schema: {

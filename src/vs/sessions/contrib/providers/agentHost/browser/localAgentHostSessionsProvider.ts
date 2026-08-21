@@ -282,20 +282,23 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		}
 		await this._waitForSessionConfigResolution(this, sessionId, token);
 		const target = await this._devContainerAgentHostService.connect(sourceWorkspace, token);
-		await this._workspaceTrustManagementService.setUrisTrust([target.workspaceUri], true);
-		const targetProvider = this._sessionsProvidersService.getProvider(target.providerId);
-		if (!targetProvider || !isAgentHostProvider(targetProvider)) {
-			throw new Error(localize('devContainerAgentHost.providerUnavailable', "Dev Container sessions provider '{0}' is not available.", target.providerId));
-		}
-		const targetSessionType = targetProvider.getSessionTypes(target.workspaceUri)
-			.find(sessionType => sessionType.id === draft.session.sessionType)
-			?? targetProvider.getSessionTypes(target.workspaceUri)[0];
-		if (!targetSessionType) {
-			throw new Error(localize('devContainerAgentHost.noAgents', "The Dev Container Agent Host did not advertise any agents."));
-		}
-
-		const replacement = targetProvider.createNewSession(target.workspaceUri, targetSessionType.id);
+		let deleteReplacement: (() => void) | undefined;
 		try {
+			await this._workspaceTrustManagementService.setUrisTrust([target.workspaceUri], true);
+			const targetProvider = this._sessionsProvidersService.getProvider(target.providerId);
+			if (!targetProvider || !isAgentHostProvider(targetProvider)) {
+				throw new Error(localize('devContainerAgentHost.providerUnavailable', "Dev Container sessions provider '{0}' is not available.", target.providerId));
+			}
+			const targetSessionType = targetProvider.getSessionTypes(target.workspaceUri)
+				.find(sessionType => sessionType.id === draft.session.sessionType)
+				?? targetProvider.getSessionTypes(target.workspaceUri)[0];
+			if (!targetSessionType) {
+				throw new Error(localize('devContainerAgentHost.noAgents', "The Dev Container Agent Host did not advertise any agents."));
+			}
+
+			const replacement = targetProvider.createNewSession(target.workspaceUri, targetSessionType.id);
+			const discardReplacement = () => targetProvider.deleteNewSession(replacement.sessionId);
+			deleteReplacement = discardReplacement;
 			await this._waitForSessionConfigResolution(targetProvider, replacement.sessionId, token);
 			const sourceConfig = this.getSessionConfig(sessionId);
 			const targetConfig = targetProvider.getSessionConfig(replacement.sessionId);
@@ -327,13 +330,19 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 			return {
 				session: replacement,
 				discard: async () => {
-					targetProvider.deleteNewSession(replacement.sessionId);
-					await target.release();
+					try {
+						discardReplacement();
+					} finally {
+						await target.release();
+					}
 				},
 			};
 		} catch (error) {
-			targetProvider.deleteNewSession(replacement.sessionId);
-			await target.release();
+			try {
+				deleteReplacement?.();
+			} finally {
+				await target.release();
+			}
 			throw error;
 		}
 	}
