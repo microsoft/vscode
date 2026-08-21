@@ -9,6 +9,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IObservable, constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -30,6 +31,7 @@ import { ICodeReviewService, CodeReviewService, PRReviewStateKind } from '../../
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession, ISendRequestOptions, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import '../../browser/codeReview.contributions.js';
 
@@ -321,10 +323,18 @@ suite('Code Review Contributions', () => {
 
 		assert.ok(titleItem, 'expected Run Code Review in the editor title bar');
 		const when = titleItem.when?.serialize() ?? '';
+		const enablementContext = new Context(1, null);
+		enablementContext.setValue(ChatContextKeys.hasAgentSessionChanges.key, false);
+		enablementContext.setValue(SessionHasChangesContext.key, true);
+		const enabledFromSessionChanges = titleItem.command.precondition?.evaluate(enablementContext);
+		enablementContext.setValue(ChatContextKeys.hasAgentSessionChanges.key, true);
+		enablementContext.setValue(SessionHasChangesContext.key, false);
 		assert.deepStrictEqual({
 			group: titleItem.group,
 			order: titleItem.order,
 			headerItems,
+			enabledFromSessionChanges,
+			enabledFromChatChanges: titleItem.command.precondition?.evaluate(enablementContext),
 			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
 			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditorInput.EDITOR_ID),
 			hasSinglePaneLayoutGate: when.includes(SinglePaneLayoutEnabledContext.key),
@@ -336,6 +346,8 @@ suite('Code Review Contributions', () => {
 			group: 'navigation',
 			order: 10,
 			headerItems: [],
+			enabledFromSessionChanges: true,
+			enabledFromChatChanges: true,
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
 			hasSinglePaneLayoutGate: true,

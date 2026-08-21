@@ -62,7 +62,7 @@ class RunSessionCodeReviewAction extends Action2 {
 			tooltip: localize('sessions.runCodeReview.tooltip', "Run Code Review"),
 			category: CHAT_CATEGORY,
 			icon: Codicon.codeReview,
-			precondition: ChatContextKeys.hasAgentSessionChanges,
+			precondition: ContextKeyExpr.or(ChatContextKeys.hasAgentSessionChanges, SessionHasChangesContext),
 			menu: [
 				{
 					id: MenuId.AgentsChangesToolbar,
