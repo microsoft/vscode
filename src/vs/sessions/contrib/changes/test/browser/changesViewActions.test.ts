@@ -18,6 +18,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { SessionsDiffRenderSideBySideContext } from '../../../editor/common/diffEditorOptionsService.js';
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext, TextCompareEditorActiveContext } from '../../../../../workbench/common/contextkeys.js';
+import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -25,6 +26,7 @@ import { ChangesContextKeys, ChangesViewMode } from '../../common/changes.js';
 import { IsPhoneLayoutContext, SessionHasChangesContext, SessionHasWorkspaceContext, SessionIsCreatedContext, SinglePaneDiffEditorInputActiveContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
 import { CHANGES_HEADER_ACTIONS_ID } from '../../browser/changesView.js';
+import { SessionsChangesAccessibilityHelp } from '../../browser/sessionsChangesAccessibilityHelp.js';
 import '../../browser/changesViewActions.js';
 
 suite('Changes View Actions', () => {
@@ -156,12 +158,12 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('preferred diff view is contributed to multi-file and single-file diff editor headers with toggle state', () => {
+	test('preferred diff view is contributed to multi-file and single-file diff editor overflow menus with state-appropriate titles', () => {
 		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'toggle.diff.renderSideBySide');
 
-		assert.ok(item, 'expected the toggle inline view action on the single-pane editor header menu');
+		assert.ok(item, 'expected the preferred diff view action in the single-pane editor header overflow menu');
 		const when = item.when?.serialize() ?? '';
 		const toggled = item.command.toggled;
 		const toggledInfo = isICommandActionToggleInfo(toggled) ? toggled : undefined;
@@ -190,12 +192,12 @@ suite('Changes View Actions', () => {
 			matchesNonTextDiffContext: item.when?.evaluate(nonTextDiffContext) ?? false,
 		}, {
 			id: 'toggle.diff.renderSideBySide',
-			title: 'Prefer Side by Side Diff',
-			group: '1_diff',
+			title: 'Prefer Side by Side Diff View',
+			group: 'secondary/1_diff',
 			order: 20,
 			icon: Codicon.diffSidebyside.id,
 			tooltip: 'Uses inline layout when space is limited unless screen reader optimized mode is enabled.',
-			toggledTitle: 'Prefer Inline Diff',
+			toggledTitle: 'Prefer Inline Diff View',
 			toggledTooltip: 'Always uses inline layout.',
 			toggledOnSharedPreference: true,
 			hasSessionsWindowGate: true,
@@ -235,6 +237,16 @@ suite('Changes View Actions', () => {
 		});
 	});
 
+	test('Changes accessibility help points to the editor header overflow menu', () => {
+		const instantiationService = new TestInstantiationService();
+		instantiationService.stub(IViewsService, new class extends mock<IViewsService>() { });
+		const provider = new SessionsChangesAccessibilityHelp().getProvider(instantiationService);
+
+		const content = provider.provideContent();
+		provider.dispose();
+
+		assert.strictEqual(content.includes('Use the editor header\'s More Actions menu or the Toggle Preferred Diff View command'), true);
+	});
 
 	test('view mode toggles include non-text single-file diff editor headers', () => {
 		const items = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
