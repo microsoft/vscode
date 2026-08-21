@@ -510,26 +510,26 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 				} else if (scheduledFor.getTime() <= nowTimestamp) {
 					const catchUp = nowTimestamp - scheduledFor.getTime() >= 60_000;
 					if (!catchUp || trigger.misfirePolicy !== AutomationMisfirePolicy.Skip) {
-						const run = this._createRunState(automation.resource, {
-							kind: AutomationRunOriginKind.Trigger,
-							triggerId: trigger.id,
-							scheduledFor: scheduledFor.toISOString(),
-							...(catchUp ? { catchUp: true } : {}),
-						}, createdAt);
-						nextRuns.set(run.resource, run);
-						automation = withRunSummary(automation, nextRuns);
-						claimed.push({ run, definition: automation.definition });
-						claimedForAutomation = true;
+						if (!claimedForAutomation) {
+							const run = this._createRunState(automation.resource, {
+								kind: AutomationRunOriginKind.Trigger,
+								triggerId: trigger.id,
+								scheduledFor: scheduledFor.toISOString(),
+								...(catchUp ? { catchUp: true } : {}),
+							}, createdAt);
+							nextRuns.set(run.resource, run);
+							automation = withRunSummary(automation, nextRuns);
+							claimed.push({ run, definition: automation.definition });
+							claimedForAutomation = true;
+						}
+						// A sibling trigger already claimed this Automation this
+						// tick. Coalesce this past-due firing into the earlier
+						// one and let its cursor roll forward below, so we don't
+						// re-fire on the next tick.
 					}
 					scheduledFor = nextAutomationCronOccurrence(trigger.schedule.expression, trigger.schedule.timeZone, now);
 				}
 				cursors[trigger.id] = scheduledFor.toISOString();
-				if (claimedForAutomation) {
-					// One-non-terminal-run-per-Automation invariant. Other due
-					// triggers keep their cursors untouched and are re-evaluated
-					// on the next tick, so a second past-due firing isn't lost.
-					break;
-				}
 			}
 			const nextAutomation: AutomationState = {
 				...automation,

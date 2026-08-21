@@ -748,7 +748,7 @@ suite('AgentHostAutomationService', () => {
 		});
 	});
 
-	test('claims at most one schedule trigger per Automation per tick and defers the rest', async () => {
+	test('coalesces simultaneously-due schedule triggers on one Automation into a single run', async () => {
 		const now = new Date();
 		const firstScheduledFor = new Date(now.getTime() - 3 * 60_000).toISOString();
 		const secondScheduledFor = new Date(now.getTime() - 2 * 60_000).toISOString();
@@ -796,7 +796,6 @@ suite('AgentHostAutomationService', () => {
 
 		const session = URI.parse('mock:/multi-trigger-session');
 		const started = new DeferredPromise<void>();
-
 		createService({
 			createSession: async () => {
 				stateManager.createSession({
@@ -821,12 +820,12 @@ suite('AgentHostAutomationService', () => {
 			runsClaimed: automation?.runs.length,
 			claimedTriggerId: automation?.runs[0]?.origin.kind === AutomationRunOriginKind.Trigger ? automation.runs[0].origin.triggerId : undefined,
 			firstCursorAdvanced: cursors ? Date.parse(cursors['first-trigger']) > now.getTime() : false,
-			secondCursorUnchanged: cursors?.['second-trigger'] === secondScheduledFor,
+			secondCursorAdvanced: cursors ? Date.parse(cursors['second-trigger']) > now.getTime() : false,
 		}, {
 			runsClaimed: 1,
 			claimedTriggerId: 'first-trigger',
 			firstCursorAdvanced: true,
-			secondCursorUnchanged: true,
+			secondCursorAdvanced: true,
 		});
 	});
 
