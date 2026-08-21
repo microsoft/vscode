@@ -379,7 +379,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	refreshChangesetCatalog(session: ProtocolURI): void {
 		const state = this._stateManager.getSessionState(session);
-		if (!state || state?.lifecycle === SessionLifecycle.CreationFailed) {
+		if (!state || state?.lifecycle === SessionLifecycle.Failed) {
 			return;
 		}
 

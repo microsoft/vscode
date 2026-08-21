@@ -294,7 +294,7 @@ export function parseCompareTurnsChangesetUri(uri: URI): { sessionUri: URI; orig
  */
 export function buildDefaultChangesetCatalog(sessionUri: URI, state?: ISessionWithDefaultChat): Changeset[] {
 	// Session that failed to create
-	if (!state || state.lifecycle === SessionLifecycle.CreationFailed) {
+	if (!state || state.lifecycle === SessionLifecycle.Failed) {
 		return [];
 	}
 

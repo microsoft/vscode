@@ -25,6 +25,7 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
 import { buildAnnotationsUri } from '../../../../common/annotationsUri.js';
+import { buildDefaultChatUri, type AnnotationsState, type StringOrMarkdown } from '../../../../common/state/sessionState.js';
 import { createRealSession } from '../harness/agentHostE2ETestHarness.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
@@ -32,9 +33,13 @@ import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext
 /** The subset of `Annotation` these tests assert on. */
 interface IObservedAnnotation {
 	readonly id: string;
-	readonly turnId: string;
+	readonly origin: {
+		readonly session: string;
+		readonly chat?: string;
+		readonly turnId?: string;
+	};
 	readonly resolved: boolean;
-	readonly entries: readonly { readonly id: string; readonly text: string }[];
+	readonly entries: readonly { readonly id: string; readonly text: StringOrMarkdown }[];
 }
 
 export function defineAnnotationsTests(context: IAgentHostE2ETestContext): void {
@@ -75,18 +80,22 @@ export function defineAnnotationsTests(context: IAgentHostE2ETestContext): void 
 			30_000,
 		);
 		const subscribed = await context.client.call<SubscribeResult>('subscribe', { channel });
-		return (subscribed.snapshot!.state as { annotations: IObservedAnnotation[] }).annotations;
+		const state = subscribed.snapshot!.state;
+		if (!isAnnotationsState(state)) {
+			throw new Error(`Expected annotations state for ${channel}`);
+		}
+		return state.annotations;
 	}
 
 	conformanceTest(context, 'an annotation dispatched by a client is applied to the channel', async function () {
-		const { annotationsUri, resource } = await createAnnotatedSession('annotations-set');
+		const { sessionUri, annotationsUri, resource } = await createAnnotatedSession('annotations-set');
 		const annotationId = generateUuid();
 
 		dispatchAnnotationAction(annotationsUri, {
 			type: ActionType.AnnotationsSet,
 			annotation: {
 				id: annotationId,
-				turnId: 'turn-annotate',
+				origin: { session: sessionUri, chat: buildDefaultChatUri(sessionUri), turnId: 'turn-annotate' },
 				resource,
 				resolved: false,
 				entries: [{ id: `${annotationId}:0`, text: 'needs a second look' }],
@@ -97,31 +106,31 @@ export function defineAnnotationsTests(context: IAgentHostE2ETestContext): void 
 
 		assert.deepStrictEqual(annotations.map(annotation => ({
 			id: annotation.id,
-			turnId: annotation.turnId,
+			origin: annotation.origin,
 			resolved: annotation.resolved,
 			entries: annotation.entries.map(entry => entry.text),
 		})), [{
 			id: annotationId,
-			turnId: 'turn-annotate',
+			origin: { session: sessionUri, chat: buildDefaultChatUri(sessionUri), turnId: 'turn-annotate' },
 			resolved: false,
 			entries: ['needs a second look'],
 		}]);
 	});
 
 	conformanceTest(context, 'an annotation can be resolved without resending its entries', async function () {
-		const { annotationsUri, resource } = await createAnnotatedSession('annotations-resolve');
+		const { sessionUri, annotationsUri, resource } = await createAnnotatedSession('annotations-resolve');
 		const annotationId = generateUuid();
 
 		dispatchAnnotationAction(annotationsUri, {
 			type: ActionType.AnnotationsSet,
-			annotation: { id: annotationId, turnId: 'turn-resolve', resource, resolved: false, entries: [{ id: `${annotationId}:0`, text: 'why this branch?' }] },
+			annotation: { id: annotationId, origin: { session: sessionUri, chat: buildDefaultChatUri(sessionUri), turnId: 'turn-resolve' }, resource, resolved: false, entries: [{ id: `${annotationId}:0`, text: 'why this branch?' }] },
 		});
 		await annotationsAfter(annotationsUri, 'annotations/set');
 
 		// `annotations/updated` carries only the fields that change, so
 		// resolving must not disturb the entries already on the annotation.
 		context.client.clearReceived();
-		dispatchAnnotationAction(annotationsUri, { type: ActionType.AnnotationsUpdated, annotationId, resolved: true });
+		dispatchAnnotationAction(annotationsUri, { type: ActionType.AnnotationsUpdated, annotationId, resolved: true, origin: { session: sessionUri, chat: buildDefaultChatUri(sessionUri), turnId: 'turn-resolve' } });
 
 		const annotations = await annotationsAfter(annotationsUri, 'annotations/updated');
 
@@ -135,13 +144,13 @@ export function defineAnnotationsTests(context: IAgentHostE2ETestContext): void 
 	});
 
 	conformanceTest(context, 'entries can be added to and removed from an annotation', async function () {
-		const { annotationsUri, resource } = await createAnnotatedSession('annotations-entries');
+		const { sessionUri, annotationsUri, resource } = await createAnnotatedSession('annotations-entries');
 		const annotationId = generateUuid();
 		const replyId = `${annotationId}:1`;
 
 		dispatchAnnotationAction(annotationsUri, {
 			type: ActionType.AnnotationsSet,
-			annotation: { id: annotationId, turnId: 'turn-entries', resource, resolved: false, entries: [{ id: `${annotationId}:0`, text: 'original' }] },
+			annotation: { id: annotationId, origin: { session: sessionUri, chat: buildDefaultChatUri(sessionUri), turnId: 'turn-entries' }, resource, resolved: false, entries: [{ id: `${annotationId}:0`, text: 'original' }] },
 		});
 		await annotationsAfter(annotationsUri, 'annotations/set');
 
@@ -163,12 +172,12 @@ export function defineAnnotationsTests(context: IAgentHostE2ETestContext): void 
 	});
 
 	conformanceTest(context, 'removing an annotation clears it from the channel', async function () {
-		const { annotationsUri, resource } = await createAnnotatedSession('annotations-remove');
+		const { sessionUri, annotationsUri, resource } = await createAnnotatedSession('annotations-remove');
 		const annotationId = generateUuid();
 
 		dispatchAnnotationAction(annotationsUri, {
 			type: ActionType.AnnotationsSet,
-			annotation: { id: annotationId, turnId: 'turn-remove', resource, resolved: false, entries: [{ id: `${annotationId}:0`, text: 'transient' }] },
+			annotation: { id: annotationId, origin: { session: sessionUri, chat: buildDefaultChatUri(sessionUri), turnId: 'turn-remove' }, resource, resolved: false, entries: [{ id: `${annotationId}:0`, text: 'transient' }] },
 		});
 		await annotationsAfter(annotationsUri, 'annotations/set');
 
@@ -177,4 +186,8 @@ export function defineAnnotationsTests(context: IAgentHostE2ETestContext): void 
 
 		assert.deepStrictEqual(await annotationsAfter(annotationsUri, 'annotations/removed'), []);
 	});
+}
+
+function isAnnotationsState(state: NonNullable<SubscribeResult['snapshot']>['state']): state is AnnotationsState {
+	return 'annotations' in state;
 }

@@ -7,7 +7,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
-import type { TerminalState } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import { TerminalLifecycleStatus, type TerminalState } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
 import type { IChatTerminalOutputSource } from './terminal.js';
 
@@ -41,7 +41,7 @@ export class AgentHostOutputChannel extends Disposable implements IChatTerminalO
 			.map(part => part.type === 'command' ? part.output : part.value)
 			.join('')
 			.replace(/\r?\n/g, '\r\n');
-		this._exitCode = state.exitCode;
+		this._exitCode = state.lifecycle.status === TerminalLifecycleStatus.Exited ? state.lifecycle.exitCode : undefined;
 		this._onDidChange.fire();
 	}
 }

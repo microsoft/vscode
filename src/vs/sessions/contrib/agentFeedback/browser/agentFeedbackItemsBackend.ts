@@ -267,7 +267,7 @@ function feedbackToAnnotation(feedback: IAgentFeedback): Annotation {
 	};
 	return {
 		id: feedback.id,
-		turnId: '',
+		origin: { session: feedback.sessionResource.toString() },
 		resource: feedback.resourceUri.toString(),
 		range: toTextRange(feedback.range),
 		resolved: feedback.state === AgentFeedbackState.Resolved,

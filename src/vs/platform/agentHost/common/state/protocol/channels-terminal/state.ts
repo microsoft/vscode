@@ -22,9 +22,48 @@ export interface TerminalInfo {
 	title: string;
 	/** Who currently holds this terminal */
 	claim: TerminalClaim;
-	/** Process exit code, if the terminal process has exited */
+	/** Current terminal process lifecycle. */
+	lifecycle: TerminalLifecycleState;
+}
+
+/**
+ * Lifecycle status of a terminal process.
+ *
+ * @category Terminal Types
+ */
+export const enum TerminalLifecycleStatus {
+	Running = 'running',
+	Exited = 'exited',
+}
+
+/**
+ * A terminal process that is still running.
+ *
+ * @category Terminal Types
+ */
+export interface TerminalRunningLifecycleState {
+	status: TerminalLifecycleStatus.Running;
+}
+
+/**
+ * A terminal process that has exited.
+ *
+ * @category Terminal Types
+ */
+export interface TerminalExitedLifecycleState {
+	status: TerminalLifecycleStatus.Exited;
+	/** Process exit code, if the runtime reported one. */
 	exitCode?: number;
 }
+
+/**
+ * Current lifecycle of a terminal process.
+ *
+ * @category Terminal Types
+ */
+export type TerminalLifecycleState =
+	| TerminalRunningLifecycleState
+	| TerminalExitedLifecycleState;
 
 /**
  * Discriminant for terminal claim kinds.
@@ -58,7 +97,9 @@ export interface TerminalSessionClaim {
 	kind: TerminalClaimKind.Session;
 	/** Session URI that claimed the terminal */
 	session: URI;
-	/** Optional turn identifier within the session */
+	/** Chat URI that claimed the terminal. */
+	chat: URI;
+	/** Optional turn identifier within the chat. */
 	turnId?: string;
 	/** Optional tool call identifier within the turn */
 	toolCallId?: string;
@@ -95,8 +136,8 @@ export interface TerminalState {
 	 * Consumers that need command boundaries can filter by part type.
 	 */
 	content: TerminalContentPart[];
-	/** Process exit code, set when the terminal process exits */
-	exitCode?: number;
+	/** Current terminal process lifecycle. */
+	lifecycle: TerminalLifecycleState;
 	/** Who currently holds this terminal */
 	claim: TerminalClaim;
 	/**
