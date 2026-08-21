@@ -55,13 +55,19 @@ export class CopilotSessionWrapper extends Disposable {
 		if (this._shutdown.isSettled) {
 			return this._shutdown.p;
 		}
-		this._disconnectPromise ??= this.session.disconnect()
-			.then(() => { this._disconnectCompleted = true; })
-			.catch(error => {
-				if (!this._shutdown.isSettled) {
-					throw error;
-				}
-			});
+		if (!this._disconnectPromise) {
+			const disconnectPromise = this.session.disconnect()
+				.then(() => { this._disconnectCompleted = true; })
+				.catch(error => {
+					if (!this._shutdown.isSettled) {
+						if (this._disconnectPromise === disconnectPromise) {
+							this._disconnectPromise = undefined;
+						}
+						throw error;
+					}
+				});
+			this._disconnectPromise = disconnectPromise;
+		}
 		return Promise.race([this._disconnectPromise, this._shutdown.p]);
 	}
 

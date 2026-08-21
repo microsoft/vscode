@@ -153,6 +153,7 @@ class MockCopilotSession {
 	disconnectCalls = 0;
 	disconnectGate: Promise<void> | undefined;
 	disconnectHook: (() => void) | undefined;
+	disconnectError: Error | undefined;
 	/**
 	 * Per-call gates, consumed in call order, for holding individual reads in flight.
 	 * Lets a test make an earlier-issued read resolve after a later one.
@@ -255,6 +256,9 @@ class MockCopilotSession {
 		this.disconnectCalls++;
 		this.disconnectHook?.();
 		await this.disconnectGate;
+		if (this.disconnectError) {
+			throw this.disconnectError;
+		}
 	}
 
 	readonly rpc = {
@@ -1100,6 +1104,27 @@ suite('CopilotAgentSession', () => {
 			}, {
 				pendingState: 'disconnecting',
 				completedState: 'disconnected',
+			});
+		});
+
+		test('returns to active and permits retry after disconnect rejects', async () => {
+			const mockSession = new MockCopilotSession();
+			mockSession.disconnectError = new Error('disconnect failed');
+			const wrapper = disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession));
+
+			await assert.rejects(wrapper.disconnect(), /disconnect failed/);
+			const rejectedState = wrapper.lifecycleState;
+			mockSession.disconnectError = undefined;
+			await wrapper.disconnect();
+
+			assert.deepStrictEqual({
+				rejectedState,
+				completedState: wrapper.lifecycleState,
+				disconnectCalls: mockSession.disconnectCalls,
+			}, {
+				rejectedState: 'active',
+				completedState: 'disconnected',
+				disconnectCalls: 2,
 			});
 		});
 	});

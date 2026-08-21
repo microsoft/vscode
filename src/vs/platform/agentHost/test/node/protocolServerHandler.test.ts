@@ -2106,7 +2106,7 @@ suite('ProtocolServerHandler', () => {
 		const localServer = localDisposables.add(new MockProtocolServer());
 		const localTelemetry = new TestTelemetryService();
 		localTelemetry.throwOnClientConnection = true;
-		localDisposables.add(new ProtocolServerHandler(
+		const localHandler = localDisposables.add(new ProtocolServerHandler(
 			agentService,
 			stateManager,
 			localServer,
@@ -2117,6 +2117,8 @@ suite('ProtocolServerHandler', () => {
 			managedSettingsService,
 			clientConnections,
 		));
+		const countEvents: number[] = [];
+		localDisposables.add(localHandler.onDidChangeConnectionCount(count => countEvents.push(count)));
 		const transport = new MockProtocolTransport(AgentHostTransportKind.WebSocket);
 		localServer.simulateConnection(transport);
 
@@ -2127,14 +2129,65 @@ suite('ProtocolServerHandler', () => {
 		transport.simulateClose();
 
 		assert.deepStrictEqual({
+			countEvents,
 			isClientConnected: clientConnections.isClientConnected('telemetry-failed-client'),
 			counts: clientConnections.getConnectionCounts('telemetry-failed-client'),
 		}, {
+			countEvents: [],
 			isClientConnected: false,
 			counts: {
 				connectedClientCount: 0,
 				connectedTransportCount: 0,
 				clientTransportCount: 0,
+			},
+		});
+	});
+
+	test('does not notify connection observers when reconnect telemetry throws', () => {
+		const localDisposables = disposables.add(new DisposableStore());
+		const localServer = localDisposables.add(new MockProtocolServer());
+		const localTelemetry = new TestTelemetryService();
+		const localHandler = localDisposables.add(new ProtocolServerHandler(
+			agentService,
+			stateManager,
+			localServer,
+			{ hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess },
+			localDisposables.add(new AgentHostFileSystemProvider()),
+			logService,
+			localTelemetry,
+			managedSettingsService,
+			clientConnections,
+		));
+		const countEvents: number[] = [];
+		localDisposables.add(localHandler.onDidChangeConnectionCount(count => countEvents.push(count)));
+
+		const initialTransport = new MockProtocolTransport();
+		localServer.simulateConnection(initialTransport);
+		initialTransport.simulateMessage(request(1, 'initialize', {
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: 'reconnect-telemetry-failed-client',
+		}));
+		localTelemetry.throwOnClientConnection = true;
+
+		const failedTransport = new MockProtocolTransport();
+		localServer.simulateConnection(failedTransport);
+		failedTransport.simulateMessage(request(2, 'reconnect', {
+			clientId: 'reconnect-telemetry-failed-client',
+			lastSeenServerSeq: 0,
+			subscriptions: [],
+		}));
+		failedTransport.simulateClose();
+		localTelemetry.throwOnClientConnection = false;
+
+		assert.deepStrictEqual({
+			countEvents,
+			counts: clientConnections.getConnectionCounts('reconnect-telemetry-failed-client'),
+		}, {
+			countEvents: [1],
+			counts: {
+				connectedClientCount: 1,
+				connectedTransportCount: 1,
+				clientTransportCount: 1,
 			},
 		});
 	});

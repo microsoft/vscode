@@ -630,10 +630,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 
 			client.telemetryConnectionActive = true;
 			const counts = this._clientConnections.getConnectionCounts(params.clientId);
-			if (previousRecord?.state === 'grace') {
-				previousRecord.disconnectTimeouts.dispose();
-			}
-			this._onDidChangeConnectionCount.fire(this._connectedClientCount);
 			this._telemetryReporter.clientConnection({
 				action: 'connected',
 				context: telemetryContext,
@@ -644,6 +640,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				isReconnect: client.isReconnect,
 				...counts,
 			});
+			if (previousRecord?.state === 'grace') {
+				previousRecord.disconnectTimeouts.dispose();
+			}
+			this._onDidChangeConnectionCount.fire(this._connectedClientCount);
 
 			return {
 				client,
@@ -779,10 +779,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 
 			client.telemetryConnectionActive = true;
 			const counts = this._clientConnections.getConnectionCounts(params.clientId);
-			if (existingRecord.state === 'grace') {
-				existingRecord.disconnectTimeouts.dispose();
-			}
-			this._onDidChangeConnectionCount.fire(this._connectedClientCount);
 			this._telemetryReporter.clientConnection({
 				action: 'connected',
 				context: client.telemetryContext,
@@ -793,6 +789,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				isReconnect: client.isReconnect,
 				...counts,
 			});
+			if (existingRecord.state === 'grace') {
+				existingRecord.disconnectTimeouts.dispose();
+			}
+			this._onDidChangeConnectionCount.fire(this._connectedClientCount);
 
 			return { client, responsePromise };
 		} catch (error) {
@@ -1090,6 +1090,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _rollbackFailedInitialization(client: IConnectedClient, previousRecord: IClientRecord | undefined): void {
+		client.telemetryConnectionActive = false;
 		const record = this._clients.get(client.clientId);
 		if (record?.state === 'active') {
 			const connectionIndex = record.connections.indexOf(client);
