@@ -294,10 +294,10 @@ suite('AgentHostCommitOperationHandler', () => {
 		});
 	});
 
-	test('maps Copilot token mint auth failures to AHP_AUTH_REQUIRED before committing', async () => {
+	test('maps Copilot API auth failures to AHP_AUTH_REQUIRED before committing', async () => {
 		const gitService = new TestGitService();
 		const copilotApiService = new TestCopilotApiService();
-		copilotApiService.error = new Error('Copilot session token mint failed: 403 Forbidden');
+		copilotApiService.error = new Error('Copilot API authorization failed: 403 Forbidden');
 		const changesets = new TestChangesetService();
 		const { handler, session, committedSessions } = setup(disposables, gitService, copilotApiService, changesets);
 
