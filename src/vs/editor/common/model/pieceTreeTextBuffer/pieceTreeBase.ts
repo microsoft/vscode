@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CharCode } from '../../../../base/common/charCode.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { Position } from '../../core/position.js';
 import { Range } from '../../core/range.js';
 import { FindMatch, ITextSnapshot, SearchData } from '../../model.js';
@@ -383,6 +384,10 @@ export class PieceTreeBase {
 			const len = str.length;
 			const startPosition = other.nodeAt(offset);
 			const endPosition = other.nodeAt(offset + len);
+			if (!startPosition || !endPosition) {
+				// defensive, the lengths are compared above
+				return false;
+			}
 			const val = other.getValueInRange2(startPosition, endPosition);
 
 			offset += len;
@@ -463,6 +468,9 @@ export class PieceTreeBase {
 
 		const startPosition = this.nodeAt2(range.startLineNumber, range.startColumn);
 		const endPosition = this.nodeAt2(range.endLineNumber, range.endColumn);
+		if (!startPosition || !endPosition) {
+			return '';
+		}
 
 		const value = this.getValueInRange2(startPosition, endPosition);
 		if (eol) {
@@ -650,6 +658,9 @@ export class PieceTreeBase {
 
 	public getLineCharCode(lineNumber: number, index: number): number {
 		const nodePos = this.nodeAt2(lineNumber, index + 1);
+		if (!nodePos) {
+			return 0;
+		}
 		return this._getCharCode(nodePos);
 	}
 
@@ -663,11 +674,17 @@ export class PieceTreeBase {
 
 	public getCharCode(offset: number): number {
 		const nodePos = this.nodeAt(offset);
+		if (!nodePos) {
+			return 0;
+		}
 		return this._getCharCode(nodePos);
 	}
 
 	public getNearestChunk(offset: number): string {
 		const nodePos = this.nodeAt(offset);
+		if (!nodePos) {
+			return '';
+		}
 		if (nodePos.remainder === nodePos.node.piece.length) {
 			// the offset is at the head of next node.
 			const matchingNode = nodePos.node.next();
@@ -793,6 +810,9 @@ export class PieceTreeBase {
 
 			startLineNumber++;
 			startPosition = this.nodeAt2(startLineNumber, 1);
+			if (!startPosition) {
+				return result;
+			}
 			currentNode = startPosition.node;
 			start = this.positionInBuffer(startPosition.node, startPosition.remainder);
 		}
@@ -852,7 +872,8 @@ export class PieceTreeBase {
 		this._lastVisitedLine.value = '';
 
 		if (this.root !== SENTINEL) {
-			const { node, remainder, nodeStartOffset } = this.nodeAt(offset);
+			// fail rather than silently leaving the buffer out of sync with the model
+			const { node, remainder, nodeStartOffset } = assertReturnsDefined(this.nodeAt(offset));
 			const piece = node.piece;
 			const bufferIndex = piece.bufferIndex;
 			const insertPosInBuffer = this.positionInBuffer(node, remainder);
@@ -952,8 +973,9 @@ export class PieceTreeBase {
 			return;
 		}
 
-		const startPosition = this.nodeAt(offset);
-		const endPosition = this.nodeAt(offset + cnt);
+		// fail rather than silently leaving the buffer out of sync with the model
+		const startPosition = assertReturnsDefined(this.nodeAt(offset));
+		const endPosition = assertReturnsDefined(this.nodeAt(offset + cnt));
 		const startNode = startPosition.node;
 		const endNode = endPosition.node;
 
@@ -1492,7 +1514,7 @@ export class PieceTreeBase {
 		updateTreeMetadata(this, node, value.length, lf_delta);
 	}
 
-	private nodeAt(offset: number): NodePosition {
+	private nodeAt(offset: number): NodePosition | null {
 		let x = this.root;
 		const cache = this._searchCache.get(offset);
 		if (cache) {
@@ -1524,10 +1546,10 @@ export class PieceTreeBase {
 			}
 		}
 
-		return null!;
+		return null;
 	}
 
-	private nodeAt2(lineNumber: number, column: number): NodePosition {
+	private nodeAt2(lineNumber: number, column: number): NodePosition | null {
 		let x = this.root;
 		let nodeStartOffset = 0;
 
@@ -1591,7 +1613,7 @@ export class PieceTreeBase {
 			x = x.next();
 		}
 
-		return null!;
+		return null;
 	}
 
 	private nodeCharCodeAt(node: TreeNode, offset: number): number {
