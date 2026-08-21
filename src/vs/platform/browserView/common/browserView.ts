@@ -8,7 +8,7 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
-import { ITunnelProxyInfo } from '../../tunnel/common/tunnelProxy.js';
+import { TunnelProxyStatus } from '../../tunnel/common/tunnelProxy.js';
 import { IPermissionCategoryState, ISerializedBrowserPermissionsSnapshot, IBrowserDeviceCandidate, BrowserDeviceType, PermissionCategory } from './browserPermissions.js';
 
 const commandPrefix = 'workbench.action.browser';
@@ -159,15 +159,12 @@ export interface IBrowserViewWindowConfiguration {
 	readonly aiFeaturesDisabled?: boolean;
 	/** Maximum number of entries to retain per browser session history. */
 	readonly maxHistoryEntries?: number;
-	/** Whether this window's browser views intend to use the remote tunnel proxy. */
-	readonly remoteProxyEnabled: boolean;
 	/**
-	 * Resolved tunnel-proxy credentials for the window's remote browser views,
-	 * produced by the window's local node extension host (which hosts the HTTPS
-	 * tunnel proxy). `undefined` until the enabled proxy has started, or when no
-	 * proxy is used. Applied to the Electron sessions of the window's remote views.
+	 * Lifecycle state of the tunnel proxy for this window's remote browser views.
+	 * Produced by the window's local node extension host, which hosts the HTTPS
+	 * tunnel proxy, and applied to the Electron sessions of remote views.
 	 */
-	readonly proxyInfo?: ITunnelProxyInfo;
+	readonly remoteProxyStatus: TunnelProxyStatus;
 	/**
 	 * The window's contribution to the `file://` allowlist used by integrated
 	 * browser sessions. Main unions every window's contribution into a

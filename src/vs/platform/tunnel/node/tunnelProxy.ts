@@ -262,7 +262,7 @@ export class TunnelProxy extends Disposable {
 		try {
 			socket.pause();
 
-			const protocol = await this._connectLimiter.queue(() => this._connectTunnel(host, port));
+			const protocol = await this._connectTunnelWithRetry(host, port);
 			const { stream: remoteSocket, leftover } = this._takeRemoteStream(protocol);
 
 			socket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
@@ -403,7 +403,7 @@ export class TunnelProxy extends Disposable {
 		// A rejection here lets the http.Agent fail the request (the client
 		// connection is reset) rather than hanging or silently returning
 		// nothing.
-		const protocol = await this._connectLimiter.queue(() => this._connectTunnel(host, port));
+		const protocol = await this._connectTunnelWithRetry(host, port);
 		const { stream: tunnelStream, leftover } = this._takeRemoteStream(protocol);
 
 		this._trackRemoteSocket(tunnelStream);
@@ -413,6 +413,20 @@ export class TunnelProxy extends Disposable {
 		}
 
 		return tunnelStream;
+	}
+
+	/**
+	 * Retry one tunnel handshake failure before any request bytes are sent to the
+	 * target. This lets an idle remote connection wake up without replaying the
+	 * browser navigation or risking duplicate HTTP requests.
+	 */
+	private async _connectTunnelWithRetry(host: string, port: number): Promise<Awaited<ReturnType<ITunnelConnectFn>>> {
+		try {
+			return await this._connectLimiter.queue(() => this._connectTunnel(host, port));
+		} catch (error) {
+			this._logService.warn(`[TunnelProxy] Initial tunnel connection to ${host}:${port} failed; retrying once:`, error);
+			return this._connectLimiter.queue(() => this._connectTunnel(host, port));
+		}
 	}
 
 	/**

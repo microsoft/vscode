@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise } from '../../../base/common/async.js';
+import { getErrorMessage } from '../../../base/common/errors.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { ISocket } from '../../../base/parts/ipc/common/ipc.net.js';
 import { ILogService } from '../../../platform/log/common/log.js';
@@ -12,6 +13,7 @@ import { IRemoteConnectionData, RemoteConnectionType } from '../../../platform/r
 import { IRemoteSocketFactoryService } from '../../../platform/remote/common/remoteSocketFactoryService.js';
 import { nodeSocketFactory } from '../../../platform/remote/node/nodeSocketFactory.js';
 import { TunnelProxy } from '../../../platform/tunnel/node/tunnelProxy.js';
+import { TunnelProxyStatus } from '../../../platform/tunnel/common/tunnelProxy.js';
 import { MainContext, MainThreadBrowserTunnelProxyShape } from '../common/extHost.protocol.js';
 import { IExtHostBrowserTunnelProxy } from '../common/extHostBrowserTunnelProxy.js';
 import { IExtHostExtensionService } from '../common/extHostExtensionService.js';
@@ -59,6 +61,7 @@ export class NodeExtHostBrowserTunnelProxy extends Disposable implements IExtHos
 
 	private _tunnelProxy: TunnelProxy | undefined;
 	private _startPromise: Promise<void> | undefined;
+	private _status: TunnelProxyStatus = { type: 'stopped' };
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -87,6 +90,7 @@ export class NodeExtHostBrowserTunnelProxy extends Disposable implements IExtHos
 			return;
 		}
 		if (this._enabled === enabled) {
+			this._proxy.$updateProxyStatus(this._status);
 			return;
 		}
 		this._enabled = enabled;
@@ -116,6 +120,7 @@ export class NodeExtHostBrowserTunnelProxy extends Disposable implements IExtHos
 	}
 
 	private _start(): void {
+		this._setStatus({ type: 'starting' });
 		const options = this._createConnectionOptions();
 		const tunnelProxy = new TunnelProxy(
 			(host, port) => connectRemoteAgentTunnel(options, host, port),
@@ -129,13 +134,16 @@ export class NodeExtHostBrowserTunnelProxy extends Disposable implements IExtHos
 			}
 			this._tunnelProxy = tunnelProxy;
 			this._startPromise = undefined;
-			this._proxy.$updateProxyInfo(info);
+			this._setStatus({ type: 'ready', info });
 		}, err => {
 			this._logService.error('[ExtHostBrowserTunnelProxy] Failed to start tunnel proxy:', err);
-			if (this._startPromise === startPromise) {
-				this._startPromise = undefined;
+			if (this._startPromise !== startPromise) {
+				tunnelProxy.dispose();
+				return;
 			}
+			this._startPromise = undefined;
 			tunnelProxy.dispose();
+			this._setStatus({ type: 'failed', error: getErrorMessage(err) });
 		});
 		this._startPromise = startPromise;
 	}
@@ -145,9 +153,14 @@ export class NodeExtHostBrowserTunnelProxy extends Disposable implements IExtHos
 		this._tunnelProxy?.dispose();
 		this._tunnelProxy = undefined;
 		this._startPromise = undefined;
-		if (wasActive) {
-			this._proxy.$updateProxyInfo(undefined);
+		if (wasActive || this._status.type !== 'stopped') {
+			this._setStatus({ type: 'stopped' });
 		}
+	}
+
+	private _setStatus(status: TunnelProxyStatus): void {
+		this._status = status;
+		this._proxy.$updateProxyStatus(status);
 	}
 
 	private _createConnectionOptions(): IConnectionOptions {

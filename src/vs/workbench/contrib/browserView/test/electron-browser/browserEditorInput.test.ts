@@ -12,7 +12,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
 import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ITunnelProxyInfo } from '../../../../../platform/tunnel/common/tunnelProxy.js';
+import { TunnelProxyStatus } from '../../../../../platform/tunnel/common/tunnelProxy.js';
 import { BrowserEditorInput, BrowserEditorSerializer, IBrowserEditorInputData } from '../../common/browserEditorInput.js';
 import { IBrowserEditorViewState, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewOpenHandler, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { IUntypedEditorInput } from '../../../../common/editor.js';
@@ -36,7 +36,7 @@ class TestBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 		return false;
 	}
 
-	setRemoteProxyInfo(_info: ITunnelProxyInfo | undefined): void { }
+	setRemoteProxyStatus(_status: TunnelProxyStatus): void { }
 
 	getKnownBrowserViews(): Map<string, BrowserEditorInput> {
 		return this.known;

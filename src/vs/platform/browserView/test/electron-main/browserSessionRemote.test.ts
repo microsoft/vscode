@@ -57,7 +57,7 @@ suite('BrowserSessionRemote', () => {
 
 	test('waits for enabled proxy information before becoming ready', async () => {
 		const { remote, electronSession } = createRemote();
-		remote.acquire('view', true, undefined);
+		remote.acquire('view', { type: 'starting' });
 
 		const pendingReady = remote.whenReady;
 		let didBecomeReady = false;
@@ -67,7 +67,7 @@ suite('BrowserSessionRemote', () => {
 		assert.strictEqual(didBecomeReady, false);
 		assert.deepStrictEqual(electronSession.setProxyCalls, []);
 
-		remote.acquire('view', true, proxyInfo);
+		remote.acquire('view', { type: 'ready', info: proxyInfo });
 		assert.strictEqual(remote.whenReady, pendingReady);
 		assert.deepStrictEqual(electronSession.setProxyCalls, [{
 			proxyRules: proxyInfo.url,
@@ -85,10 +85,10 @@ suite('BrowserSessionRemote', () => {
 
 	test('disabling a pending proxy releases navigation into direct mode', async () => {
 		const { remote, electronSession } = createRemote();
-		remote.acquire('view', true, undefined);
+		remote.acquire('view', { type: 'starting' });
 		const pendingReady = remote.whenReady;
 
-		remote.acquire('view', false, undefined);
+		remote.acquire('view', { type: 'stopped' });
 
 		assert.deepStrictEqual(electronSession.setProxyCalls, [{ mode: 'direct' }]);
 		await electronSession.setProxyGates[0].complete();
@@ -98,18 +98,18 @@ suite('BrowserSessionRemote', () => {
 
 	test('waits again when proxy information is temporarily unavailable', async () => {
 		const { remote, electronSession } = createRemote();
-		remote.acquire('view', true, proxyInfo);
+		remote.acquire('view', { type: 'ready', info: proxyInfo });
 		await electronSession.setProxyGates[0].complete();
 		await remote.whenReady;
 
-		remote.acquire('view', true, undefined);
+		remote.acquire('view', { type: 'starting' });
 		const pendingReady = remote.whenReady;
 		let didBecomeReady = false;
 		void pendingReady.then(() => { didBecomeReady = true; });
 		await Promise.resolve();
 		assert.strictEqual(didBecomeReady, false);
 
-		remote.acquire('view', true, proxyInfo);
+		remote.acquire('view', { type: 'ready', info: proxyInfo });
 		assert.strictEqual(electronSession.setProxyCalls.length, 2);
 		await electronSession.setProxyGates[1].complete();
 		await pendingReady;
@@ -119,7 +119,7 @@ suite('BrowserSessionRemote', () => {
 	test('leaves navigation ready when the proxy is disabled', async () => {
 		const { remote, electronSession } = createRemote();
 
-		remote.acquire('view', false, undefined);
+		remote.acquire('view', { type: 'stopped' });
 		await remote.whenReady;
 
 		assert.deepStrictEqual(electronSession.setProxyCalls, []);
@@ -129,10 +129,39 @@ suite('BrowserSessionRemote', () => {
 	test('does not enable the proxy for global browser storage', async () => {
 		const { remote, electronSession } = createRemote(BrowserViewStorageScope.Global);
 
-		remote.acquire('view', true, undefined);
+		remote.acquire('view', { type: 'starting' });
 		await remote.whenReady;
 
 		assert.deepStrictEqual(electronSession.setProxyCalls, []);
 		assert.strictEqual(remote.isRemote, false);
+	});
+
+	test('rejects pending navigation when proxy startup fails', async () => {
+		const { remote, electronSession } = createRemote();
+		remote.acquire('view', { type: 'starting' });
+		const pendingReady = remote.whenReady;
+
+		remote.acquire('view', { type: 'failed', error: 'listen EADDRINUSE' });
+
+		await assert.rejects(pendingReady, /Failed to start remote browser proxy: listen EADDRINUSE/);
+		assert.deepStrictEqual(electronSession.setProxyCalls, []);
+		assert.strictEqual(remote.isRemote, false);
+	});
+
+	test('can restart after proxy startup fails', async () => {
+		const { remote, electronSession } = createRemote();
+		remote.acquire('view', { type: 'starting' });
+		const failedReady = remote.whenReady;
+		remote.acquire('view', { type: 'failed', error: 'startup failed' });
+		await assert.rejects(failedReady, /startup failed/);
+
+		remote.acquire('view', { type: 'starting' });
+		const restartedReady = remote.whenReady;
+		remote.acquire('view', { type: 'ready', info: proxyInfo });
+		await electronSession.setProxyGates[0].complete();
+		await restartedReady;
+
+		assert.strictEqual(remote.isRemote, true);
+		assert.strictEqual(remote.proxy, proxyInfo);
 	});
 });

@@ -499,11 +499,59 @@ suite('TunnelProxy', () => {
 
 	// --- Error handling ---
 
+	test('recovers an HTTP request when the first tunnel connection fails', async () => {
+		const successfulConnect = createMockConnectFn(targetPort);
+		let connectCount = 0;
+		const transientConnect: ITunnelConnectFn = async (host, port) => {
+			connectCount++;
+			if (connectCount === 1) {
+				throw new Error('transient remote connection failure');
+			}
+			return successfulConnect(host, port);
+		};
+		const retryProxy = ds.add(new TunnelProxy(transientConnect, new NullLogService()));
+		const retryInfo = await retryProxy.start();
+
+		const response = await proxyRequest(retryInfo, {
+			path: `http://127.0.0.1:${targetPort}/after-reconnect`,
+			auth: true,
+		});
+
+		assert.deepStrictEqual({ connectCount, statusCode: response.statusCode, body: response.body }, {
+			connectCount: 2,
+			statusCode: 200,
+			body: 'ECHO GET /after-reconnect',
+		});
+		retryProxy.dispose();
+	});
+
+	test('recovers a CONNECT request when the first tunnel connection fails', async () => {
+		const successfulConnect = createMockConnectFn(targetPort);
+		let connectCount = 0;
+		const transientConnect: ITunnelConnectFn = async (host, port) => {
+			connectCount++;
+			if (connectCount === 1) {
+				throw new Error('transient remote connection failure');
+			}
+			return successfulConnect(host, port);
+		};
+		const retryProxy = ds.add(new TunnelProxy(transientConnect, new NullLogService()));
+		const retryInfo = await retryProxy.start();
+
+		const { statusCode, socket } = await proxyConnect(retryInfo, `127.0.0.1:${targetPort}`, true);
+
+		assert.deepStrictEqual({ connectCount, statusCode }, { connectCount: 2, statusCode: 200 });
+		socket.end();
+		retryProxy.dispose();
+	});
+
 	test('fails the request when the tunnel connection fails', async () => {
 		// A failed tunnel - whether the remote agent itself is unreachable or
 		// the remote reports (via the handshake) that the target host:port is
 		// unreachable - surfaces here as a rejected connect function.
+		let connectCount = 0;
 		const failingConnect: ITunnelConnectFn = async () => {
+			connectCount++;
 			throw new Error('connect ECONNREFUSED 127.0.0.1:9999');
 		};
 		const failProxy = ds.add(new TunnelProxy(failingConnect, new NullLogService()));
@@ -520,6 +568,7 @@ suite('TunnelProxy', () => {
 		// native tunnel error page).
 		const { statusCode, socket } = await proxyConnect(failInfo, 'unreachable.example.com:443', true);
 		assert.strictEqual(statusCode, 502);
+		assert.strictEqual(connectCount, 4);
 		socket.end();
 
 		failProxy.dispose();
