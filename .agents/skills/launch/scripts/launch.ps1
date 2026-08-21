@@ -39,22 +39,41 @@ function Get-UsableNode([string]$repoPath) {
 	}
 
 	$setupMessage = "Run in PowerShell from $repoPath`: fnm env --use-on-cd --shell powershell | Out-String | Invoke-Expression; fnm use"
-	if ($null -eq $command) {
-		throw "Node.js $requiredVersion or newer is required on PATH. $setupMessage"
+	if ($null -ne $command) {
+		try {
+			$version = & $command.Source --version 2>$null
+			if ($LASTEXITCODE -ne 0 -or $version -notmatch '^v(?<version>\d+\.\d+\.\d+)') {
+				throw 'could not determine its version'
+			}
+			if ([version]$Matches.version -lt [version]$requiredVersion) {
+				throw "found $version"
+			}
+			return $command.Source
+		} catch {
+			# Fall through to fnm fallback
+		}
 	}
 
-	try {
-		$version = & $command.Source --version 2>$null
-		if ($LASTEXITCODE -ne 0 -or $version -notmatch '^v(?<version>\d+\.\d+\.\d+)') {
-			throw 'could not determine its version'
+	# Fallback: Check fnm directories (most recent first)
+	$fnmBase = Join-Path $env:USERPROFILE 'AppData\Local\fnm_multishells'
+	if (Test-Path $fnmBase) {
+		$fnmDirs = Get-ChildItem $fnmBase -Directory -ErrorAction SilentlyContinue | Sort-Object -Property CreationTime -Descending
+		foreach ($dir in $fnmDirs) {
+			$nodePath = Join-Path $dir.FullName 'node.exe'
+			if (Test-Path $nodePath) {
+				try {
+					$version = & $nodePath --version 2>$null
+					if ($LASTEXITCODE -eq 0 -and $version -match '^v(?<version>\d+\.\d+\.\d+)') {
+						if ([version]$Matches.version -ge [version]$requiredVersion) {
+							return $nodePath
+						}
+					}
+				} catch { }
+			}
 		}
-		if ([version]$Matches.version -lt [version]$requiredVersion) {
-			throw "found $version"
-		}
-		return $command.Source
-	} catch {
-		throw "Node.js $requiredVersion or newer is required on PATH ($($_.Exception.Message)). $setupMessage"
 	}
+
+	throw "Node.js $requiredVersion or newer is required on PATH. $setupMessage"
 }
 
 function Get-FreePort {
