@@ -181,6 +181,8 @@ export function toSdkToolFilterPatterns(patterns: readonly string[] | undefined)
 }
 
 export interface ICopilotSessionRuntime {
+	/** Chat channel that owns this session's turns, used to attribute terminal claims. */
+	readonly chatUri: URI;
 	handlePermissionRequest(request: PermissionRequest): Promise<PermissionRequestResult>;
 	handleExitPlanModeRequest(request: ExitPlanModeRequest, invocation: { sessionId: string }): Promise<ExitPlanModeResult>;
 	handleUserInputRequest(request: UserInputRequest, invocation: UserInputInvocation): Promise<UserInputResponse>;
@@ -743,7 +745,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			if (!plan.shellManager) {
 				throw new Error(`ShellManager is required to launch Copilot session '${plan.sessionId}'`);
 			}
-			shellTools = await createShellTools(plan.shellManager, this._terminalManager, this._logService, request => runtime.requestUnsandboxedCommandConfirmation(request));
+			shellTools = await createShellTools(plan.shellManager, runtime.chatUri, this._terminalManager, this._logService, request => runtime.requestUnsandboxedCommandConfirmation(request));
 		}
 		// Rely on the SDK to discover most agents/skills/etc. from `pluginDirectories`
 		// instead of feeding them explicitly, to avoid duplicates. Custom agents are the

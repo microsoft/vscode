@@ -4018,7 +4018,7 @@ suite('AgentHostChatContribution', () => {
 			assert.ok(dispatch, 'turn must start after the subscription errors; handler hung waiting on onDidChange (issue #5242)');
 			const action = dispatch.action as ITurnStartedAction;
 			agentHostService.fireAction({ channel: dispatch.channel.toString(), action: dispatch.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch.clientSeq } });
-			agentHostService.fireAction({ channel: dispatch.channel.toString(), action: { type: 'chat/turnComplete', turnId: action.turnId } as ChatAction, serverSeq: 2, origin: undefined });
+			agentHostService.fireAction({ channel: dispatch.channel.toString(), action: { type: 'chat/turnComplete', turnId: action.turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction, serverSeq: 2, origin: undefined });
 			await turnPromise;
 
 			assert.deepStrictEqual(agentHostService.turnActions.map(d => (d.action as ITurnStartedAction).message.text), ['Hello']);
@@ -5159,7 +5159,7 @@ suite('AgentHostChatContribution', () => {
 				completions: 0,
 			});
 
-			fire({ type: ActionType.ChatTurnComplete, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
 			await turnPromise;
 		}));
 
@@ -5435,7 +5435,7 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(carousel.answeredExternally, true, 'accepted input without answers should be marked answered');
 			assert.ok(carousel instanceof ChatQuestionCarouselData, 'AgentHost input request should use runtime carousel data');
 
-			fire({ type: ActionType.ChatTurnComplete, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
 			await turnPromise;
 		}));
 
@@ -9597,7 +9597,7 @@ suite('AgentHostChatContribution', () => {
 			assert.ok(turnDispatch);
 			const turnAction = turnDispatch.action as ITurnStartedAction;
 			agentHostService.fireAction({ channel: turnDispatch.channel.toString(), action: turnDispatch.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: turnDispatch.clientSeq } });
-			agentHostService.fireAction({ channel: turnDispatch.channel.toString(), action: { type: 'chat/turnComplete', turnId: turnAction.turnId } as ChatAction, serverSeq: 2, origin: undefined });
+			agentHostService.fireAction({ channel: turnDispatch.channel.toString(), action: { type: 'chat/turnComplete', turnId: turnAction.turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction, serverSeq: 2, origin: undefined });
 			await turnPromise;
 
 			assert.deepStrictEqual({
@@ -10289,7 +10289,7 @@ suite('AgentHostChatContribution', () => {
 
 			// Clean up the awaitConfirmation promise before teardown.
 			agentHostService.fireAction({
-				channel: sessionUri.toString(), action: { type: 'chat/turnComplete', turnId: 'turn-active' } as ChatAction,
+				channel: sessionUri.toString(), action: { type: 'chat/turnComplete', turnId: 'turn-active', endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction,
 				serverSeq: 2,
 				origin: undefined,
 			});
@@ -12692,7 +12692,7 @@ suite('AgentHostChatContribution', () => {
 
 			const promptParts = collected.flat().filter((p): p is IChatMcpAuthenticationRequired => p.kind === 'mcpAuthenticationRequired');
 
-			agentHostService.fireAction({ channel: dispatch.channel.toString(), action: { type: 'chat/turnComplete', turnId } as ChatAction, serverSeq: seq.v++, origin: undefined });
+			agentHostService.fireAction({ channel: dispatch.channel.toString(), action: { type: 'chat/turnComplete', turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction, serverSeq: seq.v++, origin: undefined });
 			await turnPromise;
 			return promptParts;
 		}

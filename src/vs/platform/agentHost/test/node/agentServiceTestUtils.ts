@@ -21,8 +21,18 @@ import { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
 import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { AgentService } from '../../node/agentService.js';
-import { createAgentService } from '../../node/agentServiceComposition.js';
+import { createAgentServiceComposition, type IAgentServiceComposition } from '../../node/agentServiceComposition.js';
 import { ICopilotApiService } from '../../node/shared/copilotApiService.js';
+
+const compositions = new WeakMap<AgentService, IAgentServiceComposition>();
+
+export function getTestAgentServiceComposition(agentService: AgentService): IAgentServiceComposition {
+	const composition = compositions.get(agentService);
+	if (!composition) {
+		throw new Error('AgentService was not created by createTestAgentService');
+	}
+	return composition;
+}
 
 export function createTestAgentService(
 	logService: ILogService,
@@ -70,14 +80,16 @@ export function createTestAgentService(
 		storageResource,
 		orchestratorDatabase,
 	};
-	const service = createAgentService(
+	const composition = createAgentServiceComposition(
 		options,
 		services,
 		instantiationService,
 		fetchFn,
 		logService,
 		productService,
+		sessionDataService,
 		fileMonitorService ? [instantiationService] : [effectiveFileMonitorService, instantiationService],
 	);
-	return service;
+	compositions.set(composition.agentService, composition);
+	return composition.agentService;
 }
