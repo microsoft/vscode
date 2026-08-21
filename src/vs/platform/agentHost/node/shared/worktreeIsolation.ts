@@ -625,7 +625,14 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 
 			const worktreeBranchTrack = config[SessionConfigKey.WorktreeBranchTrack] === true;
 			await withPercentProgress(WorktreeCreationPhase.CheckingOut, onProgress, progress =>
-				this._gitService.addWorktree(repositoryRoot, worktree, branchName, baseBranch, worktreeBranchTrack, progress));
+				this._gitService.addWorktree(repositoryRoot, {
+					path: worktree,
+					commitish: baseBranch,
+					newBranchName: branchName,
+					track: worktreeBranchTrack,
+					preferRemoteBranch: true,
+					onProgress: progress,
+				}));
 			return { branchName, worktree, baseBranch };
 		});
 		const worktreeIncludeFiles = Array.isArray(config[SessionConfigKey.WorktreeIncludeFiles])
