@@ -15,7 +15,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { localize } from '../../../../nls.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../common/session.js';
 import { IActiveSession, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, inheritableSessionTarget, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
@@ -174,6 +174,15 @@ export interface ISessionsService {
 	 * keyboard focus into it.
 	 */
 	openSession(sessionResource: URI, options?: { preserveFocus?: boolean }): Promise<void>;
+
+	/**
+	 * Whether the given session may be opened, honoring workspace trust. Resolves
+	 * to `false` only when the session requires workspace trust and the folder it
+	 * runs in is not trusted. Pure and side-effect-free: callers gate the act of
+	 * opening a session from the list on this, so a refused open leaves the
+	 * current session (or the empty new-session slot) untouched.
+	 */
+	canOpenSession(session: ISession): Promise<boolean>;
 
 	/**
 	 * Open a specific chat within a session and show it in the grid.
@@ -355,6 +364,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		@ICustomViewService private readonly customViewService: ICustomViewService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@ISessionChangesStatsCache private readonly changesStatsCache: ISessionChangesStatsCache,
 	) {
 		super();
@@ -802,6 +812,28 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 		const sessionData = this._showSession(resolved, options);
 		await this._waitForOpenSessionToLoad(sessionData, token);
+	}
+
+	async canOpenSession(session: ISession): Promise<boolean> {
+		// Re-focusing the already-active session is not a new open, so never gate it.
+		if (this.activeSession.get()?.sessionId === session.sessionId) {
+			return true;
+		}
+		const workspace = session.workspace.get();
+		// A session that doesn't require workspace trust (virtual/cloud/quick-chat),
+		// or whose workspace metadata has not hydrated yet, opens without a check; a
+		// folder-less workspace has nothing to gate.
+		if (!workspace?.requiresWorkspaceTrust) {
+			return true;
+		}
+		const folder = workspace.folders[0];
+		if (!folder) {
+			return true;
+		}
+		// Only the mounted folder (index 0) governs window trust; any additional
+		// working directories are gated at agent-operation time by the send-side
+		// trust check, and a cold session persists only its primary folder.
+		return (await this.workspaceTrustManagementService.getUriTrustInfo(folder.workingDirectory)).trusted;
 	}
 
 	showSession(sessionResource: URI, options?: { preserveFocus?: boolean }): void {

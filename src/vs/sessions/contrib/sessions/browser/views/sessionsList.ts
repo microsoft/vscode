@@ -1858,6 +1858,14 @@ export interface ISessionsListControlOptions {
 	readonly sorting: () => SessionsSorting;
 	readonly findWidgetContainer?: HTMLElement;
 	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void;
+
+	/**
+	 * Gate invoked before a session is opened (before mark-read, activation, and
+	 * folder mount). Return `false` to refuse the open — e.g. the session's folder
+	 * is not trusted — leaving the current session/empty slot untouched. When
+	 * omitted, opens are not gated.
+	 */
+	canOpenSession?(session: ISession): Promise<boolean>;
 }
 
 /**
@@ -2187,7 +2195,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		));
 
-		this._register(this.tree.onDidOpen(e => {
+		this._register(this.tree.onDidOpen(async e => {
 			const element = e.element;
 			if (!element) {
 				return;
@@ -2214,6 +2222,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 				return;
 			}
 			if (!isSessionSection(element) && !isSessionGroupItem(element)) {
+				// Gate the open on workspace trust before any side effect (mark-read,
+				// activation, folder mount). A refused open leaves the current
+				// session (or empty new-session slot) untouched.
+				if (this.options.canOpenSession && !(await this.options.canOpenSession(element))) {
+					return;
+				}
 				this.markRead(element);
 				// A deliberate left mouse click on a session should move keyboard
 				// focus into the chat input so the user can start typing right
