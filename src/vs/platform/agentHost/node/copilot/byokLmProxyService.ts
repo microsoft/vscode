@@ -202,9 +202,14 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 		}
 
 		const continuationScope = typeof body?.model === 'string' ? this._continuationScope(sessionId, vendor, body.model) : undefined;
-		const recovered = continuationScope && body.previous_response_id === undefined
+		const explicitResponseId = body?.previous_response_id;
+		const explicit = continuationScope && explicitResponseId !== undefined
+			? Array.from(runtime.state).find(pending => pending.scope === continuationScope && pending.responseId === explicitResponseId)
+			: undefined;
+		const recovered = continuationScope && explicitResponseId === undefined
 			? this._findToolContinuation(runtime.state, continuationScope, body.input)
 			: undefined;
+		const consumed = recovered?.pending ?? explicit;
 		const bridgeBody = recovered
 			? { ...body, input: recovered.input, previous_response_id: recovered.pending.responseId }
 			: body;
@@ -245,8 +250,8 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 				this._writeJsonError(res, 502, result.error, 'api_error');
 				return;
 			}
-			if (recovered) {
-				runtime.state.delete(recovered.pending);
+			if (consumed) {
+				runtime.state.delete(consumed);
 			}
 			if (continuationScope) {
 				this._addToolContinuation(runtime.state, continuationScope, result);

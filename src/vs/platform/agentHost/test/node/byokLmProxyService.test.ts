@@ -380,6 +380,59 @@ suite('ByokLmProxyService', () => {
 		});
 	});
 
+	test('consumes an explicit continuation only after a successful bridge result', async () => {
+		const captured: IByokLmChatRequest[] = [];
+		const output = { type: 'function_call_output', call_id: 'call_1', output: 'done' };
+		const replayedInput = [
+			{ type: 'function_call', call_id: 'call_1', name: 'tool', arguments: '{}' },
+			output,
+		];
+
+		await withProxy(
+			async request => {
+				captured.push(request);
+				if (captured.length === 1) {
+					return {
+						responseId: 'resp_1',
+						output: [{ type: 'function_call', callId: 'call_1', name: 'tool', argumentsJson: '{}' }],
+					};
+				}
+				return captured.length === 2
+					? { output: [], error: 'retryable failure' }
+					: { output: [{ type: 'message', content: [{ type: 'text', text: 'done' }] }] };
+			},
+			async handle => {
+				const post = (input: unknown, previousResponseId?: string) => fetch(responsesUrl(handle, 'acme'), {
+					method: 'POST',
+					headers: authHeaders(handle),
+					body: JSON.stringify({ model: 'm', input, ...(previousResponseId ? { previous_response_id: previousResponseId } : {}) }),
+				});
+
+				for (const [input, previousResponseId, expectedStatus] of [
+					[[], undefined, 200],
+					[[output], 'resp_1', 502],
+					[[output], 'resp_1', 200],
+					[replayedInput, undefined, 200],
+				] as const) {
+					const response = await post(input, previousResponseId);
+					assert.strictEqual(response.status, expectedStatus);
+					await response.text();
+				}
+			},
+		);
+
+		assert.deepStrictEqual({
+			previousResponseIds: captured.map(request => request.previousResponseId),
+			finalInput: captured[3]?.input,
+		}, {
+			previousResponseIds: [undefined, 'resp_1', 'resp_1', undefined],
+			finalInput: [
+				{ type: 'function_call', callId: 'call_1', name: 'tool', argumentsJson: '{}' },
+				{ type: 'function_call_output', callId: 'call_1', output: 'done' },
+			],
+		});
+	});
+
 	test('preserves full stateless replay when no resumable provider state is reported', async () => {
 		const captured: IByokLmChatRequest[] = [];
 		const initialInput = [{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Use the tool.' }] }];
@@ -644,16 +697,18 @@ suite('ByokLmProxyService', () => {
 		);
 	});
 
-	test('rejects a malformed JSON body with 400', async () => {
+	test('rejects a malformed or null JSON body with 400', async () => {
 		await withProxy(
 			async () => ({ output: [] }),
 			async (handle) => {
-				const response = await fetch(responsesUrl(handle, 'acme'), {
-					method: 'POST',
-					headers: authHeaders(handle),
-					body: 'not json',
-				});
-				assert.strictEqual(response.status, 400);
+				for (const body of ['not json', 'null']) {
+					const response = await fetch(responsesUrl(handle, 'acme'), {
+						method: 'POST',
+						headers: authHeaders(handle),
+						body,
+					});
+					assert.strictEqual(response.status, 400);
+				}
 			},
 		);
 	});
