@@ -184,7 +184,7 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 						id: uri.toString(),
 						label,
 						resource: uri,
-						...artifactLocation(uri, label),
+						...sessionArtifactLocation(uri, label),
 						...(imageCarouselEnabled
 							? {
 								ariaLabel: localize('sessionArtifacts.openImage', "Open {0} in Images Preview", label),
