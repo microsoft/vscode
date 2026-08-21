@@ -21,6 +21,12 @@ import { AbstractSynchroniser, IAcceptResult, IFileResourcePreview, IMergeResult
 import { FileOperationError, FileOperationResult, IFileContent, IFileService, IFileStat } from '../../../files/common/files.js';
 import { Change, IRemoteUserData, ISyncData, IUserDataSyncLocalStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME } from '../userDataSync.js';
 
+/**
+ * Maximum size in bytes for a single synced folder.
+ * Folders exceeding this limit will be skipped during sync.
+ */
+const MAX_FOLDER_SIZE = 500 * 1024; // 500KB
+
 interface IPromptsResourcePreview extends IFileResourcePreview {
 	previewResult: IMergeResult;
 }
@@ -34,7 +40,9 @@ export function parsePrompts(syncData: ISyncData): IStringDictionary<string> {
 }
 
 /**
- * Synchronizer class for the "user" prompt files.
+ * Synchronizer class for user prompt and customization assets.
+ * Supports both individual files and folders (e.g., skills).
+ * Folders are read recursively and subject to a size limit per folder.
  * Adopted from {@link SnippetsSynchroniser}.
  */
 export class PromptsSynchronizer extends AbstractSynchroniser implements IUserDataSynchroniser {
@@ -429,37 +437,38 @@ export class PromptsSynchronizer extends AbstractSynchroniser implements IUserDa
 		const local: IStringDictionary<IFileContent> = {};
 		for (const resourcePreview of resourcePreviews) {
 			if (resourcePreview.fileContent) {
-				local[this.extUri.basename(resourcePreview.localResource)] = resourcePreview.fileContent;
+				const key = this.extUri.relativePath(this.syncPreviewFolder, resourcePreview.previewResource)!;
+				local[key] = resourcePreview.fileContent;
 			}
 		}
 		await this.backupLocal(JSON.stringify(this.toPromptContents(local)));
 	}
 
 	private async updateLocalPrompts(resourcePreviews: IPromptsAcceptedResourcePreview[], force: boolean): Promise<void> {
-		for (const { fileContent, acceptResult, localResource, remoteResource, localChange } of resourcePreviews) {
+		for (const { fileContent, acceptResult, previewResource, localChange } of resourcePreviews) {
 			if (localChange !== Change.None) {
-				const key = remoteResource ? this.extUri.basename(remoteResource) : this.extUri.basename(localResource);
+				const key = this.extUri.relativePath(this.syncPreviewFolder, previewResource)!;
 				const resource = this.extUri.joinPath(this.promptsFolder, key);
 
 				// Removed
 				if (localChange === Change.Deleted) {
-					this.logService.trace(`${this.syncResourceLogLabel}: Deleting prompt...`, this.extUri.basename(resource));
+					this.logService.trace(`${this.syncResourceLogLabel}: Deleting prompt...`, key);
 					await this.fileService.del(resource);
-					this.logService.info(`${this.syncResourceLogLabel}: Deleted prompt`, this.extUri.basename(resource));
+					this.logService.info(`${this.syncResourceLogLabel}: Deleted prompt`, key);
 				}
 
 				// Added
 				else if (localChange === Change.Added) {
-					this.logService.trace(`${this.syncResourceLogLabel}: Creating prompt...`, this.extUri.basename(resource));
+					this.logService.trace(`${this.syncResourceLogLabel}: Creating prompt...`, key);
 					await this.fileService.createFile(resource, VSBuffer.fromString(acceptResult.content!), { overwrite: force });
-					this.logService.info(`${this.syncResourceLogLabel}: Created prompt`, this.extUri.basename(resource));
+					this.logService.info(`${this.syncResourceLogLabel}: Created prompt`, key);
 				}
 
 				// Updated
 				else {
-					this.logService.trace(`${this.syncResourceLogLabel}: Updating prompt...`, this.extUri.basename(resource));
+					this.logService.trace(`${this.syncResourceLogLabel}: Updating prompt...`, key);
 					await this.fileService.writeFile(resource, VSBuffer.fromString(acceptResult.content!), force ? undefined : fileContent!);
-					this.logService.info(`${this.syncResourceLogLabel}: Updated prompt`, this.extUri.basename(resource));
+					this.logService.info(`${this.syncResourceLogLabel}: Updated prompt`, key);
 				}
 			}
 		}
@@ -469,9 +478,9 @@ export class PromptsSynchronizer extends AbstractSynchroniser implements IUserDa
 		const currentPrompts: IStringDictionary<string> = remoteUserData.syncData ? this.parsePrompts(remoteUserData.syncData) : {};
 		const newPrompts: IStringDictionary<string> = deepClone(currentPrompts);
 
-		for (const { acceptResult, localResource, remoteResource, remoteChange } of resourcePreviews) {
+		for (const { acceptResult, previewResource, remoteChange } of resourcePreviews) {
 			if (remoteChange !== Change.None) {
-				const key = localResource ? this.extUri.basename(localResource) : this.extUri.basename(remoteResource);
+				const key = this.extUri.relativePath(this.syncPreviewFolder, previewResource)!;
 				if (remoteChange === Change.Deleted) {
 					delete newPrompts[key];
 				} else {
@@ -507,23 +516,59 @@ export class PromptsSynchronizer extends AbstractSynchroniser implements IUserDa
 		try {
 			stat = await this.fileService.resolve(this.promptsFolder);
 		} catch (e) {
-			// No prompts
 			if (e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
 				return prompts;
-			} else {
-				throw e;
 			}
+			throw e;
 		}
 		for (const entry of stat.children || []) {
-			const resource = entry.resource;
-			const path = resource.path;
-			if (['.prompt.md', '.instructions.md', '.chatmode.md', '.agent.md'].some(ext => path.endsWith(ext))) {
-				const key = this.extUri.relativePath(this.promptsFolder, resource)!;
-				const content = await this.fileService.readFile(resource);
+			if (entry.isDirectory) {
+				const folderName = this.extUri.relativePath(this.promptsFolder, entry.resource)!;
+				const folderFiles = await this.readFolderRecursively(entry.resource, folderName);
+
+				let totalSize = 0;
+				for (const content of Object.values(folderFiles)) {
+					totalSize += content.value.byteLength;
+				}
+
+				if (totalSize > MAX_FOLDER_SIZE) {
+					this.logService.warn(`${this.syncResourceLogLabel}: Skipping folder "${folderName}" because its total size (${Math.round(totalSize / 1024)}KB) exceeds the ${Math.round(MAX_FOLDER_SIZE / 1024)}KB limit`);
+					continue;
+				}
+
+				Object.assign(prompts, folderFiles);
+			} else {
+				const key = this.extUri.relativePath(this.promptsFolder, entry.resource)!;
+				const content = await this.fileService.readFile(entry.resource);
 				prompts[key] = content;
 			}
 		}
 
 		return prompts;
+	}
+
+	private async readFolderRecursively(folderUri: URI, relativePath: string): Promise<IStringDictionary<IFileContent>> {
+		const result: IStringDictionary<IFileContent> = {};
+		let stat: IFileStat;
+		try {
+			stat = await this.fileService.resolve(folderUri);
+		} catch (e) {
+			if (e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
+				return result;
+			}
+			throw e;
+		}
+		for (const entry of stat.children || []) {
+			const entryName = this.extUri.relativePath(folderUri, entry.resource)!;
+			const entryRelPath = `${relativePath}/${entryName}`;
+			if (entry.isDirectory) {
+				const subFiles = await this.readFolderRecursively(entry.resource, entryRelPath);
+				Object.assign(result, subFiles);
+			} else {
+				const content = await this.fileService.readFile(entry.resource);
+				result[entryRelPath] = content;
+			}
+		}
+		return result;
 	}
 }

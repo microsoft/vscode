@@ -51,6 +51,8 @@ const NULL_PROFILE = {
 	languageModelsResource: joinPath(homeDir, 'chatLanguageModels.json'),
 	snippetsHome: joinPath(homeDir, 'snippets'),
 	promptsHome: joinPath(homeDir, 'prompts'),
+	skillsHome: joinPath(homeDir, 'skills'),
+	hooksHome: joinPath(homeDir, 'hooks'),
 	extensionsResource: joinPath(homeDir, 'extensions.json'),
 	cacheHome: joinPath(homeDir, 'cache'),
 	agentPluginsHome: joinPath(homeDir, 'agentPluginsHome'),

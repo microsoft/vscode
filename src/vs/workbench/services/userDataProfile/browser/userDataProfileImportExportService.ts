@@ -754,6 +754,8 @@ class UserDataProfileExportState extends UserDataProfileImportExportState {
 			languageModelsResource: profile.languageModelsResource.with({ scheme: USER_DATA_PROFILE_EXPORT_SCHEME }),
 			snippetsHome: profile.snippetsHome.with({ scheme: USER_DATA_PROFILE_EXPORT_SCHEME }),
 			promptsHome: profile.promptsHome.with({ scheme: USER_DATA_PROFILE_EXPORT_SCHEME }),
+			skillsHome: profile.skillsHome.with({ scheme: USER_DATA_PROFILE_EXPORT_SCHEME }),
+			hooksHome: profile.hooksHome.with({ scheme: USER_DATA_PROFILE_EXPORT_SCHEME }),
 			extensionsResource: profile.extensionsResource,
 			cacheHome: profile.cacheHome,
 			agentPluginsHome: profile.agentPluginsHome,

@@ -46,6 +46,8 @@ async function createStorageService(): Promise<[DisposableStore, BrowserStorageS
 		languageModelsResource: joinPath(inMemoryExtraProfileRoot, 'chatLanguageModels.json'),
 		snippetsHome: joinPath(inMemoryExtraProfileRoot, 'snippetsHome'),
 		promptsHome: joinPath(inMemoryExtraProfileRoot, 'promptsHome'),
+		skillsHome: joinPath(inMemoryExtraProfileRoot, 'skillsHome'),
+		hooksHome: joinPath(inMemoryExtraProfileRoot, 'hooksHome'),
 		extensionsResource: joinPath(inMemoryExtraProfileRoot, 'extensionsResource'),
 		cacheHome: joinPath(inMemoryExtraProfileRoot, 'cache'),
 		agentPluginsHome: joinPath(inMemoryExtraProfileRoot, 'agentPluginsHome'),

@@ -165,6 +165,8 @@ suite('Edit session sync', () => {
 				languageModelsResource: URI.file('chatLanguageModels.json'),
 				snippetsHome: URI.file('snippetsHome'),
 				promptsHome: URI.file('promptsHome'),
+				skillsHome: URI.file('skillsHome'),
+				hooksHome: URI.file('hooksHome'),
 				extensionsResource: URI.file('extensionsResource'),
 				cacheHome: URI.file('cacheHome'),
 				agentPluginsHome: URI.file('agentPluginsHome'),
