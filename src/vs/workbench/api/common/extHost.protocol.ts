@@ -103,6 +103,7 @@ import { TerminalShellExecutionCommandLineConfidence } from './extHostTypes.js';
 import * as tasks from './shared/tasks.js';
 import { PromptsType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { CDPEvent, CDPRequest, CDPResponse } from '../../../platform/browserView/common/cdp/types.js';
+import { ICustomEditorOutlineItemDto } from '../../contrib/customEditor/common/customEditorOutlineService.js';
 
 export type IconPathDto =
 	| UriComponents
@@ -1228,6 +1229,20 @@ export interface ExtHostCustomEditorsShape {
 	$backup(resource: UriComponents, viewType: string, cancellation: CancellationToken): Promise<string>;
 
 	$onMoveCustomEditor(handle: WebviewHandle, newResource: UriComponents, viewType: string): Promise<void>;
+}
+
+export type { ICustomEditorOutlineItemDto } from '../../contrib/customEditor/common/customEditorOutlineService.js';
+
+export interface MainThreadCustomEditorOutlineShape extends IDisposable {
+	$registerCustomEditorOutlineProvider(viewType: string): void;
+	$unregisterCustomEditorOutlineProvider(viewType: string): void;
+	$onDidChangeOutline(viewType: string, webviewHandle: WebviewHandle): void;
+	$onDidChangeActiveItem(viewType: string, webviewHandle: WebviewHandle, itemId: string | undefined): void;
+}
+
+export interface ExtHostCustomEditorOutlineShape {
+	$provideOutline(viewType: string, resource: UriComponents, webviewHandle: WebviewHandle, token: CancellationToken): Promise<ICustomEditorOutlineItemDto[] | undefined>;
+	$revealItem(viewType: string, resource: UriComponents, webviewHandle: WebviewHandle, itemId: string): void;
 }
 
 export interface ExtHostWebviewViewsShape {
@@ -4090,6 +4105,7 @@ export const MainContext = {
 	MainThreadWebviewPanels: createProxyIdentifier<MainThreadWebviewPanelsShape>('MainThreadWebviewPanels'),
 	MainThreadWebviewViews: createProxyIdentifier<MainThreadWebviewViewsShape>('MainThreadWebviewViews'),
 	MainThreadCustomEditors: createProxyIdentifier<MainThreadCustomEditorsShape>('MainThreadCustomEditors'),
+	MainThreadCustomEditorOutline: createProxyIdentifier<MainThreadCustomEditorOutlineShape>('MainThreadCustomEditorOutline'),
 	MainThreadUrls: createProxyIdentifier<MainThreadUrlsShape>('MainThreadUrls'),
 	MainThreadUriOpeners: createProxyIdentifier<MainThreadUriOpenersShape>('MainThreadUriOpeners'),
 	MainThreadProfileContentHandlers: createProxyIdentifier<MainThreadProfileContentHandlersShape>('MainThreadProfileContentHandlers'),
@@ -4213,5 +4229,6 @@ export const ExtHostContext = {
 	ExtHostChatSessions: createProxyIdentifier<ExtHostChatSessionsShape>('ExtHostChatSessions'),
 	ExtHostChatQuota: createProxyIdentifier<ExtHostChatQuotaShape>('ExtHostChatQuota'),
 	ExtHostGitExtension: createProxyIdentifier<ExtHostGitExtensionShape>('ExtHostGitExtension'),
+	ExtHostCustomEditorOutline: createProxyIdentifier<ExtHostCustomEditorOutlineShape>('ExtHostCustomEditorOutline'),
 	ExtHostBrowsers: createProxyIdentifier<ExtHostBrowsersShape>('ExtHostBrowsers'),
 };
