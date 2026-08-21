@@ -219,17 +219,15 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		// Clean up terminals for archived/removed sessions using their tracked
 		// session-to-terminal associations.
 		//
+		// Archive disposes session-owned terminals; restore creates a fresh terminal after worktree readiness.
+		//
 		// The archive cleanup runs only on the not-archived → archived transition.
 		// The provider keeps archived sessions cached and re-emits them in
 		// `changed` on every sync; acting on the current archived state would
 		// re-run the cwd cleanup each time and sweep terminals the user opened
 		// after archiving.
 		//
-		// Both paths are asynchronous and can land while the user is working in a
-		// just-opened terminal at this cwd (e.g. removal also covers untitled →
-		// committed graduation via `onDidReplaceSession`, which surfaces the
-		// skeleton in `removed`). The focused (active) terminal is therefore never
-		// touched on either path. See #313510, #318645.
+		// Removal protects the active terminal because `removed` also represents untitled → committed graduation.
 
 		this._register(this._sessionsManagementService.onDidChangeSessions(e => {
 			// Only act on the not-archived → archived transition; ignore re-emits
