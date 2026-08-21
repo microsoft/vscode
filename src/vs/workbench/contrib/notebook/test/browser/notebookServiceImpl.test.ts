@@ -26,13 +26,13 @@ import { workbenchInstantiationService } from '../../../../test/browser/workbenc
 suite('NotebookProviderInfoStore', function () {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite() as Pick<DisposableStore, 'add'>;
 
-	function createStore(): NotebookProviderInfoStore {
+	function createStore(memento: { editors?: NotebookProviderInfo[] } = {}): NotebookProviderInfoStore {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		return disposables.add(new NotebookProviderInfoStore(
 			new class extends mock<IStorageService>() {
 				override get() { return ''; }
 				override store() { }
-				override getObject() { return {}; }
+				override getObject() { return memento; }
 			},
 			new class extends mock<IExtensionService>() {
 				override onDidRegisterExtensions = Event.None;
@@ -96,7 +96,7 @@ suite('NotebookProviderInfoStore', function () {
 		assert.strictEqual(providers[0] === barInfo, true);
 	});
 
-	test('contains declaratively registered built-in notebook types', function () {
+	test('declarative built-in notebook types take precedence over stale memento entries', function () {
 		disposables.add(registerBuiltinNotebookType('test.builtinNotebook', {
 			providerDisplayName: 'Built-in Notebook',
 			displayName: 'Built-in Notebook',
@@ -104,7 +104,15 @@ suite('NotebookProviderInfoStore', function () {
 			priority: RegisteredEditorPriority.builtin
 		}));
 
-		const store = createStore();
+		const store = createStore({
+			editors: [new NotebookProviderInfo({
+				id: 'test.builtinNotebook',
+				displayName: 'Stale Notebook',
+				providerDisplayName: 'Stale Notebook',
+				priority: RegisteredEditorPriority.default,
+				selectors: [{ filenamePattern: '*.staleNotebook' }]
+			})]
+		});
 		const info = store.get('test.builtinNotebook');
 
 		assert.deepStrictEqual({

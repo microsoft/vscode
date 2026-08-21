@@ -118,7 +118,7 @@ export class NotebookProviderInfoStore extends Disposable {
 			}
 		}));
 
-		notebooksExtensionPoint.setHandler(extensions => this._setupHandler(extensions));
+		this._register(notebooksExtensionPoint.setHandler(extensions => this._setupHandler(extensions)));
 	}
 
 	private _addBuiltinNotebookType({ viewType, data }: IBuiltinNotebookType): void {
