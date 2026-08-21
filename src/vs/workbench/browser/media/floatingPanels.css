@@ -186,8 +186,8 @@
 .monaco-workbench.floating-panels .part.activitybar.left {
 	margin-left: 0;
 	margin-right: 0;
-	padding-left: var(--vscode-spacing-size40);
-	padding-right: var(--vscode-spacing-size40);
+	padding-left: var(--vscode-spacing-size60);
+	padding-right: var(--vscode-spacing-size20);
 	width: calc(var(--activity-bar-width, 48px) + (var(--modern-ui-floating-card-margin) * 2));
 	border-radius: 0 var(--vscode-cornerRadius-medium) var(--vscode-cornerRadius-medium) 0;
 }
@@ -195,8 +195,8 @@
 .monaco-workbench.floating-panels .part.activitybar.right {
 	margin-left: var(--modern-ui-floating-card-margin);
 	margin-right: 0;
-	padding-left: var(--vscode-spacing-size40);
-	padding-right: var(--vscode-spacing-size40);
+	padding-left: var(--vscode-spacing-size20);
+	padding-right: var(--vscode-spacing-size60);
 	width: calc(var(--activity-bar-width, 48px) + (var(--modern-ui-floating-card-margin) * 2));
 	border-radius: var(--vscode-cornerRadius-medium) 0 0 var(--vscode-cornerRadius-medium);
 }
@@ -497,10 +497,6 @@
 /* At the top window edge the cards take the outer gutter. Inset the sash
  * highlight to match so it doesn't overshoot above the cards. */
 .monaco-workbench.floating-panels.top-window-edge .monaco-sash.vertical:not(.part .monaco-sash)::before {
-	top: var(--modern-ui-floating-card-outer-margin);
-}
-
-.monaco-workbench.floating-panels.modern-ui-compact .monaco-sash.vertical:not(.part .monaco-sash)::before {
 	top: var(--modern-ui-floating-card-outer-margin);
 }
 

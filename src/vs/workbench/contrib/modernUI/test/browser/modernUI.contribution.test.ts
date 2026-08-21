@@ -798,6 +798,77 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	test('balances default density activity indicators across the panel gutter', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui floating-panels';
+		root.style.display = 'inline-flex';
+		root.style.setProperty('--activity-bar-action-height', '36px');
+		root.style.setProperty('--activity-bar-width', '36px');
+		root.style.setProperty('--vscode-spacing-size20', '2px');
+		root.style.setProperty('--vscode-spacing-size40', '4px');
+		root.style.setProperty('--vscode-spacing-size60', '6px');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const appendActivityAction = (position: 'left' | 'right') => {
+			const activityBar = appendElement(root, `part activitybar ${position}`);
+			const content = appendElement(activityBar, 'content');
+			const actionBar = appendElement(appendElement(content, 'composite-bar'), 'monaco-action-bar');
+			const action = appendElement(actionBar, 'action-item checked');
+			appendElement(action, 'action-label codicon');
+			const indicator = appendElement(action, 'active-item-indicator');
+			return { activityBar, action, indicator };
+		};
+
+		const left = appendActivityAction('left');
+		const leftSideBar = appendElement(root, 'part sidebar left');
+		leftSideBar.style.width = '60px';
+		leftSideBar.style.marginLeft = '4px';
+		const rightSideBar = appendElement(root, 'part sidebar right');
+		rightSideBar.style.width = '60px';
+		const right = appendActivityAction('right');
+
+		const rootBounds = root.getBoundingClientRect();
+		const leftActivityBounds = left.activityBar.getBoundingClientRect();
+		const leftActionBounds = left.action.getBoundingClientRect();
+		const leftIndicatorBounds = left.indicator.getBoundingClientRect();
+		const leftSideBarBounds = leftSideBar.getBoundingClientRect();
+		const rightSideBarBounds = rightSideBar.getBoundingClientRect();
+		const rightActivityBounds = right.activityBar.getBoundingClientRect();
+		const rightActionBounds = right.action.getBoundingClientRect();
+		const rightIndicatorBounds = right.indicator.getBoundingClientRect();
+
+		assert.deepStrictEqual({
+			left: {
+				actionWidth: leftActionBounds.width,
+				actionCenterOffset: leftActionBounds.left + leftActionBounds.width / 2 - (rootBounds.left + leftSideBarBounds.left) / 2,
+				windowPadding: leftIndicatorBounds.left - rootBounds.left,
+				panelPadding: leftSideBarBounds.left - leftIndicatorBounds.right,
+			},
+			right: {
+				actionWidth: rightActionBounds.width,
+				actionCenterOffset: rightActionBounds.left + rightActionBounds.width / 2 - (rightSideBarBounds.right + rightActivityBounds.right) / 2,
+				windowPadding: rightActivityBounds.right - rightIndicatorBounds.right,
+				panelPadding: rightIndicatorBounds.left - rightSideBarBounds.right,
+			},
+			railWidths: [leftActivityBounds.width, rightActivityBounds.width],
+		}, {
+			left: {
+				actionWidth: 36,
+				actionCenterOffset: 0,
+				windowPadding: 8,
+				panelPadding: 8,
+			},
+			right: {
+				actionWidth: 36,
+				actionCenterOffset: 0,
+				windowPadding: 8,
+				panelPadding: 8,
+			},
+			railWidths: [44, 44],
+		});
+	});
+
 	test('uses the editor surface border color', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui floating-panels';
@@ -901,6 +972,31 @@ suite('ModernUIContribution', () => {
 		}, {
 			verticalGrip: 'none',
 			horizontalGrip: 'none',
+		});
+	});
+
+	test('compact vertical sash highlights meet the attached panel top', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui modern-ui-compact floating-panels';
+		root.style.setProperty('--vscode-spacing-size40', '4px');
+		root.style.setProperty('--vscode-spacing-sizeNone', '0px');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const verticalSash = appendElement(root, 'monaco-sash vertical');
+		const targetWindow = getWindow(root);
+		const attachedStyle = targetWindow.getComputedStyle(verticalSash, '::before');
+		const attachedInsets = [attachedStyle.top, attachedStyle.bottom];
+
+		root.classList.add('top-window-edge');
+		const exposedStyle = targetWindow.getComputedStyle(verticalSash, '::before');
+
+		assert.deepStrictEqual({
+			attachedInsets,
+			exposedTopInset: exposedStyle.top,
+		}, {
+			attachedInsets: ['0px', '4px'],
+			exposedTopInset: '4px',
 		});
 	});
 
