@@ -19,7 +19,7 @@ export interface IAgentHostExtensionCommandMap {
 		result: { resource?: string };
 	};
 	[CollectAgentHostDebugLogsExtensionMethod]: {
-		params: { session?: string; kind: AgentHostDebugLogsArtifactKind };
+		params: { session?: string; chat?: string; kind: AgentHostDebugLogsArtifactKind };
 		result: { kind: AgentHostDebugLogsArtifactKind; resource: string; providerLogsIncluded: boolean; size: number; uncompressedSize: number; entries: readonly { path: string; size: number }[] };
 	};
 	[ReadAgentHostDebugLogsChunkExtensionMethod]: {

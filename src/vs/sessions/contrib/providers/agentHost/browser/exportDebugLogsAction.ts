@@ -7,12 +7,13 @@ import { localize2 } from '../../../../../nls.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { DEFAULT_CHAT_ID } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { exportAgentHostDebugLogs, IActiveAgentHostSessionForExport } from '../../../../../workbench/contrib/chat/browser/actions/exportAgentHostDebugLogsAction.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { type ISession } from '../../../../services/sessions/common/session.js';
+import { type IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
@@ -45,6 +46,7 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
 				resource: activeAgentHostSession.resource,
 				title: activeAgentHostSession.title.get(),
 				isLocal: activeAgentHostSession.resource.scheme.startsWith('agent-host-'),
+				chatId: activeAgentHostSession.activeChat.get().resource.fragment || DEFAULT_CHAT_ID,
 			}
 			: undefined;
 
@@ -52,7 +54,7 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
 	}
 }
 
-function isAgentHostSession(session: ISession | undefined, sessionsProvidersService: ISessionsProvidersService): session is ISession {
+function isAgentHostSession(session: IActiveSession | undefined, sessionsProvidersService: ISessionsProvidersService): session is IActiveSession {
 	return !!session && sessionsProvidersService.getProvider(session.providerId) instanceof BaseAgentHostSessionsProvider;
 }
 

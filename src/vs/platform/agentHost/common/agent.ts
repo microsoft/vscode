@@ -1217,7 +1217,7 @@ export interface IAgent {
 	getSessionStateFile?(session: URI): Promise<URI | undefined>;
 
 	/** Add provider-owned diagnostics to an Agent Host debug-log staging directory. */
-	collectDebugLogs?(session: URI | undefined, outputDirectory: URI): Promise<boolean>;
+	collectDebugLogs?(session: URI | undefined, outputDirectory: URI, chat?: URI): Promise<boolean>;
 
 	// ---- MCP and server tools -----------------------------------------------
 

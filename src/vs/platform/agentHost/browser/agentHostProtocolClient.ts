@@ -1141,9 +1141,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return toAgentHostUri(resource, this._connectionAuthority);
 	}
 
-	async collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> {
+	async collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact> {
 		const result = await this._sendExtensionRequest(CollectAgentHostDebugLogsExtensionMethod, {
 			session: session?.toString(),
+			chat: chat?.toString(),
 			kind,
 		});
 		if (result.kind !== kind) {

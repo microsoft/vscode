@@ -985,6 +985,13 @@ export function buildSubagentChatUri(sessionUri: ProtocolURI | ResourceURI, tool
 	return `${AHP_CHAT_SCHEME}://${SUBAGENT_CHAT_ID}/${encoded}/${encodeURIComponent(toolCallId)}`;
 }
 
+export function buildChatUriFromId(sessionUri: ProtocolURI | ResourceURI, chatId: string): string {
+	const subagentPrefix = `${SUBAGENT_CHAT_ID}/`;
+	return chatId.startsWith(subagentPrefix)
+		? buildSubagentChatUri(sessionUri, chatId.slice(subagentPrefix.length))
+		: buildChatUri(sessionUri, chatId);
+}
+
 /**
  * Inverse of {@link buildChatUri}: recovers the owning session URI and chat id
  * from any chat channel URI. Returns `undefined` when `uri` is not a well-formed

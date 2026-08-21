@@ -1714,11 +1714,27 @@ export class ProtocolServerHandler extends Disposable {
 						return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be an Agent Session URI'));
 					}
 				}
+				const chatParam = params['chat'];
+				if (chatParam !== undefined && typeof chatParam !== 'string') {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must be a URI string'));
+				}
+				let chat: URI | undefined;
+				if (chatParam !== undefined) {
+					try {
+						chat = URI.parse(chatParam, true);
+					} catch {
+						return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must be a valid URI string'));
+					}
+					const parsedChat = parseChatUri(chat);
+					if (!session || !parsedChat || parsedChat.session !== session.toString()) {
+						return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must belong to the requested Agent Session'));
+					}
+				}
 				const kind = params['kind'];
 				if (kind !== 'archive' && kind !== 'directory') {
 					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'kind must be archive or directory'));
 				}
-				return this._agentService.collectDebugLogs(session, kind).then(result => ({
+				return this._agentService.collectDebugLogs(session, kind, chat).then(result => ({
 					kind: result.kind,
 					resource: result.resource.toString(),
 					providerLogsIncluded: result.providerLogsIncluded,

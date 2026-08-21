@@ -2291,8 +2291,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return result;
 	}
 
-	async collectDebugLogs(session: URI | undefined, outputDirectory: URI): Promise<boolean> {
-		const sessionTarget = session ? this._findSessionChat(session) : undefined;
+	async collectDebugLogs(session: URI | undefined, outputDirectory: URI, chat?: URI): Promise<boolean> {
+		const sessionTarget = chat ? this._findChatByUri(chat) : session ? this._findSessionChat(session) : undefined;
 		if (sessionTarget) {
 			await sessionTarget.collectDebugLogs(outputDirectory, true);
 			return true;
