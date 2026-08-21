@@ -162,17 +162,6 @@ suite('Changes View Actions', () => {
 		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'toggle.diff.renderSideBySide');
-		const movedActionIds = new Set([
-			'toggle.diff.renderSideBySide',
-			'workbench.action.agentSessions.collapseAllDiffs',
-			'workbench.action.agentSessions.expandAllDiffs',
-			'workbench.action.agentSessions.setChangesListViewMode',
-			'workbench.action.agentSessions.setChangesTreeViewMode',
-		]);
-		const headerItems = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
-			.filter(isIMenuItem)
-			.filter(item => movedActionIds.has(item.command.id))
-			.map(item => item.command.id);
 
 		assert.ok(item, 'expected the preferred diff view action in the editor title bar overflow menu');
 		const when = item.when?.serialize() ?? '';
@@ -194,7 +183,6 @@ suite('Changes View Actions', () => {
 			title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
 			group: item.group,
 			order: item.order,
-			headerItems,
 			icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
 			tooltip: typeof item.command.tooltip === 'string' ? item.command.tooltip : item.command.tooltip?.value,
 			hasStateSpecificTitle: isICommandActionToggleInfo(toggled),
@@ -211,7 +199,6 @@ suite('Changes View Actions', () => {
 			title: 'Always Show Inline Diff',
 			group: '1_diff',
 			order: 20,
-			headerItems: [],
 			icon: Codicon.diffSidebyside.id,
 			tooltip: 'Always uses inline layout.',
 			hasStateSpecificTitle: false,

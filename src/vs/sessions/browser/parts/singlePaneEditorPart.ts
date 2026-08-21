@@ -27,10 +27,9 @@ import { SinglePaneAuxiliaryBarPart } from './singlePaneAuxiliaryBarPart.js';
  * the editor part share one instance) and the {@link DockedAuxiliaryBarController}
  * that docks and sizes the auxiliary bar inside the editor part. The full-width
  * header itself is rendered by the editor group from the group's configured header
- * menus ({@link Menus.SessionsEditorHeaderPrimary} / {@link Menus.SessionsEditorHeaderSecondary},
- * supplied via {@link getGroupViewOptions}) and also hosts breadcrumbs in that row
- * for text file editors. The part only reacts to the header's height to reposition
- * the docked auxiliary bar.
+ * menus, supplied via {@link getGroupViewOptions}, and also hosts breadcrumbs in
+ * that row for text file editors. The part only reacts to the header's height to
+ * reposition the docked auxiliary bar.
  */
 export class SinglePaneMainEditorPart extends MainEditorPart {
 
@@ -42,7 +41,6 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 		return {
 			menuIds: {
 				headerPrimary: Menus.SessionsEditorHeaderPrimary,
-				headerSecondary: Menus.SessionsEditorHeaderSecondary,
 				headerLayout: Menus.SessionsEditorHeaderLayout,
 				editorActions: Menus.SessionsEditorTitle,
 				tabsBarContext: Menus.SessionsEditorTabsBarContext,

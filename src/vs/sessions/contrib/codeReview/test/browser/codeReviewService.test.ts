@@ -317,9 +317,6 @@ suite('Code Review Contributions', () => {
 		const titleItem = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'sessions.codeReview.run');
-		const headerItems = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
-			.filter(isIMenuItem)
-			.filter(item => item.command.id === 'sessions.codeReview.run');
 
 		assert.ok(titleItem, 'expected Run Code Review in the editor title bar');
 		const when = titleItem.when?.serialize() ?? '';
@@ -332,7 +329,6 @@ suite('Code Review Contributions', () => {
 		assert.deepStrictEqual({
 			group: titleItem.group,
 			order: titleItem.order,
-			headerItems,
 			enabledFromSessionChanges,
 			enabledFromChatChanges: titleItem.command.precondition?.evaluate(enablementContext),
 			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
@@ -346,7 +342,6 @@ suite('Code Review Contributions', () => {
 		}, {
 			group: 'navigation',
 			order: 10,
-			headerItems: [],
 			enabledFromSessionChanges: true,
 			enabledFromChatChanges: true,
 			hasSessionsWindowGate: true,

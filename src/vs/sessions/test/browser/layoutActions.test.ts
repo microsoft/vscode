@@ -153,9 +153,9 @@ suite('Sessions - Layout Actions', () => {
 		assert.ok(!headerIds.includes('workbench.action.agentSessions.hideMainEditorPart'));
 		assert.ok(!headerIds.includes('workbench.action.agentSessions.showMainEditorPart'));
 
-		// Add File as Context stays a right-header action, not a layout action.
-		const headerSecondaryIds = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary).filter(isIMenuItem).map(item => item.command.id);
-		assert.ok(headerSecondaryIds.includes('workbench.action.agentSessions.addFileAsContext'));
+		// Add File as Context stays an editor action, not a group-header layout action.
+		const editorTitleIds = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle).filter(isIMenuItem).map(item => item.command.id);
+		assert.ok(editorTitleIds.includes('workbench.action.agentSessions.addFileAsContext'));
 		assert.ok(!layoutItems.some(item => item.command.id === 'workbench.action.agentSessions.addFileAsContext'));
 	});
 
