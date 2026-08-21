@@ -4,22 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { timeout } from '../../../../../base/common/async.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { ICodeEditorWidgetOptions, CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
-import { EditorContributionInstantiation, IEditorContributionDescription } from '../../../../../editor/browser/editorExtensions.js';
+import { IEditorConstructionOptions } from '../../../../../editor/browser/config/editorConfiguration.js';
+import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { EditorExtensionsRegistry, IEditorContributionDescription } from '../../../../../editor/browser/editorExtensions.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { DocumentColorProvider } from '../../../../../editor/common/languages.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { ColorDetector } from '../../../../../editor/contrib/colorPicker/browser/colorDetector.js';
+import '../../../../../editor/contrib/colorPicker/browser/colorPickerContribution.js';
 import '../../../../../editor/contrib/colorPicker/browser/colorPicker.css';
 import { InlineProgressManager } from '../../../../../editor/contrib/inlineProgress/browser/inlineProgress.js';
 import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 
-const colorDetectorContribution: IEditorContributionDescription = {
-	id: ColorDetector.ID,
-	ctor: ColorDetector,
-	instantiation: EditorContributionInstantiation.AfterFirstRender,
-};
+const colorDetectorContribution = EditorExtensionsRegistry.getSomeEditorContributions([ColorDetector.ID])[0];
 
 async function renderColorDecorators(context: ComponentFixtureContext): Promise<void> {
 	const { editor } = createEditor(
@@ -59,12 +58,41 @@ async function renderInlineProgress(context: ComponentFixtureContext): Promise<v
 	await timeout(0);
 }
 
+function renderFixedWidthWrapping(context: ComponentFixtureContext): void {
+	const { editor } = createEditor(
+		context,
+		'alpha beta gamma delta epsilon',
+		'plaintext',
+		[],
+		{
+			fontFamily: 'Arial, sans-serif',
+			wordWrap: 'wordWrapColumn',
+			wordWrapColumn: 12,
+			wrappingIndent: 'none',
+		}
+	);
+	const decorations = editor.createDecorationsCollection([{
+		range: new Range(1, 7, 1, 7),
+		options: {
+			description: 'fixed-width-fixture',
+			showIfCollapsed: true,
+			before: {
+				content: '\xa0',
+				inlineClassName: 'fixed-width-fixture',
+				inlineClassNameAffectsLetterSpacing: true,
+				widthInEm: 3,
+			}
+		}
+	}]);
+	context.disposableStore.add(toDisposable(() => decorations.clear()));
+}
+
 function createEditor(
 	context: ComponentFixtureContext,
 	content: string,
 	languageId: string,
 	contributions: IEditorContributionDescription[] = [],
-	options: ICodeEditorWidgetOptions = {},
+	options: IEditorConstructionOptions = {},
 	registerLanguageFeatures?: (languageFeaturesService: ILanguageFeaturesService) => void
 ) {
 	const { container, disposableStore, theme } = context;
@@ -112,5 +140,9 @@ export default defineThemedFixtureGroup({ path: 'editor/' }, {
 	InlineProgress: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		render: renderInlineProgress,
+	}),
+	FixedWidthWrapping: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		render: renderFixedWidthWrapping,
 	}),
 });
