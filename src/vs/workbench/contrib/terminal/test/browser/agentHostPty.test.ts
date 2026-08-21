@@ -849,7 +849,7 @@ suite('AgentHostPty', () => {
 		});
 
 		const reconnect = pty.reconnect(conn2);
-		hydration.state = { title: 'Reconnected', content: [], claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' } };
+		hydration.state = { title: 'Reconnected', content: [], claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' }, lifecycle: { status: TerminalLifecycleStatus.Running } };
 		onDidChange.fire(hydration.state);
 		assert.strictEqual(await reconnect, true);
 		dataReceived.length = 0; // drop the replayed clear sequence
@@ -901,7 +901,7 @@ suite('AgentHostPty', () => {
 		const reconnect = pty.reconnect(conn2);
 		pty.shutdown(false);
 		const result = await reconnect;
-		onDidChange.fire({ title: 'Late', content: [{ type: 'unclassified', value: 'late data' }], claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' } });
+		onDidChange.fire({ title: 'Late', content: [{ type: 'unclassified', value: 'late data' }], claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' }, lifecycle: { status: TerminalLifecycleStatus.Running } });
 		onDidApplyAction.fire({ channel: terminalUri.toString(), action: { type: ActionType.TerminalData, data: 'late action' }, serverSeq: 1, origin: undefined });
 		await Promise.resolve();
 
