@@ -3879,7 +3879,18 @@
               "default": true
             }
           },
-          "github.copilot.chat.languageContext.typescript.items": {
+          "github.copilot.chat.languageContext.typescript7.enabled": {
+            "type": "boolean",
+            "default": false,
+            "scope": "resource",
+            "tags": [
+              "experimental"
+            ],
+            "markdownDescription": "%github.copilot.chat.languageContext.typescript7.enabled%",
+            "agentsWindow": {
+              "default": false
+            }
+          },          "github.copilot.chat.languageContext.typescript.items": {
             "type": "string",
             "enum": [
               "minimal",

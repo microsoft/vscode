@@ -29,6 +29,7 @@ import { ISessionsPartService } from './sessionsPartService.js';
 import { ICustomViewService } from '../../customView/browser/customViewService.js';
 import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { setActiveSessionContextKeys } from '../common/sessionContextKeys.js';
+import { ISessionChangesStatsCache } from '../common/sessionChangesStatsCache.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
 
@@ -354,6 +355,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		@ICustomViewService private readonly customViewService: ICustomViewService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@ISessionChangesStatsCache private readonly changesStatsCache: ISessionChangesStatsCache,
 	) {
 		super();
 
@@ -416,7 +418,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			// sent for the first time). Scoping to the active session avoids flipping
 			// into "new chat" mode while viewing a different established session.
 			this._isNewChatSessionContext.set(activeSession === undefined || activeSession.sessionId === newSession?.sessionId);
-			setActiveSessionContextKeys(activeSession, this.contextKeyService, reader);
+			setActiveSessionContextKeys(activeSession, this.contextKeyService, reader, this.changesStatsCache);
 		}));
 
 		// Per-active-session view reactions (archived → new-session view,
@@ -786,6 +788,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	async openSession(sessionResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
+		this.logService.trace(`[SessionsView] openSession requested uri=${sessionResource.toString()}`);
 		// Claim the open before resolving: resolution can take seconds for a legacy
 		// Copilot CLI resource, and a newer open must win regardless of which
 		// resolution finishes first.

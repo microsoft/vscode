@@ -12,7 +12,7 @@
 	overflow: hidden;
 }
 
-/* Header host: title row + meta row. */
+/* Header host. */
 .chat-composite-bar.session-header-bar {
 	padding: 0 var(--vscode-spacing-size100);
 	box-sizing: border-box;
@@ -29,8 +29,7 @@
 	--chat-tab-max-width: min(200px, 40cqi);
 }
 
-/* Header: a status icon column next to a main column (title row + meta row).
-	Mirrors the sessions list so the meta row aligns under the title. */
+/* Header: a status icon column next to the title row. */
 .chat-composite-bar-header {
 	display: flex;
 	flex-direction: row;
@@ -39,7 +38,7 @@
 	border-bottom: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--session-view-foreground, var(--chat-tab-active-foreground)) 12%, transparent);
 }
 
-/* Main column stacks the title row and the meta row */
+/* Main column hosts the title row. */
 .chat-composite-bar-header-main {
 	display: flex;
 	flex-direction: column;
@@ -146,25 +145,10 @@
 	margin-left: auto;
 }
 
-/* Meta row: workspace + contributed changes / pull request buttons.
-	No `overflow: hidden` here — it would clip the meta buttons' focus ring at the
-	row's 22px height. The workspace label self-truncates via its own containers. */
-.chat-composite-bar-meta-row {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	height: 22px;
-	font-size: var(--vscode-agents-fontSize-label1, 12px);
-	font-weight: var(--vscode-agents-fontWeight-regular, 400);
-	line-height: 18px;
-	color: var(--chat-tab-inactive-foreground, var(--session-view-foreground));
-	white-space: nowrap;
-}
-
-/* Session header meta toolbar */
-.chat-composite-bar-meta-toolbar,
-.chat-composite-bar-meta-toolbar .monaco-action-bar,
-.chat-composite-bar-meta-toolbar .actions-container {
+/* Metadata action fixture host. */
+.session-metadata-pill-toolbar,
+.session-metadata-pill-toolbar .monaco-action-bar,
+.session-metadata-pill-toolbar .actions-container {
 	display: inline-flex;
 	align-items: center;
 	height: 100%;
@@ -172,8 +156,8 @@
 	max-width: 100%;
 }
 
-/* Spacing between the contributed meta buttons (e.g. changes · pull request). */
-.chat-composite-bar-meta-toolbar .actions-container {
+/* Spacing between contributed metadata buttons. */
+.session-metadata-pill-toolbar .actions-container {
 	gap: 6px;
 }
 

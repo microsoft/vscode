@@ -27,7 +27,6 @@ import { getSessionWorkspaceDisplayInfo, ISessionWorkspaceDisplayInfo } from '..
 import { ChatPillActionViewItem } from '../../../../workbench/browser/chatPills.js';
 import { SessionHasWorkspaceContext, IsQuickChatSessionContext } from '../../../common/contextkeys.js';
 import { NEW_FILE_TAB_COMMAND_ID } from '../../../common/sessionCommands.js';
-import { SHOW_SESSION_METADATA_IN_CHAT_INPUT_SETTING } from '../../../common/sessionConfig.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
@@ -44,9 +43,7 @@ export class OpenFilesViewAction extends Action2 {
 			title: localize2('agentSessions.files', 'Files'),
 			icon: Codicon.folder,
 			f1: false,
-			// Workspace folder pill shown in the session header meta row
-			// (vs/sessions/browser/parts/sessionHeader.ts), rendered with a custom
-			// action view item. Ordered before the changes pill (order 0).
+			// Workspace metadata pill, ordered before changes.
 			menu: {
 				id: Menus.SessionHeaderMeta,
 				group: 'navigation',
@@ -54,7 +51,6 @@ export class OpenFilesViewAction extends Action2 {
 				when: ContextKeyExpr.and(
 					SessionHasWorkspaceContext,
 					IsQuickChatSessionContext.negate(),
-					ContextKeyExpr.notEquals(`config.${SHOW_SESSION_METADATA_IN_CHAT_INPUT_SETTING}`, true),
 				)
 			},
 		});
@@ -66,9 +62,8 @@ export class OpenFilesViewAction extends Action2 {
 		const commandService = accessor.get(ICommandService);
 		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
 
-		// The clicked session is forwarded as the argument by the session header,
-		// which has already promoted it to be the active session. Fall back to the
-		// active session when invoked without an explicit argument.
+		// The clicked pill forwards its session. Fall back to the active session
+		// when invoked without an explicit argument.
 		const targetSession = session ?? sessionsService.activeSession.get();
 		if (!targetSession) {
 			return;
@@ -83,13 +78,11 @@ export class OpenFilesViewAction extends Action2 {
 }
 registerAction2(OpenFilesViewAction);
 
-// --- Open Files view action view item (session header workspace folder pill)
+// --- Open Files view action view item
 
 /**
- * Renders the session's workspace folder as a `<folder-icon> <label>` pill for the
- * {@link OpenFilesViewAction} contributed into {@link Menus.SessionHeaderMeta}. Activating it
- * opens the Files view. The workspace is read from the {@link ISessionContext} so the correct
- * per-session folder is shown even when several session views are visible at once.
+ * Renders the session's workspace folder as a `<folder-icon> <label>` metadata pill.
+ * The workspace is read from the {@link ISessionContext} so the correct session is shown.
  */
 export class OpenFilesViewActionViewItem extends ChatPillActionViewItem {
 
@@ -172,9 +165,7 @@ export class OpenFilesViewActionViewItem extends ChatPillActionViewItem {
 }
 
 /**
- * Registers the {@link OpenFilesViewActionViewItem} for the open-files action in the
- * session header meta toolbar. Registering it here (rather than in the core session header)
- * keeps the rendering of the files-owned action co-located with the action itself.
+ * Registers the {@link OpenFilesViewActionViewItem} for the open-files metadata pill.
  */
 class OpenFilesViewActionViewItemContribution extends Disposable implements IWorkbenchContribution {
 
@@ -185,11 +176,7 @@ class OpenFilesViewActionViewItemContribution extends Disposable implements IWor
 	) {
 		super();
 
-		// The action view item service only notifies toolbars of a factory via
-		// the event passed to register(), not on registration itself. A session
-		// header restored with an existing workspace may create its meta toolbar
-		// before this contribution runs, so announce the factory once right after
-		// registering to make those toolbars re-render and pick it up.
+		// Announce the factory after registration so existing metadata pills re-render.
 		const onDidRegister = this._register(new Emitter<void>());
 		this._register(actionViewItemService.register(Menus.SessionHeaderMeta, OpenFilesViewAction.ID, (action, options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {

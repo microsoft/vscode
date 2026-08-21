@@ -969,10 +969,12 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 * response.
 	 */
 	async subscribe(resource: URI): Promise<IStateSnapshot> {
+		this._logService.trace(`[RemoteAgentHostProtocol] subscribe start: ${resource.toString()}`);
 		const result = await this._sendRequest('subscribe', { channel: resource.toString() });
 		if (!result.snapshot) {
 			throw new Error(`subscribe to ${resource.toString()} returned no snapshot`);
 		}
+		this._logService.trace(`[RemoteAgentHostProtocol] subscribe done: ${resource.toString()}`);
 		return result.snapshot;
 	}
 
