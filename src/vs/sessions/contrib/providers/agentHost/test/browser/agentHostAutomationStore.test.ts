@@ -145,6 +145,12 @@ class TestAutomationConnection {
 				serverSeq: ++this._serverSeq,
 				origin: undefined,
 			});
+		} else if (action.type === ActionType.AutomationRemoved) {
+			this._catalog = {
+				...this._catalog,
+				automations: this._catalog.automations.filter(automation => automation.resource !== action.resource),
+			};
+			this._onDidCatalogChange.fire(this._catalog);
 		} else if (action.type === ActionType.RootConfigChanged && action.config[AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY]) {
 			this._migrationComplete = true;
 			this._root = {
@@ -256,6 +262,21 @@ class ToggleMigrationAutomationStore extends AutomationStore {
 
 	override canCompleteMigration(): boolean {
 		return this.migrationAllowed;
+	}
+}
+
+class PausedRemovalAutomationStore extends AutomationStore {
+	readonly removalStarted = new DeferredPromise<void>();
+	readonly resumeRemoval = new DeferredPromise<void>();
+	private pauseNextRemoval = true;
+
+	override async removeAutomationSnapshotIfUnchanged(expected: IAutomation) {
+		if (this.pauseNextRemoval) {
+			this.pauseNextRemoval = false;
+			await this.removalStarted.complete();
+			await this.resumeRemoval.p;
+		}
+		return super.removeAutomationSnapshotIfUnchanged(expected);
 	}
 }
 
@@ -747,6 +768,191 @@ suite('AgentHostAutomationStore', () => {
 			legacyAutomations: [],
 			migratedNames: ['Scheduled review'],
 			archivedRunIds: [claim.run.id],
+		});
+	});
+
+	test('waits for migration before creating directly in the host catalogue', async () => {
+		const connection = disposables.add(new TestAutomationConnection(false));
+		const storage = disposables.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		const legacy = disposables.add(new PausedRemovalAutomationStore(providerAutomationStorageKey('local-agent-host'), storage, new NullLogService(), NullTelemetryService, automationStorage));
+		const initial = await legacy.createAutomation({
+			name: 'Initial',
+			prompt: 'Review initial changes.',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+		});
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, legacy, undefined, new NullLogService(), storage, NullTelemetryService, automationStorage));
+		const migration = store.completeMigration();
+		await legacy.removalStarted.p;
+
+		let createSettled = false;
+		const create = store.createAutomation({
+			name: 'Created during migration',
+			prompt: 'Review later changes.',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+		}).finally(() => createSettled = true);
+		await Promise.resolve();
+		const before = {
+			createSettled,
+			legacyNames: legacy.automations.get().map(automation => automation.name),
+			hostCreateRequests: connection.dispatched.filter(entry => entry.action.type === ActionType.AutomationCreateRequested).length,
+		};
+
+		await legacy.resumeRemoval.complete();
+		const created = await create;
+		await migration;
+		const completion = connection.dispatched.find(entry => entry.action.type === ActionType.RootConfigChanged)?.action;
+
+		assert.deepStrictEqual({
+			before,
+			createdName: created.name,
+			legacyAutomations: legacy.automations.get(),
+			hostNames: store.automations.get().map(automation => automation.name).sort(),
+			completion: completion?.type === ActionType.RootConfigChanged
+				? completion.config[AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY]
+				: undefined,
+		}, {
+			before: {
+				createSettled: false,
+				legacyNames: ['Initial'],
+				hostCreateRequests: 1,
+			},
+			createdName: 'Created during migration',
+			legacyAutomations: [],
+			hostNames: ['Created during migration', 'Initial'],
+			completion: {
+				version: 1,
+				status: 'complete',
+				resources: [`ahp-automation:/${initial.id}`],
+			},
+		});
+	});
+
+	test('waits for migration before deleting from the host catalogue', async () => {
+		const connection = disposables.add(new TestAutomationConnection(false));
+		const storage = disposables.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		const legacy = disposables.add(new PausedRemovalAutomationStore(providerAutomationStorageKey('local-agent-host'), storage, new NullLogService(), NullTelemetryService, automationStorage));
+		const automation = await legacy.createAutomation({
+			name: 'Delete during migration',
+			prompt: 'Review changes.',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+		});
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, legacy, undefined, new NullLogService(), storage, NullTelemetryService, automationStorage));
+		const migration = store.completeMigration();
+		await legacy.removalStarted.p;
+
+		let deleteSettled = false;
+		const deletion = store.deleteAutomation(automation.id).finally(() => deleteSettled = true);
+		await Promise.resolve();
+		const before = {
+			deleteSettled,
+			legacyIds: legacy.automations.get().map(candidate => candidate.id),
+			hostRemoveRequests: connection.dispatched.filter(entry => entry.action.type === ActionType.AutomationRemoved).length,
+		};
+
+		await legacy.resumeRemoval.complete();
+		await deletion;
+		await migration;
+
+		assert.deepStrictEqual({
+			before,
+			legacyAutomations: legacy.automations.get(),
+			hostAutomations: store.automations.get(),
+			hostRemoveRequests: connection.dispatched.filter(entry => entry.action.type === ActionType.AutomationRemoved).length,
+		}, {
+			before: {
+				deleteSettled: false,
+				legacyIds: [automation.id],
+				hostRemoveRequests: 0,
+			},
+			legacyAutomations: [],
+			hostAutomations: [],
+			hostRemoveRequests: 1,
+		});
+	});
+
+	test('retries migration instead of hiding a legacy definition added during transfer', async () => {
+		const connection = disposables.add(new TestAutomationConnection(false));
+		const storage = disposables.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		const legacy = disposables.add(new PausedRemovalAutomationStore(providerAutomationStorageKey('local-agent-host'), storage, new NullLogService(), NullTelemetryService, automationStorage));
+		await legacy.createAutomation({
+			name: 'Initial',
+			prompt: 'Review initial changes.',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+		});
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, legacy, undefined, new NullLogService(), storage, NullTelemetryService, automationStorage));
+		const migration = store.completeMigration();
+		await legacy.removalStarted.p;
+		const added = await legacy.createAutomation({
+			name: 'Added by another window',
+			prompt: 'Review concurrent changes.',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+		});
+
+		await legacy.resumeRemoval.complete();
+		await assert.rejects(migration, /source changed during migration; 1 definition\(s\) remain/);
+		const beforeRetry = {
+			legacyIds: legacy.automations.get().map(automation => automation.id),
+			visibleNames: store.automations.get().map(automation => automation.name).sort(),
+			completionRequests: connection.dispatched.filter(entry => entry.action.type === ActionType.RootConfigChanged).length,
+		};
+
+		await store.completeMigration();
+
+		assert.deepStrictEqual({
+			beforeRetry,
+			legacyAutomations: legacy.automations.get(),
+			hostNames: store.automations.get().map(automation => automation.name).sort(),
+		}, {
+			beforeRetry: {
+				legacyIds: [added.id],
+				visibleNames: ['Added by another window', 'Initial'],
+				completionRequests: 0,
+			},
+			legacyAutomations: [],
+			hostNames: ['Added by another window', 'Initial'],
+		});
+	});
+
+	test('drains residual legacy definitions before accepting an already-migrated host', async () => {
+		const connection = disposables.add(new TestAutomationConnection(true));
+		const storage = disposables.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		const legacy = disposables.add(new AutomationStore(providerAutomationStorageKey('local-agent-host'), storage, new NullLogService(), NullTelemetryService, automationStorage));
+		const automation = await legacy.createAutomation({
+			name: 'Residual',
+			prompt: 'Review residual changes.',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+		});
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, legacy, undefined, new NullLogService(), storage, NullTelemetryService, automationStorage));
+
+		const before = {
+			schedulingOwnedByHost: store.isSchedulingOwnedByHost(automation.id),
+			legacyIds: legacy.automations.get().map(candidate => candidate.id),
+		};
+		await store.completeMigration();
+
+		assert.deepStrictEqual({
+			before,
+			schedulingOwnedByHost: store.isSchedulingOwnedByHost(automation.id),
+			legacyAutomations: legacy.automations.get(),
+			hostNames: store.automations.get().map(candidate => candidate.name),
+		}, {
+			before: {
+				schedulingOwnedByHost: false,
+				legacyIds: [automation.id],
+			},
+			schedulingOwnedByHost: true,
+			legacyAutomations: [],
+			hostNames: ['Residual'],
 		});
 	});
 

@@ -114,6 +114,8 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			if (catalog && !(catalog instanceof Error)
 				&& (isAgentHostAutomationCatalogMigrated(catalog)
 					|| catalog.automations.some(automation => automation.operations.includes(AutomationOperation.Run)))
+				&& (!this._legacySource || this._legacySource.automations.read(reader).length === 0)
+				&& !this._migrationPromise
 				&& !this._ready.read(reader)) {
 				this._ready.set(true, undefined);
 			}
@@ -173,6 +175,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	}
 
 	async createAutomation(options: ICreateAutomationOptions, mutationGuard?: AutomationMutationGuard): Promise<IAutomationDescriptor> {
+		await this._waitForMigrationBeforeMutation();
 		if (!this._ready.get() && this._legacySource) {
 			return this._legacySource.createAutomation(options, mutationGuard);
 		}
@@ -197,6 +200,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	}
 
 	async updateAutomation(id: string, patch: IUpdateAutomationOptions): Promise<IAutomationDescriptor> {
+		await this._waitForMigrationBeforeMutation();
 		if (!this._ready.get() && this._legacySource?.getAutomation(id)) {
 			return this._legacySource.updateAutomation(id, patch);
 		}
@@ -208,6 +212,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	}
 
 	async updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomationDescriptor, mutationGuard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult> {
+		await this._waitForMigrationBeforeMutation();
 		if (!this._ready.get() && this._legacySource?.getAutomation(id)) {
 			return this._legacySource.updateAutomationIfUnchanged(id, patch, expected, mutationGuard);
 		}
@@ -220,6 +225,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	}
 
 	async deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard): Promise<void> {
+		await this._waitForMigrationBeforeMutation();
 		if (!this._ready.get() && this._legacySource?.getAutomation(id)) {
 			return this._legacySource.deleteAutomation(id, mutationGuard);
 		}
@@ -408,8 +414,9 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 				throw new AggregateError(failures, `Failed to migrate ${failures.length} Agent Host Automation definition(s).`);
 			}
 
-			const catalog = await this._waitForCatalog(() => true);
-			const resources = catalog.automations.map(automation => automation.resource);
+			this._requireLegacySourceDrained();
+			await this._waitForCatalog(() => true);
+			const resources = discovered.map(automation => automationResource(automation.id));
 			this._connection.dispatch(ROOT_STATE_URI, {
 				type: ActionType.RootConfigChanged,
 				config: {
@@ -421,6 +428,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 				},
 			});
 			await this._waitForMigrationCompletion();
+			this._requireLegacySourceDrained();
 			this._ready.set(true, undefined);
 			const durationMs = Date.now() - startedAt;
 			this._logService.info(`[AgentHostAutomationStore] Automation migration completed: discovered=${discovered.length}, migrated=${resources.length}, failed=0, durationMs=${durationMs}.`);
@@ -445,6 +453,20 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 				durationMs,
 			});
 			throw error;
+		}
+	}
+
+	private async _waitForMigrationBeforeMutation(): Promise<void> {
+		const migration = this._migrationPromise;
+		if (migration) {
+			await migration;
+		}
+	}
+
+	private _requireLegacySourceDrained(): void {
+		const remaining = this._legacySource?.automations.get().length ?? 0;
+		if (remaining > 0) {
+			throw new Error(`Automation migration source changed during migration; ${remaining} definition(s) remain.`);
 		}
 	}
 
