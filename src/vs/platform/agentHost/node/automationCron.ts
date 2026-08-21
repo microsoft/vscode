@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 const MINUTE_MS = 60_000;
-const MAX_SEARCH_MINUTES = 10 * 366 * 24 * 60;
+const DATE_SEARCH_STEP_MS = 12 * 60 * MINUTE_MS;
+const MAX_SEARCH_MS = 10 * 366 * 24 * 60 * MINUTE_MS;
 
 const MONTH_NAMES = new Map([
 	['JAN', 1],
@@ -61,9 +62,27 @@ export function nextAutomationCronOccurrence(expression: string, timeZone: strin
 	const cron = parseAutomationCron(expression);
 	const formatter = createDateFormatter(timeZone);
 	let candidate = Math.floor(after.getTime() / MINUTE_MS) * MINUTE_MS + MINUTE_MS;
-	for (let iteration = 0; iteration < MAX_SEARCH_MINUTES; iteration++, candidate += MINUTE_MS) {
-		if (matches(cron, readLocalDateParts(formatter, candidate))) {
+	const searchEnd = candidate + MAX_SEARCH_MS;
+	let minuteSearchEnd = candidate;
+	while (candidate < searchEnd) {
+		const parts = readLocalDateParts(formatter, candidate);
+		const dateMatches = matchesDate(cron, parts);
+		if (dateMatches && matchesTime(cron, parts)) {
 			return new Date(candidate);
+		}
+		if (dateMatches || candidate < minuteSearchEnd) {
+			candidate += MINUTE_MS;
+			continue;
+		}
+
+		// Backfill the coarse interval when it enters an eligible local date so its earliest minutes are not skipped.
+		const jumpedCandidate = Math.min(candidate + DATE_SEARCH_STEP_MS, searchEnd);
+		const jumpedParts = readLocalDateParts(formatter, jumpedCandidate);
+		if (matchesDate(cron, jumpedParts)) {
+			minuteSearchEnd = jumpedCandidate;
+			candidate += MINUTE_MS;
+		} else {
+			candidate = jumpedCandidate;
 		}
 	}
 	throw new Error(`Automation schedule has no occurrence within ten years: ${expression}`);
@@ -200,10 +219,8 @@ function readLocalDateParts(formatter: Intl.DateTimeFormat, timestamp: number): 
 	};
 }
 
-function matches(cron: IAutomationCron, parts: ILocalDateParts): boolean {
-	if (!cron.minute.values.has(parts.minute)
-		|| !cron.hour.values.has(parts.hour)
-		|| !cron.month.values.has(parts.month)) {
+function matchesDate(cron: IAutomationCron, parts: ILocalDateParts): boolean {
+	if (!cron.month.values.has(parts.month)) {
 		return false;
 	}
 	const dayOfMonthMatches = cron.dayOfMonth.values.has(parts.dayOfMonth);
@@ -215,4 +232,8 @@ function matches(cron: IAutomationCron, parts: ILocalDateParts): boolean {
 		return dayOfMonthMatches;
 	}
 	return dayOfMonthMatches || dayOfWeekMatches;
+}
+
+function matchesTime(cron: IAutomationCron, parts: ILocalDateParts): boolean {
+	return cron.minute.values.has(parts.minute) && cron.hour.values.has(parts.hour);
 }

@@ -37,6 +37,28 @@ suite('Automation cron', () => {
 		);
 	});
 
+	test('finds sparse annual and leap-day schedules', () => {
+		assert.deepStrictEqual({
+			annual: nextAutomationCronOccurrence('0 0 1 JAN *', 'UTC', new Date('2026-01-02T00:00:00Z')).toISOString(),
+			leapDay: nextAutomationCronOccurrence('0 0 29 FEB *', 'UTC', new Date('2024-03-01T00:00:00Z')).toISOString(),
+		}, {
+			annual: '2027-01-01T00:00:00.000Z',
+			leapDay: '2028-02-29T00:00:00.000Z',
+		});
+	});
+
+	test('handles missing and repeated wall-clock times at DST transitions', () => {
+		assert.deepStrictEqual({
+			missing: nextAutomationCronOccurrence('30 2 * * *', 'America/Los_Angeles', new Date('2026-03-08T09:59:00Z')).toISOString(),
+			repeated: nextAutomationCronOccurrence('30 1 * * *', 'America/Los_Angeles', new Date('2026-11-01T08:31:00Z')).toISOString(),
+			restrictedMissing: nextAutomationCronOccurrence('30 2 8 MAR *', 'America/Los_Angeles', new Date('2026-03-01T00:00:00Z')).toISOString(),
+		}, {
+			missing: '2026-03-09T09:30:00.000Z',
+			repeated: '2026-11-01T09:30:00.000Z',
+			restrictedMissing: '2027-03-08T10:30:00.000Z',
+		});
+	});
+
 	test('rejects unsupported grammar and invalid time zones', () => {
 		assert.throws(() => validateAutomationCron('@daily', 'UTC'), /exactly five fields/);
 		assert.throws(() => validateAutomationCron('0 0 ? * *', 'UTC'), /outside 1-31/);
