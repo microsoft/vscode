@@ -303,6 +303,12 @@ function addEnvMixinPathPrefix(options: ITerminalProcessOptions, envMixin: IProc
 		if (pathEntry) {
 			for (const mutator of pathEntry) {
 				if (mutator.type === EnvironmentVariableMutatorType.Prepend) {
+					// Skip Windows-style paths on non-Windows to prevent corruption of PATH when a
+					// local Windows extension host contributes paths into a remote non-Windows terminal.
+					// See https://github.com/microsoft/vscode/issues/247070
+					if (!isWindows && /^[A-Za-z]:[/\\]/.test(mutator.value)) {
+						continue;
+					}
 					prependToPath.push(mutator.value);
 				}
 			}
