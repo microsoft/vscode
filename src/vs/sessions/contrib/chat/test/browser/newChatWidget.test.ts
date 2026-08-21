@@ -8,30 +8,45 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { IOpenNewSessionResult } from '../../../../services/sessions/browser/sessionsService.js';
 import { IPreferredSessionType } from '../../browser/sessionTypePicker.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
 
-interface INewChatWidgetHarness {
+/** The part of the active session `_recreateOnProviderChange` actually reads. */
+interface IActiveDraft {
+	readonly sessionId: string;
+	readonly isCreated: IObservable<boolean>;
+	readonly providerId: string;
+	readonly sessionType: string;
+}
+
+interface IRecreateHarness {
+	readonly _session: IObservable<IActiveDraft | undefined>;
+	readonly _newChatInput: {
+		readonly sessionTypePicker: {
+			getPreferredSessionType(folderUri: URI): IPreferredSessionType | undefined;
+		};
+	};
+	_isPreferredServable(folderUri: URI, pick: IPreferredSessionType): boolean;
+	_createNewSession(folderUri: URI): Promise<IOpenNewSessionResult>;
+}
+
+interface INewChatWidgetHarness extends IRecreateHarness {
 	readonly _pendingPreferredUpgrade: MutableDisposable<IDisposable>;
 	readonly _newSessionCreation: MutableDisposable<IDisposable>;
 	readonly sessionsManagementService: { readonly onDidChangeSessionTypes: Event<void> };
-	readonly _session: IObservable<IActiveSession | undefined>;
 	readonly _newChatInput: {
 		readonly sessionTypePicker: {
 			getUserPickedSessionType(): IPreferredSessionType | undefined;
 			getPreferredSessionType(folderUri: URI): IPreferredSessionType | undefined;
 		};
 	};
-	_isPreferredServable(folderUri: URI, pick: IPreferredSessionType): boolean;
 	_createSessionNow(folderUri: URI, userPick: IPreferredSessionType | undefined, token: CancellationToken): Promise<IOpenNewSessionResult>;
-	_createNewSession(folderUri: URI): Promise<IOpenNewSessionResult>;
 	_scheduleRecreateOnProviderChange(folderUri: URI, userPick: IPreferredSessionType | undefined, created: ISession | undefined, replayMissedChange: boolean): void;
 	_recreateOnProviderChange(folderUri: URI, userPick: IPreferredSessionType | undefined, created: ISession | undefined): void;
 }
@@ -41,7 +56,12 @@ const createNewSession = Reflect.get(NewChatWidget.prototype, '_createNewSession
 	folderUri: URI,
 ) => Promise<IOpenNewSessionResult>;
 const scheduleRecreateOnProviderChange = Reflect.get(NewChatWidget.prototype, '_scheduleRecreateOnProviderChange') as INewChatWidgetHarness['_scheduleRecreateOnProviderChange'];
-const recreateOnProviderChange = Reflect.get(NewChatWidget.prototype, '_recreateOnProviderChange') as INewChatWidgetHarness['_recreateOnProviderChange'];
+const recreateOnProviderChange = Reflect.get(NewChatWidget.prototype, '_recreateOnProviderChange') as (
+	this: IRecreateHarness,
+	folderUri: URI,
+	userPick: IPreferredSessionType | undefined,
+	created: { readonly sessionId: string } | undefined,
+) => void;
 const handlePromptOptionsWorkspaceChange = Reflect.get(NewChatWidget.prototype, '_handlePromptOptionsWorkspaceChange') as (this: IPromptOptionsWorkspaceHarness, previousFolderUri: URI | undefined, folderUri: URI | undefined) => void;
 const hasEnoughSessionsForFirstRunNotices = Reflect.get(NewChatWidget.prototype, '_hasEnoughSessionsForFirstRunNotices') as (this: ISessionCountHarness) => boolean;
 
@@ -65,7 +85,7 @@ function createHarness(
 		_pendingPreferredUpgrade: pendingPreferredUpgrade,
 		_newSessionCreation: newSessionCreation,
 		sessionsManagementService: { onDidChangeSessionTypes },
-		_session: observableValue<IActiveSession | undefined>('session', undefined),
+		_session: observableValue<IActiveDraft | undefined>('session', undefined),
 		_newChatInput: {
 			sessionTypePicker: {
 				getUserPickedSessionType: () => undefined,
@@ -143,6 +163,38 @@ suite('NewChatWidget', () => {
 		await Promise.all([first, second]);
 
 		assert.deepStrictEqual({ tokenCount: tokens.length, firstCancelledWhenSecondStarted }, { tokenCount: 2, firstCancelledWhenSecondStarted: true });
+	});
+
+	test('a provider change only recreates the draft when the pick differs from it', () => {
+		const folder = URI.file('/project');
+		const draft: IActiveDraft = { sessionId: 's1', isCreated: constObservable(false), providerId: 'agent-host', sessionType: 'claude' };
+		const cases: { name: string; pick: IPreferredSessionType }[] = [
+			{ name: 'pick matches the draft', pick: { providerId: 'agent-host', sessionTypeId: 'claude' } },
+			{ name: 'pick names no provider, type matches', pick: { sessionTypeId: 'claude' } },
+			{ name: 'pick names another provider', pick: { providerId: 'other', sessionTypeId: 'claude' } },
+			{ name: 'pick names another type', pick: { providerId: 'agent-host', sessionTypeId: 'codex' } },
+		];
+
+		const outcomes = cases.map(({ name, pick }) => {
+			let recreated = false;
+			recreateOnProviderChange.call({
+				_session: constObservable(draft),
+				_newChatInput: { sessionTypePicker: { getPreferredSessionType: () => undefined } },
+				_isPreferredServable: () => true,
+				_createNewSession: async () => {
+					recreated = true;
+					return { session: undefined, trustDeclined: false };
+				},
+			}, folder, pick, { sessionId: 's1' });
+			return `${name}: ${recreated}`;
+		});
+
+		assert.deepStrictEqual(outcomes, [
+			'pick matches the draft: false',
+			'pick names no provider, type matches: false',
+			'pick names another provider: true',
+			'pick names another type: true',
+		]);
 	});
 
 	test('refreshes prompt options when the draft workspace changes', () => {
