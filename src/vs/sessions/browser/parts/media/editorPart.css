@@ -43,6 +43,15 @@
 	height: var(--editor-group-tab-height);
 }
 
+.agent-sessions-workbench.dock-detail-panel .part.editor > .content .editor-group-container > .title:not(.tabs) > .label-container > .tabs-bar-add-tab::after {
+	content: '';
+	width: var(--vscode-strokeThickness);
+	height: var(--vscode-spacing-size160);
+	margin: 0 var(--vscode-spacing-size40);
+	background-color: var(--vscode-titleBar-activeForeground);
+	opacity: 0.3;
+}
+
 .agent-sessions-workbench.dock-detail-panel .part.editor > .content .editor-group-container > .title:not(.tabs) > .label-container > .tabs-bar-add-tab .action-label:not(.separator) {
 	width: 22px;
 	height: 22px;
