@@ -42,6 +42,7 @@ import {
 	BrowserWidgetLocation,
 	CONTEXT_BROWSER_FOCUSED,
 	CONTEXT_BROWSER_HAS_URL,
+	CONTEXT_BROWSER_IS_INTERACTIVE,
 	IBrowserEditorWidget,
 	IBrowserUrlSuggestionAction,
 } from '../browserEditor.js';
@@ -112,7 +113,10 @@ class BrowserNavigationBar extends Disposable {
 
 		const urlBarHost: IBrowserUrlBarHost = {
 			get input() { return editor.input instanceof BrowserEditorInput ? editor.input : undefined; },
-			get isReadonly() { return editor.input instanceof BrowserEditorInput && editor.input.associatedResource !== undefined; },
+			get isReadonly() {
+				return (editor.input instanceof BrowserEditorInput && editor.input.associatedResource !== undefined)
+					|| editor.model?.isInteractive === false;
+			},
 			ensureBrowserFocus: () => editor.ensureBrowserFocus(),
 			getPrimaryActions: (text) => this._resolvePrimaryActions(text),
 			getPlaceholder: () => this._searchEngine
@@ -293,6 +297,7 @@ export class BrowserNavigationFeatures extends BrowserEditorContribution {
 		this._hasInitiatedNavigation = model.loading;
 		this._updateFromModel(model);
 		store.add(model.onDidNavigate(() => this._updateFromModel(model)));
+		store.add(model.onDidChangeInteractivity(() => this._navbar.refreshUrl()));
 		store.add(model.onWillNavigate(url => {
 			this._hasInitiatedNavigation = true;
 			this._navbar.previewUrl(url);
@@ -355,7 +360,7 @@ class GoBackAction extends Action2 {
 			category: BrowserActionCategory,
 			icon: Codicon.arrowLeft,
 			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_CAN_GO_BACK),
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_CAN_GO_BACK, CONTEXT_BROWSER_IS_INTERACTIVE),
 			menu: {
 				id: MenuId.BrowserNavigationToolbar,
 				group: 'navigation',
@@ -387,7 +392,7 @@ class GoForwardAction extends Action2 {
 			category: BrowserActionCategory,
 			icon: Codicon.arrowRight,
 			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_CAN_GO_FORWARD),
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_CAN_GO_FORWARD, CONTEXT_BROWSER_IS_INTERACTIVE),
 			menu: {
 				id: MenuId.BrowserNavigationToolbar,
 				group: 'navigation',
@@ -419,7 +424,7 @@ class ReloadAction extends Action2 {
 			category: BrowserActionCategory,
 			icon: Codicon.refresh,
 			f1: true,
-			precondition: BROWSER_EDITOR_ACTIVE,
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_IS_INTERACTIVE),
 			menu: {
 				id: MenuId.BrowserNavigationToolbar,
 				group: 'navigation',
@@ -431,7 +436,7 @@ class ReloadAction extends Action2 {
 				}
 			},
 			keybinding: {
-				when: CONTEXT_BROWSER_FOCUSED,
+				when: ContextKeyExpr.and(CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_IS_INTERACTIVE),
 				weight: KeybindingWeight.WorkbenchContrib + 75,
 				primary: KeyMod.CtrlCmd | KeyCode.KeyR,
 				secondary: [KeyCode.F5],
@@ -457,9 +462,9 @@ class HardReloadAction extends Action2 {
 			category: BrowserActionCategory,
 			icon: Codicon.refresh,
 			f1: true,
-			precondition: BROWSER_EDITOR_ACTIVE,
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_IS_INTERACTIVE),
 			keybinding: {
-				when: CONTEXT_BROWSER_FOCUSED,
+				when: ContextKeyExpr.and(CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_IS_INTERACTIVE),
 				weight: KeybindingWeight.WorkbenchContrib + 75,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyR,
 				secondary: [KeyMod.CtrlCmd | KeyCode.F5],

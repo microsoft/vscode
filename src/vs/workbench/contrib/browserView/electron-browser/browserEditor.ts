@@ -29,10 +29,12 @@ import { ILayoutService } from '../../../../platform/layout/browser/layoutServic
 import { IAction } from '../../../../base/common/actions.js';
 import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
 
 export const CONTEXT_BROWSER_FOCUSED = new RawContextKey<boolean>('browserFocused', true, localize('browser.editorFocused', "Whether the browser editor is focused"));
 export const CONTEXT_BROWSER_HAS_URL = new RawContextKey<boolean>('browserHasUrl', false, localize('browser.hasUrl', "Whether the browser has a URL loaded"));
 export const CONTEXT_BROWSER_HAS_ERROR = new RawContextKey<boolean>('browserHasError', false, localize('browser.hasError', "Whether the browser has a load error"));
+export const CONTEXT_BROWSER_IS_INTERACTIVE = new RawContextKey<boolean>('browserIsInteractive', true, localize('browser.isInteractive', "Whether the browser page is interactive"));
 
 /** Context key expression matching when the browser editor is the active editor. */
 export const BROWSER_EDITOR_ACTIVE = ContextKeyExpr.equals('activeEditor', BrowserEditorInput.EDITOR_ID);
@@ -440,6 +442,7 @@ export class BrowserEditor extends EditorPane {
 
 	private _hasUrlContext!: IContextKey<boolean>;
 	private _hasErrorContext!: IContextKey<boolean>;
+	private _isInteractiveContext!: IContextKey<boolean>;
 
 	private readonly _inputDisposables = this._register(new DisposableStore());
 	private _currentPadding: { top: number; right: number; bottom: number; left: number } = { top: 0, right: 0, bottom: 0, left: 0 };
@@ -464,6 +467,7 @@ export class BrowserEditor extends EditorPane {
 
 		this._hasUrlContext = CONTEXT_BROWSER_HAS_URL.bindTo(contextKeyService);
 		this._hasErrorContext = CONTEXT_BROWSER_HAS_ERROR.bindTo(contextKeyService);
+		this._isInteractiveContext = CONTEXT_BROWSER_IS_INTERACTIVE.bindTo(contextKeyService);
 
 		// Currently this is always true since it is scoped to the editor container
 		CONTEXT_BROWSER_FOCUSED.bindTo(contextKeyService);
@@ -516,6 +520,7 @@ export class BrowserEditor extends EditorPane {
 		// Create browser container (stub element for positioning)
 		this._browserContainer = $('.browser-container');
 		this._browserContainer.tabIndex = 0; // make focusable
+		this._updateInteractivityAccessibility(true);
 		this._browserContainerWrapper.appendChild(this._browserContainer);
 
 		// Notify contributions that the container DOM is ready.
@@ -552,6 +557,8 @@ export class BrowserEditor extends EditorPane {
 		}
 
 		this._inputDisposables.clear();
+		this._isInteractiveContext.reset();
+		this._updateInteractivityAccessibility(true);
 
 		let model = input.model;
 		const isNew = !model;
@@ -574,6 +581,8 @@ export class BrowserEditor extends EditorPane {
 		}
 
 		this._model = model;
+		this._isInteractiveContext.set(model.isInteractive);
+		this._updateInteractivityAccessibility(model.isInteractive);
 		this._onDidChangeModel.fire({ model, isNew });
 
 		this._hasUrlContext.set(!!model.url);
@@ -584,8 +593,15 @@ export class BrowserEditor extends EditorPane {
 		this._inputDisposables.add(this._model.onWillDispose(() => {
 			if (this._model === model) {
 				this._model = undefined;
+				this._isInteractiveContext.reset();
+				this._updateInteractivityAccessibility(true);
 				this._onDidChangeModel.fire({ model: undefined, isNew: false });
 			}
+		}));
+
+		this._inputDisposables.add(model.onDidChangeInteractivity(({ isInteractive }) => {
+			this._isInteractiveContext.set(isInteractive);
+			this._updateInteractivityAccessibility(isInteractive, true);
 		}));
 
 		this._inputDisposables.add(this._model.onWillNavigate(() => {
@@ -638,6 +654,19 @@ export class BrowserEditor extends EditorPane {
 	ensureBrowserFocus(): void {
 		originalHtmlElementFocus.call(this._browserContainer);
 		this.window.document.getSelection()?.removeAllRanges();
+	}
+
+	private _updateInteractivityAccessibility(isInteractive: boolean, announce = false): void {
+		this._browserContainer.setAttribute('aria-label', isInteractive
+			? localize('browser.pageInteractive', "Browser page, interactive")
+			: localize('browser.pageViewOnly', "Browser page, view only"));
+		this._browserContainer.setAttribute('aria-disabled', String(!isInteractive));
+
+		if (announce && this.window.document.activeElement === this._browserContainer) {
+			status(isInteractive
+				? localize('browser.pageInteractionEnabled', "Browser page interaction enabled.")
+				: localize('browser.pageInteractionDisabled', "Browser page is view only."));
+		}
 	}
 
 	/**
@@ -770,6 +799,8 @@ export class BrowserEditor extends EditorPane {
 
 		this._hasUrlContext.reset();
 		this._hasErrorContext.reset();
+		this._isInteractiveContext.reset();
+		this._updateInteractivityAccessibility(true);
 
 		super.clearInput();
 	}

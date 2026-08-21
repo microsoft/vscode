@@ -20,7 +20,7 @@ import { browserZoomFactors, browserZoomLabel, browserZoomAccessibilityLabel } f
 import { IBrowserViewModel } from '../../../browserView/common/browserView.js';
 import { BrowserZoomService, IBrowserZoomService, MATCH_WINDOW_ZOOM_LABEL } from '../../../browserView/common/browserZoomService.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, BROWSER_EDITOR_ACTIVE, BrowserActionCategory, BrowserActionGroup, CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, IBrowserEditorWidget } from '../browserEditor.js';
+import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, BROWSER_EDITOR_ACTIVE, BrowserActionCategory, BrowserActionGroup, CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_IS_INTERACTIVE, IBrowserEditorWidget } from '../browserEditor.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { getZoomLevel, onDidChangeZoomLevel } from '../../../../../base/browser/browser.js';
 import { zoomLevelToZoomFactor } from '../../../../../platform/window/common/window.js';
@@ -152,7 +152,7 @@ class ZoomInAction extends Action2 {
 			category: BrowserActionCategory,
 			icon: Codicon.zoomIn,
 			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate()),
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), CONTEXT_BROWSER_IS_INTERACTIVE),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: BrowserActionGroup.Zoom,
@@ -161,7 +161,7 @@ class ZoomInAction extends Action2 {
 				isHiddenByDefault: true,
 			},
 			keybinding: {
-				when: CONTEXT_BROWSER_FOCUSED,
+				when: ContextKeyExpr.and(CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_IS_INTERACTIVE),
 				weight: KeybindingWeight.WorkbenchContrib + 75,
 				// Same shortcuts as 'workbench.action.zoomIn'
 				primary: KeyMod.CtrlCmd | KeyCode.Equal,
@@ -187,7 +187,7 @@ class ZoomOutAction extends Action2 {
 			category: BrowserActionCategory,
 			icon: Codicon.zoomOut,
 			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate()),
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), CONTEXT_BROWSER_IS_INTERACTIVE),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: BrowserActionGroup.Zoom,
@@ -196,7 +196,7 @@ class ZoomOutAction extends Action2 {
 				isHiddenByDefault: true,
 			},
 			keybinding: {
-				when: CONTEXT_BROWSER_FOCUSED,
+				when: ContextKeyExpr.and(CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_IS_INTERACTIVE),
 				weight: KeybindingWeight.WorkbenchContrib + 75,
 				// Same shortcuts as 'workbench.action.zoomOut'
 				primary: KeyMod.CtrlCmd | KeyCode.Minus,
@@ -226,7 +226,7 @@ class ResetZoomAction extends Action2 {
 			category: BrowserActionCategory,
 			icon: Codicon.screenNormal,
 			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate()),
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), CONTEXT_BROWSER_IS_INTERACTIVE),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: BrowserActionGroup.Zoom,
@@ -234,7 +234,7 @@ class ResetZoomAction extends Action2 {
 				isHiddenByDefault: true,
 			},
 			keybinding: {
-				when: CONTEXT_BROWSER_FOCUSED,
+				when: ContextKeyExpr.and(CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_IS_INTERACTIVE),
 				weight: KeybindingWeight.WorkbenchContrib + 75,
 				// Same shortcuts as 'workbench.action.zoomReset'
 				// (note: both workbench and here use Numpad0 instead of Digit0 to avoid conflicts with keybinding to focus sidebar.)

@@ -94,6 +94,9 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		if (options.initialState?.audiences) {
 			view.setAudiences(options.initialState.audiences);
 		}
+		if (options.initialState?.isInteractive !== undefined) {
+			view.setInteractive(options.initialState.isInteractive);
+		}
 
 		if (options.initialState?.url) {
 			void view.loadURL(options.initialState.url);
@@ -171,6 +174,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 	onDynamicDidChangeVisibility(id: string) {
 		return this._getBrowserView(id).onDidChangeVisibility;
+	}
+
+	onDynamicDidChangeInteractivity(id: string) {
+		return this._getBrowserView(id).onDidChangeInteractivity;
 	}
 
 	onDynamicDidChangeDevToolsState(id: string) {
@@ -255,6 +262,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 	async setVisible(id: string, visible: boolean): Promise<void> {
 		return this._getBrowserView(id).setVisible(visible);
+	}
+
+	async setInteractive(id: string, isInteractive: boolean): Promise<void> {
+		return this._getBrowserView(id).setInteractive(isInteractive);
 	}
 
 	async loadURL(id: string, url: string): Promise<void> {
