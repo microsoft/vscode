@@ -208,10 +208,8 @@ class SetChangesListViewModeAction extends Action2 {
 			icon: Codicon.listFlat,
 			f1: false,
 			menu: {
-				// Always in the overflow ("…") of the right header, whether the editor
-				// area is visible or collapsed (as long as the changes list is shown).
-				id: Menus.SessionsEditorHeaderSecondary,
-				group: 'secondary/2_viewMode',
+				id: Menus.SessionsEditorTitle,
+				group: '2_viewMode',
 				order: 20,
 				when: ContextKeyExpr.and(
 					singlePaneDiffEditorTitle,
@@ -239,10 +237,8 @@ class SetChangesTreeViewModeAction extends Action2 {
 			icon: Codicon.listTree,
 			f1: false,
 			menu: {
-				// Always in the overflow ("…") of the right header, whether the editor
-				// area is visible or collapsed (as long as the changes list is shown).
-				id: Menus.SessionsEditorHeaderSecondary,
-				group: 'secondary/2_viewMode',
+				id: Menus.SessionsEditorTitle,
+				group: '2_viewMode',
 				order: 20,
 				when: ContextKeyExpr.and(
 					singlePaneDiffEditorTitle,
@@ -270,8 +266,8 @@ class CollapseAllSessionChangesDiffsAction extends Action2 {
 			icon: Codicon.collapseAll,
 			f1: false,
 			menu: {
-				id: Menus.SessionsEditorHeaderSecondary,
-				group: 'secondary/1_diff',
+				id: Menus.SessionsEditorTitle,
+				group: '1_diff',
 				order: 10,
 				when: ContextKeyExpr.and(
 					singlePaneChangesEditorTitleVisible,
@@ -300,8 +296,8 @@ class ExpandAllSessionChangesDiffsAction extends Action2 {
 			icon: Codicon.expandAll,
 			f1: false,
 			menu: {
-				id: Menus.SessionsEditorHeaderSecondary,
-				group: 'secondary/1_diff',
+				id: Menus.SessionsEditorTitle,
+				group: '1_diff',
 				order: 10,
 				when: ContextKeyExpr.and(
 					singlePaneChangesEditorActive,
@@ -329,7 +325,7 @@ registerAction2(ExpandAllSessionChangesDiffsAction);
 
 // The action changes the preferred layout. Side by side still falls back to inline
 // when the editor is narrow, so the label must not promise an immediate layout.
-MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, {
+MenuRegistry.appendMenuItem(Menus.SessionsEditorTitle, {
 	command: {
 		id: TOGGLE_DIFF_SIDE_BY_SIDE,
 		title: localize('alwaysShowInlineDiff', "Always Show Inline Diff"),
@@ -337,7 +333,7 @@ MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, {
 		icon: Codicon.diffSidebyside,
 		toggled: SessionsDiffRenderSideBySideContext.negate(),
 	},
-	group: 'secondary/1_diff',
+	group: '1_diff',
 	order: 20,
 	when: singlePaneDiffEditorTitleVisible
 });

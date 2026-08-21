@@ -104,12 +104,12 @@ suite('Changes View Actions', () => {
 		]);
 	});
 
-	test('collapse all diffs is contributed to the single-pane editor header overflow menu', () => {
-		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
+	test('collapse all diffs is contributed to the editor title bar overflow menu', () => {
+		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'workbench.action.agentSessions.collapseAllDiffs');
 
-		assert.ok(item, 'expected collapse all diffs action in the single-pane editor header overflow menu');
+		assert.ok(item, 'expected collapse all diffs action in the editor title bar overflow menu');
 		const when = item.when?.serialize() ?? '';
 		assert.deepStrictEqual({
 			group: item.group,
@@ -120,7 +120,7 @@ suite('Changes View Actions', () => {
 			hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 		}, {
-			group: 'secondary/1_diff',
+			group: '1_diff',
 			order: 10,
 			icon: Codicon.collapseAll.id,
 			hasSessionsWindowGate: true,
@@ -130,12 +130,12 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('expand all diffs is contributed to the single-pane editor header overflow menu', () => {
-		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
+	test('expand all diffs is contributed to the editor title bar overflow menu', () => {
+		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'workbench.action.agentSessions.expandAllDiffs');
 
-		assert.ok(item, 'expected expand all diffs action in the single-pane editor header overflow menu');
+		assert.ok(item, 'expected expand all diffs action in the editor title bar overflow menu');
 		const when = item.when?.serialize() ?? '';
 		assert.deepStrictEqual({
 			group: item.group,
@@ -147,7 +147,7 @@ suite('Changes View Actions', () => {
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 			hasAllCollapsedGate: when.includes(EditorContextKeys.multiDiffEditorAllCollapsed.key),
 		}, {
-			group: 'secondary/1_diff',
+			group: '1_diff',
 			order: 10,
 			icon: Codicon.expandAll.id,
 			hasSessionsWindowGate: true,
@@ -158,12 +158,23 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('always show inline diff is contributed to multi-file and single-file diff editor overflow menus', () => {
-		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
+	test('always show inline diff is contributed to the editor title bar overflow menu for multi-file and single-file diffs', () => {
+		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'toggle.diff.renderSideBySide');
+		const movedActionIds = new Set([
+			'toggle.diff.renderSideBySide',
+			'workbench.action.agentSessions.collapseAllDiffs',
+			'workbench.action.agentSessions.expandAllDiffs',
+			'workbench.action.agentSessions.setChangesListViewMode',
+			'workbench.action.agentSessions.setChangesTreeViewMode',
+		]);
+		const headerItems = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
+			.filter(isIMenuItem)
+			.filter(item => movedActionIds.has(item.command.id))
+			.map(item => item.command.id);
 
-		assert.ok(item, 'expected the preferred diff view action in the single-pane editor header overflow menu');
+		assert.ok(item, 'expected the preferred diff view action in the editor title bar overflow menu');
 		const when = item.when?.serialize() ?? '';
 		const toggled = item.command.toggled;
 		const toggledCondition = isICommandActionToggleInfo(toggled) ? toggled.condition : toggled;
@@ -183,6 +194,7 @@ suite('Changes View Actions', () => {
 			title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
 			group: item.group,
 			order: item.order,
+			headerItems,
 			icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
 			tooltip: typeof item.command.tooltip === 'string' ? item.command.tooltip : item.command.tooltip?.value,
 			hasStateSpecificTitle: isICommandActionToggleInfo(toggled),
@@ -197,8 +209,9 @@ suite('Changes View Actions', () => {
 		}, {
 			id: 'toggle.diff.renderSideBySide',
 			title: 'Always Show Inline Diff',
-			group: 'secondary/1_diff',
+			group: '1_diff',
 			order: 20,
+			headerItems: [],
 			icon: Codicon.diffSidebyside.id,
 			tooltip: 'Always uses inline layout.',
 			hasStateSpecificTitle: false,
@@ -241,7 +254,7 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('Changes accessibility help points to the editor header overflow menu', () => {
+	test('Changes accessibility help points to the editor title bar overflow menu', () => {
 		const instantiationService = new TestInstantiationService();
 		instantiationService.stub(IViewsService, new class extends mock<IViewsService>() { });
 		const provider = new SessionsChangesAccessibilityHelp().getProvider(instantiationService);
@@ -249,11 +262,11 @@ suite('Changes View Actions', () => {
 		const content = provider.provideContent();
 		provider.dispose();
 
-		assert.strictEqual(content.includes('Use Always Show Inline Diff in the editor header\'s More Actions menu'), true);
+		assert.strictEqual(content.includes('Use Always Show Inline Diff in the editor title bar\'s More Actions menu'), true);
 	});
 
-	test('view mode toggles include non-text single-file diff editor headers', () => {
-		const items = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
+	test('view mode toggles are contributed to the editor title bar overflow for non-text single-file diffs', () => {
+		const items = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id === 'workbench.action.agentSessions.setChangesListViewMode' || item.command.id === 'workbench.action.agentSessions.setChangesTreeViewMode');
 
@@ -289,7 +302,7 @@ suite('Changes View Actions', () => {
 		assert.deepStrictEqual(actual, [{
 			id: 'workbench.action.agentSessions.setChangesListViewMode',
 			title: 'View as List',
-			group: 'secondary/2_viewMode',
+			group: '2_viewMode',
 			order: 20,
 			icon: Codicon.listFlat.id,
 			hasSessionsWindowGate: true,
@@ -302,7 +315,7 @@ suite('Changes View Actions', () => {
 		}, {
 			id: 'workbench.action.agentSessions.setChangesTreeViewMode',
 			title: 'View as Tree',
-			group: 'secondary/2_viewMode',
+			group: '2_viewMode',
 			order: 20,
 			icon: Codicon.listTree.id,
 			hasSessionsWindowGate: true,
