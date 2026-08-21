@@ -5,10 +5,6 @@
 
 import { Event } from '../../../base/common/event.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import { RawContextKey } from '../../contextkey/common/contextkey.js';
-
-/** The effective Marketplace auth provider, for `when`-clause driven welcome content. */
-export const CONTEXT_MARKETPLACE_AUTH_PROVIDER = new RawContextKey<string>('marketplaceAuthProvider', '');
 
 export const enum ExtensionGalleryResourceType {
 	ExtensionQueryService = 'ExtensionQueryService',
@@ -104,9 +100,3 @@ export function getExtensionGalleryManifestResourceUri(manifest: IExtensionGalle
 export const ExtensionGalleryServiceUrlConfigKey = 'extensions.gallery.serviceUrl';
 
 export const ExtensionGalleryAuthProviderConfigKey = 'extensions.gallery.authProvider';
-
-/**
- * Interactive Microsoft sign-in, registered in the Electron layer and invoked by id from the
- * browser-layer action so it need not cross the layer boundary.
- */
-export const ExtensionGalleryMicrosoftSignInCommandId = 'workbench.extensions.marketplace.signInWithMicrosoft';

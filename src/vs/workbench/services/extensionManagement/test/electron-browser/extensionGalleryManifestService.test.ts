@@ -31,7 +31,8 @@ import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticati
 import { IHostService } from '../../../host/browser/host.js';
 import { IRemoteAgentService } from '../../../remote/common/remoteAgentService.js';
 import { WorkbenchExtensionGalleryManifestService } from '../../electron-browser/extensionGalleryManifestService.js';
-import { ExtensionGalleryAccountService, IExtensionGalleryAccountService } from '../../electron-browser/extensionGalleryAccountService.js';
+import { ExtensionGalleryAccountService, GitHubGalleryAccountProvider, MicrosoftGalleryAccountProvider } from '../../electron-browser/extensionGalleryAccountService.js';
+import { IExtensionGalleryAccountService } from '../../common/extensionGalleryAccount.js';
 
 function mockResponse(statusCode: number, body: object): IRequestContext {
 	return {
@@ -215,12 +216,16 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 	});
 
 	function createService(): WorkbenchExtensionGalleryManifestService {
-		// Built here (not in setup) so the account service resolves the effective auth provider after
-		// each test sets it; registered to the store because it is injected, not owned by the manifest.
+		// Built here (not in setup) so the provider is chosen after each test sets the config;
+		// registered to the store because it is injected, not owned by the manifest service.
 		const accountService = disposableStore.add(instantiationService.createInstance(ExtensionGalleryAccountService));
-		// Play the role of the production orchestrator (ExtensionGalleryAccountAuthenticationContribution),
-		// which connects authentication post-startup to avoid a service DI cycle.
-		accountService.connectAuthentication(instantiationService.get(IAuthenticationService));
+		// Play the role of the production contribution, which builds the auth-dependent provider
+		// outside the service graph and hands it over.
+		const useMicrosoft = configurationService.getValue<string>(ExtensionGalleryAuthProviderConfigKey) === 'microsoft';
+		const provider = disposableStore.add(useMicrosoft
+			? instantiationService.createInstance(MicrosoftGalleryAccountProvider)
+			: instantiationService.createInstance(GitHubGalleryAccountProvider));
+		accountService.setAccountProvider(provider);
 		instantiationService.stub(IExtensionGalleryAccountService, accountService);
 		return disposableStore.add(instantiationService.createInstance(WorkbenchExtensionGalleryManifestService));
 	}

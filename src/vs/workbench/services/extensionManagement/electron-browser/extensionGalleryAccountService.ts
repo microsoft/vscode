@@ -5,15 +5,13 @@
 
 import { IDefaultAccount } from '../../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { getClaimsFromJWT } from '../../../../base/common/oauth.js';
 import { localize } from '../../../../nls.js';
-import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
-import { ExtensionGalleryAuthProviderConfigKey, ExtensionGalleryMicrosoftSignInCommandId, CONTEXT_MARKETPLACE_AUTH_PROVIDER } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { ExtensionGalleryAuthProviderConfigKey } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
@@ -22,20 +20,12 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { AuthenticationSession, AuthenticationSessionAccount, IAuthenticationService } from '../../authentication/common/authentication.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { ExtensionGalleryAccountStatus, IExtensionGalleryAccount, IExtensionGalleryAccountProvider, IExtensionGalleryAccountService } from '../common/extensionGalleryAccount.js';
 
 /** The authentication provider that gates Private Marketplace access. */
-export type ExtensionGalleryAccessProviderId = 'github' | 'microsoft';
+type ExtensionGalleryAccessProviderId = 'github' | 'microsoft';
 
 const PREFERRED_ACCOUNT_KEY = 'marketplace.account';
-
-/**
- * Session lookup and interactive sign-in must request the same scopes, or the session created by
- * one is invisible to the other. Absent when the deployment did not configure them, in which case
- * the Microsoft path reports no account rather than requesting an unusable session.
- */
-function getMarketplaceScopes(productService: IProductService): string[] | undefined {
-	return productService.extensionsGallery?.accessScopes;
-}
 
 // Well-known MSA (personal account) tenant ids. Duplicated from the microsoft-authentication
 // extension, which lives in the extension host and is not importable here.
@@ -63,63 +53,16 @@ type MarketplaceAuthClassification = {
 	comment: 'Reports marketplace authentication results for enterprise marketplace access.';
 };
 
-
 /** The remembered account choice. `authProvider` scopes it so a provider switch ignores it. */
 interface IPreferredAccount {
 	readonly authProvider: string;
 	readonly id: string;
 }
 
-/** `accessToken` is only carried on the Microsoft path; the GitHub path has no bearer. */
-export interface IExtensionGalleryAccount {
-	readonly accessToken?: string;
-}
+/** Status bookkeeping and eligibility reporting shared by the provider implementations. */
+abstract class AbstractGalleryAccountProvider extends Disposable implements IExtensionGalleryAccountProvider {
 
-export const enum ExtensionGalleryAccountStatus {
-	/** None signed in, or several with no choice made. */
-	SignedOut = 'signedOut',
-	Ineligible = 'ineligible',
-	Eligible = 'eligible',
-	/** Could not be resolved — a transient auth failure, not a sign-out. */
-	Unknown = 'unknown'
-}
-
-export const IExtensionGalleryAccountService = createDecorator<IExtensionGalleryAccountService>('extensionGalleryAccountService');
-
-/** Identity and entitlement for the Private Marketplace. Knows nothing about URLs or HTTP. */
-export interface IExtensionGalleryAccountService {
-	readonly _serviceBrand: undefined;
-
-	readonly accountStatus: ExtensionGalleryAccountStatus;
-
-	readonly onDidChangeAccountStatus: Event<ExtensionGalleryAccountStatus>;
-
-	/** Never prompts. Check {@link accountStatus} for whether the account may actually be used. */
-	getAccount(): Promise<IExtensionGalleryAccount | undefined>;
-
-	readonly onDidChangeAccount: Event<void>;
-
-	/** Remembers an explicit choice so selection stays grounded across restarts. */
-	setPreferredAccount(accountId: string): void;
-
-	/**
-	 * Not a constructor dependency: auth transitively depends back on this service. Idempotent;
-	 * until it runs the Microsoft path reports "no account".
-	 */
-	connectAuthentication(authenticationService: IAuthenticationService): void;
-}
-
-export class ExtensionGalleryAccountService extends Disposable implements IExtensionGalleryAccountService {
-
-	declare readonly _serviceBrand: undefined;
-
-	private readonly authProvider: ExtensionGalleryAccessProviderId;
-
-	// A constructor dependency here would form a DI cycle: this → auth → extensionService → gallery
-	// → manifest → this, which aborts startup.
-	private authenticationService: IAuthenticationService | undefined;
-
-	private readonly _onDidChangeAccount = this._register(new Emitter<void>());
+	protected readonly _onDidChangeAccount = this._register(new Emitter<void>());
 	readonly onDidChangeAccount: Event<void> = this._onDidChangeAccount.event;
 
 	private _accountStatus = ExtensionGalleryAccountStatus.Unknown;
@@ -128,31 +71,16 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 	readonly onDidChangeAccountStatus: Event<ExtensionGalleryAccountStatus> = this._onDidChangeAccountStatus.event;
 
 	constructor(
-		@IProductService private readonly productService: IProductService,
-		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IStorageService private readonly storageService: IStorageService,
-		@ILogService private readonly logService: ILogService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		protected readonly authProviderId: ExtensionGalleryAccessProviderId,
+		private readonly telemetryService: ITelemetryService,
+		protected readonly logService: ILogService,
 	) {
 		super();
-		this.authProvider = configurationService.getValue<string>(ExtensionGalleryAuthProviderConfigKey) === 'microsoft' ? 'microsoft' : 'github';
-		CONTEXT_MARKETPLACE_AUTH_PROVIDER.bindTo(contextKeyService).set(this.authProvider);
-
-		// The Microsoft path's change signal is wired in connectAuthentication instead, to keep the DI
-		// cycle broken.
-		if (this.authProvider !== 'microsoft') {
-			this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this._onDidChangeAccount.fire()));
-		}
 	}
 
 	async getAccount(): Promise<IExtensionGalleryAccount | undefined> {
 		try {
-			const account = this.authProvider === 'microsoft'
-				? await this.getMicrosoftAccount()
-				: await this.getGitHubAccount();
-			return account;
+			return await this.doGetAccount();
 		} catch (error) {
 			// Distinct from "no account" so the caller does not demand sign-in for a transient failure.
 			this.logService.error('[Marketplace] Unable to resolve the marketplace account', error);
@@ -161,38 +89,45 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 		}
 	}
 
-	private setAccountStatus(status: ExtensionGalleryAccountStatus): void {
+	protected abstract doGetAccount(): Promise<IExtensionGalleryAccount | undefined>;
+
+	abstract signIn(): Promise<void>;
+
+	protected setAccountStatus(status: ExtensionGalleryAccountStatus): void {
 		if (this._accountStatus !== status) {
 			this._accountStatus = status;
 			this._onDidChangeAccountStatus.fire(status);
 		}
 	}
 
-	connectAuthentication(authenticationService: IAuthenticationService): void {
-		if (this.authenticationService) {
-			return; // idempotent — the orchestrator wires this exactly once, but guard defensively
-		}
-		this.authenticationService = authenticationService;
-		if (this.authProvider !== 'microsoft') {
-			return;
-		}
-		this._register(authenticationService.onDidChangeSessions(e => {
-			if (e.providerId === 'microsoft') {
-				this._onDidChangeAccount.fire();
-			}
-		}));
-		// Re-signal once: anything resolved before auth was connected saw no Microsoft session.
-		this._onDidChangeAccount.fire();
+	protected reportEligibility(eligible: boolean): void {
+		this.telemetryService.publicLog2<MarketplaceAuthEvent, MarketplaceAuthClassification>('marketplace:auth:checked', {
+			authProvider: this.authProviderId,
+			eligible
+		});
+	}
+}
+
+/** Entitlement from the default account's SKU or enterprise flag. No bearer is carried. */
+export class GitHubGalleryAccountProvider extends AbstractGalleryAccountProvider {
+
+	constructor(
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
+		@IProductService private readonly productService: IProductService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@ILogService logService: ILogService,
+	) {
+		super('github', telemetryService, logService);
+		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this._onDidChangeAccount.fire()));
 	}
 
-	/** Entitlement from the account's SKU or enterprise flag. No bearer is carried. */
-	private async getGitHubAccount(): Promise<IExtensionGalleryAccount | undefined> {
+	protected override async doGetAccount(): Promise<IExtensionGalleryAccount | undefined> {
 		const account = await this.defaultAccountService.getDefaultAccount();
 		if (!account) {
 			this.setAccountStatus(ExtensionGalleryAccountStatus.SignedOut);
 			return undefined;
 		}
-		const eligible = this.checkGitHubAccess(account);
+		const eligible = this.checkAccess(account);
 		this.reportEligibility(eligible);
 		this.setAccountStatus(eligible ? ExtensionGalleryAccountStatus.Eligible : ExtensionGalleryAccountStatus.Ineligible);
 		// A result is returned even when ineligible, so the caller can tell "signed in but denied"
@@ -200,7 +135,11 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 		return {};
 	}
 
-	private checkGitHubAccess(account: IDefaultAccount): boolean {
+	override async signIn(): Promise<void> {
+		await this.defaultAccountService.signIn();
+	}
+
+	private checkAccess(account: IDefaultAccount): boolean {
 		this.logService.debug('[Marketplace] Checking Account SKU access for configured gallery', account.entitlementsData?.access_type_sku);
 		if (account.entitlementsData?.access_type_sku
 			&& this.productService.extensionsGallery?.accessSKUs?.includes(account.entitlementsData.access_type_sku)) {
@@ -210,30 +149,50 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 		this.logService.debug('[Marketplace] Checking enterprise account access for configured gallery', account.enterprise);
 		return account.enterprise;
 	}
+}
 
-	/** Entitlement decided locally from the token's tenant claim. The bearer travels with it. */
-	private async getMicrosoftAccount(): Promise<IExtensionGalleryAccount | undefined> {
-		const session = await this.getMicrosoftSession();
+/** Entitlement decided locally from the token's tenant claim. The bearer travels with it. */
+export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvider {
+
+	constructor(
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IProductService private readonly productService: IProductService,
+		@IStorageService private readonly storageService: IStorageService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@ILogService logService: ILogService,
+	) {
+		super('microsoft', telemetryService, logService);
+		this._register(this.authenticationService.onDidChangeSessions(e => {
+			if (e.providerId === 'microsoft') {
+				this._onDidChangeAccount.fire();
+			}
+		}));
+	}
+
+	/**
+	 * Session lookup and interactive sign-in must request the same scopes, or the session created
+	 * by one is invisible to the other. Absent when the deployment did not configure them.
+	 */
+	private get scopes(): string[] | undefined {
+		return this.productService.extensionsGallery?.accessScopes;
+	}
+
+	protected override async doGetAccount(): Promise<IExtensionGalleryAccount | undefined> {
+		const session = await this.getSession();
 		if (!session) {
 			this.setAccountStatus(ExtensionGalleryAccountStatus.SignedOut);
 			return undefined;
 		}
-		const eligible = this.isEntraEligible(session);
+		const eligible = this.isEligible(session);
 		this.reportEligibility(eligible);
 		this.setAccountStatus(eligible ? ExtensionGalleryAccountStatus.Eligible : ExtensionGalleryAccountStatus.Ineligible);
 		// The bearer is withheld when ineligible: that identity must never reach the marketplace.
 		return { accessToken: eligible ? session.accessToken : undefined };
 	}
 
-	private reportEligibility(eligible: boolean): void {
-		this.telemetryService.publicLog2<MarketplaceAuthEvent, MarketplaceAuthClassification>('marketplace:auth:checked', {
-			authProvider: this.authProvider,
-			eligible
-		});
-	}
-
 	/** Work/school tenant is eligible, personal is not. Fails closed on an unreadable token. */
-	private isEntraEligible(session: AuthenticationSession): boolean {
+	private isEligible(session: AuthenticationSession): boolean {
 		const rawToken = session.idToken ?? session.accessToken;
 		let tid: string | undefined;
 		try {
@@ -252,12 +211,8 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 	 * Anchored to the remembered account rather than an arbitrary `sessions[0]`. Several accounts
 	 * with no preference returns `undefined` rather than guessing. Never prompts.
 	 */
-	private async getMicrosoftSession(): Promise<AuthenticationSession | undefined> {
-		if (!this.authenticationService) {
-			// connectAuthentication has not run yet; it re-signals once wired.
-			return undefined;
-		}
-		const scopes = getMarketplaceScopes(this.productService);
+	private async getSession(): Promise<AuthenticationSession | undefined> {
+		const scopes = this.scopes;
 		if (!scopes) {
 			this.logService.error('[Marketplace] extensionsGallery.accessScopes is not configured — the Microsoft marketplace path cannot request a session.');
 			return undefined;
@@ -281,6 +236,45 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 		return undefined;
 	}
 
+	override async signIn(): Promise<void> {
+		const scopes = this.scopes;
+		if (!scopes) {
+			this.logService.error('[Marketplace] extensionsGallery.accessScopes is not configured — cannot sign in to the Microsoft marketplace path.');
+			return;
+		}
+
+		// Passing a known account binds to it without a fresh interactive login; omitting it falls
+		// back to interactive sign-in, which is also how the user adds a different account.
+		const chooseAccount = async (account: AuthenticationSessionAccount | undefined): Promise<void> => {
+			// Persist before creating the session so re-validation already sees the grounded account.
+			if (account) {
+				this.storePreferredAccountId(account.id);
+			}
+			const session = await this.authenticationService.createSession('microsoft', scopes, account ? { account } : undefined);
+			this.storePreferredAccountId(session.account.id);
+		};
+
+		const accounts = await this.authenticationService.getAccounts('microsoft');
+		if (accounts.length <= 1) {
+			await chooseAccount(accounts.at(0));
+			return;
+		}
+
+		interface IAccountPickItem extends IQuickPickItem {
+			readonly account?: AuthenticationSessionAccount;
+		}
+		const picks: IAccountPickItem[] = accounts.map(account => ({ label: account.label, account }));
+		picks.push({ label: localize('marketplace.signInDifferentAccount', "Sign in with a Different Account…") });
+
+		const pick = await this.quickInputService.pick(picks, {
+			placeHolder: localize('marketplace.pickAccount', "Select the account to use for the Extensions Marketplace")
+		});
+		if (!pick) {
+			return; // cancelled
+		}
+		await chooseAccount(pick.account);
+	}
+
 	private readPreferredAccountId(): string | undefined {
 		const raw = this.storageService.get(PREFERRED_ACCOUNT_KEY, StorageScope.APPLICATION);
 		if (!raw) {
@@ -297,84 +291,80 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 			return undefined;
 		}
 		const candidate = parsed as Partial<IPreferredAccount>;
-		if (candidate.authProvider !== this.authProvider || typeof candidate.id !== 'string') {
+		if (candidate.authProvider !== this.authProviderId || typeof candidate.id !== 'string') {
 			return undefined;
 		}
 		return candidate.id;
 	}
 
 	private storePreferredAccountId(accountId: string): void {
-		const preferred: IPreferredAccount = { authProvider: this.authProvider, id: accountId };
+		const preferred: IPreferredAccount = { authProvider: this.authProviderId, id: accountId };
 		this.storageService.store(PREFERRED_ACCOUNT_KEY, JSON.stringify(preferred), StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
+}
 
-	setPreferredAccount(accountId: string): void {
-		this.storePreferredAccountId(accountId);
+/**
+ * Forwards to whichever provider the deployment configured. Holds no authentication dependency of
+ * its own, so it can sit in the service graph that authentication itself depends on.
+ */
+export class ExtensionGalleryAccountService extends Disposable implements IExtensionGalleryAccountService {
+
+	declare readonly _serviceBrand: undefined;
+
+	private provider: IExtensionGalleryAccountProvider | undefined;
+	private readonly providerListeners = this._register(new MutableDisposable<DisposableStore>());
+
+	private readonly _onDidChangeAccount = this._register(new Emitter<void>());
+	readonly onDidChangeAccount: Event<void> = this._onDidChangeAccount.event;
+
+	private readonly _onDidChangeAccountStatus = this._register(new Emitter<ExtensionGalleryAccountStatus>());
+	readonly onDidChangeAccountStatus: Event<ExtensionGalleryAccountStatus> = this._onDidChangeAccountStatus.event;
+
+	get accountStatus(): ExtensionGalleryAccountStatus {
+		return this.provider?.accountStatus ?? ExtensionGalleryAccountStatus.Unknown;
+	}
+
+	setAccountProvider(provider: IExtensionGalleryAccountProvider): void {
+		this.provider = provider;
+		const listeners = new DisposableStore();
+		listeners.add(provider.onDidChangeAccount(() => this._onDidChangeAccount.fire()));
+		listeners.add(provider.onDidChangeAccountStatus(status => this._onDidChangeAccountStatus.fire(status)));
+		this.providerListeners.value = listeners;
+		// Anything that resolved before the provider arrived saw no account; let it try again.
+		this._onDidChangeAccount.fire();
+	}
+
+	async getAccount(): Promise<IExtensionGalleryAccount | undefined> {
+		return this.provider?.getAccount();
+	}
+
+	async signIn(): Promise<void> {
+		await this.provider?.signIn();
 	}
 }
 
 registerSingleton(IExtensionGalleryAccountService, ExtensionGalleryAccountService, InstantiationType.Delayed);
 
 /**
- * Hands authentication to the account service after startup. Lives outside the core service graph,
- * so it can depend on both without forming the DI cycle the account service must avoid.
+ * Creates the configured provider and hands it to the service. Lives outside the core service
+ * graph, so it can depend on authentication without forming the cycle the service must avoid.
  */
-export class ExtensionGalleryAccountAuthenticationContribution implements IWorkbenchContribution {
+export class ExtensionGalleryAccountProviderContribution extends Disposable implements IWorkbenchContribution {
 
-	static readonly ID = 'workbench.contrib.extensionGalleryAccountAuthentication';
+	static readonly ID = 'workbench.contrib.extensionGalleryAccountProvider';
 
 	constructor(
-		@IAuthenticationService authenticationService: IAuthenticationService,
-		@IExtensionGalleryAccountService extensionGalleryAccountService: IExtensionGalleryAccountService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IExtensionGalleryAccountService accountService: IExtensionGalleryAccountService,
 	) {
-		extensionGalleryAccountService.connectAuthentication(authenticationService);
+		super();
+		const authProvider: ExtensionGalleryAccessProviderId = configurationService.getValue<string>(ExtensionGalleryAuthProviderConfigKey) === 'microsoft' ? 'microsoft' : 'github';
+		const provider = this._register(authProvider === 'microsoft'
+			? instantiationService.createInstance(MicrosoftGalleryAccountProvider)
+			: instantiationService.createInstance(GitHubGalleryAccountProvider));
+		accountService.setAccountProvider(provider);
 	}
 }
 
-registerWorkbenchContribution2(ExtensionGalleryAccountAuthenticationContribution.ID, ExtensionGalleryAccountAuthenticationContribution, WorkbenchPhase.AfterRestored);
-
-/**
- * Interactive Microsoft sign-in. Invoked by id from the browser-layer action, which cannot reach
- * this Electron layer directly.
- */
-CommandsRegistry.registerCommand(ExtensionGalleryMicrosoftSignInCommandId, async accessor => {
-	const authenticationService = accessor.get(IAuthenticationService);
-	const quickInputService = accessor.get(IQuickInputService);
-	const accountService = accessor.get(IExtensionGalleryAccountService);
-	const scopes = getMarketplaceScopes(accessor.get(IProductService));
-	if (!scopes) {
-		accessor.get(ILogService).error('[Marketplace] extensionsGallery.accessScopes is not configured — cannot sign in to the Microsoft marketplace path.');
-		return;
-	}
-
-	// Passing a known account binds to it without a fresh interactive login; omitting it falls back
-	// to interactive sign-in, which is also how the user adds a different account.
-	const chooseAccount = async (account: AuthenticationSessionAccount | undefined): Promise<void> => {
-		// Persist before creating the session so re-validation already sees the grounded account.
-		if (account) {
-			accountService.setPreferredAccount(account.id);
-		}
-		const session = await authenticationService.createSession('microsoft', scopes, account ? { account } : undefined);
-		accountService.setPreferredAccount(session.account.id);
-	};
-
-	const accounts = await authenticationService.getAccounts('microsoft');
-	if (accounts.length <= 1) {
-		await chooseAccount(accounts.at(0));
-		return;
-	}
-
-	interface IAccountPickItem extends IQuickPickItem {
-		readonly account?: AuthenticationSessionAccount;
-	}
-	const picks: IAccountPickItem[] = accounts.map(account => ({ label: account.label, account }));
-	picks.push({ label: localize('marketplace.signInDifferentAccount', "Sign in with a Different Account…") });
-
-	const pick = await quickInputService.pick(picks, {
-		placeHolder: localize('marketplace.pickAccount', "Select the account to use for the Extensions Marketplace")
-	});
-	if (!pick) {
-		return; // cancelled
-	}
-	await chooseAccount(pick.account);
-});
+registerWorkbenchContribution2(ExtensionGalleryAccountProviderContribution.ID, ExtensionGalleryAccountProviderContribution, WorkbenchPhase.BlockStartup);

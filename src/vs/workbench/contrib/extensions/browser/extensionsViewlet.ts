@@ -67,7 +67,7 @@ import { createActionViewItem } from '../../../../platform/actions/browser/menuE
 import { SeverityIcon } from '../../../../base/browser/ui/severityIcon/severityIcon.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { IExtensionGalleryManifest, IExtensionGalleryManifestService, ExtensionGalleryManifestStatus, CONTEXT_MARKETPLACE_AUTH_PROVIDER } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { IExtensionGalleryManifest, IExtensionGalleryManifestService, ExtensionGalleryManifestStatus } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { URI } from '../../../../base/common/uri.js';
 
 export const ExtensionsSortByContext = new RawContextKey<string>('extensionsSortByValue', '');
@@ -157,22 +157,8 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		viewRegistry.registerViews(viewDescriptors, this.container);
 
 		viewRegistry.registerViewWelcomeContent('workbench.views.extensions.marketplaceAccess', {
-			content: localize('sign in microsoft', "[Sign in with your Microsoft account]({0}) to access the Extensions Marketplace.", `command:workbench.extensions.actions.gallery.signIn`),
-			when: ContextKeyExpr.and(
-				CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.RequiresSignIn),
-				CONTEXT_MARKETPLACE_AUTH_PROVIDER.isEqualTo('microsoft')
-			)
-		});
-
-		viewRegistry.registerViewWelcomeContent('workbench.views.extensions.marketplaceAccess', {
-			content: localize('sign in github', "[Sign in with GitHub]({0}) to access the Extensions Marketplace.", `command:workbench.extensions.actions.gallery.signIn`),
-			when: ContextKeyExpr.and(
-				CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.RequiresSignIn),
-				ContextKeyExpr.or(
-					CONTEXT_MARKETPLACE_AUTH_PROVIDER.isEqualTo('github'),
-					ContextKeyExpr.not('marketplaceAuthProvider')
-				)
-			)
+			content: localize('sign in', "[Sign in to access Extensions Marketplace]({0})", `command:workbench.extensions.actions.gallery.signIn`),
+			when: CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.RequiresSignIn)
 		});
 
 		// Access denied applies to every provider (microsoft/github/default), so gate on status alone.

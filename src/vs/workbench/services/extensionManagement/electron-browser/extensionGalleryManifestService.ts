@@ -23,7 +23,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IHostService } from '../../host/browser/host.js';
-import { ExtensionGalleryAccountStatus, IExtensionGalleryAccountService } from './extensionGalleryAccountService.js';
+import { ExtensionGalleryAccountStatus, IExtensionGalleryAccountService } from '../common/extensionGalleryAccount.js';
 
 export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryManifestService implements IExtensionGalleryManifestService {
 
