@@ -106,6 +106,6 @@ export class FixtureChatPetService extends Disposable implements IChatPetService
 
 export function configureChatPetFixtureFileRoot(disposableStore: DisposableStore): void {
 	const previousFileRoot = globalThis._VSCODE_FILE_ROOT;
-	globalThis._VSCODE_FILE_ROOT = `${mainWindow.location.origin}/out/`;
+	globalThis._VSCODE_FILE_ROOT = `${mainWindow.location.origin}/src/`;
 	disposableStore.add(toDisposable(() => globalThis._VSCODE_FILE_ROOT = previousFileRoot));
 }

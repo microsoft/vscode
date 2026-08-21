@@ -55,11 +55,4 @@ export default defineThemedFixtureGroup({ path: 'sessions/accountMenu/petAchieve
 			variant: 'insiders',
 		}),
 	}),
-	PetDisabled: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		render: context => renderAchievementBadges(context, {
-			enabled: false,
-			unlockedAchievements: chatPetAchievements.map(achievement => achievement.id),
-		}),
-	}),
 });

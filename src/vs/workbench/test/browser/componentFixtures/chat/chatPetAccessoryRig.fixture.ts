@@ -5,13 +5,13 @@
 
 import * as DOM from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../../../base/common/network.js';
 import { allChatPetAccessories, chatPetAccessories, ChatPetAccessoryIds, getChatPetAccessory, type ChatPetAccessoryId, type IChatPetAccessory } from '../../../../contrib/chat/browser/chatPetAchievements.js';
 import { drawChatPetComposite, drawChatPetEyeAccessory, getChatPetAccessoryImageSource, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions } from '../../../../contrib/chat/browser/widget/chatPetAccessoryRenderer.js';
 import { getChatPetFrameDurations, getChatPetSpriteName, doesChatPetStateTrackCursor, CHAT_PET_SING_FIXED_ORIENTATION_DECORATIONS, drawChatPetAchievementStar, type ChatPetState } from '../../../../contrib/chat/browser/widget/chatPetWidget.js';
 import { getChatPetReducedMotionRigFrame } from '../../../../contrib/chat/browser/widget/chatPetAccessoryRig.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { configureChatPetFixtureFileRoot } from './chatPetFixtureUtils.js';
 
 interface IRigPreview {
 	readonly label: string;
@@ -163,7 +163,7 @@ export default defineThemedFixtureGroup({ path: 'chat/chatPetAccessoryRig/' }, {
 });
 
 async function renderCriticalPoses(ctx: ComponentFixtureContext): Promise<void> {
-	setFixtureFileRoot(ctx);
+	configureChatPetFixtureFileRoot(ctx.disposableStore);
 
 	ctx.container.style.width = '1100px';
 	ctx.container.style.height = '760px';
@@ -260,7 +260,7 @@ async function renderCriticalPoses(ctx: ComponentFixtureContext): Promise<void> 
 }
 
 async function renderAllRuntimeStates(ctx: ComponentFixtureContext): Promise<void> {
-	setFixtureFileRoot(ctx);
+	configureChatPetFixtureFileRoot(ctx.disposableStore);
 	ctx.container.style.width = '1360px';
 	ctx.container.style.height = '1000px';
 	ctx.container.style.boxSizing = 'border-box';
@@ -415,7 +415,7 @@ async function renderAllRuntimeStates(ctx: ComponentFixtureContext): Promise<voi
 }
 
 async function renderAllAccessoriesFacing(ctx: ComponentFixtureContext): Promise<void> {
-	setFixtureFileRoot(ctx);
+	configureChatPetFixtureFileRoot(ctx.disposableStore);
 	ctx.container.style.width = '900px';
 	ctx.container.style.height = '1080px';
 	ctx.container.style.boxSizing = 'border-box';
@@ -512,7 +512,7 @@ async function renderAllAccessoriesFacing(ctx: ComponentFixtureContext): Promise
 }
 
 async function renderCoveredAntennaeComparison(ctx: ComponentFixtureContext): Promise<void> {
-	setFixtureFileRoot(ctx);
+	configureChatPetFixtureFileRoot(ctx.disposableStore);
 	ctx.container.style.width = '1240px';
 	ctx.container.style.height = '1000px';
 	ctx.container.style.boxSizing = 'border-box';
@@ -673,7 +673,7 @@ function appendCoveredAntennaeCell(
 }
 
 async function renderLiveEyeLayering(ctx: ComponentFixtureContext): Promise<void> {
-	setFixtureFileRoot(ctx);
+	configureChatPetFixtureFileRoot(ctx.disposableStore);
 	ctx.container.style.width = '600px';
 	ctx.container.style.height = '360px';
 	ctx.container.style.boxSizing = 'border-box';
@@ -759,7 +759,7 @@ async function renderLiveEyeLayering(ctx: ComponentFixtureContext): Promise<void
 }
 
 async function renderAchievementUnlockStar(ctx: ComponentFixtureContext): Promise<void> {
-	setFixtureFileRoot(ctx);
+	configureChatPetFixtureFileRoot(ctx.disposableStore);
 	ctx.container.style.width = '420px';
 	ctx.container.style.height = '220px';
 	ctx.container.style.boxSizing = 'border-box';
@@ -792,12 +792,6 @@ async function renderAchievementUnlockStar(ctx: ComponentFixtureContext): Promis
 		context.drawImage(image, 0, 0);
 		drawChatPetAchievementStar(context, variant);
 	}
-}
-
-function setFixtureFileRoot(ctx: ComponentFixtureContext): void {
-	const previousFileRoot = globalThis._VSCODE_FILE_ROOT;
-	globalThis._VSCODE_FILE_ROOT = `${mainWindow.location.origin}/out/`;
-	ctx.disposableStore.add(toDisposable(() => globalThis._VSCODE_FILE_ROOT = previousFileRoot));
 }
 
 interface IAllRuntimeStateBodySource {
