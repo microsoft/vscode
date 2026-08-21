@@ -29,7 +29,6 @@ export class SessionMetadataPills extends Disposable {
 	constructor(
 		container: HTMLElement,
 		session: IObservable<IActiveSession | undefined>,
-		enabled: IObservable<boolean>,
 		@IActionViewItemService private readonly _actionViewItemService: IActionViewItemService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -54,10 +53,6 @@ export class SessionMetadataPills extends Disposable {
 		));
 		this.pills = derived(this, reader => {
 			menuSignal.read(reader);
-			if (!enabled.read(reader)) {
-				return [];
-			}
-
 			return menu.getActions({ shouldForwardArgs: true }).flatMap(([group, actions]) => {
 				if (group !== 'navigation') {
 					return [];

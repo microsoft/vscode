@@ -105,10 +105,9 @@ function renderDiffStats(ctx: ComponentFixtureContext, changes: readonly ISessio
 
 	const item = disposableStore.add(instantiationService.createInstance(ViewAllChangesActionViewItem, action, {}));
 
-	// Recreate the session header meta toolbar host so the inline-label styling
-	// (.chat-composite-bar-meta-toolbar) applies as in production.
+	// Host the metadata action with its inline-label styling.
 	const toolbar = document.createElement('div');
-	toolbar.classList.add('chat-composite-bar-meta-toolbar');
+	toolbar.classList.add('session-metadata-pill-toolbar');
 	container.appendChild(toolbar);
 	item.render(toolbar);
 
