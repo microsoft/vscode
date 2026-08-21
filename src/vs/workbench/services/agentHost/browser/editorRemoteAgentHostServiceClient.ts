@@ -5,7 +5,7 @@
 
 // Renderer-side `IAgentHostService` that talks to the agent host running on
 // the connected remote, via the remote agent's existing IPC pipe. The
-// underlying `RemoteAgentHostProtocolClient` is created eagerly so callers
+// underlying `AgentHostProtocolClient` is created eagerly so callers
 // can subscribe to `rootState` etc. immediately; the actual transport
 // connection (and AHP handshake) happens asynchronously in the background.
 
@@ -19,7 +19,7 @@ import { AgentHostIpcChannels, IAgentCreateChatOptions, IAgentCreateSessionConfi
 import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostIpcChannelTransport } from '../../../../platform/agentHost/browser/agentHostIpcChannelTransport.js';
 import { AgentHostClientConnectionKind } from '../../../../platform/agentHost/common/agentHostTelemetry.js';
-import { AgentHostClientState, RemoteAgentHostProtocolClient } from '../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
+import { AgentHostClientState, AgentHostProtocolClient } from '../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
@@ -59,7 +59,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 	readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
 	private _authenticationSettled = false;
 
-	private readonly _protocolClient: RemoteAgentHostProtocolClient | undefined;
+	private readonly _protocolClient: AgentHostProtocolClient | undefined;
 	private readonly _noopRootState: IAgentSubscription<RootState> = {
 		value: undefined,
 		verifiedValue: undefined,
@@ -94,7 +94,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		const createTransport = () => new AgentHostIpcChannelTransport(connection.getChannel(AgentHostIpcChannels.RemoteProxy), undefined, AgentHostClientConnectionKind.RemoteExtensionHost);
 		const address = `vscode-remote://${connection.remoteAuthority}`;
 		const clientInfo = environmentService.isSessionsWindow ? agentsWindowAgentHostClientInfo : editorWindowAgentHostClientInfo;
-		this._protocolClient = this._register(instantiationService.createInstance(RemoteAgentHostProtocolClient, address, createTransport, undefined, undefined, clientInfo));
+		this._protocolClient = this._register(instantiationService.createInstance(AgentHostProtocolClient, address, createTransport, undefined, undefined, clientInfo));
 		// Resources this client hands out (e.g. debug-log artifacts) are stamped with the
 		// address-derived authority, so register it for reads. The ambient `local` authority
 		// registered elsewhere covers a different URI namespace.
@@ -127,7 +127,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		await this._protocolClient.connect();
 	}
 
-	private _requireClient(): RemoteAgentHostProtocolClient {
+	private _requireClient(): AgentHostProtocolClient {
 		if (!this._protocolClient) {
 			throw new Error('Remote agent host is not enabled or no remote connection is available.');
 		}

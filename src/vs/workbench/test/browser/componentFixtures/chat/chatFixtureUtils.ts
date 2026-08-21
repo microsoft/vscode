@@ -14,6 +14,8 @@ import { IMenu, IMenuItem, IMenuService, MenuId, MenuItemAction } from '../../..
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
+import { IChatModelFeedbackSurveyService } from '../../../../contrib/chat/browser/feedbackSurvey/chatModelFeedbackSurveyService.js';
+import { MockChatModelFeedbackSurveyService } from '../../../../contrib/chat/test/browser/feedbackSurvey/mockChatModelFeedbackSurveyService.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ILinkPresentationService } from '../../../../../platform/dataChannel/common/dataChannel.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -139,6 +141,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.define(IMenuService, FixtureMenuService);
 	reg.define(IMarkdownRendererService, MarkdownRendererService);
 	reg.define(IListService, ListService);
+	reg.defineInstance(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
 	reg.defineInstance(ILinkPresentationService, new class extends mock<ILinkPresentationService>() {
 		override getLinkPresentationRule() { return undefined; }
 		override createLinkPresentationWatcher() { return undefined; }
@@ -201,11 +204,19 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override readonly variant = observableValue('chatPetVariant', 'stable' as const);
 		override readonly onTheRun = observableValue('chatPetOnTheRun', false);
 		override readonly scale = observableValue('chatPetScale', 1);
+		override readonly unlockedAchievements = observableValue('chatPetUnlockedAchievements', []);
+		override readonly unseenAchievements = observableValue('chatPetUnseenAchievements', []);
+		override readonly selectedAccessory = observableValue('chatPetSelectedAccessory', undefined);
+		override readonly onDidUnlockAchievement = Event.None;
 		override readonly horizontalPosition = observableValue<number | undefined>('chatPetHorizontalPosition', undefined);
 		override toggle() { return false; }
 		override setVariant() { }
 		override setOnTheRun() { }
 		override setScale(scale: number) { this.scale.set(scale, undefined); }
+		override unlockAchievement() { return false; }
+		override markAchievementSeen() { return false; }
+		override setAccessory() { }
+		override resetAchievements() { }
 		override setHorizontalPosition(position: number) { this.horizontalPosition.set(position, undefined); }
 	}());
 	reg.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() {

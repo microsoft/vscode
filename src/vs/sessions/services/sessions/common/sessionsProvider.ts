@@ -50,6 +50,7 @@ export interface ISessionsProviderCreateSessionOptions {
 export interface ISessionWorktreeConfiguration {
 	readonly isolationMode?: string;
 	readonly worktreeBranchTrack?: boolean;
+	readonly worktreeCreateNewBranch?: boolean;
 	readonly branch?: string;
 }
 
@@ -382,6 +383,9 @@ export interface ISessionsProvider {
 	 * @param enabled Whether branch tracking is enabled.
 	 */
 	setWorktreeBranchTrack?(sessionId: string, enabled: boolean): Promise<void>;
+
+	/** Set whether the worktree creates a new branch for a session. */
+	setWorktreeCreateNewBranch?(sessionId: string, enabled: boolean): Promise<void>;
 
 	/**
 	 * Set the git branch for a session.

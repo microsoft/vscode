@@ -23,7 +23,7 @@ import type { ConfigPropertySchema, ErrorInfo, Icon, ProtectedResourceMetadata, 
 export const enum SessionLifecycle {
 	Creating = 'creating',
 	Ready = 'ready',
-	CreationFailed = 'creationFailed',
+	Failed = 'failed',
 }
 
 /**

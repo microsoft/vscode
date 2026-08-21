@@ -68,7 +68,7 @@ export {
 	SessionLifecycle,
 	SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus,
 	ToolResultContentType,
-	TurnState, type ActiveTurn, type AgentCustomization, type AgentCapabilities, type AgentInfo, type AgentSelection, type Annotation, type AnnotationEntry, type AnnotationsState, type AnnotationsSummary, type Changeset, type ChangesetFile,
+	TurnState, type ActiveTurn, type AgentCustomization, type AgentCapabilities, type AgentInfo, type AgentSelection, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type AnnotationsSummary, type Changeset, type ChangesetFile,
 	type ChangesetOperation, type ChangesetState, type ChatState, type ChatSummary, type ChatOrigin, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
 	type ConfigSchema,
 	type ContentRef, type Customization, type CustomizationDegradedState,
@@ -1389,6 +1389,12 @@ export interface ISessionGitState {
 	readonly hasGitHubRemote?: boolean;
 	/** Current branch name. */
 	readonly branchName?: string;
+	/**
+	 * Whether `HEAD` is detached, which is why {@link branchName} is absent.
+	 * Distinguishes a legitimately branch-less checkout from git state left
+	 * behind by a probe that failed before it could resolve the branch.
+	 */
+	readonly isDetachedHead?: boolean;
 	/** Base branch the work targets (e.g. `main`). */
 	readonly baseBranchName?: string;
 	/** Upstream tracking branch (e.g. `origin/feature`). */
@@ -1604,6 +1610,7 @@ export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitS
 	const result: {
 		hasGitHubRemote?: boolean;
 		branchName?: string;
+		isDetachedHead?: boolean;
 		baseBranchName?: string;
 		upstreamBranchName?: string;
 		incomingChanges?: number;
@@ -1616,6 +1623,7 @@ export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitS
 	} = {};
 	if (typeof raw['hasGitHubRemote'] === 'boolean') { result.hasGitHubRemote = raw['hasGitHubRemote']; }
 	if (typeof raw['branchName'] === 'string') { result.branchName = raw['branchName']; }
+	if (typeof raw['isDetachedHead'] === 'boolean') { result.isDetachedHead = raw['isDetachedHead']; }
 	if (typeof raw['baseBranchName'] === 'string') { result.baseBranchName = raw['baseBranchName']; }
 	if (typeof raw['upstreamBranchName'] === 'string') { result.upstreamBranchName = raw['upstreamBranchName']; }
 	if (typeof raw['incomingChanges'] === 'number') { result.incomingChanges = raw['incomingChanges']; }
@@ -1626,6 +1634,23 @@ export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitS
 	if (typeof raw['githubHeadOwner'] === 'string') { result.githubHeadOwner = raw['githubHeadOwner']; }
 	if (typeof raw['githubRepo'] === 'string') { result.githubRepo = raw['githubRepo']; }
 	return result;
+}
+
+/**
+ * Whether a session's git state should be recomputed because it does not
+ * describe a usable checkout.
+ *
+ * A state that was never computed obviously qualifies. So does one that is
+ * missing its branch without a detached `HEAD` to explain it: `git status` is
+ * the only probe that reports the branch, so such a state is the residue of a
+ * probe that failed, and consumers that key off the branch (Agent Merge binds
+ * its pull request that way) stay stranded until it is recomputed. A detached
+ * `HEAD` is a legitimate branch-less checkout and must not be mistaken for it,
+ * or every caller would refresh in a loop against a repository that will never
+ * report a branch.
+ */
+export function needsSessionGitStateRefresh(gitState: ISessionGitState | undefined): boolean {
+	return gitState === undefined || (gitState.branchName === undefined && !gitState.isDetachedHead);
 }
 
 /**
@@ -1900,6 +1925,44 @@ export function readSessionEhcliAdoptable(meta: SessionSummaryMeta | undefined):
 /** Returns a new {@link SessionSummaryMeta} with the adoptable-legacy marker set. */
 export function withSessionEhcliAdoptable(meta: SessionSummaryMeta | undefined): SessionSummaryMeta {
 	return { ...meta, [SESSION_META_EHCLI_ADOPTABLE_KEY]: true };
+}
+
+/**
+ * Session-DB key recording that a session was adopted from a legacy Copilot CLI
+ * (extension-host) chat. Unlike {@link SESSION_META_EHCLI_ADOPTABLE_KEY} this
+ * survives adoption, so consumers can keep treating the session as legacy for
+ * the rest of its life — a migrated session must not change how it is listed.
+ */
+export const AH_META_EHCLI_ADOPTED_DB_KEY = 'agentHost.ehcliAdopted';
+
+/** `_meta` key mirroring {@link AH_META_EHCLI_ADOPTED_DB_KEY} on a summary. */
+export const SESSION_META_EHCLI_ADOPTED_KEY = 'ehcliAdopted';
+
+/** Whether the session was adopted from a legacy Copilot CLI chat. */
+export function readSessionEhcliAdopted(meta: SessionSummaryMeta | undefined): boolean {
+	return meta?.[SESSION_META_EHCLI_ADOPTED_KEY] === true;
+}
+
+/** Returns a copy of `meta` with the adopted-legacy provenance marker updated. */
+export function withSessionEhcliAdopted(meta: SessionSummaryMeta | undefined, adopted: boolean): SessionSummaryMeta | undefined {
+	const next: { [key: string]: unknown } = { ...meta };
+	if (adopted) {
+		next[SESSION_META_EHCLI_ADOPTED_KEY] = true;
+	} else {
+		delete next[SESSION_META_EHCLI_ADOPTED_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/**
+ * Whether a session should be matched against a workspace folder by its project
+ * (repository) root in addition to its working directories. True only for
+ * legacy Copilot CLI sessions, which run out of a worktree outside the
+ * repository; agent-host-native worktree sessions are deliberately not surfaced
+ * in a window opened on their source repository.
+ */
+export function readSessionMatchesByProjectRoot(meta: SessionSummaryMeta | undefined): boolean {
+	return readSessionEhcliAdoptable(meta) || readSessionEhcliAdopted(meta);
 }
 
 // ---- RootState _meta accessors ---------------------------------------------

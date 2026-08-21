@@ -7,9 +7,9 @@ import type { PermissionResult, PermissionUpdate } from '@anthropic-ai/claude-ag
 import { URI } from '../../../../base/common/uri.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ClaudePermissionMode, ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
+import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { ChatInputResponseKind, ToolCallPendingConfirmationState, ToolCallStatus } from '../../common/state/protocol/state.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
-import { markAskQuestionsInputRequest } from '../agentHostInputRequestTracker.js';
 import { ClaudeAgentSession } from './claudeAgentSession.js';
 import { extractServerToolName } from './claudeServerToolMcpServer.js';
 import { buildAskUserSessionInputQuestions, buildExitPlanModeConfirmationState, flattenAskUserAnswers, parseAskUserQuestionInput } from './claudeInteractiveTools.js';
@@ -285,10 +285,10 @@ async function handleAskUserQuestion(
 	}
 
 	const parentToolCallId = resolveSubagentParent(session, options);
-	const answer = await session.requestUserInput(markAskQuestionsInputRequest({
+	const answer = await session.requestUserInput(withChatInputRequestPurpose({
 		id: toolUseID,
 		questions: buildAskUserSessionInputQuestions(askInput),
-	}), parentToolCallId);
+	}, ChatInputRequestPurpose.AskUser), parentToolCallId);
 	if (answer.response !== ChatInputResponseKind.Accept || !answer.answers) {
 		return { behavior: 'deny', message: CLAUDE_QUESTION_CANCELLED_MESSAGE };
 	}

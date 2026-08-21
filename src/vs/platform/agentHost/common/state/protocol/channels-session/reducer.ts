@@ -139,7 +139,7 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 		case ActionType.SessionCreationFailed:
 			return {
 				...state,
-				lifecycle: SessionLifecycle.CreationFailed,
+				lifecycle: SessionLifecycle.Failed,
 				creationError: action.error,
 			};
 

@@ -86,6 +86,34 @@ suite('ChatTurnPills', () => {
 		]);
 	});
 
+	test('keeps an actionable accessible name when a single entry has a location tooltip', () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const action = disposables.add(new Action('test.pill', 'Artifact'));
+		const resourceLabels = disposables.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
+		const entry: IChatPillEntry = {
+			id: 'plan',
+			label: 'plan.md',
+			resource: URI.file('/repo/plan.md'),
+			ariaLabel: 'Open plan.md',
+			tooltip: 'file:///repo/plan.md',
+			open: () => { },
+		};
+		const items: readonly IActionViewItem[] = [
+			disposables.add(new ChatResourcePillActionViewItem(action, {}, constObservable(entry), resourceLabels)),
+			disposables.add(instantiationService.createInstance(ChatDropdownPillActionViewItem, action, {}, constObservable<readonly IChatPillSection[]>([{ title: 'Files', entries: [entry] }]), chatArtifactPillOptions)),
+		];
+
+		const ariaLabels = items.map(item => {
+			const container = document.createElement('div');
+			mainWindow.document.body.appendChild(container);
+			disposables.add(toDisposable(() => container.remove()));
+			item.render(container);
+			return container.querySelector('.monaco-button')?.getAttribute('aria-label');
+		});
+
+		assert.deepStrictEqual(ariaLabels, ['Open plan.md', 'Open plan.md']);
+	});
+
 	test('focusing a pill restores its tab stop, so the row stays reachable by Tab', () => {
 		const action = disposables.add(new Action('test.pill', 'Pull Requests'));
 		const item = disposables.add(new ChatPillActionViewItem(undefined, action, {}));
@@ -168,18 +196,18 @@ suite('ChatTurnPills', () => {
 
 	test('summarizes multiple artifacts and groups the dropdown by section', () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
-		let shownItems: readonly { readonly kind: ActionListItemKind; readonly label: string | undefined }[] = [];
+		let shownItems: readonly { readonly kind: ActionListItemKind; readonly label: string | undefined; readonly ariaDescription: string | undefined; readonly hover: string | undefined }[] = [];
 		instantiationService.stub(IActionWidgetService, new class extends mock<IActionWidgetService>() {
 			override get isVisible(): boolean { return false; }
 			override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[]): void {
-				shownItems = items.map(item => ({ kind: item.kind, label: item.label }));
+				shownItems = items.map(item => ({ kind: item.kind, label: item.label, ariaDescription: item.ariaDescription, hover: typeof item.hover?.content === 'string' ? item.hover.content : undefined }));
 			}
 		});
 		const opened: string[] = [];
 		const widget = disposables.add(instantiationService.createInstance(ChatTurnPillsWidget, {
 			stats: constObservable(EMPTY_DIFF_STATS),
 			artifacts: constObservable<readonly IChatPillSection[]>([
-				{ title: 'Pull Requests', entries: [{ id: 'pr', label: '#12', icon: Codicon.gitPullRequest, open: () => opened.push('pr') }] },
+				{ title: 'Pull Requests', entries: [{ id: 'pr', label: '#12', icon: Codicon.gitPullRequest, ariaDescription: 'Pull request URL', hover: { content: 'https://github.com/microsoft/vscode/pull/12' }, open: () => opened.push('pr') }] },
 				{ title: 'Files', entries: [{ id: 'file', label: 'plan.md', resource: URI.file('/artifacts/plan.md'), open: () => opened.push('file') }] },
 			]),
 			changesEnabled: constObservable(false),
@@ -200,16 +228,18 @@ suite('ChatTurnPills', () => {
 			dropdownItems: shownItems.map(item => ({
 				kind: item.kind,
 				label: item.label,
+				ariaDescription: item.ariaDescription,
+				hover: item.hover,
 			})),
 		}, {
 			label: '2 Artifacts',
 			ariaLabel: 'Show 2 artifacts',
 			dropdownItems: [
-				{ kind: ActionListItemKind.Header, label: 'Pull Requests' },
-				{ kind: ActionListItemKind.Action, label: '#12' },
-				{ kind: ActionListItemKind.Separator, label: '' },
-				{ kind: ActionListItemKind.Header, label: 'Files' },
-				{ kind: ActionListItemKind.Action, label: 'plan.md' },
+				{ kind: ActionListItemKind.Header, label: 'Pull Requests', ariaDescription: undefined, hover: undefined },
+				{ kind: ActionListItemKind.Action, label: '#12', ariaDescription: 'Pull request URL', hover: 'https://github.com/microsoft/vscode/pull/12' },
+				{ kind: ActionListItemKind.Separator, label: '', ariaDescription: undefined, hover: undefined },
+				{ kind: ActionListItemKind.Header, label: 'Files', ariaDescription: undefined, hover: undefined },
+				{ kind: ActionListItemKind.Action, label: 'plan.md', ariaDescription: undefined, hover: undefined },
 			],
 		});
 	});
