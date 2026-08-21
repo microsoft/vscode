@@ -41,7 +41,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType } from '../../common/state/sessionActions.js';
-import { AH_META_IS_READ_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_ORCHESTRATION_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionOrchestration, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionExternal, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionOrchestration, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_ORCHESTRATION_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionOrchestration, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionExternal, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionOrchestration, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { ChatInteractivity, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { IProductService } from '../../../product/common/productService.js';
@@ -4882,6 +4882,25 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(sessions[0]._meta, { 'vscode.external': true, workspaceless: true });
 		});
 
+		test('listSessions overlays the adopted-legacy marker so a migrated session keeps its legacy listing', async () => {
+			const db = new TestSessionDatabase();
+			await db.setMetadata(AH_META_EHCLI_ADOPTED_DB_KEY, 'true');
+			const sessionId = 'test-session-ehcli-adopted';
+			const sessionUri = AgentSession.uri('copilot', sessionId);
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
+			svc.registerProvider(agent);
+
+			const sessions = await svc.listSessions();
+			assert.deepStrictEqual(
+				{ count: sessions.length, adopted: readSessionEhcliAdopted(sessions[0]?._meta) },
+				{ count: 1, adopted: true },
+			);
+		});
+
 		test('listSessions restores persisted multi-root metadata', async () => {
 			const db = new TestSessionDatabase();
 			const multiRoot = {
@@ -6612,7 +6631,10 @@ suite('AgentService (node dispatcher)', () => {
 
 				let rejected: unknown;
 				const restore = svc.restoreSession(session).catch(err => { rejected = err; });
-				await advanceUntil(() => agent.listChatsToMigrateCalls > 0);
+				// The gated catalogue migration starts from `registerProvider`, so waiting
+				// on it alone would sample the counters before restore's own (independent)
+				// metadata read has landed.
+				await advanceUntil(() => agent.listChatsToMigrateCalls > 0 && agent.getChatMetadataCalls > 0);
 				const beforeGate = {
 					metadataRead: agent.getChatMetadataCalls,
 					hydrated: !!svc.stateManager.getSessionState(session.toString()),
@@ -6626,7 +6648,7 @@ suite('AgentService (node dispatcher)', () => {
 					rejected,
 					hydratedAfter: !!svc.stateManager.getSessionState(session.toString()),
 				}, {
-					beforeGate: { metadataRead: 0, hydrated: false },
+					beforeGate: { metadataRead: 1, hydrated: false },
 					rejected: undefined,
 					hydratedAfter: true,
 				});
@@ -6641,7 +6663,9 @@ suite('AgentService (node dispatcher)', () => {
 
 				let rejected: unknown;
 				const restore = svc.restoreSession(session).catch(err => { rejected = err; });
-				await advanceUntil(() => agent.listChatsToMigrateCalls > 0);
+				// Wait until restore is parked on the catalogue: deleting before it reads
+				// metadata would trip the early tombstone check instead of the one after.
+				await advanceUntil(() => agent.listChatsToMigrateCalls > 0 && agent.getChatMetadataCalls > 0);
 				await svc.disposeSession(session);
 				agent.migrationGate.complete();
 				await restore;
@@ -6654,9 +6678,31 @@ suite('AgentService (node dispatcher)', () => {
 				}, {
 					isProtocolError: true,
 					code: AHP_SESSION_NOT_FOUND,
-					metadataRead: 0,
+					// Restore reads per-session metadata before waiting on the catalogue,
+					// so one read happens even for a session deleted during the wait.
+					metadataRead: 1,
 					hydrated: false,
 				});
+			});
+
+			test('restores a session the provider can describe without waiting for the catalogue', async () => {
+				// Warming the catalogue is O(catalogue) — ~48s on a large `~/.copilot` —
+				// so a session that resolves from its own metadata must not pay for it.
+				const svc = makeService();
+				const agent = disposables.add(new StartupRaceAgent('copilot'));
+				const session = AgentSession.uri('copilot', 'describable-session');
+				seedSession(agent, session);
+				// Describable immediately, while the catalogue migration stays gated.
+				agent.sdkReady = true;
+				svc.registerProvider(agent);
+
+				await svc.restoreSession(session);
+
+				assert.deepStrictEqual(
+					{ hydrated: !!svc.stateManager.getSessionState(session.toString()), catalogueSettled: agent.migrationGate.isSettled },
+					{ hydrated: true, catalogueSettled: false },
+				);
+				agent.migrationGate.complete();
 			});
 
 			test('reports a genuinely missing session as not found once migration completes', async () => {
@@ -7177,6 +7223,7 @@ suite('AgentService (node dispatcher)', () => {
 			);
 		});
 
+
 		test('adopts a surfaced legacy session on open only when the migrate setting is on', async () => {
 			// Open-adoption is strictly gated on the live migrate setting.
 			class AdoptOnOpenAgent extends MockAgent {
@@ -7224,6 +7271,63 @@ suite('AgentService (node dispatcher)', () => {
 				{ adoptCalls: agent.adoptCalls, restored: !!localService.stateManager.getSessionState(sessionStr) },
 				{ adoptCalls: 1, restored: true },
 			);
+		});
+
+		test('an adopted chat whose restore fails is still registered, not lost from every list', async () => {
+			// Adoption claims the chat on disk, which stops the extension host listing
+			// it. If restore then fails (e.g. a worktree whose branch is gone) and the
+			// chat was never registered, it exists in no list at all.
+			class AdoptThenFailAgent extends MockAgent {
+				constructor() { super('copilot'); }
+				// Absent from the catalogue, so only the adoption path can register it.
+				override async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+					return [];
+				}
+				async ensureChatAdopted(_chat: URI, _context: URI | IAgentChatContext): Promise<IAgentChatAdoptionResult> {
+					return { adopted: true, eligible: true };
+				}
+				override async materializeChat(): Promise<never> {
+					throw new Error('working directory no longer exists');
+				}
+			}
+
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new AdoptThenFailAgent());
+			localService.registerProvider(agent);
+			localService.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+			const session = AgentSession.uri('copilot', 'adopted-restore-fails');
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
+
+			await assert.rejects(() => localService.restoreSession(session));
+
+			const registry = (localService as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
+			assert.strictEqual((await registry.get(session))?.session.toString(), session.toString());
+		});
+
+		test('an adopted chat whose registration cannot be made durable fails the migration', async () => {
+			// Continuing unregistered would leave exactly the orphan the registration is
+			// there to prevent: adopted on disk, so the extension host stops listing it,
+			// but present in no Agent Host list either.
+			class AdoptAgent extends MockAgent {
+				constructor() { super('copilot'); }
+				override async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+					return [];
+				}
+				async ensureChatAdopted(_chat: URI, _context: URI | IAgentChatContext): Promise<IAgentChatAdoptionResult> {
+					return { adopted: true, eligible: true };
+				}
+			}
+
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new AdoptAgent());
+			localService.registerProvider(agent);
+			localService.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+			const session = AgentSession.uri('copilot', 'adopted-registration-fails');
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
+			const registry = (localService as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
+			registry.register = async () => { throw new Error('registry unavailable'); };
+
+			await assert.rejects(() => localService.restoreSession(session));
 		});
 
 		test('does not materialize state for an unregistered chat that is not adoptable', async () => {

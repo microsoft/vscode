@@ -1903,6 +1903,44 @@ export function withSessionEhcliAdoptable(meta: SessionSummaryMeta | undefined):
 	return { ...meta, [SESSION_META_EHCLI_ADOPTABLE_KEY]: true };
 }
 
+/**
+ * Session-DB key recording that a session was adopted from a legacy Copilot CLI
+ * (extension-host) chat. Unlike {@link SESSION_META_EHCLI_ADOPTABLE_KEY} this
+ * survives adoption, so consumers can keep treating the session as legacy for
+ * the rest of its life — a migrated session must not change how it is listed.
+ */
+export const AH_META_EHCLI_ADOPTED_DB_KEY = 'agentHost.ehcliAdopted';
+
+/** `_meta` key mirroring {@link AH_META_EHCLI_ADOPTED_DB_KEY} on a summary. */
+export const SESSION_META_EHCLI_ADOPTED_KEY = 'ehcliAdopted';
+
+/** Whether the session was adopted from a legacy Copilot CLI chat. */
+export function readSessionEhcliAdopted(meta: SessionSummaryMeta | undefined): boolean {
+	return meta?.[SESSION_META_EHCLI_ADOPTED_KEY] === true;
+}
+
+/** Returns a copy of `meta` with the adopted-legacy provenance marker updated. */
+export function withSessionEhcliAdopted(meta: SessionSummaryMeta | undefined, adopted: boolean): SessionSummaryMeta | undefined {
+	const next: { [key: string]: unknown } = { ...meta };
+	if (adopted) {
+		next[SESSION_META_EHCLI_ADOPTED_KEY] = true;
+	} else {
+		delete next[SESSION_META_EHCLI_ADOPTED_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/**
+ * Whether a session should be matched against a workspace folder by its project
+ * (repository) root in addition to its working directories. True only for
+ * legacy Copilot CLI sessions, which run out of a worktree outside the
+ * repository; agent-host-native worktree sessions are deliberately not surfaced
+ * in a window opened on their source repository.
+ */
+export function readSessionMatchesByProjectRoot(meta: SessionSummaryMeta | undefined): boolean {
+	return readSessionEhcliAdoptable(meta) || readSessionEhcliAdopted(meta);
+}
+
 // ---- RootState _meta accessors ---------------------------------------------
 
 /**

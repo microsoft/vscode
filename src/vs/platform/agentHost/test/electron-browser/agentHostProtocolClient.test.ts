@@ -15,7 +15,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { AgentHostClientState, RemoteAgentHostProtocolClient } from '../../browser/remoteAgentHostProtocolClient.js';
+import { AgentHostClientState, AgentHostProtocolClient } from '../../browser/agentHostProtocolClient.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ConfigurationTarget, type IConfigurationValue } from '../../../configuration/common/configuration.js';
@@ -42,17 +42,17 @@ import { Registry } from '../../../registry/common/platform.js';
 // configuration registry is a process-wide singleton, so a side-effect import
 // here would leak its registrations (and their `managedSettings` policies) into
 // every other suite in the run.
-const SYNC_SETTING_A = 'test.remoteAgentHostProtocolClient.syncA';
+const SYNC_SETTING_A = 'test.agentHostProtocolClient.syncA';
 const SYNC_CONFIG_KEY_A = 'testSyncValueA';
-const SYNC_SETTING_B = 'test.remoteAgentHostProtocolClient.syncB';
+const SYNC_SETTING_B = 'test.agentHostProtocolClient.syncB';
 const SYNC_CONFIG_KEY_B = 'testSyncValueB';
-const SYNC_LOCAL_SETTING = 'test.remoteAgentHostProtocolClient.syncLocal';
+const SYNC_LOCAL_SETTING = 'test.agentHostProtocolClient.syncLocal';
 const SYNC_LOCAL_CONFIG_KEY = 'testSyncLocal';
-const SYNC_AMBIENT_SETTING = 'test.remoteAgentHostProtocolClient.syncAmbient';
+const SYNC_AMBIENT_SETTING = 'test.agentHostProtocolClient.syncAmbient';
 const SYNC_AMBIENT_CONFIG_KEY = 'testSyncAmbient';
 
 const syncTestConfigurationNode = {
-	id: 'testRemoteAgentHostProtocolClientSync',
+	id: 'testAgentHostProtocolClientSync',
 	type: 'object' as const,
 	properties: {
 		[SYNC_SETTING_A]: {
@@ -248,7 +248,7 @@ class ManagedPermissionsConfigurationService extends TestConfigurationService {
 	}
 }
 
-suite('RemoteAgentHostProtocolClient', () => {
+suite('AgentHostProtocolClient', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -315,16 +315,16 @@ suite('RemoteAgentHostProtocolClient', () => {
 		};
 	}
 
-	function createClientForIdentity(identity: AgentHostResourceIdentity, transport = disposables.add(new TestProtocolTransport()), permissionService = createPermissionService(), loadEstimator?: { hasHighLoad(): boolean }, logService: ILogService = new NullLogService(), configurationService = new TestConfigurationService(), clientId?: string, clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService): { client: RemoteAgentHostProtocolClient; transport: TestProtocolTransport; configurationService: TestConfigurationService } {
-		const client = disposables.add(new RemoteAgentHostProtocolClient(identity, transport, loadEstimator, clientId, clientInfo, logService, permissionService, configurationService, telemetryService));
+	function createClientForIdentity(identity: AgentHostResourceIdentity, transport = disposables.add(new TestProtocolTransport()), permissionService = createPermissionService(), loadEstimator?: { hasHighLoad(): boolean }, logService: ILogService = new NullLogService(), configurationService = new TestConfigurationService(), clientId?: string, clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService): { client: AgentHostProtocolClient; transport: TestProtocolTransport; configurationService: TestConfigurationService } {
+		const client = disposables.add(new AgentHostProtocolClient(identity, transport, loadEstimator, clientId, clientInfo, logService, permissionService, configurationService, telemetryService));
 		return { client, transport, configurationService };
 	}
 
-	function createClient(transport = disposables.add(new TestProtocolTransport()), permissionService = createPermissionService(), loadEstimator?: { hasHighLoad(): boolean }, logService: ILogService = new NullLogService(), configurationService = new TestConfigurationService(), clientId?: string, clientInfo?: Implementation): { client: RemoteAgentHostProtocolClient; transport: TestProtocolTransport; configurationService: TestConfigurationService } {
+	function createClient(transport = disposables.add(new TestProtocolTransport()), permissionService = createPermissionService(), loadEstimator?: { hasHighLoad(): boolean }, logService: ILogService = new NullLogService(), configurationService = new TestConfigurationService(), clientId?: string, clientInfo?: Implementation): { client: AgentHostProtocolClient; transport: TestProtocolTransport; configurationService: TestConfigurationService } {
 		return createClientForIdentity('test.example:1234', transport, permissionService, loadEstimator, logService, configurationService, clientId, clientInfo);
 	}
 
-	async function connectClient(client: RemoteAgentHostProtocolClient, transport: TestProtocolTransport): Promise<void> {
+	async function connectClient(client: AgentHostProtocolClient, transport: TestProtocolTransport): Promise<void> {
 		const connectPromise = client.connect();
 		while (transport.sentMessages.length === 0) {
 			await Promise.resolve();
@@ -1066,7 +1066,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 	test('forwards the actual telemetry service restriction during initialization and config sync', async () => {
 		const transport = disposables.add(new TestProtocolTransport(AgentHostClientConnectionKind.RemoteExtensionHost));
 		const configurationService = new TestConfigurationService();
-		const client = disposables.add(new RemoteAgentHostProtocolClient(
+		const client = disposables.add(new AgentHostProtocolClient(
 			'test.example:1234',
 			transport,
 			undefined,
@@ -1934,7 +1934,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 		}
 
 		/** Connect `client`, subscribe to `sessionUri`, and answer the `subscribe` request with an empty session snapshot. */
-		async function subscribeToSession(client: RemoteAgentHostProtocolClient, transport: TestProtocolTransport, sessionUri: URI): Promise<void> {
+		async function subscribeToSession(client: AgentHostProtocolClient, transport: TestProtocolTransport, sessionUri: URI): Promise<void> {
 			client.getSubscription(StateComponents.Session, sessionUri, 'test');
 			let subscribeReq: JsonRpcRequest | undefined;
 			while (!subscribeReq) {
@@ -2032,7 +2032,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 		}
 
 		/** Wait until the client transitions into the {@link AgentHostClientState.Reconnecting} state. */
-		async function waitForReconnecting(client: RemoteAgentHostProtocolClient): Promise<void> {
+		async function waitForReconnecting(client: AgentHostProtocolClient): Promise<void> {
 			if (client.connectionState === AgentHostClientState.Reconnecting) {
 				return;
 			}
@@ -2076,14 +2076,14 @@ suite('RemoteAgentHostProtocolClient', () => {
 		 * client plus a `transports` array recording each transport handed
 		 * out, so tests can drive handshake/reconnect interactions.
 		 */
-		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService): { client: RemoteAgentHostProtocolClient; transports: TestClientProtocolTransport[] } {
+		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService): { client: AgentHostProtocolClient; transports: TestClientProtocolTransport[] } {
 			const transports: TestClientProtocolTransport[] = [];
 			const factory = () => {
 				const t = disposables.add(new TestClientProtocolTransport());
 				transports.push(t);
 				return t;
 			};
-			const client = disposables.add(new RemoteAgentHostProtocolClient(
+			const client = disposables.add(new AgentHostProtocolClient(
 				'test.example:1234', factory, undefined, undefined, clientInfo, new NullLogService(), permissionService, new TestConfigurationService(), telemetryService,
 			));
 			return { client, transports };

@@ -1011,6 +1011,30 @@ export interface IActiveClient {
 	customizations: readonly ClientPluginCustomization[];
 }
 
+/** Worktree identity a predecessor recorded for a chat, so a missing checkout can be recreated on resume. */
+export interface IAgentAdoptedWorktree {
+	readonly branchName: string;
+	readonly baseBranch: string | undefined;
+	readonly worktreePath: URI;
+	readonly repositoryRoot: URI;
+}
+
+/**
+ * Why an adoption attempt ended the way it did. Reported in logs and telemetry so
+ * a session that did not migrate can be diagnosed without reproducing it.
+ */
+export type AgentChatAdoptionReason =
+	/** Already has Agent Host metadata — native or previously adopted. */
+	| 'alreadyNative'
+	/** Not a legacy extension-host Copilot CLI chat (e.g. standalone CLI, Local agent). */
+	| 'notLegacyChat'
+	/** A legacy chat whose recorded working directory no longer exists and could not be resolved. */
+	| 'workingDirectoryMissing'
+	/** A legacy chat whose extension-host marker could not be re-read, leaving its archived state unknown. */
+	| 'markerUnavailable'
+	/** Newly adopted. */
+	| 'adopted';
+
 /** Outcome of attempting to adopt a legacy provider-native chat. */
 export interface IAgentChatAdoptionResult {
 	/** Whether this call newly seeded Agent Host metadata. */
@@ -1019,6 +1043,10 @@ export interface IAgentChatAdoptionResult {
 	readonly eligible: boolean;
 	/** Whether the chat already has Agent Host metadata, i.e. it is ours regardless of adoption. */
 	readonly native?: boolean;
+	/** Set when the adopted chat ran in a worktree that no longer exists and can be recreated. */
+	readonly worktree?: IAgentAdoptedWorktree;
+	/** Diagnostic reason behind {@link adopted}. */
+	readonly reason?: AgentChatAdoptionReason;
 }
 
 /**

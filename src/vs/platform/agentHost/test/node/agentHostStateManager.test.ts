@@ -714,6 +714,22 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(readSessionEhcliAdoptable(changed[0].changes._meta), false);
 	});
 
+	test('publishing a restored session announces it to clients that never saw it', () => {
+		// A legacy chat adopted after startup was never surfaced by discovery, so
+		// restore records it silently and clients have no entry. Publishing is what
+		// makes an adopted session appear instead of existing only on the host.
+		manager.restoreSession(makeSessionSummary(), []);
+		const notifications: INotification[] = [];
+		disposables.add(manager.onDidEmitNotification(n => notifications.push(n)));
+
+		manager.setSessionSummaryPublished(sessionUri, true);
+
+		assert.deepStrictEqual(
+			notifications.filter(n => n.type === NotificationType.SessionAdded).map(n => (n as { summary: { resource: string } }).summary.resource),
+			[sessionUri],
+		);
+	});
+
 	suite('unused-draft tracking', () => {
 
 		test('reports draft status by origin, addressable by session or chat URI', () => {

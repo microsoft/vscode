@@ -1,0 +1,117 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Shared chrome for the large inline cards in chat: the question carousel, the model feedback
+ * survey, the tool confirmation carousel, and plan review.
+ *
+ * Chat has two card tiers. `.chat-confirmation-widget2` is the medium tier (medium radius,
+ * request border, no background). This file is the large tier, which was open coded in all four
+ * places above before it had a name.
+ *
+ * Rules here are deliberately unscoped. The consumers sit under different ancestors (the survey
+ * is not inside `.interactive-session` at all), and the styles they replace are being deleted in
+ * the same change, so there is nothing left to outrank.
+ */
+
+.chat-card-large {
+	display: flex;
+	flex-direction: column;
+	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-chat-requestBorder));
+	border-radius: var(--vscode-cornerRadius-large);
+	background-color: var(--vscode-panel-background);
+	overflow: hidden;
+}
+
+.chat-card-large:focus-within {
+	border-color: var(--vscode-focusBorder);
+}
+
+/*
+ * Plan review composes both tiers on one element: it is a confirmation widget presented as a large
+ * card. The two tier classes have equal specificity, so name them together to state which tier owns
+ * the shell rather than leaving it to the order the stylesheets happen to load in.
+ */
+.chat-card-large.chat-confirmation-widget2 {
+	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-chat-requestBorder));
+	border-radius: var(--vscode-cornerRadius-large);
+}
+
+.chat-card-large.chat-confirmation-widget2:focus-within {
+	border-color: var(--vscode-focusBorder);
+}
+
+/* In the agents window and the editor the surface is the editor background. */
+.agent-sessions-workbench .chat-card-large,
+.editor-instance .chat-card-large {
+	background-color: var(--vscode-editor-background);
+}
+
+.chat-card-header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size80) var(--vscode-spacing-size80) var(--vscode-spacing-size160);
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder);
+	flex-shrink: 0;
+}
+
+.chat-card-title {
+	flex: 1;
+	min-width: 0;
+	margin: 0;
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 1.4;
+	overflow-wrap: anywhere;
+}
+
+.chat-card-header-actions {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	flex-shrink: 0;
+}
+
+/*
+ * Chrome free icon buttons. `Button` writes its colors as inline styles, so these are only
+ * reachable from CSS when the button is built without color options -- see
+ * `chatCardButtonStyles` in chatCard.ts. That is why no rule here needs `!important`.
+ */
+.monaco-button.chat-card-icon-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	width: 22px;
+	min-width: 22px;
+	height: 22px;
+	padding: 0;
+	border: none;
+	box-shadow: none;
+	background: transparent;
+	color: var(--vscode-icon-foreground);
+	cursor: pointer;
+}
+
+.monaco-button.chat-card-icon-button:hover:not(.disabled) {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.monaco-button.chat-card-icon-button.disabled {
+	opacity: 0.4;
+}
+
+/* Navigation arrows read as content rather than chrome, so they take the regular foreground. */
+.monaco-button.chat-card-icon-button.chat-card-icon-button-strong {
+	color: var(--vscode-foreground);
+}
+
+/* For labelled title bar buttons, which size to their content instead of a fixed square. */
+.monaco-button.chat-card-icon-button.chat-card-icon-button-padded {
+	width: auto;
+	padding: 0 var(--vscode-spacing-size60);
+}
