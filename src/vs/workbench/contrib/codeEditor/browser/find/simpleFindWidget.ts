@@ -425,7 +425,6 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 		}
 
 		const count = await this._getResultCount();
-		this._matchesCount.textContent = '';
 		const showRedOutline = (this.inputValue.length > 0 && count?.resultCount === 0);
 		this._matchesCount.classList.toggle('no-results', showRedOutline);
 		let label = '';
@@ -443,7 +442,7 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 			label = NLS_NO_RESULTS;
 		}
 		status(this._announceSearchResults(label, this.inputValue));
-		this._matchesCount.appendChild(document.createTextNode(label));
+		this._matchesCount.textContent = label;
 		this._foundMatch = !!count && count.resultCount > 0;
 		this.updateButtons(this._foundMatch);
 	}

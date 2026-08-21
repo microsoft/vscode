@@ -395,9 +395,6 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 		this._matchesCount.style.minWidth = MAX_MATCHES_COUNT_WIDTH + 'px';
 		this._matchesCount.title = '';
 
-		// remove previous content
-		this._matchesCount.firstChild?.remove();
-
 		let label: string;
 
 		if (this._state.matchesCount > 0) {
@@ -411,7 +408,7 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 			label = NLS_NO_RESULTS;
 		}
 
-		this._matchesCount.appendChild(document.createTextNode(label));
+		this._matchesCount.textContent = label;
 
 		alertFn(this._getAriaLabel(label, this._state.currentMatch, this._state.searchString));
 		MAX_MATCHES_COUNT_WIDTH = Math.max(MAX_MATCHES_COUNT_WIDTH, this._matchesCount.clientWidth);
