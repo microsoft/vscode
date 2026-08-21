@@ -190,7 +190,14 @@ exchanges:
         - role: assistant
           content: Plan approved. Let me know when you'd like me to proceed with creating `hello.py`.
         - role: user
-          content: What did the plan I just approved say to print? Reply with exactly "hello world".
+          content: |-
+            <tools_changed_notice>
+            Tools no longer available: exit_plan_mode
+
+            Important: Do not attempt to call tools that are no longer available unless you've been notified that they're available again.
+            </tools_changed_notice>
+
+            What did the plan I just approved say to print? Reply with exactly "hello world".
     response:
       content: hello world
       stopReason: end_turn

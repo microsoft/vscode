@@ -609,6 +609,13 @@ class MockCopilotSession {
 		permissions: {
 			setAllowAll: async ({ mode }: { mode: PermissionAllowAllMode }) => ({ success: true, mode }),
 		},
+		eventLog: {
+			registerInterest: async (_params: { eventType: string }) => ({ handle: 'test-interest-handle' }),
+			releaseInterest: async (_params: { handle: string }) => ({ success: true }),
+		},
+		ui: {
+			handlePendingSampling: async (_params: { requestId: string }) => ({ success: true }),
+		},
 	};
 	private readonly _handlers = new Set<SessionEventHandler>();
 	private readonly _typedHandlers = new Map<SessionEventType, Set<(event: SessionEventPayload<SessionEventType>) => void>>();

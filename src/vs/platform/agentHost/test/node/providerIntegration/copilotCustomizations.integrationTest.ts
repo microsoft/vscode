@@ -15,7 +15,7 @@ import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { AgentHostConfigKey, type SessionCustomizationDiscoveryMode } from '../../../common/agentHostCustomizationConfig.js';
-import { ActionType, SessionCustomizationsChangedAction } from '../../../common/state/sessionActions.js';
+import { ActionType, type IRootConfigChangedAction, SessionCustomizationsChangedAction } from '../../../common/state/sessionActions.js';
 import { customizationId, CustomizationType, ISessionWithDefaultChat, ROOT_STATE_URI, type ClientPluginCustomization, type DirectoryCustomization, type PluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { type AhpNotification } from '../../../common/state/sessionProtocol.js';
 import { createProviderSession, dispatchTurn, type IAgentHostProviderTestConfig } from '../providerIntegrationTestHelpers.js';
@@ -305,6 +305,8 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 	}
 
 	async function setupSession(sessionUri: string, clientId: string, discoveryMode: SessionCustomizationDiscoveryMode, turnId = 'turn-customizations-empty-mock', configuredCustomizations?: readonly { uri: string; displayName: string; description?: string }[]): Promise<ISessionWithDefaultChat> {
+		await client.call('subscribe', { channel: ROOT_STATE_URI });
+		client.clearReceived();
 		client.dispatch({
 			channel: ROOT_STATE_URI,
 			clientSeq: 0,
@@ -315,6 +317,14 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 				},
 			},
 		});
+		await client.waitForNotification(
+			n => isActionNotification(n, ActionType.RootConfigChanged)
+				&& getActionEnvelope(n).channel === ROOT_STATE_URI
+				&& (getActionEnvelope(n).action as IRootConfigChangedAction).config[AgentHostConfigKey.SessionCustomizationDiscoveryMode] === discoveryMode,
+			NOTIFICATION_TIMEOUT_MS,
+		);
+		client.notify('unsubscribe', { channel: ROOT_STATE_URI });
+		client.clearReceived();
 		const activeClientCustomizations = configuredCustomizations?.map((customization): ClientPluginCustomization => ({
 			type: CustomizationType.Plugin,
 			id: customizationId(customization.uri),
@@ -485,12 +495,19 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 		const session = await setupSession(sessionUri, 'real-sdk-customizations-client-mock', discoveryMode, 'turn-customizations-mock');
 		assert.ok(session.customizations);
 
-		const mappedCustomizations = session.customizations.map(customization => ({
-			type: customization.type,
-			contents: customization.type === CustomizationType.Directory ? customization.contents : undefined,
-			uri: customization.uri,
-			children: customization.type === CustomizationType.Directory ? (customization.children ?? []).map(child => child.uri) : undefined,
-		})).filter(builtInCustomizations).sort((a, b) => a.uri.localeCompare(b.uri));
+		const mappedCustomizations = session.customizations.map(customization => {
+			const omitSdkDiscoveredUserInstructions = discoveryMode === 'discover'
+				&& customization.type === CustomizationType.Directory
+				&& customization.uri === URI.file(userInstructionsDir).toString();
+			return {
+				type: customization.type,
+				contents: customization.type === CustomizationType.Directory ? customization.contents : undefined,
+				uri: customization.uri,
+				children: customization.type === CustomizationType.Directory
+					? omitSdkDiscoveredUserInstructions ? [] : (customization.children ?? []).map(child => child.uri)
+					: undefined,
+			};
+		}).filter(builtInCustomizations).sort((a, b) => a.uri.localeCompare(b.uri));
 		const expectedCustomizations = [
 			{ type: CustomizationType.Directory, contents: CustomizationType.Skill, uri: URI.file(join(userHomeDir, '.agents', 'skills')).toString(), children: [URI.file(userSkillFile).toString()] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Agent, uri: URI.file(join(userHomeDir, '.copilot', 'agents')).toString(), children: [URI.file(userAgentFile).toString()] },

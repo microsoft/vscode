@@ -1899,7 +1899,10 @@ export class CopilotAgentSession extends Disposable {
 			this._markMcpLaunchConfigurationDirty();
 			this._reconcileMcpServerEnablement().catch(error => this._logService.error(error, `[Copilot:${this.sessionId}] Failed to reconcile MCP enablement after customizations changed`));
 		}));
-		this._subscribeToEvents();
+		await this._subscribeToEvents();
+		if (this._store.isDisposed) {
+			throw new CancellationError();
+		}
 		this._subscribeForLogging();
 		this._subscribeForMemoInvalidation();
 		this._subscribeForInstructionsCollectedTelemetry();
@@ -3935,7 +3938,7 @@ export class CopilotAgentSession extends Disposable {
 
 	// ---- event wiring -------------------------------------------------------
 
-	private _subscribeToEvents(): void {
+	private async _subscribeToEvents(): Promise<void> {
 		const wrapper = this._wrapper;
 		const sessionId = this.sessionId;
 
@@ -4984,6 +4987,22 @@ export class CopilotAgentSession extends Disposable {
 			this._slashCommandProvider.clearCache();
 		}));
 
+		// Register interest in `sampling.requested` and handle incoming events.
+		//
+		// The runtime advertises the MCP `sampling` client capability to plugin
+		// MCP servers only when the SDK session has a registered consumer for the
+		// `sampling.requested` event (SDK long-poll listeners are NOT counted —
+		// interest must be registered explicitly via `eventLog.registerInterest`).
+		// Without it, a plugin server's `createMessage` call fails with JSON-RPC
+		// `-32603 "sampling is not supported by this client"`. The agent host has
+		// no surface to run MCP-server-initiated model sampling, so we advertise
+		// the capability and reject each request, which yields the runtime's
+		// canned cancelled sampling result to the plugin server.
+		this._register(wrapper.onSamplingRequested(e => {
+			void this._handleSamplingRequested(e.data.requestId, e.data.serverName);
+		}));
+		await this._registerSamplingInterest();
+
 		// Seed the inventory with any servers the SDK has already loaded by
 		// the time we attach. The `session.mcp_servers_loaded` event may
 		// have fired before our subscription (e.g. for restored sessions or
@@ -4991,6 +5010,42 @@ export class CopilotAgentSession extends Disposable {
 		// is no replay. Subsequent `applyAll` calls from the event are
 		// idempotent, so this safely converges either way.
 		this._seedMcpServersFromRpc();
+	}
+
+	/**
+	 * Registers interest in the `sampling.requested` event so the runtime
+	 * advertises the MCP `sampling` client capability to plugin servers, and
+	 * releases the registration on dispose. Best-effort: a failure just leaves
+	 * the session on the runtime's "no consumer" path (sampling unsupported).
+	 */
+	private async _registerSamplingInterest(): Promise<void> {
+		try {
+			const { handle } = await this._wrapper.session.rpc.eventLog.registerInterest({ eventType: 'sampling.requested' });
+			if (this._store.isDisposed) {
+				void this._wrapper.session.rpc.eventLog.releaseInterest({ handle }).catch(() => { /* best-effort */ });
+				return;
+			}
+			this._register(toDisposable(() => {
+				void this._wrapper.session.rpc.eventLog.releaseInterest({ handle }).catch(() => { /* best-effort */ });
+			}));
+		} catch (err) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to register interest in sampling.requested`, err);
+		}
+	}
+
+	/**
+	 * Handles a plugin MCP server's `sampling.requested` event by rejecting it.
+	 * The agent host has no surface to fulfil MCP-server-initiated model
+	 * sampling, so we reject (omit the result payload); the runtime then returns
+	 * its canned cancelled sampling result to the requesting server.
+	 */
+	private async _handleSamplingRequested(requestId: string, serverName: string): Promise<void> {
+		this._logService.info(`[Copilot:${this.sessionId}] Rejecting sampling request: requestId=${requestId}, server=${serverName}`);
+		try {
+			await this._wrapper.session.rpc.ui.handlePendingSampling({ requestId });
+		} catch (err) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to reject sampling request requestId=${requestId}`, err);
+		}
 	}
 
 	/**

@@ -426,7 +426,37 @@ class MockCopilotSession {
 				return snapshot;
 			},
 		},
+		eventLog: {
+			registerInterest: async (params: { eventType: string }) => {
+				this.eventInterestRegistrations.push(params.eventType);
+				await this.registerInterestGate;
+				if (this.registerInterestError !== undefined) {
+					throw this.registerInterestError;
+				}
+				return { handle: `handle-${this.eventInterestRegistrations.length}` };
+			},
+			releaseInterest: async (params: { handle: string }) => {
+				this.eventInterestReleases.push(params.handle);
+				return { success: true };
+			},
+		},
+		ui: {
+			handlePendingSampling: async (params: { requestId: string }) => {
+				this.pendingSamplingHandled.push(params.requestId);
+				if (this.handlePendingSamplingError !== undefined) {
+					throw this.handlePendingSamplingError;
+				}
+				return { success: true };
+			},
+		},
 	};
+
+	readonly eventInterestRegistrations: string[] = [];
+	readonly eventInterestReleases: string[] = [];
+	registerInterestGate: Promise<void> = Promise.resolve();
+	registerInterestError: unknown = undefined;
+	readonly pendingSamplingHandled: string[] = [];
+	handlePendingSamplingError: unknown = undefined;
 
 	readonly sandboxConfigUpdates: unknown[] = [];
 
@@ -1011,6 +1041,24 @@ suite('CopilotAgentSession', () => {
 			},
 			beforeLaunch: () => assert.strictEqual(initialized, true),
 		});
+	});
+
+	test('waits for sampling interest registration before initialization completes', async () => {
+		const registerInterestGate = new DeferredPromise<void>();
+		let initialized = false;
+		const sessionPromise = createAgentSession(disposables, {
+			configureMockSession: session => session.registerInterestGate = registerInterestGate.p,
+		}).then(result => {
+			initialized = true;
+			return result;
+		});
+
+		await timeout(0);
+		assert.strictEqual(initialized, false);
+
+		registerInterestGate.complete();
+		const { mockSession } = await sessionPromise;
+		assert.deepStrictEqual(mockSession.eventInterestRegistrations, ['sampling.requested']);
 	});
 
 	test('retains transient host instructions until the delayed prompt hook consumes them', async () => {
