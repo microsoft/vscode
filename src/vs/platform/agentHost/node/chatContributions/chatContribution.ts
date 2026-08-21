@@ -5,9 +5,12 @@
 
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../log/common/log.js';
+import type { IAgentHostChangesetService } from '../../common/agentHostChangesetService.js';
+import type { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { StateAction } from '../../common/state/sessionActions.js';
 import { type ErrorInfo, type SessionSummary, type URI as ProtocolURI } from '../../common/state/sessionState.js';
+import type { IAgentConfigurationService } from '../agentConfigurationService.js';
 
 /**
  * Why a turn ended. Contributions discriminate on `kind` to select their side
@@ -35,14 +38,24 @@ export interface ITurnEnd {
 /** The narrow host capabilities a contribution may use. */
 export interface IAgentHostChatContributionContext {
 	readonly logService: ILogService;
+	readonly checkpointService: IAgentHostCheckpointService;
+	readonly changesets: IAgentHostChangesetService;
+	readonly agentConfigService: IAgentConfigurationService;
 	dispatch(channel: ProtocolURI, action: StateAction): void;
 	getSessionSummary(session: ProtocolURI): SessionSummary | undefined;
+	drainQueuedMessages(channel: ProtocolURI): void;
+	notifyTurnComplete(session: ProtocolURI): void;
+	refineTitleFromFirstTurn(session: ProtocolURI, chat?: ProtocolURI): void;
 }
 
 /** A self-contained behavior contributed to the agent host chat lifecycle. */
 export interface IAgentHostChatContribution extends IDisposable {
 	readonly id: string;
-	/** Lower runs first. Defaults to 0. Ties keep registration order. */
+	/**
+	 * Lower runs first. Defaults to 0. Contributions that require a specific
+	 * relative sequence must declare an explicit order; registration order only
+	 * breaks ties for order-indifferent contributions.
+	 */
 	readonly order?: number;
 	/** Fires on every terminal outcome — success, cancellation, and error. Must not throw; the dispatcher isolates failures. */
 	onTurnEnd?(turn: ITurnEnd): void;

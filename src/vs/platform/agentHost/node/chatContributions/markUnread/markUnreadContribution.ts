@@ -12,6 +12,9 @@ import { AgentHostChatContributionRegistry, IAgentHostChatContribution, IAgentHo
 class MarkUnreadContribution extends Disposable implements IAgentHostChatContribution {
 
 	readonly id = 'markUnread';
+	// This hook was originally dispatched after all turn-complete side effects.
+	// Keep it as the terminal tail while newer side effects use explicit orders.
+	readonly order = 500;
 
 	constructor(private readonly _context: IAgentHostChatContributionContext) {
 		super();

@@ -321,8 +321,14 @@ export class AgentSideEffects extends Disposable {
 		));
 		this._chatContributions = this._register(new AgentHostChatContributions({
 			logService: this._logService,
+			checkpointService: this._checkpointService,
+			changesets: this._changesets,
+			agentConfigService: this._agentConfigService,
 			dispatch: (channel, action) => this._stateManager.dispatchServerAction(channel, action),
 			getSessionSummary: session => this._stateManager.getSessionSummary(session),
+			drainQueuedMessages: channel => this._tryConsumeNextQueuedMessage(channel),
+			notifyTurnComplete: session => this._options.onTurnComplete(session),
+			refineTitleFromFirstTurn: (session, chat) => this._titleController.refineTitleFromFirstTurn(session, chat),
 		}));
 		this._register(this._stateManager.onDidChangeSessionConfig(e => {
 			const previousMode = getConfiguredSessionMode(e.previous);
@@ -1116,7 +1122,6 @@ export class AgentSideEffects extends Disposable {
 			const clientContext = this._turnTracker.getClientTelemetryContext(sessionKey, turnId);
 			this._completeTurn(sessionKey, turnId, 'error', { stage: 'provider', error: action.error });
 			this._toolCallTracker.clearSession(sessionKey);
-			this._captureTurnCheckpointAndRefresh(sessionKey, turnId, clientContext);
 			this._chatContributions.turnEnd({ session: sessionUri, channel: sessionKey, turnId, reason: { kind: 'error', error: action.error }, clientContext });
 		}
 	}
@@ -1129,76 +1134,14 @@ export class AgentSideEffects extends Disposable {
 		this._turnTracker.modelCallCompleted(sessionKey, turnId, signal.modelCallId);
 	}
 
-	/**
-	 * Completes a turn's telemetry, enriching it with the session's working-
-	 * directory shape. Normalizes a chat channel to its owning session URI
-	 * before reading the effective working directories, so peer-chat / channel
-	 * turns report the correct count and multi-root flag.
-	 */
-	private _captureTurnCheckpointAndRefresh(sessionKey: ProtocolURI, turnId: string, clientContext?: IAgentHostClientTelemetryContext): void {
-		const sessionUri = isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey;
-		const workingDirectories = this._agentConfigService.getEffectiveWorkingDirectories(sessionUri)?.map(w => URI.parse(w));
-		this._checkpointService.captureTurnCheckpoint(URI.parse(sessionUri), URI.parse(sessionKey), turnId, workingDirectories).then(() => this._changesets.onTurnComplete(sessionUri, turnId, clientContext), () => this._changesets.onTurnComplete(sessionUri, turnId, clientContext));
-	}
-
 	private _completeTurn(channel: string, turnId: string, result: AgentHostTurnResult, failure?: IAgentHostTurnFailure): void {
 		const sessionUri = isAhpChatChannel(channel) ? parseRequiredSessionUriFromChatUri(channel) : channel;
 		const folderCount = this._agentConfigService.getEffectiveWorkingDirectories(sessionUri)?.length ?? 0;
 		this._turnTracker.turnCompleted(channel, turnId, result, failure, { isMultiRoot: folderCount > 1, folderCount });
 	}
 
-	/**
-	 * Post-turn side effects: flush any pending debounced diff computation,
-	 * compute final diffs immediately, drain the next queued message, and
-	 * notify the host so it can refresh git state.
-	 */
 	private _runTurnCompleteSideEffects(sessionKey: ProtocolURI, turnId: string | undefined, clientContext?: IAgentHostClientTelemetryContext): void {
-		// Checkpoints, changesets and the host git-refresh notification are
-		// scoped to the owning session's working tree, which peer chats
-		// share. Normalize an additional-chat channel to its session for
-		// those, while keeping the original channel for per-chat queued
-		// message consumption (queues live on the chat state). For the
-		// default chat / single-chat case `sessionKey` is already the
-		// session URI, so this is a no-op.
 		const sessionUri = isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey;
-		// Capture the end-of-turn git checkpoint BEFORE notifying the
-		// changeset service so the per-turn changeset recompute can take
-		// the authoritative git-diff fast path (which includes terminal-tool
-		// edits the FileEditTracker misses). The capture is best-effort —
-		// any failure logs and the changeset pipeline falls back to the
-		// `file_edits`-based path. We don't block subsequent side effects
-		// (queued message drain, host notification) on the changeset
-		// completion since those have always been fire-and-forget; the
-		// ordering guarantee we care about is checkpoint-then-changeset.
-		if (turnId !== undefined) {
-			// Resolved here rather than inside the checkpoint service so the
-			// repositories a checkpoint acts on are always explicit at the
-			// call site. Note the changeset service below deliberately keeps
-			// its own resolution: `onTurnComplete` only schedules deferred
-			// recomputes that are shared with subscription, truncation and
-			// mid-turn-debounce entry points, so it has no single point at
-			// which a caller-supplied set would apply.
-			const workingDirectories = this._agentConfigService.getEffectiveWorkingDirectories(sessionUri)?.map(w => URI.parse(w));
-			this._checkpointService.captureTurnCheckpoint(URI.parse(sessionUri), URI.parse(sessionKey), turnId, workingDirectories).then(() => {
-				this._changesets.onTurnComplete(sessionUri, turnId, clientContext);
-			}, err => {
-				this._logService.warn(`[AgentSideEffects] Turn checkpoint capture failed for ${sessionUri}/${turnId}: ${err instanceof Error ? err.message : String(err)}`);
-				this._changesets.onTurnComplete(sessionUri, turnId, clientContext);
-			});
-		} else {
-			this._changesets.onTurnComplete(sessionUri, turnId, clientContext);
-		}
-		this._tryConsumeNextQueuedMessage(sessionKey);
-		this._options.onTurnComplete(sessionUri);
-
-		// After the first turn completes, refine the auto-generated title using
-		// the full first-turn context (request + response). No-op for later
-		// turns or when the title has since been changed. `sessionKey` may be an
-		// additional chat channel; route it as `chatChannel` so the refinement
-		// targets that chat's title, mirroring `seedTitleFromFirstMessage`.
-		const titleChatChannel = isAhpChatChannel(sessionKey) && !isDefaultChatUri(sessionKey) ? sessionKey : undefined;
-		this._titleController.refineTitleFromFirstTurn(sessionUri, titleChatChannel);
-
 		this._chatContributions.turnEnd({ session: sessionUri, channel: sessionKey, turnId, reason: { kind: 'success' }, clientContext });
 	}
 

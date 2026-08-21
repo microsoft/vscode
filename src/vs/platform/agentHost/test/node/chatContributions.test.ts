@@ -7,7 +7,12 @@ import assert from 'assert';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { NULL_CHECKPOINT_SERVICE, type IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
+import type { IAgentHostChangesetService } from '../../common/agentHostChangesetService.js';
+import { SessionStatus, type SessionSummary } from '../../common/state/sessionState.js';
+import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { type IAgentHostChatContribution, type IAgentHostChatContributionContext, type ITurnEnd, AgentHostChatContributionRegistry, AgentHostChatContributions } from '../../node/chatContributions/chatContribution.js';
+import '../../node/chatContributions/chatContributions.contribution.js';
 
 let calls: string[] = [];
 
@@ -88,11 +93,31 @@ AgentHostChatContributionRegistry.register(FollowingContribution);
 AgentHostChatContributionRegistry.register(ReasonContribution);
 AgentHostChatContributionRegistry.register(OptionalContribution);
 
-function createContext(): IAgentHostChatContributionContext {
+function createContext(observed?: string[]): IAgentHostChatContributionContext {
+	const changesets = { _serviceBrand: undefined } as IAgentHostChangesetService;
+	changesets.onTurnComplete = () => { };
+	const agentConfigService = { _serviceBrand: undefined } as IAgentConfigurationService;
+	agentConfigService.getEffectiveWorkingDirectories = () => undefined;
+
 	return {
 		logService: new NullLogService(),
+		checkpointService: observed ? {
+			...NULL_CHECKPOINT_SERVICE,
+			captureTurnCheckpoint: async () => { observed.push('checkpointAndChangeset'); },
+		} as IAgentHostCheckpointService : NULL_CHECKPOINT_SERVICE,
+		changesets,
+		agentConfigService,
 		dispatch: () => { },
-		getSessionSummary: () => undefined,
+		getSessionSummary: () => {
+			if (!observed) {
+				return undefined;
+			}
+			observed.push('markUnread');
+			return { status: SessionStatus.IsRead } as SessionSummary;
+		},
+		drainQueuedMessages: () => observed?.push('queueDrain'),
+		notifyTurnComplete: () => observed?.push('gitRefresh'),
+		refineTitleFromFirstTurn: () => observed?.push('titleRefinement'),
 	};
 }
 
@@ -112,6 +137,14 @@ suite('AgentHostChatContributions', () => {
 		contributions.turnEnd(turnEnd('ordered'));
 
 		assert.deepStrictEqual(calls, ['second', 'first', 'third']);
+	});
+
+	test('runs built-in turn-end contributions in the original sequence', () => {
+		const observed: string[] = [];
+		const contributions = disposables.add(new AgentHostChatContributions(createContext(observed)));
+		contributions.turnEnd(turnEnd('built-in-order'));
+
+		assert.deepStrictEqual(observed, ['checkpointAndChangeset', 'queueDrain', 'gitRefresh', 'titleRefinement', 'markUnread']);
 	});
 
 	test('isolates a throwing contribution', () => {
