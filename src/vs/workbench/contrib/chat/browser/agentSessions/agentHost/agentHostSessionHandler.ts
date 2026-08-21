@@ -3261,6 +3261,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// across the natural-completion path; cancellation paths can
 			// still call `dispose()` proactively (idempotent).
 			queueMicrotask(() => {
+				if (store.isDisposed) {
+					return;
+				}
 				try {
 					opts.onTurnEnded?.(lastTurn);
 				} finally {
