@@ -7,6 +7,7 @@ import { timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
+import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
@@ -31,6 +32,10 @@ function uriKey(session: URI): string {
 
 function mockProject(provider: AgentProvider) {
 	return { uri: URI.from({ scheme: 'mock-project', path: `/${provider}` }), displayName: `Agent ${provider}` };
+}
+
+function mockWorkspacePath(relativePath: string): string {
+	return join(process.env['VSCODE_AGENT_HOST_MOCK_WORKSPACE'] ?? process.cwd(), relativePath);
 }
 
 interface IMockSendMessageCall {
@@ -154,7 +159,7 @@ export class MockAgent implements IAgent {
 		this._discoveredChatsEmitter.fire(chats);
 	}
 
-	async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+	async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | undefined> {
 		return [];
 	}
 
@@ -561,7 +566,7 @@ export class ScriptedMockAgent implements IAgent {
 		this._discoveredChatsEmitter.fire(chats);
 	}
 
-	async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+	async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | undefined> {
 		return [];
 	}
 
@@ -602,33 +607,33 @@ export class ScriptedMockAgent implements IAgent {
 	}
 
 	async resolveChatConfig(params: IAgentResolveChatConfigParams): Promise<ResolveSessionConfigResult> {
-		const isolation = params.config?.isolation === 'folder' || params.config?.isolation === 'worktree' ? params.config.isolation : 'worktree';
-		const branch = isolation === 'worktree' && typeof params.config?.branch === 'string' ? params.config.branch : 'main';
+		const mode = params.config?.mockMode === 'direct' || params.config?.mockMode === 'managed' ? params.config.mockMode : 'managed';
+		const branch = mode === 'managed' && typeof params.config?.mockBranch === 'string' ? params.config.mockBranch : 'main';
 		return {
 			schema: {
 				type: 'object',
 				properties: {
-					isolation: {
+					mockMode: {
 						type: 'string',
-						title: 'Isolation',
-						description: 'Where the mock agent should make changes',
-						enum: ['folder', 'worktree'],
-						enumLabels: ['Folder', 'Worktree'],
-						default: 'worktree',
+						title: 'Mock Mode',
+						description: 'How the mock agent should operate',
+						enum: ['direct', 'managed'],
+						enumLabels: ['Direct', 'Managed'],
+						default: 'managed',
 					},
-					branch: {
+					mockBranch: {
 						type: 'string',
-						title: 'Branch',
-						description: 'Base branch to work from',
+						title: 'Mock Branch',
+						description: 'Mock branch to work from',
 						enum: ['main'],
 						enumLabels: ['main'],
 						default: 'main',
-						enumDynamic: isolation === 'worktree',
-						readOnly: isolation === 'folder',
+						enumDynamic: mode === 'managed',
+						readOnly: mode === 'direct',
 					},
 				},
 			},
-			values: { isolation, branch },
+			values: { mockMode: mode, mockBranch: branch },
 		};
 	}
 	resolveSessionConfig(params: IAgentResolveChatConfigParams): Promise<ResolveSessionConfigResult> {
@@ -640,7 +645,7 @@ export class ScriptedMockAgent implements IAgent {
 	}
 
 	async chatConfigCompletions(params: IAgentChatConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
-		if (params.property !== 'branch') {
+		if (params.property !== 'mockBranch') {
 			return { items: [] };
 		}
 		const query = params.query?.toLowerCase() ?? '';
@@ -709,7 +714,7 @@ export class ScriptedMockAgent implements IAgent {
 						this._onDidChatProgress.fire(s);
 					}
 					await timeout(5);
-					this._onDidChatProgress.fire(_pendingConfirmation(chat, 'tc-write-1', 'Write src/app.ts', { permissionKind: 'write', permissionPath: '/workspace/src/app.ts' }));
+					this._onDidChatProgress.fire(_pendingConfirmation(chat, 'tc-write-1', 'Write src/app.ts', { permissionKind: 'write', permissionPath: mockWorkspacePath('src/app.ts') }));
 					// Auto-approved writes resolve immediately — complete the tool and turn
 					await timeout(10);
 					this._fireSequence([
@@ -728,7 +733,7 @@ export class ScriptedMockAgent implements IAgent {
 						this._onDidChatProgress.fire(s);
 					}
 					await timeout(5);
-					this._onDidChatProgress.fire(_pendingConfirmation(chat, 'tc-write-env-1', 'Write .env', { permissionKind: 'write', permissionPath: '/workspace/.env', confirmationTitle: 'Write .env' }));
+					this._onDidChatProgress.fire(_pendingConfirmation(chat, 'tc-write-env-1', 'Write .env', { permissionKind: 'write', permissionPath: mockWorkspacePath('.env'), confirmationTitle: 'Write .env' }));
 				})();
 				this._pendingPermissions.set('tc-write-env-1', (approved) => {
 					if (approved) {
@@ -816,7 +821,7 @@ export class ScriptedMockAgent implements IAgent {
 						this._onDidChatProgress.fire(s);
 					}
 					await timeout(5);
-					this._onDidChatProgress.fire(_pendingConfirmation(chat, 'tc-orphan', 'Read file', { permissionKind: 'read', permissionPath: '/workspace/file.ts' }));
+					this._onDidChatProgress.fire(_pendingConfirmation(chat, 'tc-orphan', 'Read file', { permissionKind: 'read', permissionPath: mockWorkspacePath('file.ts') }));
 				})();
 				this._pendingPermissions.set('tc-orphan', (approved) => {
 					if (approved) {

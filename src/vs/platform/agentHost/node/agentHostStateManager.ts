@@ -13,7 +13,7 @@ import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { ActionType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, ChatAction, RootAction, StateAction, TerminalAction, ChangesetAction, ClientChangesetAction, AnnotationsAction, ClientAnnotationsAction, isRootAction, isSessionAction, isChatAction, isChangesetAction, isAnnotationsAction, type AuthRequiredParams, type ProgressParams, type SessionSummaryChangedParams } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { rootReducer, sessionReducer, chatReducer, changesetReducer, annotationsReducer } from '../common/state/sessionReducers.js';
-import { createRootState, createSessionState, createChatState, createDefaultChatSummary, chatSummaryFromState, buildDefaultChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseSubagentSessionUri, isAhpChatChannel, isDefaultChatUri, mergeSessionWithDefaultChat, isAhpRootChannel, SessionLifecycle, withHostBuildInfo, type Changeset, type ChangesetState, type AnnotationsState, type ChatState, type ChatSummary, type Customization, type ISessionWithDefaultChat, type Message, type RootState, type SessionConfigState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, IHostBuildInfo, SessionStatus } from '../common/state/sessionState.js';
+import { createRootState, createSessionState, createChatState, createDefaultChatSummary, chatSummaryFromState, buildDefaultChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseSubagentSessionUri, isAhpChatChannel, isDefaultChatUri, mergeSessionWithDefaultChat, isAhpRootChannel, readSessionExternal, SessionLifecycle, withHostBuildInfo, type Changeset, type ChangesetState, type AnnotationsState, type ChatState, type ChatSummary, type Customization, type ISessionWithDefaultChat, type Message, type RootState, type SessionConfigState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, IHostBuildInfo, SessionStatus } from '../common/state/sessionState.js';
 import { AgentHostTelemetryLevelConfigKey, IPermissionsValue, platformRootSchema, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
@@ -23,6 +23,8 @@ import { ChangesSummary, ChatInteractivity, type ChatOrigin } from '../common/st
 import { arrayEquals, structuralEquals } from '../../../base/common/equals.js';
 import { preserveProviderBackedRootConfigValues } from '../common/agentCustomizationSettings.js';
 import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
+import { readEphemeralSessionMeta } from '../common/meta/agentEphemeralSessionMeta.js';
+import { type IChatSurfaceMeta, readChatSurfaceMeta } from '../common/meta/agentChatSurfaceMeta.js';
 
 export interface IAgentHostStateManagerOptions {
 	readonly changesetStateRetention?: IAgentHostChangesetStateRetentionOptions;
@@ -259,8 +261,10 @@ export class AgentHostStateManager extends Disposable {
 	 * since it closes over {@link _toSummary} and {@link _onDidEmitNotification}.
 	 */
 	private readonly _summaryNotifier: SessionSummaryNotifier;
-	/** Session summaries that clients have actually received through `root/sessionAdded`. */
+	/** Session summaries exposed to at least one client through `root/listSessions` or `root/sessionAdded`. */
 	private readonly _publishedSessionSummaries = new Set<string>();
+	/** Session summaries globally published through `root/sessionAdded`. */
+	private readonly _addedSessionSummaries = new Set<string>();
 
 	private readonly _onDidEmitEnvelope = this._register(new Emitter<ActionEnvelope>());
 	readonly onDidEmitEnvelope: Event<ActionEnvelope> = this._onDidEmitEnvelope.event;
@@ -276,6 +280,8 @@ export class AgentHostStateManager extends Disposable {
 
 	private readonly _onDidChangeSessionTitle = this._register(new Emitter<{ session: string; title: string }>());
 	readonly onDidChangeSessionTitle: Event<{ session: string; title: string }> = this._onDidChangeSessionTitle.event;
+	private readonly _onDidSnapshotDefaultChatTitle = this._register(new Emitter<{ session: string; chat: string; title: string }>());
+	readonly onDidSnapshotDefaultChatTitle: Event<{ session: string; chat: string; title: string }> = this._onDidSnapshotDefaultChatTitle.event;
 
 	private readonly _onDidChangeSessionConfig = this._register(new Emitter<{ session: URI; previous: SessionConfigState | undefined; current: SessionConfigState | undefined; clientContext?: IAgentHostClientTelemetryContext }>());
 	readonly onDidChangeSessionConfig: Event<{ session: URI; previous: SessionConfigState | undefined; current: SessionConfigState | undefined; clientContext?: IAgentHostClientTelemetryContext }> = this._onDidChangeSessionConfig.event;
@@ -325,6 +331,21 @@ export class AgentHostStateManager extends Disposable {
 			},
 		));
 	}
+
+	private _emitSessionAdded(summary: SessionSummary): void {
+		if (readEphemeralSessionMeta(summary).isEphemeral) {
+			return;
+		}
+		this._summaryNotifier.announce(summary.resource, summary);
+		this._publishedSessionSummaries.add(summary.resource);
+		this._addedSessionSummaries.add(summary.resource);
+		this._onDidEmitNotification.fire({
+			type: 'root/sessionAdded',
+			channel: ROOT_STATE_URI,
+			summary,
+		});
+	}
+
 	private readonly _log = (msg: string) => this._logService.warn(`[AgentHostStateManager] ${msg}`);
 
 	get hasActiveSessions(): boolean {
@@ -572,7 +593,7 @@ export class AgentHostStateManager extends Disposable {
 	getOverlaySessionSummaries(): SessionSummary[] {
 		const summaries: SessionSummary[] = [];
 		for (const [key, entry] of this._sessionStates) {
-			if (this._isIdleProvisional(key, entry.state.lifecycle)) {
+			if (this._isIdleProvisional(key, entry.state.lifecycle) || this.isEphemeralSession(key)) {
 				continue;
 			}
 			summaries.push(this._toSummary(key, entry));
@@ -589,6 +610,18 @@ export class AgentHostStateManager extends Disposable {
 	isIdleProvisionalSession(session: string): boolean {
 		const entry = this._sessionStates.get(session);
 		return entry ? this._isIdleProvisional(session, entry.state.lifecycle) : false;
+	}
+
+	/** Whether the session is owned by a throwaway VS Code chat surface. */
+	isEphemeralSession(session: string): boolean {
+		const entry = this._sessionStates.get(session);
+		return entry ? readEphemeralSessionMeta(entry.state).isEphemeral === true : false;
+	}
+
+	/** Returns the typed VS Code surface metadata for a tracked session, when present. */
+	getSessionSurfaceMeta(session: string): IChatSurfaceMeta | undefined {
+		const entry = this._sessionStates.get(session);
+		return entry ? readChatSurfaceMeta(entry.state) : undefined;
 	}
 
 	private _isIdleProvisional(session: string, lifecycle: SessionLifecycle): boolean {
@@ -720,13 +753,7 @@ export class AgentHostStateManager extends Disposable {
 			// its later flush emit incremental updates and what makes
 			// `markSessionPersisted` a no-op. Provisional sessions
 			// intentionally skip both until they are persisted.
-			this._summaryNotifier.announce(key, summary);
-			this._publishedSessionSummaries.add(key);
-			this._onDidEmitNotification.fire({
-				type: 'root/sessionAdded',
-				channel: ROOT_STATE_URI,
-				summary,
-			});
+			this._emitSessionAdded(summary);
 		}
 
 		return state;
@@ -755,7 +782,7 @@ export class AgentHostStateManager extends Disposable {
 			this._logService.warn(`[AgentHostStateManager] markSessionPersisted: unknown session ${key}`);
 			return;
 		}
-		if (!force && this._publishedSessionSummaries.has(key)) {
+		if (!force && this._addedSessionSummaries.has(key)) {
 			return;
 		}
 		// Propagate the materialization-resolved fields so subscribers calling
@@ -767,13 +794,7 @@ export class AgentHostStateManager extends Disposable {
 		entry.modifiedAt = summary.modifiedAt;
 		entry.changes = summary.changes;
 		const full = this._toSummary(key, entry);
-		this._summaryNotifier.announce(key, full);
-		this._publishedSessionSummaries.add(key);
-		this._onDidEmitNotification.fire({
-			type: 'root/sessionAdded',
-			channel: ROOT_STATE_URI,
-			summary: full,
-		});
+		this._emitSessionAdded(full);
 	}
 
 	/**
@@ -789,17 +810,11 @@ export class AgentHostStateManager extends Disposable {
 			this._logService.trace(`[AgentHostStateManager] announceSurfacedSession: already in state ${key}`);
 			return;
 		}
-		if (this._publishedSessionSummaries.has(key)) {
-			this._logService.trace(`[AgentHostStateManager] announceSurfacedSession: already published ${key}`);
+		if (this._addedSessionSummaries.has(key)) {
+			this._logService.trace(`[AgentHostStateManager] announceSurfacedSession: already added ${key}`);
 			return;
 		}
-		this._summaryNotifier.announce(key, summary);
-		this._publishedSessionSummaries.add(key);
-		this._onDidEmitNotification.fire({
-			type: 'root/sessionAdded',
-			channel: ROOT_STATE_URI,
-			summary,
-		});
+		this._emitSessionAdded(summary);
 	}
 
 	/** Removes a surfaced session without affecting a live session. */
@@ -807,7 +822,9 @@ export class AgentHostStateManager extends Disposable {
 		if (this._sessionStates.has(session)) {
 			return;
 		}
-		if (!this._publishedSessionSummaries.delete(session)) {
+		const wasPublished = this._publishedSessionSummaries.delete(session);
+		const wasAdded = this._addedSessionSummaries.delete(session);
+		if (!wasPublished && !wasAdded) {
 			return;
 		}
 		this._summaryNotifier.remove(session);
@@ -820,25 +837,22 @@ export class AgentHostStateManager extends Disposable {
 
 	/** Publishes or unpublishes a live session summary without changing its session state. */
 	setSessionSummaryPublished(session: string, published: boolean): void {
-		if (published === this._publishedSessionSummaries.has(session)) {
-			return;
-		}
-
 		if (published) {
+			if (this._addedSessionSummaries.has(session)) {
+				return;
+			}
 			const entry = this._sessionStates.get(session);
 			if (!entry) {
 				return;
 			}
 			const summary = this._toSummary(session, entry);
-			this._summaryNotifier.announce(session, summary);
-			this._publishedSessionSummaries.add(session);
-			this._onDidEmitNotification.fire({
-				type: 'root/sessionAdded',
-				channel: ROOT_STATE_URI,
-				summary,
-			});
+			this._emitSessionAdded(summary);
 		} else {
-			this._publishedSessionSummaries.delete(session);
+			const wasPublished = this._publishedSessionSummaries.delete(session);
+			const wasAdded = this._addedSessionSummaries.delete(session);
+			if (!wasPublished && !wasAdded) {
+				return;
+			}
 			this._summaryNotifier.remove(session);
 			this._onDidEmitNotification.fire({
 				type: 'root/sessionRemoved',
@@ -846,6 +860,58 @@ export class AgentHostStateManager extends Disposable {
 				session,
 			});
 		}
+	}
+
+	/** Records `root/listSessions` baselines and returns a current snapshot for the response. */
+	prepareSessionSummariesForListing(summaries: readonly SessionSummary[]): SessionSummary[] {
+		const result: SessionSummary[] = [];
+		for (const summary of summaries) {
+			const wasPublished = this._publishedSessionSummaries.has(summary.resource);
+			if (wasPublished) {
+				if (this._summaryNotifier.isDirty(summary.resource)) {
+					this._summaryNotifier.flush(summary.resource);
+				}
+			}
+
+			const entry = this._sessionStates.get(summary.resource);
+			const current = entry ? this._toSummary(summary.resource, entry) : summary;
+			if (!wasPublished) {
+				this._summaryNotifier.announce(summary.resource, current);
+				this._publishedSessionSummaries.add(summary.resource);
+			}
+			result.push(entry ? this._mergeLiveSummaryForListing(summary, current) : summary);
+		}
+		return result;
+	}
+
+	private _mergeLiveSummaryForListing(listed: SessionSummary, current: SessionSummary): SessionSummary {
+		const meta = listed._meta !== undefined || current._meta !== undefined
+			? { ...listed._meta, ...current._meta }
+			: undefined;
+		return {
+			...listed,
+			title: current.title || listed.title,
+			status: current.status,
+			activity: current.activity,
+			modifiedAt: current.modifiedAt,
+			project: current.project ?? listed.project,
+			workingDirectories: current.workingDirectories ?? listed.workingDirectories,
+			changes: current.changes ?? listed.changes,
+			...(meta !== undefined ? { _meta: meta } : {}),
+		};
+	}
+
+	/** Returns external sessions exposed through either listing or global add notification. */
+	getExposedExternalSessionKeys(): string[] {
+		const result: string[] = [];
+		for (const session of this._publishedSessionSummaries) {
+			const entry = this._sessionStates.get(session);
+			const summary = entry ? this._toSummary(session, entry) : this._summaryNotifier.getAnnounced(session);
+			if (readSessionExternal(summary?._meta)) {
+				result.push(session);
+			}
+		}
+		return result;
 	}
 
 	/**
@@ -877,7 +943,8 @@ export class AgentHostStateManager extends Disposable {
 		// adoptable-legacy session) is already known to clients with a different
 		// summary. Emit the delta so they update the entry in place — clearing the
 		// adoptable marker — rather than dropping the just-opened session on the
-		// next list reconcile. Never-announced sessions record the summary silently.
+		// next list reconcile. Never-announced sessions record the summary silently
+		// and stay hidden until {@link setSessionSummaryPublished}.
 		if (this._summaryNotifier.isAnnounced(key)) {
 			this._summaryNotifier.flush(key);
 		} else {
@@ -960,11 +1027,7 @@ export class AgentHostStateManager extends Disposable {
 		// titles become fully independent. Without this the default chat keeps
 		// an empty title (= inherit the session title), so renaming the session
 		// would also move the default chat tab and vice-versa.
-		const defaultChatUri = sessionState.defaultChat ?? buildDefaultChatUri(session);
-		const defaultEntry = sessionState.chats.find(c => c.resource === defaultChatUri);
-		if (defaultEntry && !defaultEntry.title && sessionState.title) {
-			this.updateChatTitle(session, defaultChatUri, sessionState.title);
-		}
+		this._snapshotDefaultChatTitle(session, sessionState);
 
 		const chatSummary: ChatSummary = {
 			...createDefaultChatSummary(this._toSummary(session, entry), chatUri),
@@ -1006,6 +1069,7 @@ export class AgentHostStateManager extends Disposable {
 			}
 			return existing;
 		}
+		this._snapshotDefaultChatTitle(session, sessionState);
 		const chatSummary: ChatSummary = {
 			...createDefaultChatSummary(this._toSummary(session, entry), chatUri),
 			title: options.title ?? '',
@@ -1016,7 +1080,7 @@ export class AgentHostStateManager extends Disposable {
 			...(options.origin ? { origin: options.origin } : {}),
 			interactivity: options.interactivity,
 		};
-		sessionState.chats = [...sessionState.chats, chatSummary];
+		entry.state.chats = [...entry.state.chats, chatSummary];
 		this._chatEntries.set(chatUri, {
 			session,
 			summary: chatSummary,
@@ -1026,6 +1090,15 @@ export class AgentHostStateManager extends Disposable {
 			valid: true,
 		});
 		return chatSummary;
+	}
+
+	private _snapshotDefaultChatTitle(session: URI, state: SessionState): void {
+		const defaultChat = buildDefaultChatUri(session);
+		const summary = state.chats.find(chat => chat.resource === defaultChat);
+		if (summary && !summary.title && state.title) {
+			this.updateChatTitle(session, defaultChat, state.title);
+			this._onDidSnapshotDefaultChatTitle.fire({ session, chat: defaultChat, title: state.title });
+		}
 	}
 
 	/**
@@ -1170,6 +1243,7 @@ export class AgentHostStateManager extends Disposable {
 		this.removeSession(session);
 		if (wasPublished) {
 			this._publishedSessionSummaries.delete(session.toString());
+			this._addedSessionSummaries.delete(session.toString());
 			this._onDidEmitNotification.fire({
 				type: 'root/sessionRemoved',
 				channel: ROOT_STATE_URI,

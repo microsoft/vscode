@@ -24,7 +24,7 @@ import { IURLService } from '../../../../platform/url/common/url.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { Menus } from '../../../browser/menus.js';
-import { SessionHeaderMetaActionViewItem } from '../../../browser/parts/sessionHeaderMetaActionViewItem.js';
+import { ChatPillActionViewItem } from '../../../../workbench/browser/chatPills.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { SessionHasIssuesContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
@@ -60,10 +60,7 @@ class OpenIssueAction extends Action2 {
 			title: localize2('agentSessions.openIssue', 'Open Issue'),
 			icon: Codicon.issues,
 			f1: false,
-			// Issue pill shown in the session header meta row
-			// (vs/sessions/browser/parts/sessionHeader.ts), right after the pull
-			// request pill. Rendered with a custom action view item that shows the
-			// aggregate issue icon plus either `#<number>` or `<n> issues`.
+			// Metadata pill shown after pull requests.
 			menu: [{
 				id: Menus.SessionHeaderMeta,
 				group: 'navigation',
@@ -109,11 +106,10 @@ function getSessionIssues(session: ISession | undefined): readonly IGitHubIssueR
 	return session?.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get()?.issues ?? [];
 }
 
-// --- Open Issue action view item (session header issue pill)
+// --- Open Issue action view item
 
 /**
- * Renders the GitHub issues a session references as a single pill, the {@link OpenIssueAction}
- * menu item contributed into {@link Menus.SessionHeaderMeta} (the session header meta row).
+ * Renders the GitHub issues a session references as a single metadata pill.
  *
  * A session that references one issue shows `#<number>` and hovers to the issue's details.
  * A session that references several shows `<n> issues` and opens a picker on click, since the
@@ -124,7 +120,7 @@ function getSessionIssues(session: ISession | undefined): readonly IGitHubIssueR
  * The issues are read from the {@link ISessionContext} so the correct per-session issues are
  * shown even when several session views are visible at once.
  */
-export class OpenIssueActionViewItem extends SessionHeaderMetaActionViewItem {
+export class OpenIssueActionViewItem extends ChatPillActionViewItem {
 
 	private readonly _issueRefsObs: IObservable<readonly IGitHubIssueRef[]>;
 	private readonly _issuesObs: IObservable<readonly IResolvedSessionIssue[]>;
@@ -202,7 +198,7 @@ export class OpenIssueActionViewItem extends SessionHeaderMetaActionViewItem {
 
 	protected override getIconElement(): HTMLElement | undefined {
 		const icon = this._computeIcon();
-		const iconElement = $(`span.chat-composite-bar-meta-item-icon${ThemeIcon.asCSSSelector(icon)}`);
+		const iconElement = $(`span.chat-pill-icon${ThemeIcon.asCSSSelector(icon)}`, { 'aria-hidden': 'true' });
 		if (icon.color) {
 			// Inline `!important` wins over `button.css`'s `.monaco-text-button .codicon
 			// { color: inherit !important }`, so the glyph reflects the live issue state color.
@@ -304,9 +300,7 @@ export class OpenIssueActionViewItem extends SessionHeaderMetaActionViewItem {
 }
 
 /**
- * Registers the {@link OpenIssueActionViewItem} for the open-issue action in the session
- * header meta toolbar. Registering it here (rather than in the core session header) keeps
- * the rendering of the GitHub-owned action co-located with the action itself.
+ * Registers the {@link OpenIssueActionViewItem} for the issue metadata pill.
  */
 class OpenIssueActionViewItemContribution extends Disposable implements IWorkbenchContribution {
 
@@ -317,11 +311,7 @@ class OpenIssueActionViewItemContribution extends Disposable implements IWorkben
 	) {
 		super();
 
-		// The action view item service only notifies toolbars of a factory via the event
-		// passed to register(), not on registration itself. A session header restored with
-		// existing issues may create its meta toolbar before this contribution runs, so
-		// announce the factory once right after registering to make those toolbars
-		// re-render and pick it up.
+		// Announce the factory after registration so existing metadata pills re-render.
 		const onDidRegister = this._register(new Emitter<void>());
 		this._register(actionViewItemService.register(Menus.SessionHeaderMeta, OpenIssueAction.ID, (action, options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {

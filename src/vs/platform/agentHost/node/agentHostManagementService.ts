@@ -88,6 +88,13 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._agentService.diagnosticsFetch(url);
 	}
 
+	getSessionStateFile(session: URI): Promise<URI | undefined> {
+		if (!this._agentService.getSessionStateFile) {
+			throw new Error('Agent Host session state files are unavailable');
+		}
+		return this._agentService.getSessionStateFile(session);
+	}
+
 	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> {
 		if (!this._agentService.collectDebugLogs) {
 			throw new Error('Agent Host debug log collection is unavailable');

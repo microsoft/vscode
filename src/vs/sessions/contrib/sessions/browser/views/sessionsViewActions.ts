@@ -446,7 +446,7 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 				{
 					id: SessionSectionToolbarMenuId,
 					group: 'navigation',
-					order: 1,
+					order: 0,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.enabled,
 						SessionSectionHasNonCloudRepositoryContext,
@@ -455,7 +455,7 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 				{
 					id: SessionSectionToolbarMenuId,
 					group: 'navigation',
-					order: 1,
+					order: 0,
 					when: ContextKeyExpr.and(
 						ContextKeyExpr.equals(SessionSectionTypeContext.key, 'workspace'),
 						ContextKeyExpr.or(
@@ -585,7 +585,7 @@ abstract class BaseArchiveSectionAction extends Action2 {
 			menu: [{
 				id: SessionSectionToolbarMenuId,
 				group: 'navigation',
-				order: 0,
+				order: 1,
 				// Not on Done itself, and not on the "Chats" (quick chats) section.
 				// Also not on Automations.
 				when: ContextKeyExpr.and(
@@ -880,8 +880,8 @@ abstract class BaseArchiveSessionAction extends Action2 {
 				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
 			}, {
 				id: Menus.SessionBarToolbar,
-				group: '1_session',
-				order: 5,
+				group: 'secondary/1_session',
+				order: 30,
 				when: ContextKeyExpr.and(SessionIsCreatedContext, ContextKeyExpr.equals(SessionIsArchivedContext.key, false)),
 			}]
 		});
@@ -929,7 +929,7 @@ abstract class BaseUnarchiveSessionAction extends Action2 {
 				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, true),
 			}, {
 				id: Menus.SessionBarToolbar,
-				group: 'navigation',
+				group: 'secondary/1_session',
 				order: 5,
 				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, true),
 			}]
@@ -969,11 +969,17 @@ registerAction2(class RenameSessionAction extends Action2 {
 		super({
 			id: RENAME_SESSION_COMMAND_ID,
 			title: localize2('renameSession', "Rename..."),
+			icon: Codicon.edit,
 			menu: [{
 				id: SessionItemContextMenuId,
 				group: '1_edit',
 				order: 1,
 				when: SessionSupportsRenameContext,
+			}, {
+				id: Menus.SessionBarToolbar,
+				group: 'secondary/1_session',
+				order: 20,
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsRenameContext, SessionIsArchivedContext.negate()),
 			}]
 		});
 	}

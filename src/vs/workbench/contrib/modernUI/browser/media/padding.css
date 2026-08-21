@@ -259,6 +259,11 @@
 	overflow: visible;
 }
 
+/* Remove classic 1px top border that shifts 32px pills off-center (#331013) */
+.modern-ui.monaco-workbench .part.panel.bottom .composite.title {
+	border-top: none;
+}
+
 .modern-ui.monaco-workbench .part.basepanel > .composite.title > .title-actions {
 	min-width: 0;
 }

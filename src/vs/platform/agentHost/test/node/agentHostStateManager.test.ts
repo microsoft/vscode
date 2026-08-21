@@ -10,12 +10,14 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType, NotificationType, type ActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
-import { ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
+import { ChatInputQuestionKind, ChatInputResponseKind, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { buildChangesetUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
 import { withAgentCustomizationSettings } from '../../common/agentCustomizationSettings.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
+import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
+import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 
 suite('AgentHostStateManager', () => {
 
@@ -293,14 +295,17 @@ suite('AgentHostStateManager', () => {
 		});
 	});
 
-	test('createSession emits sessionAdded notification', () => {
+	test('createSession emits sessionAdded only for non-ephemeral sessions', () => {
 		const notifications: INotification[] = [];
 		disposables.add(manager.onDidEmitNotification(n => notifications.push(n)));
 
 		manager.createSession(makeSessionSummary());
+		manager.createSession({
+			...makeSessionSummary(URI.from({ scheme: 'copilot', path: '/ephemeral-session' }).toString()),
+			_meta: withEphemeralSessionMeta(undefined, true),
+		});
 
-		assert.strictEqual(notifications.length, 1);
-		assert.strictEqual(notifications[0].type, NotificationType.SessionAdded);
+		assert.deepStrictEqual(notifications.map(notification => notification.type), [NotificationType.SessionAdded]);
 	});
 
 	test('default chat inherits the session working directory resolved at materialization', () => {
@@ -319,6 +324,44 @@ suite('AgentHostStateManager', () => {
 		}, {
 			session: 'file:///resolved-worktree',
 			defaultChat: 'file:///resolved-worktree',
+		});
+	});
+
+	test('listed provisional session still applies the materialization upsert', () => {
+		const provisional = { ...makeSessionSummary(), workingDirectories: ['file:///provisional'] };
+		manager.createSession(provisional, { emitNotification: false });
+		manager.dispatchServerAction(sessionChatUri, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		});
+		manager.prepareSessionSummariesForListing([manager.getSessionSummary(sessionUri)!]);
+		const notifications: INotification[] = [];
+		disposables.add(manager.onDidEmitNotification(notification => notifications.push(notification)));
+
+		const persisted = {
+			...makeSessionSummary(),
+			project: { uri: 'file:///resolved-worktree', displayName: 'Resolved Worktree' },
+			workingDirectories: ['file:///resolved-worktree'],
+		};
+		manager.markSessionPersisted(sessionUri, persisted);
+
+		const added = notifications.find(notification => notification.type === NotificationType.SessionAdded);
+		assert.deepStrictEqual({
+			status: manager.getSessionState(sessionUri)?.status,
+			project: manager.getSessionState(sessionUri)?.project,
+			workingDirectories: manager.getSessionState(sessionUri)?.workingDirectories,
+			addedStatus: added?.type === NotificationType.SessionAdded ? added.summary.status : undefined,
+			addedProject: added?.type === NotificationType.SessionAdded ? added.summary.project : undefined,
+			addedWorkingDirectories: added?.type === NotificationType.SessionAdded ? added.summary.workingDirectories : undefined,
+		}, {
+			status: SessionStatus.InProgress,
+			project: persisted.project,
+			workingDirectories: persisted.workingDirectories,
+			addedStatus: SessionStatus.InProgress,
+			addedProject: persisted.project,
+			addedWorkingDirectories: persisted.workingDirectories,
 		});
 	});
 
@@ -669,6 +712,22 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(changed[0].session, sessionUri);
 		assert.strictEqual(Object.prototype.hasOwnProperty.call(changed[0].changes, '_meta'), true);
 		assert.strictEqual(readSessionEhcliAdoptable(changed[0].changes._meta), false);
+	});
+
+	test('publishing a restored session announces it to clients that never saw it', () => {
+		// A legacy chat adopted after startup was never surfaced by discovery, so
+		// restore records it silently and clients have no entry. Publishing is what
+		// makes an adopted session appear instead of existing only on the host.
+		manager.restoreSession(makeSessionSummary(), []);
+		const notifications: INotification[] = [];
+		disposables.add(manager.onDidEmitNotification(n => notifications.push(n)));
+
+		manager.setSessionSummaryPublished(sessionUri, true);
+
+		assert.deepStrictEqual(
+			notifications.filter(n => n.type === NotificationType.SessionAdded).map(n => (n as { summary: { resource: string } }).summary.resource),
+			[sessionUri],
+		);
 	});
 
 	suite('unused-draft tracking', () => {
@@ -1098,6 +1157,43 @@ suite('AgentHostStateManager', () => {
 			);
 		});
 
+		test('restored peer chat snapshots the inherited default chat title', () => {
+			manager.restoreSession(makeSessionSummary(), []);
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const beforeRestore = manager.getSessionState(sessionUri)?.chats.find(chat => chat.resource === defaultChat)?.title;
+
+			manager.registerRestoredChatSummary(sessionUri, peerChat, { title: 'Peer' });
+
+			assert.deepStrictEqual({
+				beforeRestore,
+				afterRestore: manager.getSessionState(sessionUri)?.chats.find(chat => chat.resource === defaultChat)?.title,
+			}, {
+				beforeRestore: '',
+				afterRestore: 'Test',
+			});
+		});
+
+		test('adding a chat snapshots the canonical default when routing defaults to a peer', () => {
+			manager.createSession(makeSessionSummary());
+			const canonicalDefault = buildDefaultChatUri(sessionUri);
+			const peer2 = buildChatUri(sessionUri, 'peer-2');
+			manager.addChat(sessionUri, peerChat, { title: 'Peer' });
+			manager.updateChatTitle(sessionUri, canonicalDefault, '');
+			manager.updateChatTitle(sessionUri, peerChat, '');
+			manager.dispatchServerAction(sessionUri, { type: ActionType.SessionDefaultChatChanged, defaultChat: peerChat });
+
+			manager.addChat(sessionUri, peer2, { title: 'Peer 2' });
+
+			const state = manager.getSessionState(sessionUri);
+			assert.deepStrictEqual({
+				canonicalDefaultTitle: state?.chats.find(chat => chat.resource === canonicalDefault)?.title,
+				routingDefaultTitle: state?.chats.find(chat => chat.resource === peerChat)?.title,
+			}, {
+				canonicalDefaultTitle: 'Test',
+				routingDefaultTitle: '',
+			});
+		});
+
 		test('addChat is idempotent for an existing chat URI', () => {
 			manager.createSession(makeSessionSummary());
 			const first = manager.addChat(sessionUri, peerChat, { title: 'Peer' });
@@ -1483,11 +1579,10 @@ suite('AgentHostStateManager', () => {
 			});
 			manager.dispatchServerAction(defaultChat, {
 				type: ActionType.ChatInputRequested,
-				request: {
+				request: withChatInputRequestPurpose({
 					id: 'request',
-					purpose: ChatInputRequestPurpose.AskUser,
 					questions: [{ kind: ChatInputQuestionKind.Text, id: 'question', message: 'Continue?' }],
-				},
+				}, ChatInputRequestPurpose.AskUser),
 			});
 			manager.dispatchServerAction(defaultChat, {
 				type: ActionType.ChatInputCompleted,

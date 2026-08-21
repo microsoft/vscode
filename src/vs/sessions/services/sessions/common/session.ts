@@ -234,6 +234,53 @@ export function getSessionWorkspaceKind(workspace: ISessionWorkspace | undefined
 }
 
 /**
+ * The kinds of artifact an agent can record on a session.
+ */
+export const enum SessionArtifactKind {
+	PullRequest = 'pullRequest',
+	Issue = 'issue',
+	Commit = 'commit',
+	Website = 'website',
+	File = 'file',
+	Resource = 'resource',
+}
+
+/** Something the agent recorded for the user to open. Provider-neutral. */
+export interface ISessionArtifact {
+	readonly id: string;
+	readonly kind: SessionArtifactKind;
+	readonly label: string;
+	/** Link opened when activating a pull request, issue, commit or website. */
+	readonly link?: URI;
+	/** Resource opened when activating a file or resource artifact. */
+	readonly uri?: URI;
+	/** Commit hash, for commit artifacts. */
+	readonly commitHash?: string;
+	/** Whether a pull request or issue lives on GitHub. */
+	readonly isGitHub?: boolean;
+}
+
+/** The kinds of customization a chat can use. */
+export const enum SessionCustomizationKind {
+	Agent = 'agent',
+	Skill = 'skill',
+	Instruction = 'instruction',
+	Hook = 'hook',
+	Prompt = 'prompt',
+	McpServer = 'mcpServer',
+	Plugin = 'plugin',
+}
+
+/** A customization the agent used or read during a chat. Provider-neutral. */
+export interface ISessionChatCustomization {
+	readonly id: string;
+	readonly kind: SessionCustomizationKind;
+	readonly name: string;
+	/** Source file or directory, used to reveal the customization. */
+	readonly uri?: URI;
+}
+
+/**
  * GitHub information associated with a session.
  */
 export interface IGitHubInfo {
@@ -563,6 +610,12 @@ export interface IChat {
 	 * this session's workspace. Providers that cannot determine this omit the observable.
 	 */
 	readonly lastTurnChanges?: IObservable<readonly ISessionTurnFileChange[]>;
+	/**
+	 * The customizations the agent used or read during this chat, in the order
+	 * they were first referenced and de-duplicated. Derived from the chat's live
+	 * output stream. Providers that cannot determine this omit the observable.
+	 */
+	readonly customizations?: IObservable<readonly ISessionChatCustomization[]>;
 	/** Checkpoints associated with the chat. */
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 	/** Currently selected model identifier. */
@@ -677,6 +730,8 @@ export interface ISession {
 	 * cannot determine this report an empty array (or omit the observable).
 	 */
 	readonly externalChanges?: IObservable<readonly ISessionFile[]>;
+	/** Artifacts the agent recorded for this session (pull requests, issues, files, …). */
+	readonly artifacts?: IObservable<readonly ISessionArtifact[]>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;

@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { IObservable, observableValue } from '../../../base/common/observable.js';
 import { SashState } from '../../../base/browser/ui/sash/sash.js';
+import { mainWindow } from '../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { Part } from '../../../workbench/browser/part.js';
 import { IPartVisibilityChangeEvent, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
@@ -16,6 +19,7 @@ import { DockedEditorInput } from '../../common/dockedEditorInput.js';
 import { EditorInputCapabilities } from '../../../workbench/common/editor.js';
 import { SESSIONS_LIST_MINIMUM_WIDTH } from '../../browser/parts/sidebarPart.js';
 import { Menus } from '../../browser/menus.js';
+import { DEFAULT_NOTIFICATION_ROW_HEIGHT, onDidChangeNotificationRowHeight, setNotificationRowHeight } from '../../../workbench/browser/parts/notifications/notificationsViewer.js';
 
 interface IViewSize { width: number; height: number }
 
@@ -69,6 +73,10 @@ suite('Sessions - Workbench', () => {
 	const restoreEditorPartOnActivation = Reflect.get(Workbench.prototype, '_restoreEditorPartOnActivation') as (this: ITestWorkbench) => void;
 	const layoutSinglePaneGrid = Reflect.get(SinglePaneWorkbench.prototype, '_layoutGrid') as (this: IContainerResizeTestHarness) => void;
 	const preserveSessionsEditorRatio = Reflect.get(SinglePaneWorkbench.prototype, '_preserveSessionsEditorRatio') as (this: IProportionalResizeTestHarness, previousSessionsWidth: number, previousEditorWidth: number) => void;
+	const registerNotificationRowHeight = Reflect.get(Workbench.prototype, 'registerNotificationRowHeight') as (this: {
+		layoutPolicy: { isPhoneLayout: IObservable<boolean> };
+		_register<T extends IDisposable>(disposable: T): T;
+	}) => void;
 
 	// --- Harness ------------------------------------------------------------
 
@@ -346,6 +354,54 @@ suite('Sessions - Workbench', () => {
 			host.setAuxiliaryBarHidden(!visible);
 		}
 	}
+
+	// --- Notifications ------------------------------------------------------
+
+	test('uses touch-sized notification rows on phone layouts', () => {
+		setNotificationRowHeight(DEFAULT_NOTIFICATION_ROW_HEIGHT);
+		const registeredDisposables = new DisposableStore();
+		const isPhoneLayout = observableValue('isPhoneLayout', false);
+		const rowHeights: number[] = [];
+		const listener = onDidChangeNotificationRowHeight(height => rowHeights.push(height));
+
+		try {
+			registerNotificationRowHeight.call({
+				layoutPolicy: { isPhoneLayout },
+				_register: disposable => registeredDisposables.add(disposable),
+			});
+
+			isPhoneLayout.set(true, undefined);
+			isPhoneLayout.set(false, undefined);
+			registeredDisposables.dispose();
+
+			assert.deepStrictEqual(rowHeights, [34, 44, 34, 42]);
+		} finally {
+			listener.dispose();
+			registeredDisposables.dispose();
+			setNotificationRowHeight(DEFAULT_NOTIFICATION_ROW_HEIGHT);
+		}
+	});
+
+	test('centers notification content in touch-sized phone rows', () => {
+		const root = document.createElement('div');
+		root.className = 'agent-sessions-workbench phone-layout';
+		const list = document.createElement('div');
+		list.className = 'notifications-list-container';
+		const item = document.createElement('div');
+		item.className = 'notification-list-item';
+		const mainRow = document.createElement('div');
+		mainRow.className = 'notification-list-item-main-row';
+		item.appendChild(mainRow);
+		list.appendChild(item);
+		root.appendChild(list);
+		document.body.appendChild(root);
+
+		try {
+			assert.strictEqual(mainWindow.getComputedStyle(mainRow).alignItems, 'center');
+		} finally {
+			root.remove();
+		}
+	});
 
 	// --- Editor split / reveal ---------------------------------------------
 

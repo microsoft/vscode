@@ -112,8 +112,14 @@ export interface IAgentHostUntitledProvisionalSessionService {
 	 */
 	getInitialSessionConfig(): Record<string, unknown> | undefined;
 
-	/** Initial session metadata contributed by the current Editor workspace. */
-	getInitialSessionMetadata(): Record<string, unknown> | undefined;
+	/** Initial session metadata, including any metadata registered for the resource. */
+	getInitialSessionMetadata(sessionResource?: URI): Record<string, unknown> | undefined;
+
+	/** Associates creation metadata with a real chat resource until the backend session is created. */
+	setSessionCreationMetadata(sessionResource: URI, metadata: Record<string, unknown>): void;
+
+	/** Drops creation metadata after the backend session has been created or abandoned. */
+	clearSessionCreationMetadata(sessionResource: URI): void;
 
 	/**
 	 * Ensure a backend provisional exists for an untitled chat UI resource.
@@ -261,6 +267,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	private readonly _pending = new ResourceMap<Promise<ProvisionalOperationResult>>();
 	private readonly _resolvedConfigs = new ResourceMap<ResolveSessionConfigResult>();
 	private readonly _resolvedConfigRequestSeq = new ResourceMap<number>();
+	private readonly _sessionCreationMetadata = new ResourceMap<Record<string, unknown>>();
 	private readonly _pendingBackendDisposals = new ResourceSet();
 	// URIs that were the source of a successful `tryRebind`. The chat widget
 	// briefly reattaches to the old untitled URI before its viewModel switches
@@ -298,6 +305,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				}
 				this._resolvedConfigs.delete(sessionResource);
 				this._resolvedConfigRequestSeq.delete(sessionResource);
+				this._sessionCreationMetadata.delete(sessionResource);
 				// Drop any tombstone for the abandoned untitled URI so the
 				// set doesn't grow unbounded across the workbench lifetime.
 				this._rebound.delete(sessionResource);
@@ -384,16 +392,28 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		entry.activeClientBinding.value = new ActiveClientBinding(roots, scope, this._agentHostService.clientId, () => this._publishActiveClient(entry));
 	}
 
-	getInitialSessionMetadata(): Record<string, unknown> | undefined {
+	getInitialSessionMetadata(sessionResource?: URI): Record<string, unknown> | undefined {
 		const workspace = this._workspaceContextService.getWorkspace();
-		if (this._environmentService.isSessionsWindow
+		const workspaceMetadata = this._environmentService.isSessionsWindow
 			|| this._workspaceContextService.getWorkbenchState() !== WorkbenchState.WORKSPACE
-			|| !URI.isUri(workspace.configuration)) {
-			return undefined;
+			|| !URI.isUri(workspace.configuration)
+			? undefined
+			: withSessionMultiRootMetadata(undefined, {
+				workspaceFile: workspace.configuration.toString(),
+			});
+		const sessionMetadata = sessionResource ? this._sessionCreationMetadata.get(sessionResource) : undefined;
+		if (!sessionMetadata) {
+			return workspaceMetadata;
 		}
-		return withSessionMultiRootMetadata(undefined, {
-			workspaceFile: workspace.configuration.toString(),
-		});
+		return { ...(workspaceMetadata ?? {}), ...sessionMetadata };
+	}
+
+	setSessionCreationMetadata(sessionResource: URI, metadata: Record<string, unknown>): void {
+		this._sessionCreationMetadata.set(sessionResource, metadata);
+	}
+
+	clearSessionCreationMetadata(sessionResource: URI): void {
+		this._sessionCreationMetadata.delete(sessionResource);
 	}
 
 	getInitialSessionConfig(): Record<string, unknown> | undefined {
@@ -823,6 +843,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		const entry = this._entries.get(sessionResource);
 		this._resolvedConfigs.delete(sessionResource);
 		this._resolvedConfigRequestSeq.delete(sessionResource);
+		this._sessionCreationMetadata.delete(sessionResource);
 		if (!entry) {
 			return Promise.resolve();
 		}
@@ -856,6 +877,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		this._pendingBackendDisposals.clear();
 		this._resolvedConfigs.clear();
 		this._resolvedConfigRequestSeq.clear();
+		this._sessionCreationMetadata.clear();
 		this._rebound.clear();
 		super.dispose();
 	}

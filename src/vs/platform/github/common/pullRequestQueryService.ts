@@ -128,11 +128,11 @@ const expectedCheckSuitesQuery = `query AgentHostPullRequestExpectedCheckSuites(
 
 const mergeabilityQuery = (includeMergeQueue: boolean) => `query AgentHostPullRequestMergeability($owner: String!, $repo: String!, $number: Int!${includeMergeQueue ? ', $baseBranch: String!' : ''}) {
 	repository(owner: $owner, name: $repo) {
-		id nameWithOwner mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed
+		id nameWithOwner mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed viewerPermission
 		${includeMergeQueue ? 'mergeQueue(branch: $baseBranch) { id }' : ''}
 		pullRequest(number: $number) {
 			id headRefOid baseRefOid mergeable mergeStateStatus reviewDecision
-			viewerCanUpdateBranch viewerCanMerge viewerCanEnableAutoMerge
+			viewerCanUpdateBranch viewerCanEnableAutoMerge
 			autoMergeRequest { enabledAt }
 			mergeQueueEntry { id }
 		}
@@ -558,7 +558,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 			mergeStateStatus: stringProperty(pullRequest, 'mergeStateStatus'),
 			reviewDecision: stringProperty(pullRequest, 'reviewDecision'),
 			viewerCanUpdate: booleanProperty(pullRequest, 'viewerCanUpdateBranch') ?? false,
-			viewerCanMerge: booleanProperty(pullRequest, 'viewerCanMerge') ?? false,
+			viewerCanMerge: canViewerMerge(repository),
 			viewerCanEnableAutoMerge: booleanProperty(pullRequest, 'viewerCanEnableAutoMerge') ?? false,
 			allowedMergeMethods,
 			autoMergeEnabled: optionalObjectProperty(pullRequest, 'autoMergeRequest') !== undefined,
@@ -643,6 +643,19 @@ const restCapabilities: GitHubHostCapabilities = {
 
 function needsCapabilities(fragment: PullRequestFragment): boolean {
 	return fragment === 'reviewThreads' || fragment === 'checks' || fragment === 'mergeability';
+}
+
+/** `RepositoryPermission` values that grant push access, and therefore permission to merge a pull request. */
+const mergePermissions: ReadonlySet<string> = new Set(['ADMIN', 'MAINTAIN', 'WRITE']);
+
+/**
+ * GitHub's GraphQL schema has no `PullRequest.viewerCanMerge`, so merge permission is derived from the
+ * viewer's permission on the base repository. `Repository.viewerPermission` is null when the request is
+ * authenticated as a GitHub App, which fails closed the same way the REST fallback does.
+ */
+function canViewerMerge(repository: object): boolean {
+	const permission = normalizedEnumProperty(repository, 'viewerPermission');
+	return permission !== undefined && mergePermissions.has(permission);
 }
 
 function toCore(value: unknown, ref: PullRequestRef): PullRequestCore {
