@@ -381,6 +381,34 @@ suite('Workbench - MCP - ServerRequestHandler', () => {
 			assert.strictEqual(e.name, 'Canceled');
 		}
 	});
+
+	test('callTool forwards _meta.traceparent to the JSON-RPC payload (MCP SEP-414)', async () => {
+		const traceparent = '00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01';
+		const tracestate = 'rojo=00f067aa0ba902b7';
+
+		const callPromise = handler.callTool({
+			name: 'echo',
+			arguments: { hello: 'world' },
+			_meta: { traceparent, tracestate, progressToken: 'tok-1' },
+		});
+
+		const sentMessages = transport.getSentMessages();
+		const callRequest = sentMessages[2] as MCP.JSONRPCRequest & MCP.CallToolRequest;
+		assert.strictEqual(callRequest.method, 'tools/call');
+		assert.deepStrictEqual(callRequest.params._meta, {
+			traceparent,
+			tracestate,
+			progressToken: 'tok-1',
+		});
+
+		transport.simulateReceiveMessage({
+			jsonrpc: MCP.JSONRPC_VERSION,
+			id: callRequest.id,
+			result: { content: [] },
+		});
+
+		await callPromise;
+	});
 });
 
 suite.skip('Workbench - MCP - McpTask', () => { // TODO@connor4312 https://github.com/microsoft/vscode/issues/280126
@@ -407,9 +435,10 @@ suite.skip('Workbench - MCP - McpTask', () => { // TODO@connor4312 https://githu
 	}
 
 	test('should resolve when task completes', async () => {
+		const getTaskResultStub = sinon.stub().resolves({ content: [{ type: 'text', text: 'result' }] });
 		const mockHandler = upcastPartial<McpServerRequestHandler>({
 			getTask: sinon.stub().resolves(createTask({ status: 'completed' })),
-			getTaskResult: sinon.stub().resolves({ content: [{ type: 'text', text: 'result' }] })
+			getTaskResult: getTaskResultStub
 		});
 
 		const task = store.add(new McpTask(createTask()));
@@ -423,7 +452,7 @@ suite.skip('Workbench - MCP - McpTask', () => { // TODO@connor4312 https://githu
 
 		const result = await task.result;
 		assert.deepStrictEqual(result, { content: [{ type: 'text', text: 'result' }] });
-		assert.ok((mockHandler.getTaskResult as sinon.SinonStub).calledWith({ taskId: 'task1' }));
+		assert.ok(getTaskResultStub.calledWith({ taskId: 'task1' }));
 	});
 
 	test('should poll for task updates', async () => {

@@ -1,0 +1,16 @@
+[
+  {
+    "name": "nodeExpressApp",
+    "question": "/setupTests jest",
+    "expectations": {
+      "filePatterns": ["^jest\\.config\\.js$", "^.*\\.test\\.js$"],
+      "installCommandPattern": "npm i.* jest",
+      "runCommandPattern": "jest"
+    },
+    "files": [
+      "src/index.js",
+      "package.json",
+      "package-lock.json"
+    ]
+  }
+]

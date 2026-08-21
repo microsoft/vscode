@@ -33,7 +33,7 @@ import { EditorTheme } from '../editorTheme.js';
 import * as viewEvents from '../viewEvents.js';
 import { ViewLayout } from '../viewLayout/viewLayout.js';
 import { MinimapTokensColorTracker } from './minimapTokensColorTracker.js';
-import { ILineBreaksComputer, ILineBreaksComputerFactory, InjectedText } from '../modelLineProjectionData.js';
+import { ILineBreaksComputer, ILineBreaksComputerContext, ILineBreaksComputerFactory, InjectedText } from '../modelLineProjectionData.js';
 import { ViewEventHandler } from '../viewEventHandler.js';
 import { ILineHeightChangeAccessor, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
 import { ViewModelDecorations } from './viewModelDecorations.js';
@@ -184,8 +184,8 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this._configuration.options.get(id);
 	}
 
-	public createLineBreaksComputer(): ILineBreaksComputer {
-		return this._lines.createLineBreaksComputer();
+	public createLineBreaksComputer(context?: ILineBreaksComputerContext): ILineBreaksComputer {
+		return this._lines.createLineBreaksComputer(context);
 	}
 
 	public addViewEventHandler(eventHandler: ViewEventHandler): void {
@@ -332,28 +332,24 @@ export class ViewModel extends Disposable implements IViewModel {
 			for (const change of changes) {
 				switch (change.changeType) {
 					case textModelEvents.RawContentChangedType.LinesInserted: {
-						for (let lineIdx = 0; lineIdx < change.detail.length; lineIdx++) {
-							const line = change.detail[lineIdx];
-							let injectedText = change.injectedTexts[lineIdx];
-							if (injectedText) {
-								injectedText = injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
-							}
-							lineBreaksComputer.addRequest(line, injectedText, null);
+						for (let i = 0; i < change.count; i++) {
+							lineBreaksComputer.addRequest(change.fromLineNumberPostEdit + i, null);
 						}
 						break;
 					}
 					case textModelEvents.RawContentChangedType.LineChanged: {
-						let injectedText: textModelEvents.LineInjectedText[] | null = null;
-						if (change.injectedText) {
-							injectedText = change.injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
-						}
-						lineBreaksComputer.addRequest(change.detail, injectedText, null);
+						lineBreaksComputer.addRequest(change.lineNumberPostEdit, null);
 						break;
 					}
 				}
 			}
 			const lineBreaks = lineBreaksComputer.finalize();
 			const lineBreakQueue = new ArrayQueue(lineBreaks);
+
+			// Collect model line ranges that need custom line height computation.
+			// We defer this until after the loop because the coordinatesConverter
+			// relies on projections that may not yet reflect all changes in the batch.
+			const customLineHeightRangesToInsert: { fromLineNumber: number; toLineNumber: number }[] = [];
 
 			for (const change of changes) {
 				switch (change.changeType) {
@@ -370,16 +366,18 @@ export class ViewModel extends Disposable implements IViewModel {
 						if (linesDeletedEvent !== null) {
 							eventsCollector.emitViewEvent(linesDeletedEvent);
 							this.viewLayout.onLinesDeleted(linesDeletedEvent.fromLineNumber, linesDeletedEvent.toLineNumber);
+							customLineHeightRangesToInsert.push({ fromLineNumber: change.lastUntouchedLinePostEdit, toLineNumber: change.lastUntouchedLinePostEdit });
 						}
 						hadOtherModelChange = true;
 						break;
 					}
 					case textModelEvents.RawContentChangedType.LinesInserted: {
-						const insertedLineBreaks = lineBreakQueue.takeCount(change.detail.length);
+						const insertedLineBreaks = lineBreakQueue.takeCount(change.count);
 						const linesInsertedEvent = this._lines.onModelLinesInserted(versionId, change.fromLineNumber, change.toLineNumber, insertedLineBreaks);
 						if (linesInsertedEvent !== null) {
 							eventsCollector.emitViewEvent(linesInsertedEvent);
-							this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber, this._getCustomLineHeightsForLines(change.fromLineNumberPostEdit, change.toLineNumberPostEdit));
+							this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber);
+							customLineHeightRangesToInsert.push({ fromLineNumber: change.fromLineNumberPostEdit, toLineNumber: change.toLineNumberPostEdit });
 						}
 						hadOtherModelChange = true;
 						break;
@@ -394,11 +392,13 @@ export class ViewModel extends Disposable implements IViewModel {
 						}
 						if (linesInsertedEvent) {
 							eventsCollector.emitViewEvent(linesInsertedEvent);
-							this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber, this._getCustomLineHeightsForLines(change.lineNumberPostEdit, change.lineNumberPostEdit));
+							this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber);
+							customLineHeightRangesToInsert.push({ fromLineNumber: change.lineNumberPostEdit, toLineNumber: change.lineNumberPostEdit });
 						}
 						if (linesDeletedEvent) {
 							eventsCollector.emitViewEvent(linesDeletedEvent);
 							this.viewLayout.onLinesDeleted(linesDeletedEvent.fromLineNumber, linesDeletedEvent.toLineNumber);
+							customLineHeightRangesToInsert.push({ fromLineNumber: change.lineNumberPostEdit, toLineNumber: change.lineNumberPostEdit });
 						}
 						break;
 					}
@@ -412,6 +412,19 @@ export class ViewModel extends Disposable implements IViewModel {
 			if (versionId !== null) {
 				this._lines.acceptVersionId(versionId);
 			}
+
+			// Apply deferred custom line heights now that projections are stable
+			if (customLineHeightRangesToInsert.length > 0) {
+				this.viewLayout.changeSpecialLineHeights((accessor: ILineHeightChangeAccessor) => {
+					for (const range of customLineHeightRangesToInsert) {
+						const customLineHeights = this._getCustomLineHeightsForLines(range.fromLineNumber, range.toLineNumber);
+						for (const data of customLineHeights) {
+							accessor.insertOrChangeCustomLineHeight(data.decorationId, data.startLineNumber, data.endLineNumber, data.lineHeight);
+						}
+					}
+				});
+			}
+
 			this.viewLayout.onHeightMaybeChanged();
 
 			if (!hadOtherModelChange && hadModelLineChangeThatChangedLineMapping) {
@@ -781,10 +794,6 @@ export class ViewModel extends Disposable implements IViewModel {
 	 * Gives a hint that a lot of requests are about to come in for these line numbers.
 	 */
 	public setViewport(startLineNumber: number, endLineNumber: number, centeredLineNumber: number): void {
-		if (this._lines.getViewLineCount() === 0) {
-			// No visible lines to set viewport on
-			return;
-		}
 		this._viewportStart.update(this, startLineNumber);
 	}
 
@@ -890,9 +899,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		if (lineData.inlineDecorations) {
 			inlineDecorations = [
 				...inlineDecorations,
-				...lineData.inlineDecorations.map(d =>
-					d.toInlineDecoration(lineNumber)
-				)
+				...lineData.inlineDecorations
 			];
 		}
 

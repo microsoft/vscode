@@ -4,14 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AbstractCommonMcpManagementService } from '../../common/mcpManagementService.js';
-import { IGalleryMcpServer, IGalleryMcpServerConfiguration, IInstallableMcpServer, ILocalMcpServer, InstallOptions, RegistryType, TransportType, UninstallOptions } from '../../common/mcpManagement.js';
-import { McpServerType, McpServerVariableType, IMcpServerVariable } from '../../common/mcpPlatformTypes.js';
-import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { AbstractCommonMcpManagementService, AbstractMcpResourceManagementService, McpUserResourceManagementService } from '../../common/mcpManagementService.js';
+import { GalleryMcpServerStatus, IAllowedMcpServersService, IGalleryMcpServer, IGalleryMcpServerConfiguration, IInstallableMcpServer, ILocalMcpServer, IMcpGalleryService, InstallOptions, RegistryType, TransportType, UninstallOptions } from '../../common/mcpManagement.js';
+import { IMcpSandboxConfiguration, McpServerType, McpServerVariableType, IMcpServerConfiguration, IMcpServerVariable } from '../../common/mcpPlatformTypes.js';
+import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
+import { ConfigurationTarget } from '../../../configuration/common/configuration.js';
+import { FileService } from '../../../files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { McpResourceScannerService } from '../../common/mcpResourceScannerService.js';
+import { UriIdentityService } from '../../../uriIdentity/common/uriIdentityService.js';
+import { IEnvironmentService } from '../../../environment/common/environment.js';
+
+class TestLogService extends NullLogService {
+	readonly errors: string[] = [];
+
+	override error(message: string | Error, ...args: unknown[]): void {
+		this.errors.push([message, ...args].join(' '));
+	}
+}
 
 class TestMcpManagementService extends AbstractCommonMcpManagementService {
 
@@ -38,6 +56,45 @@ class TestMcpManagementService extends AbstractCommonMcpManagementService {
 	}
 
 	override canInstall(server: IGalleryMcpServer | IInstallableMcpServer): true | IMarkdownString {
+		throw new Error('Not supported');
+	}
+}
+
+class TestMcpResourceManagementService extends AbstractMcpResourceManagementService {
+	constructor(mcpResource: URI, fileService: FileService, uriIdentityService: UriIdentityService, mcpResourceScannerService: McpResourceScannerService, allowedMcpServersService: IAllowedMcpServersService = { _serviceBrand: undefined, onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowed: () => true }) {
+		super(
+			mcpResource,
+			ConfigurationTarget.USER,
+			{} as IMcpGalleryService,
+			fileService,
+			uriIdentityService,
+			new NullLogService(),
+			mcpResourceScannerService,
+			allowedMcpServersService,
+		);
+	}
+
+	public reload(source?: IGalleryMcpServer): Promise<void> {
+		return this.updateLocal(source);
+	}
+
+	override canInstall(_server: IGalleryMcpServer | IInstallableMcpServer): true | IMarkdownString {
+		throw new Error('Not supported');
+	}
+
+	protected override getLocalServerInfo(_name: string, _mcpServerConfig: IMcpServerConfiguration) {
+		return Promise.resolve(undefined);
+	}
+
+	protected override installFromUri(_uri: URI): Promise<ILocalMcpServer> {
+		throw new Error('Not supported');
+	}
+
+	override installFromGallery(_server: IGalleryMcpServer, _options?: InstallOptions): Promise<ILocalMcpServer> {
+		throw new Error('Not supported');
+	}
+
+	override updateMetadata(_local: ILocalMcpServer, _server: IGalleryMcpServer): Promise<ILocalMcpServer> {
 		throw new Error('Not supported');
 	}
 }
@@ -1071,5 +1128,212 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				assert.strictEqual(result.mcpServerConfiguration.config.env?.['API_KEY'], 'Bearer ${input:api_key}');
 			}
 		});
+	});
+});
+
+suite('McpResourceManagementService', () => {
+	const mcpResource = URI.from({ scheme: Schemas.inMemory, path: '/mcp.json' });
+	let disposables: DisposableStore;
+	let fileService: FileService;
+	let uriIdentityService: UriIdentityService;
+	let scannerService: McpResourceScannerService;
+	let service: TestMcpResourceManagementService;
+
+	function createGallery(): IGalleryMcpServer {
+		return {
+			name: 'test',
+			displayName: 'Test',
+			description: '',
+			version: '1.0.0',
+			isLatest: true,
+			status: GalleryMcpServerStatus.Active,
+			configuration: {},
+			publisher: 'test',
+		};
+	}
+
+	setup(async () => {
+		disposables = new DisposableStore();
+		fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		uriIdentityService = disposables.add(new UriIdentityService(fileService));
+		scannerService = disposables.add(new McpResourceScannerService(fileService, uriIdentityService));
+		service = disposables.add(new TestMcpResourceManagementService(mcpResource, fileService, uriIdentityService, scannerService));
+
+		await fileService.writeFile(mcpResource, VSBuffer.fromString(JSON.stringify({
+			sandbox: {
+				network: { allowedDomains: ['example.com'] }
+			},
+			servers: {
+				test: {
+					type: 'stdio',
+					command: 'node',
+					sandboxEnabled: true
+				}
+			}
+		}, null, '\t')));
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('fires update when root sandbox changes', async () => {
+		const initial = await service.getInstalled();
+		assert.strictEqual(initial.length, 1);
+		assert.deepStrictEqual(initial[0].rootSandbox, {
+			network: { allowedDomains: ['example.com'] }
+		});
+
+		let updateCount = 0;
+		const updatePromise = new Promise<void>(resolve => disposables.add(service.onDidUpdateMcpServers(e => {
+			assert.strictEqual(e.length, 1);
+			updateCount++;
+			resolve();
+		})));
+
+		const updatedSandbox: IMcpSandboxConfiguration = {
+			network: { allowedDomains: ['changed.example.com'] }
+		};
+
+		await fileService.writeFile(mcpResource, VSBuffer.fromString(JSON.stringify({
+			sandbox: updatedSandbox,
+			servers: {
+				test: {
+					type: 'stdio',
+					command: 'node',
+					sandboxEnabled: true
+				}
+			}
+		}, null, '\t')));
+		await service.reload();
+		await updatePromise;
+		const updated = await service.getInstalled();
+
+		assert.strictEqual(updateCount, 1);
+		assert.deepStrictEqual(updated[0].rootSandbox, updatedSandbox);
+	});
+
+	test('propagates the gallery source when loading an installed server', async () => {
+		const gallery = createGallery();
+		const installPromise = Event.toPromise(service.onDidInstallMcpServers);
+
+		await service.reload(gallery);
+		const result = await installPromise;
+
+		assert.strictEqual(result[0].source, gallery);
+	});
+
+	test('updateMetadata propagates the gallery source when updating an installed server', async () => {
+		const galleryResource = URI.from({ scheme: Schemas.inMemory, path: '/gallery-mcp.json' });
+		await fileService.writeFile(galleryResource, VSBuffer.fromString(JSON.stringify({
+			servers: {
+				test: {
+					type: 'stdio',
+					command: 'node',
+					gallery: true,
+					version: '1.0.0'
+				}
+			}
+		}, null, '\t')));
+		const gallery = createGallery();
+		const galleryService = disposables.add(new McpUserResourceManagementService(
+			galleryResource,
+			upcastPartial<IMcpGalleryService>({}),
+			fileService,
+			uriIdentityService,
+			new NullLogService(),
+			scannerService,
+			{ _serviceBrand: undefined, onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowed: () => true },
+			upcastPartial<IEnvironmentService>({ userRoamingDataHome: URI.from({ scheme: Schemas.inMemory, path: '/user' }) }),
+		));
+		const [local] = await galleryService.getInstalled();
+		const updatePromise = Event.toPromise(galleryService.onDidUpdateMcpServers);
+
+		await galleryService.updateMetadata(local, gallery);
+		const result = await updatePromise;
+
+		assert.strictEqual(result[0].source, gallery);
+	});
+
+	test('missing gallery metadata cache is not logged as an error', async () => {
+		const galleryResource = URI.from({ scheme: Schemas.inMemory, path: '/missing-gallery-metadata-mcp.json' });
+		await fileService.writeFile(galleryResource, VSBuffer.fromString(JSON.stringify({
+			servers: {
+				test: {
+					type: 'stdio',
+					command: 'node',
+					gallery: true,
+					version: '1.0.0'
+				}
+			}
+		}, null, '\t')));
+		const logService = new TestLogService();
+		const galleryService = disposables.add(new McpUserResourceManagementService(
+			galleryResource,
+			upcastPartial<IMcpGalleryService>({}),
+			fileService,
+			uriIdentityService,
+			logService,
+			scannerService,
+			{ _serviceBrand: undefined, onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowed: () => true },
+			upcastPartial<IEnvironmentService>({ userRoamingDataHome: URI.from({ scheme: Schemas.inMemory, path: '/user' }) }),
+		));
+
+		const installed = await galleryService.getInstalled();
+
+		assert.deepStrictEqual({
+			installed: installed.map(server => ({ name: server.name, version: server.version, location: server.location })),
+			errors: logService.errors,
+		}, {
+			installed: [{ name: 'test', version: '1.0.0', location: undefined }],
+			errors: [],
+		});
+	});
+});
+
+suite('McpResourceManagementService - install policy enforcement', () => {
+	const mcpResource = URI.from({ scheme: Schemas.inMemory, path: '/mcp-policy.json' });
+	let disposables: DisposableStore;
+	let fileService: FileService;
+	let uriIdentityService: UriIdentityService;
+	let scannerService: McpResourceScannerService;
+
+	const server: IInstallableMcpServer = { name: 'my-server', config: { type: McpServerType.LOCAL, command: 'node', args: [] } };
+
+	function createService(isAllowed: IAllowedMcpServersService['isAllowed']): TestMcpResourceManagementService {
+		const allowedMcpServersService: IAllowedMcpServersService = { _serviceBrand: undefined, onDidChangeAllowedMcpServers: Event.None, isAllowed, isServerAllowed: () => true };
+		return disposables.add(new TestMcpResourceManagementService(mcpResource, fileService, uriIdentityService, scannerService, allowedMcpServersService));
+	}
+
+	setup(() => {
+		disposables = new DisposableStore();
+		fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		uriIdentityService = disposables.add(new UriIdentityService(fileService));
+		scannerService = disposables.add(new McpResourceScannerService(fileService, uriIdentityService));
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('install throws and does not persist a server blocked by policy', async () => {
+		const service = createService(() => new MarkdownString('This mcp server is blocked by your organization.'));
+
+		await assert.rejects(() => service.install(server), /blocked by your organization/);
+		assert.strictEqual((await service.getInstalled()).find(s => s.name === server.name), undefined);
+	});
+
+	test('install persists a server allowed by policy', async () => {
+		const service = createService(() => true);
+
+		const local = await service.install(server);
+		assert.strictEqual(local.name, server.name);
+		assert.ok((await service.getInstalled()).some(s => s.name === server.name));
 	});
 });

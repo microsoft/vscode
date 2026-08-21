@@ -54,6 +54,31 @@ export const discoverySourceSettingsLabel: Record<DiscoverySource, string> = {
 export const mcpConfigurationSection = 'mcp';
 export const mcpDiscoverySection = 'chat.mcp.discovery.enabled';
 export const mcpServerSamplingSection = 'chat.mcp.serverSampling';
+export const mcpServerCollisionBehaviorSection = 'chat.mcp.collisionBehavior';
+/**
+ * Configuration key for the enterprise-managed MCP IdP bag. The setting is
+ * registered with `included: false` so it is hidden from the Settings UI and
+ * settings.json IntelliSense; it is intended to be delivered through enterprise
+ * policy (Windows Group Policy / macOS managed preferences / Linux
+ * `/etc/vscode/policy.json`), with hand-editing of `settings.json` as a
+ * developer escape hatch.
+ */
+export const mcpEnterpriseManagedAuthIdpSection = 'mcp.enterpriseManagedAuth.idp';
+
+/**
+ * Shape of the {@link mcpEnterpriseManagedAuthIdpSection} setting. All fields
+ * are optional so partial configurations (e.g. just the issuer) remain valid.
+ */
+export interface IMcpEnterpriseManagedAuthIdpConfig {
+	readonly issuer?: string;
+	readonly clientId?: string;
+	readonly clientSecret?: string;
+}
+
+export const enum McpCollisionBehavior {
+	Disable = 'disable',
+	Suffix = 'suffix',
+}
 
 export interface IMcpServerSamplingConfiguration {
 	allowedDuringChat?: boolean;
@@ -136,6 +161,11 @@ export const mcpStdioServerSchema: IJSONSchema = {
 			enum: ['stdio'],
 			description: localize('app.mcp.json.type', "The type of the server.")
 		},
+		sandboxEnabled: {
+			type: 'boolean',
+			default: false,
+			description: localize('app.mcp.json.sandboxEnabled', "Whether to run the server in a sandboxed environment.")
+		},
 		command: {
 			type: 'string',
 			description: localize('app.mcp.json.command', "The command to run the server.")
@@ -179,6 +209,57 @@ export const mcpServerSchema: IJSONSchema = {
 	allowComments: true,
 	additionalProperties: false,
 	properties: {
+		sandbox: {
+			description: localize('app.mcp.json.sandbox', "Sandbox config that determines file system and network access. Sandboxing is enabled when sandboxEnabled property is set at the server level on Mac OS and Linux only."),
+			type: 'object',
+			additionalProperties: false,
+			properties: {
+				network: {
+					description: localize('app.mcp.json.sandbox.network', "Network access settings for the sandboxed server."),
+					type: 'object',
+					additionalProperties: false,
+					properties: {
+						allowedDomains: {
+							description: localize('app.mcp.json.sandbox.network.allowedDomains', "List of domains that the server is allowed to access. Wildcards are supported, e.g. `*.example.com`."),
+							type: 'array',
+							items: { type: 'string' },
+							default: []
+						},
+						deniedDomains: {
+							description: localize('app.mcp.json.sandbox.network.deniedDomains', "List of domains that the server is not allowed to access. e.g. `invalid.example.com`."),
+							type: 'array',
+							items: { type: 'string' },
+							default: []
+						}
+					}
+				},
+				filesystem: {
+					description: localize('app.mcp.json.sandbox.filesystem', "Filesystem access settings for the sandboxed server. Glob patterns are supported for Mac OS only."),
+					type: 'object',
+					additionalProperties: false,
+					properties: {
+						denyRead: {
+							description: localize('app.mcp.json.sandbox.filesystem.denyRead', "List of file paths that the server is not allowed to read. By default, all files are allowed to be read. e.g. `~/src/secrets`."),
+							type: 'array',
+							items: { type: 'string' },
+							default: []
+						},
+						allowWrite: {
+							description: localize('app.mcp.json.sandbox.filesystem.allowWrite', "List of file paths that the server is allowed to write to. e.g. `~/src/`."),
+							type: 'array',
+							items: { type: 'string' },
+							default: []
+						},
+						denyWrite: {
+							description: localize('app.mcp.json.sandbox.filesystem.denyWrite', "List of file paths that the server is not allowed to write to. e.g. `~/src/auth/`."),
+							type: 'array',
+							items: { type: 'string' },
+							default: []
+						}
+					}
+				}
+			}
+		},
 		servers: {
 			examples: [
 				mcpSchemaExampleServers,
@@ -208,6 +289,24 @@ export const mcpServerSchema: IJSONSchema = {
 								type: 'object',
 								description: localize('app.mcp.json.headers', "Additional headers sent to the server."),
 								additionalProperties: { type: 'string' },
+							},
+							oauth: {
+								type: 'object',
+								description: localize('app.mcp.json.oauth', "OAuth configuration for authenticating with the server."),
+								additionalProperties: false,
+								minProperties: 1,
+								properties: {
+									clientId: {
+										type: 'string',
+										minLength: 1,
+										markdownDescription: localize('app.mcp.json.oauth.clientId', "The OAuth client ID to use when authenticating with the server. When `enterpriseManaged` is `true`, this is the **resource** authorization server's client ID (the client trusted by the protected resource), not the IdP's. To set the matching client secret, use the *Set Client Secret* code lens above this field — secrets are stored in the OS secret store, not in this file.")
+									},
+									enterpriseManaged: {
+										type: 'boolean',
+										default: false,
+										markdownDescription: localize('app.mcp.json.oauth.enterpriseManaged', "(Preview) When set to `true`, this MCP server authenticates through the SSO issuer configured by `#mcp.enterpriseManagedAuth.idp#` using OAuth Identity Assertion Authorization Grant (ID-JAG). After a one-time sign-in, subsequent enterprise-managed servers connect silently. The IdP issuer and client credentials are read from the `#mcp.enterpriseManagedAuth.idp#` setting; the `clientId` on this server entry is passed to the resource authorization server.")
+									}
+								}
 							},
 							...mcpDevModeProps(false),
 						}

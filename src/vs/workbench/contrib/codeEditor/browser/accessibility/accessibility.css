@@ -7,7 +7,7 @@
 	position: absolute;
 	background-color: var(--vscode-editorWidget-background);
 	color: var(--vscode-editorWidget-foreground);
-	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+	box-shadow: var(--vscode-shadow-lg);
 	border: 2px solid var(--vscode-focusBorder);
 	border-radius: 6px;
 	margin-top: -1px;

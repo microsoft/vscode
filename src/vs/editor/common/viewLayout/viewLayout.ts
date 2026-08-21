@@ -191,9 +191,6 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		this._updateHeight();
 	}
 
-	public override dispose(): void {
-		super.dispose();
-	}
 
 	public getScrollable(): Scrollable {
 		return this._scrollable.getScrollable();
@@ -243,8 +240,8 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	public onLinesDeleted(fromLineNumber: number, toLineNumber: number): void {
 		this._linesLayout.onLinesDeleted(fromLineNumber, toLineNumber);
 	}
-	public onLinesInserted(fromLineNumber: number, toLineNumber: number, lineHeightsAdded: CustomLineHeightData[]): void {
-		this._linesLayout.onLinesInserted(fromLineNumber, toLineNumber, lineHeightsAdded);
+	public onLinesInserted(fromLineNumber: number, toLineNumber: number): void {
+		this._linesLayout.onLinesInserted(fromLineNumber, toLineNumber);
 	}
 
 	// ---- end view event handlers

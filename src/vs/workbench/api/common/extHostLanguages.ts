@@ -15,12 +15,16 @@ import { IExtensionDescription } from '../../../platform/extensions/common/exten
 import { CommandsConverter } from './extHostCommands.js';
 import { IURITransformer } from '../../../base/common/uriIpc.js';
 import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { Emitter } from '../../../base/common/event.js';
 
 export class ExtHostLanguages implements ExtHostLanguagesShape {
 
 	private readonly _proxy: MainThreadLanguagesShape;
 
 	private _languageIds: string[] = [];
+
+	private readonly _onDidChangeSyntaxHighlighting = new Emitter<void>();
+	readonly onDidChangeSyntaxHighlighting = this._onDidChangeSyntaxHighlighting.event;
 
 	constructor(
 		mainContext: IMainContext,
@@ -33,6 +37,15 @@ export class ExtHostLanguages implements ExtHostLanguagesShape {
 
 	$acceptLanguageIds(ids: string[]): void {
 		this._languageIds = ids;
+	}
+
+	$acceptSyntaxHighlightingThemeChanged(): void {
+		this._onDidChangeSyntaxHighlighting.fire();
+	}
+
+	async computeFullSyntaxHighlighting(source: string, languageId: string): Promise<vscode.SyntaxHighlightingResult> {
+		const result = await this._proxy.$computeFullSyntaxHighlighting(source, languageId);
+		return result as vscode.SyntaxHighlightingResult;
 	}
 
 	async getLanguages(): Promise<string[]> {

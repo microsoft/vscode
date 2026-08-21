@@ -1,13 +1,13 @@
 ---
-description: Architecture documentation for the Agent Sessions window — a sessions-first app built as a new top-level layer alongside vs/workbench. Covers layout, parts, chat widget, contributions, entry points, and development guidelines. Use when working in `src/vs/sessions`
+description: Routes Agents Window work to its on-demand development skill.
 applyTo: src/vs/sessions/**
 ---
 
-# Agent Sessions Window
+# Agents Window
 
-The Agent Sessions window is a **standalone application** built as a new top-level layer (`vs/sessions`) in the VS Code architecture. It provides a sessions-first experience optimized for agent workflows — a simplified, fixed-layout workbench where chat is the primary interaction surface and editors appear as modal overlays.
+Before implementation, review, or design work in this area, invoke the
+`sessions` skill. It owns the basic principles, focused-document routing, and
+rules for maintaining that guidance.
 
-When working on files under `src/vs/sessions/`, use these skills for detailed guidance:
-
-- **`sessions`** skill — covers the full architecture: layering, folder structure, chat widget, menus, contributions, entry points, and development guidelines
-- **`agent-sessions-layout`** skill — covers the fixed layout structure, grid configuration, part visibility, editor modal, titlebar, sidebar footer, and implementation requirements
+Do not append corrective feedback here. Use the `feedback-learning` skill to
+classify it and apply the learning-memory budget.

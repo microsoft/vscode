@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/part.css';
+import './media/floatingPanels.css';
 import { Component } from '../common/component.js';
 import { IThemeService, IColorTheme } from '../../platform/theme/common/themeService.js';
 import { Dimension, size, IDimension, getActiveDocument, prepend, IDomPosition } from '../../base/browser/dom.js';
@@ -79,7 +80,7 @@ export abstract class Part<MementoType extends object = object> extends Componen
 		this.titleArea = this.createTitleArea(parent, options);
 		this.contentArea = this.createContentArea(parent, options);
 
-		this.partLayout = new PartLayout(this.options, this.contentArea);
+		this.partLayout = new PartLayout(this.options, this.contentArea, this.layoutService);
 
 		this.updateStyles();
 	}
@@ -160,10 +161,23 @@ export abstract class Part<MementoType extends object = object> extends Componen
 	}
 
 	private relayout() {
-		if (this.dimension && this.contentPosition) {
-			this.layout(this.dimension.width, this.dimension.height, this.contentPosition.top, this.contentPosition.left);
+		const dimension = this.getRelayoutDimension();
+		if (dimension && this.contentPosition) {
+			this.layout(dimension.width, dimension.height, this.contentPosition.top, this.contentPosition.left);
 		}
 	}
+
+	/**
+	 * The dimension to use when the part re-lays out itself in response to internal
+	 * changes (e.g. title, header or footer visibility). Subclasses that reduce the
+	 * dimension passed to {@link layout} (for example to reserve space for a floating
+	 * card margin) must override this to return the original, unreduced dimension so
+	 * the reduction is not applied repeatedly on every relayout.
+	 */
+	protected getRelayoutDimension(): Dimension | undefined {
+		return this._dimension;
+	}
+
 	/**
 	 * Layout title and content area in the given dimension.
 	 */
@@ -203,19 +217,27 @@ class PartLayout {
 
 	private static readonly HEADER_HEIGHT = 35;
 	private static readonly TITLE_HEIGHT = 35;
-	private static readonly Footer_HEIGHT = 35;
+	private static readonly FOOTER_HEIGHT = 35;
+	// KEEP IN SYNC WITH: modernUI/browser/media/padding.css
+	private static readonly AREA_HEIGHT_MODERN_UI = 32;
 
 	private headerVisible: boolean = false;
 	private footerVisible: boolean = false;
 
-	constructor(private options: IPartOptions, private contentArea: HTMLElement | undefined) { }
+	constructor(
+		private options: IPartOptions,
+		private contentArea: HTMLElement | undefined,
+		private layoutService: IWorkbenchLayoutService,
+	) { }
 
 	layout(width: number, height: number): ILayoutContentResult {
+		const isModernUI = this.layoutService.isFloatingPanelsEnabled();
 
-		// Title Size: Width (Fill), Height (Variable)
+		// Title Size: Width (Fill), Height (Variable).
 		let titleSize: Dimension;
 		if (this.options.hasTitle) {
-			titleSize = new Dimension(width, Math.min(height, PartLayout.TITLE_HEIGHT));
+			const titleHeight = isModernUI ? PartLayout.AREA_HEIGHT_MODERN_UI : PartLayout.TITLE_HEIGHT;
+			titleSize = new Dimension(width, Math.min(height, titleHeight));
 		} else {
 			titleSize = Dimension.None;
 		}
@@ -223,7 +245,8 @@ class PartLayout {
 		// Header Size: Width (Fill), Height (Variable)
 		let headerSize: Dimension;
 		if (this.headerVisible) {
-			headerSize = new Dimension(width, Math.min(height, PartLayout.HEADER_HEIGHT));
+			const headerHeight = isModernUI ? PartLayout.AREA_HEIGHT_MODERN_UI : PartLayout.HEADER_HEIGHT;
+			headerSize = new Dimension(width, Math.min(height, headerHeight));
 		} else {
 			headerSize = Dimension.None;
 		}
@@ -231,7 +254,8 @@ class PartLayout {
 		// Footer Size: Width (Fill), Height (Variable)
 		let footerSize: Dimension;
 		if (this.footerVisible) {
-			footerSize = new Dimension(width, Math.min(height, PartLayout.Footer_HEIGHT));
+			const footerHeight = isModernUI ? PartLayout.AREA_HEIGHT_MODERN_UI : PartLayout.FOOTER_HEIGHT;
+			footerSize = new Dimension(width, Math.min(height, footerHeight));
 		} else {
 			footerSize = Dimension.None;
 		}

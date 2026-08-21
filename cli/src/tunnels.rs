@@ -13,8 +13,14 @@ pub mod shutdown_signal;
 pub mod singleton_client;
 pub mod singleton_server;
 
+pub mod agent_host;
+pub mod agent_host_registry;
+#[cfg(windows)]
+mod agent_host_registry_acl_windows;
 mod challenge;
 mod control_server;
+pub mod idle_timeout;
+pub(crate) mod machine_status;
 mod nosleep;
 #[cfg(target_os = "linux")]
 mod nosleep_linux;
@@ -33,9 +39,13 @@ mod service_macos;
 #[cfg(target_os = "windows")]
 mod service_windows;
 mod socket_signal;
+pub mod user_data_path;
 mod wsl_detect;
 
-pub use control_server::{serve, serve_stream, AuthRequired, Next, ServeStreamParams};
+pub use control_server::{
+	ready_active_agent_host, serve, serve_stream, AuthRequired, Next, ServeStreamParams,
+	SharedActiveAgentHost,
+};
 pub use nosleep::SleepInhibitor;
 pub use service::{
 	create_service_manager, ServiceContainer, ServiceManager, SERVICE_LOG_FILE_NAME,

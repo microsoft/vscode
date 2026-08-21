@@ -1,0 +1,11 @@
+diff --git a/02-basicWithEol b/02-basicWithEol-remove-eol
+index 807b9ea8f..42c4f5022 100644
+--- a/02-basicWithEol
++++ b/02-basicWithEol-remove-eol
+@@ -12,4 +12,4 @@ export function f(args_: string[], flags: any, child: any) {
+ 	}
+ 	child.unref();
+ 	return Promise.resolve();
+-}
++}
+\ No newline at end of file

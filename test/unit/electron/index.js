@@ -27,9 +27,11 @@ const minimist = require('minimist');
 
 /**
  * @type {{
+ * _: string[];
  * grep: string;
- * run: string;
+ * run: string | string[];
  * runGlob: string;
+ * excludeRunGlob: string;
  * testSplit: string;
  * dev: boolean;
  * reporter: string;
@@ -47,7 +49,7 @@ const minimist = require('minimist');
  * }}
  */
 const args = minimist(process.argv.slice(2), {
-	string: ['grep', 'run', 'runGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats', 'testSplit'],
+	string: ['grep', 'run', 'runGlob', 'excludeRunGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats', 'testSplit'],
 	boolean: ['build', 'coverage', 'help', 'dev', 'per-test-coverage'],
 	alias: {
 		'grep': ['g', 'f'],
@@ -62,12 +64,16 @@ const args = minimist(process.argv.slice(2), {
 });
 
 if (args.help) {
-	console.log(`Usage: node ${process.argv[1]} [options]
+	console.log(`Usage: node ${process.argv[1]} [options] [file...]
+
+Bare .ts/.js file paths passed as positional arguments are treated as
+--run arguments.
 
 Options:
 --grep, -g, -f <pattern>      only run tests matching <pattern>
 --run <file>                  only run tests from <file>
 --runGlob, --glob, --runGrep <file_pattern> only run tests matching <file_pattern>
+--excludeRunGlob <file_pattern> exclude tests matching <file_pattern> from --runGlob
 --testSplit <i>/<n>           split tests into <n> parts and run the <i>th part
 --build                       run with build output (out-build)
 --coverage                    generate coverage report
@@ -81,6 +87,14 @@ Options:
 --tfs <url>                   TFS server URL
 --help, -h                    show the help`);
 	process.exit(0);
+}
+
+// Treat bare .ts/.js positional arguments as --run values
+const bareFiles = (args._ || []).filter(a => typeof a === 'string' && (a.endsWith('.ts') || a.endsWith('.js')));
+if (bareFiles.length > 0) {
+	const existing = !args.run ? [] : Array.isArray(args.run) ? args.run : [args.run];
+	args.run = [...existing, ...bareFiles];
+	args._ = (args._ || []).filter(a => !bareFiles.includes(a));
 }
 
 let crashReporterDirectory = args['crash-reporter-directory'];
@@ -115,7 +129,7 @@ if (crashReporterDirectory) {
 }
 
 if (!args.dev) {
-	app.setPath('userData', path.join(tmpdir(), `vscode-tests-${Date.now()}`));
+	app.setPath('userData', path.join(tmpdir(), `vscode-tests-${Date.now()}-${process.pid}`));
 }
 
 function deserializeSuite(suite) {

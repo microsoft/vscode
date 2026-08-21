@@ -4,17 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce } from '../../../../../base/common/arrays.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, dispose, isDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, dispose, isDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../../editor/common/editorCommon.js';
 import { Command, isLocation } from '../../../../../editor/common/languages.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { IModelContentChange } from '../../../../../editor/common/model/mirrorTextModel.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { IChatRequestVariableValue, IDynamicVariable } from '../../common/attachments/chatVariables.js';
+import { IChatRequestVariableEntry, isImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { IChatRequestVariableValue, IDynamicVariable, toAttachedContextDynamicVariable } from '../../common/attachments/chatVariables.js';
 import { IChatWidget } from '../chat.js';
 import { IChatWidgetContrib } from '../widget/chatWidget.js';
 
@@ -27,6 +31,17 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 	private _variables: IDynamicVariable[] = [];
 
+	private readonly _onDidChangeReferences = this._register(new Emitter<void>());
+	/**
+	 * Fires whenever the set of dynamic-variable references changes (added,
+	 * removed, moved, or restored). Consumers that render UI derived from the
+	 * references should listen to this instead of relying on
+	 * `onDidChangeParsedInput`, which does not fire when a reference is added
+	 * without changing the parsed request (e.g. a `/command` reference that the
+	 * parser resolves as a slash-prompt part).
+	 */
+	readonly onDidChangeReferences: Event<void> = this._onDidChangeReferences.event;
+
 	get variables(): ReadonlyArray<IDynamicVariable> {
 		return [...this._variables];
 	}
@@ -35,7 +50,9 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		return ChatDynamicVariableModel.ID;
 	}
 
-	private decorationData: { id: string; text: string }[] = [];
+	private decorationData: { id: string; text: string; rangeOffset: number }[] = [];
+
+	private readonly _editorListener = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly widget: IChatWidget,
@@ -43,14 +60,23 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	) {
 		super();
 
-		this._register(widget.inputEditor.onDidChangeModelContent(e => {
+		this._subscribeToEditor();
+		this._register(widget.onDidChangeActiveInputEditor(() => {
+			this._subscribeToEditor();
+			this.updateDecorations();
+		}));
+		this._register(widget.input.attachmentModel.onDidChange(() => this.updateDecorations()));
+	}
+
+	private _subscribeToEditor(): void {
+		this._editorListener.value = this.widget.inputEditor.onDidChangeModelContent(e => {
 
 			const removed: IDynamicVariable[] = [];
 			let didChange = false;
 
 			// Don't mutate entries in _variables, since they will be returned from the getter
 			this._variables = coalesce(this._variables.map((ref, idx): IDynamicVariable | null => {
-				const model = widget.inputEditor.getModel();
+				const model = this.widget.inputEditor.getModel();
 
 				if (!model) {
 					removed.push(ref);
@@ -58,6 +84,10 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 				}
 
 				const data = this.decorationData[idx];
+				if (!data) {
+					removed.push(ref);
+					return null;
+				}
 				const newRange = model.getDecorationRange(data.id);
 
 				if (!newRange) {
@@ -68,12 +98,23 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 				const newText = model.getValueInRange(newRange);
 				if (newText !== data.text) {
+					const replacement = e.changes.find(change =>
+						change.rangeOffset <= data.rangeOffset
+						&& change.rangeOffset + change.rangeLength >= data.rangeOffset + data.text.length
+					);
+					const preservedRange = replacement && this.findReferenceRangeInReplacement(model, e.changes, replacement, data);
+					if (preservedRange) {
+						didChange = true;
+						return { ...ref, range: preservedRange };
+					}
 
-					this.widget.inputEditor.executeEdits(this.id, [{
-						range: newRange,
-						text: '',
-					}]);
-					this.widget.refreshParsedInput();
+					if (!replacement) {
+						this.widget.inputEditor.executeEdits(this.id, [{
+							range: newRange,
+							text: '',
+						}]);
+						this.widget.refreshParsedInput();
+					}
 
 					removed.push(ref);
 					return null;
@@ -94,14 +135,49 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 			if (didChange || removed.length > 0) {
 				this.widget.refreshParsedInput();
+				this._onDidChangeReferences.fire();
 			}
 
 			this.updateDecorations();
-		}));
+		});
+	}
+
+	private findReferenceRangeInReplacement(
+		model: ITextModel,
+		changes: readonly IModelContentChange[],
+		replacement: IModelContentChange,
+		data: { text: string; rangeOffset: number }
+	): Range | undefined {
+		if (!data.text) {
+			return undefined;
+		}
+
+		const previousRelativeOffset = data.rangeOffset - replacement.rangeOffset;
+		let matchOffset = replacement.text.indexOf(data.text);
+		let closestMatchOffset = matchOffset;
+		while (matchOffset !== -1) {
+			if (Math.abs(matchOffset - previousRelativeOffset) < Math.abs(closestMatchOffset - previousRelativeOffset)) {
+				closestMatchOffset = matchOffset;
+			}
+			matchOffset = replacement.text.indexOf(data.text, matchOffset + data.text.length);
+		}
+
+		if (closestMatchOffset === -1) {
+			return undefined;
+		}
+
+		const precedingChangesDelta = changes.reduce((delta, change) =>
+			change.rangeOffset < replacement.rangeOffset ? delta + change.text.length - change.rangeLength : delta, 0);
+		const startOffset = replacement.rangeOffset + precedingChangesDelta + closestMatchOffset;
+		const range = Range.fromPositions(
+			model.getPositionAt(startOffset),
+			model.getPositionAt(startOffset + data.text.length)
+		);
+		return model.getValueInRange(range) === data.text ? range : undefined;
 	}
 
 	getInputState(contrib: Record<string, unknown>): void {
-		contrib[ChatDynamicVariableModel.ID] = this.variables;
+		contrib[ChatDynamicVariableModel.ID] = [...this._variables];
 	}
 
 	setInputState(contrib: Readonly<Record<string, unknown>>): void {
@@ -123,28 +199,52 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	}
 
 	addReference(ref: IDynamicVariable): void {
+		if (!isValidEditorRange(ref.range)) {
+			return;
+		}
+
+		const existingAttachment = this.widget.input.attachmentModel.attachments.find(attachment => attachment.id === ref.id && !attachment.range);
+		if (existingAttachment) {
+			ref = toAttachedContextDynamicVariable(existingAttachment, ref.range);
+		}
+
 		this._variables.push(ref);
 		this.updateDecorations();
 		this.widget.refreshParsedInput();
+		this._onDidChangeReferences.fire();
 	}
 
 	private updateDecorations(): void {
+		const model = this.widget.inputEditor.getModel();
+		if (!model) {
+			this.decorationData = [];
+			return;
+		}
 
-		const decorationIds = this.widget.inputEditor.setDecorationsByType('chat', dynamicVariableDecorationType, this._variables.map((r): IDecorationOptions => ({
+		const validVariables = this._variables.filter(v => isValidEditorRange(v.range));
+		const decorationIds = this.widget.inputEditor.setDecorationsByType('chat', dynamicVariableDecorationType, validVariables.map((r): IDecorationOptions => ({
 			range: r.range,
 			hoverMessage: this.getHoverForReference(r)
 		})));
 
+		this._variables = validVariables.slice(0, decorationIds.length);
 		this.decorationData = [];
 		for (let i = 0; i < decorationIds.length; i++) {
+			const range = this._variables[i].range;
 			this.decorationData.push({
 				id: decorationIds[i],
-				text: this.widget.inputEditor.getModel()!.getValueInRange(this._variables[i].range)
+				text: model.getValueInRange(range),
+				rangeOffset: model.getOffsetAt({ lineNumber: range.startLineNumber, column: range.startColumn })
 			});
 		}
 	}
 
 	private getHoverForReference(ref: IDynamicVariable): IMarkdownString | undefined {
+		const attachment = this.widget.input.attachmentModel.attachments.find(attachment => attachment.id === ref.id && !attachment.range);
+		if (attachment) {
+			return isImageVariableEntry(attachment) ? undefined : this.createAttachmentLabelHover(attachment);
+		}
+
 		const value = ref.data;
 		if (URI.isUri(value)) {
 			return new MarkdownString(this.labelService.getUriLabel(value, { relative: true }));
@@ -155,6 +255,14 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		} else {
 			return undefined;
 		}
+	}
+
+	private createAttachmentLabelHover(attachment: IChatRequestVariableEntry): IMarkdownString {
+		const resource = IChatRequestVariableEntry.toUri(attachment) ?? attachment.references?.find(reference => URI.isUri(reference.reference))?.reference;
+		const label = URI.isUri(resource)
+			? this.labelService.getUriLabel(resource, { relative: true })
+			: attachment.modelDescription ?? attachment.fullName ?? attachment.name;
+		return new MarkdownString().appendText(label);
 	}
 
 	/**
@@ -182,7 +290,24 @@ function isDynamicVariable(obj: any): obj is IDynamicVariable {
 	return obj &&
 		typeof obj.id === 'string' &&
 		Range.isIRange(obj.range) &&
+		isValidEditorRange(obj.range) &&
 		'data' in obj;
+}
+
+function isValidEditorRange(range: IRange): boolean {
+	if (range.startLineNumber < 1 || range.endLineNumber < 1 || range.startColumn < 1 || range.endColumn < 1) {
+		return false;
+	}
+
+	if (range.startLineNumber > range.endLineNumber) {
+		return false;
+	}
+
+	if (range.startLineNumber === range.endLineNumber && range.startColumn >= range.endColumn) {
+		return false;
+	}
+
+	return true;
 }
 
 

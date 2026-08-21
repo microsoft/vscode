@@ -257,7 +257,7 @@ export class OffsetRangeSet {
 	}
 
 	/**
-	 * Returns of there is a value that is contained in this instance and the given range.
+	 * Returns if there is a value that is contained in this instance and the given range.
 	 */
 	public intersectsStrict(other: OffsetRange): boolean {
 		// TODO use binary search

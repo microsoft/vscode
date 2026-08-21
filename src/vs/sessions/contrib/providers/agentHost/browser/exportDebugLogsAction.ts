@@ -1,0 +1,59 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { localize2 } from '../../../../../nls.js';
+import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
+import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
+import { exportAgentHostDebugLogs, IActiveAgentHostSessionForExport } from '../../../../../workbench/contrib/chat/browser/actions/exportAgentHostDebugLogsAction.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { type ISession } from '../../../../services/sessions/common/session.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
+
+export class ExportAgentHostDebugLogsAction extends Action2 {
+
+	static readonly ID = 'agentHost.exportDebugLogs';
+
+	constructor() {
+		super({
+			id: ExportAgentHostDebugLogsAction.ID,
+			title: localize2('exportAgentHostDebugLogs', "Export Agent Host Debug Logs..."),
+			f1: true,
+			category: Categories.Developer,
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.enabled,
+				ContextKeyExpr.or(IsSessionsWindowContext, AGENT_HOST_ENABLED_CONTEXT_KEY),
+			),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const sessionsService = accessor.get(ISessionsService);
+		const sessionsProvidersService = accessor.get(ISessionsProvidersService);
+
+		const activeSession = sessionsService.activeSession.get();
+		const activeAgentHostSession = isAgentHostSession(activeSession, sessionsProvidersService) ? activeSession : undefined;
+		const activeSessionContext: IActiveAgentHostSessionForExport | undefined = activeAgentHostSession
+			? {
+				resource: activeAgentHostSession.resource,
+				title: activeAgentHostSession.title.get(),
+				isLocal: activeAgentHostSession.resource.scheme.startsWith('agent-host-'),
+			}
+			: undefined;
+
+		await exportAgentHostDebugLogs(accessor, activeSessionContext);
+	}
+}
+
+function isAgentHostSession(session: ISession | undefined, sessionsProvidersService: ISessionsProvidersService): session is ISession {
+	return !!session && sessionsProvidersService.getProvider(session.providerId) instanceof BaseAgentHostSessionsProvider;
+}
+
+registerAction2(ExportAgentHostDebugLogsAction);

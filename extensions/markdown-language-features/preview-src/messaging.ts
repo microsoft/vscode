@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SettingsManager } from './settings';
+import type { WebviewApi } from 'vscode-webview';
 import type { FromWebviewMessage } from '../types/previewMessaging';
+import { SettingsManager } from './settings';
 
 export interface MessagePoster {
 	/**
@@ -16,7 +17,7 @@ export interface MessagePoster {
 	): void;
 }
 
-export const createPosterForVsCode = (vscode: any, settingsManager: SettingsManager): MessagePoster => {
+export const createPosterForVsCode = (vscode: WebviewApi<unknown>, settingsManager: SettingsManager): MessagePoster => {
 	return {
 		postMessage<T extends FromWebviewMessage.Type>(
 			type: T['type'],

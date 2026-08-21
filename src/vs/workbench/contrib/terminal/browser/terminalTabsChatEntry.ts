@@ -9,6 +9,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { $ } from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ITerminalChatService, ITerminalService } from './terminal.js';
 import * as dom from '../../../../base/browser/dom.js';
 
@@ -31,6 +32,7 @@ export class TerminalTabsChatEntry extends Disposable {
 		@ICommandService private readonly _commandService: ICommandService,
 		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -90,6 +92,22 @@ export class TerminalTabsChatEntry extends Disposable {
 
 	private async _deleteAllHiddenTerminals(): Promise<void> {
 		const hiddenTerminals = this._terminalChatService.getToolSessionTerminalInstances(true);
+		if (hiddenTerminals.length === 0) {
+			return;
+		}
+
+		type DeleteHiddenChatTerminalsEvent = {
+			count: number;
+		};
+		type DeleteHiddenChatTerminalsClassification = {
+			owner: 'anthonykim1';
+			comment: 'Tracks when the user deletes all hidden chat terminals from the terminal tabs entry.';
+			count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of hidden chat terminals that were deleted.' };
+		};
+		this._telemetryService.publicLog2<DeleteHiddenChatTerminalsEvent, DeleteHiddenChatTerminalsClassification>('terminal.chatDeleteHiddenTerminals', {
+			count: hiddenTerminals.length,
+		});
+
 		await Promise.all(hiddenTerminals.map(terminal => this._terminalService.safeDisposeTerminal(terminal)));
 	}
 

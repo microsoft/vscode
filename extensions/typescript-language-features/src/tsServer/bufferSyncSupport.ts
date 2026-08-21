@@ -10,6 +10,7 @@ import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import { inMemoryResourcePrefix } from '../typescriptServiceClient';
 import { coalesce } from '../utils/arrays';
+import { ResourceUnifiedConfigValue } from '../utils/configuration';
 import { Delayer, setImmediate } from '../utils/async';
 import { nulToken } from '../utils/cancellation';
 import { Disposable } from '../utils/dispose';
@@ -161,7 +162,7 @@ class SyncedBuffer {
 	private state = BufferState.Initial;
 
 	constructor(
-		private readonly document: vscode.TextDocument,
+		public readonly document: vscode.TextDocument,
 		public readonly filepath: string,
 		private readonly client: ITypeScriptServiceClient,
 		private readonly synchronizer: BufferSynchronizer,
@@ -462,9 +463,6 @@ export default class BufferSyncSupport extends Disposable {
 
 	private readonly client: ITypeScriptServiceClient;
 
-	private _validateJavaScript = true;
-	private _validateTypeScript = true;
-
 	private readonly modeIds: Set<string>;
 	private readonly syncedBuffers: SyncedBufferMap;
 	private readonly pendingDiagnostics: PendingDiagnostics;
@@ -472,6 +470,8 @@ export default class BufferSyncSupport extends Disposable {
 	private pendingGetErr: GetErrRequest | undefined;
 	private listening: boolean = false;
 	private readonly synchronizer: BufferSynchronizer;
+
+	private readonly _validate: ResourceUnifiedConfigValue<boolean>;
 
 	private readonly _tabResources: TabResourceTracker;
 
@@ -483,6 +483,8 @@ export default class BufferSyncSupport extends Disposable {
 		super();
 		this.client = client;
 		this.modeIds = new Set<string>(modeIds);
+
+		this._validate = this._register(new ResourceUnifiedConfigValue<boolean>('validate.enabled', true, { fallbackSubSectionNameOverride: 'validate.enable' }));
 
 		this.diagnosticDelayer = new Delayer<any>(300);
 
@@ -513,8 +515,7 @@ export default class BufferSyncSupport extends Disposable {
 			}
 		}));
 
-		this.updateConfiguration();
-		vscode.workspace.onDidChangeConfiguration(this.updateConfiguration, this, this._disposables);
+		this._register(this._validate.onDidChange(() => this.requestAllDiagnostics()));
 	}
 
 	private readonly _onDelete = this._register(new vscode.EventEmitter<vscode.Uri>());
@@ -756,14 +757,6 @@ export default class BufferSyncSupport extends Disposable {
 		this.pendingDiagnostics.clear();
 	}
 
-	private updateConfiguration() {
-		const jsConfig = vscode.workspace.getConfiguration('javascript', null);
-		const tsConfig = vscode.workspace.getConfiguration('typescript', null);
-
-		this._validateJavaScript = jsConfig.get<boolean>('validate.enable', true);
-		this._validateTypeScript = tsConfig.get<boolean>('validate.enable', true);
-	}
-
 	private shouldValidate(buffer: SyncedBuffer): boolean {
 		if (fileSchemes.isOfScheme(buffer.resource, fileSchemes.chatCodeBlock)) {
 			return false;
@@ -773,15 +766,6 @@ export default class BufferSyncSupport extends Disposable {
 			return false;
 		}
 
-		switch (buffer.languageId) {
-			case languageModeIds.javascript:
-			case languageModeIds.javascriptreact:
-				return this._validateJavaScript;
-
-			case languageModeIds.typescript:
-			case languageModeIds.typescriptreact:
-			default:
-				return this._validateTypeScript;
-		}
+		return this._validate.getValue(buffer.document);
 	}
 }

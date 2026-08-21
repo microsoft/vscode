@@ -81,14 +81,20 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 			}
 		}));
 
-		const updateRootClasses = () => {
+		const updateContainerClasses = (container: HTMLElement) => {
 			const reduce = this.isMotionReduced();
-			this._layoutService.mainContainer.classList.toggle('monaco-reduce-motion', reduce);
-			this._layoutService.mainContainer.classList.toggle('monaco-enable-motion', !reduce);
+			container.classList.toggle('monaco-reduce-motion', reduce);
+			container.classList.toggle('monaco-enable-motion', !reduce);
+		};
+		const updateRootClasses = () => {
+			for (const container of this._layoutService.containers) {
+				updateContainerClasses(container);
+			}
 		};
 
 		updateRootClasses();
 		this._register(this.onDidChangeReducedMotion(() => updateRootClasses()));
+		this._register(this._layoutService.onDidAddContainer(({ container }) => updateContainerClasses(container)));
 	}
 
 	private initReducedTransparencyListeners(reduceTransparencyMatcher: MediaQueryList) {
@@ -137,8 +143,23 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 	}
 
 	isScreenReaderOptimized(): boolean {
-		const config = this._configurationService.getValue('editor.accessibilitySupport');
+		const config = this.getAccessibilitySupportConfigurationValue();
 		return config === 'on' || (config === 'auto' && this._accessibilitySupport === AccessibilitySupport.Enabled);
+	}
+
+	private getAccessibilitySupportConfigurationValue(): 'auto' | 'off' | 'on' {
+		const inspectedValue = this._configurationService.inspect<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
+
+		// Resolve the setting explicitly in scope precedence order to avoid relying on
+		// resource-dependent resolution in this global service.
+		return inspectedValue.policyValue
+			?? inspectedValue.memoryValue
+			?? inspectedValue.workspaceFolderValue
+			?? inspectedValue.workspaceValue
+			?? inspectedValue.userValue
+			?? inspectedValue.applicationValue
+			?? inspectedValue.defaultValue
+			?? 'auto';
 	}
 
 	get onDidChangeReducedMotion(): Event<void> {

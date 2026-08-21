@@ -103,7 +103,11 @@ export interface IFilesConfigurationService {
 
 	isReadonly(resource: URI, stat?: IBaseFileStat): boolean | IMarkdownString;
 
-	updateReadonly(resource: URI, readonly: true | false | 'toggle' | 'reset'): Promise<void>;
+	/**
+	 * Passing an IMarkdownString marks the resource read-only and displays it as the reason instead of the default session read-only message.
+	 */
+	updateReadonly(resource: URI, readonly: true | IMarkdownString | false | 'toggle' | 'reset'): Promise<void>;
+	updateReadonly(resource: URI[], readonly: true | IMarkdownString | false | 'reset'): Promise<void>;
 
 	//#endregion
 
@@ -158,7 +162,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	private readonly readonlyExcludeMatcher = this._register(new GlobalIdleValue(() => this.createReadonlyMatcher(FILES_READONLY_EXCLUDE_CONFIG)));
 	private configuredReadonlyFromPermissions: boolean | undefined;
 
-	private readonly sessionReadonlyOverrides = new ResourceMap<boolean>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
+	private readonly sessionReadonlyOverrides = new ResourceMap<boolean | IMarkdownString>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -213,6 +217,9 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		if (typeof sessionReadonlyOverride === 'boolean') {
 			return sessionReadonlyOverride === true ? FilesConfigurationService.READONLY_MESSAGES.sessionReadonly : false;
 		}
+		if (sessionReadonlyOverride !== undefined) {
+			return sessionReadonlyOverride;
+		}
 
 		if (
 			this.uriIdentityService.extUri.isEqualOrParent(resource, this.environmentService.userRoamingDataHome) ||
@@ -239,7 +246,17 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		return false;
 	}
 
-	async updateReadonly(resource: URI, readonly: true | false | 'toggle' | 'reset'): Promise<void> {
+	async updateReadonly(resource: URI | URI[], readonly: true | IMarkdownString | false | 'toggle' | 'reset'): Promise<void> {
+		if (Array.isArray(resource)) {
+			for (const r of resource) {
+				this.applyReadonly(r, readonly as true | IMarkdownString | false | 'reset');
+			}
+			if (resource.length > 0) {
+				this._onDidChangeReadonly.fire();
+			}
+			return;
+		}
+
 		if (readonly === 'toggle') {
 			let stat: IFileStatWithMetadata | undefined = undefined;
 			try {
@@ -251,13 +268,16 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 			readonly = !this.isReadonly(resource, stat);
 		}
 
+		this.applyReadonly(resource, readonly);
+		this._onDidChangeReadonly.fire();
+	}
+
+	private applyReadonly(resource: URI, readonly: true | IMarkdownString | false | 'reset'): void {
 		if (readonly === 'reset') {
 			this.sessionReadonlyOverrides.delete(resource);
 		} else {
 			this.sessionReadonlyOverrides.set(resource, readonly);
 		}
-
-		this._onDidChangeReadonly.fire();
 	}
 
 	private registerListeners(): void {

@@ -577,11 +577,17 @@ export interface IConfigurationProperties {
 	 * Do not show this task in the run task quickpick
 	 */
 	hide?: boolean;
+
+	/**
+	 * Show this task in the Agents run action dropdown
+	 */
+	inAgents?: boolean;
 }
 
 export enum RunOnOptions {
 	default = 1,
-	folderOpen = 2
+	folderOpen = 2,
+	worktreeCreated = 3
 }
 
 export const enum InstancePolicy {

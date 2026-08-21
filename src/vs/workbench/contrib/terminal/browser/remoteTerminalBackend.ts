@@ -191,6 +191,7 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 			reconnectionProperties: shellLaunchConfig.reconnectionProperties,
 			type: shellLaunchConfig.type,
 			isFeatureTerminal: shellLaunchConfig.isFeatureTerminal,
+			forceShellIntegration: shellLaunchConfig.forceShellIntegration,
 			tabActions: shellLaunchConfig.tabActions,
 			shellIntegrationEnvironmentReporting: shellLaunchConfig.shellIntegrationEnvironmentReporting,
 		};

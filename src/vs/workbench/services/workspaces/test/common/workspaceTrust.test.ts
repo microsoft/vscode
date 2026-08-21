@@ -13,7 +13,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IRemoteAuthorityResolverService } from '../../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, toWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustInfo } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { Memento } from '../../../../common/memento.js';
@@ -21,6 +21,7 @@ import { IWorkbenchEnvironmentService } from '../../../environment/common/enviro
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
 import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService, WORKSPACE_TRUST_STORAGE_KEY } from '../../common/workspaceTrust.js';
+import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { TestContextService, TestStorageService, TestWorkspaceTrustEnablementService } from '../../../../test/common/workbenchTestServices.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Mutable } from '../../../../../base/common/types.js';
@@ -108,7 +109,7 @@ suite('Workspace Trust', () => {
 		test('empty workspace - trusted, open trusted file', async () => {
 			await configurationService.setUserConfiguration('security', getUserSettings(true, true));
 			const trustInfo: IWorkspaceTrustInfo = { uriTrustInfo: [{ uri: URI.parse('file:///Folder'), trusted: true }] };
-			storageService.store(WORKSPACE_TRUST_STORAGE_KEY, JSON.stringify(trustInfo), StorageScope.APPLICATION, StorageTarget.MACHINE);
+			storageService.store(WORKSPACE_TRUST_STORAGE_KEY, JSON.stringify(trustInfo), StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE);
 
 			environmentService.filesToOpenOrCreate = [{ fileUri: URI.parse('file:///Folder/file.txt') }];
 			instantiationService.stub(IWorkbenchEnvironmentService, { ...environmentService });
@@ -129,6 +130,123 @@ suite('Workspace Trust', () => {
 			const testObject = await initializeTestObject();
 
 			assert.strictEqual(false, testObject.isWorkspaceTrusted());
+		});
+
+		test('agent host folder is not auto-trusted as a virtual resource', async () => {
+			await configurationService.setUserConfiguration('security', getUserSettings(true, true));
+			workspaceService.setWorkspace(new Workspace('empty-workspace'));
+			const testObject = await initializeTestObject();
+
+			// A regular virtual resource (e.g. github1s) is auto-trusted...
+			const virtualUri = URI.parse('vscode-test-virtual://authority/folder');
+			assert.strictEqual(true, (await testObject.getUriTrustInfo(virtualUri)).trusted);
+
+			// ...but an agent host folder is not, even though it is a virtual scheme.
+			const agentHostUri = URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'my-server', path: '/Users/me/code', query: '_ah=meta' });
+			assert.strictEqual(false, (await testObject.getUriTrustInfo(agentHostUri)).trusted);
+		});
+
+		test('agent host folder trust persists and ignores the _ah query', async () => {
+			await configurationService.setUserConfiguration('security', getUserSettings(true, true));
+			workspaceService.setWorkspace(new Workspace('empty-workspace'));
+			const testObject = await initializeTestObject();
+
+			const agentHostUri = URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'my-server', path: '/Users/me/code', query: '_ah=meta' });
+			await testObject.setUrisTrust([agentHostUri], true);
+
+			// The same folder with a different _ah payload resolves to the same trust entry.
+			const sameFolderDifferentMeta = URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'my-server', path: '/Users/me/code', query: '_ah=other' });
+			assert.strictEqual(true, (await testObject.getUriTrustInfo(sameFolderDifferentMeta)).trusted);
+		});
+
+		test('setWorkspaceTrust waits for trust transition participants before resolving', async () => {
+			await configurationService.setUserConfiguration('security', getUserSettings(true, true));
+			workspaceService.setWorkspace(new Workspace('folder-workspace', [toWorkspaceFolder(URI.parse('file:///Folder'))]));
+			const testObject = await initializeTestObject();
+
+			let releaseParticipant!: () => void;
+			const participantCanComplete = new Promise<void>(resolve => releaseParticipant = resolve);
+
+			let participantStartedResolve!: () => void;
+			const participantStarted = new Promise<void>(resolve => participantStartedResolve = resolve);
+
+			let participantStartedFlag = false;
+			let participantCompleted = false;
+			let trustChangeEventFired = false;
+
+			const participantCompletedPromise = new Promise<void>(resolve => {
+				store.add(testObject.addWorkspaceTrustTransitionParticipant({
+					async participate(trusted: boolean): Promise<void> {
+						if (trusted) {
+							participantStartedFlag = true;
+							participantStartedResolve();
+							await participantCanComplete;
+							participantCompleted = true;
+							resolve();
+						}
+					}
+				}));
+			});
+
+			store.add(testObject.onDidChangeTrust(trusted => {
+				if (trusted) {
+					trustChangeEventFired = true;
+				}
+			}));
+
+			await testObject.setWorkspaceTrust(false);
+			assert.deepStrictEqual({
+				trusted: testObject.isWorkspaceTrusted(),
+				participantStarted: participantStartedFlag,
+				participantCompleted,
+				trustChangeEventFired
+			}, {
+				trusted: false,
+				participantStarted: false,
+				participantCompleted: false,
+				trustChangeEventFired: false
+			});
+
+			const setWorkspaceTrustPromise = testObject.setWorkspaceTrust(true);
+			let setWorkspaceTrustResolved = false;
+			setWorkspaceTrustPromise.then(() => setWorkspaceTrustResolved = true);
+
+			try {
+				await participantStarted;
+				await Promise.resolve();
+
+				assert.deepStrictEqual({
+					setWorkspaceTrustResolved,
+					trusted: testObject.isWorkspaceTrusted(),
+					participantStarted: participantStartedFlag,
+					participantCompleted,
+					trustChangeEventFired
+				}, {
+					setWorkspaceTrustResolved: false,
+					trusted: true,
+					participantStarted: true,
+					participantCompleted: false,
+					trustChangeEventFired: false
+				});
+			} finally {
+				releaseParticipant();
+				await participantCompletedPromise;
+			}
+
+			await setWorkspaceTrustPromise;
+			await Promise.resolve();
+
+			assert.deepStrictEqual({
+				setWorkspaceTrustResolved,
+				trusted: testObject.isWorkspaceTrusted(),
+				participantCompleted,
+				trustChangeEventFired
+			}, {
+				setWorkspaceTrustResolved: true,
+				trusted: true,
+				participantCompleted: true,
+				trustChangeEventFired: true
+			});
 		});
 
 		async function initializeTestObject(): Promise<WorkspaceTrustManagementService> {

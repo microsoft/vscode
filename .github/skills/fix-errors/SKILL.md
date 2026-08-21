@@ -62,6 +62,34 @@ throw new Error(`[UriError]: Scheme contains illegal characters. scheme:"${ret.s
 
 **Right fix (when producer is known)**: Fix the code that sends malformed data. For example, if an authentication provider passes a stringified URI instead of a `UriComponents` object to a logger creation call, fix that call site to pass the proper object.
 
+## Understanding error construction before fixing
+
+Before proposing any fix, **always find and read the code that constructs the error**. Search the codebase for the error class name or a unique substring of the error message. The construction code reveals:
+
+- **What conditions trigger the error** — thresholds, validation checks, state assertions
+- **What classifications or categories the error encodes** — the error may have subtypes that require different fix strategies
+- **What the error's parameters mean** — numeric values, ratios, or flags embedded in the message often encode diagnostic context
+- **Whether the error is actionable** — some errors are threshold-based warnings where the threshold may be legitimately exceeded by design
+
+Use this understanding to determine the correct fix strategy. The construction code is the source of truth — do NOT assume what the error means from its message alone.
+
+### Example: Listener leak errors
+
+Searching for `ListenerLeakError` leads to `src/vs/base/common/event.ts`, where the construction code reveals:
+
+```typescript
+const kind = topCount / listenerCount > 0.3 ? 'dominated' : 'popular';
+const error = new ListenerLeakError(kind, message, topStack);
+```
+
+Reading this code tells you:
+- The error has two categories based on a ratio
+- **Dominated** (ratio > 30%): one code path accounts for most listeners → that code path is the problem, fix its disposal
+- **Popular** (ratio ≤ 30%): many diverse code paths each contribute a few listeners → the identified stack trace is NOT the root cause; it's just the most identical stack among many. Investigate the emitter and its aggregate subscribers instead
+- For popular leaks: do NOT remove caching/pooling/reuse patterns that appear in the top stack — they exist to solve other problems. If the aggregate count is by design (e.g., many menus subscribing to a shared context key service), close the issue as "not planned"
+
+This analysis came from reading the construction code, not from memorized rules about listener leaks.
+
 ## Guidelines
 
 - Prefer enriching error messages over adding try/catch guards
