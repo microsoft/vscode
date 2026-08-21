@@ -11,10 +11,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import { GroupModelChangeKind } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup, IEditorGroupsService, IModalEditorPart } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorsChangeEvent, IEditorService } from '../../../services/editor/common/editorService.js';
 import { TestEditorInput } from '../../../test/browser/workbenchTestServices.js';
 import { MainThreadEditorTabs } from '../../browser/mainThreadEditorTabs.js';
+import { MainThreadEditorTabsShape } from '../../common/extHost.protocol.js';
+import { ExtHostEditorTabs } from '../../common/extHostEditorTabs.js';
 import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
 
 suite('MainThreadEditorTabs', () => {
@@ -81,6 +84,116 @@ suite('MainThreadEditorTabs', () => {
 		}, {
 			rebuildsAfterLabelChange: 0,
 			rebuildsAfterOpen: 1,
+		});
+	});
+
+	test('updating a background tab does not make it the active tab', async () => {
+		class NamedEditorInput extends TestEditorInput {
+			private _dirty = false;
+			constructor(resource: URI, typeId: string, private _name: string) {
+				super(resource, typeId);
+			}
+			override getName(): string { return this._name; }
+			setName(name: string): void { this._name = name; }
+			override isDirty(): boolean { return this._dirty; }
+			setDirty(dirty: boolean): void { this._dirty = dirty; }
+		}
+
+		const inputA = disposables.add(new NamedEditorInput(URI.parse('test:a'), 'testEditor', 'Panel A'));
+		const inputB = disposables.add(new NamedEditorInput(URI.parse('test:b'), 'testEditor', 'Panel B'));
+		let activeEditor: EditorInput = inputA;
+		let sticky = false;
+		let pinned = true;
+
+		const group = new class extends mock<IEditorGroup>() {
+			override readonly id = 1;
+			override get editors() { return [inputA, inputB]; }
+			override isSticky() { return sticky; }
+			override isPinned() { return pinned; }
+			override isActive(editor: EditorInput) { return editor === activeEditor; }
+		}();
+		const editorGroupsService = new class extends mock<IEditorGroupsService>() {
+			override readonly onDidAddGroup = Event.None;
+			override readonly onDidRemoveGroup = Event.None;
+			override readonly whenReady = Promise.resolve();
+			override readonly activeModalEditorPart = undefined;
+			override get groups(): readonly IEditorGroup[] { return [group]; }
+			override getGroups(): readonly IEditorGroup[] { return [group]; }
+			override get activeGroup(): IEditorGroup { return group; }
+			override getGroup(): IEditorGroup | undefined { return group; }
+		}();
+		const editorChanges = disposables.add(new Emitter<IEditorsChangeEvent>());
+		const editorService = new class extends mock<IEditorService>() {
+			override readonly onDidEditorsChange = editorChanges.event;
+		}();
+
+		// Drive a real ext host so the assertions are made against the actual API surface
+		const extHostEditorTabs = new ExtHostEditorTabs(
+			SingleProxyRPCProtocol(new class extends mock<MainThreadEditorTabsShape>() { })
+		);
+		disposables.add(new MainThreadEditorTabs(
+			SingleProxyRPCProtocol(extHostEditorTabs),
+			editorGroupsService,
+			new TestConfigurationService(),
+			new NullLogService(),
+			editorService,
+		));
+		await Promise.resolve();
+
+		const activeTabLabel = () => extHostEditorTabs.tabGroups.activeTabGroup.activeTab?.label;
+		const initial = activeTabLabel();
+
+		// Tab B becomes the active tab
+		activeEditor = inputB;
+		editorChanges.fire({
+			groupId: group.id,
+			event: { kind: GroupModelChangeKind.EDITOR_ACTIVE, editor: inputB, editorIndex: 1 }
+		});
+		const afterActivatingB = activeTabLabel();
+
+		// Any update to the background tab A must not steal the active tab
+		inputA.setName('Panel A (2)');
+		editorChanges.fire({
+			groupId: group.id,
+			event: { kind: GroupModelChangeKind.EDITOR_LABEL, editor: inputA, editorIndex: 0 }
+		});
+		const afterLabelChange = activeTabLabel();
+
+		inputA.setDirty(true);
+		editorChanges.fire({
+			groupId: group.id,
+			event: { kind: GroupModelChangeKind.EDITOR_DIRTY, editor: inputA, editorIndex: 0 }
+		});
+		const afterDirtyChange = activeTabLabel();
+
+		sticky = true;
+		editorChanges.fire({
+			groupId: group.id,
+			event: { kind: GroupModelChangeKind.EDITOR_STICKY, editor: inputA, editorIndex: 0 }
+		});
+		const afterStickyChange = activeTabLabel();
+
+		pinned = false;
+		editorChanges.fire({
+			groupId: group.id,
+			event: { kind: GroupModelChangeKind.EDITOR_PIN, editor: inputA, editorIndex: 0 }
+		});
+		const afterPreviewChange = activeTabLabel();
+
+		assert.deepStrictEqual({
+			initial,
+			afterActivatingB,
+			afterLabelChange,
+			afterDirtyChange,
+			afterStickyChange,
+			afterPreviewChange,
+		}, {
+			initial: 'Panel A',
+			afterActivatingB: 'Panel B',
+			afterLabelChange: 'Panel B',
+			afterDirtyChange: 'Panel B',
+			afterStickyChange: 'Panel B',
+			afterPreviewChange: 'Panel B',
 		});
 	});
 });

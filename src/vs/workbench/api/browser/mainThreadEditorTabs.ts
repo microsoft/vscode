@@ -380,8 +380,15 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 			return;
 		}
 		const activeTab = tabs[editorIndex];
-		// No need to loop over as the exthost uses the most recently marked active tab
 		activeTab.isActive = true;
+		// Clear the flag on the other tabs of the group. Otherwise a later `TAB_UPDATE`
+		// re-sending one of those still-cached DTOs (label, dirty, pin or preview change)
+		// would repoint the exthost at a tab that is no longer active.
+		for (const tab of tabs) {
+			if (tab !== activeTab) {
+				tab.isActive = false;
+			}
+		}
 		// Send DTO update to the exthost
 		this._proxy.$acceptTabOperation({
 			groupId,
