@@ -28,7 +28,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
 import { ChangesSummary, ChatOriginKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, AuthRequiredReason, type ChatAction, type INotification, type SessionAction } from '../../common/state/sessionActions.js';
-import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInteractivity, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
+import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInteractivity, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -47,6 +47,7 @@ import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.j
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
+import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { applyMcpServerEnablement } from '../../node/shared/mcpCustomizationController.js';
@@ -1271,7 +1272,7 @@ suite('AgentSideEffects', () => {
 			}, {
 				chatError: true,
 				creationFailed: true,
-				lifecycle: SessionLifecycle.CreationFailed,
+				lifecycle: SessionLifecycle.Failed,
 				sessionAddedWithError: true,
 			});
 		});
@@ -1308,7 +1309,7 @@ suite('AgentSideEffects', () => {
 			}, {
 				chatError: true,
 				creationFailed: true,
-				lifecycle: SessionLifecycle.CreationFailed,
+				lifecycle: SessionLifecycle.Failed,
 				sendMessageCalls: [],
 			});
 		});
@@ -6149,11 +6150,10 @@ suite('AgentSideEffects', () => {
 
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatInputRequested,
-				request: {
+				request: withChatInputRequestPurpose({
 					id: 'req-1',
-					purpose: ChatInputRequestPurpose.AskUser,
 					questions: [{ kind: ChatInputQuestionKind.Text, id: 'question-1', message: 'Which value?' }],
-				},
+				}, ChatInputRequestPurpose.AskUser),
 			});
 			stateManager.dispatchClientAction(defaultChatUri, {
 				type: ActionType.ChatInputAnswerChanged,
@@ -6200,11 +6200,10 @@ suite('AgentSideEffects', () => {
 			setupSession();
 			startTurn('turn-1');
 
-			const request: ChatInputRequest = {
+			const request: ChatInputRequest = withChatInputRequestPurpose({
 				id: 'req-1',
-				purpose: ChatInputRequestPurpose.AskUser,
 				questions: [{ kind: ChatInputQuestionKind.Text, id: 'question-1', message: 'Which value?' }],
-			};
+			}, ChatInputRequestPurpose.AskUser);
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatInputRequested,
 				request,

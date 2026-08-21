@@ -1024,7 +1024,6 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			_meta: config?._meta,
 			provider,
 			workingDirectories: config?.workingDirectories?.map(d => fromAgentHostUri(d).toString()),
-			fork: config?.fork ? { session: fromAgentHostUri(config.fork.session).toString(), turnId: config.fork.turnId } : undefined,
 			config: config?.config,
 			activeClient: config?.activeClient,
 			progressToken: config?.progressToken,
