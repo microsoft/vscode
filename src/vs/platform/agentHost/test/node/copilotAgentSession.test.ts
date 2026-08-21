@@ -7458,6 +7458,63 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	suite('getForkBoundaryEventId', () => {
+		test('resolves when the matching user message event arrives', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			session.resetTurnState('turn-waiting');
+
+			const eventIdPromise = session.getForkBoundaryEventId('previous-turn');
+			mockSession.fire('user.message', { content: 'hello agent' } as SessionEventPayload<'user.message'>['data'], { id: 'sdk-event-waiting' });
+			await timeout(0);
+
+			assert.deepStrictEqual(await eventIdPromise, 'sdk-event-waiting');
+		});
+
+		test('resolves from a user message event recorded before waiting', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			session.resetTurnState('turn-recorded');
+			mockSession.fire('user.message', { content: 'hello agent' } as SessionEventPayload<'user.message'>['data'], { id: 'sdk-event-recorded' });
+			await timeout(0);
+
+			assert.deepStrictEqual(await session.getForkBoundaryEventId('previous-turn'), 'sdk-event-recorded');
+		});
+
+		test('rejects when the turn ends before its user message event arrives', async () => {
+			const { session } = await createAgentSession(disposables);
+			session.resetTurnState('turn-ended');
+
+			const eventIdPromise = session.getForkBoundaryEventId('previous-turn');
+			session.discardActiveTurn();
+
+			await assert.rejects(eventIdPromise, /its next turn \(turn-ended\) never produced an SDK event id: Turn turn-ended was disposed before its SDK event id was recorded/);
+		});
+
+		test('retains the active turn event promise when session.idle clears it during the database read', async () => {
+			const databaseRead = new DeferredPromise<string | undefined>();
+			const sessionDatabase = new TestSessionDatabase();
+			sessionDatabase.getNextTurnEventId = () => databaseRead.p;
+			const { session, mockSession } = await createAgentSession(disposables, { sessionDatabase });
+			session.resetTurnState('turn-ended-during-read');
+
+			const eventIdPromise = session.getForkBoundaryEventId('previous-turn');
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			await timeout(0);
+			databaseRead.complete(undefined);
+
+			await assert.rejects(eventIdPromise, /its next turn \(turn-ended-during-read\) never produced an SDK event id/);
+		});
+
+		test('rejects pending waiters when the session is disposed', async () => {
+			const { session } = await createAgentSession(disposables);
+			session.resetTurnState('turn-disposed');
+
+			const eventIdPromise = session.getForkBoundaryEventId('previous-turn');
+			session.dispose();
+
+			await assert.rejects(eventIdPromise, /its next turn \(turn-disposed\) never produced an SDK event id: Turn turn-disposed was disposed before its SDK event id was recorded/);
+		});
+	});
+
 	// ---- user input handling ----
 
 	suite('user input handling', () => {
