@@ -50,9 +50,8 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 	private _telemetryLevel: TelemetryLevel;
 
 	/**
-	 * Whether the current Copilot token opts into enhanced/restricted telemetry (`rt=1`). Defaults
-	 * to `false` so nothing restricted is sent until an authenticated token confirms the opt-in,
-	 * keeping public users off the enhanced pipeline the way the Copilot extension does.
+	 * Whether `/copilot_internal/user` enables enhanced/restricted telemetry. Defaults to `false`
+	 * so nothing restricted is sent until the authenticated account confirms the opt-in.
 	 */
 	private _restrictedTelemetryEnabled = false;
 	private _internalTelemetryEnabled = false;

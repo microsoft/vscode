@@ -197,7 +197,7 @@ import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/tel
  * Microsoft cluster/database as the rest of the agent host's telemetry.
  *
  * Restricted events (`cli.restricted_telemetry`) are only forwarded when
- * restricted telemetry is enabled for the current Copilot token; standard
+ * restricted telemetry is enabled for the current Copilot account; standard
  * events always flow through.
  */
 export class CopilotGitHubTelemetryForwarder {
