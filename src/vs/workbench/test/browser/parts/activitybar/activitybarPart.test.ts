@@ -489,5 +489,54 @@ suite('ActivitybarPart', () => {
 		);
 	});
 
+	// The gap is rendered *between* items, so N items occupy `N * height + (N - 1) * gap`.
+	// `compositeSize` bakes a trailing gap into every item, which over-counts by exactly one
+	// gap, so `layout()` hands that gap back to the composite bar. Without it the last item
+	// is pushed into the overflow menu a gap earlier than it needs to be.
+	function compositeBarLayoutHeight(compact: boolean, floatingPanelsEnabled: boolean): number {
+		let layoutHeight = -1;
+		const stubCompositeBar = {
+			create: () => { },
+			layout: (_width: number, height: number) => { layoutHeight = height; },
+			dispose: () => { }
+		};
+		const { part, layoutService } = createActivitybarPart(compact, floatingPanelsEnabled, Position.LEFT, {}, {
+			createInstance: () => stubCompositeBar
+		} as unknown as IInstantiationService);
+
+		const el = document.createElement('div');
+		fixture.appendChild(el);
+		part.create(el);
+		part.show();
+
+		// A visible title and status bar means neither edge is a window edge.
+		const visible = new Set([Parts.TITLEBAR_PART, Parts.STATUSBAR_PART]);
+		layoutService.isVisible = (partId: Parts) => visible.has(partId);
+		part.layout(100, 300);
+
+		return layoutHeight;
+	}
+
+	test('composite bar is given back the leading item gap it does not render', () => {
+		const margin = ActivitybarPart.FLOATING_MARGIN;
+
+		assert.deepStrictEqual(
+			{
+				classicDefault: compositeBarLayoutHeight(false, false),
+				classicCompact: compositeBarLayoutHeight(true, false),
+				modernDefault: compositeBarLayoutHeight(false, true),
+				modernCompact: compositeBarLayoutHeight(true, true),
+			},
+			{
+				// No floating gutters and no gap between items.
+				classicDefault: 300,
+				classicCompact: 300,
+				// Floating reserves a bottom gutter; the 8px gap is then handed back.
+				modernDefault: 300 - margin + ActivitybarPart.FLOATING_ACTION_GAP,
+				modernCompact: 300 - margin,
+			}
+		);
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });
