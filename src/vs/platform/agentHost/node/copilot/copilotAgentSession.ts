@@ -1285,6 +1285,7 @@ export class CopilotAgentSession extends Disposable {
 			chat: this._chatChannelUri,
 			toolCallId: parentToolCallId,
 		});
+		this._rootTurnIdBySubagentToolCallId.delete(parentToolCallId);
 		this._subagentDirectUsageByToolCallId.delete(parentToolCallId);
 		this._lastSubagentUsageByToolCallId.delete(parentToolCallId);
 	}
@@ -4826,8 +4827,8 @@ export class CopilotAgentSession extends Disposable {
 			const mappedParentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 			const parentToolCallId = mappedParentToolCallId ?? e.data.parentToolCallId;
 			const isUnmappedSubagent = !!e.agentId && !parentToolCallId;
-			if (!mappedParentToolCallId && e.data.parentToolCallId && this._currentTurn) {
-				this._rootTurnIdBySubagentToolCallId.set(e.data.parentToolCallId, this._currentTurn.id);
+			if (!mappedParentToolCallId && e.data.parentToolCallId && this._currentTurn.value) {
+				this._rootTurnIdBySubagentToolCallId.set(e.data.parentToolCallId, this._currentTurn.value.id);
 			}
 			if (isUnmappedSubagent) {
 				this._logService.warn(`[Copilot:${sessionId}] Unable to attribute direct assistant.usage for unknown subagent agentId=${e.agentId}; retaining inclusive root usage`);
@@ -4847,7 +4848,7 @@ export class CopilotAgentSession extends Disposable {
 			// present at runtime. Forward the per-category snapshots on `_meta` so the client can keep the
 			// account quota UI current. Mirrors the extension-host CLI path, which feeds these into its quota service.
 			const quotaSnapshots = normalizeQuotaSnapshots((e.data as unknown as Record<string, unknown>).quotaSnapshots);
-			const turn = isUnmappedSubagent ? this._currentTurn : this._owningRootTurn(parentToolCallId);
+			const turn = isUnmappedSubagent ? this._currentTurn.value : this._owningRootTurn(parentToolCallId);
 
 			if (typeof e.data.model === 'string' && e.data.model) {
 				this._lastSeenModelId = e.data.model;
