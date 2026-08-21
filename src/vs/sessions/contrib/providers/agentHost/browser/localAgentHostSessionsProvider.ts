@@ -6,6 +6,7 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { raceCancellationError } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
@@ -25,10 +26,11 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { AutomationStore } from '../../../automations/browser/automationService.js';
 import { providerAutomationStorageKey } from '../../../automations/common/automationStorageService.js';
 import { IPreparedNewSession, ISessionsProviderAutomations, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../../../../services/sessions/common/sessionsProvider.js';
+import { WorkspaceNotTrustedError } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { getCopilotCliSessionRawId, migratedCopilotCliResource } from '../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
@@ -129,6 +131,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		@IDialogService dialogService: IDialogService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IDevContainerAgentHostService private readonly _devContainerAgentHostService: IDevContainerAgentHostService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 	) {
@@ -266,6 +269,16 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		const sourceWorkspace = draft.session.workspace.get()?.folders[0]?.root;
 		if (!sourceWorkspace) {
 			throw new Error(localize('devContainerAgentHost.workspaceRequired', "Dev Container sessions require a workspace."));
+		}
+		const trusted = await this._workspaceTrustRequestService.requestResourcesTrust({
+			uri: sourceWorkspace,
+			message: localize('devContainerAgentHost.trustFolder', "Starting the Dev Container can run lifecycle commands from this workspace."),
+		});
+		if (!trusted) {
+			throw new WorkspaceNotTrustedError();
+		}
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
 		}
 		await this._waitForSessionConfigResolution(this, sessionId, token);
 		const target = await this._devContainerAgentHostService.connect(sourceWorkspace, token);
