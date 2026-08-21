@@ -176,12 +176,9 @@ export interface ISessionsService {
 	openSession(sessionResource: URI, options?: { preserveFocus?: boolean }): Promise<void>;
 
 	/**
-	 * Whether the given session may be opened, honoring workspace trust. When the
-	 * session requires workspace trust and any folder it runs in is not trusted,
-	 * this surfaces VS Code's standard workspace-trust request for each such folder
-	 * and resolves to `false` if the user declines any — so callers can gate the
-	 * act of opening a session from the list, leaving the current session (or the
-	 * empty new-session slot) untouched when trust is refused.
+	 * Whether the given session may be opened, honoring workspace trust. Prompts
+	 * for trust on any untrusted folder the session runs in and resolves to
+	 * `false` if the user declines.
 	 */
 	canOpenSession(session: ISession): Promise<boolean>;
 
