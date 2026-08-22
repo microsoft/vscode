@@ -35,7 +35,8 @@ function getIRange(range: IRange): IRange {
 }
 
 const enum LanguageId {
-	TypeScript = 'ts-test'
+	TypeScript = 'ts-test',
+	Yaml = 'yaml-test'
 }
 
 function forceTokenizationFromLineToLine(model: ITextModel, startLine: number, endLine: number): void {
@@ -58,6 +59,9 @@ function registerLanguageConfiguration(instantiationService: TestInstantiationSe
 	switch (languageId) {
 		case LanguageId.TypeScript:
 			configPath = FileAccess.asFileUri('vs/workbench/contrib/codeEditor/test/node/language-configuration.json').fsPath;
+			break;
+		case LanguageId.Yaml:
+			configPath = FileAccess.asFileUri('vs/workbench/contrib/codeEditor/test/node/yaml-language-configuration.json').fsPath;
 			break;
 		default:
 			throw new Error('Unknown languageId');
@@ -523,6 +527,93 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 			'    callSomeOtherFunction(4,',
 			'        5)',
 			'}',
+		].join('\n');
+		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
+		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
+		assert.deepStrictEqual(editOperations.length, 0);
+	});
+});
+
+suite('Auto-Reindentation - YAML', () => {
+
+	const languageId = LanguageId.Yaml;
+	const options: IRelaxedTextModelCreationOptions = { insertSpaces: true, tabSize: 2, indentSize: 2 };
+	let disposables: DisposableStore;
+	let instantiationService: TestInstantiationService;
+	let languageConfigurationService: ILanguageConfigurationService;
+
+	setup(() => {
+		disposables = new DisposableStore();
+		instantiationService = createModelServices(disposables);
+		languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+		disposables.add(instantiationService);
+		disposables.add(registerLanguage(instantiationService, languageId));
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('Issue #330394: indent after a property', () => {
+		const fileContents = [
+			'foo:',
+			'bar',
+		].join('\n');
+		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
+		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
+		assert.deepStrictEqual(editOperations.length, 1);
+		const operation = editOperations[0];
+		assert.deepStrictEqual(getIRange(operation.range), {
+			'startLineNumber': 2,
+			'startColumn': 1,
+			'endLineNumber': 2,
+			'endColumn': 1,
+		});
+		assert.deepStrictEqual(operation.text, '  ');
+	});
+
+	test('Issue #330394: indent after an anchor', () => {
+		const fileContents = [
+			'foo: &anchor',
+			'bar',
+		].join('\n');
+		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
+		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
+		assert.deepStrictEqual(editOperations.length, 1);
+		const operation = editOperations[0];
+		assert.deepStrictEqual(getIRange(operation.range), {
+			'startLineNumber': 2,
+			'startColumn': 1,
+			'endLineNumber': 2,
+			'endColumn': 1,
+		});
+		assert.deepStrictEqual(operation.text, '  ');
+	});
+
+	test('Issue #330394: indent after a block scalar', () => {
+		const fileContents = [
+			'foo: |',
+			'bar',
+		].join('\n');
+		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
+		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
+		assert.deepStrictEqual(editOperations.length, 1);
+		const operation = editOperations[0];
+		assert.deepStrictEqual(getIRange(operation.range), {
+			'startLineNumber': 2,
+			'startColumn': 1,
+			'endLineNumber': 2,
+			'endColumn': 1,
+		});
+		assert.deepStrictEqual(operation.text, '  ');
+	});
+
+	test('Issue #330394: a plain scalar does not indent', () => {
+		const fileContents = [
+			'foo: bar',
+			'baz',
 		].join('\n');
 		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
 		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
