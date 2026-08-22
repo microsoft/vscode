@@ -20,7 +20,7 @@ import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportK
 import { AgentSession, type IAgentCreateChatOptions, type IMcpNotification } from '../common/agent.js';
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { type IAgentService } from '../common/agentService.js';
-import { CollectAgentHostDebugLogsExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod } from '../common/agentHostExtensionProtocol.js';
+import { collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod } from '../common/agentHostExtensionProtocol.js';
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
@@ -1718,13 +1718,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				if (!this._agentService.collectDebugLogs) {
 					return undefined;
 				}
-				if (!isParamsObject(params)) {
-					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'params must be an object'));
+				const validated = collectAgentHostDebugLogsParamsValidator.validate(params);
+				if (validated.error) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
 				}
-				const sessionParam = params['session'];
-				if (sessionParam !== undefined && typeof sessionParam !== 'string') {
-					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a URI string'));
-				}
+				const { session: sessionParam, chat: chatParam, kind } = validated.content;
 				let session: URI | undefined;
 				if (sessionParam !== undefined) {
 					try {
@@ -1735,10 +1733,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					if (!AgentSession.provider(session)) {
 						return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be an Agent Session URI'));
 					}
-				}
-				const chatParam = params['chat'];
-				if (chatParam !== undefined && typeof chatParam !== 'string') {
-					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must be a URI string'));
 				}
 				let chat: URI | undefined;
 				if (chatParam !== undefined) {
@@ -1751,10 +1745,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					if (!session || !parsedChat || parsedChat.session !== session.toString()) {
 						return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must belong to the requested Agent Session'));
 					}
-				}
-				const kind = params['kind'];
-				if (kind !== 'archive' && kind !== 'directory') {
-					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'kind must be archive or directory'));
 				}
 				return this._agentService.collectDebugLogs(session, kind, chat).then(result => ({
 					kind: result.kind,

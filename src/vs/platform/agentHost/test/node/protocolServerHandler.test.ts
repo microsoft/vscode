@@ -725,7 +725,7 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual(await responsePromise, {
 			jsonrpc: '2.0',
 			id: 13,
-			error: { code: JsonRpcErrorCodes.InvalidParams, message: 'kind must be archive or directory' },
+			error: { code: JsonRpcErrorCodes.InvalidParams, message: `Error in property 'kind': Expected one of: archive, directory` },
 		});
 	});
 
@@ -759,7 +759,7 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual(await responsePromise, {
 			jsonrpc: '2.0',
 			id: 14,
-			error: { code: JsonRpcErrorCodes.InvalidParams, message: 'session must be a URI string' },
+			error: { code: JsonRpcErrorCodes.InvalidParams, message: `Error in property 'session': Expected string, but got number` },
 		});
 	});
 
@@ -768,12 +768,12 @@ suite('ProtocolServerHandler', () => {
 		transport.sent.length = 0;
 		const responsePromise = waitForResponse(transport, 15);
 
-		transport.simulateMessage(request(15, 'vscode/collectAgentHostDebugLogs', []));
+		transport.simulateMessage(request(15, 'vscode/collectAgentHostDebugLogs', null));
 
 		assert.deepStrictEqual(await responsePromise, {
 			jsonrpc: '2.0',
 			id: 15,
-			error: { code: JsonRpcErrorCodes.InvalidParams, message: 'params must be an object' },
+			error: { code: JsonRpcErrorCodes.InvalidParams, message: 'Expected object' },
 		});
 	});
 
