@@ -36,6 +36,7 @@ import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions
 import { ExtHostContext, ExtHostLanguageFeaturesShape, HoverWithId, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentDropEditDto, IDocumentDropEditProviderMetadata, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, IInlineCompletionChangeHintDto, IInlineCompletionModelInfoDto, IInlineCompletionProviderOptionDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IPasteEditDto, IPasteEditProviderMetadataDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol.js';
 import { InlineCompletionEndOfLifeReasonKind } from '../common/extHostTypes.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { IMeteredConnectionService } from '../../../platform/meteredConnection/common/meteredConnection.js';
 import { DataChannelForwardingTelemetryService, forwardToChannelIf, isCopilotLikeExtension } from '../../../platform/dataChannel/browser/forwardingTelemetryService.js';
 import { IAiEditTelemetryService } from '../../contrib/editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { EditDeltaInfo } from '../../../editor/common/textModelEditSource.js';
@@ -655,6 +656,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		displayName: string | undefined,
 		debounceDelayMs: number | undefined,
 		excludesExtensionIds: string[],
+		meteredNetworkAware: boolean,
 		supportsOnDidChange: boolean,
 		supportsSetModelId: boolean,
 		initialModelInfo: IInlineCompletionModelInfoDto | undefined,
@@ -672,6 +674,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 			providerId,
 			yieldsToExtensionIds,
 			excludesExtensionIds,
+			meteredNetworkAware,
 			debounceDelayMs,
 			displayName,
 			initialModelInfo,
@@ -1305,6 +1308,7 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 	public readonly setModelId: ((modelId: string) => Promise<void>) | undefined;
 	public readonly _onDidChangeEmitter = this._register(new Emitter<languages.IInlineCompletionChangeHint | void>());
 	public readonly onDidChangeInlineCompletions: Event<languages.IInlineCompletionChangeHint | void> | undefined;
+	public readonly onDidChangeAvailability: Event<void> | undefined;
 
 	public readonly _onDidChangeModelInfoEmitter = this._register(new Emitter<void>());
 	public readonly onDidChangeModelInfo: Event<void> | undefined;
@@ -1319,6 +1323,7 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 		public readonly providerId: languages.ProviderId,
 		public readonly yieldsToGroupIds: string[],
 		public readonly excludesGroupIds: string[],
+		private readonly _meteredNetworkAware: boolean,
 		public readonly debounceDelayMs: number | undefined,
 		public readonly displayName: string | undefined,
 		public modelInfo: languages.IInlineCompletionModelInfo | undefined,
@@ -1334,6 +1339,7 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IAiEditTelemetryService private readonly _aiEditTelemetryService: IAiEditTelemetryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IMeteredConnectionService private readonly _meteredConnectionService: IMeteredConnectionService,
 	) {
 		super();
 
@@ -1346,6 +1352,7 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 		} : undefined;
 
 		this.onDidChangeInlineCompletions = this._supportsOnDidChange ? this._onDidChangeEmitter.event : undefined;
+		this.onDidChangeAvailability = this._meteredNetworkAware ? undefined : Event.signal(this._meteredConnectionService.onDidChangeIsConnectionMetered);
 		this.onDidChangeModelInfo = this._supportsOnDidChangeModelInfo ? this._onDidChangeModelInfoEmitter.event : undefined;
 		this.onDidProviderOptionsChange = this._supportsOnDidChangeProviderOptions ? this._onDidProviderOptionsChangeEmitter.event : undefined;
 
@@ -1372,9 +1379,17 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 		}
 	}
 
+	public isAvailable(context: Pick<languages.InlineCompletionContext, 'triggerKind'>): boolean {
+		return this._meteredNetworkAware
+			|| context.triggerKind !== languages.InlineCompletionTriggerKind.Automatic
+			|| !this._meteredConnectionService.isConnectionMetered;
+	}
+
 	public async provideInlineCompletions(model: ITextModel, position: EditorPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined> {
-		const result = await this._proxy.$provideInlineCompletions(this.handle, model.uri, position, context, token);
-		return result;
+		if (!this.isAvailable(context)) {
+			return undefined;
+		}
+		return this._proxy.$provideInlineCompletions(this.handle, model.uri, position, context, token);
 	}
 
 	public async handleItemDidShow(completions: IdentifiableInlineCompletions, item: IdentifiableInlineCompletion, updatedInsertText: string, editDeltaInfo: EditDeltaInfo): Promise<void> {

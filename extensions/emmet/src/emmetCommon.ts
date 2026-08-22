@@ -164,6 +164,7 @@ function refreshCompletionProviders(_: vscode.ExtensionContext) {
 	clearCompletionProviderInfo();
 
 	const completionProvider = new DefaultCompletionItemProvider();
+	const inlineCompletionProviderMetadata: vscode.InlineCompletionItemProviderMetadata = { meteredNetworkAware: true };
 	const inlineCompletionProvider: vscode.InlineCompletionItemProvider = {
 		async provideInlineCompletionItems(document: vscode.TextDocument, position: vscode.Position, _: vscode.InlineCompletionContext, token: vscode.CancellationToken) {
 			const items = await completionProvider.provideCompletionItems(document, position, token, { triggerCharacter: undefined, triggerKind: vscode.CompletionTriggerKind.Invoke });
@@ -200,7 +201,7 @@ function refreshCompletionProviders(_: vscode.ExtensionContext) {
 		}
 
 		if (useInlineCompletionProvider) {
-			const inlineCompletionsProvider = vscode.languages.registerInlineCompletionItemProvider({ language, scheme: '*' }, inlineCompletionProvider);
+			const inlineCompletionsProvider = vscode.languages.registerInlineCompletionItemProvider({ language, scheme: '*' }, inlineCompletionProvider, inlineCompletionProviderMetadata);
 			completionProviderDisposables.push(inlineCompletionsProvider);
 		}
 
@@ -213,7 +214,7 @@ function refreshCompletionProviders(_: vscode.ExtensionContext) {
 	Object.keys(LANGUAGE_MODES).forEach(language => {
 		if (!languageMappingForCompletionProviders.has(language)) {
 			if (useInlineCompletionProvider) {
-				const inlineCompletionsProvider = vscode.languages.registerInlineCompletionItemProvider({ language, scheme: '*' }, inlineCompletionProvider);
+				const inlineCompletionsProvider = vscode.languages.registerInlineCompletionItemProvider({ language, scheme: '*' }, inlineCompletionProvider, inlineCompletionProviderMetadata);
 				completionProviderDisposables.push(inlineCompletionsProvider);
 			}
 
