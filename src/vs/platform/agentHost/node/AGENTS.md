@@ -27,6 +27,30 @@ registry because tests and runtime-selected implementations need independent
 process-local roots. This does not prohibit using a child graph for a scoped
 subsystem.
 
+## Stability
+
+### Stable contracts
+
+These are the intended extension points for new work:
+
+- one primary runtime graph, with explicitly scoped child graphs allowed;
+- foundation, core-service, host-service, composition, contribution, and
+  entry-activation placement categories;
+- exact leading static arguments for descriptors;
+- eager startup resolution of registered service IDs;
+- collection sealing after bootstrap registration;
+- one disposal owner per object and phase-ordered runtime teardown;
+- typed test overrides that reuse the production core registration list.
+
+New services should follow these contracts. Do not add another exception merely
+because an existing exception looks convenient.
+
+### Accepted debt
+
+The items in [Known warts](#known-warts) are not target patterns. They remain
+because removing them requires a separate ownership or API refactoring. Each
+wart has an explicit exit condition; update this document when one is removed.
+
 ## Construction phases
 
 ```ts
@@ -126,17 +150,68 @@ The compatibility graph intentionally defaults to:
 
 Production and targeted graph tests still resolve the real implementations.
 
-## Known exceptions
+## Known warts
 
-- `AgentServiceCallbackAdapter` is the explicit late-binding seam for
-  responsibilities still owned by `AgentService`.
-- `AgentService.setWorktreeIsolation` is the sole post-composition
-  back-reference bridge. Production wires the host descriptor after
-  composition; the default test graph intentionally omits it.
-- State manager, configuration, authentication, and GitHub endpoint remain
-  concrete foundations because their constructor shapes or pre-telemetry
-  ordering are not descriptor-safe.
-- The `stateManager` getter on `AgentService` remains a test seam.
+### `AgentServiceCallbackAdapter`
+
+**Why it exists:** callback-dependent services are constructed before
+`AgentService`, while provider lookup, session restore, server-tool operations,
+and changeset liveness are still owned by `AgentService`.
+
+**Do not extend it by default:** a new callback usually means another
+responsibility should move to a narrower owning service.
+
+**Exit condition:** extract provider registry, session operations/restoration,
+working-directory resolution, turn dispatch, and subscription liveness so
+their consumers can inject those owners directly. Then delete the adapter and
+its binder contract.
+
+### `AgentService.setWorktreeIsolation`
+
+**Why it exists:** worktree isolation is a production host descriptor, but
+configuration, side effects, and customization enablement need its late
+back-reference after composition. The compatibility test graph historically
+runs without worktree isolation.
+
+**Do not add sibling setters:** ordinary construction-order dependencies belong
+in constructor injection.
+
+**Exit condition:** introduce a correctly typed host-facing worktree contract
+that can be injected without changing the default test graph, or relocate the
+pending-worktree state so the back-reference disappears.
+
+### Concrete foundation services
+
+State manager, configuration, authentication, GitHub endpoint, proxy, and
+request services are concrete foundations.
+
+**Why they exist:** some must precede telemetry; others have constructor shapes
+that are not descriptor-safe because non-service arguments follow decorated
+service arguments.
+
+**Exit condition:** a service may move to `agentHostServices.ts` when its
+constructor has leading static arguments only and no pre-telemetry ordering
+requirement. Moving one is optional cleanup, not a prerequisite for adding
+unrelated services.
+
+### Concrete customization enablement assertion
+
+Composition currently asserts that `IAgentHostCustomizationEnablementService`
+is the concrete implementation because `AgentService.setWorktreeIsolation`
+needs an API not exposed by the public service contract.
+
+**Exit condition:** widen or split the contract so the worktree bridge is typed
+without an `instanceof` assertion.
+
+### `AgentService.stateManager` getter
+
+**Why it exists:** the main AgentService suite still inspects orchestration state
+directly.
+
+**Do not use it in production code.**
+
+**Exit condition:** route those tests through the test graph/composition state
+manager, then remove the getter.
 
 ## Anti-patterns
 
