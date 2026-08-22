@@ -486,7 +486,16 @@ export class ExternalIngestIndex extends Disposable {
 							// On the first index or a large workspace, there might be a slight delay on the service
 							// before the index is actually ready. Workaround by retrying just once after a short delay.
 							await raceCancellationError(timeout(2000), token);
-							return await this._client.searchFilesets(filesetName, resolvedQuery, sizing.maxResultCountHint, callTracker, token);
+							try {
+								return await this._client.searchFilesets(filesetName, resolvedQuery, sizing.maxResultCountHint, callTracker, token);
+							} catch (retryErr) {
+								if (retryErr instanceof ExternalIngestRequestError && retryErr.response.status === 404) {
+									// The index is still not ready. This is an expected, benign state (not an
+									// error condition), so treat it as an empty result rather than throwing.
+									return undefined;
+								}
+								throw retryErr;
+							}
 						}
 						throw err;
 					}
