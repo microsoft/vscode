@@ -626,15 +626,9 @@ export class AgentHostGitService implements IAgentHostGitService {
 			return [];
 		}
 
-		// Keep only the ignored files that match one of the configured
-		// `git.worktreeIncludeFiles` glob patterns (VS Code glob semantics),
-		// and — in the same pass — tally which wholly-ignored directories
-		// contain an ignored file that cannot be copied (and therefore cannot be
-		// collapsed). `git ls-files --directory` reports a wholly-ignored
-		// directory as a single `dir/` entry and never nests these entries
-		// (it stops descending once a directory is wholly ignored), so each
-		// file has at most one containing directory and no de-duplication of
-		// the directory set is required.
+		// `git ls-files --directory` reports a wholly ignored directory as a
+		// single `dir/` entry and stops descending, so each ignored file has at
+		// most one containing directory in this set.
 		const matchers = globs.map(pattern => parse(pattern));
 		const wholeDirectories = new Set((directoryOutput ?? '')
 			.split('\x00').filter(entry => entry.endsWith('/')));
@@ -653,44 +647,17 @@ export class AgentHostGitService implements IAgentHostGitService {
 			}
 		}
 
-		const matchedFiles: string[] = [];
-		const nonCollapsibleDirectories = new Set<string>();
-		for (const file of ignoredFiles) {
-			if (
-				matchers.some(matcher => matcher(file)) &&
-				!hasWorktreePathCollision(file, worktreeFiles, worktreeDirectories)
-			) {
-				matchedFiles.push(file);
-			} else if (wholeDirectories.size > 0) {
-				const containingDirectory = findContainingDirectory(file, wholeDirectories);
-				if (containingDirectory !== undefined) {
-					nonCollapsibleDirectories.add(containingDirectory);
-				}
-			}
-		}
+		// Keep only ignored files selected by the configured globs whose
+		// destination in the worktree is free.
+		const matchedFiles = ignoredFiles.filter(file =>
+			matchers.some(matcher => matcher(file))
+			&& !hasWorktreePathCollision(file, worktreeFiles, worktreeDirectories));
 
 		if (matchedFiles.length === 0) {
 			return [];
 		}
 
-		// Collapse matched files into their containing directory when the whole
-		// directory can be copied as a single recursive unit — i.e. it is
-		// wholly ignored (so it has no tracked files a recursive copy would
-		// clobber) and every ignored file it contains matched a glob (so
-		// nothing unwanted is copied, tracked by `nonCollapsibleDirectories` above).
-		// This turns a large tree such as `node_modules/` into one copy instead
-		// of one per file, while a partially-matched or partially-tracked
-		// directory falls back to its individual matched files. `--directory`
-		// with `--no-empty-directory` never reports an empty directory, so every
-		// entry in `wholeDirectories` is known to contain at least one ignored file.
-		const collapsedDirectories = new Set<string>();
-		for (const dir of wholeDirectories) {
-			if (!nonCollapsibleDirectories.has(dir)) {
-				collapsedDirectories.add(dir);
-			}
-		}
-
-		return toWorktreeIncludeEntries(repositoryRoot, matchedFiles, collapsedDirectories);
+		return toWorktreeIncludeEntries(repositoryRoot, collapseWorktreeIncludePaths(ignoredFiles, matchedFiles, wholeDirectories));
 	}
 
 	async showBlob(workingDirectory: URI, ref: string, repoRelativePath: string): Promise<VSBuffer | undefined> {
@@ -1174,39 +1141,104 @@ interface IWorktreeIncludeEntry {
 	readonly fileCount: number;
 }
 
+interface IWorktreeIncludeCollapse {
+	readonly collapsedDirectories: ReadonlyMap<string, number>;
+	readonly standaloneFiles: readonly string[];
+}
+
+interface IWorktreeDirectoryTally {
+	ignored: number;
+	matched: number;
+}
+
+/**
+ * Collapses selected ignored files into the highest directories that can be
+ * copied recursively without including an unselected file.
+ *
+ * Git only reports the topmost wholly ignored directories. Tallies for every
+ * nested directory let a fully selected subtree still collapse when its
+ * reported parent also contains unselected build output.
+ */
+export function collapseWorktreeIncludePaths(ignoredFiles: readonly string[], matchedFiles: readonly string[], wholeDirectories: ReadonlySet<string>): IWorktreeIncludeCollapse {
+	if (wholeDirectories.size === 0) {
+		return { collapsedDirectories: new Map(), standaloneFiles: matchedFiles };
+	}
+
+	const tallies = new Map<string, IWorktreeDirectoryTally>();
+	const tally = (files: readonly string[], matched: boolean): void => {
+		for (const file of files) {
+			const wholeDirectory = findContainingDirectory(file, wholeDirectories);
+			if (wholeDirectory === undefined) {
+				continue;
+			}
+
+			let index = wholeDirectory.length - 1;
+			while (index !== -1) {
+				const directory = file.slice(0, index + 1);
+				let entry = tallies.get(directory);
+				if (!entry) {
+					entry = { ignored: 0, matched: 0 };
+					tallies.set(directory, entry);
+				}
+				if (matched) {
+					entry.matched++;
+				} else {
+					entry.ignored++;
+				}
+				index = file.indexOf('/', index + 1);
+			}
+		}
+	};
+	tally(ignoredFiles, false);
+	tally(matchedFiles, true);
+
+	const collapsed = new Set<string>();
+	// `--no-empty-directory` means missing tallies are unexpected, but retain
+	// the previous behavior of copying such a reported directory as one unit.
+	for (const directory of wholeDirectories) {
+		if (!tallies.has(directory)) {
+			collapsed.add(directory);
+		}
+	}
+
+	// Ancestors are shorter than descendants. Considering them first ensures
+	// that only the highest fully selected directory in a subtree is emitted.
+	const directories = [...tallies].sort(([a], [b]) => a.length - b.length);
+	for (const [directory, entry] of directories) {
+		if (
+			entry.matched > 0
+			&& entry.matched === entry.ignored
+			&& findContainingDirectory(directory.slice(0, -1), collapsed) === undefined
+		) {
+			collapsed.add(directory);
+		}
+	}
+
+	const collapsedDirectories = new Map<string, number>();
+	for (const directory of collapsed) {
+		collapsedDirectories.set(directory, tallies.get(directory)?.matched ?? 0);
+	}
+
+	return {
+		collapsedDirectories,
+		standaloneFiles: matchedFiles.filter(file => findContainingDirectory(file, collapsed) === undefined),
+	};
+}
+
 /**
  * Builds the entries to copy: one per collapsed directory, standing in for all
  * the matched files beneath it, plus one per matched file no collapsed
  * directory covers.
  */
-function toWorktreeIncludeEntries(repositoryRoot: URI, matchedFiles: readonly string[], collapsedDirectories: ReadonlySet<string>): IWorktreeIncludeEntry[] {
+function toWorktreeIncludeEntries(repositoryRoot: URI, collapse: IWorktreeIncludeCollapse): IWorktreeIncludeEntry[] {
 	const toEntry = (relativePath: string, fileCount: number): IWorktreeIncludeEntry => ({
 		sourcePath: path.join(repositoryRoot.fsPath, relativePath),
 		fileCount,
 	});
 
-	// Seeded with every collapsed directory so one is still emitted even if the
-	// tally below never reaches it.
-	const directoryFileCounts = new Map<string, number>();
-	for (const dir of collapsedDirectories) {
-		directoryFileCounts.set(dir, 0);
-	}
-
-	const fileEntries: IWorktreeIncludeEntry[] = [];
-	for (const file of matchedFiles) {
-		const containingDirectory = collapsedDirectories.size > 0
-			? findContainingDirectory(file, collapsedDirectories)
-			: undefined;
-		if (containingDirectory === undefined) {
-			fileEntries.push(toEntry(file, 1));
-		} else {
-			directoryFileCounts.set(containingDirectory, directoryFileCounts.get(containingDirectory)! + 1);
-		}
-	}
-
 	return [
-		...[...directoryFileCounts].map(([dir, fileCount]) => toEntry(dir, fileCount)),
-		...fileEntries,
+		...[...collapse.collapsedDirectories].map(([directory, fileCount]) => toEntry(directory, fileCount)),
+		...collapse.standaloneFiles.map(file => toEntry(file, 1)),
 	];
 }
 
