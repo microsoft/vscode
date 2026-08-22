@@ -189,7 +189,9 @@ suite('resolveSdkTarget', () => {
  * These run against whatever `process.platform` the test host is — the
  * pure `resolveSdkTarget` suite above covers the cross-host matrix.
  */
-suite('AgentSdkDownloader', () => {
+suite('AgentSdkDownloader', function () {
+	// I/O-bound integration tests (loopback download + extract) exceed the 2000ms default on slow Windows CI (microsoft/vscode-engineering#3401).
+	this.timeout(15_000);
 
 	const disposables = new DisposableStore();
 	teardown(() => disposables.clear());
