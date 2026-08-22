@@ -923,7 +923,6 @@ export class WorkspaceTrustEditor extends EditorPane {
 		// Configuration Tree
 		this.workspaceTrustedUrisTable.updateTable();
 
-		this.bodyScrollBar.getDomNode().style.height = `calc(100% - ${this.headerContainer.clientHeight}px)`;
 		this.bodyScrollBar.scanDomNode();
 		this.rendering = false;
 	}
