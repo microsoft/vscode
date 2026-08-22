@@ -18,7 +18,7 @@ import { MutableObservableWorkspace } from '../../../../platform/inlineEdits/com
 import { EditStreamingWithTelemetry, type IStatelessNextEditModelTelemetry, IStatelessNextEditProvider, NoNextEditReason, RequestEditWindow, RequestEditWindowWithCursorJump, StatelessNextEditRequest, StatelessNextEditTelemetryBuilder, WithStatelessProviderTelemetry } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { NesHistoryContextProvider } from '../../../../platform/inlineEdits/common/workspaceEditTracker/nesHistoryContextProvider';
 import { NesXtabHistoryTracker } from '../../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
-import { ILogger, ILogService, LogServiceImpl } from '../../../../platform/log/common/logService';
+import { ILogger, ILogService, ILogTarget, LogLevel, LogServiceImpl } from '../../../../platform/log/common/logService';
 import { IRequestLogger } from '../../../../platform/requestLogger/common/requestLogger';
 import { NullRequestLogger } from '../../../../platform/requestLogger/node/nullRequestLogger';
 import { ISnippyService, NullSnippyService } from '../../../../platform/snippy/common/snippyService';
@@ -247,6 +247,25 @@ function lineReplacement(lineNumberOneBased: number, newLine: string): LineRepla
 	return new LineReplacement(new LineRange(lineNumberOneBased, lineNumberOneBased + 1), [newLine]);
 }
 
+/** Snippy service whose post-insertion check always rejects, to exercise the fire-and-forget failure path. */
+class RejectingSnippyService implements ISnippyService {
+	declare _serviceBrand: undefined;
+	constructor(private readonly _error: Error) { }
+	public async handlePostInsertion(): Promise<void> {
+		throw this._error;
+	}
+}
+
+/** Log target that records error-level messages so tests can assert failures are logged. */
+class RecordingLogTarget implements ILogTarget {
+	public readonly errors: string[] = [];
+	logIt(level: LogLevel, metadataStr: string): void {
+		if (level === LogLevel.Error) {
+			this.errors.push(metadataStr);
+		}
+	}
+}
+
 describe('NextEditProvider speculative requests', () => {
 	let disposables: DisposableStore;
 	let configService: InMemoryConfigurationService;
@@ -390,6 +409,36 @@ describe('NextEditProvider speculative requests', () => {
 
 		expect(statelessProvider.calls.length).toBe(2);
 		expect(secondSuggestion.result.edit.newText).toBe('console.log(value + 1);');
+	});
+
+	it('consumes and logs a rejecting snippy post-insertion check on acceptance', async () => {
+		// Regression test for the fire-and-forget snippy call in `runSnippy`: a rejecting
+		// `ISnippyService.handlePostInsertion` must not surface as an unhandled rejection, and
+		// the failure must be routed to the log service instead.
+		const snippyError = new Error('Failed with status 400: source too short (must be at least 110 tokens, but is 105)');
+		snippyService = new RejectingSnippyService(snippyError);
+		const logTarget = new RecordingLogTarget();
+		logService = new LogServiceImpl([logTarget]);
+
+		const statelessProvider = new TestStatelessNextEditProvider();
+		statelessProvider.enqueueBehavior({ kind: 'yieldEditThenNoSuggestions', edit: lineReplacement(1, 'const value = 2;') });
+		const { nextEditProvider, workspace } = createProviderAndWorkspace(statelessProvider);
+
+		const doc = workspace.addDocument({
+			id: DocumentId.create(URI.file('/test/spec-snippy-reject.ts').toString()),
+			initialValue: 'const value = 1;\nconsole.log(value);',
+		});
+		doc.setSelection([new OffsetRange(0, 0)], undefined);
+
+		const suggestion = await getNextEdit(nextEditProvider, doc.id);
+		assert(suggestion.result?.edit);
+
+		nextEditProvider.handleAcceptance(doc.id, suggestion);
+		await flushMicrotasks();
+
+		expect(logTarget.errors.length).toBe(1);
+		expect(logTarget.errors[0]).toContain(snippyError.message);
+		expect(logTarget.errors[0]).toContain('Snippy post-insertion check failed');
 	});
 
 	it('cancels speculative request on rejection', async () => {
