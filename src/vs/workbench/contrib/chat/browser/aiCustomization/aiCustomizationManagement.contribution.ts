@@ -57,6 +57,7 @@ import {
 } from './aiCustomizationManagement.js';
 import { AICustomizationManagementEditor } from './aiCustomizationManagementEditor.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
+import './permissions/chatPermissions.contribution.js';
 
 //#region Telemetry
 

@@ -104,6 +104,10 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		AICustomizationManagementSection.Plugins,
 		AICustomizationManagementSection.Tools,
 		AICustomizationManagementSection.HarnessSettings,
+		// Shown only when `chat.customizations.permissions.enabled` is on; the editor filters them.
+		AICustomizationManagementSection.PermissionsTerminal,
+		AICustomizationManagementSection.PermissionsFiles,
+		AICustomizationManagementSection.PermissionsNetwork,
 	];
 
 	readonly isSessionsWindow = true;

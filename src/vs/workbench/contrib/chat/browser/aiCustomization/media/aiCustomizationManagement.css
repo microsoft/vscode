@@ -167,6 +167,26 @@
 	transition: background-color 0.1s ease, opacity 0.1s ease;
 }
 
+/* Group header separating the Customizations and Permissions sidebar groups. */
+.ai-customization-management-editor .sidebar-group-header {
+	display: flex;
+	align-items: flex-end;
+	padding: 8px 8px 2px 8px;
+	cursor: default;
+}
+
+.ai-customization-management-editor .monaco-list .monaco-list-row.sidebar-group-header:hover {
+	background-color: transparent;
+}
+
+.ai-customization-management-editor .sidebar-group-header-label {
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	color: var(--vscode-descriptionForeground);
+}
+
 .ai-customization-management-editor .section-list-item:hover {
 	background-color: var(--vscode-list-hoverBackground);
 }
@@ -342,7 +362,8 @@
 
 /* Search and button container - consistent with Models view */
 .ai-customization-list-widget .list-search-and-button-container,
-.mcp-list-widget .list-search-and-button-container {
+.mcp-list-widget .list-search-and-button-container,
+.chat-permissions-section .list-search-and-button-container {
 	display: flex;
 	align-items: center;
 	gap: 8px;
@@ -351,12 +372,14 @@
 }
 
 .ai-customization-list-widget .list-search-container,
-.mcp-list-widget .list-search-container {
+.mcp-list-widget .list-search-container,
+.chat-permissions-section .list-search-container {
 	flex: 1;
 }
 
 .ai-customization-list-widget .list-search-container .monaco-inputbox,
-.mcp-list-widget .list-search-container .monaco-inputbox {
+.mcp-list-widget .list-search-container .monaco-inputbox,
+.chat-permissions-section .list-search-container .monaco-inputbox {
 	width: 100%;
 }
 
@@ -389,7 +412,8 @@
 
 /* Empty state - engaging design */
 .ai-customization-list-widget .list-empty-state,
-.ai-customization-management-editor .tools-list-widget .list-empty-state {
+.ai-customization-management-editor .tools-list-widget .list-empty-state,
+.chat-permissions-section .list-empty-state {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
@@ -401,14 +425,16 @@
 }
 
 .ai-customization-list-widget .list-empty-state .empty-state-text,
-.ai-customization-management-editor .tools-list-widget .list-empty-state .empty-state-text {
+.ai-customization-management-editor .tools-list-widget .list-empty-state .empty-state-text,
+.chat-permissions-section .list-empty-state .empty-state-text {
 	font-size: 16px;
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 }
 
 .ai-customization-list-widget .list-empty-state .empty-state-subtext,
-.ai-customization-management-editor .tools-list-widget .list-empty-state .empty-state-subtext {
+.ai-customization-management-editor .tools-list-widget .list-empty-state .empty-state-subtext,
+.chat-permissions-section .list-empty-state .empty-state-subtext {
 	font-size: var(--vscode-agents-fontSize-body1);
 	color: var(--vscode-descriptionForeground);
 	max-width: 250px;
@@ -684,14 +710,16 @@ per-word capitalization does not survive translation. */
 /* Section title header at top of list widget (shared by all list widgets) */
 .ai-customization-list-widget .section-title-header,
 .mcp-list-widget .section-title-header,
-.ai-customization-management-editor .tools-list-widget .section-title-header {
+.ai-customization-management-editor .tools-list-widget .section-title-header,
+.chat-permissions-section .section-title-header {
 	flex-shrink: 0;
 	padding: 0;
 }
 
 .ai-customization-list-widget .section-title-header .section-title-row,
 .mcp-list-widget .section-title-header .section-title-row,
-.ai-customization-management-editor .tools-list-widget .section-title-header .section-title-row {
+.ai-customization-management-editor .tools-list-widget .section-title-header .section-title-row,
+.chat-permissions-section .section-title-header .section-title-row {
 	display: flex;
 	align-items: center;
 	gap: 6px;
@@ -711,7 +739,8 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-list-widget .section-title-header .section-title,
 .mcp-list-widget .section-title-header .section-title,
-.ai-customization-management-editor .tools-list-widget .section-title-header .section-title {
+.ai-customization-management-editor .tools-list-widget .section-title-header .section-title,
+.chat-permissions-section .section-title-header .section-title {
 	font-size: var(--vscode-agents-fontSize-heading2);
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	margin: 0;
@@ -720,7 +749,8 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-list-widget .section-title-header .section-title-description,
 .mcp-list-widget .section-title-header .section-title-description,
-.ai-customization-management-editor .tools-list-widget .section-title-header .section-title-description {
+.ai-customization-management-editor .tools-list-widget .section-title-header .section-title-description,
+.chat-permissions-section .section-title-header .section-title-description {
 	font-size: var(--vscode-agents-fontSize-body1);
 	line-height: 1.45;
 	color: var(--vscode-descriptionForeground);
@@ -735,7 +765,8 @@ per-word capitalization does not survive translation. */
 .ai-customization-list-widget .section-title-header .section-title-link,
 .ai-customization-management-editor .prompt-migration-content-container > .section-title-link,
 .mcp-list-widget .section-title-header .section-title-link,
-.ai-customization-management-editor .tools-list-widget .section-title-header .section-title-link {
+.ai-customization-management-editor .tools-list-widget .section-title-header .section-title-link,
+.chat-permissions-section .section-title-header .section-title-link {
 	font-size: var(--vscode-agents-fontSize-body1);
 	/* Match the description's line-height so the link's inline-flex line-box */
 	/* does not change the total header height between sections. */
@@ -751,7 +782,8 @@ per-word capitalization does not survive translation. */
 .ai-customization-list-widget .section-title-header .section-title-link:hover,
 .ai-customization-management-editor .prompt-migration-content-container > .section-title-link:hover,
 .mcp-list-widget .section-title-header .section-title-link:hover,
-.ai-customization-management-editor .tools-list-widget .section-title-header .section-title-link:hover {
+.ai-customization-management-editor .tools-list-widget .section-title-header .section-title-link:hover,
+.chat-permissions-section .section-title-header .section-title-link:hover {
 	text-decoration: underline;
 }
 
@@ -871,7 +903,9 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .mcp-content-container,
 .ai-customization-management-editor .plugin-content-container,
 .ai-customization-management-editor .models-content-container,
-.ai-customization-management-editor .tools-content-container {
+.ai-customization-management-editor .tools-content-container,
+/* Unlike the containers above, this class belongs to the permissions widget itself and is listed without an ancestor, so the widget carries its own panel chrome and can render standalone (e.g. in a component fixture). */
+.chat-permissions-section {
 	height: 100%;
 	display: flex;
 	flex-direction: column;
