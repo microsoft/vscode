@@ -397,6 +397,7 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly onDidKeyCommand: Event<IBrowserViewKeyDownEvent>;
 	readonly onDidChangeTitle: Event<IBrowserViewTitleChangeEvent>;
 	readonly onDidChangeFavicon: Event<IBrowserViewFaviconChangeEvent>;
+	readonly onDidChangeOwner: Event<IBrowserViewOwner>;
 	readonly onDidFindInPage: Event<IBrowserViewFindInPageResult>;
 	readonly onDidChangeVisibility: Event<IBrowserViewVisibilityEvent>;
 	readonly onDidClose: Event<void>;
@@ -423,6 +424,7 @@ export interface IBrowserViewModel extends IDisposable {
 	stopFindInPage(keepSelection?: boolean): Promise<void>;
 	getSelectedText(): Promise<string>;
 	clearStorage(): Promise<void>;
+	setOwner(owner: IBrowserViewOwner): Promise<void>;
 	setSharedWithAgent(shared: boolean): Promise<boolean>;
 	trustCertificate(host: string, fingerprint: string): Promise<void>;
 	untrustCertificate(host: string, fingerprint: string): Promise<void>;
@@ -441,6 +443,7 @@ export interface IBrowserViewModel extends IDisposable {
 
 export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _url: string = '';
+	private _owner: IBrowserViewOwner;
 	private _title: string = '';
 	private _favicon: string | undefined = undefined;
 	private _screenshot: VSBuffer | undefined = undefined;
@@ -482,7 +485,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	constructor(
 		readonly id: string,
-		readonly owner: IBrowserViewOwner,
+		owner: IBrowserViewOwner,
 		readonly associatedResource: URI | undefined,
 		initialState: IBrowserViewState,
 		private readonly browserViewService: IBrowserViewService,
@@ -495,6 +498,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
+		this._owner = owner;
 
 		// Initialize state
 		this._url = initialState.url;
@@ -597,6 +601,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 			this._favicon = e.favicon;
 		}));
 
+		this._register(this.onDidChangeOwner(owner => {
+			this._owner = owner;
+		}));
+
 		this._register(this.onDidChangeFocus(({ focused }) => {
 			this._focused = focused;
 		}));
@@ -637,6 +645,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	}
 
 	get url(): string { return this._url; }
+	get owner(): IBrowserViewOwner { return this._owner; }
 	get title(): string { return this._title; }
 	get favicon(): string | undefined { return this._favicon; }
 	get loading(): boolean { return this._loading; }
@@ -689,6 +698,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	get onDidChangeFavicon(): Event<IBrowserViewFaviconChangeEvent> {
 		return this.browserViewService.onDynamicDidChangeFavicon(this.id);
+	}
+
+	get onDidChangeOwner(): Event<IBrowserViewOwner> {
+		return this.browserViewService.onDynamicDidChangeOwner(this.id);
 	}
 
 	get onDidFindInPage(): Event<IBrowserViewFindInPageResult> {
@@ -781,6 +794,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	async clearStorage(): Promise<void> {
 		return this.browserViewService.clearStorage(this.id);
+	}
+
+	async setOwner(owner: IBrowserViewOwner): Promise<void> {
+		return this.browserViewService.setOwner(this.id, owner);
 	}
 
 	async trustCertificate(host: string, fingerprint: string): Promise<void> {

@@ -505,6 +505,7 @@ export interface IBrowserViewService {
 	onDynamicDidKeyCommand(id: string): Event<IBrowserViewKeyDownEvent>;
 	onDynamicDidChangeTitle(id: string): Event<IBrowserViewTitleChangeEvent>;
 	onDynamicDidChangeFavicon(id: string): Event<IBrowserViewFaviconChangeEvent>;
+	onDynamicDidChangeOwner(id: string): Event<IBrowserViewOwner>;
 	onDynamicDidFindInPage(id: string): Event<IBrowserViewFindInPageResult>;
 	onDynamicDidClose(id: string): Event<void>;
 	onDynamicDidSelectElement(id: string): Event<IElementData>;
@@ -536,6 +537,11 @@ export interface IBrowserViewService {
 	 * @param id The browser view identifier
 	 */
 	destroyBrowserView(id: string): Promise<void>;
+
+	/**
+	 * Update the owner of an existing browser view.
+	 */
+	setOwner(id: string, owner: IBrowserViewOwner): Promise<void>;
 
 	/**
 	 * Get the state of an existing browser view by ID, or throw if it doesn't exist
