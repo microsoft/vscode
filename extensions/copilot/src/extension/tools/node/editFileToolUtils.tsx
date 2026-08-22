@@ -715,6 +715,7 @@ const ALWAYS_CHECKED_EDIT_PATTERNS: Readonly<Record<string, boolean>> = {
 	// the agent lifecycle, so writing them must always be confirmed.
 	'**/.github/agents/**': false,
 	'**/.claude/agents/**': false,
+	'**/.agents/agents/**': false,
 };
 
 const allPlatformPatterns: (glob.ParsedPattern | string)[] = [

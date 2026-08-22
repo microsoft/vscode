@@ -255,6 +255,7 @@ suite('SessionPermissionManager', () => {
 			join('.claude', 'agents', 'dev-helper.md'),
 			join('.claude', 'settings.json'),
 			join('.claude', 'settings.local.json'),
+			join('.agents', 'agents', 'dev-helper.md'),
 		];
 		const results: (ToolCallConfirmationReason | undefined)[] = [];
 		for (const file of files) {
