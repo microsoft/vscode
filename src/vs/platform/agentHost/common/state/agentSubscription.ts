@@ -474,28 +474,30 @@ export class ChatStateSubscription extends BaseAgentSubscription<ChatState> {
 				this._confirmedApply(envelope.action);
 			}
 		} else if (!envelope.rejectionReason) {
-			this._promotePendingTurnStartIfTerminal(envelope.action);
+			this._promotePendingTurnStart(envelope.action);
 			this._confirmedApply(envelope.action);
 		}
 		this._recomputeOptimistic();
 	}
 
-	private _promotePendingTurnStartIfTerminal(action: StateAction): void {
-		// A backend-originated terminal turn action may arrive without the clientSeq
-		// that would normally confirm our optimistic turn start. Promote that start
-		// first so the terminal action can close it instead of leaving it pending.
+	/**
+	 * Confirms an optimistic turn start from the first backend action naming its
+	 * turn, since a backend-originated action may arrive without our clientSeq.
+	 */
+	private _promotePendingTurnStart(action: StateAction): void {
 		if (!isChatAction(action)) {
 			return;
 		}
-		if (action.type !== ActionType.ChatTurnComplete && action.type !== ActionType.ChatTurnCancelled && action.type !== ActionType.ChatError) {
+		const turnId = 'turnId' in action ? action.turnId : undefined;
+		if (turnId === undefined) {
 			return;
 		}
-		const index = this._pendingActions.findIndex(p => p.action.type === ActionType.ChatTurnStarted && p.action.turnId === action.turnId);
+		const index = this._pendingActions.findIndex(p => p.action.type === ActionType.ChatTurnStarted && p.action.turnId === turnId);
 		if (index === -1) {
 			return;
 		}
 		const [{ action: pendingAction }] = this._pendingActions.splice(index, 1);
-		if (this._confirmedState && (!this._confirmedState.activeTurn || this._confirmedState.activeTurn.id !== action.turnId)) {
+		if (this._confirmedState && (!this._confirmedState.activeTurn || this._confirmedState.activeTurn.id !== turnId)) {
 			this._confirmedState = this._applyReducer(this._confirmedState, pendingAction);
 		}
 	}
