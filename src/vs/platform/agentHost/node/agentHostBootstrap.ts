@@ -28,6 +28,7 @@ import { IAgentHostCustomizationEnablementService } from './agentHostCustomizati
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { AgentService, IAgentServiceOptions } from './agentService.js';
 import { createAgentServiceComposition } from './agentServiceComposition.js';
+import { activateAgentHostContributions } from './agentHostContributions.js';
 import { createAgentServiceFoundation } from './agentServiceFoundation.js';
 import { AgentHostServiceCollection, instantiateAgentHostServices, registerAgentHostCoreServices, registerAgentHostHostServices } from './agentHostServices.js';
 import { IAgentHostWorktreeIsolation, WorktreeIsolation } from './shared/worktreeIsolation.js';
@@ -107,8 +108,8 @@ class AgentHostRuntime extends Disposable implements IAgentHostRuntime {
 		this.agentSdkDownloader = runtime.agentSdkDownloader;
 		this.sdkDownloadProgress = runtime.sdkDownloadProgress;
 		this._register(runtime.agentService);
-		this._register(infrastructure);
 		this._register(runtime.instantiationService);
+		this._register(infrastructure);
 	}
 }
 
@@ -194,6 +195,7 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 			sessionDataService,
 			foundation,
 		));
+		agentServiceComposition.setContributions(instantiationService.invokeFunction(accessor => activateAgentHostContributions(accessor, instantiationService!)));
 		agentService = agentServiceComposition.agentService;
 		const { configurationService } = agentServiceComposition;
 		const worktreeIsolation = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostWorktreeIsolation));

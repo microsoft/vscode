@@ -22,6 +22,7 @@ import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from '../..
 import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { AgentService } from '../../node/agentService.js';
 import { createAgentServiceComposition, type IAgentServiceComposition } from '../../node/agentServiceComposition.js';
+import { activateAgentHostContributions } from '../../node/agentHostContributions.js';
 import { createAgentServiceFoundation } from '../../node/agentServiceFoundation.js';
 import { AgentHostServiceCollection, instantiateAgentHostServices, registerAgentHostCoreServices } from '../../node/agentHostServices.js';
 import { ICopilotApiService } from '../../node/shared/copilotApiService.js';
@@ -110,6 +111,7 @@ export function createTestAgentService(
 		foundation,
 		fileMonitorService ? [instantiationService, foundationDisposables] : [effectiveFileMonitorService, instantiationService, foundationDisposables],
 	));
+	composition.setContributions(instantiationService.invokeFunction(accessor => activateAgentHostContributions(accessor, instantiationService)));
 	compositions.set(composition.agentService, composition);
 	return composition.agentService;
 }

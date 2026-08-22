@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Event } from '../../../base/common/event.js';
-import { DisposableStore, type IDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableStore, type IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import type { IObservable } from '../../../base/common/observable.js';
 import { dirname, joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
@@ -21,28 +21,18 @@ import { ISessionDataService } from '../common/sessionDataService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { AgentHostChangesetCoordinator } from './agentHostChangesetCoordinator.js';
-import { AgentHostChatCompletionProvider } from './agentHostChatCompletionProvider.js';
-import { AgentHostCommitOperationContribution } from './agentHostCommitOperationProvider.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
 import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
-import { AgentHostDiscardChangesOperationContribution } from './agentHostDiscardChangesOperationProvider.js';
 import { AgentHostDebugLogsCollector } from './agentHostDebugLogs.js';
 import { AgentHostDatabase } from './agentHostDatabase.js';
-import { AgentHostFileCompletionProvider } from './agentHostFileCompletionProvider.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
-import { AgentHostMergeOperationContribution } from './agentHostMergeOperationProvider.js';
-import { AgentHostPullRequestOperationContribution } from './agentHostPullRequestOperationProvider.js';
-import { AgentHostRenameCompletionProvider } from './agentHostRenameCommand.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
-import { AgentHostSyncOperationContribution } from './agentHostSyncOperationProvider.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
-import { AgentHostWorkspaceFiles } from './agentHostWorkspaceFiles.js';
 import { AgentMergeController } from './agentMergeController.js';
 import { AgentMergeTools } from './agentMergeTools.js';
 import { AgentService, type IAgentServiceCollaborators, type IAgentServiceCore, type IAgentServiceOptions } from './agentService.js';
 import { AgentSessionRegistry } from './agentSessionRegistry.js';
 import { AgentSideEffects } from './agentSideEffects.js';
-import { CodexCompactCompletionProvider } from './codexCompactCommand.js';
 import { SessionCoordinationService } from './sessionCoordination.js';
 import { AgentServerToolHost } from './shared/agentServerToolHost.js';
 import { buildServerToolGroups } from './shared/serverToolGroups.js';
@@ -60,6 +50,7 @@ export interface IAgentServiceComposition {
 	readonly completions: IAgentHostCompletions;
 	readonly agents: IObservable<readonly IAgent[]>;
 	readonly onDidStartTurn: Event<string>;
+	setContributions(contributions: IDisposable): void;
 }
 
 /**
@@ -82,6 +73,7 @@ export function createAgentServiceComposition(
 	additionalDisposables: readonly IDisposable[] = [],
 ): IAgentServiceComposition {
 	const owned = new DisposableStore();
+	const contributions = owned.add(new MutableDisposable<IDisposable>());
 	let agentService: AgentService | undefined;
 	try {
 		const databasePath = options.rootConfigResource
@@ -123,22 +115,8 @@ export function createAgentServiceComposition(
 		const changesets = accessor.get(IAgentHostChangesetService);
 		const changesetCoordinator = owned.add(instantiationService.createInstance(AgentHostChangesetCoordinator));
 		owned.add(stateManager.onDidChangeSessionActiveTurn(event => changesetCoordinator.onSessionTurnActiveChanged(event.session, event.active)));
-		owned.add(changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostCommitOperationContribution)));
-		owned.add(changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostPullRequestOperationContribution)));
-		owned.add(changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostMergeOperationContribution)));
-		owned.add(changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostSyncOperationContribution)));
-		owned.add(changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostDiscardChangesOperationContribution)));
 
 		const completions = accessor.get(IAgentHostCompletions);
-		const workspaceFiles = owned.add(instantiationService.createInstance(AgentHostWorkspaceFiles));
-		owned.add(completions.registerProvider(new AgentHostFileCompletionProvider(stateManager, workspaceFiles, logService)));
-		owned.add(completions.registerProvider(new AgentHostChatCompletionProvider(stateManager)));
-		owned.add(completions.registerProvider(new AgentHostRenameCompletionProvider(
-			session => (stateManager.getSessionState(session)?.turns.length ?? 0) > 0,
-		)));
-		owned.add(completions.registerProvider(new CodexCompactCompletionProvider(
-			session => (stateManager.getSessionState(session)?.turns.length ?? 0) > 0,
-		)));
 
 		const terminalManager = accessor.get(IAgentHostTerminalManager);
 		const localTurns = new AgentHostLocalTurns(sessionDataService, logService);
@@ -225,6 +203,12 @@ export function createAgentServiceComposition(
 			completions,
 			agents,
 			onDidStartTurn: sideEffects.onDidStartTurn,
+			setContributions: value => {
+				if (contributions.value) {
+					throw new Error('Agent Host contributions have already been set');
+				}
+				contributions.value = value;
+			},
 		};
 	} catch (error) {
 		if (agentService) {
