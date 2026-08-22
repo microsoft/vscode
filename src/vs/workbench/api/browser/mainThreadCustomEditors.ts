@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { toAction } from '../../../base/common/actions.js';
 import { multibyteAwareBtoa } from '../../../base/common/strings.js';
 import { CancelablePromise, createCancelablePromise, DeferredPromise } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
@@ -25,7 +26,7 @@ import { IUndoRedoService, UndoRedoElementType } from '../../../platform/undoRed
 import { MainThreadWebviewPanels } from './mainThreadWebviewPanels.js';
 import { MainThreadWebviews, reviveWebviewExtension } from './mainThreadWebviews.js';
 import * as extHostProtocol from '../common/extHost.protocol.js';
-import { IRevertOptions, ISaveOptions } from '../../common/editor.js';
+import { createEditorOpenError, DEFAULT_EDITOR_ASSOCIATION, IRevertOptions, ISaveOptions } from '../../common/editor.js';
 import { CustomEditorDiffInput, CustomEditorSideBySideDiffInput } from '../../contrib/customEditor/browser/customEditorDiffInput.js';
 import { CustomEditorInput } from '../../contrib/customEditor/browser/customEditorInput.js';
 import { CustomDocumentBackupData } from '../../contrib/customEditor/browser/customEditorInputFactory.js';
@@ -54,6 +55,10 @@ const enum CustomEditorModelType {
 }
 
 type CustomEditorWebviewInput = CustomEditorInput | CustomEditorDiffInput | CustomEditorSideBySideDiffInput;
+
+function isCustomEditorWebviewInput(input: WebviewInput): input is CustomEditorWebviewInput {
+	return input instanceof CustomEditorInput || input instanceof CustomEditorDiffInput || input instanceof CustomEditorSideBySideDiffInput;
+}
 
 interface CustomEditorDiffInitData {
 	readonly title: string;
@@ -122,15 +127,46 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 			return matchedWorkingCopies;
 		}));
 
-		// This reviver's only job is to activate custom editor extensions.
+		// Activate custom editor extensions before attempting to restore their editors.
 		this._register(_webviewWorkbenchService.registerResolver({
 			canResolve: (webview: WebviewInput) => {
-				if (webview instanceof CustomEditorInput || webview instanceof CustomEditorDiffInput || webview instanceof CustomEditorSideBySideDiffInput) {
-					extensionService.activateByEvent(`onCustomEditor:${webview.viewType}`);
-				}
-				return false;
+				return isCustomEditorWebviewInput(webview) && !this._customEditorService.getCustomEditorCapabilities(webview.viewType);
 			},
-			resolveWebview: () => { throw new Error('not implemented'); }
+			resolveWebview: async (webview, cancellation) => {
+				if (!isCustomEditorWebviewInput(webview)) {
+					return;
+				}
+
+				await extensionService.activateByEvent(`onCustomEditor:${webview.viewType}`);
+				if (cancellation.isCancellationRequested) {
+					return;
+				}
+
+				if (this._customEditorService.getCustomEditorCapabilities(webview.viewType)) {
+					return this._webviewWorkbenchService.resolveWebview(webview, cancellation);
+				}
+
+				throw createEditorOpenError(localize('customEditorUnavailable', "Cannot open resource with custom editor type '{0}'. Make sure its extension is installed and enabled.", webview.viewType), [
+					toAction({
+						id: 'workbench.customEditor.openWithDefault',
+						label: localize('customEditorOpenWithDefault', "Open with Default Editor"),
+						run: async () => {
+							const replacement = webview.toUntyped();
+							if (!replacement || typeof webview.group !== 'number') {
+								return;
+							}
+
+							await this._editorService.replaceEditors([{
+								editor: webview,
+								replacement: {
+									...replacement,
+									options: { ...replacement.options, override: DEFAULT_EDITOR_ASSOCIATION.id }
+								}
+							}], webview.group);
+						}
+					})
+				], { forceMessage: true });
+			}
 		}));
 
 		// Working copy operations
