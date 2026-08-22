@@ -209,6 +209,10 @@ import './contrib/keybindingsExport/electron-browser/keybindingsExport.contribut
 // System-wide (OS global) Keybindings
 import './contrib/keybindings/electron-browser/systemWideKeybindings.contribution.js';
 
+// Virtual Machines (GitCortex)
+import './contrib/virtualMachines/browser/virtualMachines.contribution.js';
+import './contrib/virtualMachines/electron-browser/virtualMachines.electron.contribution.js';
+
 //#endregion
 
 

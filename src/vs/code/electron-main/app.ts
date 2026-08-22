@@ -36,6 +36,8 @@ import { DiagnosticsMainService, IDiagnosticsMainService } from '../../platform/
 import { DialogMainService, IDialogMainService } from '../../platform/dialogs/electron-main/dialogMainService.js';
 import { IEncryptionMainService } from '../../platform/encryption/common/encryptionService.js';
 import { EncryptionMainService } from '../../platform/encryption/electron-main/encryptionMainService.js';
+import { IVirtualMachinesService, VirtualMachinesServiceChannelName } from '../../platform/virtualMachines/common/virtualMachines.js';
+import { VirtualMachinesMainService } from '../../platform/virtualMachines/electron-main/virtualMachinesMainService.js';
 import { ipcBrowserViewChannelName } from '../../platform/browserView/common/browserView.js';
 import { ipcBrowserViewGroupChannelName } from '../../platform/browserView/common/browserViewGroup.js';
 import { BrowserViewMainService, IBrowserViewMainService } from '../../platform/browserView/electron-main/browserViewMainService.js';
@@ -1198,6 +1200,9 @@ export class CodeApplication extends Disposable {
 		// Encryption
 		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService));
 
+		// Virtual Machines
+		services.set(IVirtualMachinesService, new SyncDescriptor(VirtualMachinesMainService));
+
 		// Browser View
 		services.set(IBrowserViewMainService, new SyncDescriptor(BrowserViewMainService, undefined, false /* proxied to other processes */));
 		services.set(IBrowserViewGroupMainService, new SyncDescriptor(BrowserViewGroupMainService, undefined, false /* proxied to other processes */));
@@ -1368,6 +1373,10 @@ export class CodeApplication extends Disposable {
 		// Encryption
 		const encryptionChannel = ProxyChannel.fromService(accessor.get(IEncryptionMainService), disposables);
 		mainProcessElectronServer.registerChannel('encryption', encryptionChannel);
+
+		// Virtual Machines
+		const virtualMachinesChannel = ProxyChannel.fromService(accessor.get(IVirtualMachinesService), disposables);
+		mainProcessElectronServer.registerChannel(VirtualMachinesServiceChannelName, virtualMachinesChannel);
 
 		// Browser View
 		const browserViewChannel = ProxyChannel.fromService(accessor.get(IBrowserViewMainService), disposables);

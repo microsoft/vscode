@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { session } from 'electron';
+import { readFile } from 'fs/promises';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { COI, FileAccess, Schemas, CacheControlheaders, DocumentPolicyheaders } from '../../../base/common/network.js';
 import { basename, extname, normalize } from '../../../base/common/path.js';
@@ -18,6 +19,27 @@ import { IIPCObjectUrl, IProtocolMainService } from './protocol.js';
 import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
 
 type ProtocolCallback = { (result: string | Electron.FilePathWithHeaders | { error: number }): void };
+
+// Content type lookup for the resources the vscode-file:// protocol serves.
+const mimeTypes = new Map<string, string>([
+	['.js', 'text/javascript'],
+	['.mjs', 'text/javascript'],
+	['.css', 'text/css'],
+	['.html', 'text/html'],
+	['.json', 'application/json'],
+	['.svg', 'image/svg+xml'],
+	['.png', 'image/png'],
+	['.jpg', 'image/jpeg'],
+	['.jpeg', 'image/jpeg'],
+	['.gif', 'image/gif'],
+	['.bmp', 'image/bmp'],
+	['.webp', 'image/webp'],
+	['.mp4', 'video/mp4'],
+	['.otf', 'font/otf'],
+	['.ttf', 'font/ttf'],
+	['.wasm', 'application/wasm'],
+	['.map', 'application/json']
+]);
 
 export class ProtocolMainService extends Disposable implements IProtocolMainService {
 
@@ -49,15 +71,19 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 	private handleProtocols(): void {
 		const { defaultSession } = session;
 
-		// Register vscode-file:// handler
-		defaultSession.protocol.registerFileProtocol(Schemas.vscodeFileResource, (request, callback) => this.handleResourceRequest(request, callback));
+		// Register vscode-file:// handler. The legacy callback-based
+		// `registerFileProtocol` API fails with `net::ERR_FAILED` for module
+		// script requests on Electron 42 in some environments (observed with
+		// many concurrent large file loads), so the modern `protocol.handle`
+		// API is used instead.
+		defaultSession.protocol.handle(Schemas.vscodeFileResource, request => this.handleResourceRequest(request));
 
 		// Block any file:// access
 		defaultSession.protocol.interceptFileProtocol(Schemas.file, (request, callback) => this.handleFileRequest(request, callback));
 
 		// Cleanup
 		this._register(toDisposable(() => {
-			defaultSession.protocol.unregisterProtocol(Schemas.vscodeFileResource);
+			defaultSession.protocol.unhandle(Schemas.vscodeFileResource);
 			defaultSession.protocol.uninterceptProtocol(Schemas.file);
 		}));
 	}
@@ -91,7 +117,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 
 	//#region vscode-file://
 
-	private handleResourceRequest(request: Electron.ProtocolRequest, callback: ProtocolCallback): void {
+	private async handleResourceRequest(request: Request): Promise<Response> {
 		const path = this.requestToNormalizedFilePath(request);
 		const pathBasename = basename(path);
 
@@ -124,22 +150,33 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 		}
 
 		// first check by validRoots
-		if (this.validRoots.findSubstr(path)) {
-			return callback({ path, headers });
+		if (!this.validRoots.findSubstr(path)) {
+			// then check by validExtensions
+			if (!this.validExtensions.has(extname(path).toLowerCase())) {
+				// finally block to load the resource
+				this.logService.error(`${Schemas.vscodeFileResource}: Refused to load resource ${path} from ${Schemas.vscodeFileResource}: protocol (original URL: ${request.url})`);
+
+				return new Response(null, { status: 403 });
+			}
 		}
 
-		// then check by validExtensions
-		if (this.validExtensions.has(extname(path).toLowerCase())) {
-			return callback({ path, headers });
+		try {
+			const data = await readFile(path);
+
+			return new Response(new Uint8Array(data), {
+				headers: {
+					'content-type': mimeTypes.get(extname(path).toLowerCase()) || 'application/octet-stream',
+					...headers
+				}
+			});
+		} catch (error) {
+			this.logService.error(`${Schemas.vscodeFileResource}: Failed to load resource ${path} from ${Schemas.vscodeFileResource}: protocol (original URL: ${request.url})`, error);
+
+			return new Response(null, { status: 404 });
 		}
-
-		// finally block to load the resource
-		this.logService.error(`${Schemas.vscodeFileResource}: Refused to load resource ${path} from ${Schemas.vscodeFileResource}: protocol (original URL: ${request.url})`);
-
-		return callback({ error: -3 /* ABORTED */ });
 	}
 
-	private requestToNormalizedFilePath(request: Electron.ProtocolRequest): string {
+	private requestToNormalizedFilePath(request: Request): string {
 
 		// 1.) Use `URI.parse()` util from us to convert the raw
 		//     URL into our URI.

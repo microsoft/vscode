@@ -5,14 +5,14 @@ Depends: @@DEPENDS@@
 Recommends: @@RECOMMENDS@@
 Priority: optional
 Architecture: @@ARCHITECTURE@@
-Maintainer: Microsoft Corporation <vscode-linux@microsoft.com>
-Homepage: https://code.visualstudio.com/
+Maintainer: GitCortex Studio <gitcortex@users.noreply.github.com>
+Homepage: https://github.com/Frankenstein-dev197/vscode
 Installed-Size: @@INSTALLEDSIZE@@
 Provides: visual-studio-@@NAME@@
 Conflicts: visual-studio-@@NAME@@
 Replaces: visual-studio-@@NAME@@
-Description: Code editing. Redefined.
- Visual Studio Code is a new choice of tool that combines the simplicity of
- a code editor with what developers need for the core edit-build-debug cycle.
- See https://code.visualstudio.com/docs/setup/linux for installation
- instructions and FAQ.
+Description: Code editing, reimagined.
+ GitCortex Studio is a professional desktop code editor built on the
+ open-source Code-OSS / VS Code platform (MIT licensed). It combines a
+ fast, familiar editing experience with a neural-assisted workflow for
+ the core edit-build-debug cycle.

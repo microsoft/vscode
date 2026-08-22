@@ -1,0 +1,99 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.virtual-machines-view {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 4px;
+}
+
+.virtual-machines-view .virtual-machines-environment-banner {
+	padding: 8px;
+	border-radius: 4px;
+	background: var(--vscode-inputValidation-warningBackground);
+	border: 1px solid var(--vscode-inputValidation-warningBorder);
+	color: var(--vscode-foreground);
+	font-size: 12px;
+	white-space: pre-wrap;
+}
+
+.virtual-machines-view .virtual-machines-cards {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.virtual-machines-view .virtual-machine-card {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	padding: 10px;
+	border-radius: 6px;
+	background: var(--vscode-sideBarSectionHeader-background);
+	border: 1px solid var(--vscode-widget-border, transparent);
+}
+
+.virtual-machines-view .virtual-machine-card-header {
+	display: flex;
+	align-items: center;
+}
+
+.virtual-machines-view .virtual-machine-name {
+	font-weight: 600;
+	font-size: 13px;
+}
+
+.virtual-machines-view .virtual-machine-state {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 12px;
+}
+
+.virtual-machines-view .virtual-machine-state-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: var(--vscode-disabledForeground);
+}
+
+.virtual-machines-view .virtual-machine-state-dot.state-running {
+	background: var(--vscode-testing-iconPassed);
+}
+
+.virtual-machines-view .virtual-machine-state-dot.state-starting,
+.virtual-machines-view .virtual-machine-state-dot.state-stopping {
+	background: var(--vscode-testing-iconQueued);
+}
+
+.virtual-machines-view .virtual-machine-state-dot.state-error {
+	background: var(--vscode-testing-iconFailed);
+}
+
+.virtual-machines-view .virtual-machine-description,
+.virtual-machines-view .virtual-machine-resources {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.virtual-machines-view .virtual-machine-error {
+	font-size: 12px;
+	color: var(--vscode-errorForeground);
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.virtual-machines-view .virtual-machine-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.virtual-machines-view .virtual-machine-actions .monaco-button {
+	padding: 4px 10px;
+	font-size: 12px;
+	height: auto;
+}

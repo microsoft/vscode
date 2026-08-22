@@ -1,10 +1,11 @@
 name: @@NAME@@
 version: '@@VERSION@@'
-summary: Code editing. Redefined.
+summary: Code editing, reimagined.
 description: |
-  Visual Studio Code is a new choice of tool that combines the
-  simplicity of a code editor with what developers need for the core
-  edit-build-debug cycle.
+  GitCortex Studio is a professional desktop code editor built on the
+  open-source Code-OSS / VS Code platform (MIT licensed). It combines a
+  fast, familiar editing experience with a neural-assisted workflow for
+  the core edit-build-debug cycle.
 
 architectures:
   - build-on: amd64
