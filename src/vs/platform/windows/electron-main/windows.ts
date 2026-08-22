@@ -129,6 +129,7 @@ export interface IDefaultBrowserWindowOptionsOverrides {
 	notResizable?: boolean;
 	noBackgroundThrottling?: boolean;
 	backgroundColor?: string;
+	isSessionsWindow?: boolean;
 }
 
 export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowState: IWindowState, overrides?: IDefaultBrowserWindowOptionsOverrides, webPreferences?: electron.WebPreferences): electron.BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } {
@@ -138,9 +139,10 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 	const environmentMainService = accessor.get(IEnvironmentMainService);
 
 	const windowSettings = configurationService.getValue<IWindowSettings | undefined>('window');
+	const isSessionsWindow = overrides?.isSessionsWindow === true;
 
 	const options: electron.BrowserWindowConstructorOptions & { experimentalDarkMode: boolean; accentColor?: boolean | string } = {
-		backgroundColor: themeMainService.getBackgroundColor(),
+		backgroundColor: themeMainService.getBackgroundColor(isSessionsWindow),
 		minWidth: WindowMinimumSize.WIDTH,
 		minHeight: WindowMinimumSize.HEIGHT,
 		title: productService.nameLong,
@@ -223,7 +225,7 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 				// to use on initialization, but prefer to keep things
 				// simple as it is temporary and not noticeable
 
-				const titleBarColor = themeMainService.getWindowSplash(undefined)?.colorInfo.titleBarBackground ?? themeMainService.getBackgroundColor();
+				const titleBarColor = themeMainService.getWindowSplash(undefined, isSessionsWindow)?.colorInfo.titleBarBackground ?? themeMainService.getBackgroundColor(isSessionsWindow);
 				const symbolColor = Color.fromHex(titleBarColor).isDarker() ? '#FFFFFF' : '#000000';
 
 				options.titleBarOverlay = {
