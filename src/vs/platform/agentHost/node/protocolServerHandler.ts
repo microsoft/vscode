@@ -1353,15 +1353,20 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					},
 				};
 			}
+			// Register before the await: a client dispatches on the same connection immediately after subscribing.
+			const wasSubscribed = client.subscriptions.has(classified.uri);
+			client.subscriptions.set(classified.uri, classified);
 			try {
 				const snapshot = await this._agentService.subscribe(URI.parse(params.channel), client.clientId);
-				client.subscriptions.set(classified.uri, classified);
 				this._clearClientToolCallDisconnectTimeout(client.clientId, classified.uri);
 				// `IStateSnapshot` is widened with `ChatState` (see sessionProtocol.ts);
 				// the generated wire `Snapshot` union does not list it yet. The value
 				// is JSON over the wire, so narrowing at this boundary is safe.
 				return { snapshot: snapshot as SubscribeResult['snapshot'] };
 			} catch (err) {
+				if (!wasSubscribed) {
+					client.subscriptions.delete(classified.uri);
+				}
 				if (err instanceof ProtocolError) {
 					throw err;
 				}
