@@ -180,6 +180,16 @@
 	padding-right: var(--vscode-spacing-size80) !important;
 }
 
+/* Wrapping tabs also keep close-hidden tabs wide enough for the dirty dot (#331483). */
+.modern-ui-tabs .part.editor .title.tabs-can-wrap .tabs-container > .tab.close-action-off:not(.sticky-compact):not(.tab-actions-left):not(.dirty-border-top) {
+	padding-right: var(--vscode-spacing-size280) !important;
+}
+
+.modern-ui-tabs .part.editor .title.tabs-can-wrap .tabs-container > .tab.tab-actions-left.close-action-off:not(.sticky-compact):not(.dirty-border-top) {
+	padding-left: var(--vscode-spacing-size280) !important;
+	padding-right: var(--vscode-spacing-size80) !important;
+}
+
 .modern-ui-tabs .part.editor .tabs-container > .tab.sizing-fit:not(.sticky-compact) {
 	width: auto !important;
 	min-width: 0 !important;
