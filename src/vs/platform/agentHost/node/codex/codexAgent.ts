@@ -63,6 +63,7 @@ import { IAgentHostSessionTitleSignal } from '../agentHostSessionTitleSignal.js'
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { extractForwardedErrorInfo } from '../shared/proxyChatError.js';
+import { IAgentHostWorktreeIsolation, type IAgentHostWorktreePendingState } from '../shared/worktreeIsolation.js';
 import { getServerToolDisplay } from '../shared/serverToolGroups.js';
 import { IAgentSdkDownloader, IAgentSdkPackage } from '../agentSdkDownloader.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -1072,6 +1073,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	private readonly _metadataStore: CodexSessionMetadataStore;
 	private _lastSignInRequest: string | undefined;
 	private _lastSignOutRequest: string | undefined;
+	private readonly _worktree: IAgentHostWorktreePendingState;
 
 	/**
 	 * The agent host's server-tool host (feedback "comments" today, more in the
@@ -1098,8 +1100,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 		@IAgentHostCustomizationEnablementService private readonly _customizationEnablementService: IAgentHostCustomizationEnablementService,
 		@IAgentHostSessionTitleSignal sessionTitleSignal: IAgentHostSessionTitleSignal,
+		@IAgentHostWorktreeIsolation worktree: IAgentHostWorktreeIsolation,
 	) {
 		super();
+		this._worktree = worktree;
 		this._metadataStore = this._instantiationService.createInstance(CodexSessionMetadataStore);
 		this._githubMcpServerEnabled = this._isGitHubMcpServerEnabled();
 		this._publishAccountInfo({ status: 'unknown' });
@@ -4538,7 +4542,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		// (a fresh worktree session whose worktree is created on the first send).
 		// Prewarming would otherwise materialize a thread in the picked folder
 		// before the worktree exists.
-		if (this._configurationService.isWorkingDirectoryPending(session.sessionUri.toString())) {
+		if (this._worktree.isWorkingDirectoryPending(AgentSession.id(session.sessionUri))) {
 			return;
 		}
 		void (async () => {

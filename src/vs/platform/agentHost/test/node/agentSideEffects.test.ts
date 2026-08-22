@@ -57,6 +57,7 @@ import { createNoopGitService, createNullSessionDataService, createSessionDataSe
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import { createTestAgentService, getTestAgentStateManager } from './agentServiceTestUtils.js';
+import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 
 // ---- Tests ------------------------------------------------------------------
 
@@ -146,6 +147,7 @@ function createTestSideEffects(
 		[IAgentHostTerminalManager, terminalManager],
 		[ISessionDataService, options.sessionDataService],
 		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
+		[IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation()],
 	), /*strict*/ true));
 	const resolvedOptions: IAgentSideEffectsOptions = {
 		...options,
@@ -370,6 +372,7 @@ suite('AgentSideEffects', () => {
 				sessionDataService,
 				stateManager,
 				new NullLogService(),
+				new NullAgentHostWorktreeIsolation(),
 			));
 			customizationEnablementService = enablementService;
 			createTestSideEffects(disposables, stateManager, {

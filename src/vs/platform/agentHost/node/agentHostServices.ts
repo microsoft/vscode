@@ -54,10 +54,11 @@ import { AgentHostOctoKitService, IAgentHostOctoKitService } from './shared/agen
 import { EditArcReporterService, IEditArcReporterService } from './shared/editArcReporter.js';
 import { EditSurvivalReporterFactory, IEditSurvivalReporterFactory } from './shared/editSurvivalReporter.js';
 import { IAgentHostWorktreeIsolation, WorktreeIsolation } from './shared/worktreeIsolation.js';
+import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from './shared/agentBranchNameGenerator.js';
 
 /**
- * The process-local Agent Host service collection. Sealing is opt-in while the
- * existing imperative registrations migrate to descriptors.
+ * Process-local collection that rejects descriptor static-argument shapes which
+ * `InstantiationService` would otherwise silently pad or truncate.
  */
 export class AgentHostServiceCollection extends ServiceCollection {
 	override set<T>(id: ServiceIdentifier<T>, instanceOrDescriptor: T | SyncDescriptor<T>): T | SyncDescriptor<T> {
@@ -89,10 +90,6 @@ function assertExactStaticArguments(descriptor: SyncDescriptor<unknown>): void {
 	}
 }
 
-/**
- * Registers shared Agent Host services. This starts empty so descriptor
- * registrations can migrate atomically with their imperative construction.
- */
 function registerService<T>(
 	services: AgentHostServiceCollection,
 	id: ServiceIdentifier<T>,
@@ -111,6 +108,7 @@ export interface IAgentHostCoreServiceInputs {
 	readonly copilotApiService?: ICopilotApiService;
 }
 
+/** Registers services shared by production and the AgentService test graph. */
 export function registerAgentHostCoreServices(services: AgentHostServiceCollection, inputs: IAgentHostCoreServiceInputs): void {
 	registerService(services, IAgentHostFileMonitorService, new SyncDescriptor(AgentHostFileMonitorService));
 	registerService(services, INetworkDiagnosticsService, new SyncDescriptor(NetworkDiagnosticsService));
@@ -134,6 +132,8 @@ export function registerAgentHostCoreServices(services: AgentHostServiceCollecti
 	registerService(services, IAgentHostChangesetService, new SyncDescriptor(AgentHostChangesetService));
 	registerService(services, IAgentHostCompletions, new SyncDescriptor(AgentHostCompletions));
 	registerService(services, IAgentHostTerminalManager, new SyncDescriptor(AgentHostTerminalManager));
+	registerService(services, IAgentBranchNameGenerator, new SyncDescriptor(AgentBranchNameGenerator));
+	registerService(services, IAgentHostWorktreeIsolation, new SyncDescriptor(WorktreeIsolation));
 }
 
 export interface IAgentHostHostServiceInputs {
@@ -152,7 +152,6 @@ export function registerAgentHostHostServices(services: AgentHostServiceCollecti
 	registerService(services, IClaudeProxyService, new SyncDescriptor(ClaudeProxyService));
 	registerService(services, ICodexProxyService, new SyncDescriptor(CodexProxyService));
 	registerService(services, IAgentHostOTelService, new SyncDescriptor(AgentHostOTelService, [inputs.fetchFn]));
-	registerService(services, IAgentHostWorktreeIsolation, new SyncDescriptor(WorktreeIsolation, [undefined]));
 	registerService(
 		services,
 		IByokLmProxyService,

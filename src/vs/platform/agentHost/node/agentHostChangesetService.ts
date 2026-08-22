@@ -49,6 +49,8 @@ import { dedupeSessionFileDiffs, evaluateMultiRootDiffSources } from './agentHos
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { reportAgentHostStaticChangesetComputed, reportAgentHostTurnChangesetComputed, type IMultiRootTurnDiffMetrics, type StaticChangesetOutcome, type TurnChangesetOutcome } from './agentHostChangesetTelemetry.js';
 import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
+import { AgentSession } from '../common/agent.js';
+import { IAgentHostWorktreeIsolation, type IAgentHostWorktreePendingState } from './shared/worktreeIsolation.js';
 
 /**
  * Maximum number of per-repository git diffs a multi-folder fan-out runs at
@@ -185,6 +187,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 */
 	private readonly _pendingMaterialization = new Set<ProtocolURI>();
 
+	private readonly _worktree: IAgentHostWorktreePendingState;
+
 	constructor(
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@ILogService private readonly _logService: ILogService,
@@ -196,8 +200,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		@IAgentHostChangesetSubscriptionService private readonly _changesetSubscriptions: IAgentHostChangesetSubscriptionService,
 		@IAgentHostReviewService private readonly _reviewService: IAgentHostReviewService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IAgentHostWorktreeIsolation worktree: IAgentHostWorktreeIsolation,
 	) {
 		super();
+		this._worktree = worktree;
 		this._diffComputeService = this._createDiffComputeService();
 	}
 
@@ -215,7 +221,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	private _hasWorkingDirectory(session: ProtocolURI): boolean {
-		return !this._configurationService.isWorkingDirectoryPending(session)
+		return !this._worktree.isWorkingDirectoryPending(AgentSession.id(session))
 			&& !!this._configurationService.getEffectiveWorkingDirectories(session)?.[0];
 	}
 

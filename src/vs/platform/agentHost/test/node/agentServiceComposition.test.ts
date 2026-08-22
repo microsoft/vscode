@@ -16,6 +16,7 @@ import { createTestAgentService } from './agentServiceTestUtils.js';
 
 suite('AgentServiceComposition', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const expectedSessionDataCleanupParticipants = 2;
 
 	test('arms session-data cleanup participants', async () => {
 		const onWillDeleteSessionData = disposables.add(new Emitter<IWillDeleteSessionDataEvent>());
@@ -40,7 +41,7 @@ suite('AgentServiceComposition', () => {
 			waitUntil: promise => cleanup.push(promise),
 		});
 
-		assert.strictEqual(cleanup.length, 2);
+		assert.strictEqual(cleanup.length, expectedSessionDataCleanupParticipants);
 		await Promise.all(cleanup);
 	});
 });

@@ -64,7 +64,7 @@ import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
-import { createTestAgentService, getTestAgentServiceComposition, getTestAgentStateManager } from './agentServiceTestUtils.js';
+import { createTestAgentHostWorktreeIsolation, createTestAgentService, getTestAgentHostWorktreeIsolation, getTestAgentServiceComposition, getTestAgentStateManager, setTestAgentHostWorktreeIsolation } from './agentServiceTestUtils.js';
 
 /**
  * Replace individual operations on an agent's chat surface, delegating every
@@ -97,6 +97,10 @@ function getCheckpointService(service: AgentService) {
 
 function getStateManager(service: AgentService) {
 	return getTestAgentStateManager(service);
+}
+
+function isWorkingDirectoryPending(service: AgentService, session: URI | string): boolean {
+	return getTestAgentHostWorktreeIsolation(service).isWorkingDirectoryPending(AgentSession.id(session));
 }
 
 /**
@@ -685,10 +689,9 @@ suite('AgentService (node dispatcher)', () => {
 		gitService.getCurrentBranch = async () => 'feature';
 		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
 		const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
-		localService.setWorktreeIsolation(disposables.add(new WorktreeIsolation(
+		setTestAgentHostWorktreeIsolation(localService, disposables.add(new WorktreeIsolation(
 			{ generateBranchName: async () => 'agents/test' },
 			gitService,
-			new TestCopilotApiService(),
 			nullSessionDataService,
 			new NullLogService(),
 		)));
@@ -731,10 +734,9 @@ suite('AgentService (node dispatcher)', () => {
 		gitService.getCurrentBranch = async () => 'feature';
 		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'origin/main' });
 		const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
-		localService.setWorktreeIsolation(disposables.add(new WorktreeIsolation(
+		setTestAgentHostWorktreeIsolation(localService, disposables.add(new WorktreeIsolation(
 			{ generateBranchName: async () => 'agents/test' },
 			gitService,
-			new TestCopilotApiService(),
 			nullSessionDataService,
 			new NullLogService(),
 		)));
@@ -866,11 +868,10 @@ suite('AgentService (node dispatcher)', () => {
 		const isolation = disposables.add(new WorktreeIsolation(
 			{ generateBranchName: async () => 'agents/test' },
 			gitService,
-			new TestCopilotApiService(),
 			nullSessionDataService,
 			new NullLogService(),
 		));
-		localService.setWorktreeIsolation(isolation);
+		setTestAgentHostWorktreeIsolation(localService, isolation);
 		const pendingDuringCreate: boolean[] = [];
 		const providerCreateConfigs: Array<Record<string, unknown> | undefined> = [];
 		let failCreate = false;
@@ -878,7 +879,7 @@ suite('AgentService (node dispatcher)', () => {
 			override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
 				createChat: async (chat, context, options) => {
 					const { configurationResource } = resolveAgentChatContext(context, chat);
-					pendingDuringCreate.push(getConfigurationService(localService).isWorkingDirectoryPending(configurationResource.toString()));
+					pendingDuringCreate.push(isWorkingDirectoryPending(localService, configurationResource.toString()));
 					providerCreateConfigs.push(options?.config);
 					if (failCreate) {
 						throw new Error('create failed');
@@ -910,8 +911,8 @@ suite('AgentService (node dispatcher)', () => {
 		assert.deepStrictEqual({
 			pendingDuringCreate,
 			providerCreateConfigs,
-			pendingAfterCreate: getConfigurationService(localService).isWorkingDirectoryPending(session.toString()),
-			pendingAfterFailure: getConfigurationService(localService).isWorkingDirectoryPending(failedSession.toString()),
+			pendingAfterCreate: isWorkingDirectoryPending(localService, session.toString()),
+			pendingAfterFailure: isWorkingDirectoryPending(localService, failedSession.toString()),
 		}, {
 			pendingDuringCreate: [true, true],
 			providerCreateConfigs: [{}, {}],
@@ -1198,11 +1199,10 @@ suite('AgentService (node dispatcher)', () => {
 		const isolation = disposables.add(new WorktreeIsolation(
 			{ generateBranchName: async () => 'agents/test' },
 			gitService,
-			new TestCopilotApiService(),
 			sessionDataService,
 			new NullLogService(),
 		));
-		localService.setWorktreeIsolation(isolation);
+		setTestAgentHostWorktreeIsolation(localService, isolation);
 
 		class ProvisionalAgent extends MockAgent {
 			override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
@@ -1227,8 +1227,8 @@ suite('AgentService (node dispatcher)', () => {
 			workingDirectories: [URI.file('/workspace/repo')],
 			config: { [SessionConfigKey.Isolation]: 'folder' },
 		});
-		const creatingInitially = getConfigurationService(localService).isWorkingDirectoryPending(creatingSession.toString());
-		const readyInitially = getConfigurationService(localService).isWorkingDirectoryPending(readySession.toString());
+		const creatingInitially = isWorkingDirectoryPending(localService, creatingSession.toString());
+		const readyInitially = isWorkingDirectoryPending(localService, readySession.toString());
 		const creatingLifecycle = getStateManager(localService).getSessionState(creatingSession.toString())?.lifecycle;
 		const readyLifecycle = getStateManager(localService).getSessionState(readySession.toString())?.lifecycle;
 
@@ -1236,19 +1236,19 @@ suite('AgentService (node dispatcher)', () => {
 			type: ActionType.SessionConfigChanged,
 			config: { [SessionConfigKey.Isolation]: 'worktree' },
 		}, 'test-client', 1);
-		const creatingAfterWorktree = getConfigurationService(localService).isWorkingDirectoryPending(creatingSession.toString());
+		const creatingAfterWorktree = isWorkingDirectoryPending(localService, creatingSession.toString());
 
 		localService.dispatchAction(creatingSession.toString(), {
 			type: ActionType.SessionConfigChanged,
 			config: { [SessionConfigKey.Isolation]: 'folder' },
 		}, 'test-client', 2);
-		const creatingAfterFolder = getConfigurationService(localService).isWorkingDirectoryPending(creatingSession.toString());
+		const creatingAfterFolder = isWorkingDirectoryPending(localService, creatingSession.toString());
 
 		localService.dispatchAction(readySession.toString(), {
 			type: ActionType.SessionConfigChanged,
 			config: { [SessionConfigKey.Isolation]: 'worktree' },
 		}, 'test-client', 3);
-		const readyAfterWorktree = getConfigurationService(localService).isWorkingDirectoryPending(readySession.toString());
+		const readyAfterWorktree = isWorkingDirectoryPending(localService, readySession.toString());
 
 		assert.deepStrictEqual({
 			creatingInitially,
@@ -2768,7 +2768,7 @@ suite('AgentService (node dispatcher)', () => {
 			svc.registerProvider(copilotAgent);
 			const session = await svc.createSession({ provider: 'copilot' });
 			const workingDirectoryPendingChange = disposables.add(new Emitter<string>());
-			svc.setWorktreeIsolation({
+			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
 				onDidChangeWorkingDirectoryPending: workingDirectoryPendingChange.event,
 				prepareSessionDeletion: async () => {
 					order.push('prepareSessionDeletion');
@@ -2777,7 +2777,7 @@ suite('AgentService (node dispatcher)', () => {
 				removeSessionWorktree: async (_sessionId: string, worktree: { readonly worktree: URI } | undefined) => {
 					order.push(`removeSessionWorktree:${worktree?.worktree.toString()}`);
 				},
-			} as unknown as WorktreeIsolation);
+			}));
 
 			await svc.disposeSession(session);
 
@@ -2793,9 +2793,9 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			svc.registerProvider(copilotAgent);
 			const session = await svc.createSession({ provider: 'copilot' });
-			svc.setWorktreeIsolation({
+			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
 				prepareSessionDeletion: async () => { throw new Error('metadata unavailable'); },
-			} as unknown as WorktreeIsolation);
+			}));
 
 			await assert.rejects(() => svc.disposeSession(session), /metadata unavailable/);
 
@@ -2824,10 +2824,10 @@ suite('AgentService (node dispatcher)', () => {
 			const agent = disposables.add(new MockAgent('copilot'));
 			svc.registerProvider(agent);
 			const session = await svc.createSession({ provider: 'copilot' });
-			svc.setWorktreeIsolation({
+			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
 				prepareSessionDeletion: async () => undefined,
 				removeSessionWorktree: async () => { removeWorktreeCalls++; },
-			} as unknown as WorktreeIsolation);
+			}));
 			// Flush the provider backfill before injecting failures: its
 			// registry write is fire-and-forget and would otherwise consume
 			// part of the failure budget intended for the unregistration.
@@ -5026,10 +5026,9 @@ suite('AgentService (node dispatcher)', () => {
 			const sessionDataService = createSessionDataService(db);
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
-			svc.setWorktreeIsolation(disposables.add(new WorktreeIsolation(
+			setTestAgentHostWorktreeIsolation(svc, disposables.add(new WorktreeIsolation(
 				{ generateBranchName: async () => 'agents/test' },
 				gitService,
-				new TestCopilotApiService(),
 				sessionDataService,
 				new NullLogService(),
 			)));
@@ -5073,10 +5072,9 @@ suite('AgentService (node dispatcher)', () => {
 			const sessionDataService = createSessionDataService(db);
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
-			svc.setWorktreeIsolation(disposables.add(new WorktreeIsolation(
+			setTestAgentHostWorktreeIsolation(svc, disposables.add(new WorktreeIsolation(
 				{ generateBranchName: async () => 'agents/test' },
 				gitService,
-				new TestCopilotApiService(),
 				sessionDataService,
 				new NullLogService(),
 			)));
@@ -6383,11 +6381,10 @@ suite('AgentService (node dispatcher)', () => {
 			const isolation = disposables.add(new WorktreeIsolation(
 				{ generateBranchName: async () => 'agents/test' },
 				gitService,
-				new TestCopilotApiService(),
 				nullSessionDataService,
 				new NullLogService(),
 			));
-			service.setWorktreeIsolation(isolation);
+			setTestAgentHostWorktreeIsolation(service, isolation);
 			service.registerProvider(copilotAgent);
 			await isolation.resolveWorkingDirectory({
 				sessionUri: AgentSession.uri('copilot', 'session'),
@@ -12144,10 +12141,9 @@ suite('AgentService (node dispatcher)', () => {
 			localAgent.sessionMetadataOverrides = { workingDirectories: [workingDirectory], project: undefined };
 			disposables.add(toDisposable(() => localAgent.dispose()));
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
-			localService.setWorktreeIsolation(disposables.add(new WorktreeIsolation(
+			setTestAgentHostWorktreeIsolation(localService, disposables.add(new WorktreeIsolation(
 				{ generateBranchName: async () => 'agents/test' },
 				gitService,
-				new TestCopilotApiService(),
 				sessionDataService,
 				new NullLogService(),
 			)));
@@ -12507,11 +12503,10 @@ suite('AgentService (node dispatcher)', () => {
 			const isolation = disposables.add(new WorktreeIsolation(
 				{ generateBranchName: async () => { throw new Error('should not generate a branch'); } },
 				gitService,
-				new TestCopilotApiService(),
 				nullSessionDataService,
 				new NullLogService(),
 			));
-			localService.setWorktreeIsolation(isolation);
+			setTestAgentHostWorktreeIsolation(localService, isolation);
 			const agent = new ProvisionalWorktreeAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
 			localService.registerProvider(agent);
@@ -12617,11 +12612,10 @@ suite('AgentService (node dispatcher)', () => {
 			const isolation = disposables.add(new WorktreeIsolation(
 				{ generateBranchName: async () => 'agents/failure' },
 				gitService,
-				new TestCopilotApiService(),
 				sessionDataService,
 				new NullLogService(),
 			));
-			localService.setWorktreeIsolation(isolation);
+			setTestAgentHostWorktreeIsolation(localService, isolation);
 
 			const session = AgentSession.uri('copilot', 'worktree-failure');
 			const sessionResource = session.toString();
@@ -12684,11 +12678,10 @@ suite('AgentService (node dispatcher)', () => {
 			const isolation = disposables.add(new WorktreeIsolation(
 				{ generateBranchName: async () => 'agents/fallback' },
 				gitService,
-				new TestCopilotApiService(),
 				sessionDataService,
 				new NullLogService(),
 			));
-			localService.setWorktreeIsolation(isolation);
+			setTestAgentHostWorktreeIsolation(localService, isolation);
 
 			const session = AgentSession.uri('copilot', 'worktree-fallback');
 			const sessionResource = session.toString();

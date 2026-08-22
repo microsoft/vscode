@@ -27,7 +27,7 @@ import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { NullByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { AgentHostServiceCollection, registerAgentHostCoreServices, registerAgentHostHostServices } from '../../node/agentHostServices.js';
-import { IAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
+import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 
 const ITestService = createDecorator<ITestService>('agentHostTestService');
 const IReplacementService = createDecorator<ITestService>('agentHostReplacementService');
@@ -241,18 +241,26 @@ suite('AgentHostServiceCollection', () => {
 		assert.strictEqual(services.get(IAgentEditAttributionService), override);
 	});
 
-	test('keeps worktree isolation production-only', () => {
+	test('selects the core worktree isolation implementation', () => {
 		const coreServices = new AgentHostServiceCollection();
 		registerCoreServices(coreServices);
+		const nullServices = new AgentHostServiceCollection(
+			[IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation()],
+		);
+		registerCoreServices(nullServices);
 		const hostServices = new AgentHostServiceCollection();
 		registerHostServices(hostServices);
+		const nullInstantiationService = disposables.add(new InstantiationService(nullServices, true));
+		const nullWorktreeIsolation = nullInstantiationService.invokeFunction(accessor => accessor.get(IAgentHostWorktreeIsolation));
 
 		assert.deepStrictEqual({
-			core: coreServices.has(IAgentHostWorktreeIsolation),
-			host: hostServices.get(IAgentHostWorktreeIsolation) instanceof SyncDescriptor,
+			core: coreServices.get(IAgentHostWorktreeIsolation) instanceof SyncDescriptor,
+			nullSupported: nullWorktreeIsolation.supported,
+			host: hostServices.has(IAgentHostWorktreeIsolation),
 		}, {
-			core: false,
-			host: true,
+			core: true,
+			nullSupported: false,
+			host: false,
 		});
 	});
 

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
@@ -28,8 +28,40 @@ import { AgentHostServiceCollection, registerAgentHostCoreServices } from '../..
 import { ICopilotApiService } from '../../node/shared/copilotApiService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 
 const compositions = new WeakMap<AgentService, IAgentServiceComposition>();
+const worktreeIsolations = new WeakMap<AgentService, MutableTestAgentHostWorktreeIsolation>();
+
+class MutableTestAgentHostWorktreeIsolation extends Disposable {
+	private _delegate: IAgentHostWorktreeIsolation = new NullAgentHostWorktreeIsolation();
+	private readonly _onDidChangeWorkingDirectoryPending = this._register(new Emitter<string>());
+	private readonly _delegateListener = this._register(new MutableDisposable());
+	private delegateSet = false;
+	readonly service: IAgentHostWorktreeIsolation;
+
+	constructor() {
+		super();
+		this.service = new Proxy(this._delegate, {
+			get: (_target, property) => {
+				if (property === 'onDidChangeWorkingDirectoryPending') {
+					return this._onDidChangeWorkingDirectoryPending.event;
+				}
+				const value = Reflect.get(this._delegate, property, this._delegate);
+				return typeof value === 'function' ? value.bind(this._delegate) : value;
+			},
+		});
+	}
+
+	setDelegate(delegate: IAgentHostWorktreeIsolation): void {
+		if (this.delegateSet) {
+			throw new Error('Agent Host worktree isolation test delegate has already been set');
+		}
+		this.delegateSet = true;
+		this._delegate = delegate;
+		this._delegateListener.value = delegate.onDidChangeWorkingDirectoryPending(sessionId => this._onDidChangeWorkingDirectoryPending.fire(sessionId));
+	}
+}
 
 export function getTestAgentServiceComposition(agentService: AgentService): IAgentServiceComposition {
 	const composition = compositions.get(agentService);
@@ -41,6 +73,32 @@ export function getTestAgentServiceComposition(agentService: AgentService): IAge
 
 export function getTestAgentStateManager(agentService: AgentService): AgentHostStateManager {
 	return getTestAgentServiceComposition(agentService).stateManager;
+}
+
+export function getTestAgentHostWorktreeIsolation(agentService: AgentService): IAgentHostWorktreeIsolation {
+	const worktreeIsolation = worktreeIsolations.get(agentService);
+	if (!worktreeIsolation) {
+		throw new Error('AgentService was not created by createTestAgentService');
+	}
+	return worktreeIsolation.service;
+}
+
+export function setTestAgentHostWorktreeIsolation(agentService: AgentService, worktreeIsolation: IAgentHostWorktreeIsolation): void {
+	const mutableWorktreeIsolation = worktreeIsolations.get(agentService);
+	if (!mutableWorktreeIsolation) {
+		throw new Error('AgentService was not created by createTestAgentService');
+	}
+	mutableWorktreeIsolation.setDelegate(worktreeIsolation);
+}
+
+export function createTestAgentHostWorktreeIsolation(overrides: Partial<IAgentHostWorktreeIsolation>): IAgentHostWorktreeIsolation {
+	return new Proxy(new NullAgentHostWorktreeIsolation(), {
+		get: (target, property) => {
+			const source = Object.hasOwn(overrides, property) ? overrides : target;
+			const value = Reflect.get(source, property, source);
+			return typeof value === 'function' ? value.bind(source) : value;
+		},
+	});
 }
 
 export function createTestAgentService(
@@ -90,6 +148,8 @@ export function createTestAgentService(
 		orchestratorDatabase,
 	};
 	const foundationDisposables = new DisposableStore();
+	const worktreeIsolation = foundationDisposables.add(new MutableTestAgentHostWorktreeIsolation());
+	services.set(IAgentHostWorktreeIsolation, worktreeIsolation.service);
 	const foundation = createAgentServiceFoundation({
 		services,
 		owned: foundationDisposables,
@@ -121,5 +181,6 @@ export function createTestAgentService(
 	));
 	composition.setContributions(instantiationService.invokeFunction(accessor => activateAgentHostContributions(accessor, instantiationService)));
 	compositions.set(composition.agentService, composition);
+	worktreeIsolations.set(composition.agentService, worktreeIsolation);
 	return composition.agentService;
 }

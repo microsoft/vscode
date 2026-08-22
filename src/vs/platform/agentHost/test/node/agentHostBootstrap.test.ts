@@ -21,6 +21,8 @@ import { IAgentSdkDownloader } from '../../node/agentSdkDownloader.js';
 import { AgentHostServiceCollection } from '../../node/agentHostServices.js';
 import { createAgentServiceFoundation } from '../../node/agentServiceFoundation.js';
 import { AgentHostProxyConfigKey } from '../../common/agentHostSchema.js';
+import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
+import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
 
 suite('agentHostBootstrap', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -49,6 +51,10 @@ suite('agentHostBootstrap', () => {
 		// Whole-graph dependency completeness is checked statically in
 		// agentHostServices.test.ts without forcing every descriptor to construct.
 		assert.ok(runtime.instantiationService.invokeFunction(accessor => accessor.get(IAgentSdkDownloader)));
+		assert.deepStrictEqual(runtime.instantiationService.invokeFunction(accessor => [
+			accessor.get(IAgentHostCheckpointService) !== undefined,
+			accessor.get(IAgentHostReviewService) !== undefined,
+		]), [true, true]);
 	});
 
 	test('loads standalone proxy configuration before resolver construction', () => {

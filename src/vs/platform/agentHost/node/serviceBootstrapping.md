@@ -67,33 +67,41 @@ wart has an explicit exit condition; update this document when one is removed.
 ```ts
 async function createAgentHostRuntime(options) {
 	const services = new AgentHostServiceCollection();
-	const foundation = createAgentServiceFoundation(options, services);
+	const infrastructure = new DisposableStore();
+	const foundation = createAgentServiceFoundation({ ...options, services, owned: infrastructure });
 	const telemetry = await createAgentHostTelemetryService(foundation);
 	services.set(ITelemetryService, telemetry);
 
-	registerAgentHostCoreServices(services, foundation);
-	registerAgentHostHostServices(services, foundation);
+	registerAgentHostCoreServices(services, coreInputs);
+	registerAgentHostHostServices(services, hostInputs);
 	const instantiationService = new InstantiationService(services, true);
 
 	const composition = createAgentServiceComposition(instantiationService, foundation);
 	const contributions = activateAgentHostContributions(instantiationService, composition);
 	composition.setContributions(contributions);
-	wireProductionWorktree(instantiationService, composition.agentService);
 
-	return new AgentHostRuntime(foundation, instantiationService, composition, contributions);
+	return new AgentHostRuntime({
+		instantiationService,
+		agentService: composition.agentService,
+		agents: composition.agents,
+		onDidStartTurn: composition.onDidStartTurn,
+		sdkDownloadProgress,
+	}, infrastructure);
 }
 ```
 
 Tests use the same synchronous foundation, core registrations, and composition,
-but supply telemetry and typed overrides directly, skip production host
-services, and preserve the historical no-worktree path.
+but supply telemetry and typed overrides directly and skip production host
+services. The test graph pre-registers a mutable worktree seam whose default
+delegate is `NullAgentHostWorktreeIsolation`; core defaults never overwrite a
+pre-registered typed override.
 
 ## Where does a new object go?
 
 | If the object... | Put it in | Construction |
 |---|---|---|
-| must exist before DI, performs bootstrap I/O, or needs entry-point inputs | `agentHostBootstrap.ts` foundation | concrete instance registered before sealing |
-| is shared by production and AgentService tests | `registerAgentHostCoreServices` | local `SyncDescriptor`; tests must supply any required host-facing dependency override |
+| must exist before DI, performs bootstrap I/O, or needs entry-point inputs | `agentHostBootstrap.ts` foundation | concrete instance registered during bootstrap |
+| is shared by production and AgentService tests | `registerAgentHostCoreServices` | local `SyncDescriptor`; tests may pre-register a typed override |
 | needs production environment, sandbox, SDK, plugin, or provider-host inputs | `registerAgentHostHostServices` | local descriptor or selected concrete null implementation |
 | needs a back-reference to `AgentService` | `agentServiceComposition.ts` | explicit callback seam |
 | registers providers, handlers, listeners, or other disposable behavior after construction | `agentHostContributions.ts` | create and immediately register in its returned store |
@@ -178,7 +186,8 @@ in a production collection accessor.
 
 The compatibility graph intentionally defaults to:
 
-- no worktree isolation, preserving the historical degraded path;
+- a mutable worktree seam whose default delegate is the folder-preserving null
+  implementation;
 - `NullAgentEditAttributionService`, keeping telemetry attribution out of the
   default test graph;
 - the caller-supplied git service required by core git/changeset descriptors.
@@ -196,24 +205,12 @@ and changeset liveness are still owned by `AgentService`.
 **Do not extend it by default:** a new callback usually means another
 responsibility should move to a narrower owning service.
 
-**Exit condition:** extract provider registry, session operations/restoration,
-working-directory resolution, turn dispatch, and subscription liveness so
-their consumers can inject those owners directly. Then delete the adapter and
-its binder contract.
+Worktree lifecycle ownership now uses ordinary DI. The remaining callbacks cover
+provider registry, session operations/restoration, turn and attachment
+orchestration, and subscription liveness.
 
-### `AgentService.setWorktreeIsolation`
-
-**Why it exists:** worktree isolation is a production host descriptor, but
-configuration, side effects, and customization enablement need its late
-back-reference after composition. The compatibility test graph historically
-runs without worktree isolation.
-
-**Do not add sibling setters:** ordinary construction-order dependencies belong
-in constructor injection.
-
-**Exit condition:** introduce a correctly typed host-facing worktree contract
-that can be injected without changing the default test graph, or relocate the
-pending-worktree state so the back-reference disappears.
+**Exit condition:** extract those remaining responsibilities so their consumers
+can inject the owners directly. Then delete the adapter and its binder contract.
 
 ### Concrete foundation services
 
@@ -236,7 +233,7 @@ unrelated services.
   documented resolution site.
 - A parallel root graph that duplicates services owned by the primary runtime.
 - Public service getters on `AgentService`.
-- Adding another post-construction `setX(...)` to fix ordinary ordering.
+- Adding a post-construction `setX(...)` to fix ordinary ordering.
 - Global `registerSingleton` for node Agent Host services.
 - Process behavior in service constructors when it belongs in activation.
 - A second test-only list of production service registrations.

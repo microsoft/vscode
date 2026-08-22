@@ -30,6 +30,7 @@ import { AgentHostClientConnectionService, IAgentHostClientConnectionService } f
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { IAgentHostChangesetService } from '../../common/agentHostChangesetService.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
+import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import type { IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
@@ -218,6 +219,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
 			[ISessionDataService, sessionDataService],
 			[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
+			[IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation()],
 		), /*strict*/ true));
 		sideEffects = disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, customizationEnablementService, {
 			getAgent: () => agent,

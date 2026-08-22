@@ -26,7 +26,6 @@ import { createAgentServiceComposition } from './agentServiceComposition.js';
 import { activateAgentHostContributions } from './agentHostContributions.js';
 import { createAgentServiceFoundation } from './agentServiceFoundation.js';
 import { AgentHostServiceCollection, registerAgentHostCoreServices, registerAgentHostHostServices } from './agentHostServices.js';
-import { IAgentHostWorktreeIsolation, WorktreeIsolation } from './shared/worktreeIsolation.js';
 import { IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
 import { IByokLmBridgeRegistry, NullByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
 import { registerPendingEditContentProvider } from './copilot/pendingEditContentStore.js';
@@ -165,11 +164,6 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		));
 		agentService = agentServiceComposition.agentService;
 		agentServiceComposition.setContributions(instantiationService.invokeFunction(accessor => activateAgentHostContributions(accessor, instantiationService!)));
-		const worktreeIsolation = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostWorktreeIsolation));
-		if (!(worktreeIsolation instanceof WorktreeIsolation)) {
-			throw new Error('The production Agent Host requires the concrete WorktreeIsolation service');
-		}
-		agentService.setWorktreeIsolation(worktreeIsolation);
 
 		const agentSdkDownloader = instantiationService.invokeFunction(accessor => accessor.get(IAgentSdkDownloader));
 

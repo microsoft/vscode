@@ -30,6 +30,7 @@ import { AgentConfigurationService, IAgentConfigurationService } from '../../nod
 import { IAgentHostChangesetService } from '../../common/agentHostChangesetService.js';
 import type { IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
+import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostTurnTracker, TURN_ACTIVITY_NONE, TURN_HANG_THRESHOLD_MS } from '../../node/agentHostTurnTracker.js';
 import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
@@ -208,6 +209,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
 			[ISessionDataService, sessionDataService],
 			[IAgentHostClientConnectionService, clientConnections],
+			[IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation()],
 		), /*strict*/ true));
 		sideEffects = disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, customizationEnablementService, {
 			getAgent: () => agent,

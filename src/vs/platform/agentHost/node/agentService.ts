@@ -61,7 +61,7 @@ import { AGENT_HOST_TITLE_SOURCE_AGENT, customChatTitleMetadataKey, customChatTi
 import { type IArtifactServerToolAccessor } from './shared/artifactServerTools.js';
 import { parseSessionArtifacts, stringifySessionArtifacts, withSessionArtifacts } from '../common/sessionArtifacts.js';
 
-import { buildWorktreeFailureNotification, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
+import { buildWorktreeFailureNotification, IAgentHostWorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { AgentHostChangesetCoordinator } from './agentHostChangesetCoordinator.js';
@@ -81,7 +81,6 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostArtifactToolsConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
-import { IAgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementWorktreeBinding } from './agentHostCustomizationEnablementService.js';
 import { SessionCoordinationService } from './sessionCoordination.js';
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
@@ -381,7 +380,6 @@ export interface IAgentServiceCallbackBinder {
 
 export interface IAgentServiceCollaborators {
 	readonly gitHubEndpointService: IAgentHostGitHubEndpointService;
-	readonly customizationEnablementService: IAgentHostCustomizationEnablementService & IAgentHostCustomizationEnablementWorktreeBinding;
 	readonly gitStateService: IAgentHostGitStateService;
 	readonly agentMergeController: AgentMergeController;
 	readonly checkpointService: IAgentHostCheckpointService;
@@ -514,18 +512,8 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _serverToolHost: AgentServerToolHost;
 	private readonly _debugLogsCollector: AgentHostDebugLogsCollector | undefined;
 	private readonly _configurationService: AgentConfigurationService;
-	private readonly _customizationEnablementService: IAgentHostCustomizationEnablementService & IAgentHostCustomizationEnablementWorktreeBinding;
 	/** Captures baseline / per-turn git checkpoints backing the changeset pipeline. */
 	private readonly _checkpointService: IAgentHostCheckpointService;
-	/**
-	 * Host-owned worktree isolation controller. Set post-construction via
-	 * {@link setWorktreeIsolation} after host startup constructs the Copilot API
-	 * dependencies. All worktree behavior — schema contribution, first-send
-	 * resolution, project / announcement, archive, and cleanup — is driven from
-	 * the host so individual agents stay unaware of the folder-vs-worktree
-	 * distinction.
-	 */
-	private _worktree: WorktreeIsolation | undefined;
 	/** Single source of truth for GitHub (Enterprise) endpoints and protected resources. */
 	private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService;
 	/** Pluggable completion item providers (e.g. workspace file completions, agent-specific @-mentions). */
@@ -609,6 +597,7 @@ export class AgentService extends Disposable implements IAgentService {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@INetworkDiagnosticsService private readonly _networkDiagnostics: INetworkDiagnosticsService,
 		@IAgentEditAttributionService private readonly _editAttributionService: IAgentEditAttributionService,
+		@IAgentHostWorktreeIsolation private readonly _worktree: IAgentHostWorktreeIsolation,
 	) {
 		super();
 		this._authService = core.authenticationService;
@@ -619,7 +608,6 @@ export class AgentService extends Disposable implements IAgentService {
 		this._configurationService = core.configurationService;
 		this._agents = core.agents;
 		this._gitHubEndpointService = collaborators.gitHubEndpointService;
-		this._customizationEnablementService = collaborators.customizationEnablementService;
 		this._gitStateService = collaborators.gitStateService;
 		this._agentMergeController = collaborators.agentMergeController;
 		this._checkpointService = collaborators.checkpointService;
@@ -764,20 +752,8 @@ export class AgentService extends Disposable implements IAgentService {
 
 	// ---- provider registration ----------------------------------------------
 
-	/**
-	 * Injects the host-owned {@link WorktreeIsolation} controller and forwards it
-	 * to the collaborators that consult it. Called by provider-infrastructure
-	 * composition after the Copilot API dependencies have been wired.
-	 */
-	setWorktreeIsolation(worktree: WorktreeIsolation): void {
-		this._worktree = worktree;
-		this._configurationService.setWorktreeIsolation(worktree);
-		this._sideEffects.setWorktreeIsolation(worktree);
-		this._customizationEnablementService.setWorktreeIsolation(worktree);
-	}
-
 	private _toProviderConfig<T extends { readonly config?: Record<string, unknown> }>(request: T): T {
-		if (!this._worktree || !request.config) {
+		if (!this._worktree.supported || !request.config) {
 			return request;
 		}
 		return { ...request, config: omitHostOwnedSessionConfig(request.config) };
@@ -803,11 +779,11 @@ export class AgentService extends Disposable implements IAgentService {
 		// Only worktree-isolation sessions defer directory resolution to the first
 		// send (so the prompt can name the branch); folder / workspace-less
 		// sessions run directly in the picked folder.
-		if (!this._worktree?.isWorkingDirectoryPending(sessionId)) {
+		if (!this._worktree.isWorkingDirectoryPending(sessionId)) {
 			if (!pickedFolderUri) {
 				return undefined;
 			}
-			const resolved = await this._configurationService.resolveWorkingDirectoryForResume(params.session, pickedFolderUri);
+			const resolved = await this._worktree.resolveWorkingDirectoryForResume(URI.parse(params.session), sessionId, pickedFolderUri);
 			return [resolved, ...tail];
 		}
 
@@ -862,9 +838,6 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _resolveWorktreeBeforeSend(params: { session: string; chat: string; turnId: string; prompt: string; sessionId: string; pickedFolderUri: URI | undefined }): Promise<URI | undefined> {
 		const { sessionId, pickedFolderUri } = params;
 		const worktree = this._worktree;
-		if (!worktree) {
-			return undefined;
-		}
 		let reportedActivity = false;
 		let failureDiagnostic: string | undefined;
 		try {
@@ -2568,7 +2541,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 
-		if (!this._configurationService.isWorkingDirectoryPending(session.toString())) {
+		if (!this._worktree.isWorkingDirectoryPending(AgentSession.id(session))) {
 			const workingDirectory = created.resolvedWorkingDirectory ?? config?.workingDirectories?.[0];
 			void this._gitStateService.refreshSessionGitState(session.toString(), workingDirectory);
 		}
@@ -2819,7 +2792,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _createProviderSession(provider: IAgent, config: IAgentCreateSessionConfig | undefined, deferWorktreeCreation: boolean): Promise<IAgentCreateSessionResult> {
 		const requestedSessionId = deferWorktreeCreation && config?.session ? AgentSession.id(config.session) : undefined;
 		if (requestedSessionId) {
-			this._worktree?.notePending(requestedSessionId);
+			this._worktree.notePending(requestedSessionId);
 		}
 
 		let created: IAgentCreateSessionResult | undefined;
@@ -2837,7 +2810,7 @@ export class AgentService extends Disposable implements IAgentService {
 				...(result ? { chat: result } : {}),
 			};
 			if (deferWorktreeCreation && created.provisional) {
-				this._worktree?.notePending(AgentSession.id(created.session));
+				this._worktree.notePending(AgentSession.id(created.session));
 			}
 			await this._persistDefaultChatBacking(created);
 			return created;
@@ -2849,7 +2822,7 @@ export class AgentService extends Disposable implements IAgentService {
 		} finally {
 			const returnedPendingSessionId = created?.provisional ? AgentSession.id(created.session) : undefined;
 			if (requestedSessionId && requestedSessionId !== returnedPendingSessionId) {
-				this._worktree?.clearPending(requestedSessionId);
+				this._worktree.clearPending(requestedSessionId);
 			}
 		}
 	}
@@ -2955,7 +2928,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// worktree" message at the top of the default chat's first turn from
 		// persisted metadata. No-op for folder sessions and non-default chats (peer
 		// / subagent). Agents stay unaware of worktrees.
-		if (this._worktree && isDefaultChatUri(chat)) {
+		if (isDefaultChatUri(chat)) {
 			return this._worktree.applyRestoreAnnouncement(URI.parse(parseRequiredSessionUriFromChatUri(chat.toString())), turns);
 		}
 		return turns;
@@ -3145,7 +3118,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private _buildChatPlacement(session: URI): Pick<IAgentCreateChatOptions, 'workingDirectories' | 'project' | 'config'> | undefined {
 		const state = this._stateManager.getSessionState(session.toString());
 		const workingDirectories = state?.workingDirectories?.map(directory => typeof directory === 'string' ? URI.parse(directory) : directory) ?? [];
-		const resolvedPrimary = this._worktree?.getResolvedWorktree(AgentSession.id(session));
+		const resolvedPrimary = this._worktree.getResolvedWorktree(AgentSession.id(session));
 		if (resolvedPrimary) {
 			workingDirectories[0] = resolvedPrimary;
 		}
@@ -3264,7 +3237,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// The agent no longer knows about worktrees; the host's worktree project
 		// (created in the first-send hook) wins for worktree-isolated sessions, and
 		// falls back to whatever the agent reported for folder sessions.
-		const project = this._worktree?.sessionWorktreeProject(AgentSession.id(session)) ?? e.project;
+		const project = this._worktree.sessionWorktreeProject(AgentSession.id(session)) ?? e.project;
 		const currentSet = currentSummary.workingDirectories?.map(d => URI.parse(d));
 		const summary: SessionSummary = {
 			...currentSummary,
@@ -3496,10 +3469,10 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _withWorktreeConfigContribution(result: ResolveSessionConfigResult, params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
-		if (!this._worktree) {
+		const iso = await this._worktree.resolveIsolationConfig({ workingDirectory: params.workingDirectory, config: params.config });
+		if (!iso) {
 			return result;
 		}
-		const iso = await this._worktree.resolveIsolationConfig({ workingDirectory: params.workingDirectory, config: params.config });
 		const properties: Record<string, SessionConfigPropertySchema> = {
 			[SessionConfigKey.Isolation]: iso.isolationProperty.protocol,
 			...omitHostOwnedSessionConfig(result.schema.properties),
@@ -3554,7 +3527,7 @@ export class AgentService extends Disposable implements IAgentService {
 	async sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
 		// The host owns branch completions for every agent (they share the same
 		// git-backed branch list); all other properties stay provider-specific.
-		if (params.property === SessionConfigKey.Branch && this._worktree) {
+		if (params.property === SessionConfigKey.Branch && this._worktree.supported) {
 			return this._worktree.branchCompletions(params.workingDirectory, params.query);
 		}
 		const providerId = params.provider ?? this._defaultProvider;
@@ -3590,7 +3563,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// is reordered ahead of the data deletion.
 		const workingDirectories = this._configurationService.getEffectiveWorkingDirectories(session.toString());
 		const sessionId = AgentSession.id(session);
-		const worktree = await this._worktree?.prepareSessionDeletion(session, sessionId);
+		const worktree = await this._worktree.prepareSessionDeletion(session, sessionId);
 		const provider = this._findProviderForSession(session);
 		if (provider) {
 			await this._disposeSession(provider, session);
@@ -3617,7 +3590,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// the repository can no longer be resolved and the refs would leak
 		// into the main repository (`refs/agents/*` is shared, not per-worktree).
 		await this._sessionDataService.deleteSessionData(session, workingDirectories);
-		await this._worktree?.removeSessionWorktree(sessionId, worktree);
+		await this._worktree.removeSessionWorktree(sessionId, worktree);
 		this._changesetCoordinator.onSessionDisposed(session.toString());
 		for (const chat of this._stateManager.getSessionState(session.toString())?.chats ?? []) {
 			this._sideEffects.clearQueuedMessageSenders(chat.resource);
@@ -4842,7 +4815,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// its repository and diffs against the right base, matching native
 		// worktree-isolated sessions. No-op for folder / primary-checkout cwds.
 		let adoptedWorktree = false;
-		if (adopted && this._worktree) {
+		if (adopted && this._worktree.supported) {
 			// The predecessor recorded this worktree but its checkout is gone, so it
 			// cannot be probed; seed the same metadata a native session persists at
 			// creation and let resume recreate it.
@@ -4873,7 +4846,7 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 			}
 		}
-		if (!meta.project && !readSessionWorkspaceless(meta._meta) && this._worktree) {
+		if (!meta.project && !readSessionWorkspaceless(meta._meta) && this._worktree.supported) {
 			const workingDirectory = meta.workingDirectories?.[0];
 			if (workingDirectory) {
 				try {
@@ -5681,7 +5654,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * sessions and for `undefined` metadata. Host-owned so agents stay unaware.
 	 */
 	private async _withWorktreeProject(session: URI, meta: IAgentSessionMetadata | undefined): Promise<IAgentSessionMetadata | undefined> {
-		if (!meta || !this._worktree) {
+		if (!meta) {
 			return meta;
 		}
 		const project = await this._worktree.resolveWorktreeProject(session);

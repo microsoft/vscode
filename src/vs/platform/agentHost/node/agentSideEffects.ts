@@ -92,7 +92,7 @@ import type { ICopilotApiService } from './shared/copilotApiService.js';
 import { stripProxyErrorMarker, toChatErrorMeta, tryParseForwardedChatError } from './shared/proxyChatError.js';
 import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadata, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 import { targetForMcpServer, targetForPlugin } from './shared/customizationEnablementGate.js';
-import type { WorktreeIsolation } from './shared/worktreeIsolation.js';
+import { IAgentHostWorktreeIsolation } from './shared/worktreeIsolation.js';
 
 /**
  * Options for constructing an {@link AgentSideEffects} instance.
@@ -275,8 +275,6 @@ export class AgentSideEffects extends Disposable {
 	 * can gate work on real agent usage.
 	 */
 	readonly onDidStartTurn: Event<string>;
-	/** Host-owned worktree isolation controller; injected post-construction. */
-	private _worktree: WorktreeIsolation | undefined;
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
 		private readonly _customizationEnablementService: IAgentHostCustomizationEnablementService,
@@ -287,6 +285,7 @@ export class AgentSideEffects extends Disposable {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
 		@IAgentConfigurationService private readonly _agentConfigService: IAgentConfigurationService,
+		@IAgentHostWorktreeIsolation private readonly _worktree: IAgentHostWorktreeIsolation,
 	) {
 		super();
 		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
@@ -1845,14 +1844,12 @@ export class AgentSideEffects extends Disposable {
 				// clean, branch-preserved worktree on archive and recreate it on
 				// unarchive. Serialized per session inside the controller so it can't
 				// interleave with a first-send worktree resolution.
-				if (this._worktree) {
-					const sessionUri = URI.parse(channel);
-					const sessionId = AgentSession.id(channel);
-					const worktreeOp = action.isArchived
-						? this._worktree.cleanupWorktreeOnArchive(sessionUri, sessionId)
-						: this._worktree.recreateWorktreeOnUnarchive(sessionUri, sessionId);
-					worktreeOp.catch(err => this._logService.warn(`[AgentSideEffects] worktree ${action.isArchived ? 'cleanup' : 'recreate'} failed for ${channel}`, err));
-				}
+				const sessionUri = URI.parse(channel);
+				const sessionId = AgentSession.id(channel);
+				const worktreeOp = action.isArchived
+					? this._worktree.cleanupWorktreeOnArchive(sessionUri, sessionId)
+					: this._worktree.recreateWorktreeOnUnarchive(sessionUri, sessionId);
+				worktreeOp.catch(err => this._logService.warn(`[AgentSideEffects] worktree ${action.isArchived ? 'cleanup' : 'recreate'} failed for ${channel}`, err));
 				const agent = this._options.getAgent(channel);
 				agent?.onArchivedChanged?.(URI.parse(channel), action.isArchived).catch(err => {
 					this._logService.warn(`[AgentSideEffects] onArchivedChanged failed for ${channel}`, err);
@@ -1862,7 +1859,7 @@ export class AgentSideEffects extends Disposable {
 			case ActionType.SessionConfigChanged: {
 				const sessionState = this._stateManager.getSessionState(channel);
 				const values = sessionState?.config?.values;
-				if (this._worktree && sessionState?.lifecycle === SessionLifecycle.Creating) {
+				if (sessionState?.lifecycle === SessionLifecycle.Creating) {
 					const sessionId = AgentSession.id(channel);
 					const isolation = values?.[SessionConfigKey.Isolation];
 					if (isolation === 'worktree') {
@@ -1881,11 +1878,6 @@ export class AgentSideEffects extends Disposable {
 				break;
 			}
 		}
-	}
-
-	/** Injects the host-owned worktree isolation controller (see {@link AgentService.setWorktreeIsolation}). */
-	setWorktreeIsolation(worktree: WorktreeIsolation): void {
-		this._worktree = worktree;
 	}
 
 	private _recordCustomizationEnablement(session: ProtocolURI, candidate: ICustomizationEnablementCandidate, enablement: readonly CustomizationEnablement[]): void {

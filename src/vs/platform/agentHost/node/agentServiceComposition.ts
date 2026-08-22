@@ -22,7 +22,7 @@ import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { AgentHostChangesetCoordinator } from './agentHostChangesetCoordinator.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
-import { IAgentHostCustomizationEnablementService, supportsCustomizationEnablementWorktreeBinding } from './agentHostCustomizationEnablementService.js';
+import { IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
 import { AgentHostDebugLogsCollector } from './agentHostDebugLogs.js';
 import { AgentHostDatabase } from './agentHostDatabase.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
@@ -100,9 +100,6 @@ export function createAgentServiceComposition(
 		const octoKitService = accessor.get(IAgentHostOctoKitService);
 		const copilotApiService = accessor.get(ICopilotApiService);
 		const customizationEnablementService = accessor.get(IAgentHostCustomizationEnablementService);
-		if (!supportsCustomizationEnablementWorktreeBinding(customizationEnablementService)) {
-			throw new Error('AgentService requires customization enablement worktree binding support');
-		}
 		const gitStateService = accessor.get(IAgentHostGitStateService);
 		const agentMergeController = owned.add(instantiationService.createInstance(AgentMergeController, {
 			startTurn: (session, turnId, prompt) => callbackAdapter.value.startAgentMergeTurn(session, turnId, prompt),
@@ -178,7 +175,6 @@ export function createAgentServiceComposition(
 
 		const collaborators: IAgentServiceCollaborators = {
 			gitHubEndpointService,
-			customizationEnablementService,
 			gitStateService,
 			agentMergeController,
 			checkpointService,
