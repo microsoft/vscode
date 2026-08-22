@@ -110,7 +110,7 @@
 												"language": {
 													"type": "string",
 													"minLength": 1,
-													"description": "Exact fenced code block info string handled by this provider"
+													"description": "Exact fenced code block language handled by this provider"
 												}
 											}
 										},
@@ -122,7 +122,7 @@
 												"languagePrefix": {
 													"type": "string",
 													"minLength": 1,
-													"description": "Fenced code block info string prefix handled by this provider"
+													"description": "Fenced code block language prefix handled by this provider"
 												}
 											}
 										}

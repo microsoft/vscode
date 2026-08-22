@@ -26,6 +26,10 @@ Build outputs are written to `out/` (desktop), `dist/` (web), and `notebook-out/
 
 ### Developing the Markdown editor
 
+See [Markdown code block editor extensions](./markdown-code-block-editor-extensions.md)
+for the experimental extension contribution that embeds custom editors in
+fenced code blocks.
+
 1. **Know the repositories and integration points**
 
    `@vscode/markdown-editor` lives in the sibling `microsoft/vscode-packages` checkout at `vscode-team-tools/packages/markdown-editor`. In this repo, the integration is in `extensions/markdown-language-features`, especially `markdown-editor-src`, `src/preview/markdownEditorProvider.ts`, and `esbuild.markdownEditor.mts`. These instructions assume `vscode` and `vscode-packages` are sibling folders.
