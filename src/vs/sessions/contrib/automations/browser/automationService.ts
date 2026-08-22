@@ -109,6 +109,7 @@ const EMPTY_LEDGER: ILedger = Object.freeze({ automations: [], runs: [] });
 
 type ReadLedgerResult =
 	| { kind: 'ledger'; ledger: ILedger; revision: number }
+	| { kind: 'invalid'; ledger: ILedger; revision: number }
 	| { kind: 'unsupportedSchema' };
 
 export class AutomationStore extends Disposable implements IAutomationStore {
@@ -119,6 +120,7 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 	private readonly _runsForCache = new Map<string, IObservable<readonly IAutomationRun[]>>();
 
 	private _lastSeenRevision = 0;
+	private _canCompleteMigration = true;
 
 	readonly automations: IObservable<readonly IAutomationDescriptor[]>;
 	readonly runs: IObservable<readonly IAutomationRun[]>;
@@ -135,8 +137,9 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 		this._now = () => new Date();
 
 		const result = this.readLedger(this.storageService.get(this.storageKey, StorageScope.APPLICATION));
-		const initial = result.kind === 'ledger' ? result.ledger : EMPTY_LEDGER;
-		if (result.kind === 'ledger') {
+		const initial = result.kind === 'unsupportedSchema' ? EMPTY_LEDGER : result.ledger;
+		this._canCompleteMigration = result.kind === 'ledger';
+		if (result.kind !== 'unsupportedSchema') {
 			this._lastSeenRevision = result.revision;
 		}
 		this._automations = observableValue<readonly IAutomationDescriptor[]>(this, initial.automations);
@@ -156,6 +159,10 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 
 	getAutomation(id: string): IAutomationDescriptor | undefined {
 		return this._automations.get().find(a => a.id === id);
+	}
+
+	canCompleteMigration(): boolean {
+		return this._canCompleteMigration;
 	}
 
 	runsFor(automationId: string): IObservable<readonly IAutomationRun[]> {
@@ -460,6 +467,9 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 			if (readResult.kind === 'unsupportedSchema') {
 				throw new Error('Cannot modify automations: storage was written by a newer version');
 			}
+			if (readResult.kind === 'invalid') {
+				throw new Error('Cannot modify automations: persisted storage contains data this version cannot safely interpret');
+			}
 
 			this.acceptLedger(readResult.ledger, readResult.revision);
 			const mutation = mutate(readResult.ledger);
@@ -510,9 +520,11 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 	private refreshFromStorage(): void {
 		const result = this.readLedger(this.storageService.get(this.storageKey, StorageScope.APPLICATION));
 		if (result.kind === 'unsupportedSchema') {
+			this._canCompleteMigration = false;
 			return;
 		}
 
+		this._canCompleteMigration = result.kind === 'ledger';
 		this.acceptLedger(result.ledger, result.revision);
 	}
 
@@ -528,9 +540,10 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 			}
 			if (parsed?.schemaVersion !== CURRENT_SCHEMA_VERSION && !LEGACY_SCHEMA_VERSIONS.has(parsed?.schemaVersion)) {
 				this.logService.warn(`[AutomationService] Unsupported ledger schema version ${parsed?.schemaVersion}; ignoring.`);
-				return { kind: 'ledger', ledger: EMPTY_LEDGER, revision: 0 };
+				return { kind: 'invalid', ledger: EMPTY_LEDGER, revision: 0 };
 			}
 			const automations: IAutomationDescriptor[] = [];
+			let invalid = !Array.isArray(parsed.automations) || !Array.isArray(parsed.runs);
 			if (parsed.schemaVersion === CURRENT_SCHEMA_VERSION) {
 				const entries = Array.isArray(parsed.automations) ? parsed.automations : [];
 				for (const entry of entries) {
@@ -539,9 +552,11 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 						if (automation) {
 							automations.push(automation);
 						} else {
+							invalid = true;
 							this.logService.warn(`[AutomationService] Dropping persisted automation ${entry?.id} with an invalid target.`);
 						}
 					} catch (err) {
+						invalid = true;
 						this.logService.warn(`[AutomationService] Dropping malformed persisted automation ${entry?.id}.`, err);
 					}
 				}
@@ -553,9 +568,11 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 						if (automation) {
 							automations.push(automation);
 						} else {
+							invalid = true;
 							this.logService.warn(`[AutomationService] Dropping persisted automation ${entry?.id} with an invalid legacy target.`);
 						}
 					} catch (err) {
+						invalid = true;
 						this.logService.warn(`[AutomationService] Dropping malformed persisted automation ${entry?.id}.`, err);
 					}
 				}
@@ -563,13 +580,14 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 			const validIds = new Set(automations.map(a => a.id));
 			const serializedRuns = Array.isArray(parsed.runs) ? parsed.runs : [];
 			const runs = serializedRuns
-				.filter(r => !!r && typeof r === 'object' && validIds.has(r.automationId))
+				.filter((run): run is ISerializedAutomationRun => isSerializedAutomationRun(run) && validIds.has(run.automationId))
 				.map(r => Object.freeze({ ...r, sessionResource: r.sessionResource ? URI.parse(r.sessionResource) : undefined }));
 			const revision = typeof parsed.revision === 'number' ? parsed.revision : 0;
-			return { kind: 'ledger', ledger: { automations, runs: trimRunsPerAutomation(runs, MAX_RUNS_PER_AUTOMATION) }, revision };
+			invalid ||= runs.length !== serializedRuns.length;
+			return { kind: invalid ? 'invalid' : 'ledger', ledger: { automations, runs: trimRunsPerAutomation(runs, MAX_RUNS_PER_AUTOMATION) }, revision };
 		} catch (err) {
 			this.logService.error('[AutomationService] Failed to parse automations ledger; resetting.', err);
-			return { kind: 'ledger', ledger: EMPTY_LEDGER, revision: 0 };
+			return { kind: 'invalid', ledger: EMPTY_LEDGER, revision: 0 };
 		}
 	}
 
@@ -618,6 +636,24 @@ function areAutomationSnapshotsEqual(first: IAutomation, second: IAutomation): b
 	const normalizeRuns = (runs: readonly IAutomationRun[]) => runs.map(run => ({ ...run, sessionResource: run.sessionResource?.toString() }));
 	return JSON.stringify(serializeAutomation(first.automation)) === JSON.stringify(serializeAutomation(second.automation))
 		&& JSON.stringify(normalizeRuns(first.runs)) === JSON.stringify(normalizeRuns(second.runs));
+}
+
+type ISerializedAutomationRun = Omit<IAutomationRun, 'sessionResource'> & { readonly sessionResource?: string };
+
+function isSerializedAutomationRun(value: unknown): value is ISerializedAutomationRun {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return false;
+	}
+	const run = value as Record<string, unknown>;
+	return typeof run['id'] === 'string'
+		&& typeof run['automationId'] === 'string'
+		&& (run['status'] === 'pending' || run['status'] === 'running' || run['status'] === 'completed' || run['status'] === 'failed')
+		&& (run['trigger'] === 'schedule' || run['trigger'] === 'catch_up' || run['trigger'] === 'manual')
+		&& typeof run['startedAt'] === 'string'
+		&& typeof run['leaderWindowId'] === 'number'
+		&& (run['sessionResource'] === undefined || typeof run['sessionResource'] === 'string')
+		&& (run['completedAt'] === undefined || typeof run['completedAt'] === 'string')
+		&& (run['errorMessage'] === undefined || typeof run['errorMessage'] === 'string');
 }
 
 function deserializeAutomation(s: ISerializedAutomation): IAutomationDescriptor | undefined {

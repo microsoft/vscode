@@ -25,7 +25,7 @@ import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubs
 import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/agentHostUri.js';
 import { AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest } from '../common/state/protocol/messages.js';
-import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
+import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, type ClientPluginCustomization, type Message, type RootState } from '../common/state/sessionState.js';
 import { SUPPORTED_PROTOCOL_VERSIONS } from '../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
@@ -35,6 +35,7 @@ import { AhpErrorCodes, JsonRpcErrorCodes } from '../common/state/protocol/error
 import { ChatSourceKind, ContentEncoding, ResourceRequestParams, type CompletionsParams, type CompletionsResult, type CreateTerminalParams, type ResolveSessionConfigResult, type SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { decodeBase64, encodeBase64 } from '../../../base/common/buffer.js';
+import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../common/state/protocol/channels-automation/commands.js';
 import { ILoadEstimator, LoadEstimator } from '../../../base/parts/ipc/common/ipc.net.js';
 import { ITelemetryService, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
@@ -335,8 +336,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			this._clientId,
 			() => this.nextClientSeq(),
 			msg => this._logService.warn(`[AgentHostProtocolClient] ${msg}`),
-			resource => this.subscribe(resource),
-			resource => this.unsubscribe(resource),
+			channel => this._subscribeChannel(channel),
+			channel => this._unsubscribeChannel(channel),
 		));
 
 		// Forward action envelopes from the transport to the subscription manager
@@ -642,7 +643,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				return;
 			}
 
-			const subscriptions = this._subscriptionManager.currentSubscriptionUris().map(u => u.toString());
+			const subscriptions = this._subscriptionManager.currentSubscriptionChannels();
 			// Always include the always-live root state alongside getSubscription-managed entries.
 			if (!subscriptions.includes(ROOT_STATE_URI)) {
 				subscriptions.unshift(ROOT_STATE_URI);
@@ -738,12 +739,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private async _restoreSubscriptionsAfterFreshInitialize(initialSnapshots: readonly IStateSnapshot[]): Promise<void> {
 		const restored = new Set(initialSnapshots.map(snapshot => snapshot.resource));
 		const active = this._subscriptionManager.getActiveSubscriptions()
-			.filter(subscription => !restored.has(subscription.resource.toString()));
+			.filter(subscription => !restored.has(subscription.channel));
 		const restoreGroup = async (subscriptions: typeof active) => {
 			await Promise.all(subscriptions.map(async subscription => {
 				try {
 					const result = await this._dispatchRequest<CommandMap['subscribe']['result']>('subscribe', {
-						channel: subscription.resource.toString(),
+						channel: subscription.channel,
 					}, { bypassReconnectGate: true });
 					if (result.snapshot) {
 						this._subscriptionManager.applyReconnectSnapshot(
@@ -860,7 +861,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			this._serverSeq = maxSeq;
 			if (result.missing.length > 0) {
 				this._logService.info(`[RemoteAgentHostProtocol] Server cannot resume ${result.missing.length} subscription(s) after reconnect.`);
-				this._subscriptionManager.markSubscriptionsMissing(result.missing.map(u => URI.parse(u)));
+				this._subscriptionManager.markSubscriptionsMissing(result.missing);
 			}
 		} else {
 			let maxSeq = this._serverSeq;
@@ -937,6 +938,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return this._subscriptionManager.getSubscription<T>(kind, resource, owner);
 	}
 
+	getSubscriptionByChannel<T>(kind: StateComponents, channel: string, owner: string): IReference<IAgentSubscription<T>> {
+		return this._subscriptionManager.getSubscription<T>(kind, channel, owner);
+	}
+
 	getSubscriptionUnmanaged<T>(_kind: StateComponents, resource: URI): IAgentSubscription<T> | undefined {
 		return this._subscriptionManager.getSubscriptionUnmanaged<T>(resource);
 	}
@@ -953,7 +958,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return this._subscriptionManager.getActiveSubscriptions();
 	}
 
-	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
+	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): void {
 		const seq = this._subscriptionManager.dispatchOptimistic(channel, action);
 		this.dispatchAction(channel, action, this._clientId, seq);
 	}
@@ -967,12 +972,16 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * response.
 	 */
 	async subscribe(resource: URI): Promise<IStateSnapshot> {
-		this._logService.trace(`[RemoteAgentHostProtocol] subscribe start: ${resource.toString()}`);
-		const result = await this._sendRequest('subscribe', { channel: resource.toString() });
+		return this._subscribeChannel(resource.toString());
+	}
+
+	private async _subscribeChannel(channel: string): Promise<IStateSnapshot> {
+		this._logService.trace(`[RemoteAgentHostProtocol] subscribe start: ${channel}`);
+		const result = await this._sendRequest('subscribe', { channel });
 		if (!result.snapshot) {
-			throw new Error(`subscribe to ${resource.toString()} returned no snapshot`);
+			throw new Error(`subscribe to ${channel} returned no snapshot`);
 		}
-		this._logService.trace(`[RemoteAgentHostProtocol] subscribe done: ${resource.toString()}`);
+		this._logService.trace(`[RemoteAgentHostProtocol] subscribe done: ${channel}`);
 		return result.snapshot;
 	}
 
@@ -994,13 +1003,17 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * Unsubscribe from state at a URI.
 	 */
 	unsubscribe(resource: URI): void {
-		this._sendNotification('unsubscribe', { channel: resource.toString() });
+		this._unsubscribeChannel(resource.toString());
+	}
+
+	private _unsubscribeChannel(channel: string): void {
+		this._sendNotification('unsubscribe', { channel });
 	}
 
 	/**
 	 * Dispatch a client action to the server. Returns the clientSeq used.
 	 */
-	private dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, _clientId: string, clientSeq: number): void {
+	private dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction, _clientId: string, clientSeq: number): void {
 		this._grantImplicitReadsForOutgoingAction(action);
 		this._sendNotification('dispatchAction', { channel, clientSeq, action });
 	}
@@ -1054,6 +1067,18 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	async completions(params: CompletionsParams): Promise<CompletionsResult> {
 		return this._sendRequest('completions', params);
+	}
+
+	async listAutomationTriggerDefinitions(params: ListAutomationTriggerDefinitionsParams): Promise<ListAutomationTriggerDefinitionsResult> {
+		return this._sendRequest('listAutomationTriggerDefinitions', params);
+	}
+
+	async runAutomation(params: RunAutomationParams): Promise<RunAutomationResult> {
+		return this._sendRequest('runAutomation', params);
+	}
+
+	async fetchAutomationRuns(params: FetchAutomationRunsParams): Promise<FetchAutomationRunsResult> {
+		return this._sendRequest('fetchAutomationRuns', params);
 	}
 
 	/**
@@ -1297,7 +1322,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * Inspect an outgoing client-dispatched action and grant implicit reads for
 	 * resources that the host will need to read after receiving the action.
 	 */
-	private _grantImplicitReadsForOutgoingAction(action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
+	private _grantImplicitReadsForOutgoingAction(action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): void {
 		switch (action.type) {
 			case ActionType.SessionActiveClientSet:
 				if (action.activeClient.customizations) {

@@ -10,10 +10,10 @@ import { equals } from '../../../base/common/objects.js';
 import { ILogService } from '../../log/common/log.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
-import { ActionType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, ChatAction, RootAction, StateAction, TerminalAction, ChangesetAction, ClientChangesetAction, AnnotationsAction, ClientAnnotationsAction, isRootAction, isSessionAction, isChatAction, isChangesetAction, isAnnotationsAction, type AuthRequiredParams, type ProgressParams, type SessionSummaryChangedParams } from '../common/state/sessionActions.js';
+import { ActionType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, ChatAction, RootAction, StateAction, TerminalAction, ChangesetAction, ClientChangesetAction, AnnotationsAction, ClientAnnotationsAction, AutomationAction, AutomationRunAction, isRootAction, isSessionAction, isChatAction, isChangesetAction, isAnnotationsAction, type AuthRequiredParams, type ClientAutomationAction, type ClientAutomationRunAction, type ProgressParams, type SessionSummaryChangedParams } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
-import { rootReducer, sessionReducer, chatReducer, changesetReducer, annotationsReducer } from '../common/state/sessionReducers.js';
-import { createRootState, createSessionState, createChatState, createDefaultChatSummary, chatSummaryFromState, buildDefaultChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseSubagentSessionUri, isAhpChatChannel, isDefaultChatUri, mergeSessionWithDefaultChat, isAhpRootChannel, readSessionExternal, SessionLifecycle, withHostBuildInfo, type Changeset, type ChangesetState, type AnnotationsState, type ChatState, type ChatSummary, type Customization, type ISessionWithDefaultChat, type Message, type RootState, type SessionConfigState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, IHostBuildInfo, SessionStatus } from '../common/state/sessionState.js';
+import { rootReducer, sessionReducer, chatReducer, changesetReducer, annotationsReducer, automationReducer, automationRunReducer } from '../common/state/sessionReducers.js';
+import { createRootState, createSessionState, createChatState, createDefaultChatSummary, chatSummaryFromState, buildDefaultChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseSubagentSessionUri, isAhpChatChannel, isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, isDefaultChatUri, mergeSessionWithDefaultChat, isAhpRootChannel, readSessionExternal, SessionLifecycle, withHostBuildInfo, type AutomationCatalogState, type AutomationRunState, type Changeset, type ChangesetState, type AnnotationsState, type ChatState, type ChatSummary, type Customization, type ISessionWithDefaultChat, type Message, type RootState, type SessionConfigState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, IHostBuildInfo, SessionStatus } from '../common/state/sessionState.js';
 import { AgentHostTelemetryLevelConfigKey, IPermissionsValue, platformRootSchema, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
@@ -25,6 +25,21 @@ import { preserveProviderBackedRootConfigValues } from '../common/agentCustomiza
 import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { readEphemeralSessionMeta } from '../common/meta/agentEphemeralSessionMeta.js';
 import { type IChatSurfaceMeta, readChatSurfaceMeta } from '../common/meta/agentChatSurfaceMeta.js';
+
+function isAutomationAction(action: StateAction): action is AutomationAction {
+	return action.type === ActionType.AutomationCreateRequested
+		|| action.type === ActionType.AutomationUpdateRequested
+		|| action.type === ActionType.AutomationSet
+		|| action.type === ActionType.AutomationRemoved;
+}
+
+function isAutomationRunAction(action: StateAction): action is AutomationRunAction {
+	return action.type === ActionType.AutomationRunLifecycleChanged
+		|| action.type === ActionType.AutomationRunSessionSet
+		|| action.type === ActionType.AutomationRunSessionRemoved
+		|| action.type === ActionType.AutomationRunPrimarySessionChanged
+		|| action.type === ActionType.AutomationRunCancelRequested;
+}
 
 export interface IAgentHostStateManagerOptions {
 	readonly changesetStateRetention?: IAgentHostChangesetStateRetentionOptions;
@@ -238,6 +253,8 @@ export class AgentHostStateManager extends Disposable {
 	 * client-dispatchable and lazily create their state on first write.
 	 */
 	private readonly _annotations = new Map<string, AnnotationsState>();
+	private _automationCatalog: AutomationCatalogState | undefined;
+	private readonly _automationRuns = new Map<string, AutomationRunState>();
 
 	/**
 	 * Active turns per session, keyed by session URI string with the value
@@ -661,6 +678,29 @@ export class AgentHostStateManager extends Disposable {
 			};
 		}
 
+		if (isAhpAutomationCatalogChannel(resource)) {
+			if (!this._automationCatalog) {
+				return undefined;
+			}
+			return {
+				resource,
+				state: this._automationCatalog,
+				fromSeq: this._serverSeq,
+			};
+		}
+
+		if (isAhpAutomationRunChannel(resource)) {
+			const state = this._automationRuns.get(resource);
+			if (!state) {
+				return undefined;
+			}
+			return {
+				resource,
+				state,
+				fromSeq: this._serverSeq,
+			};
+		}
+
 		// Changeset URIs are nested under their session URI; check them
 		// before falling back to the session map so a session whose URI
 		// happens to share a prefix with a changeset never collides.
@@ -707,6 +747,24 @@ export class AgentHostStateManager extends Disposable {
 			state: entry.state,
 			fromSeq: this._serverSeq,
 		};
+	}
+
+	/** Installs the durable automation catalogue before accepting subscriptions. */
+	setAutomationCatalogState(state: AutomationCatalogState): void {
+		this._automationCatalog = state;
+	}
+
+	getAutomationCatalogState(): AutomationCatalogState | undefined {
+		return this._automationCatalog;
+	}
+
+	/** Installs one durable automation run before accepting subscriptions. */
+	setAutomationRunState(state: AutomationRunState): void {
+		this._automationRuns.set(state.resource, state);
+	}
+
+	getAutomationRunState(resource: string): AutomationRunState | undefined {
+		return this._automationRuns.get(resource);
 	}
 
 	/** Read-only accessor for callers that only need to inspect a changeset (not subscribe). */
@@ -1489,7 +1547,7 @@ export class AgentHostStateManager extends Disposable {
 	 * The action is applied to state and emitted with the client's origin
 	 * so the originating client can reconcile.
 	 */
-	dispatchClientAction(channel: URI, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, origin: ActionOrigin, clientContext?: IAgentHostClientTelemetryContext): unknown {
+	dispatchClientAction(channel: URI, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction, origin: ActionOrigin, clientContext?: IAgentHostClientTelemetryContext): unknown {
 		return this._applyAndEmit(channel, action, origin, clientContext);
 	}
 
@@ -1661,6 +1719,32 @@ export class AgentHostStateManager extends Disposable {
 			const newState = annotationsReducer(state, annotationsAction, this._log);
 			if (newState !== state) {
 				this._annotations.set(key, newState);
+			}
+			resultingState = newState;
+		}
+
+		if (isAhpAutomationCatalogChannel(channel) && isAutomationAction(action)) {
+			const state = this._automationCatalog;
+			if (!state) {
+				this._logService.warn(`[AgentHostStateManager] Action for unavailable automation catalogue: ${channel}, type=${action.type}`);
+				return undefined;
+			}
+			const newState = automationReducer(state, action, this._log);
+			if (newState !== state) {
+				this._automationCatalog = newState;
+			}
+			resultingState = newState;
+		}
+
+		if (isAhpAutomationRunChannel(channel) && isAutomationRunAction(action)) {
+			const state = this._automationRuns.get(channel);
+			if (!state) {
+				this._logService.warn(`[AgentHostStateManager] Action for unknown automation run: ${channel}, type=${action.type}`);
+				return undefined;
+			}
+			const newState = automationRunReducer(state, action, this._log);
+			if (newState !== state) {
+				this._automationRuns.set(channel, newState);
 			}
 			resultingState = newState;
 		}

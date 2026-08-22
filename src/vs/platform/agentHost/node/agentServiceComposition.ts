@@ -24,6 +24,7 @@ import type { IAgent } from '../common/agent.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
+import { AgentHostAutomationService, IAgentHostAutomationService, type IAgentHostAutomationExecution } from './agentHostAutomationService.js';
 import { AgentHostChangesetCoordinator } from './agentHostChangesetCoordinator.js';
 import { AgentHostChangesetOperationService } from './agentHostChangesetOperationService.js';
 import { AgentHostChangesetService } from './agentHostChangesetService.js';
@@ -81,6 +82,13 @@ export interface IAgentServiceComposition {
 
 class AgentServiceCallbackAdapter {
 	private callbacks: IAgentServiceCallbacks | undefined;
+
+	readonly automationExecution: IAgentHostAutomationExecution = {
+		isSessionTemplateAvailable: template => this.value.automationExecution.isSessionTemplateAvailable(template),
+		createSession: (template, run) => this.value.automationExecution.createSession(template, run),
+		startSession: (session, message) => this.value.automationExecution.startSession(session, message),
+		cancelSession: session => this.value.automationExecution.cancelSession(session),
+	};
 
 	readonly sessionServerToolAccessor: ISessionServerToolAccessor = {
 		isActiveAgentTitleGenerationEnabled: () => this.value.sessionServerToolAccessor.isActiveAgentTitleGenerationEnabled(),
@@ -316,6 +324,9 @@ export function createAgentServiceComposition(
 			serverToolHost,
 		};
 		agentService = instantiationService.createInstance(AgentService, core, collaborators);
+		const automationService = owned.add(instantiationService.createInstance(AgentHostAutomationService, callbackAdapter.automationExecution));
+		services.set(IAgentHostAutomationService, automationService);
+		agentService.setAutomationService(automationService);
 		return {
 			agentService,
 			authenticationService: core.authenticationService,

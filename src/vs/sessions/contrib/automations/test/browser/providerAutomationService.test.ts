@@ -883,7 +883,7 @@ suite('ProviderAutomationService', () => {
 		}]);
 	});
 
-	test('continues migrating after an Automation import fails', async () => {
+	test('continues migrating after an Automation import fails and surfaces the failure', async () => {
 		const createAutomation = (id: string) => ({
 			id,
 			name: id,
@@ -902,7 +902,7 @@ suite('ProviderAutomationService', () => {
 		});
 		const { service, providerStore, storage } = createService(legacy, undefined, 'migration');
 
-		await service.waitForMigrationForTesting();
+		await assert.rejects(service.waitForMigrationForTesting(), /Failed to migrate 1 Automation snapshot/);
 
 		assert.deepStrictEqual({
 			providerAutomationIds: providerStore.automations.get().map(automation => automation.id),
@@ -910,6 +910,26 @@ suite('ProviderAutomationService', () => {
 		}, {
 			providerAutomationIds: ['automation-2'],
 			legacyAutomationIds: ['automation-1'],
+		});
+	});
+
+	test('does not complete migration from a newer legacy ledger schema', async () => {
+		const futureLedger = JSON.stringify({
+			schemaVersion: 999,
+			revision: 7,
+			automations: [{ id: 'future-content' }],
+			runs: [],
+		});
+		const { service, providerStore, storage } = createService(futureLedger);
+
+		await assert.rejects(service.waitForMigrationForTesting(), /cannot be migrated safely/);
+
+		assert.deepStrictEqual({
+			providerAutomations: providerStore.automations.get(),
+			persisted: storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION),
+		}, {
+			providerAutomations: [],
+			persisted: futureLedger,
 		});
 	});
 });

@@ -48,6 +48,14 @@ needed by advertised session types. Runtime startup and shutdown rebind or
 dispose connection-scoped listeners; consumers must not assume registration
 means the backend has finished discovery.
 
+## Automations
+
+Agent Host providers expose Automations through the singleton `ahp-automations://` catalogue when the negotiated host capabilities include `automations`. `AgentHostAutomationStore` projects that authoritative AHP state onto the Sessions automation model; it does not persist definitions or execute a fallback scheduler. `ReconnectableAgentHostAutomationStore` keeps that projection stable across local and remote connection changes and falls back to the legacy store only while the feature is disabled, the host lacks the capability, or migration has not completed.
+
+Migration imports each legacy definition with canonical `automation/createRequested` actions and waits for authoritative `automation/set` state. Imported definitions identify their initial prompt with `MessageKind.Automation`, preserving automation provenance instead of representing host-triggered execution as a user message. Editor-qualified language-model identifiers are converted to provider-native `ModelSelection.id` values at the AHP boundary while VS Code projection metadata preserves the editor identifier. The host withholds the per-automation `run` operation and rejects execution until every expected resource is present and the durable completion marker is written. Import retries are idempotent and concurrent edits are reconciled before source removal. Failures before a verified item transfer leave its legacy authority intact; failures after transfer retain the durable host definition and archived history for retry. Historical legacy runs are copied to an atomic, read-only local archive before guarded ledger removal because AHP deliberately has no run-history import command.
+
+After migration, the Agent Host owns manual execution, schedule evaluation, misfire handling, run/session linkage, cancellation, and lifecycle persistence. Run summaries carry host session resources; the provider projection converts them to the local or remote Sessions resource scheme before exposing them to history UI. The browser scheduler consults `isSchedulingOwnedByHost` for each Automation, and the browser runner treats a host-dispatched manual run as started without creating a duplicate session. Connection startup waits for capability negotiation instead of treating an initializing host as a migration failure. The existing `chat.automations.enabled` and `chat.automations.runTimeoutMinutes` settings are mirrored to host root config; disabling Automations removes the `run` operation and stops new schedule claims while leaving durable definitions and already-running sessions intact.
+
 ## Identity
 
 The local provider uses:

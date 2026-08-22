@@ -33,6 +33,8 @@ import {
 	type PendingMessage,
 	type Turn,
 	type AnnotationsState,
+	type AutomationCatalogState,
+	type AutomationRunState,
 	type URI as ProtocolURI,
 	type RootState,
 	type SessionState,
@@ -74,6 +76,7 @@ export {
 	type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type ModelSelection, type PendingMessage, type PluginCustomization, type ProjectInfo, type PromptCustomization, type ReasoningResponsePart,
 	type ResponsePart,
 	type RootState, type RuleCustomization, type SessionActiveClient,
+	type AutomationCatalogState, type AutomationRunState,
 	type SessionConfigState, type ChatInputAnswer as SessionInputAnswer,
 	type ChatInputOption as SessionInputOption, type ChatInputQuestion as SessionInputQuestion, type ChatInputRequest as SessionInputRequest, type SessionModelInfo,
 	type SessionState,
@@ -158,6 +161,23 @@ export interface UsageInfoMeta {
 	 */
 	turnTokenTotals?: readonly ITurnTokenTotal[];
 	[key: string]: unknown;
+}
+
+/** Singleton channel containing the host-owned automation catalogue. */
+export const AUTOMATION_CATALOG_URI = 'ahp-automations://';
+
+/** Returns whether `uri` identifies the singleton automation catalogue channel. */
+export function isAhpAutomationCatalogChannel(uri: string): boolean {
+	return uri === AUTOMATION_CATALOG_URI;
+}
+
+/** Returns whether `uri` identifies one automation-run channel. */
+export function isAhpAutomationRunChannel(uri: string): boolean {
+	try {
+		return ResourceURI.parse(uri).scheme === 'ahp-automation-run';
+	} catch {
+		return false;
+	}
 }
 
 const MESSAGE_HIDDEN_FROM_TRANSCRIPT_META_KEY = 'vscode.chat.hiddenFromTranscript';
@@ -924,6 +944,8 @@ export const enum StateComponents {
 	Terminal,
 	Changeset,
 	Annotations,
+	AutomationCatalog,
+	AutomationRun,
 }
 
 export type ComponentToState = {
@@ -933,6 +955,8 @@ export type ComponentToState = {
 	[StateComponents.Terminal]: TerminalState;
 	[StateComponents.Changeset]: ChangesetState;
 	[StateComponents.Annotations]: AnnotationsState;
+	[StateComponents.AutomationCatalog]: AutomationCatalogState;
+	[StateComponents.AutomationRun]: AutomationRunState;
 };
 
 // ---- Default chat URI helpers ----------------------------------------------
