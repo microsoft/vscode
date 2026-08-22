@@ -35,6 +35,7 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
+import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
@@ -55,7 +56,7 @@ import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_C
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
-import { createTestAgentService } from './agentServiceTestUtils.js';
+import { createTestAgentService, getTestAgentStateManager } from './agentServiceTestUtils.js';
 
 // ---- Tests ------------------------------------------------------------------
 
@@ -144,6 +145,7 @@ function createTestSideEffects(
 		[ITelemetryService, telemetryService],
 		[IAgentHostTerminalManager, terminalManager],
 		[ISessionDataService, options.sessionDataService],
+		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
 	), /*strict*/ true));
 	const resolvedOptions: IAgentSideEffectsOptions = {
 		...options,
@@ -5205,7 +5207,7 @@ suite('AgentSideEffects', () => {
 
 			await localService.restoreSession(sessionResource);
 
-			const state = localService.stateManager.getSessionState(sessionResource.toString());
+			const state = getTestAgentStateManager(localService).getSessionState(sessionResource.toString());
 			assert.ok(state);
 			assert.strictEqual(state!.title, 'Restored Title');
 		});
@@ -5240,7 +5242,7 @@ suite('AgentSideEffects', () => {
 
 			await localService.restoreSession(sessionResource);
 
-			const state = localService.stateManager.getSessionState(sessionResource.toString());
+			const state = getTestAgentStateManager(localService).getSessionState(sessionResource.toString());
 			assert.deepStrictEqual(state?.turns.map(t => t.id), ['real-1', 'local-1']);
 		});
 

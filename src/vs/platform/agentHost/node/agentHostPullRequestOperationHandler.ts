@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
-import { IAgentService } from '../common/agentService.js';
+import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
@@ -73,7 +73,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		private readonly _getSessionState: (sessionKey: string) => ISessionWithDefaultChat | undefined,
 		private readonly _resolveBaseBranchName: (sessionKey: string) => Promise<string | undefined>,
 		private readonly _onPullRequestCreated: (event: PullRequestCreatedEvent) => void,
-		@IAgentService private readonly _agentService: IAgentService,
+		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentHostOctoKitService private readonly _octoKitService: IAgentHostOctoKitService,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
@@ -136,7 +136,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		const base = baseBranchName;
 
 		const repoResource = this._gitHubEndpointService.getRepoResource();
-		const authToken = this._agentService.getAuthToken({
+		const authToken = this._authenticationService.getAuthToken({
 			resource: repoResource.resource,
 			scopes: repoResource.scopes_supported,
 		});
@@ -360,7 +360,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		token: CancellationToken,
 	): Promise<{ title: string; description: string } | undefined> {
 		const copilotResource = this._gitHubEndpointService.getCopilotResource();
-		const authToken = this._agentService.getAuthToken({
+		const authToken = this._authenticationService.getAuthToken({
 			resource: copilotResource.resource,
 			scopes: copilotResource.scopes_supported,
 		});

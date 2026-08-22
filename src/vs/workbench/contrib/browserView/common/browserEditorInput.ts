@@ -59,23 +59,12 @@ export interface IBeforeDisposeBrowserEditorEvent {
 }
 
 /**
- * Slice the fragment off a raw URL. A literal `#` always starts the fragment,
- * so a plain substring keeps the rest of the URL byte-for-byte intact (no
- * re-encoding), matching what the navbar displays.
- */
-function stripUrlFragment(url: string): string {
-	const hash = url.indexOf('#');
-	return hash === -1 ? url : url.slice(0, hash);
-}
-
-/**
  * Slice both the query and fragment off a raw URL, preserving the exact
  * encoding of the remaining scheme/authority/path.
  */
 function stripUrlQueryAndFragment(url: string): string {
-	const stripped = stripUrlFragment(url);
-	const query = stripped.indexOf('?');
-	return query === -1 ? stripped : stripped.slice(0, query);
+	const suffix = url.search(/[?#]/);
+	return suffix === -1 ? url : url.slice(0, suffix);
 }
 
 export class BrowserEditorInput extends EditorInput {
@@ -256,12 +245,12 @@ export class BrowserEditorInput extends EditorInput {
 			return truncate(this.title!, MAX_TITLE_LENGTH);
 		}
 
-		const name = this._associatedResource ? basename(this._associatedResource) : this.getDescription(Verbosity.SHORT) || BrowserEditorInput.DEFAULT_LABEL;
+		const name = this._associatedResource ? basename(this._associatedResource) : this.url && this.getURLTitles.get(this.url)[Verbosity.SHORT] || BrowserEditorInput.DEFAULT_LABEL;
 		return truncate(name, MAX_TITLE_LENGTH);
 	}
 
 	override getTitle(verbosity = Verbosity.MEDIUM): string {
-		const description = this.getDescription(verbosity);
+		const description = this.url && this.getURLTitles.get(this.url)[verbosity];
 		const title = this.title ? `${this.title} (${description})` : description;
 		return title || BrowserEditorInput.DEFAULT_LABEL;
 	}
@@ -272,15 +261,19 @@ export class BrowserEditorInput extends EditorInput {
 
 	private readonly getURLTitles = new LRUCachedFunction((url: string) => {
 		let _short: string | undefined = undefined;
-		let _medium: string | undefined = undefined;
-		let _long: string | undefined = undefined;
+		let _mediumlong: string | undefined = undefined;
+		const mediumlong = () => {
+			if (_mediumlong === undefined) {
+				_mediumlong = stripUrlQueryAndFragment(url);
+			}
+			return _mediumlong;
+		};
 		return {
-			// Host only. Derived via the WHATWG URL parser so it matches the
-			// host shown by the navbar's raw URL (e.g. punycode for IDNs).
+			// Host only for network URLs, path only for file URLs.
 			get [Verbosity.SHORT]() {
 				if (_short === undefined) {
 					const parsed = URL.parse(url);
-					_short = parsed ? parsed.host : stripUrlQueryAndFragment(url);
+					_short = parsed ? parsed.protocol === 'file:' ? parsed.pathname : parsed.host : stripUrlQueryAndFragment(url);
 				}
 				return _short;
 			},
@@ -288,18 +281,11 @@ export class BrowserEditorInput extends EditorInput {
 			// (not a URI round-trip) so the displayed text stays byte-for-byte
 			// consistent with the canonical URL shown in the navbar.
 			get [Verbosity.MEDIUM]() {
-				if (_medium === undefined) {
-					_medium = stripUrlQueryAndFragment(url);
-				}
-				return _medium;
+				return mediumlong();
 			},
-			// Raw URL without the fragment, sliced from the canonical string for
-			// the same consistency reason as the medium form.
+			// Raw URL without the query/fragment.
 			get [Verbosity.LONG]() {
-				if (_long === undefined) {
-					_long = stripUrlFragment(url);
-				}
-				return _long;
+				return mediumlong();
 			}
 		};
 	});
