@@ -36,6 +36,7 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { ILinkHoverTargetOptions } from '../../../../terminal/browser/widgets/terminalHoverWidget.js';
 import { TerminalWidgetManager } from '../../../../terminal/browser/widgets/widgetManager.js';
 import { TerminalLink } from '../../browser/terminalLink.js';
+import { isMacintosh } from '../../../../../../base/common/platform.js';
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontFamily: 'monospace',
@@ -339,6 +340,110 @@ suite('TerminalLinkManager', () => {
 			linkManager.setLinks({ fileLinks: [link2] });
 			const fileLink = await linkManager.openRecentLink('localFile');
 			strictEqual(fileLink, link2);
+		});
+	});
+
+	suite('Link activation event propagation', () => {
+		test('OSC 8 activate - should call stopImmediatePropagation when modifier is down', async () => {
+			await configurationService.setUserConfiguration('editor', { multiCursorModifier: 'alt' });
+			const linkHandler = xterm.options.linkHandler;
+			if (!linkHandler?.activate) {
+				throw new Error('Expected linkHandler with activate callback');
+			}
+
+			let stopImmediatePropagationCalled = false;
+			let preventDefaultCalled = false;
+			const event = {
+				altKey: false,
+				ctrlKey: !isMacintosh,
+				metaKey: isMacintosh,
+				stopImmediatePropagation: () => { stopImmediatePropagationCalled = true; },
+				preventDefault: () => { preventDefaultCalled = true; }
+			} as any;
+
+			await linkHandler.activate(event, 'http://example.com');
+			strictEqual(stopImmediatePropagationCalled, true);
+		});
+
+		test('OSC 8 activate - should not call stopImmediatePropagation when modifier is not down', async () => {
+			await configurationService.setUserConfiguration('editor', { multiCursorModifier: 'alt' });
+			const linkHandler = xterm.options.linkHandler;
+			if (!linkHandler?.activate) {
+				throw new Error('Expected linkHandler with activate callback');
+			}
+
+			let stopImmediatePropagationCalled = false;
+			const event = {
+				altKey: false,
+				ctrlKey: false,
+				metaKey: false,
+				stopImmediatePropagation: () => { stopImmediatePropagationCalled = true; }
+			} as any;
+
+			await linkHandler.activate(event, 'http://example.com');
+			strictEqual(stopImmediatePropagationCalled, false);
+		});
+
+		test('Detector link activate - should call stopImmediatePropagation when modifier is down', async () => {
+			await configurationService.setUserConfiguration('editor', { multiCursorModifier: 'alt' });
+			
+			const mockDetector = {
+				xterm,
+				maxLinkLength: 100,
+				detect: () => []
+			} as any;
+			const adapter = (linkManager as any)._setupLinkDetector('test-detector', mockDetector);
+
+			let stopImmediatePropagationCalled = false;
+			let preventDefaultCalled = false;
+			const event = {
+				altKey: false,
+				ctrlKey: !isMacintosh,
+				metaKey: isMacintosh,
+				stopImmediatePropagation: () => { stopImmediatePropagationCalled = true; },
+				preventDefault: () => { preventDefaultCalled = true; }
+			} as any;
+
+			const mockLink = {
+				type: 'url',
+				text: 'http://example.com',
+				activate: () => {}
+			};
+
+			(adapter as any)._onDidActivateLink.fire({ link: mockLink, event });
+			strictEqual(preventDefaultCalled, true);
+			strictEqual(stopImmediatePropagationCalled, true);
+		});
+
+		test('Detector link activate - should not call stopImmediatePropagation when modifier is not down', async () => {
+			await configurationService.setUserConfiguration('editor', { multiCursorModifier: 'alt' });
+
+			const mockDetector = {
+				xterm,
+				maxLinkLength: 100,
+				detect: () => []
+			} as any;
+			const adapter = (linkManager as any)._setupLinkDetector('test-detector', mockDetector);
+
+			let stopImmediatePropagationCalled = false;
+			let preventDefaultCalled = false;
+			const event = {
+				altKey: false,
+				ctrlKey: false,
+				metaKey: false,
+				stopImmediatePropagation: () => { stopImmediatePropagationCalled = true; },
+				preventDefault: () => { preventDefaultCalled = true; }
+			} as any;
+
+			const mockLink = {
+				type: 'url',
+				text: 'http://example.com',
+				activate: () => {}
+			};
+
+			(adapter as any)._onDidActivateLink.fire({ link: mockLink, event });
+			strictEqual(preventDefaultCalled, true);
+			strictEqual(stopImmediatePropagationCalled, false);
 		});
 	});
 });
