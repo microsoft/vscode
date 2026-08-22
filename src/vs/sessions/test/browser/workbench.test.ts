@@ -1604,7 +1604,7 @@ suite('Sessions - Workbench', () => {
 		}, {
 			showHeader: true,
 			headerPrimary: Menus.SessionsEditorHeaderPrimary,
-			headerSecondary: Menus.SessionsEditorHeaderSecondary,
+			headerSecondary: undefined,
 			headerLayout: Menus.SessionsEditorHeaderLayout,
 		});
 	});
