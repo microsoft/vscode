@@ -9,7 +9,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { URI } from '../../../../base/common/uri.js';
 import { SyncDescriptor } from '../../../instantiation/common/descriptors.js';
-import { createDecorator, IInstantiationService, _util } from '../../../instantiation/common/instantiation.js';
+import { createDecorator, IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
 import { NullByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
@@ -32,6 +32,29 @@ class TestService implements ITestService {
 class ReplacementTestService implements ITestService {
 	declare readonly _serviceBrand: undefined;
 	readonly value = 2;
+}
+
+class SubclassTestService extends TestService { }
+
+class StaticArgumentTestService implements ITestService {
+	declare readonly _serviceBrand: undefined;
+
+	constructor(readonly value: number) { }
+}
+
+class DefaultStaticArgumentTestService implements ITestService {
+	declare readonly _serviceBrand: undefined;
+
+	constructor(readonly value = 1) { }
+}
+
+class ServiceDependentTestService implements ITestService {
+	declare readonly _serviceBrand: undefined;
+
+	constructor(
+		readonly value: number,
+		@ITestService _dependency: ITestService,
+	) { }
 }
 
 class DisposableTestService extends Disposable implements ITestService {
@@ -60,21 +83,82 @@ suite('AgentHostServiceCollection', () => {
 		assert.strictEqual(services.get(IInstantiationService), instantiationService);
 	});
 
-	test('allows descriptor resolution after sealing', () => {
+	test('records descriptors supplied as constructor entries', () => {
+		const descriptor = new SyncDescriptor(TestService);
+		const services = new AgentHostServiceCollection(
+			[ITestService, descriptor],
+			[IReplacementService, new ReplacementTestService()],
+		);
+
+		assert.deepStrictEqual({
+			ids: services.registeredDescriptorIds,
+			descriptor: services.get(ITestService) === descriptor,
+		}, {
+			ids: [ITestService],
+			descriptor: true,
+		});
+	});
+
+	test('validates descriptor static arguments when registered', () => {
+		const services = new AgentHostServiceCollection();
+
+		assert.throws(
+			() => services.set(ITestService, new SyncDescriptor(ServiceDependentTestService)),
+			/ServiceDependentTestService must pass exactly 1 leading static arguments \(got 0\)/,
+		);
+		assert.throws(
+			() => services.set(ITestService, new SyncDescriptor(StaticArgumentTestService)),
+			/StaticArgumentTestService must pass at least 1 required static arguments \(got 0\)/,
+		);
+		services.set(ITestService, new SyncDescriptor(StaticArgumentTestService, [1]));
+		services.set(IReplacementService, new SyncDescriptor(DefaultStaticArgumentTestService));
+	});
+
+	test('allows collection-controlled descriptor resolution after sealing', () => {
 		const services = new AgentHostServiceCollection();
 		services.set(ITestService, new SyncDescriptor(TestService));
 		const instantiationService = disposables.add(new InstantiationService(services, true));
 		services.seal();
 
-		const resolved = instantiationService.invokeFunction(accessor => accessor.get(ITestService));
+		services.instantiateRegisteredDescriptors(instantiationService);
+		const resolved = services.get(ITestService);
 
 		assert.deepStrictEqual({
-			value: resolved.value,
+			value: resolved instanceof SyncDescriptor ? undefined : resolved.value,
 			registered: services.get(ITestService) === resolved,
 		}, {
 			value: 1,
 			registered: true,
 		});
+	});
+
+	test('instantiates registered descriptors exactly once with the collection instantiation service', () => {
+		const services = new AgentHostServiceCollection(
+			[ITestService, new SyncDescriptor(TestService)],
+			[IReplacementService, new SyncDescriptor(ReplacementTestService)],
+		);
+		const instantiationService = disposables.add(new InstantiationService(services, true));
+		const foreignInstantiationService = disposables.add(new InstantiationService(new AgentHostServiceCollection(), true));
+
+		assert.throws(
+			() => services.instantiateRegisteredDescriptors(instantiationService),
+			/must be sealed before instantiating registered descriptors/,
+		);
+		services.seal();
+		assert.throws(
+			() => services.instantiateRegisteredDescriptors(foreignInstantiationService),
+			/must be instantiated by the collection instantiation service/,
+		);
+		services.instantiateRegisteredDescriptors(instantiationService);
+
+		assert.deepStrictEqual(
+			services.registeredDescriptorIds.map(id => services.get(id) instanceof SyncDescriptor),
+			[false, false],
+		);
+		assert.throws(
+			() => services.instantiateRegisteredDescriptors(instantiationService),
+			/registered descriptors have already been instantiated/,
+		);
 	});
 
 	test('rejects registrations and replacements after sealing', () => {
@@ -87,49 +171,34 @@ suite('AgentHostServiceCollection', () => {
 		assert.throws(() => services.set(createDecorator<ITestService>('agentHostLateService'), new TestService()), /service collection is sealed/);
 		assert.throws(() => services.set(ITestService, new TestService()), /service collection is sealed/);
 		assert.throws(() => services.set(IReplacementService, new SyncDescriptor(TestService)), /service collection is sealed/);
+		assert.throws(() => services.set(IReplacementService, new TestService()), /service collection is sealed/);
+		assert.throws(() => services.set(IReplacementService, new SubclassTestService()), /service collection is sealed/);
 		assert.throws(() => services.set(IReplacementService, new ReplacementTestService()), /service collection is sealed/);
 	});
 
 	test('registers descriptors with exact leading static arguments', () => {
 		const services = new AgentHostServiceCollection();
-		const ids = [
-			...registerAgentHostCoreServices(services, {
-				storageResource: URI.file('/storage.json'),
-				fetchFn: globalThis.fetch,
-				gitHubServiceOptions: {
-					endpoint: {
-						onDidChange: Event.None,
-						getApiBaseUri: () => 'https://api.github.com',
-						getGraphQlUri: () => 'https://api.github.com/graphql',
-					},
-					tokenProvider: { getToken: () => undefined },
-					fetch: globalThis.fetch,
+		registerAgentHostCoreServices(services, {
+			storageResource: URI.file('/storage.json'),
+			fetchFn: globalThis.fetch,
+			gitHubServiceOptions: {
+				endpoint: {
+					onDidChange: Event.None,
+					getApiBaseUri: () => 'https://api.github.com',
+					getGraphQlUri: () => 'https://api.github.com/graphql',
 				},
-			}),
-			...registerAgentHostHostServices(services, {
-				userDataPath: URI.file('/user-data'),
-				fetchFn: globalThis.fetch,
-				byok: { kind: 'renderer', bridgeRegistry: new NullByokLmBridgeRegistry() },
-			}),
-		];
-
-		const descriptors = ids
-			.map(id => services.get(id))
-			.filter((candidate): candidate is SyncDescriptor<unknown> => candidate instanceof SyncDescriptor);
-		const actual = descriptors.map(descriptor => {
-			const dependencies = _util.getServiceDependencies(descriptor.ctor).sort((a, b) => a.index - b.index);
-			return {
-				name: descriptor.ctor.name,
-				staticArguments: descriptor.staticArguments.length,
-				firstServiceArgument: dependencies[0]?.index ?? 0,
-			};
+				tokenProvider: { getToken: () => undefined },
+				fetch: globalThis.fetch,
+			},
+		});
+		registerAgentHostHostServices(services, {
+			userDataPath: URI.file('/user-data'),
+			fetchFn: globalThis.fetch,
+			byok: { kind: 'renderer', bridgeRegistry: new NullByokLmBridgeRegistry() },
 		});
 
-		assert.ok(actual.length > 0);
-		assert.deepStrictEqual(
-			actual.filter(entry => entry.staticArguments !== entry.firstServiceArgument),
-			[],
-		);
+		assert.ok(services.registeredDescriptorIds.length > 0);
+		assert.ok(services.registeredDescriptorIds.every(id => services.get(id) instanceof SyncDescriptor));
 	});
 
 	test('preserves typed overrides', () => {
@@ -137,7 +206,7 @@ suite('AgentHostServiceCollection', () => {
 		const override = new NullAgentEditAttributionService();
 		services.set(IAgentEditAttributionService, override);
 
-		const ids = registerAgentHostCoreServices(services, {
+		registerAgentHostCoreServices(services, {
 			storageResource: undefined,
 			fetchFn: globalThis.fetch,
 			gitHubServiceOptions: {
@@ -153,16 +222,16 @@ suite('AgentHostServiceCollection', () => {
 
 		assert.deepStrictEqual({
 			preserved: services.get(IAgentEditAttributionService) === override,
-			returned: ids.includes(IAgentEditAttributionService),
+			recorded: services.registeredDescriptorIds.includes(IAgentEditAttributionService),
 		}, {
 			preserved: true,
-			returned: false,
+			recorded: false,
 		});
 	});
 
 	test('keeps worktree isolation production-only', () => {
-		const services = new AgentHostServiceCollection();
-		const coreIds = registerAgentHostCoreServices(services, {
+		const coreServices = new AgentHostServiceCollection();
+		registerAgentHostCoreServices(coreServices, {
 			storageResource: undefined,
 			fetchFn: globalThis.fetch,
 			gitHubServiceOptions: {
@@ -175,15 +244,16 @@ suite('AgentHostServiceCollection', () => {
 				fetch: globalThis.fetch,
 			},
 		});
-		const hostIds = registerAgentHostHostServices(services, {
+		const hostServices = new AgentHostServiceCollection();
+		registerAgentHostHostServices(hostServices, {
 			userDataPath: URI.file('/user-data'),
 			fetchFn: globalThis.fetch,
 			byok: { kind: 'renderer', bridgeRegistry: new NullByokLmBridgeRegistry() },
 		});
 
 		assert.deepStrictEqual({
-			core: coreIds.includes(IAgentHostWorktreeIsolation),
-			host: hostIds.includes(IAgentHostWorktreeIsolation),
+			core: coreServices.registeredDescriptorIds.includes(IAgentHostWorktreeIsolation),
+			host: hostServices.registeredDescriptorIds.includes(IAgentHostWorktreeIsolation),
 		}, {
 			core: false,
 			host: true,
@@ -196,7 +266,7 @@ suite('AgentHostServiceCollection', () => {
 		services.set(ITestService, new SyncDescriptor(DisposableTestService, [() => disposeCount++]));
 		const instantiationService = disposables.add(new InstantiationService(services, true));
 		services.seal();
-		instantiationService.invokeFunction(accessor => accessor.get(ITestService));
+		services.instantiateRegisteredDescriptors(instantiationService);
 
 		instantiationService.dispose();
 		instantiationService.dispose();

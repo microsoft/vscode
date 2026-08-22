@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SyncDescriptor } from '../../instantiation/common/descriptors.js';
-import { IInstantiationService, ServiceIdentifier } from '../../instantiation/common/instantiation.js';
+import { IInstantiationService, ServiceIdentifier, _util } from '../../instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { GitHubService, IGitHubService } from '../../github/common/githubService.js';
 import type { GitHubServiceOptions } from '../../github/common/githubTypes.js';
@@ -60,21 +60,89 @@ import { IAgentHostWorktreeIsolation, WorktreeIsolation } from './shared/worktre
  * existing imperative registrations migrate to descriptors.
  */
 export class AgentHostServiceCollection extends ServiceCollection {
+	private readonly descriptorIds = new Set<ServiceIdentifier<unknown>>();
 	private sealed = false;
+	private instantiated = false;
+	private instantiating = false;
+
+	constructor(...entries: ConstructorParameters<typeof ServiceCollection>) {
+		super();
+		for (const [id, service] of entries) {
+			this.set(id, service);
+		}
+	}
+
+	/**
+	 * IDs that have been registered as descriptors, in registration order.
+	 * Instances are excluded. The returned snapshot retains an ID after its
+	 * descriptor resolves, and registering the same ID again does not reorder it.
+	 */
+	get registeredDescriptorIds(): readonly ServiceIdentifier<unknown>[] {
+		return [...this.descriptorIds];
+	}
 
 	seal(): void {
 		this.sealed = true;
 	}
 
+	instantiateRegisteredDescriptors(instantiationService: IInstantiationService): void {
+		if (!this.sealed) {
+			throw new Error('Agent Host service collection must be sealed before instantiating registered descriptors');
+		}
+		if (this.instantiated) {
+			throw new Error('Agent Host registered descriptors have already been instantiated');
+		}
+		if (this.get(IInstantiationService) !== instantiationService) {
+			throw new Error('Agent Host registered descriptors must be instantiated by the collection instantiation service');
+		}
+		this.instantiated = true;
+		const ids = [...this.descriptorIds];
+		this.instantiating = true;
+		try {
+			instantiationService.invokeFunction(accessor => {
+				for (const id of ids) {
+					accessor.get(id);
+				}
+			});
+		} finally {
+			this.instantiating = false;
+		}
+	}
+
 	override set<T>(id: ServiceIdentifier<T>, instanceOrDescriptor: T | SyncDescriptor<T>): T | SyncDescriptor<T> {
 		if (this.sealed) {
 			const current = this.get(id);
-			const isDescriptorResolution = current instanceof SyncDescriptor && instanceOrDescriptor instanceof current.ctor;
+			const isDescriptorResolution = this.instantiating && current instanceof SyncDescriptor && instanceOrDescriptor instanceof current.ctor;
 			if (!isDescriptorResolution) {
 				throw new Error(`Agent Host service collection is sealed: ${id}`);
 			}
 		}
+		if (instanceOrDescriptor instanceof SyncDescriptor) {
+			assertExactStaticArguments(instanceOrDescriptor);
+			this.descriptorIds.add(id);
+		}
 		return super.set(id, instanceOrDescriptor);
+	}
+}
+
+function assertExactStaticArguments(descriptor: SyncDescriptor<unknown>): void {
+	const dependencies = _util.getServiceDependencies(descriptor.ctor).sort((a, b) => a.index - b.index);
+	if (dependencies.length > 0) {
+		const expected = dependencies[0].index;
+		const actual = descriptor.staticArguments.length;
+		if (actual !== expected) {
+			throw new Error(`Agent Host descriptor ${descriptor.ctor.name} must pass exactly ${expected} leading static arguments (got ${actual})`);
+		}
+		return;
+	}
+
+	// DI does not pad or truncate constructors without service dependencies. This
+	// heuristic still catches omitted required static arguments; default and rest
+	// parameters are intentionally excluded from Function.length.
+	const required = descriptor.ctor.length;
+	const actual = descriptor.staticArguments.length;
+	if (actual < required) {
+		throw new Error(`Agent Host descriptor ${descriptor.ctor.name} must pass at least ${required} required static arguments (got ${actual})`);
 	}
 }
 
@@ -84,7 +152,6 @@ export class AgentHostServiceCollection extends ServiceCollection {
  */
 function registerService<T>(
 	services: AgentHostServiceCollection,
-	ids: ServiceIdentifier<unknown>[],
 	id: ServiceIdentifier<T>,
 	value: T | SyncDescriptor<T>,
 ): void {
@@ -92,7 +159,6 @@ function registerService<T>(
 		return;
 	}
 	services.set(id, value);
-	ids.push(id);
 }
 
 export interface IAgentHostCoreServiceInputs {
@@ -102,31 +168,29 @@ export interface IAgentHostCoreServiceInputs {
 	readonly copilotApiService?: ICopilotApiService;
 }
 
-export function registerAgentHostCoreServices(services: AgentHostServiceCollection, inputs: IAgentHostCoreServiceInputs): readonly ServiceIdentifier<unknown>[] {
-	const ids: ServiceIdentifier<unknown>[] = [];
-	registerService(services, ids, IAgentHostFileMonitorService, new SyncDescriptor(AgentHostFileMonitorService));
-	registerService(services, ids, INetworkDiagnosticsService, new SyncDescriptor(NetworkDiagnosticsService));
-	registerService(services, ids, IDiffComputeService, new SyncDescriptor(NodeWorkerDiffComputeService));
-	registerService(services, ids, IAgentEditAttributionService, new SyncDescriptor(AgentEditAttributionService, [undefined, undefined]));
-	registerService(services, ids, IEditSurvivalReporterFactory, new SyncDescriptor(EditSurvivalReporterFactory));
-	registerService(services, ids, IEditArcReporterService, new SyncDescriptor(EditArcReporterService, [undefined]));
-	registerService(services, ids, IAgentHostStorageService, new SyncDescriptor(AgentHostStorageService, [inputs.storageResource]));
-	registerService(services, ids, IAgentHostManagedSettingsService, new SyncDescriptor(AgentHostManagedSettingsService));
-	registerService(services, ids, IAgentHostOctoKitService, new SyncDescriptor(AgentHostOctoKitService, [inputs.fetchFn]));
-	registerService(services, ids, IGitHubService, new SyncDescriptor(GitHubService, [inputs.gitHubServiceOptions]));
-	registerService(services, ids, ICopilotApiService, inputs.copilotApiService ?? new SyncDescriptor(CopilotApiService, [inputs.fetchFn]));
-	registerService(services, ids, IAgentHostCustomizationEnablementService, new SyncDescriptor(AgentHostCustomizationEnablementService));
-	registerService(services, ids, IAgentHostGitStateService, new SyncDescriptor(AgentHostGitStateService));
-	registerService(services, ids, IAgentHostCheckpointService, new SyncDescriptor(AgentHostCheckpointService));
-	registerService(services, ids, IAgentHostPromptCache, new SyncDescriptor(AgentHostPromptCache));
-	registerService(services, ids, IAgentHostSessionTitleSignal, new SyncDescriptor(AgentHostSessionTitleSignal));
-	registerService(services, ids, IAgentHostChangesetSubscriptionService, new SyncDescriptor(AgentHostChangesetSubscriptionService));
-	registerService(services, ids, IAgentHostChangesetOperationService, new SyncDescriptor(AgentHostChangesetOperationService));
-	registerService(services, ids, IAgentHostReviewService, new SyncDescriptor(AgentHostReviewService));
-	registerService(services, ids, IAgentHostChangesetService, new SyncDescriptor(AgentHostChangesetService));
-	registerService(services, ids, IAgentHostCompletions, new SyncDescriptor(AgentHostCompletions));
-	registerService(services, ids, IAgentHostTerminalManager, new SyncDescriptor(AgentHostTerminalManager));
-	return ids;
+export function registerAgentHostCoreServices(services: AgentHostServiceCollection, inputs: IAgentHostCoreServiceInputs): void {
+	registerService(services, IAgentHostFileMonitorService, new SyncDescriptor(AgentHostFileMonitorService));
+	registerService(services, INetworkDiagnosticsService, new SyncDescriptor(NetworkDiagnosticsService));
+	registerService(services, IDiffComputeService, new SyncDescriptor(NodeWorkerDiffComputeService));
+	registerService(services, IAgentEditAttributionService, new SyncDescriptor(AgentEditAttributionService, [undefined, undefined]));
+	registerService(services, IEditSurvivalReporterFactory, new SyncDescriptor(EditSurvivalReporterFactory));
+	registerService(services, IEditArcReporterService, new SyncDescriptor(EditArcReporterService, [undefined]));
+	registerService(services, IAgentHostStorageService, new SyncDescriptor(AgentHostStorageService, [inputs.storageResource]));
+	registerService(services, IAgentHostManagedSettingsService, new SyncDescriptor(AgentHostManagedSettingsService));
+	registerService(services, IAgentHostOctoKitService, new SyncDescriptor(AgentHostOctoKitService, [inputs.fetchFn]));
+	registerService(services, IGitHubService, new SyncDescriptor(GitHubService, [inputs.gitHubServiceOptions]));
+	registerService(services, ICopilotApiService, inputs.copilotApiService ?? new SyncDescriptor(CopilotApiService, [inputs.fetchFn]));
+	registerService(services, IAgentHostCustomizationEnablementService, new SyncDescriptor(AgentHostCustomizationEnablementService));
+	registerService(services, IAgentHostGitStateService, new SyncDescriptor(AgentHostGitStateService));
+	registerService(services, IAgentHostCheckpointService, new SyncDescriptor(AgentHostCheckpointService));
+	registerService(services, IAgentHostPromptCache, new SyncDescriptor(AgentHostPromptCache));
+	registerService(services, IAgentHostSessionTitleSignal, new SyncDescriptor(AgentHostSessionTitleSignal));
+	registerService(services, IAgentHostChangesetSubscriptionService, new SyncDescriptor(AgentHostChangesetSubscriptionService));
+	registerService(services, IAgentHostChangesetOperationService, new SyncDescriptor(AgentHostChangesetOperationService));
+	registerService(services, IAgentHostReviewService, new SyncDescriptor(AgentHostReviewService));
+	registerService(services, IAgentHostChangesetService, new SyncDescriptor(AgentHostChangesetService));
+	registerService(services, IAgentHostCompletions, new SyncDescriptor(AgentHostCompletions));
+	registerService(services, IAgentHostTerminalManager, new SyncDescriptor(AgentHostTerminalManager));
 }
 
 export interface IAgentHostHostServiceInputs {
@@ -135,31 +199,20 @@ export interface IAgentHostHostServiceInputs {
 	readonly byok: { readonly kind: 'renderer'; readonly bridgeRegistry: IByokLmBridgeRegistry } | { readonly kind: 'unavailable' };
 }
 
-export function registerAgentHostHostServices(services: AgentHostServiceCollection, inputs: IAgentHostHostServiceInputs): readonly ServiceIdentifier<unknown>[] {
-	const ids: ServiceIdentifier<unknown>[] = [];
-	registerService(services, ids, IWindowsMxcTerminalSandboxRuntime, new SyncDescriptor(WindowsMxcTerminalSandboxRuntime));
-	registerService(services, ids, ISandboxHelperService, new SyncDescriptor(SandboxHelperService));
-	registerService(services, ids, IAgentHostGitService, new SyncDescriptor(AgentHostGitService));
-	registerService(services, ids, IAgentPluginManager, new SyncDescriptor(AgentPluginManager, [inputs.userDataPath]));
-	registerService(services, ids, IAgentSdkDownloader, new SyncDescriptor(AgentSdkDownloader));
-	registerService(services, ids, IClaudeAgentSdkService, new SyncDescriptor(ClaudeAgentSdkService));
-	registerService(services, ids, IClaudeProxyService, new SyncDescriptor(ClaudeProxyService));
-	registerService(services, ids, ICodexProxyService, new SyncDescriptor(CodexProxyService));
-	registerService(services, ids, IAgentHostOTelService, new SyncDescriptor(AgentHostOTelService, [inputs.fetchFn]));
-	registerService(services, ids, IAgentHostWorktreeIsolation, new SyncDescriptor(WorktreeIsolation, [undefined]));
+export function registerAgentHostHostServices(services: AgentHostServiceCollection, inputs: IAgentHostHostServiceInputs): void {
+	registerService(services, IWindowsMxcTerminalSandboxRuntime, new SyncDescriptor(WindowsMxcTerminalSandboxRuntime));
+	registerService(services, ISandboxHelperService, new SyncDescriptor(SandboxHelperService));
+	registerService(services, IAgentHostGitService, new SyncDescriptor(AgentHostGitService));
+	registerService(services, IAgentPluginManager, new SyncDescriptor(AgentPluginManager, [inputs.userDataPath]));
+	registerService(services, IAgentSdkDownloader, new SyncDescriptor(AgentSdkDownloader));
+	registerService(services, IClaudeAgentSdkService, new SyncDescriptor(ClaudeAgentSdkService));
+	registerService(services, IClaudeProxyService, new SyncDescriptor(ClaudeProxyService));
+	registerService(services, ICodexProxyService, new SyncDescriptor(CodexProxyService));
+	registerService(services, IAgentHostOTelService, new SyncDescriptor(AgentHostOTelService, [inputs.fetchFn]));
+	registerService(services, IAgentHostWorktreeIsolation, new SyncDescriptor(WorktreeIsolation, [undefined]));
 	registerService(
 		services,
-		ids,
 		IByokLmProxyService,
 		inputs.byok.kind === 'renderer' ? new SyncDescriptor(ByokLmProxyService) : new NullByokLmProxyService(),
 	);
-	return ids;
-}
-
-export function instantiateAgentHostServices(instantiationService: IInstantiationService, ids: readonly ServiceIdentifier<unknown>[]): void {
-	instantiationService.invokeFunction(accessor => {
-		for (const id of ids) {
-			accessor.get(id);
-		}
-	});
 }

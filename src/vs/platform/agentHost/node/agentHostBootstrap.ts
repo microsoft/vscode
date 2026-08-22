@@ -25,7 +25,7 @@ import { AgentService, IAgentServiceOptions } from './agentService.js';
 import { createAgentServiceComposition } from './agentServiceComposition.js';
 import { activateAgentHostContributions } from './agentHostContributions.js';
 import { createAgentServiceFoundation } from './agentServiceFoundation.js';
-import { AgentHostServiceCollection, instantiateAgentHostServices, registerAgentHostCoreServices, registerAgentHostHostServices } from './agentHostServices.js';
+import { AgentHostServiceCollection, registerAgentHostCoreServices, registerAgentHostHostServices } from './agentHostServices.js';
 import { IAgentHostWorktreeIsolation, WorktreeIsolation } from './shared/worktreeIsolation.js';
 import { IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
 import { IByokLmBridgeRegistry, NullByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
@@ -144,19 +144,19 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		services.set(ITelemetryService, telemetryService);
 		const byokBridgeRegistry = options.byok.kind === 'renderer' ? options.byok.bridgeRegistry : new NullByokLmBridgeRegistry();
 		services.set(IByokLmBridgeRegistry, byokBridgeRegistry);
-		const coreServiceIds = registerAgentHostCoreServices(services, {
+		registerAgentHostCoreServices(services, {
 			storageResource: agentServiceOptions.storageResource,
 			fetchFn,
 			gitHubServiceOptions: foundation.gitHubServiceOptions,
 		});
-		const hostServiceIds = registerAgentHostHostServices(services, {
+		registerAgentHostHostServices(services, {
 			userDataPath: URI.file(environmentService.userDataPath),
 			fetchFn,
 			byok: options.byok,
 		});
 		instantiationService = new InstantiationService(services, /*strict*/ true);
 		services.seal();
-		instantiateAgentHostServices(instantiationService, [...coreServiceIds, ...hostServiceIds]);
+		services.instantiateRegisteredDescriptors(instantiationService);
 		const agentServiceComposition = instantiationService.invokeFunction(accessor => createAgentServiceComposition(
 			agentServiceOptions,
 			accessor,
