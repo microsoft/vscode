@@ -804,9 +804,9 @@ class WindowsPtyHeuristics extends Disposable {
 			if (line) {
 				this._capability.currentCommand.commandStartLineContent = line.translateToString(true);
 			}
+			// eslint-disable-next-line local/code-no-dangerous-type-assertions
+			this._hooks.onCommandStartedEmitter.fire({ marker: this._capability.currentCommand.commandStartMarker } as ITerminalCommand);
 		}
-		// eslint-disable-next-line local/code-no-dangerous-type-assertions
-		this._hooks.onCommandStartedEmitter.fire({ marker: this._capability.currentCommand.commandStartMarker } as ITerminalCommand);
 		this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows', this._capability.currentCommand.commandStartX, this._capability.currentCommand.commandStartMarker?.line);
 	}
 
