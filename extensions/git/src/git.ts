@@ -205,7 +205,6 @@ export interface SpawnOptions extends cp.SpawnOptions {
 	log?: boolean;
 	cancellationToken?: CancellationToken;
 	onSpawn?: (childProcess: cp.ChildProcess) => void;
-	forceUtf8LogOutputEncoding?: boolean;
 }
 
 async function exec(child: cp.ChildProcess, cancellationToken?: CancellationToken): Promise<IExecutionResult<Buffer>> {
@@ -700,14 +699,7 @@ export class Git {
 			options.cwd = sanitizePath(cwd);
 		}
 
-		// Depending on the user's Git settings (i18n.commitEncoding, i18n.logOutputEncoding),
-		// commit messages may appear garbled,
-		// so the output encoding for commit messages is forced to UTF-8.
-		const spawnArgs = options.forceUtf8LogOutputEncoding
-			? ['-c', 'i18n.logOutputEncoding=UTF-8', ...args]
-			: args;
-
-		return cp.spawn(this.path, spawnArgs, options);
+		return cp.spawn(this.path, args, options);
 	}
 
 	private getCwd(options: SpawnOptions): string | undefined {
@@ -1450,8 +1442,12 @@ export class Repository {
 	}
 
 	async log(options?: LogOptions, cancellationToken?: CancellationToken): Promise<Commit[]> {
-		const spawnOptions: SpawnOptions = { cancellationToken, forceUtf8LogOutputEncoding: true };
-		const args = ['log', `--format=${COMMIT_FORMAT}`, '-z'];
+		const spawnOptions: SpawnOptions = { cancellationToken };
+		// Depending on the user's Git settings (i18n.commitEncoding, i18n.logOutputEncoding),
+		// commit messages may appear garbled,
+		// so the output encoding for commit messages is forced to UTF-8.
+		// This setting was applied not only here, but also in other places where commit messages are retrieved.
+		const args = ['-c', 'i18n.logOutputEncoding=UTF-8', 'log', `--format=${COMMIT_FORMAT}`, '-z'];
 
 		if (options?.shortStats) {
 			args.push('--shortstat');
@@ -1518,7 +1514,7 @@ export class Repository {
 	}
 
 	async logFile(uri: Uri, options?: LogFileOptions, cancellationToken?: CancellationToken): Promise<Commit[]> {
-		const args = ['log', `--format=${COMMIT_FORMAT}`, '-z'];
+		const args = ['-c', 'i18n.logOutputEncoding=UTF-8', 'log', `--format=${COMMIT_FORMAT}`, '-z'];
 
 		if (options?.maxEntries && !options?.reverse) {
 			args.push(`-n${options.maxEntries}`);
@@ -1548,7 +1544,7 @@ export class Repository {
 		args.push('--', uri.fsPath);
 
 		try {
-			const result = await this.exec(args, { cancellationToken, forceUtf8LogOutputEncoding: true });
+			const result = await this.exec(args, { cancellationToken });
 			if (result.exitCode) {
 				// No file history, e.g. a new file or untracked
 				return [];
@@ -2620,7 +2616,7 @@ export class Repository {
 
 	async blame2(path: string, ref?: string, ignoreWhitespace?: boolean): Promise<BlameInformation[] | undefined> {
 		try {
-			const args = ['blame', '--root', '--incremental'];
+			const args = ['-c', 'i18n.logOutputEncoding=UTF-8', 'blame', '--root', '--incremental'];
 
 			if (ignoreWhitespace) {
 				args.push('-w');
@@ -2632,7 +2628,7 @@ export class Repository {
 
 			args.push('--', this.sanitizeRelativePath(path));
 
-			const result = await this.exec(args, { forceUtf8LogOutputEncoding: true });
+			const result = await this.exec(args);
 
 			return parseGitBlame(result.stdout.trim());
 		}
@@ -3311,7 +3307,7 @@ export class Repository {
 	}
 
 	async getCommit(ref: string): Promise<Commit> {
-		const result = await this.exec(['show', '-s', '--decorate=full', '--shortstat', `--format=${COMMIT_FORMAT}`, '-z', ref, '--'], { forceUtf8LogOutputEncoding: true });
+		const result = await this.exec(['-c', 'i18n.logOutputEncoding=UTF-8', 'show', '-s', '--decorate=full', '--shortstat', `--format=${COMMIT_FORMAT}`, '-z', ref, '--']);
 		const commits = parseGitCommits(result.stdout);
 		if (commits.length === 0) {
 			return Promise.reject<Commit>('bad commit format');
@@ -3321,7 +3317,7 @@ export class Repository {
 
 	async showChanges(ref: string): Promise<string> {
 		try {
-			const result = await this.exec(['log', '-p', '-n1', ref, '--'], { forceUtf8LogOutputEncoding: true });
+			const result = await this.exec(['-c', 'i18n.logOutputEncoding=UTF-8', 'log', '-p', '-n1', ref, '--']);
 			return result.stdout.trim();
 		} catch (err) {
 			if (/^fatal: bad revision '.+'/.test(err.stderr || '')) {
@@ -3334,12 +3330,12 @@ export class Repository {
 
 	async showChangesBetween(ref1: string, ref2: string, path?: string): Promise<string> {
 		try {
-			const args = ['log', '-p', `${ref1}..${ref2}`, '--'];
+			const args = ['-c', 'i18n.logOutputEncoding=UTF-8', 'log', '-p', `${ref1}..${ref2}`, '--'];
 			if (path) {
 				args.push(this.sanitizeRelativePath(path));
 			}
 
-			const result = await this.exec(args, { forceUtf8LogOutputEncoding: true });
+			const result = await this.exec(args);
 			return result.stdout.trim();
 		} catch (err) {
 			if (/^fatal: bad revision '.+'/.test(err.stderr || '')) {
