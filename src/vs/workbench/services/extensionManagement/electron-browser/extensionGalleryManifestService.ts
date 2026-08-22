@@ -200,6 +200,11 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 				throw new Error('Unable to retrieve extension gallery manifest.');
 			}
 
+			if (!Array.isArray(extensionGalleryManifest.resources)
+				|| !extensionGalleryManifest.resources.every(resource => resource && typeof resource.id === 'string' && typeof resource.type === 'string')) {
+				throw new Error('Service index response is not a valid extension gallery manifest.');
+			}
+
 			return extensionGalleryManifest;
 		} catch (error) {
 			this.logService.error('[Marketplace] Error retrieving extension gallery manifest', error);
