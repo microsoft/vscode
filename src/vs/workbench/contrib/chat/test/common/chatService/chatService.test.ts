@@ -2123,8 +2123,12 @@ suite('ChatService', () => {
 		assert.deepStrictEqual(providerInvokedEvents.map(event => ({
 			sessionType: event.sessionType,
 			isAgentHostSession: event.isAgentHostSession,
+			requestIndex: event.requestIndex,
+			isVirtualWorkspace: event.isVirtualWorkspace,
+			settingDefaultToCopilotHarness: event.settingDefaultToCopilotHarness,
+			settingPreferCopilotHarness: event.settingPreferCopilotHarness,
 			hasRequestId: typeof event.requestId === 'string',
-		})), [{ sessionType: 'remote-agent-host', isAgentHostSession: true, hasRequestId: true }]);
+		})), [{ sessionType: 'remote-agent-host', isAgentHostSession: true, requestIndex: 0, isVirtualWorkspace: false, settingDefaultToCopilotHarness: false, settingPreferCopilotHarness: false, hasRequestId: true }]);
 	});
 
 	test('user action telemetry distinguishes agent host sessions from local sessions', () => {
