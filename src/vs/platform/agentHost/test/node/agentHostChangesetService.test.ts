@@ -17,7 +17,7 @@ import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChan
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
 import { ChangesetStatus, FileEditKind, MessageKind, SessionStatus, withSessionGitState, type Changeset, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
-import { META_CHANGES_SUMMARY } from '../../common/agentHostChangesetService.js';
+import { META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_LEGACY_DIFFS } from '../../common/agentHostChangesetService.js';
 import type { ChangesSummary } from '../../common/state/protocol/state.js';
 import { IAgentHostChangesetSubscriptionService } from '../../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostChangesetOperationService } from '../../common/agentHostChangesetOperationService.js';
@@ -1863,6 +1863,24 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			assert.deepStrictEqual(JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!), { additions: 8, deletions: 3, files: 2 }, 'persisted all-folder summary is not clobbered');
 		});
 
+		test('a session with no summary of its own advertises no chip, rather than the branch divergence', async () => {
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async wd => URI.parse(wd.toString());
+			// Divergence from upstream: commits from before this session, and by other people.
+			git.computeSessionFileDiffs = async () => [gitDiff('/repoA/history.ts', 16070, 634)];
+			const db = new TestSessionDatabase();
+			const { svc, stateManager } = build({ workingDirectories: ['file:///repoA'], git, checkpoint: NULL_CHECKPOINT_SERVICE, db });
+
+			svc.refreshBranchChangeset(sessionStr);
+			await waitForCount(() => stateManager.getChangesetState(buildBranchChangesetUri(sessionStr))?.status === ChangesetStatus.Ready ? 1 : 0, 1);
+			stateManager.removeSession(sessionStr);
+
+			const overlay = svc.computeListEntryChanges(sessionStr, {});
+
+			assert.strictEqual(overlay, undefined, 'no session-scoped evidence must render no chip');
+			assert.strictEqual(await db.getMetadata(META_CHANGES_SUMMARY), undefined, 'the branch divergence must not be persisted as the session summary');
+		});
+
 		test('multi-folder branch changeset DATA stays primary-only (AC-8 data fence)', async () => {
 			const git = createNoopGitService();
 			git.getRepositoryRoot = async wd => URI.parse(wd.toString());
@@ -1885,21 +1903,61 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			assert.deepStrictEqual(branch?.files.map(f => f.id), [URI.file('/repoA/a.ts').toString()], 'branch changeset data stays primary-only in a multi-root session');
 		});
 
-		test('single-folder summary stays branch-derived (characterization: byte-for-byte unchanged)', async () => {
+		test('a branch refresh no longer writes the chip from the branch divergence', async () => {
 			const git = createNoopGitService();
 			git.getRepositoryRoot = async wd => URI.parse(wd.toString());
-			git.computeSessionFileDiffs = async () => [gitDiff('/wd/only.ts', 4, 2)];
+			// Divergence from upstream: commits from before this session, and by other people.
+			git.computeSessionFileDiffs = async () => [gitDiff('/wd/history.ts', 16070, 634)];
 			const db = new TestSessionDatabase();
 			const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git, checkpoint: NULL_CHECKPOINT_SERVICE, db });
 
 			svc.refreshBranchChangeset(sessionStr);
-			const changes = await waitForSummaryChanges(stateManager);
+			await waitForCount(() => stateManager.getChangesetState(buildBranchChangesetUri(sessionStr))?.status === ChangesetStatus.Ready ? 1 : 0, 1);
+			// `waitForCount` gives up silently, so assert what it was waiting for.
+			assert.strictEqual(
+				stateManager.getChangesetState(buildBranchChangesetUri(sessionStr))?.status,
+				ChangesetStatus.Ready,
+				'branch changeset did not become ready',
+			);
 
-			// The single primary branch diff IS the whole session footprint, exactly as today.
-			assert.deepStrictEqual(changes, { additions: 4, deletions: 2, files: 1 });
+			// The branch changeset is still published; only its ownership of the chip is withdrawn.
 			assert.deepStrictEqual(
-				JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
-				{ additions: 4, deletions: 2, files: 1 },
+				stateManager.getChangesetState(buildBranchChangesetUri(sessionStr))?.files.map(f => f.id),
+				[URI.file('/wd/history.ts').toString()],
+				'branch changeset data is unaffected',
+			);
+			assert.strictEqual(stateManager.getSessionSummary(sessionStr)?.changes, undefined, 'a branch refresh must not write the chip');
+			assert.strictEqual(await db.getMetadata(META_CHANGES_SUMMARY), undefined, 'the branch divergence must not be persisted as the chip');
+		});
+
+		test('a branch refresh does not persist the legacy session key', async () => {
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async wd => URI.parse(wd.toString());
+			git.computeSessionFileDiffs = async () => [gitDiff('/wd/history.ts', 16070, 634)];
+			const db = new TestSessionDatabase();
+			const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git, checkpoint: NULL_CHECKPOINT_SERVICE, db });
+
+			svc.refreshBranchChangeset(sessionStr);
+			await waitForCount(() => stateManager.getChangesetState(buildBranchChangesetUri(sessionStr))?.status === ChangesetStatus.Ready ? 1 : 0, 1);
+			assert.strictEqual(
+				stateManager.getChangesetState(buildBranchChangesetUri(sessionStr))?.status,
+				ChangesetStatus.Ready,
+				'branch changeset did not become ready',
+			);
+
+			// Precondition: otherwise the assertion below passes on an empty database.
+			let branchRaw: string | undefined;
+			for (let i = 0; i < 200 && !branchRaw; i++) {
+				await timeout(2);
+				branchRaw = await db.getMetadata(META_CHANGESET_BRANCH);
+			}
+			assert.ok(branchRaw, 'expected the branch refresh to persist its own key');
+
+			// The legacy key is parsed as the SESSION changeset and seeded into session state.
+			assert.strictEqual(
+				await db.getMetadata(META_LEGACY_DIFFS),
+				undefined,
+				'branch divergence must not be persisted where it is restored as session-owned work',
 			);
 		});
 
