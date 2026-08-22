@@ -43,6 +43,7 @@ import { IQuickInputService, IQuickPickItem, QuickPickItem } from '../../../../p
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IMarkProperties, TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
+import type { IPromptInputModelState } from '../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
 import { TerminalCapabilityStoreMultiplexer } from '../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { IEnvironmentVariableCollection, IMergedEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariable.js';
 import { deserializeEnvironmentVariableCollections } from '../../../../platform/terminal/common/environmentVariableShared.js';
@@ -1039,9 +1040,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			await this._processManager.setNextCommandId(commandLineToReport, commandId);
 		}
 
-		// Determine whether to send ETX (ctrl+c) before running the command. Only do this when the
-		// command will be executed immediately or when command detection shows the prompt contains text.
-		if (shouldExecute && (!commandDetection || commandDetection.promptInputModel.value.length > 0)) {
+		// Send ETX (^C) before running the command when it will execute immediately or when the
+		// prompt genuinely contains user input
+		if (shouldExecute && (!commandDetection || this._promptHasReliableUserInput(commandDetection?.promptInputModel))) {
 			await this.sendText('\x03', false);
 			// Wait a little before running the command to avoid the sequences being echoed while the ^C
 			// is being evaluated
@@ -1050,6 +1051,26 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// By default, use bracketed paste mode only when not running the command; callers can override
 		// this by explicitly enabling it via the bracketedPasteMode argument.
 		await this.sendText(commandLine, shouldExecute, !shouldExecute || forceBracketedPasteMode);
+	}
+
+	/**
+	 * Whether the prompt input holds real user input. prefix/suffix exclude ghost text (PSReadLine
+	 * predictions), so they're checked instead of value. Stale states are rejected: a cursor index
+	 * of -1 means the line came from a shell integration report rather than observed keystrokes,
+	 * an empty value has nothing to interrupt, and a lone continuation prompt (like
+	 * PowerShell's "> ") is not user input.
+	 */
+	private _promptHasReliableUserInput(promptInput: IPromptInputModelState | undefined): boolean {
+		if (!promptInput) {
+			return false;
+		}
+		if (promptInput.value.length === 0 || /^\s*>\s*$/.test(promptInput.value)) {
+			return false;
+		}
+		if (promptInput.cursorIndex < 0) {
+			return false;
+		}
+		return promptInput.prefix.length + promptInput.suffix.length > 0;
 	}
 
 	detachFromElement(): void {
