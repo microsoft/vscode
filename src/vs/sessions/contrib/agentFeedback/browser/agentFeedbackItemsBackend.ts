@@ -245,7 +245,7 @@ function entryText(text: StringOrMarkdown): string {
 	return typeof text === 'string' ? text : text.markdown;
 }
 
-function feedbackToAnnotation(feedback: IAgentFeedback): Annotation {
+function feedbackToAnnotation(feedback: IAgentFeedback, connection: IAgentConnection): Annotation {
 	const entries: AnnotationEntry[] = [{
 		id: `${feedback.id}:0`,
 		text: feedback.text,
@@ -268,7 +268,7 @@ function feedbackToAnnotation(feedback: IAgentFeedback): Annotation {
 	return {
 		id: feedback.id,
 		origin: { session: feedback.sessionResource.toString() },
-		resource: feedback.resourceUri.toString(),
+		resource: connection.resourceUris.toAgentHost(feedback.resourceUri).toString(),
 		range: toTextRange(feedback.range),
 		resolved: feedback.state === AgentFeedbackState.Resolved,
 		entries,
@@ -389,7 +389,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		}
 		channel.connection.dispatch(channel.annotationsUri.toString(), {
 			type: ActionType.AnnotationsSet,
-			annotation: feedbackToAnnotation(feedback),
+			annotation: feedbackToAnnotation(feedback, channel.connection),
 		});
 		if (!this._hasSnapshot(channel.subscription)) {
 			this._onDidChangeItems.fire(feedback.sessionResource);

@@ -13,6 +13,7 @@ import { IAgentConnection } from '../../../../../platform/agentHost/common/agent
 import { createAgentHostResourceUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { FEEDBACK_ANNOTATION_META_KEY } from '../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { ActionType, ClientAnnotationsAction } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AnnotationsState, ComponentToState, StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
@@ -53,6 +54,7 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 			onWillApplyAction: Event.None,
 			onDidApplyAction: Event.None,
 		};
+		const dispatchedActions: ClientAnnotationsAction[] = [];
 		const connection = new class extends mock<IAgentConnection>() {
 			override readonly resourceUris = resourceUris;
 
@@ -62,6 +64,10 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 					object: subscription as IAgentSubscription<ComponentToState[T]>,
 					dispose() { },
 				};
+			}
+
+			override dispatch(_channel: string, action: ClientAnnotationsAction): void {
+				dispatchedActions.push(action);
 			}
 		}();
 		const provider = new class extends mock<IAgentHostSessionsProvider>() {
@@ -85,9 +91,16 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 		});
 		const backend = store.add(instantiationService.createInstance(AnnotationsAgentFeedbackItemsBackend));
 
-		assert.strictEqual(
-			backend.getItems(sessionResource)[0]?.resourceUri.toString(),
-			resourceUris.fromAgentHost(agentHostResource).toString(),
-		);
+		const feedback = backend.getItems(sessionResource)[0];
+		assert.ok(feedback);
+		backend.upsert(feedback);
+
+		assert.deepStrictEqual({
+			decoded: feedback.resourceUri.toString(),
+			encoded: dispatchedActions.find(action => action.type === ActionType.AnnotationsSet)?.annotation.resource,
+		}, {
+			decoded: resourceUris.fromAgentHost(agentHostResource).toString(),
+			encoded: agentHostResource.toString(),
+		});
 	});
 });
