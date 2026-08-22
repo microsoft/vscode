@@ -56,7 +56,7 @@ import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_C
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
-import { createTestAgentService } from './agentServiceTestUtils.js';
+import { createTestAgentService, getTestAgentStateManager } from './agentServiceTestUtils.js';
 
 // ---- Tests ------------------------------------------------------------------
 
@@ -5207,7 +5207,7 @@ suite('AgentSideEffects', () => {
 
 			await localService.restoreSession(sessionResource);
 
-			const state = localService.stateManager.getSessionState(sessionResource.toString());
+			const state = getTestAgentStateManager(localService).getSessionState(sessionResource.toString());
 			assert.ok(state);
 			assert.strictEqual(state!.title, 'Restored Title');
 		});
@@ -5242,7 +5242,7 @@ suite('AgentSideEffects', () => {
 
 			await localService.restoreSession(sessionResource);
 
-			const state = localService.stateManager.getSessionState(sessionResource.toString());
+			const state = getTestAgentStateManager(localService).getSessionState(sessionResource.toString());
 			assert.deepStrictEqual(state?.turns.map(t => t.id), ['real-1', 'local-1']);
 		});
 

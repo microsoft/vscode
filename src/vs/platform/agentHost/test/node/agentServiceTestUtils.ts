@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
-import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { type IAgentCustomizationSettingsRegistration } from '../../common/agentCustomizationSettings.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
 import { AgentHostLaunchKind } from '../../common/agentHostTelemetry.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
@@ -22,8 +22,12 @@ import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from '../..
 import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { AgentService } from '../../node/agentService.js';
 import { createAgentServiceComposition, type IAgentServiceComposition } from '../../node/agentServiceComposition.js';
+import { activateAgentHostContributions } from '../../node/agentHostContributions.js';
+import { createAgentServiceFoundation } from '../../node/agentServiceFoundation.js';
+import { AgentHostServiceCollection, instantiateAgentHostServices, registerAgentHostCoreServices } from '../../node/agentHostServices.js';
 import { ICopilotApiService } from '../../node/shared/copilotApiService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 
 const compositions = new WeakMap<AgentService, IAgentServiceComposition>();
 
@@ -33,6 +37,10 @@ export function getTestAgentServiceComposition(agentService: AgentService): IAge
 		throw new Error('AgentService was not created by createTestAgentService');
 	}
 	return composition;
+}
+
+export function getTestAgentStateManager(agentService: AgentService): AgentHostStateManager {
+	return getTestAgentServiceComposition(agentService).stateManager;
 }
 
 export function createTestAgentService(
@@ -58,12 +66,11 @@ export function createTestAgentService(
 		onDidRegisterConnection: Event.None,
 		onDidChangeConfiguration: Event.None,
 		register: () => Disposable.None,
-		bindConfigurationService: () => { },
 		getConfigurationValue: () => undefined,
 		resolveProxy: async () => undefined,
 		fetch: fetchFn,
 	};
-	const services = new ServiceCollection(
+	const services = new AgentHostServiceCollection(
 		[ILogService, logService],
 		[IFileService, fileService],
 		[ISessionDataService, sessionDataService],
@@ -71,10 +78,9 @@ export function createTestAgentService(
 		[IAgentHostGitService, gitService],
 		[ITelemetryService, telemetryService],
 		[IAgentHostFileMonitorService, effectiveFileMonitorService],
-		[IAgentHostProxyResolver, proxyResolver],
+		[IAgentEditAttributionService, new NullAgentEditAttributionService()],
 		[IAgentHostClientConnectionService, clientConnectionService],
 	);
-	const instantiationService = new InstantiationService(services, /*strict*/ true);
 	const options = {
 		rootConfigResource,
 		copilotApiService,
@@ -83,16 +89,39 @@ export function createTestAgentService(
 		storageResource,
 		orchestratorDatabase,
 	};
-	const composition = createAgentServiceComposition(
-		options,
+	const foundationDisposables = new DisposableStore();
+	const foundation = createAgentServiceFoundation({
 		services,
-		instantiationService,
-		fetchFn,
+		owned: foundationDisposables,
 		logService,
 		productService,
+		rootConfigResource,
+		providerConfigurations,
+		transientProxyConfiguration: false,
+		proxyResolver,
+		fetchFn,
+	});
+	const coreServiceIds = registerAgentHostCoreServices(services, {
+		storageResource,
+		fetchFn,
+		gitHubServiceOptions: foundation.gitHubServiceOptions,
+		copilotApiService,
+	});
+	const instantiationService = new InstantiationService(services, /*strict*/ true);
+	services.seal();
+	instantiateAgentHostServices(instantiationService, coreServiceIds);
+	const composition = instantiationService.invokeFunction(accessor => createAgentServiceComposition(
+		options,
+		accessor,
+		instantiationService,
+		logService,
 		sessionDataService,
-		fileMonitorService ? [clientConnectionService, instantiationService] : [effectiveFileMonitorService, clientConnectionService, instantiationService],
-	);
+		foundation,
+		fileMonitorService
+			? [clientConnectionService, instantiationService, foundationDisposables]
+			: [effectiveFileMonitorService, clientConnectionService, instantiationService, foundationDisposables],
+	));
+	composition.setContributions(instantiationService.invokeFunction(accessor => activateAgentHostContributions(accessor, instantiationService)));
 	compositions.set(composition.agentService, composition);
 	return composition.agentService;
 }
