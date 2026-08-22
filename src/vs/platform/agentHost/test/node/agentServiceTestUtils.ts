@@ -24,7 +24,7 @@ import { AgentService } from '../../node/agentService.js';
 import { createAgentServiceComposition, type IAgentServiceComposition } from '../../node/agentServiceComposition.js';
 import { activateAgentHostContributions } from '../../node/agentHostContributions.js';
 import { createAgentServiceFoundation } from '../../node/agentServiceFoundation.js';
-import { AgentHostServiceCollection, instantiateAgentHostServices, registerAgentHostCoreServices } from '../../node/agentHostServices.js';
+import { AgentHostServiceCollection, registerAgentHostCoreServices } from '../../node/agentHostServices.js';
 import { ICopilotApiService } from '../../node/shared/copilotApiService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -101,7 +101,7 @@ export function createTestAgentService(
 		proxyResolver,
 		fetchFn,
 	});
-	const coreServiceIds = registerAgentHostCoreServices(services, {
+	registerAgentHostCoreServices(services, {
 		storageResource,
 		fetchFn,
 		gitHubServiceOptions: foundation.gitHubServiceOptions,
@@ -109,7 +109,7 @@ export function createTestAgentService(
 	});
 	const instantiationService = new InstantiationService(services, /*strict*/ true);
 	services.seal();
-	instantiateAgentHostServices(instantiationService, coreServiceIds);
+	services.instantiateRegisteredDescriptors(instantiationService);
 	const composition = instantiationService.invokeFunction(accessor => createAgentServiceComposition(
 		options,
 		accessor,

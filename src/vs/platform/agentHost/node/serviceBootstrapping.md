@@ -47,7 +47,7 @@ These are the intended extension points for new work:
 - foundation, core-service, host-service, composition, contribution, and
   entry-activation placement categories;
 - exact leading static arguments for descriptors;
-- eager startup resolution of registered service IDs;
+- eager startup resolution of every descriptor registered in the collection;
 - collection sealing after bootstrap registration;
 - one disposal owner per object and phase-ordered runtime teardown;
 - typed test overrides that reuse the production core registration list.
@@ -70,11 +70,11 @@ async function createAgentHostRuntime(options) {
 	const telemetry = await createAgentHostTelemetryService(foundation);
 	services.set(ITelemetryService, telemetry);
 
-	const coreIds = registerAgentHostCoreServices(services, foundation);
-	const hostIds = registerAgentHostHostServices(services, foundation);
+	registerAgentHostCoreServices(services, foundation);
+	registerAgentHostHostServices(services, foundation);
 	const instantiationService = new InstantiationService(services, true);
 	services.seal();
-	resolveAll(instantiationService, [...coreIds, ...hostIds]);
+	services.instantiateRegisteredDescriptors(instantiationService);
 
 	const composition = createAgentServiceComposition(instantiationService, foundation);
 	const contributions = activateAgentHostContributions(instantiationService, composition);
@@ -109,17 +109,25 @@ existing file first needs it.
   decorated service parameter. A trailing non-service parameter is valid only
   when it has an optional/default value and the descriptor intentionally accepts
   that value; DI cannot supply a trailing static argument.
-- `SyncDescriptor.staticArguments.length` must equal the first service
-  dependency index exactly. `InstantiationService` otherwise pads or truncates
-  arguments after only a `console.trace`.
+- Descriptors with service dependencies must pass exactly as many leading static
+  arguments as the first service dependency index. Registration rejects a
+  mismatch before bootstrap. For constructors without service dependencies,
+  registration also requires every non-defaulted parameter reported by
+  `Function.length`; this is a conservative heuristic because DI does not inspect
+  those arguments.
+- This arity validation covers descriptors only. Classes created directly with
+  `createInstance()` remain the caller's responsibility.
 - Do not use `supportsDelayedInstantiation`. In Node it schedules construction
   on a later macrotask, which makes startup failures and disposal timing
   nondeterministic. An eager descriptor is already lazy until first resolved.
-- Production eagerly resolves every returned core and host service ID before
-  composition. This intentionally preserves the pre-descriptor behavior, where
-  bootstrap constructed every service eagerly, so this migration changes
-  construction ownership without also introducing accidental laziness. Future
-  lazy construction should be a separate, measured change with targeted tests.
+- Production eagerly resolves every descriptor recorded by the collection before
+  composition. Concrete instances are already constructed and are not read again
+  during this pass. This preserves eager descriptor construction while removing
+  redundant reads of existing instances. A descriptor registered in this graph
+  is therefore always eager; use a concrete test override rather than a
+  descriptor when a test must avoid construction.
+- Descriptor constructors must not read `AgentServiceCallbackAdapter.value`:
+  eager resolution runs before `AgentService` binds the adapter.
 - Never call `createInstance()` for a class registered as a descriptor.
 - Migrate a service atomically: add its descriptor and remove its old
   imperative construction in the same commit.
@@ -131,7 +139,8 @@ including awaited telemetry, has been registered. After sealing:
 
 - new service IDs are rejected;
 - replacements are rejected;
-- descriptor-to-instance replacement by `InstantiationService` is allowed.
+- descriptor-to-instance replacement by `InstantiationService` is allowed only
+  during the collection-controlled eager-instantiation pass.
 
 Dynamic feature registration belongs in a service-owned registry or the
 contribution phase, not in the service collection.
