@@ -209,16 +209,18 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		const identifier = { id: this._chatExtensionId };
 		const inspect = this.configurationService.inspect<boolean>(ChatAIDisabledSettingId);
 
-		if (typeof inspect.workspaceValue === 'boolean') {
-			if (inspect.workspaceValue === true && this._getWorkspaceDisabledExtensions().some(e => areSameExtensions(e, identifier))) {
-				this.logService.debug('Removing workspace disablement of builtin chat extension in favor of chat.disableAIFeatures');
-				this._removeFromWorkspaceDisabledExtensions(identifier)
-					.catch(err => this.logService.error('Failed to remove workspace disablement of builtin chat extension', err));
-			}
-			return;
+		if (inspect.workspaceValue === true && this._getWorkspaceDisabledExtensions().some(e => areSameExtensions(e, identifier))) {
+			this.logService.debug('Removing workspace disablement of builtin chat extension in favor of chat.disableAIFeatures');
+			this._removeFromWorkspaceDisabledExtensions(identifier)
+				.catch(err => this.logService.error('Failed to remove workspace disablement of builtin chat extension', err));
 		}
 
-		if (inspect.value !== true || !this._isDisabledGlobally(identifier)) {
+		// A workspace value can mask the one the global entry was written for, so that entry is
+		// reconciled against the user and application values rather than the resolved one.
+		if (inspect.userValue !== true && inspect.applicationValue !== true) {
+			return;
+		}
+		if (!this._isDisabledGlobally(identifier)) {
 			return;
 		}
 

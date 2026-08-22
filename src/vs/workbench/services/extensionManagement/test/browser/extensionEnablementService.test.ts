@@ -15,7 +15,7 @@ import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } 
 import { IExtensionContributions, ExtensionType, IExtension, IExtensionManifest, IExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { isUndefinedOrNull } from '../../../../../base/common/types.js';
 import { areSameExtensions } from '../../../../../platform/extensionManagement/common/extensionManagementUtil.js';
-import { IConfigurationChangeEvent, IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -136,12 +136,19 @@ class TestConfigurationServiceWithWorkspaceValues extends TestConfigurationServi
 
 	setWorkspaceValue(key: string, value: unknown): void {
 		this.workspaceValues.set(key, value);
-		this.setUserConfiguration(key, value);
+	}
+
+	override getValue<T>(arg1?: string | IConfigurationOverrides, arg2?: IConfigurationOverrides): T | undefined {
+		if (typeof arg1 === 'string' && this.workspaceValues.has(arg1)) {
+			return this.workspaceValues.get(arg1) as T;
+		}
+		return super.getValue<T>(arg1, arg2);
 	}
 
 	override inspect<T>(key: string): IConfigurationValue<T> {
-		const inspect = super.inspect<T>(key);
-		return this.workspaceValues.has(key) ? { ...inspect, workspaceValue: this.workspaceValues.get(key) as T } : inspect;
+		const userValue = super.getValue<T>(key);
+		const workspaceValue = this.workspaceValues.has(key) ? this.workspaceValues.get(key) as T : undefined;
+		return { value: this.getValue<T>(key), userValue, userLocalValue: userValue, workspaceValue };
 	}
 }
 
@@ -1348,6 +1355,21 @@ suite('ExtensionEnablementService Test', () => {
 		testConfigurationService.setWorkspaceValue(ChatAIDisabledSettingId, false);
 		testConfigurationService.onDidChangeConfigurationEmitter.fire(anAIFeaturesConfigurationChangeEvent());
 
+		assert.strictEqual(testObject.getEnablementState(chatExtension), EnablementState.EnabledGlobally);
+	});
+
+	test('test global disablement of chat extension is dropped when a workspace value masks the user value', async () => {
+		const chatExtension = aChatExtension();
+		installed.push(chatExtension);
+		await testObject.setEnablement([chatExtension], EnablementState.DisabledGlobally);
+		assert.ok(testObject.isDisabledGlobally(chatExtension));
+
+		testConfigurationService.setUserConfiguration(ChatAIDisabledSettingId, true);
+		testConfigurationService.setWorkspaceValue(ChatAIDisabledSettingId, false);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		await testObject.waitUntilInitialized();
+
+		assert.ok(!testObject.isDisabledGlobally(chatExtension));
 		assert.strictEqual(testObject.getEnablementState(chatExtension), EnablementState.EnabledGlobally);
 	});
 

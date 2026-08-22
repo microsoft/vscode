@@ -104,7 +104,7 @@ async function ensureChatExtensionEnabled(accessor: ServicesAccessor): Promise<v
 			if (configurationService.getValue<boolean>(ChatAIDisabledSettingId) === true) {
 				await configurationService.updateValue(ChatAIDisabledSettingId, false);
 			}
-			if (!extensionEnablementService.isEnabled(local) && extensionEnablementService.canChangeEnablement(local)) {
+			if (!extensionEnablementService.isEnabled(local)) {
 				await extensionsWorkbenchService.setEnablement([chatExtension], EnablementState.EnabledGlobally);
 			}
 			await extensionsWorkbenchService.updateRunningExtensions(localize('enableChatForByokReason', "Enabling AI features"));

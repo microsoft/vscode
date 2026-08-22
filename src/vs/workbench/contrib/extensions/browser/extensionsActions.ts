@@ -1897,10 +1897,13 @@ export class EnableAIFeaturesInWorkspaceAction extends ExtensionAction {
 
 		if (this.configurationService.getValue<boolean>(ChatAIDisabledSettingId) === true) {
 			await this.configurationService.updateValue(ChatAIDisabledSettingId, false, ConfigurationTarget.WORKSPACE);
+			if (this.configurationService.getValue<boolean>(ChatAIDisabledSettingId) === true) {
+				return; // a more specific value still disables AI, there is no persisted state to fix
+			}
 		}
 
-		// A persisted disable outlives the setting, but only once the setting stops owning enablement.
-		if (!this.extensionEnablementService.isEnabled(this.extension.local) && this.extensionEnablementService.canChangeWorkspaceEnablement(this.extension.local)) {
+		// A persisted disable outlives the setting, and setEnablement reports why if it cannot go.
+		if (!this.extensionEnablementService.isEnabled(this.extension.local)) {
 			await this.extensionsWorkbenchService.setEnablement(this.extension, EnablementState.EnabledWorkspace);
 		}
 	}
