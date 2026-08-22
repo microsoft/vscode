@@ -3859,6 +3859,40 @@ suite('AgentSideEffects', () => {
 		});
 	});
 
+	suite('client tool completion forwarding', () => {
+
+		test('forwards a client-contributed completion but not an SDK-owned one', async () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			for (const [toolCallId, contributor] of [
+				['tc-client', { kind: ToolCallContributorKind.Client, clientId: 'test-client' }],
+				['tc-sdk', undefined],
+			] as const) {
+				agent.fireProgress({
+					kind: 'action', resource: URI.parse(defaultChatUri),
+					action: {
+						type: ActionType.ChatToolCallStart, turnId: 'turn-1',
+						toolCallId, toolName: 'runTask', displayName: 'Run Task',
+						...(contributor ? { contributor } : {}),
+					},
+				});
+				agent.fireProgress({
+					kind: 'action', resource: URI.parse(defaultChatUri),
+					action: {
+						type: ActionType.ChatToolCallComplete, turnId: 'turn-1', toolCallId,
+						result: { success: true, pastTenseMessage: 'ran', content: [] },
+					},
+				});
+			}
+			await timeout(0);
+
+			// An SDK-owned result would sit buffered in the provider for the session.
+			assert.deepStrictEqual(agent.clientToolCallCompleteCalls.map(call => call.toolCallId), ['tc-client']);
+		});
+	});
+
 	// ---- tool_ready progress dispatch -----------------------------------
 
 	suite('tool_ready dispatches progress actions to advance tool call state', () => {

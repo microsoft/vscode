@@ -143,11 +143,21 @@ suite('PendingRequestRegistry', () => {
 		assert.strictEqual(await pending, 'second');
 	});
 
-	test('respondOrBuffer behaves like respond when a deferred is already parked', async () => {
+	test('respondOrBuffer reports whether it settled a parked deferred or buffered', async () => {
 		const registry = new PendingRequestRegistry<string>();
-		const promise = registry.register('k');
-		registry.respondOrBuffer('k', 'value');
-		assert.strictEqual(await promise, 'value');
+		const promise = registry.register('parked');
+
+		assert.deepStrictEqual({
+			settled: registry.respondOrBuffer('parked', 'value'),
+			buffered: registry.respondOrBuffer('unparked', 'later'),
+			retained: registry.hasBufferedResult('unparked'),
+			delivered: await promise,
+		}, {
+			settled: true,
+			buffered: false,
+			retained: true,
+			delivered: 'value',
+		});
 	});
 
 	test('hasBufferedResult reports only unconsumed early results', async () => {
