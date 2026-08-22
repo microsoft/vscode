@@ -652,10 +652,15 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const commands = await this.getPromptSlashCommands(token);
 		const command = commands.find(cmd => cmd.name === name && matchesSessionType(cmd.sessionTypes, sessionType));
 		if (command) {
-			return {
-				...command,
-				parsedPromptFile: await this.parseNew(command.uri, token),
-			};
+			// Best-effort for the same reason as the harness resolver; cancellation still propagates.
+			const parsedPromptFile = await this.parseNew(command.uri, token).catch(e => {
+				if (isCancellationError(e)) {
+					throw e;
+				}
+				this.logger.trace(`[resolvePromptSlashCommand] no readable content for '${command.name}' (${command.uri}): ${e instanceof Error ? e.message : String(e)}`);
+				return undefined;
+			});
+			return { ...command, parsedPromptFile };
 		}
 		return undefined;
 	}

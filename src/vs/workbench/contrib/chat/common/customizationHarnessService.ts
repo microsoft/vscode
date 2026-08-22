@@ -16,6 +16,7 @@ import { PromptsType } from './promptSyntax/promptTypes.js';
 import { AGENT_MD_FILENAME } from './promptSyntax/config/promptFileLocations.js';
 import { IAgentSource, IChatPromptSlashCommand, ICustomAgent, IPromptsService, IResolvedChatPromptSlashCommand, matchesSessionType, PromptsStorage } from './promptSyntax/service/promptsService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { SessionType } from './chatSessionsService.js';
 import { CustomAgent } from './promptSyntax/service/promptsServiceImpl.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
@@ -641,10 +642,16 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 		const commands = await this.getSlashCommands(sessionResource, token);
 		const command = commands.find(cmd => cmd.name === name);
 		if (command) {
-			const parsedPromptFile = await this.promptsService.parseNew(command.uri, token);
+			// Best-effort: a discovery-only command has no content, and rejecting here blocks sending the message.
+			const parsedPromptFile = await this.promptsService.parseNew(command.uri, token).catch(e => {
+				if (isCancellationError(e)) {
+					throw e;
+				}
+				return undefined;
+			});
 			return {
 				...command,
-				userInvocable: parsedPromptFile.header?.userInvocable ?? command.userInvocable,
+				userInvocable: parsedPromptFile?.header?.userInvocable ?? command.userInvocable,
 				parsedPromptFile,
 			};
 		}
