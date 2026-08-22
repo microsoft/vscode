@@ -248,6 +248,26 @@ class ConfigureLanguageModelsGroupAction extends Action2 {
 	}
 }
 
+class RemoveLanguageModelsGroupAction extends Action2 {
+	constructor() {
+		super({
+			id: 'lm.removeLanguageModelsProviderGroup',
+			title: localize('lm.removeGroup', 'Remove Language Models Group'),
+		});
+	}
+
+	async run(accessor: ServicesAccessor, languageModelsProviderGroup: ILanguageModelsProviderGroup): Promise<void> {
+		const languageModelsService = accessor.get(ILanguageModelsService);
+
+		if (!languageModelsProviderGroup) {
+			throw new Error('Language model group is required');
+		}
+
+		const { name, vendor } = languageModelsProviderGroup;
+		await languageModelsService.removeLanguageModelsProviderGroup(vendor, name);
+	}
+}
+
 class MigrateLanguageModelsGroupAction extends Action2 {
 	constructor() {
 		super({
@@ -270,5 +290,6 @@ class MigrateLanguageModelsGroupAction extends Action2 {
 export function registerLanguageModelActions() {
 	registerAction2(ManageLanguageModelAuthenticationAction);
 	registerAction2(ConfigureLanguageModelsGroupAction);
+	registerAction2(RemoveLanguageModelsGroupAction);
 	registerAction2(MigrateLanguageModelsGroupAction);
 }
