@@ -730,6 +730,37 @@ suite('ChatStateSubscription', () => {
 			turns: [{ id: 'turn-1', state: TurnState.Complete }],
 		});
 	});
+
+	test('streamed response parts stay visible while the optimistic turn start is pending', () => {
+		const sub = createSub();
+		sub.handleSnapshot(makeChatState(chatUri), 0);
+
+		sub.applyOptimistic({
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		});
+
+		sub.receiveEnvelope(makeEnvelope(
+			{
+				type: ActionType.ChatResponsePart,
+				turnId: 'turn-1',
+				part: { kind: ResponsePartKind.Markdown, id: 'part-1', content: '' },
+			},
+			1,
+			undefined,
+		));
+		sub.receiveEnvelope(makeEnvelope(
+			{ type: ActionType.ChatDelta, turnId: 'turn-1', partId: 'part-1', content: 'streamed' },
+			2,
+			undefined,
+		));
+
+		assert.deepStrictEqual((sub.value as ChatState | undefined)?.activeTurn?.responseParts, [
+			{ kind: ResponsePartKind.Markdown, id: 'part-1', content: 'streamed' },
+		]);
+	});
 });
 
 // TerminalStateSubscription
