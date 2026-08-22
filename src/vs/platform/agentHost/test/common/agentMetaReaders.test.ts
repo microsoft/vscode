@@ -342,6 +342,11 @@ suite('Agent host _meta readers', () => {
 				{ model: 'claude-sonnet-4.6', inputTokens: 40, cachedTokens: 0, outputTokens: 12 },
 			];
 			assert.deepStrictEqual(readUsageInfoMeta(usage({ turnTokenTotals: totals })).turnTokenTotals, totals);
+			assert.deepStrictEqual(readUsageInfoMeta(usage({ directTurnTokenTotals: totals })).directTurnTokenTotals, totals);
+			assert.deepStrictEqual(
+				readUsageInfoMeta(usage({ directCopilotUsage: { totalNanoAiu: 123 } })).directCopilotUsage,
+				{ totalNanoAiu: 123 },
+			);
 		});
 
 		test('drops rows that are not fully formed, and reports nothing when none survive', () => {
@@ -361,6 +366,8 @@ suite('Agent host _meta readers', () => {
 			assert.deepStrictEqual(meta.turnTokenTotals, [{ model: 'gpt-5', inputTokens: 7, cachedTokens: 0, outputTokens: 3 }]);
 			assert.strictEqual(readUsageInfoMeta(usage({ turnTokenTotals: [{ model: 'gpt-5' }] })).turnTokenTotals, undefined);
 			assert.strictEqual(readUsageInfoMeta(usage({ turnTokenTotals: 'nope' })).turnTokenTotals, undefined);
+			assert.strictEqual(readUsageInfoMeta(usage({ directTurnTokenTotals: 'nope' })).directTurnTokenTotals, undefined);
+			assert.strictEqual(readUsageInfoMeta(usage({ directCopilotUsage: { totalNanoAiu: 'nope' } })).directCopilotUsage, undefined);
 			assert.strictEqual(readUsageInfoMeta(usage({})).turnTokenTotals, undefined);
 		});
 
