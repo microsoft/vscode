@@ -336,8 +336,8 @@ class DocumentEditCache {
 			const cursorRange = currentSelection[0];
 			// For cursor jump edits, allow cache hits when cursor is in either the jump target window
 			// (editWindow) or the original cursor location window (originalEditWindow)
-			const inEditWindow = editWindow?.containsRange(cursorRange);
-			const inOriginalWindow = originalEditWindow?.containsRange(cursorRange);
+			const inEditWindow = cursorRange !== undefined && editWindow?.containsRange(cursorRange) === true;
+			const inOriginalWindow = cursorRange !== undefined && originalEditWindow?.containsRange(cursorRange) === true;
 			if (editWindow && !inEditWindow && !inOriginalWindow) {
 				return undefined;
 			}
