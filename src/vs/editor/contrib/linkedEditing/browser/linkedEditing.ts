@@ -310,6 +310,22 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 			}
 		}
 
+		// When the reference range has been collapsed to an empty range (e.g. the
+		// user deleted the entire tag name) and the cursor is still at that
+		// position, keep the existing decorations alive instead of asking the
+		// provider for new ranges. Most providers do not return ranges for an
+		// empty tag name, which would otherwise tear down the linked editing
+		// session and prevent the new name from being synced to the closing tag.
+		// See https://github.com/microsoft/vscode/issues/239351.
+		if (this._currentDecorations.length > 0) {
+			const referenceRange = this._currentDecorations.getRange(0);
+			if (referenceRange && referenceRange.isEmpty() && referenceRange.containsPosition(position)) {
+				this._currentRequestPosition = position;
+				this._currentRequestModelVersion = modelVersionId;
+				return;
+			}
+		}
+
 		this._currentRequestPosition = position;
 		this._currentRequestModelVersion = modelVersionId;
 
