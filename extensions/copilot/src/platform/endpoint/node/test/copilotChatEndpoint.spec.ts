@@ -594,6 +594,55 @@ describe('ChatEndpoint - Image Count Validation', () => {
 	});
 });
 
+describe('ChatEndpoint - supportsPDFDocuments', () => {
+	let mockServices: ReturnType<typeof createMockServices>;
+
+	beforeEach(() => {
+		mockServices = createMockServices();
+	});
+
+	const createEndpoint = (metadata: IChatModelInformation) =>
+		new ChatEndpoint(
+			metadata,
+			mockServices.domainService,
+			mockServices.chatMLFetcher,
+			mockServices.tokenizerProvider,
+			mockServices.instantiationService,
+			mockServices.configurationService,
+			mockServices.expService,
+			mockServices.chatWebSocketService,
+			mockServices.logService
+		);
+
+	it('falls back to the family heuristic when the endpoint does not declare pdf_documents', () => {
+		expect(createEndpoint(createNonAnthropicModelMetadata('claude-sonnet-4')).supportsPDFDocuments).toBe(true);
+		expect(createEndpoint(createNonAnthropicModelMetadata('llama-3')).supportsPDFDocuments).toBe(false);
+	});
+
+	it('honors an explicit pdf_documents declaration, e.g. for a BYOK/custom endpoint using a non-allowlisted family', () => {
+		const baseMetadata = createNonAnthropicModelMetadata('my-custom-proxy-model');
+		const withPdfSupport: IChatModelInformation = {
+			...baseMetadata,
+			capabilities: {
+				...baseMetadata.capabilities,
+				supports: { ...baseMetadata.capabilities.supports, pdf_documents: true }
+			}
+		};
+		const withoutPdfSupport: IChatModelInformation = {
+			...baseMetadata,
+			capabilities: {
+				...baseMetadata.capabilities,
+				supports: { ...baseMetadata.capabilities.supports, pdf_documents: false }
+			}
+		};
+
+		expect(createEndpoint(withPdfSupport).supportsPDFDocuments).toBe(true);
+		expect(createEndpoint(withoutPdfSupport).supportsPDFDocuments).toBe(false);
+		// Without the declaration, the same non-allowlisted family would be denied.
+		expect(createEndpoint(baseMetadata).supportsPDFDocuments).toBe(false);
+	});
+});
+
 describe('ChatEndpoint - Kimi CAPI customization', () => {
 	let mockServices: ReturnType<typeof createMockServices>;
 

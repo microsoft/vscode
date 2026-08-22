@@ -29,7 +29,7 @@ import { ITelemetryService, TelemetryProperties } from '../../telemetry/common/t
 import { TelemetryData } from '../../telemetry/common/telemetryData';
 import { ITokenizerProvider } from '../../tokenizer/node/tokenizer';
 import { ICAPIClientService } from '../common/capiClient';
-import { getModelCapabilityOverride, isAnthropicFamily, isGeminiFamily, isKimiFamily, modelSupportsContextEditing, modelSupportsToolSearch } from '../common/chatModelCapabilities';
+import { getModelCapabilityOverride, isAnthropicFamily, isGeminiFamily, isKimiFamily, modelSupportsContextEditing, modelSupportsPDFDocuments, modelSupportsToolSearch } from '../common/chatModelCapabilities';
 import { IDomainService } from '../common/domainService';
 import { CustomModel, IChatModelInformation, ModelSupportedEndpoint } from '../common/endpointProvider';
 import { normalizeTokenPrices } from '../../../extension/conversation/common/languageModelAccess';
@@ -189,6 +189,7 @@ export class ChatEndpoint implements IChatEndpoint {
 	public readonly supportsReasoningEffort?: string[];
 	public readonly supportsToolSearch?: boolean;
 	public readonly supportsContextEditing?: boolean;
+	public readonly supportsPDFDocuments?: boolean;
 	public readonly isPremium?: boolean | undefined;
 	public readonly multiplier?: number | undefined;
 	public readonly restrictedToSkus?: string[] | undefined;
@@ -248,6 +249,7 @@ export class ChatEndpoint implements IChatEndpoint {
 		this.supportsReasoningEffort = modelMetadata.capabilities.supports.reasoning_effort;
 		this.supportsToolSearch = modelMetadata.capabilities.supports.tool_search ?? modelSupportsToolSearch(this);
 		this.supportsContextEditing = modelMetadata.capabilities.supports.context_editing ?? modelSupportsContextEditing(this);
+		this.supportsPDFDocuments = modelMetadata.capabilities.supports.pdf_documents ?? modelSupportsPDFDocuments(this);
 		this._supportsStreaming = !!modelMetadata.capabilities.supports.streaming;
 		this.customModel = modelMetadata.custom_model;
 		this.maxPromptImages = modelMetadata.capabilities.limits?.vision?.max_prompt_images;

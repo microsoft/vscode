@@ -61,6 +61,14 @@ export type IChatModelCapabilities = {
 		reasoning_effort?: string[];
 		tool_search?: boolean;
 		context_editing?: boolean;
+		/**
+		 * Whether the model accepts native PDF document content parts (as
+		 * opposed to being sent as image blocks). Lets an endpoint (in
+		 * particular a BYOK/custom endpoint) declare PDF support explicitly
+		 * instead of relying solely on the family-based heuristic in
+		 * `modelSupportsPDFDocuments`.
+		 */
+		pdf_documents?: boolean;
 	};
 };
 

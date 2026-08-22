@@ -337,6 +337,13 @@ export interface IChatEndpoint extends IEndpoint {
 	readonly supportsReasoningEffort?: string[];
 	readonly supportsToolSearch?: boolean;
 	readonly supportsContextEditing?: boolean;
+	/**
+	 * Whether the model accepts native PDF document content parts. Resolved
+	 * from the endpoint's declared capabilities, falling back to the
+	 * family-based `modelSupportsPDFDocuments` heuristic when undeclared —
+	 * see `ChatEndpoint`.
+	 */
+	readonly supportsPDFDocuments?: boolean;
 	readonly supportsToolCalls: boolean;
 	readonly supportsVision: boolean;
 	readonly supportsPrediction: boolean;

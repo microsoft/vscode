@@ -98,6 +98,8 @@ interface _CustomEndpointModelConfig {
 	contextWindow?: number;
 	toolCalling: boolean;
 	vision: boolean;
+	/** Whether the endpoint accepts native PDF document content parts. */
+	pdfInput?: boolean;
 	thinking?: boolean;
 	adaptiveThinking?: boolean;
 	minThinkingBudget?: number;
@@ -163,6 +165,7 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 			contextWindow: modelConfiguration?.contextWindow,
 			toolCalling: !!model.capabilities?.toolCalling || false,
 			vision: !!model.capabilities?.imageInput || false,
+			pdfInput: modelConfiguration?.pdfInput,
 			name: model.name,
 			url,
 			thinking: modelConfiguration?.thinking ?? false,
