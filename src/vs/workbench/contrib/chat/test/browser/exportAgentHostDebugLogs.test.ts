@@ -10,10 +10,11 @@ import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import type { IAgentHostDebugLogsArtifact, IAgentHostDebugLogsChunk } from '../../../../../platform/agentHost/common/agentService.js';
+import { buildChatUri, buildDefaultChatUri, getSessionChatResource } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { collectRotatedLogFiles, createHostArtifactStream } from '../../browser/actions/exportAgentHostDebugLogsAction.js';
+import { collectRotatedLogFiles, createHostArtifactStream, toActiveAgentHostSession } from '../../browser/actions/exportAgentHostDebugLogsAction.js';
 
 function artifactOfSize(size: number): IAgentHostDebugLogsArtifact {
 	return {
@@ -62,6 +63,46 @@ suite('createHostArtifactStream', () => {
 		const stream = createHostArtifactStream(artifactOfSize(10), async () => ({ data: VSBuffer.alloc(0), eof: false }));
 
 		await assert.rejects(streamToBuffer(stream), /empty debug log chunk/);
+	});
+});
+
+suite('toActiveAgentHostSession', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('separates the selected chat from its owning session', () => {
+		const local = toActiveAgentHostSession(URI.parse('agent-host-copilotcli:/session-1#side-chat'), 'Side chat');
+		const remote = toActiveAgentHostSession(URI.parse('remote-test-copilotcli:/session-2'), 'Main chat');
+
+		assert.deepStrictEqual({
+			local: local && { resource: local.resource.toString(), chatId: local.chatId, backendChatResource: local.backendChatResource, isLocal: local.isLocal },
+			remote: remote && { resource: remote.resource.toString(), chatId: remote.chatId, backendChatResource: remote.backendChatResource, isLocal: remote.isLocal },
+		}, {
+			local: { resource: 'agent-host-copilotcli:/session-1', chatId: 'side-chat', backendChatResource: undefined, isLocal: true },
+			remote: { resource: 'remote-test-copilotcli:/session-2', chatId: 'default', backendChatResource: undefined, isLocal: false },
+		});
+	});
+
+	test('selects exact host-published backend chat URIs', () => {
+		const session = URI.parse('copilotcli:/session-1');
+		const defaultChat = URI.parse(buildDefaultChatUri(session)).with({ query: 'host=default' }).toString();
+		const sideChat = URI.parse(buildChatUri(session, 'side-chat')).with({ query: 'host=side' }).toString();
+		const state = {
+			defaultChat,
+			chats: [
+				{ resource: defaultChat },
+				{ resource: sideChat },
+			],
+		};
+
+		assert.deepStrictEqual({
+			defaultChat: getSessionChatResource(state, 'default'),
+			sideChat: getSessionChatResource(state, 'side-chat'),
+			missing: getSessionChatResource(state, 'missing'),
+		}, {
+			defaultChat,
+			sideChat,
+			missing: undefined,
+		});
 	});
 });
 

@@ -8323,6 +8323,7 @@ suite('CopilotAgent', () => {
 			readonly resets: { turnId: string; senderClientId: string | undefined }[];
 			readonly modelCalls: { id: string; effort: string | undefined; tier?: string | undefined }[];
 			readonly agentCalls: (string | undefined)[];
+			readonly debugLogCalls: { outputDirectory: string; includeSessionLogs: boolean }[];
 		}
 
 		/**
@@ -8341,6 +8342,7 @@ suite('CopilotAgent', () => {
 				resets: [],
 				modelCalls: [],
 				agentCalls: [],
+				debugLogCalls: [],
 			};
 			const fake = {
 				sessionUri,
@@ -8358,6 +8360,9 @@ suite('CopilotAgent', () => {
 				resetTurnState(turnId: string, senderClientId: string | undefined): void { rec.resets.push({ turnId, senderClientId }); },
 				async setModel(id: string, reasoningEffort?: string, contextTier?: string): Promise<void> { rec.modelCalls.push({ id, effort: reasoningEffort, tier: contextTier }); },
 				async setAgent(name: string | undefined): Promise<void> { rec.agentCalls.push(name); },
+				async collectDebugLogs(outputDirectory: URI, includeSessionLogs: boolean): Promise<void> {
+					rec.debugLogCalls.push({ outputDirectory: outputDirectory.toString(), includeSessionLogs });
+				},
 				async hasRunningDetachedShells(): Promise<boolean> { return false; },
 				handleClientToolCallComplete(): void { },
 				async getNextTurnEventId(): Promise<string | undefined> { return undefined; },
@@ -8367,6 +8372,33 @@ suite('CopilotAgent', () => {
 			} as unknown as CopilotAgentSession;
 			return { rec, fake };
 		}
+
+		test('collectDebugLogs targets the selected peer chat', async () => {
+			const agent = createTestAgent(disposables);
+			try {
+				const session = AgentSession.uri('copilotcli', 'debug-peer');
+				const defaultChat = URI.parse(buildDefaultChatUri(session));
+				const peerChat = URI.parse(buildChatUri(session, 'peer-a'));
+				const defaultSession = makeFakeChatSession(session, 'sdk-default');
+				const peerSession = makeFakeChatSession(session, 'sdk-peer');
+				setDefaultSessionStub(agent, AgentSession.id(session), defaultSession.fake, defaultChat);
+				setPeerChatStub(agent, peerChat, peerSession.fake);
+
+				const included = await agent.collectDebugLogs(session, URI.file('/debug-output'), peerChat);
+
+				assert.deepStrictEqual({
+					included,
+					defaultChat: defaultSession.rec.debugLogCalls,
+					peerChat: peerSession.rec.debugLogCalls,
+				}, {
+					included: true,
+					defaultChat: [],
+					peerChat: [{ outputDirectory: 'file:///debug-output', includeSessionLogs: true }],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
 
 		test('createChat materializes an addressed chat, records its backing, and returns providerData (no copilot.chats write)', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());

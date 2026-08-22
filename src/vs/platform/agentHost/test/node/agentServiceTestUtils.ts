@@ -20,7 +20,7 @@ import { ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
 import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
-import { AgentService } from '../../node/agentService.js';
+import { AgentService, type IAgentServiceOptions } from '../../node/agentService.js';
 import { createAgentServiceComposition, type IAgentServiceComposition } from '../../node/agentServiceComposition.js';
 import { ICopilotApiService } from '../../node/shared/copilotApiService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
@@ -50,6 +50,7 @@ export function createTestAgentService(
 	hostLaunchKind = AgentHostLaunchKind.Unknown,
 	storageResource?: URI,
 	orchestratorDatabase?: IAgentHostDatabase,
+	agentServiceOptions: Pick<IAgentServiceOptions, 'debugLogsEnvironment'> = {},
 ): AgentService {
 	const effectiveFileMonitorService = fileMonitorService ?? new AgentHostFileMonitorService(fileService, logService);
 	const clientConnectionService = new AgentHostClientConnectionService();
@@ -82,6 +83,7 @@ export function createTestAgentService(
 		hostLaunchKind,
 		storageResource,
 		orchestratorDatabase,
+		...agentServiceOptions,
 	};
 	const composition = createAgentServiceComposition(
 		options,
@@ -95,4 +97,31 @@ export function createTestAgentService(
 	);
 	compositions.set(composition.agentService, composition);
 	return composition.agentService;
+}
+
+export function createTestAgentServiceWithOptions(
+	logService: ILogService,
+	fileService: IFileService,
+	sessionDataService: ISessionDataService,
+	productService: IProductService,
+	gitService: IAgentHostGitService,
+	options: Pick<IAgentServiceOptions, 'debugLogsEnvironment'>,
+): AgentService {
+	return createTestAgentService(
+		logService,
+		fileService,
+		sessionDataService,
+		productService,
+		gitService,
+		undefined,
+		undefined,
+		undefined,
+		undefined,
+		undefined,
+		[],
+		AgentHostLaunchKind.Unknown,
+		undefined,
+		undefined,
+		options,
+	);
 }
