@@ -40,6 +40,33 @@ suite('NativeTextSearchManager', () => {
 		assert.ok(correctEncoding);
 	});
 
+	test('fixes gb2312 encoding to gbk', async () => {
+		let correctEncoding = false;
+		const provider: TextSearchProvider2 = {
+			provideTextSearchResults(query: TextSearchQuery2, options: TextSearchProviderOptions, progress: Progress<TextSearchResult2>, token: CancellationToken): ProviderResult<TextSearchComplete2> {
+				correctEncoding = options.folderOptions[0].encoding === 'gbk';
+
+				return null;
+			}
+		};
+
+		const query: ITextQuery = {
+			type: QueryType.Text,
+			contentPattern: {
+				pattern: 'a'
+			},
+			folderQueries: [{
+				folder: URI.file('/some/folder'),
+				fileEncoding: 'gb2312'
+			}]
+		};
+
+		const m = new NativeTextSearchManager(query, provider);
+		await m.search(() => { }, CancellationToken.None);
+
+		assert.ok(correctEncoding);
+	});
+
 	test('handles result from unmatched folder gracefully via optional chaining', async () => {
 		let receivedResults = 0;
 		const provider: TextSearchProvider2 = {
