@@ -185,12 +185,11 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 				// controls explicitly disabled
 			} else {
 				this.windowControlsContainer = append(primaryWindowControlsLocation === 'left' ? this.leftContent : this.rightContent, $('div.window-controls-container'));
-				if (isWeb) {
-					append(primaryWindowControlsLocation === 'left' ? this.rightContent : this.leftContent, $('div.window-controls-container'));
-				}
-
 				if (isWCOEnabled()) {
 					this.windowControlsContainer.classList.add('wco-enabled');
+					append(primaryWindowControlsLocation === 'left' ? this.rightContent : this.leftContent, $('div.window-controls-container.wco-enabled'));
+				} else if (isWeb) {
+					append(primaryWindowControlsLocation === 'left' ? this.rightContent : this.leftContent, $('div.window-controls-container'));
 				}
 			}
 		}
