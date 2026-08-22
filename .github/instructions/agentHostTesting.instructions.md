@@ -22,9 +22,10 @@ See the agent host protocol documentation for more details.
 
 ## Service Construction
 
-Read `src/vs/platform/agentHost/node/AGENTS.md` before adding or moving a node
-Agent Host service. It is the canonical guide for service placement, static
-constructor arguments, activation, test overrides, and disposal ownership.
+Read `src/vs/platform/agentHost/node/serviceBootstrapping.md` before adding or
+moving a node Agent Host service. It is the canonical guide for service
+placement, static constructor arguments, activation, test overrides, and
+disposal ownership.
 
 ## End to End Testing
 

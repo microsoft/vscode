@@ -1,12 +1,22 @@
-<!--
-  Agent Host node-runtime service construction.
-  Living spec — keep in sync with agentHostBootstrap.ts, agentHostServices.ts,
-  agentServiceComposition.ts, and agentHostContributions.ts.
--->
-
 # Agent Host service construction
 
 > **Status: CURRENT** (2026-08-21)
+
+## Maintaining this document
+
+This is a decision guide for Agent Host service bootstrapping, not a running
+implementation diary.
+
+- Update it when a placement rule, construction phase, ownership contract,
+  accepted wart, or extension checklist changes.
+- Prefer rules, small representative examples, and explicit exit conditions.
+- Do not append incident history, temporary symbol lists, exhaustive service
+  inventories, review chronology, or details already obvious from the code.
+- Keep stable contracts separate from accepted debt.
+- Remove obsolete guidance in the same change that makes it obsolete.
+- Keep this file focused on `agentHostBootstrap.ts`, `agentHostServices.ts`,
+  `agentServiceFoundation.ts`, `agentServiceComposition.ts`,
+  `agentHostContributions.ts`, and their test graph.
 
 ## Primary graph
 
@@ -103,7 +113,10 @@ existing file first needs it.
   on a later macrotask, which makes startup failures and disposal timing
   nondeterministic. An eager descriptor is already lazy until first resolved.
 - Production eagerly resolves every returned core and host service ID before
-  composition so missing dependencies still fail during startup.
+  composition. This intentionally preserves the pre-descriptor behavior, where
+  bootstrap constructed every service eagerly, so this migration changes
+  construction ownership without also introducing accidental laziness. Future
+  lazy construction should be a separate, measured change with targeted tests.
 - Never call `createInstance()` for a class registered as a descriptor.
 - Migrate a service atomically: add its descriptor and remove its old
   imperative construction in the same commit.
