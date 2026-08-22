@@ -29,6 +29,8 @@ import { SessionActionFeedback } from '../../../../../sessions/contrib/sessions/
 import { SessionsTitleBarWidget } from '../../../../../sessions/contrib/sessions/browser/sessionsTitleBarWidget.js';
 // eslint-disable-next-line local/code-import-patterns
 import { BlockedSessionsCIFixModel } from '../../../../../sessions/contrib/sessions/browser/blockedSessionsCIFixModel.js';
+// eslint-disable-next-line local/code-import-patterns
+import { BlockedSessionsIndicatorModel } from '../../../../../sessions/contrib/sessions/browser/blockedSessionsIndicatorModel.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
@@ -181,7 +183,13 @@ function renderTitleBar(ctx: ComponentFixtureContext, state: ITitleBarState): vo
 		override readonly hiddenSessions: IObservable<ReadonlySet<string>> = constObservable<ReadonlySet<string>>(new Set());
 	}();
 
-	const widget = disposableStore.add(instantiationService.createInstance(SessionsTitleBarWidget, action, undefined, sessionActionFeedback, approvalModel, blockedSessionsModel, ciFixModel));
+	const widget = disposableStore.add(instantiationService.createInstance(
+		SessionsTitleBarWidget,
+		action,
+		undefined,
+		sessionActionFeedback,
+		disposableStore.add(instantiationService.createInstance(BlockedSessionsIndicatorModel, approvalModel, blockedSessionsModel, ciFixModel)),
+	));
 	widget.render(widgetHost);
 }
 

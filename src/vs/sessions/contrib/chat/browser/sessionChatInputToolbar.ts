@@ -17,24 +17,21 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChatResponseFileChangesService } from '../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
 import { CHAT_TURN_ARTIFACT_PILL_ID, CHAT_TURN_CHANGES_PILL_ID, ChatTurnPillsProvider, diffStatsEqual, EMPTY_DIFF_STATS, IChatTurnPillsModel, IDiffStats, observeTurnStatusPillsEnabled } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
-import { SessionArtifacts } from './sessionArtifacts.js';
+import { SessionArtifacts, sessionArtifactLocation } from './sessionArtifacts.js';
 import { chatCustomizationPillOptions, SessionCustomizations, SESSION_CUSTOMIZATIONS_PILL_ID } from './sessionCustomizations.js';
 import { localize } from '../../../../nls.js';
 import { getChatPillEntries, ChatPillsWidget, IChatPill, IChatPillsModel, type IChatPillSection } from '../../../../workbench/browser/chatPills.js';
 import { createChatSectionPill, type IChatDropdownPillOptions } from '../../../../workbench/browser/chatDropdownPill.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../workbench/browser/labels.js';
-import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../../changes/common/changes.js';
 import { OPEN_ISSUE_ACTION_ID, OPEN_PULL_REQUEST_ACTION_ID } from '../../github/common/types.js';
 import { getSessionChatPillMenu, SessionChatPillKind, SessionChatPillVisibility, type ISessionChatPillMenuEntry } from '../common/sessionChatPills.js';
-import { SHOW_SESSION_METADATA_IN_CHAT_INPUT_SETTING } from '../../../common/sessionConfig.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IChat, isActiveSessionStatus } from '../../../services/sessions/common/session.js';
+import { IChat } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { SessionBackgroundActivitiesControl, sessionSubagentsPillOptions } from './sessionBackgroundActivitiesControl.js';
 import { SessionBrowsersControl, sessionBrowsersPillOptions } from './sessionBrowsersControl.js';
 import type { ISessionChatPillsDebugData } from './sessionChatInputToolbarDebug.js';
-import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { SessionMetadataPills } from './sessionMetadataPills.js';
 import { SessionActivatingActionRunner } from '../../../browser/sessionActionRunner.js';
 import './media/sessionChatInputToolbar.css';
@@ -52,19 +49,12 @@ function computeTurnStats(chat: IChat, reader: IReader): IDiffStats {
 	}
 	return { files, insertions, deletions };
 }
-/** Whether last-turn pills should remain available for the current session state. */
-export function shouldShowSessionTurnPills(hasDebugData: boolean, turnActive: boolean, showSessionMetadataInInput: boolean, turnStatusPillsEnabled: boolean): boolean {
-	return hasDebugData || turnStatusPillsEnabled && (turnActive || showSessionMetadataInInput);
-}
-
 /** Fake artifacts for the pill debug overlay. */
 function buildDebugArtifactSections(debugData: ISessionChatPillsDebugData): readonly IChatPillSection[] {
-	const entries = debugData.markdownFiles.map(name => ({
-		id: name,
-		label: name,
-		resource: URI.from({ scheme: 'session-chat-pills-debug', path: `/${name}` }),
-		open: () => { },
-	}));
+	const entries = debugData.markdownFiles.map(name => {
+		const resource = URI.from({ scheme: 'session-chat-pills-debug', path: `/${name}` });
+		return { id: name, label: name, resource, ...sessionArtifactLocation(resource, name), open: () => { } };
+	});
 	return entries.length ? [{ title: localize('sessionArtifacts.files', "Files"), entries }] : [];
 }
 
@@ -130,16 +120,6 @@ export class SessionChatInputToolbar extends Disposable {
 	/** Customization sections shown in the customizations pill. */
 	private readonly _customizationSections: IObservable<readonly IChatPillSection[]>;
 
-	/** Whether pills may show at all: an agent host session with an active turn. */
-	private readonly _active = derived(reader => {
-		const session = this._session.read(reader);
-		const chat = this._chat.read(reader);
-		if (!session || !chat || !isAgentHostProviderId(session.providerId)) {
-			return false;
-		}
-		return isActiveSessionStatus(chat.status.read(reader));
-	});
-
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
@@ -173,37 +153,27 @@ export class SessionChatInputToolbar extends Disposable {
 			const debugData = this._debugData.read(reader);
 			return debugData ? buildDebugArtifactSections(debugData) : sessionArtifacts.sections.read(reader);
 		});
-		const sessionCustomizations = this._register(instantiationService.createInstance(SessionCustomizations, this._chat));
+		const sessionCustomizations = this._register(instantiationService.createInstance(SessionCustomizations, this._chat, this._session));
 		this._customizationSections = sessionCustomizations.sections;
 
 		const turnStatusPillsEnabled = observeTurnStatusPillsEnabled(this._configurationService);
-		const showMetadataInChatInput = observableConfigValue(SHOW_SESSION_METADATA_IN_CHAT_INPUT_SETTING, false, this._configurationService);
-		const showTurnPills = derived(reader => shouldShowSessionTurnPills(
-			this._debugData.read(reader) !== undefined,
-			this._active.read(reader),
-			showMetadataInChatInput.read(reader),
-			turnStatusPillsEnabled.read(reader),
-		));
+		const pillsEnabled = derived(reader => this._debugData.read(reader) !== undefined || turnStatusPillsEnabled.read(reader));
 		const model: IChatTurnPillsModel = {
 			stats: this._diffStats,
 			artifacts: this._artifactSections,
-			changesEnabled: showTurnPills,
-			// Artifacts outlive the turn that produced them, so they only need the pills enabled.
-			artifactsEnabled: derived(reader => this._debugData.read(reader) !== undefined || turnStatusPillsEnabled.read(reader)),
+			changesEnabled: pillsEnabled,
+			artifactsEnabled: pillsEnabled,
 			openChanges: () => this._debugData.get() ? undefined : this._openChanges(),
 		};
 
 		const turnPills = this._register(instantiationService.createInstance(ChatTurnPillsProvider, model));
-		const metadataPills = this._register(instantiationService.createInstance(SessionMetadataPills, this.element, this._session, showMetadataInChatInput));
+		const metadataPills = this._register(instantiationService.createInstance(SessionMetadataPills, this.element, this._session));
 		const visibility = this._register(instantiationService.createInstance(SessionChatPillVisibility));
 
 		// Every pill the session currently has data for, before the user's
 		// per-kind visibility choices are applied.
 		const candidatePills = derived<readonly IChatPill[]>(reader => {
 			const turn = turnPills.pills.read(reader);
-			if (!showMetadataInChatInput.read(reader)) {
-				return turn;
-			}
 			return [
 				...metadataPills.pills.read(reader),
 				...turn.filter(pill => pill.action.id !== CHAT_TURN_CHANGES_PILL_ID),
@@ -259,7 +229,7 @@ export class SessionChatInputToolbar extends Disposable {
 		pills.element.classList.add('show-file-icons');
 		this._content.appendChild(pills.element);
 
-		// Kinds the session reports data for; the others cannot be toggled.
+		// Kinds the session reports data for; the others are listed in a separate group.
 		const kindsWithData = derived(reader => {
 			const kinds = new Set<SessionChatPillKind>();
 			for (const pill of candidatePills.read(reader)) {
@@ -300,7 +270,6 @@ export class SessionChatInputToolbar extends Disposable {
 						id: `sessions.chatPills.toggle.${entry.kind}`,
 						label: entry.label,
 						checked: entry.checked,
-						enabled: entry.enabled,
 						run: () => visibility.toggle(entry.kind),
 					});
 

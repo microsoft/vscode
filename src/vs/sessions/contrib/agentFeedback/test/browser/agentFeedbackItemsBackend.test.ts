@@ -33,7 +33,7 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 		const state: AnnotationsState = {
 			annotations: [{
 				id: 'feedback-1',
-				turnId: '',
+				origin: { session: sessionResource.toString() },
 				resource: agentHostResource.toString(),
 				resolved: false,
 				entries: [{ id: 'feedback-1:0', text: 'Review this code.' }],

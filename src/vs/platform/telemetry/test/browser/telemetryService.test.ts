@@ -137,6 +137,21 @@ suite('TelemetryService', () => {
 		service.dispose();
 	}));
 
+	test('Fixed telemetry level does not require a configuration service', sinonTestFn(function () {
+		const testAppender = new TestTelemetryAppender();
+		const service = TelemetryService.createWithLevel({
+			appenders: [testAppender],
+			sendErrorTelemetry: true,
+			telemetryLevel: TelemetryLevel.ERROR,
+		}, TestProductService);
+
+		service.publicLog('usageEvent');
+		service.publicLogError('errorEvent');
+
+		assert.deepStrictEqual(testAppender.events.map(event => event.eventName), ['errorEvent']);
+		service.dispose();
+	}));
+
 	test('Event with data', sinonTestFn(function () {
 		const testAppender = new TestTelemetryAppender();
 		const service = new TelemetryService({ appenders: [testAppender] }, new TestConfigurationService(), TestProductService);

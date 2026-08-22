@@ -106,6 +106,8 @@ import { ISessionsManagementService } from '../../../../sessions/services/sessio
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsService } from '../../../../sessions/services/sessions/browser/sessionsService.js';
 // eslint-disable-next-line local/code-import-patterns
+import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../../sessions/services/sessions/common/sessionChangesStatsCache.js';
+// eslint-disable-next-line local/code-import-patterns
 import { ICodeReviewService, PRReviewStateKind } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
 import { constObservable } from '../../../../base/common/observable.js';
 
@@ -684,6 +686,10 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		_serviceBrand: undefined,
 		activeSession: constObservable(undefined),
 	});
+
+	// The real cache: it only reads and writes the (null) storage service, and
+	// the changes pill it feeds reads it directly.
+	define(ISessionChangesStatsCache, SessionChangesStatsCache);
 
 	definePartialInstance(ICodeReviewService, {
 		_serviceBrand: undefined,

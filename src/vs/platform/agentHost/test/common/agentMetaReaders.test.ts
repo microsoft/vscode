@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { readToolCallMeta, toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
-import { readChatSurfaceMeta, withChatSurfaceMeta, createTerminalChatInstruction } from '../../common/meta/agentChatSurfaceMeta.js';
+import { createEditorInlineChatInstruction, createTerminalChatInstruction, readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentCustomizationMeta, toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { getCommandArgumentHint, getCompletionAction, readCompletionAttachmentMeta, toCommandCompletionAttachmentMeta, toSkillCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
 import { CustomizationType, MessageAttachmentKind, ToolCallStatus, hasReportedUsage, readUsageInfoMeta, type AgentCustomization, type ClientPluginCustomization, type ToolCallState, type UsageInfo } from '../../common/state/sessionState.js';
@@ -15,7 +15,7 @@ import type { SessionModelInfo, SimpleMessageAttachment } from '../../common/sta
 import { createAgentModelByokMeta, readAgentModelByokIdentifier } from '../../common/agentModelByokMeta.js';
 import { createAgentModelSourceMeta, readAgentModelSourceId } from '../../common/agentModelSource.js';
 import { URI } from '../../../../base/common/uri.js';
-import { hasClientPluginMcpDefaultCwds, readClientPluginMcpDefaultCwd, toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
+import { hasClientPluginMcpDefaultCwd, hasClientPluginMcpDefaultCwds, readClientPluginMcpDefaultCwd, toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 
 /** Wraps a `_meta` bag in a minimal {@link ToolCallState} so the reader sees the right source type. */
 function toolCall(meta: Record<string, unknown> | undefined): ToolCallState {
@@ -123,6 +123,22 @@ suite('Agent host _meta readers', () => {
 				{ existing: 'value', 'vscode.chat.surface': { surface: 'terminal', shellType: 'bash', osName: 'Linux' } },
 			);
 		});
+
+		test('reads and writes editor inline metadata', () => {
+			assert.deepStrictEqual(
+				readChatSurfaceMeta({ _meta: withChatSurfaceMeta(undefined, { surface: 'editorInline', languageId: 'typescript' }) }),
+				{ surface: 'editorInline', languageId: 'typescript' },
+			);
+			assert.deepStrictEqual(
+				readChatSurfaceMeta({ _meta: withChatSurfaceMeta(undefined, { surface: 'editorInline' }) }),
+				{ surface: 'editorInline' },
+			);
+			assert.strictEqual(readChatSurfaceMeta({ _meta: { 'vscode.chat.surface': { surface: 'editorInline', languageId: 1 } } }), undefined);
+			assert.deepStrictEqual(
+				withChatSurfaceMeta({ existing: 'value' }, { surface: 'editorInline', languageId: 'typescript' }),
+				{ existing: 'value', 'vscode.chat.surface': { surface: 'editorInline', languageId: 'typescript' } },
+			);
+		});
 	});
 
 	suite('createTerminalChatInstruction', () => {
@@ -150,6 +166,41 @@ suite('Agent host _meta readers', () => {
 				shellUnknownTargetsOs: true,
 				shellUnknownOmitsShellGuidance: true,
 				allTagged: true,
+			});
+		});
+	});
+
+	suite('createEditorInlineChatInstruction', () => {
+		test('targets the attached editor file and includes its language when known', () => {
+			const typescript = createEditorInlineChatInstruction({ surface: 'editorInline', languageId: 'typescript' });
+			const languageUnknown = createEditorInlineChatInstruction({ surface: 'editorInline' });
+			assert.deepStrictEqual({
+				typescript,
+				languageUnknown,
+			}, {
+				typescript: [
+					'<editor_inline_chat>',
+					'You specialize in focused inline edits. Make the requested change directly.',
+					'- Edit only the file attached as the current editor context. Do not create, delete, or modify other files.',
+					'- Make the smallest edit that satisfies the request; preserve surrounding style and indentation.',
+					'- Focus on the user\'s selected range when one is provided.',
+					'- Avoid broad repository exploration or context-gathering unless required to resolve ambiguity.',
+					'- After making the edit, stop; do not run tests, builds, linters, or other verification, and never summarize the change.',
+					'- Produce the edit directly rather than explaining it or writing a tutorial.',
+					'- The file\'s language is typescript.',
+					'</editor_inline_chat>',
+				].join('\n'),
+				languageUnknown: [
+					'<editor_inline_chat>',
+					'You specialize in focused inline edits. Make the requested change directly.',
+					'- Edit only the file attached as the current editor context. Do not create, delete, or modify other files.',
+					'- Make the smallest edit that satisfies the request; preserve surrounding style and indentation.',
+					'- Focus on the user\'s selected range when one is provided.',
+					'- Avoid broad repository exploration or context-gathering unless required to resolve ambiguity.',
+					'- After making the edit, stop; do not run tests, builds, linters, or other verification, and never summarize the change.',
+					'- Produce the edit directly rather than explaining it or writing a tutorial.',
+					'</editor_inline_chat>',
+				].join('\n'),
 			});
 		});
 	});
@@ -331,6 +382,8 @@ suite('Agent host _meta readers', () => {
 			const additionalCwd = URI.parse('vscode-remote://ssh-remote+host/workspace');
 			const meta = toClientPluginMcpDefaultCwdsMeta({ primary: null, additional: additionalCwd });
 			assert.strictEqual(hasClientPluginMcpDefaultCwds(plugin(meta)), true);
+			assert.strictEqual(hasClientPluginMcpDefaultCwd(plugin(meta), 'primary'), true);
+			assert.strictEqual(hasClientPluginMcpDefaultCwd(plugin(meta), 'missing'), false);
 			assert.strictEqual(readClientPluginMcpDefaultCwd(plugin(meta), 'primary', primaryCwd), primaryCwd);
 			assert.strictEqual(readClientPluginMcpDefaultCwd(plugin(meta), 'additional', primaryCwd)?.toString(), additionalCwd.toString());
 		});
@@ -340,6 +393,8 @@ suite('Agent host _meta readers', () => {
 			assert.strictEqual(hasClientPluginMcpDefaultCwds(plugin(undefined)), false);
 			assert.strictEqual(readClientPluginMcpDefaultCwd(plugin({ mcpDefaultCwds: { server: 42 } }), 'server', URI.file('/workspace')), undefined);
 			assert.strictEqual(readClientPluginMcpDefaultCwd(plugin({ mcpDefaultCwds: { server: 'relative/path' } }), 'server', URI.file('/workspace')), undefined);
+			assert.strictEqual(hasClientPluginMcpDefaultCwd(plugin({ mcpDefaultCwds: { server: 42 } }), 'server'), false);
+			assert.strictEqual(hasClientPluginMcpDefaultCwd(plugin({ mcpDefaultCwds: { server: 'relative/path' } }), 'server'), false);
 		});
 	});
 });
