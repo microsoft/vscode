@@ -270,7 +270,7 @@ class FormatOnSaveParticipant implements ITextFileSaveParticipant {
 	}
 }
 
-class CodeActionOnSaveParticipant extends Disposable implements ITextFileSaveParticipant {
+export class CodeActionOnSaveParticipant extends Disposable implements ITextFileSaveParticipant {
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -409,35 +409,38 @@ class CodeActionOnSaveParticipant extends Disposable implements ITextFileSavePar
 		};
 
 		for (const codeActionKind of codeActionsOnSave) {
-			const actionsToRun = await this.getActionsToRun(model, codeActionKind, excludes, getActionProgress, token);
+			const providers = this.languageFeaturesService.codeActionProvider.all(model);
+			for (const provider of providers) {
+				const actionsToRun = await this.getActionsToRun(model, codeActionKind, excludes, getActionProgress, token, provider);
 
-			if (token.isCancellationRequested) {
-				actionsToRun.dispose();
-				return;
-			}
-
-			try {
-				for (const action of actionsToRun.validActions) {
-					progress.report({ message: localize('codeAction.apply', "Applying code action '{0}'.", action.action.title) });
-					await this.instantiationService.invokeFunction(applyCodeAction, action, ApplyCodeActionReason.OnSave, {}, token);
-					if (token.isCancellationRequested) {
-						return;
-					}
+				if (token.isCancellationRequested) {
+					actionsToRun.dispose();
+					return;
 				}
-			} catch {
-				// Failure to apply a code action should not block other on save actions
-			} finally {
-				actionsToRun.dispose();
+
+				try {
+					for (const action of actionsToRun.validActions) {
+						progress.report({ message: localize('codeAction.apply', "Applying code action '{0}'.", action.action.title) });
+						await this.instantiationService.invokeFunction(applyCodeAction, action, ApplyCodeActionReason.OnSave, {}, token);
+						if (token.isCancellationRequested) {
+							return;
+						}
+					}
+				} catch {
+					// Failure to apply a code action should not block other on save actions
+				} finally {
+					actionsToRun.dispose();
+				}
 			}
 		}
 	}
 
-	private getActionsToRun(model: ITextModel, codeActionKind: HierarchicalKind, excludes: readonly HierarchicalKind[], progress: IProgress<CodeActionProvider>, token: CancellationToken) {
+	private getActionsToRun(model: ITextModel, codeActionKind: HierarchicalKind, excludes: readonly HierarchicalKind[], progress: IProgress<CodeActionProvider>, token: CancellationToken, provider: CodeActionProvider) {
 		return getCodeActions(this.languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), {
 			type: CodeActionTriggerType.Auto,
 			triggerAction: CodeActionTriggerSource.OnSave,
 			filter: { include: codeActionKind, excludes: excludes, includeSourceActions: true },
-		}, progress, token);
+		}, progress, token, provider);
 	}
 }
 
