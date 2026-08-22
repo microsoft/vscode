@@ -867,6 +867,15 @@ suite('AgentHostClientTools', () => {
 			inputSchema: { type: 'object', properties: { task: { type: 'string' } } },
 		};
 
+		const testRequiredInputTool: IToolData = {
+			id: 'vscode.readBrowserPage',
+			toolReferenceName: 'readBrowserPage',
+			displayName: 'Read Browser Page',
+			modelDescription: 'Reads a browser page',
+			source: ToolDataSource.Internal,
+			inputSchema: { type: 'object', properties: { pageId: { type: 'string' } }, required: ['pageId'] },
+		};
+
 		const testSubagentTool: IToolData = {
 			id: 'runSubagent',
 			toolReferenceName: 'task',
@@ -1122,6 +1131,39 @@ suite('AgentHostClientTools', () => {
 			assert.ok(connection.dispatchedActions.some(entry => isChatAction(entry.action)
 				&& entry.action.type === ActionType.ChatToolCallComplete
 				&& entry.action.toolCallId === 'tool-call-1'));
+		});
+
+		test('fails a client tool whose input is missing a required property instead of invoking it', async () => {
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRequiredInputTool]);
+			const sessionResource = URI.parse('agent-host-copilot:/session-1');
+			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+
+			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			// A call whose arguments never streamed arrives as `{}`.
+			applyRunningClientExecution(connection, buildDefaultChatUri(backendSession), 'turn-1', {
+				toolCallId: 'tool-call-1',
+				toolName: 'readBrowserPage',
+				displayName: 'Read Browser Page',
+				invocationMessage: 'Read Browser Page',
+				toolInput: '{}',
+			});
+			await timeout(0);
+			await timeout(0);
+
+			const completion = connection.dispatchedActions
+				.map(entry => entry.action)
+				.find(action => isChatAction(action) && action.type === ActionType.ChatToolCallComplete);
+			assert.deepStrictEqual({
+				invoked: toolsService.invokedToolCalls.length,
+				success: (completion as { result: { success: boolean } } | undefined)?.result.success,
+				code: (completion as { result: { error?: { code?: string; message?: string } } } | undefined)?.result.error?.code,
+				mentionsProperty: ((completion as { result: { error?: { message?: string } } } | undefined)?.result.error?.message ?? '').includes('pageId'),
+			}, {
+				invoked: 0,
+				success: false,
+				code: 'invalidInput',
+				mentionsProperty: true,
+			});
 		});
 
 		test('resolves base64 referenced input before invoking an owned client tool', async () => {
