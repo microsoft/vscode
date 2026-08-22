@@ -153,6 +153,7 @@ export type IChatModelInformation = IModelAPIResponse & {
 	urlOrRequestMetadata?: string | RequestMetadata;
 	requestHeaders?: Readonly<Record<string, string>>;
 	modelOptions?: Readonly<IChatModelRequestOptions>;
+	extraBody?: Readonly<Record<string, Object>>;
 	zeroDataRetentionEnabled?: boolean;
 	/**
 	 * BYOK-only override that forces the body shape used when forwarding the reasoning effort to the model.

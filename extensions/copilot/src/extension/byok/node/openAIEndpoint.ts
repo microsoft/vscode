@@ -283,11 +283,13 @@ export class OpenAIEndpoint extends ChatEndpoint {
 				body.previous_response_id = undefined;
 			}
 			this._applyReasoningEffort(body, options);
+			this._applyExtraBody(body, options);
 			return this._applyConfiguredModelOptions(body, options);
 		} else if (this.useMessagesApi) {
 			// Delegate to base ChatEndpoint for Messages API dispatch
 			const body = super.createRequestBody(options);
 			this._applyReasoningEffort(body, options);
+			this._applyExtraBody(body, options);
 			return this._applyConfiguredModelOptions(body, options);
 		} else {
 			const body = createCapiRequestBody(options, this.model, this.getCompletionsCallback());
@@ -295,6 +297,7 @@ export class OpenAIEndpoint extends ChatEndpoint {
 				body.messages = normalizeKimiToolCallIds(body.messages);
 			}
 			this._applyReasoningEffort(body, options);
+			this._applyExtraBody(body, options);
 			return this._applyConfiguredModelOptions(body, options);
 		}
 	}
@@ -361,6 +364,24 @@ export class OpenAIEndpoint extends ChatEndpoint {
 			} else {
 				body.reasoning_effort = effort;
 			}
+		}
+	}
+
+	/**
+	 * Forwards optional JSON properties, similar to OpenAI's 'extra_body' API.
+	 * Typical parameters include: 'enable_thinking' when using QwenCloud, 'top_k' against a vLLM backend or
+	 * 'chat_template_kwargs' for SGLang, etc. Those properties are fully user provided and don't follow
+	 * any predefined model.
+	 */
+	private _applyExtraBody(body: IEndpointBody, options: ICreateEndpointBodyOptions): void {
+		const extraBody = this.modelMetadata.extraBody;
+		if (!extraBody) {
+			return;
+		}
+
+		for (const [key, value] of Object.entries(extraBody)) {
+			// The options can be arbitrary objects, e.g. 'chat_template_kwargs'
+			(body as Record<string, Object>)[key] = value;
 		}
 	}
 
