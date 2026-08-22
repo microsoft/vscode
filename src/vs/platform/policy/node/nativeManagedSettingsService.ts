@@ -35,6 +35,7 @@ export class NativeManagedSettingsService extends Disposable implements INativeM
 	private watchedSettings: IManagedSettingsPolicyDefinitions = MANAGED_SETTINGS_CONTROL_DEFINITIONS;
 	private initializationPromise: Promise<void> | undefined;
 	private initializationVersion = 0;
+	private activeWatcherVersion = 0;
 
 	private readonly _onDidChangeManagedSettings = this._register(new Emitter<ManagedSettingsData>());
 	readonly onDidChangeManagedSettings = this._onDidChangeManagedSettings.event;
@@ -67,9 +68,15 @@ export class NativeManagedSettingsService extends Disposable implements INativeM
 			return this.initialize();
 		}
 
+		const previousWatchedSettings = this.watchedSettings;
 		this.watchedSettings = managedSettings;
+		try {
+			await this.ensureWatcher(true);
+		} catch (error) {
+			this.watchedSettings = previousWatchedSettings;
+			throw error;
+		}
 		const changed = this.pruneManagedSettingsValues();
-		await this.ensureWatcher(true);
 		if (changed) {
 			this._onDidChangeManagedSettings.fire(this.managedSettings);
 		}
@@ -124,12 +131,22 @@ export class NativeManagedSettingsService extends Disposable implements INativeM
 		await this.throttler.queue(() => new Promise<void>((c, e) => {
 			try {
 				this.logService.trace(`Creating native managed-settings watcher for productName ${this.productName}`);
-				this.watcher.value = createWatcher(this.productName, managedSettingDefinitions, update => {
-					if (this.initializationVersion === version) {
+				let ready = false;
+				const pendingUpdates: Array<Record<string, PolicyValue | undefined>> = [];
+				const watcher = createWatcher(this.productName, managedSettingDefinitions, update => {
+					if (!ready) {
+						pendingUpdates.push(update as Record<string, PolicyValue | undefined>);
+					} else if (this.activeWatcherVersion === version) {
 						this._onDidManagedSettingsChange(update as Record<string, PolicyValue | undefined>);
 					}
 					c();
 				}, this.watcherOptions);
+				this.activeWatcherVersion = version;
+				this.watcher.value = watcher;
+				ready = true;
+				for (const update of pendingUpdates) {
+					this._onDidManagedSettingsChange(update);
+				}
 			} catch (err) {
 				this.logService.error(`NativeManagedSettingsService#updateWatcher - Error creating watcher:`, err);
 				e(err);

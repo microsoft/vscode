@@ -24,7 +24,7 @@ export type ManagedSettingsData = Readonly<Record<string, ManagedSettingValue>>;
 export type ManagedSettingType = 'string' | 'number' | 'boolean';
 
 export interface IManagedSettingPolicyDefinition {
-	readonly type: ManagedSettingType | readonly ManagedSettingType[];
+	readonly type: ManagedSettingType | readonly [ManagedSettingType, ...ManagedSettingType[]];
 }
 
 export type IManagedSettingsPolicyDefinitions = Readonly<Record<string, IManagedSettingPolicyDefinition>>;
