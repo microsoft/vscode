@@ -33,6 +33,7 @@ import { registerPendingEditContentProvider } from './copilot/pendingEditContent
 import { SessionDataService } from './sessionDataService.js';
 import { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
+import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
 
 export interface ICreateAgentHostRuntimeOptions {
 	readonly environmentService: INativeEnvironmentService;
@@ -108,6 +109,7 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 			[ISessionDataService, sessionDataService],
 			[IProductService, productService],
 		);
+		services.set(IAgentHostClientConnectionService, infrastructure.add(new AgentHostClientConnectionService()));
 		const agentServiceOptions: IAgentServiceOptions = {
 			rootConfigResource: joinPath(environmentService.appSettingsHome, 'globalStorage', 'agent-host-config.json'),
 			providerConfigurations: options.providerConfigurations,

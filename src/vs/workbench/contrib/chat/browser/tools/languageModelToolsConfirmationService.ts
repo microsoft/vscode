@@ -14,7 +14,9 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IQuickInputButton, IQuickInputButtonWithToggle, IQuickInputService, IQuickTreeItem, QuickInputButtonLocation } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ConfirmedReason, ToolConfirmKind } from '../../common/chatService/chatService.js';
+import { isAutoApprovePolicyRestricted } from '../../common/agentHostConfigPolicy.js';
 import { ILanguageModelToolConfirmationActions, ILanguageModelToolConfirmationContribution, ILanguageModelToolConfirmationContributionQuickTreeItem, ILanguageModelToolConfirmationRef, ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
 import { IToolData, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
 
@@ -231,6 +233,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IDialogService private readonly _dialogService: IDialogService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -253,6 +256,10 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 
 		// If contribution disables default permissions, don't check default stores
 		if (contribution && contribution.canUseDefaultApprovals === false) {
+			return undefined;
+		}
+
+		if (isAutoApprovePolicyRestricted(this._configurationService)) {
 			return undefined;
 		}
 
@@ -296,6 +303,10 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 			return undefined;
 		}
 
+		if (isAutoApprovePolicyRestricted(this._configurationService)) {
+			return undefined;
+		}
+
 		// Check tool-level confirmation
 		const toolResult = this._postExecutionToolConfirmStore.checkAutoConfirmation(ref.toolId);
 		if (toolResult) {
@@ -324,6 +335,10 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 
 		// If contribution disables default permissions, only return contribution actions
 		if (contribution && contribution.canUseDefaultApprovals === false) {
+			return actions;
+		}
+
+		if (isAutoApprovePolicyRestricted(this._configurationService)) {
 			return actions;
 		}
 
@@ -443,6 +458,10 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 
 		// If contribution disables default permissions, only return contribution actions
 		if (contribution && contribution.canUseDefaultApprovals === false) {
+			return actions;
+		}
+
+		if (isAutoApprovePolicyRestricted(this._configurationService)) {
 			return actions;
 		}
 
@@ -641,6 +660,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 		// Helper function to build tree items based on current scope
 		const buildTreeItems = (): IToolTreeItem[] => {
 			const treeItems: IToolTreeItem[] = [];
+			const defaultApprovalsDisabled = isAutoApprovePolicyRestricted(this._configurationService);
 
 			// Add server nodes
 			for (const [serverId, serverInfo] of serversWithTools) {
@@ -676,12 +696,14 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 							type: 'tool-pre',
 							toolId: tool.id,
 							label: RUN_WITHOUT_APPROVAL,
+							disabled: defaultApprovalsDisabled,
 							checked: this._preExecutionToolConfirmStore.getAutoConfirmationIn(tool.id, currentScope)
 						});
 						toolChildren.push({
 							type: 'tool-post',
 							toolId: tool.id,
 							label: CONTINUE_WITHOUT_REVIEWING_RESULTS,
+							disabled: defaultApprovalsDisabled,
 							checked: this._postExecutionToolConfirmStore.getAutoConfirmationIn(tool.id, currentScope)
 						});
 					}
@@ -695,6 +717,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 							combinationKey: key,
 							combinationArgs: args,
 							label,
+							disabled: defaultApprovalsDisabled,
 							checked: true,
 							buttons: args ? [viewArgsButton] : undefined,
 						});
@@ -733,6 +756,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 						toolId: tool.id,
 						label: tool.displayName || tool.id,
 						description,
+						disabled: defaultApprovalsDisabled,
 						checked,
 						collapsed: true,
 						children: toolChildren.length > 0 ? toolChildren : undefined
@@ -747,6 +771,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 						serverId,
 						iconClass: ThemeIcon.asClassName(Codicon.play),
 						label: localize('continueWithoutReviewing', "Continue without reviewing any tool results"),
+						disabled: defaultApprovalsDisabled,
 						checked: serverPostConfirmed
 					});
 				}
@@ -756,6 +781,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 						serverId,
 						iconClass: ThemeIcon.asClassName(Codicon.play),
 						label: localize('runToolsWithoutApproval', "Run any tool without approval"),
+						disabled: defaultApprovalsDisabled,
 						checked: serverPreConfirmed
 					});
 				}
@@ -779,6 +805,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 					type: 'server',
 					serverId,
 					label: serverInfo.label,
+					disabled: defaultApprovalsDisabled,
 					checked: serverChecked,
 					children: serverChildren,
 					collapsed: existingItem ? quickTree.isCollapsed(existingItem) : true,
@@ -825,12 +852,14 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 							type: 'tool-pre',
 							toolId: tool.id,
 							label: RUN_WITHOUT_APPROVAL,
+							disabled: defaultApprovalsDisabled,
 							checked: this._preExecutionToolConfirmStore.getAutoConfirmationIn(tool.id, currentScope)
 						});
 						toolChildren.push({
 							type: 'tool-post',
 							toolId: tool.id,
 							label: CONTINUE_WITHOUT_REVIEWING_RESULTS,
+							disabled: defaultApprovalsDisabled,
 							checked: this._postExecutionToolConfirmStore.getAutoConfirmationIn(tool.id, currentScope)
 						});
 					}
@@ -844,6 +873,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 							combinationKey: key,
 							combinationArgs: args,
 							label,
+							disabled: defaultApprovalsDisabled,
 							checked: true,
 							buttons: args ? [viewArgsButton] : undefined,
 						});
@@ -879,6 +909,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 					toolId: tool.id,
 					label: tool.displayName || tool.id,
 					description,
+					disabled: defaultApprovalsDisabled && contributed?.canUseDefaultApprovals !== false,
 					checked,
 					pickable,
 					collapsed: tools.length > 1,
@@ -926,6 +957,11 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 		quickTree.setItemTree(buildTreeItems());
 
 		disposables.add(quickTree.onDidChangeCheckboxState(item => {
+			if (isAutoApprovePolicyRestricted(this._configurationService) && item.type !== 'manage') {
+				quickTree.setItemTree(buildTreeItems());
+				return;
+			}
+
 			const newState = item.checked ? currentScope : 'never';
 
 			if (item.type === 'server' && item.serverId) {

@@ -33,7 +33,7 @@ import { resolveSessionWorkingDirectoryAction } from '../common/state/sessionWor
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult, SessionConfigPropertySchema } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
-import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, type Annotation, type AnnotationEntry, type AnnotationsState, type ChatOrigin, type Customization, type Message, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
+import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type ChatOrigin, type Customization, type Message, type MessageAttachment, type MessageResourceAttachment, type TextRange } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
 import { ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_ORCHESTRATION_DB_KEY, readSessionSpawnDepth, parseSessionOrchestration, withSessionSpawnDepth, withSessionOrchestration, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, isAhpChatChannel, isDefaultChatUri, isSubagentChatUri, isSubagentSession, needsSessionGitStateRefresh, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, readSessionEhcliAdoptable, type ISessionSourceControlState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn, type UsageInfo, chatStorageUri, hasReportedUsage } from '../common/state/sessionState.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
@@ -212,21 +212,75 @@ function isPersistedAnnotationEntry(value: unknown): value is AnnotationEntry {
 		|| (isRecord(value.text) && typeof value.text.markdown === 'string');
 }
 
-function isPersistedAnnotation(value: unknown): value is Annotation {
+function isPersistedAnnotationOrigin(value: unknown): value is AnnotationOrigin {
 	return isRecord(value)
-		&& typeof value.id === 'string'
-		&& typeof value.turnId === 'string'
-		&& typeof value.resource === 'string'
-		&& typeof value.resolved === 'boolean'
-		&& Array.isArray(value.entries)
-		&& value.entries.length > 0
-		&& value.entries.every(isPersistedAnnotationEntry);
+		&& typeof value.session === 'string'
+		&& (value.chat === undefined || typeof value.chat === 'string')
+		&& (value.turnId === undefined || typeof value.turnId === 'string');
 }
 
-function isPersistedAnnotationsState(value: unknown): value is AnnotationsState {
+function isPersistedTextRange(value: unknown): value is TextRange {
 	return isRecord(value)
-		&& Array.isArray(value.annotations)
-		&& value.annotations.every(isPersistedAnnotation);
+		&& isRecord(value.start) && typeof value.start.line === 'number' && typeof value.start.character === 'number'
+		&& isRecord(value.end) && typeof value.end.line === 'number' && typeof value.end.character === 'number';
+}
+
+/**
+ * Reads one persisted annotation, migrating the pre-`origin` shape. Releases
+ * before the annotation origin recorded a top-level `turnId` and no owning
+ * session, so the session that is being restored supplies the origin.
+ */
+function readPersistedAnnotation(value: unknown, session: string): Annotation | undefined {
+	if (!isRecord(value)
+		|| typeof value.id !== 'string'
+		|| typeof value.resource !== 'string'
+		|| typeof value.resolved !== 'boolean'
+		|| !Array.isArray(value.entries)
+		|| value.entries.length === 0
+		|| !value.entries.every(isPersistedAnnotationEntry)) {
+		return undefined;
+	}
+	let origin: AnnotationOrigin;
+	if (isPersistedAnnotationOrigin(value.origin)) {
+		origin = value.origin;
+	} else if (value.origin === undefined) {
+		origin = { session, ...(typeof value.turnId === 'string' && value.turnId ? { turnId: value.turnId } : {}) };
+	} else {
+		return undefined;
+	}
+	const annotation: Annotation = {
+		id: value.id,
+		origin,
+		resource: value.resource,
+		resolved: value.resolved,
+		entries: value.entries,
+	};
+	if (isPersistedTextRange(value.range)) {
+		annotation.range = value.range;
+	}
+	if (isRecord(value._meta)) {
+		annotation._meta = value._meta;
+	}
+	return annotation;
+}
+
+/**
+ * Reads a persisted annotations state, migrating any legacy annotation into the
+ * current shape. Returns `undefined` when the payload is not a valid state.
+ */
+function readPersistedAnnotationsState(value: unknown, session: string): AnnotationsState | undefined {
+	if (!isRecord(value) || !Array.isArray(value.annotations)) {
+		return undefined;
+	}
+	const annotations: Annotation[] = [];
+	for (const entry of value.annotations) {
+		const annotation = readPersistedAnnotation(entry, session);
+		if (!annotation) {
+			return undefined;
+		}
+		annotations.push(annotation);
+	}
+	return { annotations };
 }
 
 /** Opaque provider data for the session's default chat. */
@@ -2319,39 +2373,6 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 
-		// When forking, build the old→new turn ID mapping before creating the
-		// session so the agent can use it to remap per-turn data. If the
-		// source has no turns to copy (e.g. a still-provisional session), a
-		// "fork" is indistinguishable from a fresh session, so we drop the
-		// fork parameter and fall through to the regular create path.
-		if (config?.fork) {
-			const sourceState = this._stateManager.getSessionState(config.fork.session.toString());
-			const sourceTurns = sourceState?.turns.slice(0, config.fork.turnIndex + 1) ?? [];
-			if (sourceTurns.length === 0) {
-				config = { ...config, fork: undefined };
-			} else {
-				const turnIdMapping = new Map<string, string>();
-				for (const t of sourceTurns) {
-					turnIdMapping.set(t.id, generateUuid());
-				}
-				// The SDK fork boundary must be a concrete (SDK-backed) turn.
-				// When the client forked at a host-injected local turn
-				// (`/rename` / `!command`), redirect the agent to the preceding
-				// concrete turn while still seeding the local turns up to the
-				// fork point into the new session's protocol state below.
-				const concreteForkTurnId = this._localTurns.resolveConcreteTurnId(buildDefaultChatUri(config.fork.session).toString(), config.fork.turnId);
-				config = {
-					...config,
-					fork: {
-						...config.fork,
-						chat: URI.parse(buildDefaultChatUri(config.fork.session)),
-						turnIdMapping,
-						...(concreteForkTurnId !== undefined ? { turnId: concreteForkTurnId } : {}),
-					},
-				};
-			}
-		}
-
 		// When importing a conversation, assign fresh UUID turn ids up front so
 		// the provider seeds an event log whose ids match the protocol turns we
 		// seed below — keeping edit / fork / truncate addressable at the SDK
@@ -2367,7 +2388,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// materializing in the picked folder before the host creates the worktree.
 		const initializeSideEffects = this._sideEffects.initialize();
 		const sessionConfig = await this._resolveCreatedSessionConfig(provider, config);
-		const deferWorktreeCreation = sessionConfig?.values?.[SessionConfigKey.Isolation] === 'worktree' && !config?.fork && !config?.importConversation;
+		const deferWorktreeCreation = sessionConfig?.values?.[SessionConfigKey.Isolation] === 'worktree' && !config?.importConversation;
 
 		this._logService.trace(`[AgentService] createSession: initializing auto-approver and creating session...`);
 		const [, created] = await Promise.all([
@@ -2433,7 +2454,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// updates while resolving that snapshot; without a state entry those
 		// actions are rejected as targeting an unknown session and custom agents
 		// can disappear from the picker permanently.
-		const provisionalState = created.provisional && !config?.fork && !config?.importConversation
+		const provisionalState = created.provisional && !config?.importConversation
 			? (() => {
 				const summary = this._buildInitialSummary(provider, session, config, created, '');
 				const state = this._stateManager.createSession(summary, { emitNotification: false });
@@ -2463,9 +2484,9 @@ export class AgentService extends Disposable implements IAgentService {
 			}),
 			// The harness owns the Folder-picker decision (it is provider-specific),
 			// derived from the ordered working-directory set. Only meaningful for a
-			// fresh (non-fork, non-import) multi-root session — the picker never
+			// fresh (non-import) multi-root session — the picker never
 			// shows with a single folder — and seeded into `_meta` below.
-			workingDirectories && workingDirectories.length > 1 && !config?.fork && !config?.importConversation && provider.computeFolderPickerDecision
+			workingDirectories && workingDirectories.length > 1 && !config?.importConversation && provider.computeFolderPickerDecision
 				? provider.computeFolderPickerDecision(workingDirectories).catch(err => {
 					// Fail open: on an indeterminate scan error, show the picker rather
 					// than silently hiding it and pinning the default (index 0) folder.
@@ -2475,47 +2496,7 @@ export class AgentService extends Disposable implements IAgentService {
 				: Promise.resolve(undefined),
 		]);
 
-		// When forking, populate the new session's protocol state with
-		// the source session's turns so the client sees the forked history.
-		if (config?.fork) {
-			const sourceState = this._stateManager.getSessionState(config.fork.session.toString());
-			const sourceChatUri = buildDefaultChatUri(config.fork.session).toString();
-			const newChatUri = buildDefaultChatUri(session).toString();
-			let sourceTurns: Turn[] = [];
-			if (sourceState && config.fork.turnIdMapping) {
-				const originalSlice = sourceState.turns.slice(0, config.fork.turnIndex + 1);
-				const mapping = config.fork.turnIdMapping;
-				sourceTurns = originalSlice.map(t => ({ ...t, id: mapping.get(t.id) ?? generateUuid() }));
-				// Re-persist forked local turns (`/rename`, `!command`) under the
-				// new session's default chat. `record` (keyed by turn id)
-				// overwrites any rows a DB copy carried with the SOURCE chat URI,
-				// and seeds the in-memory index for same-process fork/truncate.
-				this._persistForkedLocalTurns(session.toString(), sourceChatUri, newChatUri, originalSlice, sourceTurns, mapping);
-			}
-
-			// Prefix the forked session's title so consumers (sidebar, chat
-			// model) can distinguish it from the source without each surface
-			// reinventing the convention. Avoid double-prefixing when a user
-			// forks an already-forked session.
-			const forkedTitlePrefix = localize('agentHost.forkedTitlePrefix', "Forked: ");
-			const sourceTitle = sourceState?.title;
-			const forkedTitle = sourceTitle
-				? (sourceTitle.startsWith(forkedTitlePrefix) ? sourceTitle : `${forkedTitlePrefix}${sourceTitle}`)
-				: localize('agentHost.forkedSessionFallback', "Forked Session");
-			const summary = this._buildInitialSummary(provider, session, config, created, forkedTitle);
-			const state = this._stateManager.createSession(summary);
-			state.config = sessionConfig;
-			this._stateManager.seedDefaultChatTurns(summary.resource, sourceTurns);
-			state.activeClients = config.activeClient ? [config.activeClient] : [];
-
-			// Refine the forked session's placeholder `Forked: …` title into one
-			// derived from the inherited chat. Forks seed pre-existing
-			// turns, so the normal first-message/first-turn title generation
-			// never fires for them — this is the fork-time equivalent.
-			if (sourceTurns.length > 0) {
-				this._sideEffects.generateForkedTitle(summary.resource, undefined, sourceTurns, forkedTitle, sourceTitle);
-			}
-		} else if (config?.importConversation) {
+		if (config?.importConversation) {
 			// An imported conversation arrives with pre-existing turns (assigned
 			// fresh UUID ids above). Seed them into the new session's protocol
 			// state so the client renders the imported history immediately; the
@@ -2530,7 +2511,7 @@ export class AgentService extends Disposable implements IAgentService {
 			state.activeClients = config.activeClient ? [config.activeClient] : [];
 
 			// Refine the placeholder title into one generated from the imported
-			// conversation, mirroring forks. Imports seed pre-existing turns, so
+			// conversation. Imports seed pre-existing turns, so
 			// the normal first-message title generation never fires; without this
 			// the session would keep showing the raw first-message clip while
 			// sibling sessions show clean generated titles — making imports look
@@ -3157,16 +3138,8 @@ export class AgentService extends Disposable implements IAgentService {
 			...(config.workingDirectories ? { workingDirectories: config.workingDirectories } : {}),
 			...(config.config ? { config: config.config } : {}),
 			...(config.activeClient ? { activeClient: config.activeClient } : {}),
-			...(!config.fork && !config.importConversation ? { deferBacking: true } : {}),
+			...(!config.importConversation ? { deferBacking: true } : {}),
 			...(config.importConversation ? { importConversation: config.importConversation } : {}),
-			...(config.fork ? {
-				fork: {
-					source: config.fork.chat,
-					turnIndex: config.fork.turnIndex,
-					turnId: config.fork.turnId,
-					turnIdMapping: config.fork.turnIdMapping,
-				},
-			} : {}),
 		};
 	}
 
@@ -3217,15 +3190,12 @@ export class AgentService extends Disposable implements IAgentService {
 		const now = new Date().toISOString();
 		const explicitGitHubState = readSessionGitHubState(config?._meta);
 		const explicitMultiRoot = readSessionMultiRootMetadata(config?._meta);
-		const inheritedMultiRoot = config?.fork
-			? readSessionMultiRootMetadata(this._stateManager.getSessionSummary(config.fork.session.toString())?._meta)
-			: undefined;
 		let _meta = withSessionGitHubState(undefined, explicitGitHubState);
-		_meta = withSessionMultiRootMetadata(_meta, explicitMultiRoot ?? inheritedMultiRoot);
+		_meta = withSessionMultiRootMetadata(_meta, explicitMultiRoot);
 		_meta = withEphemeralSessionMeta(_meta, config ? readEphemeralSessionMeta(config).isEphemeral : undefined);
 		_meta = withChatSurfaceMeta(_meta, readChatSurfaceMeta(config ?? {}));
 		_meta = withSessionExternal(_meta, false);
-		_meta = !config?.fork && !config?.workingDirectories
+		_meta = !config?.workingDirectories
 			? withSessionWorkspaceless(_meta, true)
 			: _meta;
 		return {
@@ -4322,6 +4292,14 @@ export class AgentService extends Disposable implements IAgentService {
 				action = this._withPreservedHostWrittenSessionConfig(sessionChannel, configAction);
 			}
 		}
+		// `session/workingDirectoryReplaced` is client-dispatchable in the
+		// protocol, but no provider advertises `primaryReplacement` and the host
+		// has no backend side effect for it. Reject it rather than let the
+		// reducer apply an unvalidated, uncanonicalized mutation.
+		if (action.type === ActionType.SessionWorkingDirectoryReplaced) {
+			this._stateManager.rejectClientAction(channel, action, origin, 'Session working-directory replacement is not supported.');
+			return;
+		}
 		if (action.type === ActionType.SessionWorkingDirectorySet || action.type === ActionType.SessionWorkingDirectoryRemoved) {
 			if (clientContext.clientType !== AgentHostClientType.EditorWindow) {
 				this._stateManager.rejectClientAction(channel, action, origin, 'Session working-directory actions require an Editor Window client.');
@@ -4818,10 +4796,11 @@ export class AgentService extends Disposable implements IAgentService {
 					return;
 				}
 				const state: unknown = JSON.parse(raw);
-				if (!isPersistedAnnotationsState(state)) {
+				const annotations = readPersistedAnnotationsState(state, session.toString());
+				if (!annotations) {
 					throw new Error('Invalid annotations state');
 				}
-				this._stateManager.restoreAnnotations(session.toString(), state);
+				this._stateManager.restoreAnnotations(session.toString(), annotations);
 			} finally {
 				ref.dispose();
 			}

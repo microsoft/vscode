@@ -31,12 +31,13 @@ import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
+import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { TerminalClaimKind } from '../../common/state/protocol/state.js';
 import { toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
@@ -82,6 +83,7 @@ import { createTestGitHubEndpointService } from './testGitHubEndpointService.js'
 class MockCopilotSession {
 	readonly sessionId = 'test-session-1';
 	readonly sendRequests: unknown[] = [];
+	sendGate: Promise<void> | undefined;
 	readonly modeSetCalls: Array<{ mode: 'interactive' | 'plan' | 'autopilot' }> = [];
 	readonly permissionModeSetCalls: PermissionAllowAllMode[] = [];
 	permissionModeSetSuccess = true;
@@ -152,6 +154,7 @@ class MockCopilotSession {
 	disconnectCalls = 0;
 	disconnectGate: Promise<void> | undefined;
 	disconnectHook: (() => void) | undefined;
+	disconnectError: Error | undefined;
 	/**
 	 * Per-call gates, consumed in call order, for holding individual reads in flight.
 	 * Lets a test make an earlier-issued read resolve after a later one.
@@ -241,6 +244,7 @@ class MockCopilotSession {
 	async send(request: unknown) {
 		this.operationLog.push('send');
 		this.sendRequests.push(request);
+		await this.sendGate;
 		return `message-${this.sendRequests.length}`;
 	}
 	async abort() {
@@ -253,6 +257,9 @@ class MockCopilotSession {
 		this.disconnectCalls++;
 		this.disconnectHook?.();
 		await this.disconnectGate;
+		if (this.disconnectError) {
+			throw this.disconnectError;
+		}
 	}
 
 	readonly rpc = {
@@ -1080,6 +1087,47 @@ suite('CopilotAgentSession', () => {
 
 			assert.deepStrictEqual(events, ['session.compaction_start']);
 		});
+
+		test('reports a completed disconnect separately from a pending disconnect', async () => {
+			const disconnectGate = new DeferredPromise<void>();
+			const mockSession = new MockCopilotSession();
+			mockSession.disconnectGate = disconnectGate.p;
+			const wrapper = disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession));
+
+			const disconnect = wrapper.disconnect();
+			const pendingState = wrapper.lifecycleState;
+			disconnectGate.complete();
+			await disconnect;
+
+			assert.deepStrictEqual({
+				pendingState,
+				completedState: wrapper.lifecycleState,
+			}, {
+				pendingState: 'disconnecting',
+				completedState: 'disconnected',
+			});
+		});
+
+		test('returns to active and permits retry after disconnect rejects', async () => {
+			const mockSession = new MockCopilotSession();
+			mockSession.disconnectError = new Error('disconnect failed');
+			const wrapper = disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession));
+
+			await assert.rejects(wrapper.disconnect(), /disconnect failed/);
+			const rejectedState = wrapper.lifecycleState;
+			mockSession.disconnectError = undefined;
+			await wrapper.disconnect();
+
+			assert.deepStrictEqual({
+				rejectedState,
+				completedState: wrapper.lifecycleState,
+				disconnectCalls: mockSession.disconnectCalls,
+			}, {
+				rejectedState: 'active',
+				completedState: 'disconnected',
+				disconnectCalls: 2,
+			});
+		});
 	});
 
 	test('destroySession completes when shutdown arrives before the response', async () => {
@@ -1091,6 +1139,7 @@ suite('CopilotAgentSession', () => {
 				mockSession.disconnectHook = () => { void disconnectStarted.complete(); };
 			},
 		});
+
 		const destroy = session.destroySession();
 
 		await disconnectStarted.p;
@@ -1106,6 +1155,60 @@ suite('CopilotAgentSession', () => {
 		} finally {
 			disconnectGate.complete();
 		}
+	});
+
+	test('reports bounded provider lifecycle state for the active turn', async () => {
+		const sendGate = new DeferredPromise<void>();
+		const { session, mockSession } = await createAgentSession(disposables, {
+			configureMockSession: mockSession => {
+				mockSession.sendGate = sendGate.p;
+			},
+		});
+		session.resetTurnState('turn-1');
+
+		assert.deepStrictEqual(session.getTurnDiagnosticSnapshot('turn-1'), {
+			state: 'available',
+			providerCallState: 'notStarted',
+			providerTurnStarted: false,
+			providerSessionState: 'active',
+		});
+
+		const send = session.send('hello', undefined, 'turn-1');
+		while (mockSession.sendRequests.length === 0) {
+			await timeout(0);
+		}
+		assert.deepStrictEqual(session.getTurnDiagnosticSnapshot('turn-1'), {
+			state: 'available',
+			providerCallState: 'pending',
+			providerTurnStarted: false,
+			providerSessionState: 'active',
+		});
+
+		mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-1' });
+		assert.deepStrictEqual(session.getTurnDiagnosticSnapshot('turn-1'), {
+			state: 'available',
+			providerCallState: 'pending',
+			providerTurnStarted: true,
+			providerSessionState: 'active',
+		});
+
+		sendGate.complete();
+		await send;
+		mockSession.fire('session.shutdown', {
+			codeChanges: { filesModified: [], linesAdded: 0, linesRemoved: 0 },
+			modelMetrics: {},
+			sessionStartTime: 0,
+			shutdownType: 'routine',
+			totalApiDurationMs: 0,
+		});
+
+		assert.deepStrictEqual(session.getTurnDiagnosticSnapshot('turn-1'), {
+			state: 'available',
+			providerCallState: 'resolved',
+			providerTurnStarted: true,
+			providerSessionState: 'shutdown',
+		});
+		assert.strictEqual(session.getTurnDiagnosticSnapshot('other-turn'), undefined);
 	});
 
 	test('logs SDK events without wrapped handlers', async () => {
@@ -2434,12 +2537,19 @@ suite('CopilotAgentSession', () => {
 				sendRequests: mockSession.sendRequests,
 				turnCompleteBeforeIdle: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete).length,
 				hasActiveTurn: session.hasActiveTurn,
+				diagnostics: session.getTurnDiagnosticSnapshot('turn-fleet'),
 			}, {
 				fleetStartCalls: [{ prompt: 'the full analysis' }],
 				commandInvokeCalls: [],
 				sendRequests: [],
 				turnCompleteBeforeIdle: 0,
 				hasActiveTurn: true,
+				diagnostics: {
+					state: 'available',
+					providerCallState: 'resolved',
+					providerTurnStarted: false,
+					providerSessionState: 'active',
+				},
 			});
 
 			mockSession.fire('assistant.message_delta', { deltaContent: 'Deploying fleet' } as SessionEventPayload<'assistant.message_delta'>['data']);
@@ -5708,7 +5818,7 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(terminalManager.outputTerminalsCreated, [{
 				uri: terminalUri,
 				title: 'Run Shell Command',
-				claim: { kind: TerminalClaimKind.Session, session: AgentSession.uri('copilot', 'test-session-1').toString(), toolCallId: 'tc-stream' },
+				claim: { kind: TerminalClaimKind.Session, session: AgentSession.uri('copilot', 'test-session-1').toString(), chat: buildDefaultChatUri(AgentSession.uri('copilot', 'test-session-1')), toolCallId: 'tc-stream' },
 			}]);
 			assert.deepStrictEqual(terminalManager.outputTerminalData, [
 				{ uri: terminalUri, data: 'tick 1\n' },
@@ -7533,7 +7643,7 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(signals.length, 1);
 			const request = getInputRequest(signals[0]);
 			const requestId = request.id;
-			assert.strictEqual(request.purpose, ChatInputRequestPurpose.AskUser);
+			assert.strictEqual(readChatInputRequestPurpose(request), ChatInputRequestPurpose.AskUser);
 			assert.ok(request.questions);
 			assert.strictEqual(request.questions[0].message, 'What is your name?');
 			const questionId = request.questions[0].id;
@@ -7677,7 +7787,7 @@ suite('CopilotAgentSession', () => {
 				ActionType.ChatInputCompleted,
 			]);
 			const requested = getActions(signals)[0];
-			assert.strictEqual(requested.type === ActionType.ChatInputRequested ? requested.request.purpose : undefined, undefined);
+			assert.strictEqual(requested.type === ActionType.ChatInputRequested ? readChatInputRequestPurpose(requested.request) : undefined, undefined);
 			const completed = getActions(signals)[1];
 			assert.deepStrictEqual(completed.type === ActionType.ChatInputCompleted ? Object.values(completed.answers ?? {}) : [], [{
 				state: ChatInputAnswerState.Submitted,
@@ -7728,7 +7838,7 @@ suite('CopilotAgentSession', () => {
 				ActionType.ChatInputCompleted,
 			]);
 			const requested = getActions(signals)[0];
-			assert.strictEqual(requested.type === ActionType.ChatInputRequested ? requested.request.purpose : undefined, undefined);
+			assert.strictEqual(requested.type === ActionType.ChatInputRequested ? readChatInputRequestPurpose(requested.request) : undefined, undefined);
 			const completed = getActions(signals)[1];
 			assert.deepStrictEqual(completed.type === ActionType.ChatInputCompleted ? Object.values(completed.answers ?? {}) : [], [{
 				state: ChatInputAnswerState.Submitted,
@@ -7767,7 +7877,7 @@ suite('CopilotAgentSession', () => {
 
 			assert.strictEqual(signals.length, 1);
 			const request = getInputRequest(signals[0]);
-			assert.strictEqual(request.purpose, ChatInputRequestPurpose.Elicitation);
+			assert.strictEqual(readChatInputRequestPurpose(request), ChatInputRequestPurpose.Elicitation);
 			assert.strictEqual(request.message, 'Configure deployment');
 			assert.ok(request.questions);
 			assert.deepStrictEqual(request.questions.map(q => ({ id: q.id, kind: q.kind, required: q.required })), [
@@ -9252,7 +9362,7 @@ suite('CopilotAgentSession', () => {
 
 			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
 			const request = getInputRequest(signal);
-			assert.strictEqual(request.purpose, ChatInputRequestPurpose.PlanReview);
+			assert.strictEqual(readChatInputRequestPurpose(request), ChatInputRequestPurpose.PlanReview);
 
 			const planReview = (request as ChatInputRequestWithPlanReview).planReview;
 			assert.deepStrictEqual(planReview, {

@@ -26,6 +26,7 @@ import { activateAgentHostContributions } from '../../node/agentHostContribution
 import { createAgentServiceFoundation } from '../../node/agentServiceFoundation.js';
 import { AgentHostServiceCollection, instantiateAgentHostServices, registerAgentHostCoreServices } from '../../node/agentHostServices.js';
 import { ICopilotApiService } from '../../node/shared/copilotApiService.js';
+import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 
 const compositions = new WeakMap<AgentService, IAgentServiceComposition>();
 
@@ -54,6 +55,7 @@ export function createTestAgentService(
 	orchestratorDatabase?: IAgentHostDatabase,
 ): AgentService {
 	const effectiveFileMonitorService = fileMonitorService ?? new AgentHostFileMonitorService(fileService, logService);
+	const clientConnectionService = new AgentHostClientConnectionService();
 	const proxyResolver: IAgentHostProxyResolver = {
 		_serviceBrand: undefined,
 		onDidRegisterConnection: Event.None,
@@ -72,6 +74,7 @@ export function createTestAgentService(
 		[ITelemetryService, telemetryService],
 		[IAgentHostFileMonitorService, effectiveFileMonitorService],
 		[IAgentEditAttributionService, new NullAgentEditAttributionService()],
+		[IAgentHostClientConnectionService, clientConnectionService],
 	);
 	const options = {
 		rootConfigResource,
@@ -109,7 +112,9 @@ export function createTestAgentService(
 		logService,
 		sessionDataService,
 		foundation,
-		fileMonitorService ? [instantiationService, foundationDisposables] : [effectiveFileMonitorService, instantiationService, foundationDisposables],
+		fileMonitorService
+			? [clientConnectionService, instantiationService, foundationDisposables]
+			: [effectiveFileMonitorService, clientConnectionService, instantiationService, foundationDisposables],
 	));
 	composition.setContributions(instantiationService.invokeFunction(accessor => activateAgentHostContributions(accessor, instantiationService)));
 	compositions.set(composition.agentService, composition);
