@@ -8,18 +8,24 @@
 
 > **Status: CURRENT** (2026-08-21)
 
-## One graph
+## Primary graph
 
-Each Agent Host process has one process-local `ServiceCollection` and one strict
-`InstantiationService`, owned by `AgentHostRuntime`. The closest VS Code
+Each Agent Host process has one primary process-local `ServiceCollection` and
+strict `InstantiationService`, owned by `AgentHostRuntime`. The closest VS Code
 analogy is the shared process bootstrap in
 `src/vs/code/electron-utility/sharedProcess/sharedProcessMain.ts`: concrete
 pre-DI foundations, local `SyncDescriptor` registrations, strict DI, root
 composition, then activation.
 
-The Agent Host does not use the global `registerSingleton` registry because
-tests and runtime-selected implementations need independent process-local
-graphs.
+Scoped child instantiation services or service collections are allowed when an
+isolated lifetime or override scope genuinely needs them. They should inherit
+from the primary graph where possible, have an explicit owner, and must not
+create competing instances of primary runtime services.
+
+The primary Agent Host graph does not use the global `registerSingleton`
+registry because tests and runtime-selected implementations need independent
+process-local roots. This does not prohibit using a child graph for a scoped
+subsystem.
 
 ## Construction phases
 
@@ -135,6 +141,7 @@ Production and targeted graph tests still resolve the real implementations.
 ## Anti-patterns
 
 - `services.set(...)` after the collection is sealed.
+- A parallel root graph that duplicates services owned by the primary runtime.
 - Public service getters on `AgentService`.
 - Adding another post-construction `setX(...)` to fix ordinary ordering.
 - Global `registerSingleton` for node Agent Host services.
@@ -147,6 +154,7 @@ Production and targeted graph tests still resolve the real implementations.
 - [ ] Classify it as foundation, core descriptor, host descriptor, composition, contribution, or entry activation.
 - [ ] Keep constructor service parameters trailing and static-argument arity exact.
 - [ ] Register and eagerly resolve its service ID in the appropriate graph.
+- [ ] If using a child graph, document its scope, parent, and disposal owner.
 - [ ] Give it exactly one disposal owner.
 - [ ] Add a typed test override only when default test behavior must differ.
 - [ ] Update this file if the placement rules or exceptions change.
