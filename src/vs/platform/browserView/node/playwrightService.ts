@@ -116,7 +116,9 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 		const group = await this.browserViewGroupRemoteService.createGroup(
 			{ audience: { type: 'agent', sessionId } },
 			{
-				hostWindowId: this.windowId,
+				host: {
+					windowId: this.windowId
+				},
 				...getAgentBrowserViewCreationDefaults(sessionId)
 			}
 		);

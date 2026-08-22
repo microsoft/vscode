@@ -56,6 +56,7 @@ import {
 	IBrowserDeviceProfile,
 	IBrowserViewPermissionRequestEvent,
 	IBrowserElementSelectionState,
+	IBrowserViewHost,
 } from '../../../../platform/browserView/common/browserView.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDomains.js';
@@ -361,6 +362,7 @@ export interface IBrowserViewCDPService {
  */
 export interface IBrowserViewModel extends IDisposable {
 	readonly id: string;
+	readonly host: IBrowserViewHost;
 	readonly owner: IBrowserViewOwner;
 	readonly associatedResource: URI | undefined;
 	readonly url: string;
@@ -485,6 +487,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	constructor(
 		readonly id: string,
+		readonly host: IBrowserViewHost,
 		owner: IBrowserViewOwner,
 		readonly associatedResource: URI | undefined,
 		initialState: IBrowserViewState,

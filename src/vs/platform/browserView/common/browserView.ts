@@ -255,13 +255,19 @@ export function matchesBrowserViewAudience(candidate: IBrowserViewAudience, patt
 		&& (pattern.sessionId === undefined || pattern.sessionId === candidate.sessionId);
 }
 
+/** Identifies the workbench window and optional Agents Window session that host a browser view. */
+export interface IBrowserViewHost {
+	readonly windowId: number;
+	readonly sessionId?: string;
+}
+
 /**
  * Summary information about a browser view, including its current state and
  * ownership. Returned by the main service when listing or creating views.
  */
 export interface IBrowserViewInfo {
 	readonly id: string;
-	readonly hostWindowId: number;
+	readonly host: IBrowserViewHost;
 	readonly owner: IBrowserViewOwner;
 	readonly associatedResource?: UriComponents;
 	readonly state: IBrowserViewState;
@@ -287,7 +293,7 @@ export interface IBrowserViewCreatedEvent {
 
 /** Host, ownership, storage, and initial access for a newly created browser view. */
 export interface IBrowserViewCreationContext {
-	readonly hostWindowId: number;
+	readonly host: IBrowserViewHost;
 	readonly owner: IBrowserViewOwner;
 	readonly session: BrowserViewSessionSelector;
 	/** Grants automation clients access before the view is announced to other processes. */
