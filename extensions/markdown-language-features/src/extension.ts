@@ -34,7 +34,7 @@ function startServer(context: vscode.ExtensionContext, parser: IMdParser): Promi
 			// For local non bundled version of vscode-markdown-languageserver
 			// ? './node_modules/vscode-markdown-languageserver/out/node/workerMain'
 			? './node_modules/vscode-markdown-languageserver/dist/node/workerMain'
-			: './dist/serverWorkerMain'
+			: './dist/serverWorkerMain.mjs'
 	);
 
 	// The debug options for the server
