@@ -5,8 +5,8 @@
 
 import type * as vscode from 'vscode';
 import { stringHash } from '../../../base/common/hash.js';
-import { buildIdJagExchangeBody, buildResourceRedemptionBody, fetchAuthorizationServerMetadata, getClaimsFromJWT, IAuthorizationJWTClaims, IAuthorizationTokenResponse, isAuthorizationTokenResponse } from '../../../base/common/oauth.js';
-import { DynamicAuthProvider } from './extHostAuthentication.js';
+import { buildIdJagExchangeBody, buildResourceRedemptionBody, fetchAuthorizationServerMetadata, getClaimsFromJWT, IAuthorizationJWTClaims, IAuthorizationTokenResponse, isAuthorizationTokenResponse, TOKEN_TYPE_ID_TOKEN, TOKEN_TYPE_REFRESH_TOKEN } from '../../../base/common/oauth.js';
+import { DynamicAuthProvider, IAuthorizationToken } from './extHostAuthentication.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Ctor<T> = new (...args: any[]) => T;
@@ -14,10 +14,11 @@ type Ctor<T> = new (...args: any[]) => T;
 /**
  * Scopes used when bootstrapping the IdP session for an XAA flow.
  *
- * `openid` is required because the ID-JAG token exchange uses the IdP-issued
- * `id_token` as `subject_token` (per draft-ietf-oauth-identity-assertion-authz-grant
- * section 3.1, the subject token MUST be of type `urn:ietf:params:oauth:token-type:id_token`).
- * `offline_access` is requested so we get a refresh token for the IdP session.
+ * `openid` is required to obtain an `id_token` carrying the user's identity claims,
+ * used as a fallback `subject_token` for IdPs that do not accept a `refresh_token`
+ * as subject.
+ * `offline_access` obtains a `refresh_token`, which is preferred as the `subject_token`
+ * because it does not expire as quickly as an `id_token`.
  */
 export const IDP_SCOPES: readonly string[] = ['openid', 'offline_access'];
 
@@ -49,6 +50,23 @@ export function isExpired(entry: { token: { expires_in?: number }; created_at: n
 		return false;
 	}
 	return now > entry.created_at + (entry.token.expires_in * 1000) - 60_000;
+}
+
+/**
+ * Resolves which token to use as the `subject_token` in the RFC 8693 ID-JAG exchange.
+ * Prefers the long-lived `refresh_token` (immune to id_token expiry); falls back to
+ * `id_token`. Returns `undefined` when neither is available.
+ * Exported for testing.
+ */
+export function resolveSubjectToken(
+	idpSession: Pick<vscode.AuthenticationSession, 'accessToken' | 'idToken'>,
+	storedTokens: ReadonlyArray<Pick<IAuthorizationToken, 'access_token' | 'refresh_token'>>,
+): { subjectToken: string; subjectTokenType: string } | undefined {
+	const rawToken = storedTokens.find(t => t.access_token === idpSession.accessToken);
+	const refreshToken = rawToken?.refresh_token;
+	const subjectToken = refreshToken ?? idpSession.idToken;
+	if (!subjectToken) { return undefined; }
+	return { subjectToken, subjectTokenType: refreshToken ? TOKEN_TYPE_REFRESH_TOKEN : TOKEN_TYPE_ID_TOKEN };
 }
 
 /**
@@ -133,7 +151,7 @@ export function XaaifyAuthProvider<TBase extends Ctor<DynamicAuthProvider>>(Base
 			//    + resource redemption) without any user interaction. Per the IAuthenticationProvider
 			//    contract, getSessions MUST NOT prompt — if anything is missing we just return [].
 			const idpSession = await this._tryGetSilentIdpSession();
-			if (!idpSession?.idToken) {
+			if (!idpSession || !this._hasSubjectToken(idpSession)) {
 				return [];
 			}
 			try {
@@ -165,8 +183,8 @@ export function XaaifyAuthProvider<TBase extends Ctor<DynamicAuthProvider>>(Base
 			// the IdP login leg is unrelated to the resource/audience, and the base provider would
 			// otherwise look for cached tokens scoped by a foreign audience.
 			const idpSession = await this._ensureIdpSession();
-			if (!idpSession.idToken) {
-				throw new Error('IdP session is missing an id_token; the issuer must support OpenID Connect and the `openid` scope.');
+			if (!this._hasSubjectToken(idpSession)) {
+				throw new Error('IdP session has neither a refresh_token nor an id_token; cannot perform subject token exchange.');
 			}
 
 			const minted = await this._mintResourceToken(idpSession, scopes, audience, resource, options, /* silent */ false);
@@ -201,8 +219,12 @@ export function XaaifyAuthProvider<TBase extends Ctor<DynamicAuthProvider>>(Base
 			options: vscode.AuthenticationProviderSessionOptions,
 			silent: boolean,
 		): Promise<IResourceCacheEntry | undefined> {
-			// Leg 2: id_token → ID-JAG
-			const jag = await this._exchangeForIdJag(idpSession.idToken!, audience, resource, scopes);
+			// Leg 2: subject_token → ID-JAG.
+			const resolved = resolveSubjectToken(idpSession, this._tokenStore.tokens);
+			if (!resolved) {
+				throw new Error('IdP session has neither a refresh_token nor an id_token for subject token exchange.');
+			}
+			const jag = await this._exchangeForIdJag(resolved.subjectToken, resolved.subjectTokenType, audience, resource, scopes);
 
 			// Leg 3: resource AS token endpoint
 			const resourceTokenEndpoint = await this._discoverResourceTokenEndpoint(audience);
@@ -298,7 +320,7 @@ export function XaaifyAuthProvider<TBase extends Ctor<DynamicAuthProvider>>(Base
 		private async _ensureIdpSession(): Promise<vscode.AuthenticationSession> {
 			this._logger.trace(`[XAA] _ensureIdpSession: scopes=[${IDP_SCOPES.join(' ')}] authorization_endpoint=${this._serverMetadata.authorization_endpoint}`);
 			const silent = await this._tryGetSilentIdpSession();
-			if (silent?.idToken) {
+			if (silent && this._hasSubjectToken(silent)) {
 				this._logger.trace(`[XAA] _ensureIdpSession: reusing existing IdP session`);
 				return silent;
 			}
@@ -306,12 +328,16 @@ export function XaaifyAuthProvider<TBase extends Ctor<DynamicAuthProvider>>(Base
 			return super.createSession([...IDP_SCOPES], {});
 		}
 
-		private async _exchangeForIdJag(idToken: string, audience: string, resource: string, scopes: string[]): Promise<string> {
+		private _hasSubjectToken(session: vscode.AuthenticationSession): boolean {
+			return !!resolveSubjectToken(session, this._tokenStore.tokens);
+		}
+
+		private async _exchangeForIdJag(subjectToken: string, subjectTokenType: string, audience: string, resource: string, scopes: string[]): Promise<string> {
 			const tokenEndpoint = this._serverMetadata.token_endpoint;
 			if (!tokenEndpoint) {
 				throw new Error('Issuer metadata is missing token_endpoint; cannot perform XAA token exchange.');
 			}
-			const body = buildIdJagExchangeBody(this._clientId, this._clientSecret, idToken, audience, resource, scopes);
+			const body = buildIdJagExchangeBody(this._clientId, this._clientSecret, subjectToken, subjectTokenType, audience, resource, scopes);
 			this._logger.trace(`[XAA] POST ${tokenEndpoint} (ID-JAG exchange) audience=${audience} resource=${resource} scope=${scopes.join(' ')}`);
 			const response = await fetch(tokenEndpoint, {
 				method: 'POST',
