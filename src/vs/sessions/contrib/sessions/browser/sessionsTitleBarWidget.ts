@@ -24,6 +24,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { AnchorAlignment, AnchorPosition, IAnchor } from '../../../../base/common/layout.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IContextViewService, IOpenContextView } from '../../../../platform/contextview/browser/contextView.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
@@ -32,11 +33,8 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { BlockedSessions } from '../../blockedSessions/browser/blockedSessions.js';
 import { BlockedSessionsList, IBlockedSessionsHeaderActionContext, registerBlockedSessionsItemActions } from './blockedSessionsList.js';
-import { BlockedSessionsCIFixModel } from './blockedSessionsCIFixModel.js';
 import { SessionActionFeedback } from './sessionActionFeedback.js';
-import { AgentSessionApprovalModel } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { BlockedSessionsIndicatorModel, RequiresInputKind } from './blockedSessionsIndicatorModel.js';
 import { openSessionToTheSide } from './views/sessionsView.js';
 import { getSessionWorkspaceDisplayInfo, ISessionWorkspaceDisplayInfo } from '../../../browser/sessionWorkspace.js';
@@ -143,6 +141,12 @@ const BLOCKED_DROPDOWN_MAX_WIDTH_RATIO = 0.9;
  *
  * Session actions (changes, terminal, etc.) are rendered via the
  * SessionTitleActions menu toolbar next to this widget.
+ *
+ * The widget is a command center action view item, so it is disposed and
+ * re-created whenever the command center rebuilds (for example when the
+ * new-session view opens and flips `isNewChatSession`). It therefore owns no
+ * durable state: the indicator model and the approval feedback are supplied by
+ * {@link SessionsTitleBarContribution}, which outlives those rebuilds.
  */
 export class SessionsTitleBarWidget extends BaseActionViewItem {
 
@@ -160,9 +164,6 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	private _workspaceInfo: ISessionWorkspaceDisplayInfo | undefined;
 	private _isQuickChat = false;
 
-	/** Model behind the "N sessions require input" indicator (blocked-session set, blink, labels). */
-	private readonly _blockedIndicator: BlockedSessionsIndicatorModel;
-
 	/** The currently open blocked-sessions dropdown, if any. */
 	private _openContextView: IOpenContextView | undefined;
 	/** The blocked-sessions list rendered inside the open dropdown, if any. */
@@ -171,16 +172,13 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	/** Tracks whether the blocked-sessions dropdown is open (drives the Escape keybinding). */
 	private readonly _blockedSessionsVisibleContext: IContextKey<boolean>;
 
-	/** Drives the transient "Approved N sessions" confirmation. Owned by the widget. */
-	private readonly _sessionActionFeedback: SessionActionFeedback;
-
 	constructor(
 		action: SubmenuItemAction,
 		options: IBaseActionViewItemOptions | undefined,
-		sessionActionFeedback: SessionActionFeedback | undefined,
-		approvalModel: AgentSessionApprovalModel | undefined,
-		blockedSessions: BlockedSessions | undefined,
-		ciFixModel: BlockedSessionsCIFixModel | undefined,
+		/** Drives the transient "Approved N sessions" confirmation. */
+		private readonly _sessionActionFeedback: SessionActionFeedback,
+		/** Model behind the "N sessions require input" indicator (blocked-session set, blink, labels). */
+		private readonly _blockedIndicator: BlockedSessionsIndicatorModel,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
@@ -195,17 +193,6 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		super(undefined, action, options);
 
 		this._blockedSessionsVisibleContext = SessionsBlockedSessionsVisibleContext.bindTo(contextKeyService);
-
-		// The widget owns the approval-feedback state; the optional parameter is a
-		// test seam so fixtures can supply a preset instance.
-		this._sessionActionFeedback = sessionActionFeedback ?? this._register(new SessionActionFeedback());
-
-		// The blocked-session indicator model owns the requires-input logic (the
-		// visible-filtered blocked set, the requires-input kind, optimistic approval
-		// dismissals, labels and blink detection). The optional `approvalModel`,
-		// `blockedSessions` and `ciFixModel` are test seams forwarded to it so
-		// fixtures can preset them.
-		this._blockedIndicator = this._register(this.instantiationService.createInstance(BlockedSessionsIndicatorModel, approvalModel, blockedSessions, ciFixModel));
 
 		// Replay the attention blink when the model reports a genuinely new, not-yet-
 		// visible block. Invalidate the cached render state so the identical pill is
@@ -691,8 +678,18 @@ export class SessionsTitleBarContribution extends Disposable implements IWorkben
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@ILogService logService: ILogService,
 	) {
 		super();
+
+		// The command center rebuilds its action view items whenever its menu or
+		// context keys change (e.g. opening the new-session view flips
+		// `isNewChatSession`), which disposes and re-creates the widget. State that
+		// must outlive those rebuilds — acknowledged blocked occurrences, the
+		// requires-input models and the transient approval confirmation — is owned
+		// here, not by the widget.
+		const sessionActionFeedback = this._register(new SessionActionFeedback());
+		const blockedIndicator = this._register(instantiationService.createInstance(BlockedSessionsIndicatorModel, undefined /* approvalModel */, undefined /* blockedSessions */, undefined /* ciFixModel */));
 
 		// Register the submenu item in the Agent Sessions command center
 		this._register(MenuRegistry.appendMenuItem(Menus.CommandCenter, {
@@ -724,7 +721,10 @@ export class SessionsTitleBarContribution extends Disposable implements IWorkben
 			if (!(action instanceof SubmenuItemAction)) {
 				return undefined;
 			}
-			return instantiationService.createInstance(SessionsTitleBarWidget, action, options, undefined, undefined, undefined, undefined);
+			// Traced because each call means the command center threw the previous
+			// widget away; the state above deliberately survives it.
+			logService.trace('[SessionsTitleBar] creating the title bar widget');
+			return instantiationService.createInstance(SessionsTitleBarWidget, action, options, sessionActionFeedback, blockedIndicator);
 		}, undefined));
 	}
 }

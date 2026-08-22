@@ -1007,8 +1007,6 @@ export namespace ConfigKey {
 	export const EnableGemini3LowReasoningEffort = defineSetting<boolean>('chat.gemini3LowReasoningEffort.enabled', ConfigType.ExperimentBased, false);
 	/** Enable read_file tool for GPT-5.5 models */
 	export const EnableGpt55ReadFileTool = defineSetting<boolean>('chat.gpt55ReadFileTool.enabled', ConfigType.ExperimentBased, true);
-	/** How the semantic_search (codebase) tool is offered to the agent: available, removed entirely, or available with instructions telling the agent to prefer it over exploratory reads and text searches. */
-	export const SemanticSearchToolMode = defineSetting<'enabled' | 'disabled' | 'preferred'>('chat.semanticSearchTool.mode', ConfigType.ExperimentBased, 'enabled');
 	export const EnableChatImageUpload = defineSetting<boolean>('chat.imageUpload.enabled', ConfigType.Simple, true);
 	/** Enable Anthropic web search tool for BYOK Claude models */
 	export const AnthropicWebSearchToolEnabled = defineSetting<boolean>('chat.anthropic.tools.websearch.enabled', ConfigType.ExperimentBased, false);
@@ -1040,6 +1038,7 @@ export namespace ConfigKey {
 	export const TypeScriptLanguageContextCacheTimeout = defineSetting<number>('chat.languageContext.typescript.cacheTimeout', ConfigType.ExperimentBased, 500);
 	export const TypeScriptLanguageContextFix = defineSetting<boolean>('chat.languageContext.fix.typescript.enabled', ConfigType.ExperimentBased, false);
 	export const TypeScriptLanguageContextInline = defineSetting<boolean>('chat.languageContext.inline.typescript.enabled', ConfigType.ExperimentBased, false);
+	export const TypeScript7LanguageContext = defineSetting<boolean>('chat.languageContext.typescript7.enabled', ConfigType.Simple, false);
 
 	export const UseInstructionFiles = defineSetting('chat.codeGeneration.useInstructionFiles', ConfigType.Simple, true);
 	export const ReviewAgent = defineSetting('chat.reviewAgent.enabled', ConfigType.Simple, true);

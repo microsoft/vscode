@@ -21,6 +21,7 @@ import '../../../../platform/agentHost/common/agentHostStarter.config.contributi
 import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agentMerge.js';
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostAllowSignedOutWhenUsableSettingId, AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostMultiTurnContextRoutingEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, AgentHostReasoningSummaryEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, copilotSdkLogLevelSettingValues } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { CopilotSemanticSearchEnabledSettingId } from '../../../../platform/agentHost/common/semanticSearchConstants.js';
 import { DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../../platform/chat/common/chatSettings.js';
 import { reasoningEffortLevels } from '../../../../platform/agentHost/common/reasoningEffort.js';
 import { ChatSessionArchiveActionWordingSettingId } from '../../../../platform/chat/common/sessionArchiveActions.js';
@@ -196,6 +197,7 @@ import { ChatVariablesService } from './attachments/chatVariables.js';
 import { ChatImageCarouselService, IChatImageCarouselService } from './chatImageCarouselService.js';
 import { ChatOutputRendererService, IChatOutputRendererService } from './chatOutputItemRenderer.js';
 import { ChatCompatibilityNotifier, ChatExtensionPointHandler } from './chatParticipant.contribution.js';
+import { ChatPetAchievementsAccessibilityHelp, ChatPetContextContribution, ChatPetCustomizationAchievementContribution } from './chatPetAchievements.contribution.js';
 import { ChatPetService, IChatPetService } from './chatPetService.js';
 import { ChatPromoNotificationContribution } from './chatPromoNotification.js';
 import { ChatQuotaNotificationContribution } from './chatQuotaNotification.js';
@@ -882,6 +884,12 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['inline', 'hover', 'input', 'none'],
 			default: 'inline',
+		},
+		[ChatConfiguration.PasteAsAttachmentThreshold]: {
+			markdownDescription: nls.localize('chat.pasteAsAttachmentThreshold', "The number of characters a paste must exceed before it is added to the chat input as an attachment instead of being inserted inline. A paste must also span several lines, so a long single-line paste is always inserted inline. Set this to a very large number to always paste inline."),
+			type: 'number',
+			minimum: 0,
+			default: 10000,
 		},
 		[ChatConfiguration.ChatViewSessionsEnabled]: {
 			type: 'boolean',
@@ -1585,6 +1593,12 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.agentHost.copilot.toolSearch.deferThreshold', "Minimum number of tools before MCP and external tools are deferred behind tool search. Set to 0 to always defer external tools. Only effective when tool search is enabled."),
 			default: 1,
 			minimum: 0,
+			tags: ['experimental', 'advanced'],
+		},
+		[CopilotSemanticSearchEnabledSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.copilot.semanticSearch.enabled', "Controls whether Copilot Agent Host sessions can use VS Code's semantic workspace search. When disabled, semantic search is unavailable."),
+			default: false,
 			tags: ['experimental', 'advanced'],
 		},
 		[AgentHostReasoningEffortOverrideSettingId]: {
@@ -3003,6 +3017,7 @@ AccessibleViewRegistry.register(new QuickChatAccessibilityHelp());
 AccessibleViewRegistry.register(new EditsChatAccessibilityHelp());
 AccessibleViewRegistry.register(new AgentChatAccessibilityHelp());
 AccessibleViewRegistry.register(new ChatFindAccessibilityHelp());
+AccessibleViewRegistry.register(new ChatPetAchievementsAccessibilityHelp());
 
 registerEditorFeature(ChatInputBoxContentProvider);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ChatEditorInput.TypeID, ChatEditorInputSerializer);
@@ -3065,6 +3080,8 @@ registerWorkbenchContribution2(AgentPluginCommandsContribution.ID, AgentPluginCo
 registerWorkbenchContribution2(PluginAutoUpdate.ID, PluginAutoUpdate, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatReferenceAttachmentWidgetContribution.ID, ChatReferenceAttachmentWidgetContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(TranscriptContextAttachmentWidgetContribution.ID, TranscriptContextAttachmentWidgetContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ChatPetContextContribution.ID, ChatPetContextContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(ChatPetCustomizationAchievementContribution.ID, ChatPetCustomizationAchievementContribution, WorkbenchPhase.AfterRestored);
 
 registerChatActions();
 registerChatAccessibilityActions();

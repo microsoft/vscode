@@ -392,7 +392,7 @@ suite('Agent Host Session Config Picker', () => {
 		assert.strictEqual(isolationSlot(container), null);
 	});
 
-	test('never renders a chip for the hidden worktreeBranchTrack carrier property', () => {
+	test('never renders chips for hidden worktree branch carrier properties', () => {
 		const services = setupServices(store);
 		services.provider.config = {
 			schema: {
@@ -407,14 +407,18 @@ suite('Agent Host Session Config Picker', () => {
 						title: 'Track Branch', description: '', type: 'boolean',
 						default: false, readOnly: true, sessionMutable: false,
 					},
+					[SessionConfigKey.WorktreeCreateNewBranch]: {
+						title: 'Create New Branch', description: '', type: 'boolean',
+						default: true, readOnly: true, sessionMutable: false,
+					},
 				},
 			},
-			values: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.WorktreeBranchTrack]: false },
+			values: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.WorktreeBranchTrack]: false, [SessionConfigKey.WorktreeCreateNewBranch]: true },
 		} as ResolveSessionConfigResult;
 		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs));
 		const container = document.createElement('div');
 		picker.render(container);
 
-		assert.strictEqual(container.querySelectorAll('.sessions-chat-picker-slot').length, 1, 'only the isolation checkbox renders, not a worktreeBranchTrack chip');
+		assert.strictEqual(container.querySelectorAll('.sessions-chat-picker-slot').length, 1, 'only the isolation checkbox renders');
 	});
 });

@@ -404,6 +404,27 @@ export class ChatListWidget extends Disposable {
 		return this._lastItem;
 	}
 
+	/**
+	 * The bottom-most item intersecting the viewport, or `undefined` when the list is empty.
+	 * Reads the layout height model, so it resolves independently of which rows are mounted.
+	 */
+	get lastVisibleItem(): ChatTreeItem | undefined {
+		const items = this._viewModel?.getItems();
+		if (!items?.length) {
+			return undefined;
+		}
+		const viewportBottom = this._tree.scrollTop + this._tree.renderHeight;
+		// Walking back from the end settles in a step or two for the common case of a
+		// transcript sitting at the bottom.
+		for (let index = items.length - 1; index >= 0; index--) {
+			const top = this.getElementTop(items[index]);
+			if (top !== undefined && top <= viewportBottom) {
+				return items[index];
+			}
+		}
+		return items[0];
+	}
+
 
 
 	//#endregion

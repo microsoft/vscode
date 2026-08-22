@@ -15,9 +15,9 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { SaveReason } from '../../../../../common/editor.js';
 import { ISaveAllEditorsOptions, ISaveEditorsResult } from '../../../../../services/editor/common/editorService.js';
 import { TestEditorService } from '../../../../../test/browser/workbenchTestServices.js';
-import { acceptAndAwaitSentRequest, ChatWidget, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatTip, shouldShowChatWelcome } from '../../../browser/widget/chatWidget.js';
+import { acceptAndAwaitSentRequest, ChatWidget, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatTip, shouldShowChatWelcome, shouldUnlockChatPetQueueOrSteeringMessage, shouldUnlockChatPetRequestRevision } from '../../../browser/widget/chatWidget.js';
 import { IChatListItemTemplate } from '../../../browser/widget/chatListRenderer.js';
-import { ChatSendResult, ChatSendResultSent, IChatSendRequestData } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatSendRequestData } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../common/constants.js';
 import { IChatRequestViewModel } from '../../../common/model/chatViewModel.js';
 import { ChatRequestSlashCommandPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
@@ -190,6 +190,25 @@ suite('ChatWidget', () => {
 			requestedTemplateId: request.id,
 			clickedTemplate: realTemplate,
 		});
+	});
+
+	test('only unlocks request revision for edited user submissions', () => {
+		assert.deepStrictEqual([
+			shouldUnlockChatPetRequestRevision(false, false),
+			shouldUnlockChatPetRequestRevision(false, true),
+			shouldUnlockChatPetRequestRevision(true, false),
+			shouldUnlockChatPetRequestRevision(true, true),
+		], [false, false, false, true]);
+	});
+
+	test('only unlocks queue or steering for queued user submissions', () => {
+		assert.deepStrictEqual([
+			shouldUnlockChatPetQueueOrSteeringMessage(false, undefined),
+			shouldUnlockChatPetQueueOrSteeringMessage(true, undefined),
+			shouldUnlockChatPetQueueOrSteeringMessage(false, ChatRequestQueueKind.Queued),
+			shouldUnlockChatPetQueueOrSteeringMessage(true, ChatRequestQueueKind.Queued),
+			shouldUnlockChatPetQueueOrSteeringMessage(true, ChatRequestQueueKind.Steering),
+		], [false, false, false, true, true]);
 	});
 
 	test('identifies only leading silent execute-immediately slash commands', () => {
