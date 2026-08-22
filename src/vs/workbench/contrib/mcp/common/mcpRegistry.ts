@@ -575,7 +575,10 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		}
 
 		const currentCollection = this._collections.get().find(candidate => candidate.id === collectionRef.id);
-		if (!currentCollection || !this.isCollectionAllowed(currentCollection, this._strictPluginOnlyCustomization.get())) {
+		if (currentCollection !== resolvedCollection || !currentCollection.serverDefinitions.get().includes(definition)) {
+			throw new Error(`MCP collection ${collectionRef.id} changed while resolving the connection`);
+		}
+		if (!this.isCollectionAllowed(currentCollection, this._strictPluginOnlyCustomization.get())) {
 			throw new Error(`MCP collection ${collectionRef.id} is blocked by enterprise customization policy`);
 		}
 

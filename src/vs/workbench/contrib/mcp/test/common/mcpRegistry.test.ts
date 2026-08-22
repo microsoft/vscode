@@ -496,6 +496,34 @@ suite('Workbench - MCP - Registry', () => {
 		await assert.rejects(connection, /blocked by enterprise customization policy/);
 	});
 
+	test('resolveConnection rejects a same-ID collection replacement while launch resolution is pending', async () => {
+		const deferredLaunch = new DeferredPromise<McpServerLaunch | undefined>();
+		const originalCollection: McpCollectionDefinition = {
+			...testCollection,
+			id: 'replaced-launch-collection',
+			serverDefinitions: observableValue('replacedLaunchDefinitions', [baseDefinition]),
+			resolveServerLanch: () => deferredLaunch.p,
+		};
+		store.add(registry.registerDelegate(new TestMcpHostDelegate()));
+		const registration = registry.registerCollection(originalCollection);
+
+		const connection = registry.resolveConnection({
+			collectionRef: originalCollection,
+			definitionRef: baseDefinition,
+			logger,
+			trustNonceBearer,
+			taskManager,
+		});
+		registration.dispose();
+		store.add(registry.registerCollection({
+			...originalCollection,
+			provenance: McpCollectionProvenance.Plugin,
+		}));
+		deferredLaunch.complete(baseDefinition.launch);
+
+		await assert.rejects(connection, /changed while resolving the connection/);
+	});
+
 	test('resolveConnection calls launchInSandboxIfEnabled with expected arguments when sandboxing is enabled', async () => {
 		testMcpSandboxService.enabled = true;
 		const mcpResource = URI.file('/test/mcp.json');
