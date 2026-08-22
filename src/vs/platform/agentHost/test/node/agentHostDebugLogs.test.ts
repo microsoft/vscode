@@ -14,7 +14,7 @@ import { buffer } from '../../../../base/node/zip.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostDebugLogsCollector } from '../../node/agentHostDebugLogs.js';
-import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES } from '../../common/agentService.js';
+import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES } from '../../common/agentService.js';
 
 suite('AgentHostDebugLogsCollector', () => {
 	const emptyProvider = { id: 'test', collectDebugLogs: async () => false };
@@ -62,23 +62,22 @@ suite('AgentHostDebugLogsCollector', () => {
 		assert.deepStrictEqual({
 			kind: result.kind,
 			providerLogsIncluded: result.providerLogsIncluded,
-			sizeIsBounded: result.size > 0 && result.uncompressedSize > 0
-				&& result.size <= AGENT_HOST_DEBUG_LOGS_MAX_BYTES
-				&& result.uncompressedSize <= AGENT_HOST_DEBUG_LOGS_MAX_BYTES,
+			sizesArePositive: result.size > 0 && result.uncompressedSize > 0,
 			events: (await buffer(result.resource.fsPath, 'events.jsonl')).toString(),
 			agentHost: (await buffer(result.resource.fsPath, 'agenthost.log')).toString(),
 		}, {
 			kind: 'archive',
 			providerLogsIncluded: true,
-			sizeIsBounded: true,
+			sizesArePositive: true,
 			events: 'event',
 			agentHost: 'agent host',
 		});
 	});
 
-	test('rejects and cleans an oversized directory artifact', async () => {
+	test('collects a directory artifact larger than the previous 256 MiB limit', async () => {
 		const logsHome = join(testRoot, 'logs');
 		const outputRoot = join(testRoot, 'tmp');
+		const largeLogSize = 300 * 1024 * 1024;
 		await mkdir(logsHome, { recursive: true });
 		await mkdir(outputRoot, { recursive: true });
 		const collector = disposables.add(new AgentHostDebugLogsCollector({
@@ -86,18 +85,26 @@ suite('AgentHostDebugLogsCollector', () => {
 			tmpDir: URI.file(outputRoot),
 		}, new NullLogService()));
 
-		await assert.rejects(collector.collect([{
+		const result = await collector.collect([{
 			id: 'test',
 			collectDebugLogs: async (_session, outputDirectory) => {
-				for (let i = 0; i < 3; i++) {
-					const largeLog = join(outputDirectory.fsPath, `large-${i}.log`);
-					await writeFile(largeLog, '');
-					await truncate(largeLog, Math.floor(AGENT_HOST_DEBUG_LOGS_MAX_BYTES / 2));
-				}
+				const largeLog = join(outputDirectory.fsPath, 'large.log');
+				await writeFile(largeLog, '');
+				await truncate(largeLog, largeLogSize);
 				return true;
 			},
-		}], URI.parse('test:/session-1'), 'directory'), /Agent Host debug logs are too large/);
-		assert.deepStrictEqual(await readdir(outputRoot), []);
+		}], URI.parse('test:/session-1'), 'directory');
+
+		assert.deepStrictEqual({
+			size: result.size,
+			uncompressedSize: result.uncompressedSize,
+			entries: result.entries,
+		}, {
+			size: largeLogSize,
+			uncompressedSize: largeLogSize,
+			entries: [{ path: 'large.log', size: largeLogSize }],
+		});
+		await collector.cleanup();
 	});
 
 	test('rejects and cleans an artifact with too many files', async () => {

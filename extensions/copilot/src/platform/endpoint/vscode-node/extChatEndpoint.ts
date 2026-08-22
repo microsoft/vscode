@@ -34,6 +34,7 @@ import { ExtensionContributedChatTokenizer } from './extChatTokenizer';
  */
 export interface ExtensionLanguageModelRequestOptions extends OTelModelOptions {
 	readonly _enableThinking?: boolean;
+	readonly _conversationId?: string;
 }
 
 enum ChatImageMimeType {
@@ -178,6 +179,7 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 		source,
 		telemetryProperties,
 		modelCapabilities,
+		conversationId,
 	}: IMakeChatRequestOptions, token: CancellationToken): Promise<ChatResponse> {
 		const vscodeMessages = convertToApiChatMessage(messages, {
 			ignoreStatefulMarker,
@@ -200,12 +202,13 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 				description: tool.function.description,
 				inputSchema: tool.function.parameters,
 			})),
-			// Pass correlation ID and OTel trace context through modelOptions for cross-IPC restoration.
+			// Pass internal request context through modelOptions for cross-IPC restoration.
 			modelOptions: {
 				_capturingTokenCorrelationId: ourRequestId,
 				_otelTraceContext: activeTraceCtx ?? null,
 				...(telemetryTurn !== undefined ? { _telemetryTurn: telemetryTurn } : {}),
 				...(modelCapabilities?.enableThinking !== undefined ? { _enableThinking: modelCapabilities.enableThinking } : {}),
+				...(conversationId !== undefined ? { _conversationId: conversationId } : {}),
 			} satisfies ExtensionLanguageModelRequestOptions
 		};
 

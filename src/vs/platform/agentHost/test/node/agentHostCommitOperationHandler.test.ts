@@ -7,6 +7,7 @@ import assert from 'assert';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
 import type { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -19,10 +20,10 @@ import { createTestGitHubEndpointService } from './testGitHubEndpointService.js'
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { CopilotApiError, type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
-import { IAgentService } from '../../common/agentService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ChangesSummary } from '../../common/state/protocol/state.js';
 import type { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
+import type { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 
 class TestGitService implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
@@ -139,10 +140,12 @@ class TestChangesetService implements IAgentHostChangesetService {
 	onSessionTruncated(_session: string): void { }
 }
 
-function createAgentService(token: string | undefined): IAgentService {
+function createAuthenticationService(token: string | undefined): IAgentHostAuthenticationService {
 	return {
+		_serviceBrand: undefined,
+		onDidChangeAuthToken: Event.None,
 		getAuthToken: () => token,
-	} as Partial<IAgentService> as IAgentService;
+	};
 }
 
 function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitService, copilotApiService: TestCopilotApiService, changesets: TestChangesetService, options?: { readonly onCommittedError?: Error }): { handler: AgentHostCommitOperationHandler; session: URI; committedSessions: string[] } {
@@ -169,7 +172,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 			if (options?.onCommittedError) {
 				throw options.onCommittedError;
 			}
-		}, createAgentService('gh-repo-token'), createTestGitHubEndpointService(), gitService, copilotApiService, new NullLogService()),
+		}, createAuthenticationService('gh-repo-token'), createTestGitHubEndpointService(), gitService, copilotApiService, new NullLogService()),
 		session,
 		committedSessions,
 	};
