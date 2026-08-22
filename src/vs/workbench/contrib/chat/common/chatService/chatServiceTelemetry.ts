@@ -192,6 +192,7 @@ export type ChatProviderInvokedEvent = ChatSessionModeEvent & {
 	isVirtualWorkspace: boolean;
 	settingDefaultToCopilotHarness: boolean;
 	settingPreferCopilotHarness: boolean;
+	settingLocalAgentEnabled: boolean;
 };
 
 export type ChatProviderInvokedClassification = ChatSessionModeClassification & {
@@ -219,6 +220,7 @@ export type ChatProviderInvokedClassification = ChatSessionModeClassification & 
 	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the chat request was made in a virtual workspace.' };
 	settingDefaultToCopilotHarness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective value of the chat.defaultToCopilotHarness setting when the request started.' };
 	settingPreferCopilotHarness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective value of the chat.editor.preferCopilotHarness setting when the request started.' };
+	settingLocalAgentEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective value of the chat.editor.localAgent.enabled setting when the request started.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the performance of Chat agents.';
 };
@@ -345,6 +347,7 @@ export class ChatRequestTelemetry {
 		isVirtualWorkspace: boolean;
 		settingDefaultToCopilotHarness: boolean;
 		settingPreferCopilotHarness: boolean;
+		settingLocalAgentEnabled: boolean;
 	},
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService
@@ -390,6 +393,7 @@ export class ChatRequestTelemetry {
 			isVirtualWorkspace: this.opts.isVirtualWorkspace,
 			settingDefaultToCopilotHarness: this.opts.settingDefaultToCopilotHarness,
 			settingPreferCopilotHarness: this.opts.settingPreferCopilotHarness,
+			settingLocalAgentEnabled: this.opts.settingLocalAgentEnabled,
 		});
 	}
 
