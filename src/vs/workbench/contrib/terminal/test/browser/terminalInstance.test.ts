@@ -210,6 +210,27 @@ suite('Workbench - TerminalInstance', () => {
 			await new Promise(resolve => setTimeout(resolve, 100));
 			deepStrictEqual(terminalInstance.shellLaunchConfig.env, { TEST: 'TEST' });
 		});
+		test('should release startup promises and barriers on dispose', async () => {
+			const instance = await createTerminalInstance();
+			const privateInstance = instance as unknown as {
+				_xtermReadyPromise: Promise<unknown> | undefined;
+				_containerReadyBarrier: unknown;
+				_attachBarrier: unknown;
+			};
+
+			ok(privateInstance._xtermReadyPromise instanceof Promise);
+			ok(privateInstance._containerReadyBarrier);
+			ok(privateInstance._attachBarrier);
+
+			instance.dispose();
+
+			strictEqual(privateInstance._xtermReadyPromise, undefined);
+			strictEqual(privateInstance._containerReadyBarrier, undefined);
+			strictEqual(privateInstance._attachBarrier, undefined);
+			strictEqual(await instance.xtermReadyPromise, undefined);
+			await instance.focusWhenReady();
+		});
+
 		test('marked remote resolver terminal bypasses workspace trust request', async () => {
 			const workspaceTrustRequestService = new TestTerminalWorkspaceTrustRequestService();
 			const instance = await createTerminalInstance(undefined, undefined, {
