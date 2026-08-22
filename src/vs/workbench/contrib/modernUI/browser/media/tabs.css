@@ -387,10 +387,14 @@
 	bottom: 0;
 	width: var(--vscode-spacing-size160);
 	border-block: var(--vscode-strokeThickness) solid transparent;
-	background-image: linear-gradient(to right, transparent, var(--modern-ui-editor-tab-action-hover-background));
 	background-clip: padding-box;
 	box-sizing: border-box;
 	pointer-events: none;
+}
+
+.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.tab-actions-left):not(.close-action-off):hover > .tab-actions::before,
+.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.tab-actions-left):not(.close-action-off) > .tab-actions:focus-within::before {
+	background-image: linear-gradient(to right, transparent, var(--modern-ui-editor-tab-action-hover-background));
 }
 
 .modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-left:not(.close-action-off):hover > .tab-actions::before,
