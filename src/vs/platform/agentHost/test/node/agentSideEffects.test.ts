@@ -50,6 +50,7 @@ import { withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { applyMcpServerEnablement } from '../../node/shared/mcpCustomizationController.js';
+import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
@@ -124,7 +125,10 @@ let customizationEnablementService = createNoopCustomizationEnablementService();
 function createTestSideEffects(
 	disposables: DisposableStore,
 	stateManager: AgentHostStateManager,
-	options: Omit<IAgentSideEffectsOptions, 'localTurns'> & { localTurns?: AgentHostLocalTurns },
+	options: Omit<IAgentSideEffectsOptions, 'localTurns' | 'persistSessionMetadata'> & {
+		localTurns?: AgentHostLocalTurns;
+		persistSessionMetadata?: IAgentSideEffectsOptions['persistSessionMetadata'];
+	},
 	_gitService?: IAgentHostGitService,
 	telemetryService: ITelemetryService = NullTelemetryService,
 	changesets: IAgentHostChangesetService = new FakeChangesetService(),
@@ -145,6 +149,16 @@ function createTestSideEffects(
 	const resolvedOptions: IAgentSideEffectsOptions = {
 		...options,
 		localTurns: options.localTurns ?? new AgentHostLocalTurns(options.sessionDataService, logService),
+		persistSessionMetadata: options.persistSessionMetadata ?? ((session, values) => {
+			try {
+				const ref = options.sessionDataService.openDatabase(URI.parse(session));
+				ref.object.setMetadataValues(values).catch(error => {
+					logService.warn('[AgentSideEffects.test] Failed to persist metadata', error);
+				}).finally(() => ref.dispose());
+			} catch (error) {
+				logService.warn('[AgentSideEffects.test] Failed to open metadata database', error);
+			}
+		}),
 	};
 	return disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, customizationEnablementService, resolvedOptions));
 }
@@ -1465,18 +1479,20 @@ suite('AgentSideEffects', () => {
 		// `/rename` persists the new title, so these tests need a session data
 		// service whose `openDatabase` actually returns a database (the default
 		// null service throws).
-		function createRenameSideEffects(): AgentSideEffects {
+		function createRenameSideEffects(persistSessionMetadata?: IAgentSideEffectsOptions['persistSessionMetadata']): AgentSideEffects {
 			return createTestSideEffects(disposables, stateManager, {
 				getAgent: () => agent,
 				agents: agentList,
 				sessionDataService: createSessionDataService(),
 				onTurnComplete: () => { },
+				persistSessionMetadata,
 			});
 		}
 
 		test('redirects /rename to a title change and completes the turn without calling the agent', async () => {
 			setupSession();
-			const renameSideEffects = createRenameSideEffects();
+			const persistenceCalls: Array<{ session: string; values: Readonly<Record<string, string>> }> = [];
+			const renameSideEffects = createRenameSideEffects((session, values) => persistenceCalls.push({ session, values }));
 			const action: ChatAction = {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
@@ -1488,13 +1504,27 @@ suite('AgentSideEffects', () => {
 			renameSideEffects.handleAction(defaultChatUri, action);
 			await new Promise(r => setTimeout(r, 10));
 
-			assert.deepStrictEqual(agent.sendMessageCalls, []);
 			const state = stateManager.getSessionState(sessionUri.toString());
-			assert.strictEqual(state?.title, 'Renamed Session');
-			assert.strictEqual(stateManager.getActiveTurnId(sessionUri.toString()), undefined);
 			const part = state?.turns.at(-1)?.responseParts[0];
-			assert.strictEqual(part?.kind, ResponsePartKind.Markdown);
-			assert.strictEqual(part?.kind === ResponsePartKind.Markdown ? part.content : undefined, 'Renamed: Renamed Session');
+			assert.deepStrictEqual({
+				sendMessageCalls: agent.sendMessageCalls,
+				title: state?.title,
+				activeTurnId: stateManager.getActiveTurnId(sessionUri.toString()),
+				response: part?.kind === ResponsePartKind.Markdown ? part.content : undefined,
+				persistenceCalls,
+			}, {
+				sendMessageCalls: [],
+				title: 'Renamed Session',
+				activeTurnId: undefined,
+				response: 'Renamed: Renamed Session',
+				persistenceCalls: [{
+					session: sessionUri.toString(),
+					values: {
+						[SESSION_CUSTOM_TITLE_KEY]: 'Renamed Session',
+						[SESSION_CUSTOM_TITLE_SOURCE_KEY]: AGENT_HOST_TITLE_SOURCE_USER,
+					},
+				}],
+			});
 		});
 
 		test('/rename without a title completes the turn and leaves the title unchanged', async () => {
@@ -1522,10 +1552,12 @@ suite('AgentSideEffects', () => {
 				type: ActionType.RootConfigChanged,
 				config: { [AgentHostActiveAgentTitleGenerationConfigKey]: true },
 			});
-			const renameSideEffects = createRenameSideEffects();
+			const persistenceCalls: Array<{ session: string; values: Readonly<Record<string, string>> }> = [];
+			const renameSideEffects = createRenameSideEffects((session, values) => persistenceCalls.push({ session, values }));
 			const peerChat = buildChatUri(sessionUri.toString(), 'peer-rename');
 			stateManager.addChat(sessionUri.toString(), peerChat, { title: 'Automatic peer title' });
 			renameSideEffects.markTitleAuto(sessionUri.toString(), peerChat, 'Automatic peer title');
+			persistenceCalls.length = 0;
 			const renameAction: ChatAction = {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-rename',
@@ -1538,6 +1570,13 @@ suite('AgentSideEffects', () => {
 				stateManager.getChatState(peerChat)?.title === 'User Peer Title'
 				&& stateManager.getActiveTurnId(peerChat) === undefined
 			) || undefined);
+			assert.deepStrictEqual(persistenceCalls, [{
+				session: sessionUri.toString(),
+				values: {
+					[customChatTitleMetadataKey(peerChat)]: 'User Peer Title',
+					[customChatTitleSourceMetadataKey(peerChat)]: AGENT_HOST_TITLE_SOURCE_USER,
+				},
+			}]);
 
 			const followUpAction: ChatAction = {
 				type: ActionType.ChatTurnStarted,

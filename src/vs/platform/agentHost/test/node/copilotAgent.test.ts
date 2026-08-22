@@ -11073,7 +11073,7 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual(
 					{ first, second, configValues },
-					{ first: { adopted: true, eligible: true }, second: { adopted: false, eligible: false, native: true }, configValues: JSON.stringify({ [SessionConfigKey.Isolation]: 'folder' }) },
+					{ first: { adopted: true, eligible: true, listVisible: { isRead: true } }, second: { adopted: false, eligible: false, native: true }, configValues: JSON.stringify({ [SessionConfigKey.Isolation]: 'folder' }) },
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
@@ -11111,7 +11111,7 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual(
 					{ adopted, usages },
 					{
-						adopted: { adopted: true, eligible: true },
+						adopted: { adopted: true, eligible: true, listVisible: { isRead: true } },
 						usages: [
 							['evt-1', JSON.stringify({ model: 'gpt-5.4', _meta: { copilotUsage: { totalNanoAiu: 1_500_000_000 } } })],
 							['evt-2', JSON.stringify({ model: 'gpt-5.4-mini', _meta: { copilotUsage: { totalNanoAiu: 0 } } })],
@@ -11145,7 +11145,14 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual(
 					{ adopted, customTitle },
-					{ adopted: { adopted: true, eligible: true }, customTitle: 'My Legacy Session' },
+					{
+						adopted: {
+							adopted: true,
+							eligible: true,
+							listVisible: { title: 'My Legacy Session', titleSource: 'user', isRead: true },
+						},
+						customTitle: undefined,
+					},
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
@@ -11174,7 +11181,7 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual(
 					{ adopted, isRead },
-					{ adopted: { adopted: true, eligible: true }, isRead: 'true' },
+					{ adopted: { adopted: true, eligible: true, listVisible: { isRead: true } }, isRead: undefined },
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
@@ -11253,7 +11260,7 @@ suite('CopilotAgent', () => {
 
 				const adopted = await ensureDefaultChatAdopted(agent, session);
 
-				assert.deepStrictEqual(adopted, { adopted: true, eligible: true });
+				assert.deepStrictEqual(adopted, { adopted: true, eligible: true, listVisible: { isRead: true } });
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await fs.rm(workingDirectory, { recursive: true, force: true });

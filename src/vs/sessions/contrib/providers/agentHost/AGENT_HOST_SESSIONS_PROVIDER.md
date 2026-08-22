@@ -153,6 +153,48 @@ To avoid an empty list on window startup — before the agent host has started, 
 - Hydrated entries are reconciled against the authoritative `listSessions()` on the first successful `_refreshSessions()`: stale sessions that no longer exist are pruned.
 - `_shouldTrackSessionCacheChanges()` is a hook (default `true`) the remote provider overrides to suspend dirty-tracking while its sessions are unpublished (offline), so the on-disk snapshot survives an unreachable host.
 
+### Agent Host session catalog
+
+The local Agent Host maintains a host-wide SQLite catalog beside its registry.
+The catalog stores only bounded list-visible session and chat metadata. Per-session
+databases continue to own turns, drafts, annotations, detailed changesets, and
+opaque provider backing required when a session or chat is opened.
+
+Catalog persistence is legacy-first during the compatibility window: one
+per-session transaction updates downgrade-compatible metadata and a durable
+pending catalog snapshot before the host-wide catalog is updated. Catalog
+updates are serialized per session, guarded by session incarnation and source
+revision, and acknowledged only after the central transaction succeeds.
+Background reconciliation replays interrupted writes and detects metadata
+written by older builds.
+
+The per-session snapshot retains the canonical payload only while the central
+write is pending. Exact acknowledgement promotes its hash to the compact receipt
+and clears the pending payload/hash, so synchronized sessions do not permanently
+store a third copy of their list metadata.
+
+The central catalog stores one validated `sessions_v2` row per registered
+session. An upsert atomically replaces the complete row and is guarded by the
+session incarnation and source revision. Concurrent first writers converge on
+the winning incarnation through a serialized retry, while tombstones and the
+registry join prevent stale work or orphaned rows from resurfacing deleted
+sessions. Runtime rollback selects legacy read mode; no retained central
+generation is required.
+
+Each row also persists top-level eligibility. Chat-backing sessions therefore
+remain hidden after restart without opening their per-session database. For
+worktree sessions, both legacy and central projections derive the displayed
+project from the persisted repository root rather than the worktree checkout.
+
+Session listing supports internal legacy, shadow, central-with-fallback, and
+central-only modes. Shadow validation is non-blocking and reports aggregate
+categories without session content. Central-with-fallback resolves each
+registered session independently: verified current-version catalog rows avoid
+provider metadata calls and per-session database opens, while missing, stale,
+or malformed rows use the legacy path and schedule reconciliation. The
+production default remains conservative until rollout explicitly selects a
+central mode.
+
 The **only** per-provider difference is the storage key: local uses the fixed `localAgentHost.cachedSessions` (single machine-wide host); remote uses `remoteAgentHost.cachedSessions.${authority}` (one key per connection).
 
 ### External session visibility

@@ -90,7 +90,7 @@ import { SessionPermissionManager } from './sessionPermissions.js';
 import type { IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import type { ICopilotApiService } from './shared/copilotApiService.js';
 import { stripProxyErrorMarker, toChatErrorMeta, tryParseForwardedChatError } from './shared/proxyChatError.js';
-import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadata, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
+import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 import { targetForMcpServer, targetForPlugin } from './shared/customizationEnablementGate.js';
 import type { WorktreeIsolation } from './shared/worktreeIsolation.js';
 
@@ -112,6 +112,7 @@ export interface IAgentSideEffectsOptions {
 	readonly getGitHubToken?: () => string | undefined;
 	/** Get the configured GitHub host used to validate issue and pull request URLs. */
 	readonly getGitHubHost?: () => string | undefined;
+	readonly persistSessionMetadata?: (session: ProtocolURI, values: Readonly<Record<string, string>>) => void;
 	/** GitHub REST client used to fetch issue and pull request context. */
 	readonly octoKitService?: IAgentHostOctoKitService;
 	/** CAPI service used for Copilot utility title generation. */
@@ -303,6 +304,7 @@ export class AgentSideEffects extends Disposable {
 			octoKitService: this._options.octoKitService,
 			copilotApiService: this._options.copilotApiService,
 			isActiveAgentTitleGenerationEnabled: () => this._agentConfigService.getRootValue(platformRootSchema, AgentHostActiveAgentTitleGenerationConfigKey) === true,
+			persistSessionMetadata: (session, values) => this._persistSessionMetadata(session, values),
 		}));
 		this._localCommands = this._register(instantiationService.createInstance(
 			AgentHostLocalCommands,
@@ -313,6 +315,7 @@ export class AgentSideEffects extends Disposable {
 			// turn back here once it has completed a host-handled command.
 			(turnChannel: ProtocolURI) => this._tryConsumeNextQueuedMessage(turnChannel),
 			(session: ProtocolURI, chat?: ProtocolURI) => this._titleController.markTitleRenamed(session, chat),
+			(session: ProtocolURI, values: Readonly<Record<string, string>>) => this._persistSessionMetadata(session, values),
 		));
 		this._register(this._stateManager.onDidChangeSessionConfig(e => {
 			const previousMode = getConfiguredSessionMode(e.previous);
@@ -1708,13 +1711,17 @@ export class AgentSideEffects extends Disposable {
 					// not the whole session. Route it to a per-chat title update so
 					// the session title stays independent.
 					this._stateManager.updateChatTitle(sessionChannel, chatChannel, action.title);
-					this._persistSessionFlag(sessionChannel, customChatTitleMetadataKey(chatChannel), action.title);
-					this._persistSessionFlag(sessionChannel, customChatTitleSourceMetadataKey(chatChannel), AGENT_HOST_TITLE_SOURCE_USER);
+					this._persistSessionMetadata(sessionChannel, {
+						[customChatTitleMetadataKey(chatChannel)]: action.title,
+						[customChatTitleSourceMetadataKey(chatChannel)]: AGENT_HOST_TITLE_SOURCE_USER,
+					});
 					this._titleController.markTitleRenamed(sessionChannel, chatChannel);
 					break;
 				}
-				this._persistSessionFlag(channel, SESSION_CUSTOM_TITLE_KEY, action.title);
-				this._persistSessionFlag(channel, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_USER);
+				this._persistSessionMetadata(channel, {
+					[SESSION_CUSTOM_TITLE_KEY]: action.title,
+					[SESSION_CUSTOM_TITLE_SOURCE_KEY]: AGENT_HOST_TITLE_SOURCE_USER,
+				});
 				this._titleController.markTitleRenamed(channel);
 				break;
 			}
@@ -1908,7 +1915,14 @@ export class AgentSideEffects extends Disposable {
 	 * title, isRead/isArchived flags, merged config values).
 	 */
 	private _persistSessionFlag(session: ProtocolURI, key: string, value: string): void {
-		persistSessionMetadata(this._options.sessionDataService, this._logService, session, key, value);
+		this._persistSessionMetadata(session, { [key]: value });
+	}
+
+	private _persistSessionMetadata(session: ProtocolURI, values: Readonly<Record<string, string>>): void {
+		if (!this._options.persistSessionMetadata) {
+			throw new Error('AgentSideEffects requires session metadata persistence for durable list-visible mutations');
+		}
+		this._options.persistSessionMetadata(session, values);
 	}
 
 	/**

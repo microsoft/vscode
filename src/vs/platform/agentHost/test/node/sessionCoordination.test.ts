@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { SessionStatus, type ISessionOrchestration } from '../../common/state/sessionState.js';
-import { transitionSessionCoordination } from '../../node/sessionCoordination.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { AH_META_ORCHESTRATION_DB_KEY, readSessionOrchestration, SessionStatus, type ISessionOrchestration, type SessionSummary } from '../../common/state/sessionState.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { SessionCoordinationService, transitionSessionCoordination } from '../../node/sessionCoordination.js';
 
 suite('SessionCoordination', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const base: ISessionOrchestration = {
 		parentSession: 'copilot:/parent',
@@ -18,6 +21,67 @@ suite('SessionCoordination', () => {
 		coordinateWithCreator: true,
 		notifyOnIdle: 'once',
 	};
+
+	function createSummary(session: URI): SessionSummary {
+		return {
+			resource: session.toString(),
+			provider: 'copilot',
+			title: 'Child',
+			status: SessionStatus.Idle,
+			createdAt: new Date(1).toISOString(),
+			modifiedAt: new Date(1).toISOString(),
+		};
+	}
+
+	function createService(
+		stateManager: AgentHostStateManager,
+		persistSessionMetadata: (session: string, values: Readonly<Record<string, string>>) => Promise<void>,
+	): SessionCoordinationService {
+		return disposables.add(new SessionCoordinationService(stateManager, persistSessionMetadata, new NullLogService(), {
+			getSessionMetadata: async () => undefined,
+			restoreSession: async () => { },
+			handleAction: () => { },
+		}));
+	}
+
+	test('persists one orchestration mutation before publishing state', async () => {
+		const session = URI.parse('agenthost-session://copilot/child');
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		stateManager.createSession(createSummary(session));
+		const persistenceCalls: Array<{ session: string; values: Readonly<Record<string, string>> }> = [];
+		let orchestrationAtPersistence: ISessionOrchestration | undefined;
+		const service = createService(stateManager, async (persistedSession, values) => {
+			orchestrationAtPersistence = readSessionOrchestration(stateManager.getSessionSummary(session.toString())?._meta);
+			persistenceCalls.push({ session: persistedSession, values });
+		});
+
+		await service.setOrchestration(session.toString(), base);
+
+		assert.deepStrictEqual({
+			orchestrationAtPersistence,
+			persistenceCalls,
+			orchestrationAfterPersistence: readSessionOrchestration(stateManager.getSessionSummary(session.toString())?._meta),
+		}, {
+			orchestrationAtPersistence: undefined,
+			persistenceCalls: [{
+				session: session.toString(),
+				values: { [AH_META_ORCHESTRATION_DB_KEY]: JSON.stringify(base) },
+			}],
+			orchestrationAfterPersistence: base,
+		});
+	});
+
+	test('does not publish orchestration when coordinated persistence fails', async () => {
+		const session = URI.parse('agenthost-session://copilot/child-failure');
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		stateManager.createSession(createSummary(session));
+		const service = createService(stateManager, async () => {
+			throw new Error('local transaction failed');
+		});
+
+		await assert.rejects(() => service.setOrchestration(session.toString(), base), /local transaction failed/);
+		assert.strictEqual(readSessionOrchestration(stateManager.getSessionSummary(session.toString())?._meta), undefined);
+	});
 
 	test('waits for completion only after work starts', () => {
 		assert.deepStrictEqual(transitionSessionCoordination(SessionStatus.Idle, base), { notify: false });

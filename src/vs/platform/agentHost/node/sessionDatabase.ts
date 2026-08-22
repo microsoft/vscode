@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import { Sequencer, SequencerByKey } from '../../../base/common/async.js';
 import type { Database, RunResult } from '@vscode/sqlite3';
-import type { IFileEditContent, IFileEditRecord, ILocalTurnRecord, IReviewedFileRecord, ISessionDatabase } from '../common/sessionDataService.js';
+import type { IFileEditContent, IFileEditRecord, ILocalTurnRecord, IReviewedFileRecord, ISessionCatalogSyncAcknowledgement, ISessionCatalogSyncPendingSnapshot, ISessionCatalogSyncSnapshot, ISessionDatabase, SessionCatalogSyncWriteResult } from '../common/sessionDataService.js';
 import { dirname } from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
 import type { Message } from '../common/state/sessionState.js';
@@ -135,6 +135,24 @@ export const sessionDatabaseMigrations: readonly ISessionDatabaseMigration[] = [
 			usage   TEXT NOT NULL
 		)`,
 	},
+	{
+		version: 10,
+		sql: `CREATE TABLE IF NOT EXISTS catalog_sync_snapshot (
+			singleton_id       INTEGER PRIMARY KEY NOT NULL CHECK (singleton_id = 1),
+			session_generation TEXT NOT NULL CHECK (length(session_generation) > 0),
+			source_revision    INTEGER NOT NULL CHECK (source_revision >= 0),
+			projection_version INTEGER NOT NULL CHECK (projection_version >= 0),
+			acknowledged_hash  TEXT,
+			pending_hash       TEXT,
+			pending_payload    TEXT,
+			CHECK (acknowledged_hash IS NULL OR length(acknowledged_hash) > 0),
+			CHECK (
+				(pending_hash IS NULL AND pending_payload IS NULL)
+				OR (length(pending_hash) > 0 AND pending_payload IS NOT NULL)
+			),
+			CHECK (acknowledged_hash IS NOT NULL OR pending_hash IS NOT NULL)
+		)`,
+	},
 ];
 
 // ---- Promise wrappers around callback-based @vscode/sqlite3 API -----------
@@ -195,6 +213,70 @@ function dbOpen(path: string): Promise<Database> {
 			});
 		}, reject);
 	});
+}
+
+function validateCatalogSyncInteger(name: string, value: number): void {
+	if (!Number.isSafeInteger(value) || value < 0) {
+		throw new Error(`Catalog sync ${name} must be a non-negative safe integer`);
+	}
+}
+
+function validateCatalogSyncIdentity(name: string, value: unknown): asserts value is string {
+	if (typeof value !== 'string' || value.length === 0) {
+		throw new Error(`Catalog sync ${name} must be nonempty`);
+	}
+}
+
+function validateCatalogSyncSnapshot(snapshot: ISessionCatalogSyncPendingSnapshot): void {
+	validateCatalogSyncIdentity('sessionGeneration', snapshot.sessionGeneration);
+	validateCatalogSyncInteger('sourceRevision', snapshot.sourceRevision);
+	validateCatalogSyncInteger('projectionVersion', snapshot.projectionVersion);
+	validateCatalogSyncIdentity('payload', snapshot.payload);
+	validateCatalogSyncIdentity('payloadHash', snapshot.payloadHash);
+}
+
+function validateCatalogSyncAcknowledgement(acknowledgement: ISessionCatalogSyncAcknowledgement): void {
+	validateCatalogSyncIdentity('sessionGeneration', acknowledgement.sessionGeneration);
+	validateCatalogSyncInteger('sourceRevision', acknowledgement.sourceRevision);
+	validateCatalogSyncInteger('projectionVersion', acknowledgement.projectionVersion);
+	validateCatalogSyncIdentity('payloadHash', acknowledgement.payloadHash);
+}
+
+function toCatalogSyncSnapshot(row: Record<string, unknown>): ISessionCatalogSyncSnapshot {
+	validateCatalogSyncIdentity('sessionGeneration', row.session_generation);
+	validateCatalogSyncInteger('sourceRevision', row.source_revision as number);
+	validateCatalogSyncInteger('projectionVersion', row.projection_version as number);
+	const acknowledgedHash = row.acknowledged_hash;
+	let validatedAcknowledgedHash: string | undefined;
+	if (acknowledgedHash !== null) {
+		validateCatalogSyncIdentity('acknowledgedHash', acknowledgedHash);
+		validatedAcknowledgedHash = acknowledgedHash;
+	}
+	if (row.pending_hash !== null) {
+		validateCatalogSyncIdentity('pendingHash', row.pending_hash);
+		if (typeof row.pending_payload !== 'string') {
+			throw new Error('Catalog sync pending payload must be a string');
+		}
+		return {
+			sessionGeneration: row.session_generation,
+			sourceRevision: row.source_revision as number,
+			projectionVersion: row.projection_version as number,
+			payload: row.pending_payload,
+			payloadHash: row.pending_hash,
+			acknowledgedHash: validatedAcknowledgedHash,
+			state: 'pending',
+		};
+	}
+	validateCatalogSyncIdentity('acknowledgedHash', acknowledgedHash);
+	return {
+		sessionGeneration: row.session_generation,
+		sourceRevision: row.source_revision as number,
+		projectionVersion: row.projection_version as number,
+		payload: undefined,
+		payloadHash: acknowledgedHash,
+		acknowledgedHash,
+		state: 'acknowledged',
+	};
 }
 
 /**
@@ -698,6 +780,133 @@ export class SessionDatabase implements ISessionDatabase {
 				}
 			});
 		}));
+	}
+
+	async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
+		validateCatalogSyncSnapshot(snapshot);
+		return this._track(() => this._metadataSequencer.queue(async () => {
+			const db = await this._ensureDb();
+			return this._transactionSequencer.queue(async () => {
+				await dbExec(db, 'BEGIN TRANSACTION');
+				try {
+					const existingRow = await dbGet(db, 'SELECT session_generation, source_revision, projection_version, acknowledged_hash, pending_hash, pending_payload FROM catalog_sync_snapshot WHERE singleton_id = 1', []);
+					const existing = existingRow ? toCatalogSyncSnapshot(existingRow) : undefined;
+					if (existing && snapshot.sessionGeneration !== existing.sessionGeneration) {
+						throw new Error(`Catalog sync snapshot generation ${snapshot.sessionGeneration} does not match stored generation ${existing.sessionGeneration}`);
+					}
+					if (existing && snapshot.sourceRevision < existing.sourceRevision) {
+						throw new Error(`Catalog sync snapshot revision ${snapshot.sourceRevision} is stale; current revision is ${existing.sourceRevision}`);
+					}
+					if (existing && snapshot.sourceRevision === existing.sourceRevision) {
+						const isExactReplay = snapshot.sessionGeneration === existing.sessionGeneration
+							&& snapshot.projectionVersion === existing.projectionVersion
+							&& snapshot.payloadHash === existing.payloadHash
+							&& (existing.state === 'acknowledged' || snapshot.payload === existing.payload);
+						if (!isExactReplay) {
+							throw new Error(`Catalog sync snapshot revision ${snapshot.sourceRevision} conflicts with the stored snapshot`);
+						}
+					}
+
+					const result: SessionCatalogSyncWriteResult = existing?.sourceRevision === snapshot.sourceRevision ? 'replayed' : 'applied';
+					if (result === 'replayed') {
+						await dbExec(db, 'COMMIT');
+						return result;
+					}
+					for (const [key, value] of Object.entries(values)) {
+						await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) VALUES (?, ?)', [key, value]);
+					}
+					await this._writeCatalogSyncSnapshot(db, snapshot, existing?.acknowledgedHash);
+					await dbExec(db, 'COMMIT');
+					return result;
+				} catch (err) {
+					await dbExec(db, 'ROLLBACK');
+					throw err;
+				}
+			});
+		}));
+	}
+
+	async transitionMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, expectedSessionGeneration: string, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<boolean> {
+		validateCatalogSyncIdentity('expectedSessionGeneration', expectedSessionGeneration);
+		validateCatalogSyncSnapshot(snapshot);
+		if (snapshot.sessionGeneration === expectedSessionGeneration) {
+			throw new Error(`Catalog sync generation transition must change the session generation`);
+		}
+		return this._track(() => this._metadataSequencer.queue(async () => {
+			const db = await this._ensureDb();
+			return this._transactionSequencer.queue(async () => {
+				await dbExec(db, 'BEGIN TRANSACTION');
+				try {
+					const existingRow = await dbGet(db, 'SELECT session_generation, source_revision, projection_version, acknowledged_hash, pending_hash, pending_payload FROM catalog_sync_snapshot WHERE singleton_id = 1', []);
+					const existing = existingRow ? toCatalogSyncSnapshot(existingRow) : undefined;
+					if (!existing || existing.sessionGeneration !== expectedSessionGeneration) {
+						await dbExec(db, 'COMMIT');
+						return false;
+					}
+					for (const [key, value] of Object.entries(values)) {
+						await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) VALUES (?, ?)', [key, value]);
+					}
+					await this._writeCatalogSyncSnapshot(db, snapshot, undefined);
+					await dbExec(db, 'COMMIT');
+					return true;
+				} catch (err) {
+					await dbExec(db, 'ROLLBACK');
+					throw err;
+				}
+			});
+		}));
+	}
+
+	getCatalogSyncSnapshot(): Promise<ISessionCatalogSyncSnapshot | undefined> {
+		return this._metadataSequencer.queue(async () => {
+			const db = await this._ensureDb();
+			const row = await dbGet(db, 'SELECT session_generation, source_revision, projection_version, acknowledged_hash, pending_hash, pending_payload FROM catalog_sync_snapshot WHERE singleton_id = 1', []);
+			return row ? toCatalogSyncSnapshot(row) : undefined;
+		});
+	}
+
+	async acknowledgeCatalogSyncSnapshot(acknowledgement: ISessionCatalogSyncAcknowledgement): Promise<boolean> {
+		validateCatalogSyncAcknowledgement(acknowledgement);
+		return this._track(() => this._metadataSequencer.queue(async () => {
+			const db = await this._ensureDb();
+			return this._transactionSequencer.queue(async () => {
+				const result = await dbRun(db, `UPDATE catalog_sync_snapshot
+					SET acknowledged_hash = pending_hash,
+						pending_hash = NULL,
+						pending_payload = NULL
+					WHERE singleton_id = 1
+						AND session_generation = ?
+						AND source_revision = ?
+						AND projection_version = ?
+						AND pending_hash = ?`, [
+					acknowledgement.sessionGeneration,
+					acknowledgement.sourceRevision,
+					acknowledgement.projectionVersion,
+					acknowledgement.payloadHash,
+				]);
+				return result.changes === 1;
+			});
+		}));
+	}
+
+	private async _writeCatalogSyncSnapshot(db: Database, snapshot: ISessionCatalogSyncPendingSnapshot, acknowledgedHash: string | undefined): Promise<void> {
+		await dbRun(db, `INSERT INTO catalog_sync_snapshot (
+			singleton_id, session_generation, source_revision, projection_version, acknowledged_hash, pending_hash, pending_payload
+		) VALUES (1, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(singleton_id) DO UPDATE SET
+			session_generation = excluded.session_generation,
+			source_revision = excluded.source_revision,
+			projection_version = excluded.projection_version,
+			acknowledged_hash = excluded.acknowledged_hash,
+			pending_hash = excluded.pending_hash,
+			pending_payload = excluded.pending_payload`, [
+			snapshot.sessionGeneration,
+			snapshot.sourceRevision,
+			snapshot.projectionVersion,
+			acknowledgedHash,
+			snapshot.payloadHash,
+			snapshot.payload,
+		]);
 	}
 
 	setChatDraft(chat: URI, draft: Message | undefined): Promise<void> {

@@ -8,12 +8,10 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
-import { ISessionDataService } from '../common/sessionDataService.js';
 import { ActionType, type ChatTurnStartedAction } from '../common/state/sessionActions.js';
 import { MessageKind, PendingMessageKind, AH_META_ORCHESTRATION_DB_KEY, buildDefaultChatUri, readSessionOrchestration, type ISessionOrchestration, SessionStatus, withSessionOrchestration } from '../common/state/sessionState.js';
 import { type Message } from '../common/state/protocol/state.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
-import { persistSessionMetadataValues } from './shared/persistSessionMetadata.js';
 
 export interface ISessionCoordinationTransition {
 	readonly orchestration?: ISessionOrchestration;
@@ -64,7 +62,7 @@ export class SessionCoordinationService extends Disposable {
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
-		private readonly _sessionDataService: ISessionDataService,
+		private readonly _persistSessionMetadata: (session: string, values: Readonly<Record<string, string>>) => Promise<void>,
 		private readonly _logService: ILogService,
 		private readonly _delegate: ISessionCoordinationDelegate,
 	) {
@@ -73,7 +71,7 @@ export class SessionCoordinationService extends Disposable {
 	}
 
 	async setOrchestration(session: string, orchestration: ISessionOrchestration): Promise<void> {
-		await persistSessionMetadataValues(this._sessionDataService, session, {
+		await this._persistSessionMetadata(session, {
 			[AH_META_ORCHESTRATION_DB_KEY]: JSON.stringify(orchestration),
 		});
 		this._stateManager.setSessionMeta(session, withSessionOrchestration(this._stateManager.getSessionSummary(session)?._meta, orchestration));

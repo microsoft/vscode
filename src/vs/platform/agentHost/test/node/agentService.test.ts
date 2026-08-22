@@ -34,20 +34,23 @@ import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostExternalSessions
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
-import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
-import { META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
+import { ISessionCatalogSyncPendingSnapshot, ISessionDatabase, ISessionDataService, SessionCatalogSyncWriteResult } from '../../common/sessionDataService.js';
+import { META_GITHUB_STATE, META_GIT_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType } from '../../common/state/sessionActions.js';
-import { AH_META_IS_READ_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_ORCHESTRATION_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionOrchestration, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionOrchestration, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_IS_READ_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_ORCHESTRATION_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionOrchestration, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionGitState, withSessionMultiRootMetadata, withSessionOrchestration, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionGitState, type ISessionOrchestration, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { ChatInteractivity, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
-import { AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionOptions } from '../../node/agentHostDatabase.js';
-import { AgentSessionRegistry } from '../../node/agentSessionRegistry.js';
+import { AgentHostDatabase, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Projection } from '../../node/agentHostDatabase.js';
+import type { AgentHostCatalogReconciliationSourceResult } from '../../node/agentHostCatalogReconciliationService.js';
+import type { AgentHostCatalogReadMode, IAgentHostCatalogShadowValidationReport, IAgentHostCatalogShadowValidationReporter } from '../../node/agentHostCatalogShadowValidator.js';
+import { projectAgentHostCatalog, type IAgentHostCatalogSource } from '../../node/agentHostCatalogProjection.js';
+import { AgentSessionRegistry, type IRegisteredSession } from '../../node/agentSessionRegistry.js';
 import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
-import { AGENT_HOST_TITLE_SOURCE_AUTO, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
+import { AGENT_HOST_TITLE_SOURCE_AUTO, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
 import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
 import { type ISessionEvent } from './copilotTestEvents.js';
@@ -63,6 +66,7 @@ import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
+import { readSessionArtifacts, SessionArtifactType, withSessionArtifacts } from '../../common/sessionArtifacts.js';
 
 /**
  * Replace individual operations on an agent's chat surface, delegating every
@@ -216,6 +220,7 @@ class TestCopilotApiService implements ICopilotApiService {
 
 class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 	private readonly _sessions = new Map<string, IAgentHostDatabaseSession>();
+	private readonly _sessionsV2 = new Map<string, IAgentHostDatabaseSessionV2>();
 	private _backfilled = false;
 	private readonly _providerBackfilled = new Set<string>();
 	private readonly _tombstones = new Set<string>();
@@ -258,6 +263,7 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 	async unregisterSession(session: string): Promise<void> {
 		this._beforeWrite();
 		this._sessions.delete(session);
+		this._sessionsV2.delete(session);
 		this._agentMergeEnabled.delete(session);
 	}
 
@@ -265,6 +271,7 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 		this._beforeWrite();
 		this._tombstones.add(session);
 		this._sessions.delete(session);
+		this._sessionsV2.delete(session);
 		this._agentMergeEnabled.delete(session);
 	}
 
@@ -342,6 +349,21 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 		return [...this._agentMergeEnabled];
 	}
 
+	async getSessionV2(session: string): Promise<IAgentHostDatabaseSessionV2 | undefined> { return this._sessionsV2.get(session); }
+	async listSessionsV2(): Promise<readonly IAgentHostDatabaseSessionV2[]> { return [...this._sessionsV2.values()]; }
+	async upsertSessionV2(projection: IAgentHostDatabaseSessionV2Projection, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> {
+		const session = this._sessions.get(projection.session);
+		if (!session) {
+			return 'missingSession';
+		}
+		const current = this._sessionsV2.get(projection.session);
+		if (current?.sessionGeneration !== expectedSessionGeneration) {
+			return 'generationMismatch';
+		}
+		this._sessionsV2.set(projection.session, { ...session, ...projection });
+		return 'applied';
+	}
+
 	async close(): Promise<void> { }
 	dispose(): void { }
 
@@ -357,10 +379,12 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 /** In-memory orchestrator database that two {@link AgentService} instances can share to simulate a host restart. */
 class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 	private readonly _sessions = new Map<string, IAgentHostDatabaseSession>();
+	private readonly _sessionsV2 = new Map<string, IAgentHostDatabaseSessionV2>();
 	private readonly _providerBackfilled = new Set<string>();
 	private readonly _tombstones = new Set<string>();
 	private readonly _agentMergeEnabled = new Set<string>();
 	private _backfilled = false;
+	catalogListCalls = 0;
 
 	async registerSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
 		if (registerOptions.checkTombstone && this._tombstones.has(session)) {
@@ -377,12 +401,14 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 
 	async unregisterSession(session: string): Promise<void> {
 		this._sessions.delete(session);
+		this._sessionsV2.delete(session);
 		this._agentMergeEnabled.delete(session);
 	}
 
 	async tombstoneAndUnregisterSession(session: string): Promise<void> {
 		this._tombstones.add(session);
 		this._sessions.delete(session);
+		this._sessionsV2.delete(session);
 		this._agentMergeEnabled.delete(session);
 	}
 
@@ -440,6 +466,30 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 		return [...this._agentMergeEnabled];
 	}
 
+	async getSessionV2(session: string): Promise<IAgentHostDatabaseSessionV2 | undefined> {
+		this.catalogListCalls++;
+		return this._sessionsV2.get(session);
+	}
+	async listSessionsV2(): Promise<readonly IAgentHostDatabaseSessionV2[]> {
+		this.catalogListCalls++;
+		return [...this._sessionsV2.values()];
+	}
+	async upsertSessionV2(projection: IAgentHostDatabaseSessionV2Projection, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> {
+		const session = this._sessions.get(projection.session);
+		if (!session) {
+			return 'missingSession';
+		}
+		const current = this._sessionsV2.get(projection.session);
+		if (current?.sessionGeneration !== expectedSessionGeneration) {
+			return 'generationMismatch';
+		}
+		if (current?.sessionGeneration === projection.sessionGeneration && current.sourceRevision === projection.sourceRevision) {
+			return current.projectionVersion === projection.projectionVersion && current.sourceHash === projection.sourceHash ? 'replayed' : 'conflict';
+		}
+		this._sessionsV2.set(projection.session, { ...session, ...projection });
+		return 'applied';
+	}
+
 	async close(): Promise<void> { }
 	dispose(): void { }
 }
@@ -469,6 +519,15 @@ suite('AgentService (node dispatcher)', () => {
 
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('starts catalog reconciliation in the background and exposes an awaitable idle hook', async () => {
+		service.registerProvider(copilotAgent);
+
+		const sessions = await service.listSessions();
+		await service.whenCatalogReconciliationIdle();
+
+		assert.deepStrictEqual(sessions, []);
+	});
 
 	suite('resolveAgentChatContext', () => {
 
@@ -1114,7 +1173,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		const persistedBeforeMaterialize = await db.getMetadata(SESSION_META_FOLDER_PICKER_KEY);
 		agent.materialize(session, [URI.file('/work/one'), URI.file('/work/two')]);
-		await timeout(0);
+		await creating.whenCatalogReconciliationIdle();
 
 		const reopened = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 		reopened.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.All });
@@ -1181,7 +1240,7 @@ suite('AgentService (node dispatcher)', () => {
 		const persistedGitHubBefore = await db.getMetadata(META_GITHUB_STATE);
 
 		agent.materialize(session, [URI.file('/work/materialized'), URI.file('/work/two')]);
-		await timeout(0);
+		await localService.whenCatalogReconciliationIdle();
 
 		assert.deepStrictEqual({
 			before,
@@ -2958,6 +3017,50 @@ suite('AgentService (node dispatcher)', () => {
 			}
 		}
 
+		class CentralCatalogDatabase extends TestAgentHostOrchestratorDatabase {
+			private readonly _catalogs = new Map<string, IAgentHostDatabaseSessionV2Projection>();
+
+			setCatalog(session: URI, source: IAgentHostCatalogSource): void {
+				const projection = projectAgentHostCatalog(source, {
+					session: session.toString(),
+					sessionGeneration: 'test-generation',
+					sourceRevision: 1,
+				});
+				if (!projection.ok) {
+					throw new Error(projection.error.message);
+				}
+				this._catalogs.set(session.toString(), projection.value.catalog);
+			}
+
+			override async getSessionV2(session: string): Promise<IAgentHostDatabaseSessionV2 | undefined> {
+				const catalog = this._catalogs.get(session);
+				const registered = await this.getSession(session);
+				return catalog && registered ? { ...registered, ...catalog } : undefined;
+			}
+		}
+
+		class CountingMetadataAgent extends TimedExternalAgent {
+			metadataCalls: string[] = [];
+
+			override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
+				this.metadataCalls.push(resolveAgentChatContext(context, chat).configurationResource.toString());
+				return super.getChatMetadata(chat, context);
+			}
+		}
+
+		function centralSource(modifiedTime: number, title: string, ehcliAdoptable = false): IAgentHostCatalogSource {
+			return {
+				modifiedTime,
+				title,
+				isRead: false,
+				isArchived: false,
+				workspaceless: false,
+				ehcliAdoptable,
+				workingDirectories: [],
+				chats: [],
+			};
+		}
+
 		function createExternalSessionService(now: () => number, sessionDataService = createSessionDataService(), orchestratorDatabase?: IAgentHostDatabase): AgentService {
 			return disposables.add(new AgentService(
 				new NullLogService(),
@@ -2975,6 +3078,35 @@ suite('AgentService (node dispatcher)', () => {
 				undefined,
 				orchestratorDatabase,
 				now,
+			));
+		}
+
+		function createCatalogReadModeService(
+			sessionDataService: ISessionDataService,
+			orchestratorDatabase: IAgentHostDatabase,
+			readMode: AgentHostCatalogReadMode,
+			reporter: IAgentHostCatalogShadowValidationReporter,
+			now: () => number = Date.now,
+		): AgentService {
+			return disposables.add(new AgentService(
+				new NullLogService(),
+				fileService,
+				sessionDataService,
+				{ _serviceBrand: undefined } as IProductService,
+				createNoopGitService(),
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				[],
+				undefined,
+				undefined,
+				orchestratorDatabase,
+				now,
+				undefined,
+				readMode,
+				reporter,
 			));
 		}
 
@@ -3019,6 +3151,465 @@ suite('AgentService (node dispatcher)', () => {
 
 			const sessions = await service.listSessions();
 			assert.strictEqual(sessions.length, 1);
+		});
+
+		test('listSessions does not read the central catalog during dual write', async () => {
+			const orchestratorDatabase = new TestAgentHostOrchestratorDatabase();
+			const svc = disposables.add(new AgentService(
+				new NullLogService(),
+				fileService,
+				createSessionDataService(),
+				{ _serviceBrand: undefined } as IProductService,
+				createNoopGitService(),
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				[],
+				undefined,
+				undefined,
+				orchestratorDatabase,
+			));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			svc.registerProvider(agent);
+			await svc.createSession({ provider: 'copilot' });
+			orchestratorDatabase.catalogListCalls = 0;
+
+			await svc.listSessions();
+
+			assert.strictEqual(orchestratorDatabase.catalogListCalls, 0);
+		});
+
+		test('central list uses eligible catalogs and suppresses chat backing with zero legacy reads', async () => {
+			const orchestratorDatabase = new CentralCatalogDatabase();
+			const session = AgentSession.uri('copilot', 'central-only');
+			await orchestratorDatabase.registerSession(session.toString(), {
+				provider: 'copilot',
+				startTime: 10,
+				source: 'explicit',
+			}, { checkTombstone: false });
+			orchestratorDatabase.setCatalog(session, centralSource(20, 'Central'));
+			const backingSession = AgentSession.uri('copilot', 'central-backing');
+			await orchestratorDatabase.registerSession(backingSession.toString(), {
+				provider: 'copilot',
+				startTime: 11,
+				source: 'explicit',
+			}, { checkTombstone: false });
+			orchestratorDatabase.setCatalog(backingSession, { ...centralSource(21, 'Backing'), isChatBacking: true });
+			let databaseOpens = 0;
+			const sessionDataService: ISessionDataService = {
+				...createSessionDataService(),
+				tryOpenDatabase: async () => {
+					databaseOpens++;
+					throw new Error('central list must not open session.db');
+				},
+			};
+			const svc = createCatalogReadModeService(sessionDataService, orchestratorDatabase, 'centralWithFallback', { report: () => { } });
+			await svc.whenCatalogReconciliationIdle();
+			databaseOpens = 0;
+			const agent = disposables.add(new CountingMetadataAgent('copilot'));
+			svc.registerProvider(agent);
+			await timeout(0);
+			agent.metadataCalls = [];
+			databaseOpens = 0;
+
+			const listed = await svc.listSessions();
+
+			assert.deepStrictEqual({
+				sessions: listed.map(metadata => ({ session: metadata.session.toString(), title: metadata.summary })),
+				providerMetadataCalls: agent.metadataCalls,
+				sessionDatabaseOpens: databaseOpens,
+			}, {
+				sessions: [{ session: session.toString(), title: 'Central' }],
+				providerMetadataCalls: [],
+				sessionDatabaseOpens: 0,
+			});
+		});
+
+		test('central modes gate adoptable catalogs without provider or session database reads', async () => {
+			const outcomes: object[] = [];
+			for (const readMode of ['centralWithFallback', 'central'] as const) {
+				const orchestratorDatabase = new CentralCatalogDatabase();
+				const session = AgentSession.uri('copilot', `central-adoptable-${readMode}`);
+				await orchestratorDatabase.registerSession(session.toString(), {
+					provider: 'copilot',
+					startTime: 10,
+					source: 'explicit',
+				}, { checkTombstone: false });
+				orchestratorDatabase.setCatalog(session, centralSource(20, 'Adoptable', true));
+				let databaseOpens = 0;
+				const sessionDataService: ISessionDataService = {
+					...createSessionDataService(),
+					tryOpenDatabase: async () => {
+						databaseOpens++;
+						throw new Error('eligible central list must not open session.db');
+					},
+				};
+				const svc = createCatalogReadModeService(sessionDataService, orchestratorDatabase, readMode, { report: () => { } });
+				await svc.whenCatalogReconciliationIdle();
+				databaseOpens = 0;
+				const agent = disposables.add(new CountingMetadataAgent('copilot'));
+				svc.registerProvider(agent);
+				await timeout(0);
+				agent.metadataCalls = [];
+				databaseOpens = 0;
+
+				const whileDisabled = await svc.listSessions();
+				svc.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+				(svc as unknown as { _invalidateSessionList(): void })._invalidateSessionList();
+				const whileEnabled = await svc.listSessions();
+				orchestratorDatabase.setCatalog(session, centralSource(20, 'Adopted'));
+				svc.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: false });
+				(svc as unknown as { _invalidateSessionList(): void })._invalidateSessionList();
+				const afterAdoption = await svc.listSessions();
+
+				outcomes.push({
+					readMode,
+					whileDisabled: whileDisabled.length,
+					whileEnabled: whileEnabled.map(metadata => metadata.summary),
+					afterAdoption: afterAdoption.map(metadata => metadata.summary),
+					providerMetadataCalls: agent.metadataCalls,
+					sessionDatabaseOpens: databaseOpens,
+				});
+			}
+
+			assert.deepStrictEqual(outcomes, [
+				{
+					readMode: 'centralWithFallback',
+					whileDisabled: 0,
+					whileEnabled: ['Adoptable'],
+					afterAdoption: ['Adopted'],
+					providerMetadataCalls: [],
+					sessionDatabaseOpens: 0,
+				},
+				{
+					readMode: 'central',
+					whileDisabled: 0,
+					whileEnabled: ['Adoptable'],
+					afterAdoption: ['Adopted'],
+					providerMetadataCalls: [],
+					sessionDatabaseOpens: 0,
+				},
+			]);
+		});
+
+		test('central fallback accesses provider and session database only for the ineligible session', async () => {
+			const orchestratorDatabase = new CentralCatalogDatabase();
+			const centralSession = AgentSession.uri('copilot', 'eligible');
+			const fallbackSession = AgentSession.uri('copilot', 'fallback');
+			for (const session of [centralSession, fallbackSession]) {
+				await orchestratorDatabase.registerSession(session.toString(), {
+					provider: 'copilot',
+					startTime: 10,
+					source: 'explicit',
+				}, { checkTombstone: false });
+			}
+			orchestratorDatabase.setCatalog(centralSession, centralSource(30, 'Central'));
+			const databaseOpens: string[] = [];
+			const baseSessionDataService = createSessionDataService();
+			const sessionDataService: ISessionDataService = {
+				...baseSessionDataService,
+				tryOpenDatabase: async session => {
+					databaseOpens.push(session.toString());
+					return baseSessionDataService.tryOpenDatabase(session);
+				},
+			};
+			const svc = createCatalogReadModeService(sessionDataService, orchestratorDatabase, 'centralWithFallback', { report: () => { } });
+			await svc.whenCatalogReconciliationIdle();
+			const agent = disposables.add(new CountingMetadataAgent('copilot'));
+			agent.addSession('eligible', 30);
+			agent.addSession('fallback', 25);
+			svc.registerProvider(agent);
+			await timeout(0);
+			await svc.whenCatalogReconciliationIdle();
+			agent.metadataCalls = [];
+			databaseOpens.length = 0;
+
+			const listed = await svc.listSessions();
+
+			assert.deepStrictEqual({
+				sessions: listed.map(metadata => metadata.session.toString()),
+				providerMetadataCalls: agent.metadataCalls,
+				sessionDatabaseOpenSessions: [...new Set(databaseOpens)],
+				sessionDatabaseOpenCount: databaseOpens.length,
+			}, {
+				sessions: [centralSession.toString(), fallbackSession.toString()],
+				providerMetadataCalls: [fallbackSession.toString()],
+				sessionDatabaseOpenSessions: [fallbackSession.toString()],
+				sessionDatabaseOpenCount: 2,
+			});
+		});
+
+		test('central mode omits ineligible rows and lists eligible rows without a provider or session database', async () => {
+			const orchestratorDatabase = new CentralCatalogDatabase();
+			const eligible = AgentSession.uri('copilot', 'provider-unavailable');
+			const ineligible = AgentSession.uri('copilot', 'missing-catalog');
+			for (const session of [eligible, ineligible]) {
+				await orchestratorDatabase.registerSession(session.toString(), {
+					provider: 'copilot',
+					startTime: 10,
+					source: 'explicit',
+				}, { checkTombstone: false });
+			}
+			orchestratorDatabase.setCatalog(eligible, centralSource(40, 'Available centrally'));
+			let databaseOpens = 0;
+			const sessionDataService: ISessionDataService = {
+				...createSessionDataService(),
+				tryOpenDatabase: async () => {
+					databaseOpens++;
+					return undefined;
+				},
+			};
+			const svc = createCatalogReadModeService(sessionDataService, orchestratorDatabase, 'central', { report: () => { } });
+			await svc.whenCatalogReconciliationIdle();
+			databaseOpens = 0;
+
+			const listed = await svc.listSessions();
+
+			assert.deepStrictEqual({
+				sessions: listed.map(metadata => metadata.session.toString()),
+				sessionDatabaseOpens: databaseOpens,
+			}, {
+				sessions: [eligible.toString()],
+				sessionDatabaseOpens: 0,
+			});
+		});
+
+		test('central list applies the same live state overlay as legacy listing', async () => {
+			const orchestratorDatabase = new CentralCatalogDatabase();
+			const svc = createCatalogReadModeService(createSessionDataService(), orchestratorDatabase, 'central', { report: () => { } });
+			const agent = disposables.add(new MockAgent('copilot'));
+			svc.registerProvider(agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			await svc.whenCatalogReconciliationIdle();
+			orchestratorDatabase.setCatalog(session, {
+				...centralSource(20, 'Persisted title'),
+				workingDirectories: ['file:///persisted'],
+				changes: { files: 1 },
+			});
+			svc.stateManager.dispatchServerAction(session.toString(), {
+				type: ActionType.SessionTitleChanged,
+				title: 'Live title',
+			});
+			svc.stateManager.dispatchServerAction(session.toString(), {
+				type: ActionType.SessionMetaChanged,
+				_meta: withSessionGitState(undefined, { branchName: 'live-branch' }),
+			});
+
+			const [listed] = await svc.listSessions();
+
+			assert.deepStrictEqual({
+				title: listed.summary,
+				workingDirectories: listed.workingDirectories?.map(directory => directory.toString()),
+				changes: listed.changes,
+				git: readSessionGitState(listed._meta),
+			}, {
+				title: 'Live title',
+				workingDirectories: ['file:///persisted'],
+				changes: { additions: undefined, deletions: undefined, files: 1 },
+				git: { branchName: 'live-branch' },
+			});
+		});
+
+		test('central list preserves registry ordering and recent external-session limits', async () => {
+			const orchestratorDatabase = new CentralCatalogDatabase();
+			const now = 10 * 24 * 60 * 60 * 1000;
+			const sessions: URI[] = [];
+			for (let index = 0; index < 12; index++) {
+				const session = AgentSession.uri('copilot', `external-${index}`);
+				sessions.push(session);
+				await orchestratorDatabase.registerSession(session.toString(), {
+					provider: 'copilot',
+					startTime: index,
+					source: 'discovery',
+				}, { checkTombstone: false });
+				orchestratorDatabase.setCatalog(session, centralSource(now - index, `Session ${index}`));
+			}
+			const svc = createCatalogReadModeService(createSessionDataService(), orchestratorDatabase, 'central', { report: () => { } }, () => now);
+			await svc.whenCatalogReconciliationIdle();
+			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.Recent, 1);
+			await waitForSessionListReconciliation(svc);
+
+			const listed = await svc.listSessions();
+
+			assert.deepStrictEqual(
+				listed.map(metadata => metadata.session.toString()),
+				sessions.slice(0, 2).map(session => session.toString()),
+			);
+		});
+
+		test('central fallback returns without waiting for scheduled reconciliation', async () => {
+			const orchestratorDatabase = new CentralCatalogDatabase();
+			const session = AgentSession.uri('copilot', 'repair-later');
+			await orchestratorDatabase.registerSession(session.toString(), {
+				provider: 'copilot',
+				startTime: 10,
+				source: 'explicit',
+			}, { checkTombstone: false });
+			const svc = createCatalogReadModeService(createSessionDataService(), orchestratorDatabase, 'centralWithFallback', { report: () => { } });
+			await svc.whenCatalogReconciliationIdle();
+			const agent = disposables.add(new CountingMetadataAgent('copilot'));
+			agent.addSession('repair-later', 20);
+			svc.registerProvider(agent);
+			await timeout(0);
+			await svc.whenCatalogReconciliationIdle();
+			const reconciliationStarted = new DeferredPromise<void>();
+			const reconciliation = (svc as unknown as { _catalogReconciliationService: { start(): void } })._catalogReconciliationService;
+			reconciliation.start = () => reconciliationStarted.complete();
+
+			const listed = await svc.listSessions();
+			assert.deepStrictEqual({
+				listed: listed.length,
+				reconciliationStartedBeforeReturn: reconciliationStarted.isSettled,
+			}, {
+				listed: 1,
+				reconciliationStartedBeforeReturn: false,
+			});
+			await reconciliationStarted.p;
+		});
+
+		test('shadow list returns the exact legacy result without additional session database opens', async () => {
+			const sessionDatabase = new TestSessionDatabase();
+			const baseSessionDataService = createSessionDataService(sessionDatabase);
+			let listDatabaseOpens = 0;
+			const sessionDataService: ISessionDataService = {
+				...baseSessionDataService,
+				tryOpenDatabase: async session => {
+					listDatabaseOpens++;
+					return baseSessionDataService.tryOpenDatabase(session);
+				},
+			};
+			const orchestratorDatabase = new TestAgentHostOrchestratorDatabase();
+			const reports: IAgentHostCatalogShadowValidationReport[] = [];
+			const reportReceived = new DeferredPromise<void>();
+			const svc = createCatalogReadModeService(sessionDataService, orchestratorDatabase, 'legacy', {
+				report: report => {
+					reports.push(report);
+					reportReceived.complete();
+				},
+			}, () => 1);
+			const agent = disposables.add(new MockAgent('copilot'));
+			svc.registerProvider(agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			const projected = await orchestratorDatabase.getSessionV2(session.toString());
+			agent.sessionMetadataOverrides = { startTime: projected!.startTime };
+			exposeListedSessions(svc, [{
+				session,
+				startTime: projected!.startTime,
+				modifiedTime: 1,
+				summary: 'Session',
+				status: SessionStatus.Idle,
+			}]);
+
+			const legacyStartOpens = listDatabaseOpens;
+			const legacy = await svc.listSessions();
+			const legacyOpens = listDatabaseOpens - legacyStartOpens;
+			(svc as unknown as { _catalogReadMode: AgentHostCatalogReadMode })._catalogReadMode = 'shadow';
+			const shadowStartOpens = listDatabaseOpens;
+			const shadow = await svc.listSessions();
+			const shadowOpens = listDatabaseOpens - shadowStartOpens;
+			await reportReceived.p;
+
+			const comparable = (metadata: IAgentSessionMetadata) => ({
+				...metadata,
+				session: metadata.session.toString(),
+				startTime: 0,
+				project: metadata.project ? { ...metadata.project, uri: metadata.project.uri.toString() } : undefined,
+				workingDirectories: metadata.workingDirectories?.map(directory => directory.toString()),
+			});
+			assert.deepStrictEqual(shadow.map(comparable), legacy.map(comparable));
+			assert.deepStrictEqual({
+				openCountsEqual: shadowOpens === legacyOpens,
+				legacyOpenedDatabase: legacyOpens > 0,
+				reports: reports.map(report => ({ total: report.total, matched: report.counts.matched })),
+			}, {
+				openCountsEqual: true,
+				legacyOpenedDatabase: true,
+				reports: [{ total: 1, matched: 1 }],
+			});
+		});
+
+		test('shadow list returns before validation and coalesces repeated lists to one latest pass', async () => {
+			const firstReadStarted = new DeferredPromise<void>();
+			const releaseFirstRead = new DeferredPromise<void>();
+			class DeferredCatalogDatabase extends TestAgentHostOrchestratorDatabase {
+				activeCatalogReads = 0;
+				deferActiveCatalogReads = false;
+
+				override async getSessionV2(): Promise<IAgentHostDatabaseSessionV2 | undefined> {
+					if (this.deferActiveCatalogReads) {
+						this.activeCatalogReads++;
+						if (this.activeCatalogReads === 1) {
+							firstReadStarted.complete();
+							await releaseFirstRead.p;
+						}
+					}
+					return undefined;
+				}
+			}
+			const orchestratorDatabase = new DeferredCatalogDatabase();
+			const reports: IAgentHostCatalogShadowValidationReport[] = [];
+			const twoReportsReceived = new DeferredPromise<void>();
+			const svc = createCatalogReadModeService(createSessionDataService(), orchestratorDatabase, 'legacy', {
+				report: report => {
+					reports.push(report);
+					if (reports.length === 2) {
+						twoReportsReceived.complete();
+					}
+				},
+			}, () => 1);
+			const agent = disposables.add(new MockAgent('copilot'));
+			svc.registerProvider(agent);
+			await svc.createSession({ provider: 'copilot' });
+			(svc as unknown as { _catalogReadMode: AgentHostCatalogReadMode })._catalogReadMode = 'shadow';
+			orchestratorDatabase.deferActiveCatalogReads = true;
+
+			const firstList = await svc.listSessions();
+			await firstReadStarted.p;
+			const repeatedLists = await Promise.all([svc.listSessions(), svc.listSessions(), svc.listSessions()]);
+
+			assert.deepStrictEqual({
+				firstListCount: firstList.length,
+				repeatedListCounts: repeatedLists.map(list => list.length),
+				activeCatalogReadsWhileBlocked: orchestratorDatabase.activeCatalogReads,
+				reportsWhileBlocked: reports.length,
+			}, {
+				firstListCount: 1,
+				repeatedListCounts: [1, 1, 1],
+				activeCatalogReadsWhileBlocked: 1,
+				reportsWhileBlocked: 0,
+			});
+
+			releaseFirstRead.complete();
+			await twoReportsReceived.p;
+			assert.deepStrictEqual({
+				activeCatalogReads: orchestratorDatabase.activeCatalogReads,
+				reports: reports.length,
+			}, {
+				activeCatalogReads: 2,
+				reports: 2,
+			});
+		});
+
+		test('shadow reporter failure cannot fail listSessions', async () => {
+			const orchestratorDatabase = new TestAgentHostOrchestratorDatabase();
+			const reportAttempted = new DeferredPromise<void>();
+			const svc = createCatalogReadModeService(createSessionDataService(), orchestratorDatabase, 'shadow', {
+				report: () => {
+					reportAttempted.complete();
+					throw new Error('reporter failed');
+				},
+			});
+			const agent = disposables.add(new MockAgent('copilot'));
+			svc.registerProvider(agent);
+			await svc.createSession({ provider: 'copilot' });
+
+			const listed = await svc.listSessions();
+			await reportAttempted.p;
+
+			assert.strictEqual(listed.length, 1);
 		});
 
 		test('listSessions discovers provider-native sessions as external and restore preserves provenance', async () => {
@@ -4213,7 +4804,33 @@ suite('AgentService (node dispatcher)', () => {
 			const existing = AgentSession.uri('copilot', 'existing-before-unavailable');
 			await db.registerSession(existing.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 			const writesBeforeUnavailable = db.registryWriteAttempts;
-			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
+			let shadowReports = 0;
+			const shadowReportReceived = new DeferredPromise<void>();
+			const svc = disposables.add(new AgentService(
+				new NullLogService(),
+				fileService,
+				createSessionDataService(),
+				{ _serviceBrand: undefined } as IProductService,
+				createNoopGitService(),
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				db,
+				Date.now,
+				undefined,
+				'shadow',
+				{
+					report: () => {
+						shadowReports++;
+						shadowReportReceived.complete();
+					},
+				},
+			));
 			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.All });
 			const agent = disposables.add(new NotYetMigratableAgent('copilot'));
 			const legacy = AgentSession.uri('copilot', 'legacy-migration-not-ready');
@@ -4242,21 +4859,26 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({
 				registryWrites: db.registryWriteAttempts,
 				registered: (await svc.getRegisteredSessions()).map(session => session.toString()),
+				shadowReports,
 			}, {
 				registryWrites: writesBeforeUnavailable,
 				registered: [existing.toString()],
+				shadowReports: 0,
 			});
 
 			agent.enumerable = true;
 			const listed = await svc.listSessions();
+			await shadowReportReceived.p;
 			assert.deepStrictEqual({
 				retriedBeforeFailure: callsAfterFailure > 1,
 				retriedAfterFailure: agent.migrationCalls > callsAfterFailure,
 				listed: listed.map(session => session.session.toString()).sort(),
+				shadowReports,
 			}, {
 				retriedBeforeFailure: true,
 				retriedAfterFailure: true,
 				listed: [existing.toString(), legacy.toString()].sort(),
+				shadowReports: 1,
 			});
 		});
 
@@ -4904,21 +5526,56 @@ suite('AgentService (node dispatcher)', () => {
 				worktreeRootResolutions++;
 				return [];
 			};
-			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, gitService));
+			const catalogDatabase = new TestAgentHostOrchestratorDatabase();
+			const reports: IAgentHostCatalogShadowValidationReport[] = [];
+			const reportReceived = new DeferredPromise<void>();
+			const svc = disposables.add(new AgentService(
+				new NullLogService(),
+				fileService,
+				createSessionDataService(db),
+				{ _serviceBrand: undefined } as IProductService,
+				gitService,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				[],
+				undefined,
+				undefined,
+				catalogDatabase,
+				Date.now,
+				undefined,
+				'legacy',
+				{ report: report => { reports.push(report); reportReceived.complete(); } },
+			));
 			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.All });
 			svc.registerProvider(agent);
 
 			const sessions = await svc.listSessions();
+			await svc.whenCatalogReconciliationIdle();
+			const projected = await catalogDatabase.getSessionV2(sessionUri.toString());
+			(svc as unknown as { _catalogReadMode: AgentHostCatalogReadMode })._catalogReadMode = 'central';
+			const centralSessions = await svc.listSessions();
+			(svc as unknown as { _catalogReadMode: AgentHostCatalogReadMode })._catalogReadMode = 'shadow';
+			await svc.listSessions();
+			await reportReceived.p;
 			// Twice, because the deleted repair cached per session: one listing cannot tell "never resolves" from "resolves once".
 			await svc.listSessions();
 
 			assert.deepStrictEqual({
 				worktreeRootResolutions,
 				project: sessions[0].project && { uri: sessions[0].project.uri.toString(), displayName: sessions[0].project.displayName },
+				centralProject: centralSessions[0].project && { uri: centralSessions[0].project.uri.toString(), displayName: centralSessions[0].project.displayName },
+				projectedProject: projected && { uri: projected.projectUri, displayName: projected.projectDisplayName },
+				shadowProjectMismatches: reports.at(-1)?.counts.projectMismatch,
 				persistedRepositoryRoot: await db.getMetadata(WORKTREE_META_REPOSITORY_ROOT),
 			}, {
 				worktreeRootResolutions: 0,
 				project: { uri: linkedCheckout.toString(), displayName: 'parent' },
+				centralProject: { uri: linkedCheckout.toString(), displayName: 'parent' },
+				projectedProject: { uri: linkedCheckout.toString(), displayName: 'parent' },
+				shadowProjectMismatches: 0,
 				persistedRepositoryRoot: linkedCheckout.toString(),
 			});
 		});
@@ -6727,6 +7384,299 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(readSessionOrchestration(localService.stateManager.getSessionState(sessionResource.toString())?._meta), orchestration);
 		});
 
+		test('catalog sync prefers live orchestration over the persisted fallback', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.registerProvider(copilotAgent);
+			const child = await localService.createSession({ provider: 'copilot' });
+			const waiting: ISessionOrchestration = {
+				parentSession: 'copilot:/parent',
+				creatorSession: 'copilot:/creator',
+				coordinateWithCreator: true,
+				notifyOnIdle: 'once',
+				creatorNotificationState: 'waitingForCompletion',
+			};
+			const notified: ISessionOrchestration = { ...waiting, creatorNotificationState: 'notified' };
+			const internals = localService as unknown as {
+				_sessionCoordination: {
+					setOrchestration(session: string, value: ISessionOrchestration): Promise<void>;
+				};
+			};
+			await internals._sessionCoordination.setOrchestration(child.toString(), waiting);
+			const firstSnapshot = await db.getCatalogSyncSnapshot();
+
+			await internals._sessionCoordination.setOrchestration(child.toString(), notified);
+
+			const secondSnapshot = await db.getCatalogSyncSnapshot();
+			const central = await (localService as unknown as { _orchestratorDatabase: IAgentHostDatabase })._orchestratorDatabase.getSessionV2(child.toString());
+			assert.deepStrictEqual({
+				revisionAdvanced: firstSnapshot !== undefined && secondSnapshot?.sourceRevision === firstSnapshot.sourceRevision + 1,
+				projectedOrchestration: central?.orchestrationJson ? JSON.parse(central.orchestrationJson) : undefined,
+				receiptPayload: secondSnapshot?.payload,
+				persistedOrchestration: JSON.parse((await db.getMetadata(AH_META_ORCHESTRATION_DB_KEY)) ?? 'null'),
+			}, {
+				revisionAdvanced: true,
+				projectedOrchestration: notified,
+				receiptPayload: undefined,
+				persistedOrchestration: notified,
+			});
+		});
+
+		test('catalog reconciliation prefers persisted orchestration over live provider state', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.registerProvider(copilotAgent);
+			const child = await localService.createSession({ provider: 'copilot' });
+			const persisted: ISessionOrchestration = {
+				parentSession: 'copilot:/parent',
+				creatorSession: 'copilot:/creator',
+				coordinateWithCreator: true,
+				notifyOnIdle: 'once',
+				creatorNotificationState: 'waitingForCompletion',
+			};
+			const live: ISessionOrchestration = { ...persisted, creatorNotificationState: 'notified' };
+			await db.setMetadata(AH_META_ORCHESTRATION_DB_KEY, JSON.stringify(persisted));
+			localService.stateManager.setSessionMeta(
+				child.toString(),
+				withSessionOrchestration(localService.stateManager.getSessionSummary(child.toString())?._meta, live),
+			);
+			const internals = localService as unknown as {
+				_resolveCatalogReconciliationSource(registered: IRegisteredSession): Promise<AgentHostCatalogReconciliationSourceResult>;
+			};
+
+			const result = await internals._resolveCatalogReconciliationSource({
+				session: child,
+				provider: 'copilot',
+				startTime: 1,
+				external: false,
+				source: 'explicit',
+			});
+
+			assert.deepStrictEqual(result.status === 'available' ? {
+				source: result.request.source.orchestration,
+				legacy: JSON.parse(result.request.legacyMetadata[AH_META_ORCHESTRATION_DB_KEY]),
+			} : result, {
+				source: persisted,
+				legacy: persisted,
+			});
+		});
+
+		test('catalog live sync and reconciliation project the provider-neutral adoptable marker', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.registerProvider(copilotAgent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			localService.stateManager.setSessionMeta(
+				session.toString(),
+				withSessionEhcliAdoptable(localService.stateManager.getSessionSummary(session.toString())?._meta),
+			);
+			const internals = localService as unknown as {
+				_persistListVisibleSessionState(session: URI, values: Readonly<Record<string, string>>): Promise<void>;
+				_resolveCatalogReconciliationSource(registered: IRegisteredSession): Promise<AgentHostCatalogReconciliationSourceResult>;
+			};
+
+			await internals._persistListVisibleSessionState(session, {});
+			const liveSnapshot = await db.getCatalogSyncSnapshot();
+			const central = await (localService as unknown as { _orchestratorDatabase: IAgentHostDatabase })._orchestratorDatabase.getSessionV2(session.toString());
+			copilotAgent.sessionMetadataOverrides = { _meta: withSessionEhcliAdoptable(undefined) };
+			const reconciliation = await internals._resolveCatalogReconciliationSource({
+				session,
+				provider: 'copilot',
+				startTime: 1,
+				external: false,
+				source: 'restore',
+			});
+
+			assert.deepStrictEqual({
+				live: central?.ehcliAdoptable,
+				receiptPayload: liveSnapshot?.payload,
+				reconciliation: reconciliation.status === 'available' ? reconciliation.request.source.ehcliAdoptable : undefined,
+			}, {
+				live: true,
+				receiptPayload: undefined,
+				reconciliation: true,
+			});
+		});
+
+		test('catalog sync projects every live Git field and aligns legacy metadata over persisted state', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.registerProvider(copilotAgent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const liveGit: ISessionGitState = {
+				hasGitHubRemote: true,
+				branchName: 'feature',
+				baseBranchName: 'main',
+				upstreamBranchName: 'origin/feature',
+				incomingChanges: 1,
+				outgoingChanges: 2,
+				uncommittedChanges: 3,
+				hasBaseBranchChanges: true,
+				githubOwner: 'owner',
+				githubHeadOwner: 'contributor',
+				githubRepo: 'repo',
+			};
+			await db.setMetadata(META_GIT_STATE, JSON.stringify({ branchName: 'persisted' }));
+			localService.stateManager.setSessionMeta(
+				session.toString(),
+				withSessionGitState(localService.stateManager.getSessionSummary(session.toString())?._meta, liveGit),
+			);
+			const internals = localService as unknown as {
+				_persistListVisibleSessionState(session: URI, values: Readonly<Record<string, string>>): Promise<void>;
+			};
+
+			await internals._persistListVisibleSessionState(session, {});
+
+			const snapshot = await db.getCatalogSyncSnapshot();
+			const central = await (localService as unknown as { _orchestratorDatabase: IAgentHostDatabase })._orchestratorDatabase.getSessionV2(session.toString());
+			assert.deepStrictEqual({
+				projectionVersion: snapshot?.projectionVersion,
+				projectedGit: central?.gitSummaryJson ? JSON.parse(central.gitSummaryJson) : undefined,
+				receiptPayload: snapshot?.payload,
+				legacyGit: JSON.parse((await db.getMetadata(META_GIT_STATE)) ?? 'null'),
+			}, {
+				projectionVersion: 4,
+				projectedGit: liveGit,
+				receiptPayload: undefined,
+				legacyGit: liveGit,
+			});
+		});
+
+		test('catalog reconciliation uses strictly parsed persisted Git only as a fallback', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.registerProvider(copilotAgent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const persistedGit: ISessionGitState = {
+				hasGitHubRemote: false,
+				branchName: 'persisted',
+				incomingChanges: 0,
+				outgoingChanges: 4,
+				uncommittedChanges: 0,
+				hasBaseBranchChanges: false,
+			};
+			await db.setMetadata(META_GIT_STATE, JSON.stringify(persistedGit));
+			const internals = localService as unknown as {
+				_resolveCatalogReconciliationSource(registered: IRegisteredSession): Promise<AgentHostCatalogReconciliationSourceResult>;
+			};
+
+			const result = await internals._resolveCatalogReconciliationSource({
+				session,
+				provider: 'copilot',
+				startTime: 1,
+				external: false,
+				source: 'explicit',
+			});
+
+			assert.deepStrictEqual(result.status === 'available' ? {
+				source: result.request.source.git,
+				legacy: JSON.parse(result.request.legacyMetadata[META_GIT_STATE]),
+			} : result, {
+				source: persistedGit,
+				legacy: persistedGit,
+			});
+		});
+
+		test('catalog reconciliation clears malformed persisted Git instead of projecting partial state', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.registerProvider(copilotAgent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			await db.setMetadata(META_GIT_STATE, JSON.stringify({ branchName: 'persisted', incomingChanges: -1 }));
+			const internals = localService as unknown as {
+				_resolveCatalogReconciliationSource(registered: IRegisteredSession): Promise<AgentHostCatalogReconciliationSourceResult>;
+			};
+
+			const result = await internals._resolveCatalogReconciliationSource({
+				session,
+				provider: 'copilot',
+				startTime: 1,
+				external: false,
+				source: 'explicit',
+			});
+
+			assert.deepStrictEqual(result.status === 'available' ? {
+				source: result.request.source.git,
+				legacy: result.request.legacyMetadata[META_GIT_STATE],
+			} : result, {
+				source: undefined,
+				legacy: '',
+			});
+		});
+
+		test('external provider seeding projects live Git into the catalog and legacy metadata', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const git: ISessionGitState = { branchName: 'external', outgoingChanges: 2, githubOwner: 'owner', githubRepo: 'repo' };
+			const session = AgentSession.uri('copilot', 'external-git');
+			const internals = localService as unknown as {
+				_initializeExternalSessionReadState(metadata: IAgentSessionMetadata): Promise<void>;
+				_sessionRegistry: AgentSessionRegistry;
+			};
+			await internals._sessionRegistry.register(session, {
+				provider: 'copilot',
+				startTime: 1,
+				source: 'discovery',
+			}, { checkTombstone: false });
+
+			await internals._initializeExternalSessionReadState({
+				session,
+				startTime: 1,
+				modifiedTime: 2,
+				summary: 'External',
+				_meta: withSessionGitState(undefined, git),
+			});
+
+			const snapshot = await db.getCatalogSyncSnapshot();
+			const central = await (localService as unknown as { _orchestratorDatabase: IAgentHostDatabase })._orchestratorDatabase.getSessionV2(session.toString());
+			assert.deepStrictEqual({
+				projectedGit: central?.gitSummaryJson ? JSON.parse(central.gitSummaryJson) : undefined,
+				receiptPayload: snapshot?.payload,
+				legacyGit: JSON.parse((await db.getMetadata(META_GIT_STATE)) ?? 'null'),
+				workspacelessSentinel: await db.getMetadata(AH_META_WORKSPACELESS_DB_KEY),
+			}, {
+				projectedGit: git,
+				receiptPayload: undefined,
+				legacyGit: git,
+				workspacelessSentinel: undefined,
+			});
+		});
+
+		test('catalog reconciliation replaces an orphaned projection v2 receipt with a fresh current generation', async () => {
+			const db = new TestSessionDatabase();
+			const catalogDatabase = new TransientRegistryWriteDatabase();
+			const session = AgentSession.uri('copilot', 'projection-v2');
+			await createAgentSession(copilotAgent, { session });
+			await catalogDatabase.registerSession(session.toString(), { provider: 'copilot', startTime: 1, source: 'restore' }, { checkTombstone: false });
+			const oldSnapshot: ISessionCatalogSyncPendingSnapshot = {
+				sessionGeneration: 'test-generation',
+				sourceRevision: 7,
+				projectionVersion: 2,
+				payload: '{"projectionVersion":2,"source":{}}',
+				payloadHash: 'projection-v2-hash',
+				state: 'pending',
+			};
+			await db.setMetadataValuesAndCatalogSyncSnapshot({}, oldSnapshot);
+			await db.acknowledgeCatalogSyncSnapshot(oldSnapshot);
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, catalogDatabase));
+
+			localService.registerProvider(copilotAgent);
+			await localService.whenCatalogReconciliationIdle();
+
+			const upgraded = await db.getCatalogSyncSnapshot();
+			assert.deepStrictEqual({
+				projectionVersion: upgraded?.projectionVersion,
+				sourceRevision: upgraded?.sourceRevision,
+				generationChanged: upgraded?.sessionGeneration !== oldSnapshot.sessionGeneration,
+				state: upgraded?.state,
+			}, {
+				projectionVersion: 4,
+				sourceRevision: 0,
+				generationChanged: true,
+				state: 'acknowledged',
+			});
+		});
+
 		test('does not consume a child notification when its creator cannot be resolved', async () => {
 			const sessionData = createPerSessionDataService();
 			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
@@ -7094,7 +8044,11 @@ suite('AgentService (node dispatcher)', () => {
 				async ensureChatAdopted(_chat: URI, _context: URI | IAgentChatContext): Promise<IAgentChatAdoptionResult> {
 					this.adoptCalls++;
 					this._adopted = true;
-					return { adopted: true, eligible: true };
+					return {
+						adopted: true,
+						eligible: true,
+						listVisible: { title: 'Adopted Legacy Title', titleSource: 'user', isRead: true },
+					};
 				}
 				override async getChatMetadata(chat: URI, _context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
 					// Un-adopted: no backend metadata yet (mirrors the real gap).
@@ -7128,9 +8082,28 @@ suite('AgentService (node dispatcher)', () => {
 			localService.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
 			await localService.restoreSession(session);
 
+			const summary = localService.stateManager.getSessionSummary(sessionStr);
 			assert.deepStrictEqual(
-				{ adoptCalls: agent.adoptCalls, restored: !!localService.stateManager.getSessionState(sessionStr) },
-				{ adoptCalls: 1, restored: true },
+				{
+					adoptCalls: agent.adoptCalls,
+					restored: !!localService.stateManager.getSessionState(sessionStr),
+					title: summary?.title,
+					isRead: summary !== undefined && (summary.status & SessionStatus.IsRead) !== 0,
+					persistedTitle: await db.getMetadata(SESSION_CUSTOM_TITLE_KEY),
+					persistedTitleSource: await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY),
+					persistedIsRead: await db.getMetadata(AH_META_IS_READ_DB_KEY),
+					hasCatalogSyncSnapshot: await db.getCatalogSyncSnapshot() !== undefined,
+				},
+				{
+					adoptCalls: 1,
+					restored: true,
+					title: 'Adopted Legacy Title',
+					isRead: true,
+					persistedTitle: 'Adopted Legacy Title',
+					persistedTitleSource: 'user',
+					persistedIsRead: 'true',
+					hasCatalogSyncSnapshot: true,
+				},
 			);
 		});
 
@@ -7199,6 +8172,159 @@ suite('AgentService (node dispatcher)', () => {
 					{ action: action.type, adoptCalls: 0, restored: false },
 				);
 			}
+		});
+
+		test('an adopted surfaced session continues syncing mutations and survives restart', async () => {
+			class AdoptOnOpenAgent extends MockAgent {
+				private _adopted = false;
+
+				constructor() {
+					super('copilot');
+				}
+
+				async ensureChatAdopted(_chat: URI, _context: URI | IAgentChatContext): Promise<IAgentChatAdoptionResult> {
+					this._adopted = true;
+					return { adopted: true, eligible: true };
+				}
+
+				override async getChatMetadata(chat: URI): Promise<IAgentChatMetadata | undefined> {
+					return this._adopted ? { chat, startTime: 1, modifiedTime: 1 } : undefined;
+				}
+			}
+
+			const sessionDatabase = new TestSessionDatabase();
+			const catalogDatabase = new TestAgentHostOrchestratorDatabase();
+			const localService = disposables.add(new AgentService(
+				new NullLogService(),
+				fileService,
+				createSessionDataService(sessionDatabase),
+				{ _serviceBrand: undefined } as IProductService,
+				createNoopGitService(),
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				[],
+				undefined,
+				undefined,
+				catalogDatabase,
+			));
+			const agent = disposables.add(new AdoptOnOpenAgent());
+			localService.registerProvider(agent);
+			localService.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+			const session = AgentSession.uri('copilot', 'adopted-surfaced-sync');
+			const sessionString = session.toString();
+			localService.stateManager.announceSurfacedSession({
+				resource: sessionString,
+				provider: 'copilot',
+				title: 'Legacy',
+				status: SessionStatus.Idle,
+				createdAt: new Date(1).toISOString(),
+				modifiedAt: new Date(1).toISOString(),
+				_meta: withSessionEhcliAdoptable(undefined),
+			});
+
+			await localService.restoreSession(session);
+			localService.stateManager.dispatchServerAction(sessionString, { type: ActionType.SessionTitleChanged, title: 'Renamed' });
+			localService.stateManager.dispatchServerAction(sessionString, { type: ActionType.SessionIsReadChanged, isRead: true });
+			localService.stateManager.dispatchServerAction(sessionString, { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+			const state = localService.stateManager.getSessionState(sessionString);
+			localService.stateManager.setSessionMeta(sessionString, withSessionArtifacts(state?._meta, [{
+				id: 'artifact',
+				type: SessionArtifactType.Website,
+				label: 'Artifact',
+				link: 'https://example.com',
+			}]));
+			await (localService as unknown as { _persistOrderedListVisibleSessionState(session: URI, metadataOverrides: Readonly<Record<string, string>>): Promise<void> })._persistOrderedListVisibleSessionState(session, {
+				[AH_META_IS_READ_DB_KEY]: 'true',
+				[AH_META_IS_ARCHIVED_DB_KEY]: 'true',
+				[SESSION_ARTIFACTS_KEY]: JSON.stringify([{
+					id: 'artifact',
+					type: SessionArtifactType.Website,
+					label: 'Artifact',
+					link: 'https://example.com',
+				}]),
+			});
+			await localService.whenCatalogReconciliationIdle();
+			const persisted = await catalogDatabase.getSessionV2(sessionString);
+
+			const restartedService = disposables.add(new AgentService(
+				new NullLogService(),
+				fileService,
+				createSessionDataService(sessionDatabase),
+				{ _serviceBrand: undefined } as IProductService,
+				createNoopGitService(),
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				[],
+				undefined,
+				undefined,
+				catalogDatabase,
+				Date.now,
+				undefined,
+				'central',
+			));
+			const [restarted] = await restartedService.listSessions();
+
+			assert.deepStrictEqual({
+				title: restarted.summary,
+				isRead: ((restarted.status ?? SessionStatus.Idle) & SessionStatus.IsRead) !== 0,
+				isArchived: ((restarted.status ?? SessionStatus.Idle) & SessionStatus.IsArchived) !== 0,
+				artifacts: readSessionArtifacts(restarted._meta),
+				persistedArtifacts: persisted?.artifactsJson ? JSON.parse(persisted.artifactsJson) : undefined,
+			}, {
+				title: 'Renamed',
+				isRead: true,
+				isArchived: true,
+				artifacts: [{
+					id: 'artifact',
+					type: SessionArtifactType.Website,
+					label: 'Artifact',
+					link: 'https://example.com',
+				}],
+				persistedArtifacts: [{
+					id: 'artifact',
+					type: SessionArtifactType.Website,
+					label: 'Artifact',
+					link: 'https://example.com',
+				}],
+			});
+		});
+
+		test('catalog suppression defers explicit metadata overrides without dropping them', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.registerProvider(copilotAgent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const sessionKey = session.toString();
+			const internals = localService as unknown as {
+				_catalogSyncSuppressedSessions: Set<string>;
+				_queueCatalogSync(session: URI, metadataOverrides: Readonly<Record<string, string>>): void;
+				_persistOrderedListVisibleSessionState(session: URI, metadataOverrides: Readonly<Record<string, string>>): Promise<void>;
+			};
+			internals._catalogSyncSuppressedSessions.add(sessionKey);
+			internals._queueCatalogSync(session, {
+				[SESSION_CUSTOM_TITLE_KEY]: 'Deferred rename',
+				[SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user',
+				[SESSION_ARTIFACTS_KEY]: '[]',
+			});
+
+			await internals._persistOrderedListVisibleSessionState(session, {});
+			internals._catalogSyncSuppressedSessions.delete(sessionKey);
+
+			assert.deepStrictEqual({
+				title: await db.getMetadata(SESSION_CUSTOM_TITLE_KEY),
+				titleSource: await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY),
+				artifacts: await db.getMetadata(SESSION_ARTIFACTS_KEY),
+			}, {
+				title: 'Deferred rename',
+				titleSource: 'user',
+				artifacts: '[]',
+			});
 		});
 
 		test('turning the migrate setting off un-surfaces adoptable legacy sessions that were never opened', async () => {
@@ -8785,7 +9911,7 @@ suite('AgentService (node dispatcher)', () => {
 				await timeout(1);
 			}
 			agent.chatMessages.set(peerChat.toString(), [completedTurn('peer-turn', 'Remember X', 'Remembered')]);
-			localService.stateManager.removeChat(session.toString(), peerChat.toString());
+			localService.stateManager.deleteSession(session.toString());
 
 			const sent = Event.toPromise(agent.onDidSendMessage);
 			localService.dispatchAction(buildDefaultChatUri(session), {
@@ -9639,6 +10765,228 @@ suite('AgentService (node dispatcher)', () => {
 			}
 			return [];
 		}
+
+		test('create and delete publish complete central chat sets while retaining downgrade metadata', async () => {
+			class MultiChatAgent extends MockAgent {
+				override async createChat(): Promise<IAgentCreateChatResult> {
+					return { providerData: 'peer-backing' };
+				}
+			}
+			const db = new TestSessionDatabase();
+			const catalogDatabase = disposables.add(new AgentHostDatabase(':memory:'));
+			const localService = disposables.add(new AgentService(
+				new NullLogService(),
+				fileService,
+				createSessionDataService(db),
+				{ _serviceBrand: undefined } as IProductService,
+				createNoopGitService(),
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				[],
+				undefined,
+				undefined,
+				catalogDatabase,
+			));
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const peer = URI.parse(buildChatUri(session, 'central-peer'));
+
+			await localService.createChat(session, peer, { title: 'Central Peer' });
+			const afterCreate = await catalogDatabase.getSessionV2(session.toString());
+			const stateTitleAfterCreate = localService.stateManager.getSessionState(session.toString())?.chats.find(chat => chat.resource === peer.toString())?.title;
+			const legacyTitleAfterCreate = await db.getMetadata(`customChatTitle:${peer.toString()}`);
+			await db.setChatDraft(peer, { text: 'delete me', origin: { kind: MessageKind.User } });
+			await localService.disposeChat(session, peer);
+			const afterDelete = await catalogDatabase.getSessionV2(session.toString());
+
+			assert.deepStrictEqual({
+				afterCreate: afterCreate ? (JSON.parse(afterCreate.chatsJson) as Array<{ uri: string; order: number; kind: string; title?: string }>).map(chat => ({ uri: chat.uri, order: chat.order, kind: chat.kind, title: chat.title })) : undefined,
+				afterDelete: afterDelete ? (JSON.parse(afterDelete.chatsJson) as Array<{ uri: string; order: number; kind: string }>).map(chat => ({ uri: chat.uri, order: chat.order, kind: chat.kind })) : undefined,
+				legacy: await readCatalog(db),
+				stateTitleAfterCreate,
+				legacyTitleAfterCreate,
+				draft: await db.getChatDraft(peer),
+			}, {
+				afterCreate: [
+					{ uri: buildDefaultChatUri(session), order: 0, kind: 'default', title: undefined },
+					{ uri: peer.toString(), order: 1, kind: 'peer', title: 'Central Peer' },
+				],
+				afterDelete: [
+					{ uri: buildDefaultChatUri(session), order: 0, kind: 'default' },
+				],
+				legacy: [],
+				stateTitleAfterCreate: 'Central Peer',
+				legacyTitleAfterCreate: 'Central Peer',
+				draft: undefined,
+			});
+		});
+
+		test('restart restores central peer membership without legacy enumeration and loads backing lazily', async () => {
+			class CountingDatabase extends TestSessionDatabase {
+				peerCatalogReads = 0;
+
+				override async getMetadata(key: string): Promise<string | undefined> {
+					if (key === 'peerChats') {
+						this.peerCatalogReads++;
+					}
+					return super.getMetadata(key);
+				}
+			}
+			class MultiChatAgent extends MockAgent {
+				legacyEnumerations = 0;
+				peerMaterializations = 0;
+
+				override async createChat(): Promise<IAgentCreateChatResult> {
+					return { providerData: 'lazy-backing' };
+				}
+
+				async listLegacyChatBackings(): Promise<readonly IAgentLegacyChat[]> {
+					this.legacyEnumerations++;
+					return [];
+				}
+
+				override async materializeChat(chat: URI): Promise<void> {
+					if (!isDefaultChatUri(chat)) {
+						this.peerMaterializations++;
+					}
+				}
+			}
+			const db = new CountingDatabase();
+			const catalogDatabase = disposables.add(new AgentHostDatabase(':memory:'));
+			const localService = disposables.add(new AgentService(
+				new NullLogService(),
+				fileService,
+				createSessionDataService(db),
+				{ _serviceBrand: undefined } as IProductService,
+				createNoopGitService(),
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				[],
+				undefined,
+				undefined,
+				catalogDatabase,
+			));
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const peer = URI.parse(buildChatUri(session, 'lazy-central-peer'));
+			await localService.createChat(session, peer, { title: 'Lazy Central Peer' });
+			db.peerCatalogReads = 0;
+
+			localService.stateManager.deleteSession(session.toString());
+			await localService.restoreSession(session);
+			const restored = localService.stateManager.getSessionState(session.toString())?.chats.map(chat => ({
+				uri: chat.resource,
+				title: chat.title,
+			}));
+			const beforeAccess = {
+				peerCatalogReads: db.peerCatalogReads,
+				legacyEnumerations: agent.legacyEnumerations,
+				peerMaterializations: agent.peerMaterializations,
+			};
+			await localService.subscribe(peer, 'lazy-central-reader');
+
+			assert.deepStrictEqual({
+				restored,
+				beforeAccess,
+				afterAccess: {
+					peerCatalogReads: db.peerCatalogReads,
+					legacyEnumerations: agent.legacyEnumerations,
+					peerMaterializations: agent.peerMaterializations,
+				},
+			}, {
+				restored: [
+					{ uri: buildDefaultChatUri(session), title: '' },
+					{ uri: peer.toString(), title: 'Lazy Central Peer' },
+				],
+				beforeAccess: {
+					peerCatalogReads: 0,
+					legacyEnumerations: 0,
+					peerMaterializations: 0,
+				},
+				afterAccess: {
+					peerCatalogReads: 0,
+					legacyEnumerations: 0,
+					peerMaterializations: 1,
+				},
+			});
+		});
+
+		test('restart replaces stale central peer membership with the cooling-period legacy catalog', async () => {
+			class MultiChatAgent extends MockAgent {
+				legacyEnumerations = 0;
+				readonly materialized: string[] = [];
+
+				override async createChat(): Promise<IAgentCreateChatResult> {
+					return { providerData: 'central-backing' };
+				}
+
+				async listLegacyChatBackings(): Promise<readonly IAgentLegacyChat[]> {
+					this.legacyEnumerations++;
+					return [];
+				}
+
+				override async materializeChat(chat: URI): Promise<void> {
+					this.materialized.push(chat.toString());
+				}
+			}
+			const db = new TestSessionDatabase();
+			const catalogDatabase = disposables.add(new AgentHostDatabase(':memory:'));
+			const localService = disposables.add(new AgentService(
+				new NullLogService(),
+				fileService,
+				createSessionDataService(db),
+				{ _serviceBrand: undefined } as IProductService,
+				createNoopGitService(),
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				[],
+				undefined,
+				undefined,
+				catalogDatabase,
+			));
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const centralPeer = URI.parse(buildChatUri(session, 'central-peer'));
+			const legacyPeer = URI.parse(buildChatUri(session, 'newer-legacy-peer'));
+			await localService.createChat(session, centralPeer, { title: 'Central Peer' });
+			await db.setMetadata('peerChats', JSON.stringify([
+				{ uri: legacyPeer.toString(), providerData: 'legacy-backing' },
+			]));
+
+			localService.stateManager.deleteSession(session.toString());
+			await localService.restoreSession(session);
+			const firstRestore = localService.stateManager.getSessionState(session.toString())?.chats.map(chat => chat.resource);
+			const repairedCentral = await catalogDatabase.getSessionV2(session.toString());
+			await localService.subscribe(legacyPeer, 'legacy-reader');
+			localService.stateManager.deleteSession(session.toString());
+			await localService.restoreSession(session);
+
+			assert.deepStrictEqual({
+				firstRestore,
+				repairedCentral: repairedCentral ? (JSON.parse(repairedCentral.chatsJson) as Array<{ uri: string }>).map(chat => chat.uri) : undefined,
+				secondRestore: localService.stateManager.getSessionState(session.toString())?.chats.map(chat => chat.resource),
+				legacyEnumerations: agent.legacyEnumerations,
+				materialized: agent.materialized.filter(chat => !isDefaultChatUri(URI.parse(chat))).sort(),
+			}, {
+				firstRestore: [buildDefaultChatUri(session), legacyPeer.toString()],
+				repairedCentral: [buildDefaultChatUri(session), legacyPeer.toString()],
+				secondRestore: [buildDefaultChatUri(session), legacyPeer.toString()],
+				legacyEnumerations: 0,
+				materialized: [legacyPeer.toString()],
+			});
+		});
 
 		test('rolls back a new peer chat when its catalog entry cannot be persisted', async () => {
 			class FailingPeerCatalogDatabase extends TestSessionDatabase {
@@ -10666,6 +12014,49 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('malformed legacy peerChats data is rebuilt from provider enumeration', async () => {
+			class LegacyAgent extends MockAgent {
+				legacyEnumerations = 0;
+
+				async listLegacyChatBackings(): Promise<readonly IAgentLegacyChat[]> {
+					this.legacyEnumerations++;
+					return [];
+				}
+			}
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(
+				new NullLogService(),
+				fileService,
+				createSessionDataService(db),
+				{ _serviceBrand: undefined } as IProductService,
+				createNoopGitService(),
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				[],
+				undefined,
+				undefined,
+				new TestAgentHostOrchestratorDatabase(),
+			));
+			const agent = disposables.add(new LegacyAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			await db.setMetadata('peerChats', '{"not":"an array"}');
+			localService.stateManager.deleteSession(session.toString());
+
+			await localService.restoreSession(session);
+
+			assert.deepStrictEqual({
+				legacyEnumerations: agent.legacyEnumerations,
+				repaired: await db.getMetadata('peerChats'),
+			}, {
+				legacyEnumerations: 1,
+				repaired: '[]',
+			});
+		});
+
 		test('a valid new-format peerChats catalog restores without consulting legacy chats', async () => {
 			class LegacyAgent extends MockAgent {
 				listLegacyCallCount = 0;
@@ -10741,7 +12132,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('a rejected migration write leaves the catalog absent (not a subset) so migration re-runs', async () => {
 			class FailingCatalogDatabase extends TestSessionDatabase {
-				failPeerChatsWrites = 1;
+				failPeerChatsWrites = 0;
 				override async setMetadata(key: string, value: string): Promise<void> {
 					if (key === 'peerChats' && this.failPeerChatsWrites > 0) {
 						this.failPeerChatsWrites--;
@@ -10761,13 +12152,30 @@ suite('AgentService (node dispatcher)', () => {
 				}
 			}
 			const db = new FailingCatalogDatabase();
-			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const orchestratorDatabase = new TestAgentHostOrchestratorDatabase();
+			const localService = disposables.add(new AgentService(
+				new NullLogService(),
+				fileService,
+				createSessionDataService(db),
+				{ _serviceBrand: undefined } as IProductService,
+				createNoopGitService(),
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				[],
+				undefined,
+				undefined,
+				orchestratorDatabase,
+			));
 			const agent = disposables.add(new LegacyAgent('copilot'));
 			localService.registerProvider(agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 
 			// First restore: the single catalog write is rejected. Because the write
 			// is all-or-nothing, the key must stay absent (never a proper subset).
+			db.failPeerChatsWrites = 1;
 			localService.stateManager.deleteSession(session.toString());
 			await assert.rejects(() => localService.restoreSession(session), /simulated catalog write failure/);
 			const catalogAfterFailedWrite = await db.getMetadata('peerChats');
@@ -10800,6 +12208,14 @@ suite('AgentService (node dispatcher)', () => {
 						await this.finalRenamePersisted.complete();
 					}
 				}
+
+				override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
+					const result = await super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot);
+					if (this.finalRenameKey && values[this.finalRenameKey] === 'Complete replacement peer chat title') {
+						await this.finalRenamePersisted.complete();
+					}
+					return result;
+				}
 			}
 			class ServerToolAgent extends MockAgent {
 				serverToolHost: IAgentServerToolHost | undefined;
@@ -10810,7 +12226,23 @@ suite('AgentService (node dispatcher)', () => {
 			}
 
 			const db = new RecordingTitleDatabase();
-			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const catalogDatabase = disposables.add(new AgentHostDatabase(':memory:'));
+			const localService = disposables.add(new AgentService(
+				new NullLogService(),
+				fileService,
+				createSessionDataService(db),
+				{ _serviceBrand: undefined } as IProductService,
+				createNoopGitService(),
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				[],
+				undefined,
+				undefined,
+				catalogDatabase,
+			));
 			localService.configurationService.updateRootConfig({ [AgentHostActiveAgentTitleGenerationConfigKey]: true });
 			const agent = disposables.add(new ServerToolAgent('copilot'));
 			localService.registerProvider(agent);
@@ -10843,6 +12275,12 @@ suite('AgentService (node dispatcher)', () => {
 			});
 			await db.finalRenamePersisted.p;
 			await timeout(0);
+			const central = await catalogDatabase.getSessionV2(sessionUri);
+			const centralChats = central ? (JSON.parse(central.chatsJson) as Array<{ uri: string; title?: string; titleSource?: string }>).map(chat => ({
+				uri: chat.uri,
+				title: chat.title,
+				titleSource: chat.titleSource,
+			})) : undefined;
 
 			assert.deepStrictEqual({
 				singleChatResult,
@@ -10857,6 +12295,7 @@ suite('AgentService (node dispatcher)', () => {
 				persistedDefaultChatSource: await db.getMetadata(`customChatTitleSource:${defaultChat}`),
 				persistedChatTitle: await db.getMetadata(`customChatTitle:${peerChat}`),
 				persistedChatSource: await db.getMetadata(`customChatTitleSource:${peerChat}`),
+				centralChats,
 			}, {
 				singleChatResult: 'Renamed chat to "Single-chat title".',
 				multiChatDefaultResult: 'Renamed chat to "Complete replacement default chat title".',
@@ -10870,6 +12309,10 @@ suite('AgentService (node dispatcher)', () => {
 				persistedDefaultChatSource: 'agent',
 				persistedChatTitle: 'Complete replacement peer chat title',
 				persistedChatSource: 'agent',
+				centralChats: [
+					{ uri: defaultChat, title: 'Complete replacement default chat title', titleSource: 'agent' },
+					{ uri: peerChat, title: 'Complete replacement peer chat title', titleSource: 'agent' },
+				],
 			});
 		});
 
@@ -10878,14 +12321,23 @@ suite('AgentService (node dispatcher)', () => {
 				readonly allFailuresObserved = new DeferredPromise<void>();
 				private failureCount = 0;
 
-				override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
+				private async failTitleWrite(values: Readonly<Record<string, string>>): Promise<void> {
 					if (Object.keys(values).some(key => key.startsWith('customTitle') || key.startsWith('customChatTitle'))) {
 						if (++this.failureCount === 3) {
 							await this.allFailuresObserved.complete();
 						}
 						throw new Error('title persistence failed');
 					}
+				}
+
+				override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
+					await this.failTitleWrite(values);
 					return super.setMetadataValues(values);
+				}
+
+				override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
+					await this.failTitleWrite(values);
+					return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot);
 				}
 			}
 			class ServerToolAgent extends MockAgent {

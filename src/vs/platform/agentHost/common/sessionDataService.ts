@@ -105,6 +105,40 @@ export interface ILocalTurnRecord {
 	payload: string;
 }
 
+interface ISessionCatalogSyncIdentity {
+	readonly sessionGeneration: string;
+	readonly sourceRevision: number;
+	readonly projectionVersion: number;
+}
+
+/** Durable canonical catalog projection awaiting central acknowledgement. */
+export interface ISessionCatalogSyncPendingSnapshot extends ISessionCatalogSyncIdentity {
+	readonly payload: string;
+	readonly payloadHash: string;
+	readonly acknowledgedHash?: string;
+	readonly state: 'pending';
+}
+
+/** Compact receipt retained after the pending payload has been acknowledged. */
+export interface ISessionCatalogSyncAcknowledgedSnapshot extends ISessionCatalogSyncIdentity {
+	readonly payload: undefined;
+	readonly payloadHash: string;
+	readonly acknowledgedHash: string;
+	readonly state: 'acknowledged';
+}
+
+export type ISessionCatalogSyncSnapshot = ISessionCatalogSyncPendingSnapshot | ISessionCatalogSyncAcknowledgedSnapshot;
+
+/** Identity fields required to acknowledge exactly one catalog synchronization snapshot. */
+export interface ISessionCatalogSyncAcknowledgement {
+	readonly sessionGeneration: string;
+	readonly sourceRevision: number;
+	readonly projectionVersion: number;
+	readonly payloadHash: string;
+}
+
+/** Outcome of atomically storing metadata with a catalog synchronization snapshot. */
+export type SessionCatalogSyncWriteResult = 'applied' | 'replayed';
 
 /**
  * A disposable handle to a per-session SQLite database backed by
@@ -289,6 +323,26 @@ export interface ISessionDatabase extends IDisposable {
 	 * Atomically store multiple metadata key-value pairs.
 	 */
 	setMetadataValues(values: Readonly<Record<string, string>>): Promise<void>;
+
+	/**
+	 * Atomically stores metadata and advances the durable catalog relay snapshot.
+	 */
+	setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult>;
+
+	/**
+	 * Atomically transitions to a new session generation when the stored generation matches.
+	 */
+	transitionMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, expectedSessionGeneration: string, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<boolean>;
+
+	/**
+	 * Returns the durable catalog relay snapshot, if one has been stored.
+	 */
+	getCatalogSyncSnapshot(): Promise<ISessionCatalogSyncSnapshot | undefined>;
+
+	/**
+	 * Acknowledges the snapshot only when every supplied identity field still matches.
+	 */
+	acknowledgeCatalogSyncSnapshot(acknowledgement: ISessionCatalogSyncAcknowledgement): Promise<boolean>;
 
 	/**
 	 * Store or clear the draft for a chat in this session.

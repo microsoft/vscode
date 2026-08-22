@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentSession } from '../../common/agent.js';
-import { AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseExternalUpdate, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionOptions } from '../../node/agentHostDatabase.js';
+import { AgentHostDatabase, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseExternalUpdate, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Projection } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 
 class TestAgentHostDatabase implements IAgentHostDatabase {
@@ -137,6 +137,10 @@ class TestAgentHostDatabase implements IAgentHostDatabase {
 		this._throwReadFailure();
 		return [...this.agentMergeEnabled];
 	}
+
+	async getSessionV2(): Promise<IAgentHostDatabaseSessionV2 | undefined> { return undefined; }
+	async listSessionsV2(): Promise<readonly IAgentHostDatabaseSessionV2[]> { return []; }
+	async upsertSessionV2(_projection: IAgentHostDatabaseSessionV2Projection, _expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> { return 'missingSession'; }
 
 	async close(): Promise<void> { }
 	dispose(): void { }

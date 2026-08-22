@@ -6,13 +6,11 @@
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { ILogService } from '../../../log/common/log.js';
-import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, StateAction } from '../../common/state/sessionActions.js';
 import { isAhpChatChannel, parseRequiredSessionUriFromChatUri, ResponsePartKind, ToolCallStatus, ToolResultContentType, type ISessionWithDefaultChat, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { AgentHostLocalTurns } from '../agentHostLocalTurns.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import { AgentHostStateManager } from '../agentHostStateManager.js';
-import { persistSessionMetadata } from '../shared/persistSessionMetadata.js';
 
 /**
  * A just-started chat turn offered to the local-command dispatcher before it is
@@ -43,8 +41,8 @@ export interface ILocalChatCommandContext {
 	getState(channel: ProtocolURI): ISessionWithDefaultChat | undefined;
 	/** Rename a single chat (independently of the session title). */
 	updateChatTitle(session: ProtocolURI, chat: ProtocolURI, title: string): void;
-	/** Persist a session-metadata key/value pair (e.g. a custom title). */
-	persistSessionFlag(session: ProtocolURI, key: string, value: string): void;
+	/** Persist a coordinated set of session metadata values. */
+	persistSessionMetadata(session: ProtocolURI, values: Readonly<Record<string, string>>): void;
 	/** Suppress automatic naming after a local user rename. */
 	markTitleRenamed(session: ProtocolURI, chat?: ProtocolURI): void;
 }
@@ -141,9 +139,9 @@ export class AgentHostLocalCommands extends Disposable {
 		 */
 		private readonly _notifyTurnConsumable: (turnChannel: ProtocolURI) => void,
 		private readonly _markTitleRenamed: (session: ProtocolURI, chat?: ProtocolURI) => void,
+		private readonly _persistSessionMetadata: (session: ProtocolURI, values: Readonly<Record<string, string>>) => void,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostTerminalManager private readonly _terminalManager: IAgentHostTerminalManager,
-		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 	) {
 		super();
 		const context: ILocalChatCommandContext = {
@@ -152,7 +150,7 @@ export class AgentHostLocalCommands extends Disposable {
 			dispatch: (channel, action) => this._stateManager.dispatchServerAction(channel, action),
 			getState: channel => this._stateManager.getSessionState(channel),
 			updateChatTitle: (session, chat, title) => this._stateManager.updateChatTitle(session, chat, title),
-			persistSessionFlag: (session, key, value) => persistSessionMetadata(this._sessionDataService, this._logService, session, key, value),
+			persistSessionMetadata: (session, values) => this._persistSessionMetadata(session, values),
 			markTitleRenamed: (session, chat) => this._markTitleRenamed(session, chat),
 		};
 		this._commands = LocalChatCommandRegistry.createAll(context).map(command => this._register(command));
