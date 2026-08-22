@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Terminal } from '@xterm/xterm';
+import type { IDecoration, IDecorationOptions, Terminal } from '@xterm/xterm';
 import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { timeout } from '../../../../../../base/common/async.js';
@@ -16,6 +16,9 @@ import { IEditorOptions } from '../../../../../../editor/common/config/editorOpt
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ITerminalCommand, TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { CommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/commandDetectionCapability.js';
+import { PartialCommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/partialCommandDetectionCapability.js';
 import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { TestColorTheme, TestThemeService } from '../../../../../../platform/theme/test/common/testThemeService.js';
@@ -57,7 +60,11 @@ const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	scrollback: 10,
 	fastScrollSensitivity: 2,
 	mouseWheelScrollSensitivity: 1,
-	unicodeVersion: '6'
+	unicodeVersion: '6',
+	shellIntegration: {
+		enabled: true,
+		decorationsEnabled: 'both'
+	}
 };
 
 suite('XtermTerminal', () => {
@@ -68,6 +75,7 @@ suite('XtermTerminal', () => {
 	let themeService: TestThemeService;
 	let xterm: XtermTerminal;
 	let XTermBaseCtor: typeof Terminal;
+	let capabilityStore: TerminalCapabilityStore;
 
 	function write(data: string): Promise<void> {
 		return new Promise<void>((resolve) => {
@@ -94,7 +102,7 @@ suite('XtermTerminal', () => {
 
 		XTermBaseCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 
-		const capabilityStore = store.add(new TerminalCapabilityStore());
+		capabilityStore = store.add(new TerminalCapabilityStore());
 		xterm = store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {
 			cols: 80,
 			rows: 30,
@@ -112,6 +120,79 @@ suite('XtermTerminal', () => {
 	test('should use fallback dimensions of 80x30', () => {
 		strictEqual(xterm.raw.cols, 80);
 		strictEqual(xterm.raw.rows, 30);
+	});
+
+	test('clearBuffer should clear rich and partial command history including scrollback', async () => {
+		class TestTerminal extends XTermBaseCtor {
+			override registerDecoration(options: IDecorationOptions): IDecoration | undefined {
+				const disposeListeners = new Set<() => unknown>();
+				let isDisposed = false;
+				return {
+					marker: options.marker,
+					options,
+					get isDisposed() { return isDisposed; },
+					dispose: () => {
+						isDisposed = true;
+						for (const listener of disposeListeners) {
+							listener();
+						}
+						disposeListeners.clear();
+					},
+					onDispose: (listener: () => unknown) => {
+						disposeListeners.add(listener);
+						return { dispose: () => disposeListeners.delete(listener) };
+					},
+					onRender: (listener: (element: HTMLElement) => unknown) => {
+						listener(document.createElement('div'));
+						return { dispose() { } };
+					}
+				} as unknown as IDecoration;
+			}
+		}
+		capabilityStore = store.add(new TerminalCapabilityStore());
+		xterm = store.add(instantiationService.createInstance(XtermTerminal, undefined, TestTerminal, {
+			cols: 80,
+			rows: 30,
+			xtermColorProvider: { getBackgroundColor: () => undefined },
+			capabilities: capabilityStore,
+			disableShellIntegrationReporting: true,
+			xtermAddonImporter: new TestXtermAddonImporter(),
+		}, undefined));
+		const commandDetection = store.add(instantiationService.createInstance(CommandDetectionCapability, xterm.raw));
+		const onDidExecuteText = store.add(new Emitter<void>());
+		const partialCommandDetection = store.add(new PartialCommandDetectionCapability(xterm.raw, onDidExecuteText.event));
+		capabilityStore.add(TerminalCapability.CommandDetection, commandDetection);
+		capabilityStore.add(TerminalCapability.PartialCommandDetection, partialCommandDetection);
+
+		xterm.raw.registerMarker(0);
+		commandDetection.handlePromptStart();
+		await write('$ ');
+		commandDetection.handleCommandStart();
+		await write('echo test');
+		commandDetection.handleCommandExecuted();
+		await write('\r\noutput\r\n');
+		commandDetection.handleCommandFinished(0);
+
+		await write('partial');
+		xterm.raw.input('\r');
+		await write('\r\n');
+		await write('line\r\n'.repeat(xterm.raw.rows));
+
+		strictEqual(xterm.raw.buffer.active.baseY > 0, true);
+		strictEqual(commandDetection.commands.length, 1);
+		strictEqual(partialCommandDetection.commands.length, 1);
+		const decorations = (xterm.decorationAddon as unknown as { _decorations: Map<number, unknown> })._decorations;
+		const clearedCommandMarkerId = commandDetection.commands[0].marker!.id;
+		strictEqual(decorations.has(clearedCommandMarkerId), true);
+		const invalidatedCommands: ITerminalCommand[] = [];
+		store.add(commandDetection.onCommandInvalidated(commands => invalidatedCommands.push(...commands)));
+
+		xterm.clearBuffer();
+
+		deepStrictEqual(commandDetection.commands, []);
+		deepStrictEqual(partialCommandDetection.commands, []);
+		deepStrictEqual(invalidatedCommands.map(e => e.command), ['echo test']);
+		strictEqual(decorations.has(clearedCommandMarkerId), false);
 	});
 
 	test('disables custom glyphs when moved into an auxiliary window', async () => {

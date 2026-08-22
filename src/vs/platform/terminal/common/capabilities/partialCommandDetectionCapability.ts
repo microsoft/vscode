@@ -78,4 +78,8 @@ export class PartialCommandDetectionCapability extends DisposableStore implement
 		// Remove them
 		this._commands.splice(this._commands.length - count, count);
 	}
+
+	clearCommands(): void {
+		this._commands.length = 0;
+	}
 }
