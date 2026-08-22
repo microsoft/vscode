@@ -151,6 +151,16 @@ suite('createEditAddingLinksForUriList', () => {
 			});
 			assert.strictEqual(edit?.edits?.[0].snippet.value, '![${1:alt text}](https://www.example.com/)');
 		});
+
+		test('Should escape parens in link text placeholder', () => {
+			const edit = createInsertUriListEdit(makeTestDoc('file(name)'), [new vscode.Range(0, 0, 0, 10)], UriList.from('https://www.microsoft.com'));
+			assert.strictEqual(edit?.edits?.[0].snippet.value, '[${2:file\\\\(name\\\\)}](https://www.microsoft.com)');
+		});
+
+		test('Should escape parens in image alt text placeholder', () => {
+			const edit = createInsertUriListEdit(makeTestDoc('file(name)'), [new vscode.Range(0, 0, 0, 10)], UriList.from('https://www.example.com/cat.png'));
+			assert.strictEqual(edit?.edits?.[0].snippet.value, '![${2:file\\\\(name\\\\)}](https://www.example.com/cat.png)');
+		});
 	});
 
 
