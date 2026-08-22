@@ -147,7 +147,7 @@ export class LineEdit {
 			result.push(`${specialChar} ${origLn} ${modLn} ${content}`);
 		}
 
-		function pushSeperator() {
+		function pushSeparator() {
 			result.push('---');
 		}
 
