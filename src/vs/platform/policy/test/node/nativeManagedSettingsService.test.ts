@@ -99,6 +99,37 @@ suite('NativeManagedSettingsService', () => {
 		assert.deepStrictEqual(service.managedSettings, { second: true });
 	});
 
+	test('keeps callbacks from the active watcher when replacement fails', async () => {
+		let callback: ((update: Record<string, PolicyValue | undefined>) => void) | undefined;
+		let failCreation = false;
+		const watcherFactory: NativePolicyWatcherFactory = (_productName, _policies, onDidChange) => {
+			if (failCreation) {
+				throw new Error('failed to replace watcher');
+			}
+			callback = onDidChange;
+			onDidChange({});
+			return Disposable.None;
+		};
+
+		const service = disposables.add(new NativeManagedSettingsService(new NullLogService(), 'com.github.copilot', undefined, watcherFactory));
+		await service.updatePolicyDefinitions({
+			[policyName]: {
+				type: 'boolean',
+				managedSettings: { first: { type: 'boolean' } },
+			},
+		});
+		failCreation = true;
+		await assert.rejects(service.updatePolicyDefinitions({
+			[policyName]: {
+				type: 'boolean',
+				managedSettings: { second: { type: 'boolean' } },
+			},
+		}), /failed to replace watcher/);
+
+		callback?.({ first: true });
+		assert.deepStrictEqual(service.managedSettings, { first: true });
+	});
+
 	test('watches transport controls without a managed-settings policy definition', async () => {
 		let watchedSettings: IManagedSettingsPolicyDefinitions = {};
 		const watcherFactory: NativePolicyWatcherFactory = (_productName, policies, callback) => {
