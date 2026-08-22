@@ -1595,6 +1595,14 @@ suite('stateToProgressAdapter', () => {
 			);
 		});
 
+		test('maps the reveal command resource through the Agent Host connection', () => {
+			const tc = createToolCallState({ toolName: 'addComment', invocationMessage: 'Adding comment', toolInput: addCommentInput('Remote note') });
+			const message = markdown(rawToolCallStateToInvocation(tc, undefined, URI.file('/'), 'remote-test').invocationMessage);
+			const mappedResource = toAgentHostUri(URI.parse('file:///workspace/a.ts'), 'remote-test').toString();
+
+			assert.ok(message.value.includes(encodeURIComponent(JSON.stringify([mappedResource, commentRange]))), message.value);
+		});
+
 		test('does not truncate a short comment', () => {
 			const tc = createToolCallState({ toolName: 'addComment', invocationMessage: 'Adding comment', toolInput: addCommentInput('Short note') });
 			const message = markdown(toolCallStateToInvocation(tc).invocationMessage);

@@ -276,7 +276,7 @@ function feedbackToAnnotation(feedback: IAgentFeedback): Annotation {
 	};
 }
 
-function annotationToFeedback(annotation: Annotation, sessionResource: URI): IAgentFeedback | undefined {
+function annotationToFeedback(annotation: Annotation, sessionResource: URI, connection: IAgentConnection): IAgentFeedback | undefined {
 	const entries = annotation.entries ?? [];
 	const meta = readFeedbackMeta(annotation);
 	// The annotations channel is generic and may carry annotations produced by
@@ -293,7 +293,7 @@ function annotationToFeedback(annotation: Annotation, sessionResource: URI): IAg
 	return {
 		id: annotation.id,
 		text: entryText(entries[0].text),
-		resourceUri: URI.parse(annotation.resource),
+		resourceUri: connection.resourceUris.fromAgentHost(URI.parse(annotation.resource)),
 		range: fromTextRange(annotation.range),
 		sessionResource,
 		suggestion: meta?.suggestion,
@@ -367,7 +367,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 	getItems(sessionResource: URI): readonly IAgentFeedback[] {
 		const channel = this._ensureChannel(sessionResource);
 		if (channel && this._hasSnapshot(channel.subscription)) {
-			return orderFeedbackItems(this._decode(channel.subscription, sessionResource));
+			return orderFeedbackItems(this._decode(channel, sessionResource));
 		}
 		return orderFeedbackItems(this._cacheBySession.get(sessionResource.toString()) ?? []);
 	}
@@ -452,14 +452,14 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		return value !== undefined && !(value instanceof Error);
 	}
 
-	private _decode(subscription: IAgentSubscription<AnnotationsState>, sessionResource: URI): IAgentFeedback[] {
-		const value = subscription.value;
+	private _decode(channel: ITrackedChannel, sessionResource: URI): IAgentFeedback[] {
+		const value = channel.subscription.value;
 		if (!value || value instanceof Error) {
 			return [];
 		}
 		const items: IAgentFeedback[] = [];
 		for (const annotation of value.annotations) {
-			const feedback = annotationToFeedback(annotation, sessionResource);
+			const feedback = annotationToFeedback(annotation, sessionResource, channel.connection);
 			if (feedback) {
 				items.push(feedback);
 			}

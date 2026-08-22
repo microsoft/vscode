@@ -26,6 +26,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
+import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { VSCODE_EPHEMERAL_SESSION_META_KEY } from '../../../../../../platform/agentHost/common/meta/agentEphemeralSessionMeta.js';
 import { getElementAttachmentCorrelationId, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
@@ -142,6 +143,8 @@ type SeededSessionState = SessionState & Partial<Pick<ISessionWithDefaultChat, '
 
 class MockAgentHostService extends mock<IAgentHostService>() {
 	declare readonly _serviceBrand: undefined;
+
+	override resourceUris = identityAgentHostResourceUriMapper;
 
 	private readonly _onDidAction = new Emitter<ActionEnvelope>();
 	override readonly onDidAction = this._onDidAction.event;
@@ -4685,6 +4688,7 @@ suite('AgentHostChatContribution', () => {
 
 		test('plan-review input request renders a plan review instead of a question carousel', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			agentHostService.resourceUris = createAgentHostResourceUriMapper('remote-test');
 			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			const request: ChatInputRequestWithPlanReview = {
@@ -4717,7 +4721,7 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(review.title, 'Review Plan');
 			assert.strictEqual(review.content, '## Plan summary');
 			assert.ok(review.planUri);
-			assert.strictEqual(URI.revive(review.planUri).toString(), URI.file('/sessions/abc/plan.md').toString());
+			assert.strictEqual(URI.revive(review.planUri).toString(), agentHostService.resourceUris.fromAgentHost(URI.file('/sessions/abc/plan.md')).toString());
 			assert.deepStrictEqual(review.actions, [
 				{ id: 'interactive', label: 'Implement Plan', default: true },
 				{ id: 'autopilot', label: 'Implement with Autopilot', permissionLevel: 'autopilot' },

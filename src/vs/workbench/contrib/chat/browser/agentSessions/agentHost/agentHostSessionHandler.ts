@@ -1371,6 +1371,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							lookup,
 							this._chatErrorContext(),
 							this._config.connection.initializeResult.get()?.terminalCommandPrefix,
+							this._config.connection.resourceUris,
 						));
 
 						// Enrich history with inner tool calls from subagent
@@ -1419,6 +1420,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 								sessionResource.authority,
 								this._otherClientToolInvocationOptions(resolvedSession, chatURI, sessionState.activeTurn.id),
 								lookup,
+								this._config.connection.resourceUris,
 							);
 							initialResponsePartCount = sessionState.activeTurn.responseParts.length;
 							// Enrich usage entries with the actual model so the
@@ -4125,7 +4127,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		opts: IObserveTurnOptions,
 	): void {
 		const inputReq = part$.get().request;
-		const review = createInputRequestPlanReview(inputReq, planReview);
+		const review = createInputRequestPlanReview(inputReq, planReview, this._config.connection.resourceUris);
 		opts.sink([review]);
 
 		let inputCompleted = false;
