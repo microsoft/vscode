@@ -152,7 +152,7 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 			action: {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-peer-local',
-				startedAt: '2025-01-01T00:00:00.000Z',
+				startedAt: new Date().toISOString(),
 				message: { text: '/rename Rehydrated Peer', origin: { kind: MessageKind.User } },
 			},
 		});

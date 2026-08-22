@@ -21,8 +21,19 @@ import { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
 import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { AgentService, type IAgentServiceOptions } from '../../node/agentService.js';
-import { createAgentService } from '../../node/agentServiceComposition.js';
+import { createAgentServiceComposition, type IAgentServiceComposition } from '../../node/agentServiceComposition.js';
 import { ICopilotApiService } from '../../node/shared/copilotApiService.js';
+import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
+
+const compositions = new WeakMap<AgentService, IAgentServiceComposition>();
+
+export function getTestAgentServiceComposition(agentService: AgentService): IAgentServiceComposition {
+	const composition = compositions.get(agentService);
+	if (!composition) {
+		throw new Error('AgentService was not created by createTestAgentService');
+	}
+	return composition;
+}
 
 export function createTestAgentService(
 	logService: ILogService,
@@ -42,6 +53,7 @@ export function createTestAgentService(
 	agentServiceOptions: Pick<IAgentServiceOptions, 'debugLogsEnvironment'> = {},
 ): AgentService {
 	const effectiveFileMonitorService = fileMonitorService ?? new AgentHostFileMonitorService(fileService, logService);
+	const clientConnectionService = new AgentHostClientConnectionService();
 	const proxyResolver: IAgentHostProxyResolver = {
 		_serviceBrand: undefined,
 		onDidRegisterConnection: Event.None,
@@ -61,6 +73,7 @@ export function createTestAgentService(
 		[ITelemetryService, telemetryService],
 		[IAgentHostFileMonitorService, effectiveFileMonitorService],
 		[IAgentHostProxyResolver, proxyResolver],
+		[IAgentHostClientConnectionService, clientConnectionService],
 	);
 	const instantiationService = new InstantiationService(services, /*strict*/ true);
 	const options = {
@@ -72,16 +85,18 @@ export function createTestAgentService(
 		orchestratorDatabase,
 		...agentServiceOptions,
 	};
-	const service = createAgentService(
+	const composition = createAgentServiceComposition(
 		options,
 		services,
 		instantiationService,
 		fetchFn,
 		logService,
 		productService,
-		fileMonitorService ? [instantiationService] : [effectiveFileMonitorService, instantiationService],
+		sessionDataService,
+		fileMonitorService ? [clientConnectionService, instantiationService] : [effectiveFileMonitorService, clientConnectionService, instantiationService],
 	);
-	return service;
+	compositions.set(composition.agentService, composition);
+	return composition.agentService;
 }
 
 export function createTestAgentServiceWithOptions(
