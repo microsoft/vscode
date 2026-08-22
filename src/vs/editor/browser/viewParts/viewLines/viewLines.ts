@@ -672,8 +672,10 @@ export class ViewLines extends ViewPart implements IViewLines {
 		this._linesContent.setLayerHinting(this._canUseLayerHinting);
 		this._linesContent.setContain('strict');
 		const adjustedScrollTop = this._context.viewLayout.getCurrentScrollTop() - viewportData.bigNumbersDelta;
-		this._linesContent.setTop(-adjustedScrollTop);
-		this._linesContent.setLeft(-this._context.viewLayout.getCurrentScrollLeft());
+		const tx = -this._context.viewLayout.getCurrentScrollLeft();
+		const ty = -adjustedScrollTop;
+		this._linesContent.domNode.style.transform = `translate3d(${tx}px, ${ty}px, 0)`;
+		this._linesContent.domNode.style.willChange = 'transform';
 	}
 
 	// --- width
