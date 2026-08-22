@@ -24,7 +24,7 @@ import { RepositoryCache } from './repositoryCache';
 
 class RepositoryPick implements QuickPickItem {
 	@memoize get label(): string {
-		return path.basename(this.repository.root);
+		return this.repository.name;
 	}
 
 	@memoize get description(): string {

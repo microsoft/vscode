@@ -48,11 +48,54 @@ suite('ExtHostSCM', () => {
 			new NullLogService()
 		);
 
-		const sourceControl = extHostSCM.createSourceControl(extension, 'git', 'Git', URI.file('/repo'), undefined, undefined, undefined);
+		const sourceControl = extHostSCM.createSourceControl(extension, 'git', 'Git', URI.file('/repo'), undefined, undefined, undefined, undefined);
 		assert.ok(extHostSCM.getLastInputBox(extension));
 
 		sourceControl.dispose();
 
 		assert.strictEqual(extHostSCM.getLastInputBox(extension), undefined);
+	});
+
+	test('repository names are forwarded when source controls are registered', async () => {
+		const registeredNames: (string | undefined)[] = [];
+		const rpcProtocol = new TestRPCProtocol();
+		rpcProtocol.set(MainContext.MainThreadSCM, new class extends mock<MainThreadSCMShape>() {
+			override async $registerSourceControl(...args: Parameters<MainThreadSCMShape['$registerSourceControl']>): Promise<void> {
+				registeredNames.push(args[8]);
+			}
+			override async $unregisterSourceControl(): Promise<void> { }
+		});
+		rpcProtocol.set(MainContext.MainThreadTelemetry, new class extends mock<MainThreadTelemetryShape>() {
+			override $publicLog2(): void { }
+		});
+
+		const commands = new class extends mock<ExtHostCommands>() {
+			override registerArgumentProcessor(_processor: ArgumentProcessor): void { }
+		};
+		const extension = {
+			...nullExtensionDescription,
+			identifier: new ExtensionIdentifier('vscode.git'),
+			name: 'git',
+			displayName: 'Git',
+			extensionLocation: URI.file('/extension'),
+			isBuiltin: true
+		};
+
+		const extHostSCM = new ExtHostSCM(
+			rpcProtocol,
+			commands,
+			{} as ExtHostDocuments,
+			new NullLogService()
+		);
+
+		const unnamedSourceControl = extHostSCM.createSourceControl(extension, 'git', 'Git', URI.file('/repo'), undefined, undefined, undefined, undefined);
+		const namedSourceControl = extHostSCM.createSourceControl(extension, 'git', 'Git', URI.file('/submodule'), undefined, undefined, undefined, 'configured-name');
+
+		await rpcProtocol.sync();
+		assert.deepStrictEqual(registeredNames, [undefined, 'configured-name']);
+
+		unnamedSourceControl.dispose();
+		namedSourceControl.dispose();
+		await rpcProtocol.sync();
 	});
 });
