@@ -1,0 +1,36 @@
+name: Codespaces Git identity
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - ".devcontainer/post-create.sh"
+      - ".devcontainer/normalize-git-identity.sh"
+      - ".devcontainer/test-normalize-git-identity.sh"
+      - ".github/workflows/codespaces-git-identity.yml"
+  push:
+    branches: ["main"]
+    paths:
+      - ".devcontainer/post-create.sh"
+      - ".devcontainer/normalize-git-identity.sh"
+      - ".devcontainer/test-normalize-git-identity.sh"
+      - ".github/workflows/codespaces-git-identity.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Validate POSIX shell syntax
+        run: |
+          sh -n .devcontainer/post-create.sh
+          sh -n .devcontainer/normalize-git-identity.sh
+          sh -n .devcontainer/test-normalize-git-identity.sh
+
+      - name: Test Git identity states
+        run: sh .devcontainer/test-normalize-git-identity.sh
