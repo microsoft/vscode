@@ -167,14 +167,12 @@ export class ExternalIngestIndex extends Disposable {
 			this._codeSearchRepoRoots.add(root);
 		}
 
-		let dbPath: string;
-		if (debug || !this._vsExtensionContext.storageUri || this._vsExtensionContext.storageUri.scheme !== Schemas.file) {
-			dbPath = ':memory:';
-		} else {
-			dbPath = URI.joinPath(this._vsExtensionContext.storageUri, 'codebase-external.sqlite').fsPath;
-		}
-
 		try {
+			let dbPath = ':memory:';
+			if (!debug && this._vsExtensionContext.storageUri?.scheme === Schemas.file) {
+				fs.mkdirSync(this._vsExtensionContext.storageUri.fsPath, { recursive: true });
+				dbPath = URI.joinPath(this._vsExtensionContext.storageUri, 'codebase-external.sqlite').fsPath;
+			}
 			this._db = this.openOrCreateDatabase(dbPath);
 		} catch (error) {
 			this._logService.error('Failed to create database. Falling back to in-memory db', error);
@@ -1098,5 +1096,4 @@ export class ExternalIngestIndex extends Disposable {
 		return { fileCount: files.length, files };
 	}
 }
-
 
