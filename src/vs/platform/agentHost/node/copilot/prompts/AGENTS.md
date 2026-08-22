@@ -16,8 +16,8 @@ data the SDK accepts directly.
   shared identity text, the `fullSystemPrompt` / `sectionOverrides` builders, and
   `describeSystemMessageConfig` (the one-line log summary).
 - `toolInstructions.ts` — the model-agnostic `tool_instructions` layer: gated
-  or unconditional one-line nudges (`TOOL_INSTRUCTION_LINES`) composed into the
-  SDK's `tool_instructions` section.
+  or unconditional nudges (`TOOL_INSTRUCTION_LINES`) composed into the SDK's
+  `tool_instructions` section, including default-model guidance for subagents.
 - `anthropicPrompt.ts` — example per-model contributor (Claude Opus 4.8).
 - `allPrompts.ts` — side-effect import hub; importing it registers every
   contributor into the shared `agentHostPromptRegistry`.
