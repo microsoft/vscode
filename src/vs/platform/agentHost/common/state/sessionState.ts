@@ -46,6 +46,7 @@ import {
 	type ToolResultContent,
 	type ToolResultSubagentContent,
 	type ToolResultTextContent,
+	type ToolResultTodoListContent,
 	type UsageInfo,
 	type Message,
 } from './protocol/state.js';
@@ -98,6 +99,8 @@ export {
 	type ToolResultSubagentContent,
 	type ToolResultTerminalContent,
 	type ToolResultTextContent,
+	type ToolResultTodoItem,
+	type ToolResultTodoListContent,
 	type Turn, type URI, type UsageInfo,
 	type Message
 } from './protocol/state.js';
@@ -663,6 +666,19 @@ export function getToolSubagentContent(result: { content?: readonly ToolResultCo
 	for (const c of result.content) {
 		if (hasKey(c, { type: true }) && c.type === ToolResultContentType.Subagent) {
 			return c as ToolResultSubagentContent;
+		}
+	}
+	return undefined;
+}
+
+/** Returns the first structured todo-list block in a tool result. */
+export function getToolTodoListContent(result: { content?: readonly ToolResultContent[] }): ToolResultTodoListContent | undefined {
+	if (!result.content || result.content.length === 0) {
+		return undefined;
+	}
+	for (const content of result.content) {
+		if (hasKey(content, { type: true }) && content.type === ToolResultContentType.TodoList) {
+			return content as ToolResultTodoListContent;
 		}
 	}
 	return undefined;

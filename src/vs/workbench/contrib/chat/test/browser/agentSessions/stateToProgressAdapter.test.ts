@@ -1173,6 +1173,25 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(invocation.source, ToolDataSource.Internal);
 		});
 
+		test('renders structured todo results for live and restored tool calls', () => {
+			const todos = [
+				{ id: 'plan-0', title: 'Read the protocol', status: 'completed' as const },
+				{ id: 'plan-1', title: 'Patch the mapper', status: 'in-progress' as const },
+			];
+			const completed = createCompletedToolCall({
+				toolName: 'update_plan',
+				content: [{ type: ToolResultContentType.TodoList, todos }],
+			});
+			const live = toolCallStateToInvocation(createToolCallState({ toolName: 'update_plan' }));
+			finalizeToolInvocation(live, completed);
+			const restored = completedToolCallToSerialized(completed, undefined, URI.file('/'), 'local');
+
+			assert.deepStrictEqual({ live: live.toolSpecificData, restored: restored.toolSpecificData }, {
+				live: { kind: 'todoList', todoList: todos },
+				restored: { kind: 'todoList', todoList: todos },
+			});
+		});
+
 		test('renders ask-user tools as waiting progress that hides after completion', () => {
 			const toolNames = ['ask_user', 'AskUserQuestion', 'request_user_input'];
 			const live = toolNames.map(toolName => {

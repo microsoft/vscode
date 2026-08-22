@@ -1424,6 +1424,7 @@ export const enum ToolResultContentType {
 	FileEdit = 'fileEdit',
 	Terminal = 'terminal',
 	Subagent = 'subagent',
+	TodoList = 'todoList',
 }
 
 /**
@@ -1546,14 +1547,40 @@ export interface ToolResultSubagentContent {
 }
 
 /**
+ * A single item in a structured todo-list tool result.
+ *
+ * @category Tool Result Content
+ */
+export interface ToolResultTodoItem {
+	/** Stable item identifier */
+	id: string;
+	/** Human-readable item title */
+	title: string;
+	/** Current item status */
+	status: 'not-started' | 'in-progress' | 'completed';
+}
+
+/**
+ * A structured todo list in a tool result.
+ *
+ * @category Tool Result Content
+ */
+export interface ToolResultTodoListContent {
+	type: ToolResultContentType.TodoList;
+	/** Ordered todo items */
+	todos: ToolResultTodoItem[];
+}
+
+/**
  * Content block in a tool result.
  *
  * Mirrors the content blocks in MCP `CallToolResult.content`, plus
  * `ToolResultResourceContent` for lazy-loading large results,
  * `ToolResultFileEditContent` for file edit diffs,
  * `ToolResultTerminalContent` for live terminal output and
- * command completion metadata, and
- * `ToolResultSubagentContent` for tool-spawned worker chats (AHP extensions).
+ * command completion metadata,
+ * `ToolResultSubagentContent` for tool-spawned worker chats, and
+ * `ToolResultTodoListContent` for structured task lists (AHP extensions).
  *
  * @category Tool Result Content
  */
@@ -1563,4 +1590,5 @@ export type ToolResultContent =
 	| ToolResultResourceContent
 	| ToolResultFileEditContent
 	| ToolResultTerminalContent
-	| ToolResultSubagentContent;
+	| ToolResultSubagentContent
+	| ToolResultTodoListContent;
