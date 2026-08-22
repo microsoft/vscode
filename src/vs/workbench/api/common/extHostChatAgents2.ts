@@ -953,7 +953,13 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		if (!model) {
 			model = await this._languageModels.getDefaultLanguageModel(extension);
 			if (!model) {
-				throw new Error('Language model unavailable');
+				// No language model is available (e.g. the user is not signed in or no models
+				// have been contributed). This is an expected operational condition, not a bug,
+				// so mark it as a `ChatExpectedError` to keep it out of `chatAgentError` telemetry
+				// while still surfacing the user-facing message.
+				const error = new Error('Language model unavailable');
+				error.name = 'ChatExpectedError';
+				throw error;
 			}
 		}
 
