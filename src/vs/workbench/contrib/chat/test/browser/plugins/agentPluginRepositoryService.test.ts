@@ -93,6 +93,98 @@ suite('AgentPluginRepositoryService', () => {
 		return instantiationService.createInstance(AgentPluginRepositoryService);
 	}
 
+	test('reconciles an existing destination without combining git repositories', async () => {
+		const oldRoot = URI.file('/cache/agentPlugins');
+		const newRoot = URI.file('/home/user/.vscode/agent-plugins');
+		const oldGitHub = URI.joinPath(oldRoot, 'github.com');
+		const newGitHub = URI.joinPath(newRoot, 'github.com');
+		const oldOwner = URI.joinPath(oldGitHub, 'github');
+		const newOwner = URI.joinPath(newGitHub, 'github');
+		const oldConflict = URI.joinPath(oldOwner, 'copilot-plugins');
+		const newConflict = URI.joinPath(newOwner, 'copilot-plugins');
+		const oldOnly = URI.joinPath(oldOwner, 'legacy-plugin');
+		const newOnly = URI.joinPath(newOwner, 'legacy-plugin');
+		const deleted: string[] = [];
+		const moved: [string, string][] = [];
+
+		const existing = new Set([
+			oldRoot.toString(), newRoot.toString(),
+			oldGitHub.toString(), newGitHub.toString(),
+			oldOwner.toString(), newOwner.toString(),
+			oldConflict.toString(), newConflict.toString(),
+			oldOnly.toString(),
+		]);
+		const children = new Map<string, readonly { name: string; resource: URI; isDirectory: boolean }[]>([
+			[oldRoot.toString(), [{ name: 'github.com', resource: oldGitHub, isDirectory: true }]],
+			[oldGitHub.toString(), [{ name: 'github', resource: oldOwner, isDirectory: true }]],
+			[oldOwner.toString(), [
+				{ name: 'copilot-plugins', resource: oldConflict, isDirectory: true },
+				{ name: 'legacy-plugin', resource: oldOnly, isDirectory: true },
+			]],
+			[oldConflict.toString(), [{ name: '.git', resource: URI.joinPath(oldConflict, '.git'), isDirectory: true }]],
+			[newGitHub.toString(), [{ name: 'github', resource: newOwner, isDirectory: true }]],
+			[newOwner.toString(), [{ name: 'copilot-plugins', resource: newConflict, isDirectory: true }]],
+			[newConflict.toString(), [{ name: '.git', resource: URI.joinPath(newConflict, '.git'), isDirectory: true }]],
+		]);
+
+		const fileService = {
+			exists: async (resource: URI) => existing.has(resource.toString()),
+			resolve: async (resource: URI) => ({
+				resource,
+				name: resource.path.split('/').pop() ?? '',
+				isDirectory: true,
+				children: children.get(resource.toString()) ?? [],
+			}),
+			move: async (source: URI, target: URI) => {
+				moved.push([source.path, target.path]);
+				existing.delete(source.toString());
+				existing.add(target.toString());
+			},
+			del: async (resource: URI) => {
+				deleted.push(resource.path);
+				existing.delete(resource.toString());
+			},
+			createFolder: async () => undefined,
+		} as unknown as IFileService;
+
+		const storageService = store.add(new InMemoryStorageService());
+		storageService.store('chat.plugins.marketplaces.index.v1', JSON.stringify({ legacy: true }), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ICommandService, { executeCommand: async () => undefined } as unknown as ICommandService);
+		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as unknown as IEnvironmentService);
+		instantiationService.stub(IUserDataProfileService, { currentProfile: { agentPluginsHome: newRoot } } as unknown as IUserDataProfileService);
+		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(INotificationService, { notify: () => undefined } as unknown as INotificationService);
+		instantiationService.stub(IPluginGitService, stubPluginGit());
+		instantiationService.stub(IProgressService, { withProgress: async (_options: unknown, callback: (...args: unknown[]) => Promise<unknown>) => callback() } as unknown as IProgressService);
+		instantiationService.stub(IStorageService, storageService);
+
+		const service = instantiationService.createInstance(AgentPluginRepositoryService);
+		await service.ensurePluginSource({
+			name: 'copilot-plugins',
+			description: '',
+			version: '',
+			source: '',
+			sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'github/copilot-plugins' },
+			marketplace: 'github/copilot-plugins',
+			marketplaceReference: parseMarketplaceReference('github/copilot-plugins')!,
+			marketplaceType: MarketplaceType.Copilot,
+		});
+
+		assert.deepStrictEqual({
+			moved,
+			deletedConflict: deleted.includes(oldConflict.path),
+			deletedOldRoot: deleted.includes(oldRoot.path),
+			marketplaceIndex: storageService.get('chat.plugins.marketplaces.index.v1', StorageScope.APPLICATION),
+		}, {
+			moved: [[oldOnly.path, newOnly.path]],
+			deletedConflict: true,
+			deletedOldRoot: true,
+			marketplaceIndex: undefined,
+		});
+	});
+
 	test('uses cacheSegments path for GitHub shorthand plugin references', () => {
 		const service = createService();
 		const plugin = createPlugin('microsoft/vscode', 'plugins/myPlugin');

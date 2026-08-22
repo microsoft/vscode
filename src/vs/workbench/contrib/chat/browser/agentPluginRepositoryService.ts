@@ -507,12 +507,12 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 
 			const newExists = await this._fileService.exists(this.agentPluginsHome);
 			if (newExists) {
-				this._logService.info('[AgentPluginRepositoryService] Both old and new agent-plugins directories exist; skipping directory migration');
-				return;
+				this._logService.info('[AgentPluginRepositoryService] Both old and new agent-plugins directories exist; reconciling directory migration');
+				await this._mergeDirectories(oldCacheRoot, this.agentPluginsHome);
+			} else {
+				this._logService.info(`[AgentPluginRepositoryService] Migrating agent plugins from ${oldCacheRoot.toString()} to ${this.agentPluginsHome.toString()}`);
+				await this._fileService.move(oldCacheRoot, this.agentPluginsHome, false);
 			}
-
-			this._logService.info(`[AgentPluginRepositoryService] Migrating agent plugins from ${oldCacheRoot.toString()} to ${this.agentPluginsHome.toString()}`);
-			await this._fileService.move(oldCacheRoot, this.agentPluginsHome, false);
 
 			// Clear the marketplace index — it caches repository URIs that
 			// pointed to the old location and would cause path mismatches.
@@ -521,6 +521,37 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 		} catch (error) {
 			this._logService.error('[AgentPluginRepositoryService] Directory migration failed', error);
 		}
+	}
+
+	/**
+	 * Moves legacy cache entries into an existing agent plugins directory.
+	 * The destination wins conflicts. Git repositories are treated as atomic
+	 * cache entries so that files from two checkouts are never combined.
+	 */
+	private async _mergeDirectories(source: URI, target: URI): Promise<void> {
+		const sourceStat = await this._fileService.resolve(source);
+		const sourceIsRepository = sourceStat.children?.some(child => child.isDirectory && child.name === '.git');
+		if (sourceIsRepository) {
+			await this._fileService.del(source, { recursive: true, useTrash: false });
+			return;
+		}
+
+		for (const child of sourceStat.children ?? []) {
+			const targetChild = joinPath(target, child.name);
+			if (!await this._fileService.exists(targetChild)) {
+				await this._fileService.move(child.resource, targetChild, false);
+				continue;
+			}
+
+			const targetStat = await this._fileService.resolve(targetChild);
+			if (child.isDirectory && targetStat.isDirectory) {
+				await this._mergeDirectories(child.resource, targetChild);
+			} else {
+				await this._fileService.del(child.resource, { recursive: true, useTrash: false });
+			}
+		}
+
+		await this._fileService.del(source, { recursive: true, useTrash: false });
 	}
 
 }

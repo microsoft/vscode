@@ -206,4 +206,39 @@ suite('FileBackedInstalledPluginsStore', () => {
 
 		assert.strictEqual(pluginsStore.get()[0].pluginUri.path, '/home/user/.vscode/agent-plugins/github.com/microsoft/plugins/plugins/my-plugin');
 	});
+
+	test('rebases old cache URIs in an existing installed.json', async () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const fileService = new TestFileService();
+		const agentPluginsHome = URI.file('/home/user/.vscode/agent-plugins');
+		const installedJson = URI.joinPath(agentPluginsHome, 'installed.json');
+		fileService.setFile(installedJson, JSON.stringify({
+			version: 1,
+			installed: [{
+				pluginUri: URI.file('/cache/agentPlugins/github.com/microsoft/plugins/plugins/my-plugin').toString(),
+				marketplace: 'microsoft/plugins',
+				name: 'my-plugin',
+			}],
+		}));
+
+		const pluginsStore = store.add(new FileBackedInstalledPluginsStore(
+			agentPluginsHome,
+			URI.file('/cache/agentPlugins'),
+			fileService as unknown as IFileService,
+			new NullLogService(),
+			storageService as unknown as IStorageService,
+		));
+
+		await waitFor(() => pluginsStore.get().length === 1);
+		await waitFor(() => fileService.getFile(installedJson)?.includes('/home/user/.vscode/agent-plugins/') === true);
+
+		assert.deepStrictEqual(pluginsStore.get().map(entry => ({
+			...entry,
+			pluginUri: entry.pluginUri.toString(),
+		})), [{
+			pluginUri: URI.file('/home/user/.vscode/agent-plugins/github.com/microsoft/plugins/plugins/my-plugin').toString(),
+			marketplace: 'microsoft/plugins',
+			name: 'my-plugin',
+		}]);
+	});
 });
