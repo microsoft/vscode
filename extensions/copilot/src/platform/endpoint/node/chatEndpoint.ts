@@ -520,7 +520,7 @@ export class ChatEndpoint implements IChatEndpoint {
 	): Promise<AsyncIterableObject<ChatCompletion>> {
 		if (this.useResponsesApi) {
 			const compactionThreshold = getResponsesApiCompactionThreshold(this._configurationService, this._expService, this);
-			return processResponseFromChatEndpoint(this._instantiationService, telemetryService, logService, response, expectedNumChoices, finishCallback, telemetryData, compactionThreshold);
+			return processResponseFromChatEndpoint(this._instantiationService, telemetryService, logService, response, expectedNumChoices, finishCallback, telemetryData, compactionThreshold, this.modelMetadata.zeroDataRetentionEnabled !== true);
 		} else if (this.useMessagesApi) {
 			return processResponseFromMessagesEndpoint(this._instantiationService, telemetryService, logService, response, finishCallback, telemetryData);
 		} else if (!this._supportsStreaming) {

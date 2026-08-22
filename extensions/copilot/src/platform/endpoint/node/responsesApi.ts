@@ -959,7 +959,7 @@ function keepLatestCompactionOutput(output: OpenAI.Responses.ResponseOutputItem[
 	return output.filter((item, idx) => !isCompactionOutputItem(item) || idx === latestCompactionOutput.outputIndex);
 }
 
-export async function processResponseFromChatEndpoint(instantiationService: IInstantiationService, telemetryService: ITelemetryService, logService: ILogService, response: Response, expectedNumChoices: number, finishCallback: FinishedCallback, telemetryData: TelemetryData, compactionThreshold?: number): Promise<AsyncIterableObject<ChatCompletion>> {
+export async function processResponseFromChatEndpoint(instantiationService: IInstantiationService, telemetryService: ITelemetryService, logService: ILogService, response: Response, expectedNumChoices: number, finishCallback: FinishedCallback, telemetryData: TelemetryData, compactionThreshold?: number, emitStatefulMarker = true): Promise<AsyncIterableObject<ChatCompletion>> {
 	return new AsyncIterableObject<ChatCompletion>(async feed => {
 		const requestId = response.headers.get('X-Request-ID') ?? generateUuid();
 		const ghRequestId = response.headers.get('x-github-request-id') ?? '';
@@ -977,7 +977,7 @@ export async function processResponseFromChatEndpoint(instantiationService: IIns
 				const parsedData = JSON.parse(ev.data);
 				const responseStreamEvent: OpenAI.Responses.ResponseStreamEvent = { type: ev.type, ...parsedData };
 				dumper.logEvent(responseStreamEvent);
-				const completion = processor.push(responseStreamEvent, finishCallback);
+				const completion = processor.push(responseStreamEvent, finishCallback, emitStatefulMarker);
 				if (completion) {
 					sendCompletionOutputTelemetry(telemetryService, logService, completion, telemetryData);
 					feed.emitOne(completion);
@@ -1233,7 +1233,7 @@ export class OpenAIResponsesProcessor {
 		});
 	}
 
-	public push(chunk: OpenAI.Responses.ResponseStreamEvent, _onProgress: FinishedCallback): ChatCompletion | undefined {
+	public push(chunk: OpenAI.Responses.ResponseStreamEvent, _onProgress: FinishedCallback, emitStatefulMarker = true): ChatCompletion | undefined {
 		const onProgress = (delta: IResponseDelta): undefined => {
 			this.textAccumulator += delta.text;
 			_onProgress(this.textAccumulator, 0, delta);
@@ -1423,7 +1423,7 @@ export class OpenAIResponsesProcessor {
 				}
 				onProgress({
 					text: '',
-					statefulMarker: chunk.response.id,
+					statefulMarker: emitStatefulMarker ? chunk.response.id : undefined,
 					contextManagement: shouldEmitResolvedCompaction ? latestCompactionItem : undefined,
 				});
 				return {
