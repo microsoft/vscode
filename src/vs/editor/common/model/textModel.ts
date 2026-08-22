@@ -365,8 +365,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		);
 		this._fontTokenDecorationsProvider = this._register(new TokenizationFontDecorationProvider(this, this._tokenizationTextModelPart));
 
-		const modelSyncLimit = creationOptions.largeFileSizeLimit > 0 ? creationOptions.largeFileSizeLimit * 1024 * 1024 : Number.MAX_SAFE_INTEGER;
-		this._isTooLargeForSyncing = (bufferTextLength > modelSyncLimit);
+		const limit = creationOptions.largeFileSizeLimit * 1024 * 1024;
+		this._isTooLargeForSyncing = (limit > 0 && bufferTextLength > limit) || this._isTooLargeForHeapOperation;
 
 		this._versionId = 1;
 		this._alternativeVersionId = 1;

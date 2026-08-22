@@ -164,9 +164,17 @@ export class ModelService extends Disposable implements IModelService {
 
 		let largeFileSizeLimit = EDITOR_MODEL_DEFAULTS.largeFileSizeLimit;
 		if (config.editor && typeof config.editor.largeFileSizeLimit !== 'undefined') {
-			const value = typeof config.editor.largeFileSizeLimit === 'string' ? parseInt(config.editor.largeFileSizeLimit, 10) : config.editor.largeFileSizeLimit;
-			if (typeof value === 'number' && !isNaN(value)) {
-				largeFileSizeLimit = Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(value)));
+			const rawValue = typeof config.editor.largeFileSizeLimit === 'string' ? parseFloat(config.editor.largeFileSizeLimit) : config.editor.largeFileSizeLimit;
+			if (typeof rawValue === 'number' && !isNaN(rawValue)) {
+				// Only treat exactly 0 as "no limit", negative values fall back to default
+				if (rawValue === 0) {
+					largeFileSizeLimit = 0; // 0 means no limit
+				} else if (rawValue < 0) {
+					largeFileSizeLimit = EDITOR_MODEL_DEFAULTS.largeFileSizeLimit; // negative values use default
+				} else {
+					// Use the value as-is (including fractional values), clamped to valid range
+					largeFileSizeLimit = Math.min(Math.max(rawValue, 0), Number.MAX_SAFE_INTEGER);
+				}
 			}
 		}
 

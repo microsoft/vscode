@@ -166,7 +166,8 @@ suite('MainThreadDocumentsAndEditors', () => {
 	test('ignore huge model', function () {
 
 		const largeModelString = 'abc'.repeat(1024);
-		const limitInMB = Math.floor((largeModelString.length / 2) / (1024 * 1024));
+		// Use a small fractional limit (0.001 MB = ~1048 chars) to ensure the model is too large
+		const limitInMB = 0.001;
 
 		// Override configuration for this test
 		configService.setUserConfiguration('editor', { 'detectIndentation': false, 'largeFileSizeLimit': limitInMB });
@@ -191,7 +192,8 @@ suite('MainThreadDocumentsAndEditors', () => {
 	test('ignore huge model from editor', function () {
 
 		const largeModelString = 'abc'.repeat(1024);
-		const limitInMB = Math.floor((largeModelString.length / 2) / (1024 * 1024));
+		// Use a small fractional limit (0.001 MB = ~1048 chars) to ensure the model is too large
+		const limitInMB = 0.001;
 
 		// Override configuration for this test
 		configService.setUserConfiguration('editor', { 'detectIndentation': false, 'largeFileSizeLimit': limitInMB });
@@ -212,7 +214,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 	});
 
 	test('large model with zero limit is synchronizable', function () {
-		const largeModelString = 'abc'.repeat(1024 * 1024); // Create a ~3MB model (above normal threshold)
+		const largeModelString = 'abc'.repeat(1024); // Create a ~3KB model
 
 		// Set limit to 0 (no limit)
 		configService.setUserConfiguration('editor', { 'detectIndentation': false, 'largeFileSizeLimit': 0 });
