@@ -56,6 +56,7 @@ export class SubagentSpawn {
 	subagentType: string | undefined;
 	description: string | undefined;
 	prompt: string | undefined;
+	turnId: string | undefined;
 
 	private _agentId: string | undefined;
 	private _announced = false;
@@ -110,6 +111,7 @@ export interface ISubagentSpawnInit {
 	readonly subagentType?: string;
 	readonly description?: string;
 	readonly prompt?: string;
+	readonly turnId?: string;
 }
 
 /**
@@ -126,10 +128,12 @@ export interface ISubagentSpawnInit {
 export class SubagentRegistry extends Disposable {
 	private readonly _spawns = new Map<string, SubagentSpawn>();
 	private readonly _innerToParent = new Map<string, string>();
+	private _resumeTurnId: string | undefined;
 
 	override dispose(): void {
 		this._spawns.clear();
 		this._innerToParent.clear();
+		this._resumeTurnId = undefined;
 		super.dispose();
 	}
 
@@ -159,7 +163,28 @@ export class SubagentRegistry extends Disposable {
 		if (init?.prompt !== undefined && spawn.prompt === undefined) {
 			spawn.prompt = init.prompt;
 		}
+		if (init?.turnId !== undefined && spawn.turnId === undefined) {
+			spawn.turnId = init.turnId;
+		}
 		return spawn;
+	}
+
+	/**
+	 * The turn a parent resumes into after a background subagent it spawned
+	 * reports back, recorded when that subagent starts so it outlives the spawn.
+	 */
+	get resumeTurnId(): string | undefined {
+		return this._resumeTurnId;
+	}
+
+	noteResumeTurn(turnId: string | undefined): void {
+		if (turnId !== undefined) {
+			this._resumeTurnId = turnId;
+		}
+	}
+
+	clearResumeTurn(): void {
+		this._resumeTurnId = undefined;
 	}
 
 	getSpawn(toolUseId: string): SubagentSpawn | undefined {

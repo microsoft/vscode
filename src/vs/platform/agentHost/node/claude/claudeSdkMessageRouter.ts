@@ -65,20 +65,29 @@ export class ClaudeSdkMessageRouter extends Disposable {
 		this._clientToolOwner = clientToolOwner;
 	}
 
+	/**
+	 * Routes one SDK message. A message arriving with no active turn is anchored
+	 * to the turn a background subagent was spawned in, because the parent
+	 * resumes producing output after that subagent reports back.
+	 */
 	async handle(message: SDKMessage, turnId: string | undefined, context?: IClaudeSdkMessageContext): Promise<void> {
+		if (turnId !== undefined && turnId !== this._subagents.resumeTurnId) {
+			this._subagents.clearResumeTurn();
+		}
+		const resolvedTurnId = turnId ?? this._subagents.resumeTurnId;
 		if (message.type === 'assistant') {
 			this._editObserver.observeAssistant(message, context?.mode, context?.clientContext);
-		} else if (message.type === 'user' && turnId !== undefined) {
-			await this._editObserver.observeUser(message, turnId, this._mapperState);
+		} else if (message.type === 'user' && resolvedTurnId !== undefined) {
+			await this._editObserver.observeUser(message, resolvedTurnId, this._mapperState);
 		}
-		if (turnId === undefined) {
+		if (resolvedTurnId === undefined) {
 			return;
 		}
 		try {
 			const signals = mapSDKMessageToAgentSignals(
 				message,
 				this._chatChannelUri,
-				turnId,
+				resolvedTurnId,
 				this._mapperState,
 				this._logService,
 				this._subagents,
