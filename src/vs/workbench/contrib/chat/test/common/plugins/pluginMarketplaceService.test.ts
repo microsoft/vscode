@@ -471,6 +471,53 @@ suite('PluginMarketplaceService - GitHub marketplace refs', () => {
 		assert.ok(requestUrls.every(url => !url.includes('/main/')));
 	});
 
+	test('uses GitHub plugin source for marketplace README URI', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			[ChatConfiguration.PluginMarketplaces]: ['github/awesome-copilot#marketplace'],
+			[ChatConfiguration.PluginsEnabled]: true,
+		}));
+		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as Partial<IEnvironmentService> as IEnvironmentService);
+		instantiationService.stub(IFileService, {} as unknown as IFileService);
+		instantiationService.stub(IAgentPluginRepositoryService, {
+			agentPluginsHome: URI.file('/agent-plugins'),
+		} as Partial<IAgentPluginRepositoryService> as IAgentPluginRepositoryService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IRequestService, {
+			request: async () => ({
+				res: { headers: {}, statusCode: 200 },
+				stream: bufferToStream(VSBuffer.fromString(JSON.stringify({
+					metadata: { pluginRoot: './plugins' },
+					plugins: [{
+						name: 'figma',
+						description: 'Figma plugin',
+						source: {
+							source: 'github',
+							repo: 'figma/mcp-server-guide',
+						}
+					}]
+				}))),
+			}),
+		} as Partial<IRequestService> as IRequestService);
+		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
+		instantiationService.stub(IWorkspacePluginSettingsService, {
+			extraMarketplaces: observableValue('test.extraMarketplaces', []),
+			enabledPlugins: observableValue('test.enabledPlugins', new Map()),
+		} as Partial<IWorkspacePluginSettingsService> as IWorkspacePluginSettingsService);
+		instantiationService.stub(IWorkspaceTrustManagementService, {
+			isWorkspaceTrusted: () => true,
+			onDidChangeTrust: Event.None,
+		} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
+		instantiationService.stub(IExtensionsWorkbenchService, {
+			getAutoUpdateValue: () => 'on',
+		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
+
+		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
+		const plugins = await service.fetchMarketplacePlugins(CancellationToken.None);
+
+		assert.strictEqual(plugins[0].readmeUri?.toString(), 'https://github.com/figma/mcp-server-guide/blob/main/README.md');
+	});
+
 	test('a cancelled fetch does not clear the last fetched plugins', async () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService({
