@@ -7,7 +7,6 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -961,75 +960,67 @@ suite('SessionsManagementService', () => {
 		assert.strictEqual(view.activeSession.get()?.sessionId, 's1');
 	});
 
-	test('sendNewChatRequest marks the draft as started before creating its chat', async () => {
+	test('sendNewChatRequest tracks a foreground first request until it settles', async () => {
 		const session = stubSession({
 			sessionId: 's1',
 			providerId: 'test',
 			status: constObservable(SessionStatus.Untitled),
 		});
 		const createChatBarrier = new DeferredPromise<void>();
-		const events: string[] = [];
 		const provider = new class extends TestSessionsProvider {
-			override startNewSessionRequest(): IDisposable {
-				events.push('start');
-				return { dispose: () => events.push('clear') };
-			}
 			override async createNewChat(): Promise<IChat> {
-				events.push('create');
 				await createChatBarrier.p;
 				return session.mainChat.get();
-			}
-			override async sendRequest(): Promise<ISession> {
-				events.push('send');
-				return session;
 			}
 		}(session);
 		const { service } = createSessionsManagementService(session, disposables, provider);
 
 		const send = service.sendNewChatRequest(session, { query: 'hi' });
 		await timeout(0);
-		const duringCreate = [...events];
+		const duringCreate = service.getInFlightNewSessionRequests().map(session => session.sessionId);
 		createChatBarrier.complete();
 		await send;
 
-		assert.deepStrictEqual({ duringCreate, events }, {
-			duringCreate: ['start', 'create'],
-			events: ['start', 'create', 'send', 'clear'],
+		assert.deepStrictEqual({
+			duringCreate,
+			afterSend: service.getInFlightNewSessionRequests(),
+		}, {
+			duringCreate: ['s1'],
+			afterSend: [],
 		});
 	});
 
-	test('sendNewChatRequest does not prepare an existing session as a draft', async () => {
+	test('sendNewChatRequest does not track a request in an existing session', async () => {
 		const session = stubSession({
 			sessionId: 's1',
 			providerId: 'test',
 			status: constObservable(SessionStatus.Completed),
 		});
-		let startCount = 0;
+		const createChatBarrier = new DeferredPromise<void>();
 		const provider = new class extends TestSessionsProvider {
-			override startNewSessionRequest(): IDisposable {
-				startCount++;
-				return Disposable.None;
+			override async createNewChat(): Promise<IChat> {
+				await createChatBarrier.p;
+				return session.mainChat.get();
 			}
 		}(session);
 		const { service } = createSessionsManagementService(session, disposables, provider);
 
-		await service.sendNewChatRequest(session, { query: 'hi' });
+		const send = service.sendNewChatRequest(session, { query: 'hi' });
+		await timeout(0);
+		const duringCreate = service.getInFlightNewSessionRequests();
+		createChatBarrier.complete();
+		await send;
 
-		assert.strictEqual(startCount, 0);
+		assert.deepStrictEqual(duringCreate, []);
 	});
 
-	test('sendNewChatRequest clears draft preparation when chat creation fails', async () => {
+	test('sendNewChatRequest clears first-request tracking when chat creation fails', async () => {
 		const session = stubSession({
 			sessionId: 's1',
 			providerId: 'test',
 			status: constObservable(SessionStatus.Untitled),
 		});
-		const events: string[] = [];
 		const provider = new class extends TestSessionsProvider {
-			override startNewSessionRequest(): IDisposable {
-				events.push('start');
-				return { dispose: () => events.push('clear') };
-			}
 			override async createNewChat(): Promise<IChat> {
 				throw new Error('create failed');
 			}
@@ -1038,7 +1029,7 @@ suite('SessionsManagementService', () => {
 
 		await assert.rejects(service.sendNewChatRequest(session, { query: 'hi' }), /create failed/);
 
-		assert.deepStrictEqual(events, ['start', 'clear']);
+		assert.deepStrictEqual(service.getInFlightNewSessionRequests(), []);
 	});
 
 	test('sendNewChatRequest with background resolves before provider send commits', async () => {
@@ -1048,16 +1039,22 @@ suite('SessionsManagementService', () => {
 			providerId: 'test',
 			chats: constObservable([chat]),
 			mainChat: constObservable(chat),
+			status: constObservable(SessionStatus.Untitled),
 		});
 		let completeSendRequest: (() => void) | undefined;
 		let sendRequestStarted = false;
+		const sendRequestFinished = new DeferredPromise<void>();
 		const provider = new class extends TestSessionsProvider {
 			override async sendRequest(_sessionId: string, _chatResource: URI, _options: ISendRequestOptions): Promise<ISession> {
-				sendRequestStarted = true;
-				await new Promise<void>(resolve => {
-					completeSendRequest = resolve;
-				});
-				return session;
+				try {
+					sendRequestStarted = true;
+					await new Promise<void>(resolve => {
+						completeSendRequest = resolve;
+					});
+					return session;
+				} finally {
+					sendRequestFinished.complete();
+				}
 			}
 		}(session);
 		const { service } = createSessionsManagementService(session, disposables, provider);
@@ -1067,9 +1064,21 @@ suite('SessionsManagementService', () => {
 		const sendPromise = service.sendNewChatRequest(session, { query: 'hi', background: true });
 		await sendPromise;
 
-		assert.strictEqual(sendRequestStarted, true);
+		const whileSending = service.getInFlightNewSessionRequests().map(session => session.sessionId);
 
 		completeSendRequest?.();
+		await sendRequestFinished.p;
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			sendRequestStarted,
+			whileSending,
+			afterSend: service.getInFlightNewSessionRequests(),
+		}, {
+			sendRequestStarted: true,
+			whileSending: ['s1'],
+			afterSend: [],
+		});
 	});
 
 	test('sendRequest with background is fire-and-forget and does not fire onWillSendRequest', async () => {
@@ -1272,15 +1281,20 @@ suite('SessionsManagementService', () => {
 		});
 		await Promise.all([requestPreparationStarted.p, configurationCompleted.p]);
 		const eventsWhilePreparingRequest = [...events];
+		const inFlightWhilePreparing = service.getInFlightNewSessionRequests().map(session => session.sessionId);
 		requestOptionsBarrier.complete();
 		await sendPromise;
 
 		assert.deepStrictEqual({
 			eventsWhilePreparingRequest,
+			inFlightWhilePreparing,
+			inFlightAfterSend: service.getInFlightNewSessionRequests(),
 			events,
 			createMetadata,
 		}, {
 			eventsWhilePreparingRequest: ['create', 'start:Fetching pull request...', 'show:s1', 'prepare', 'configure'],
+			inFlightWhilePreparing: ['s1'],
+			inFlightAfterSend: [],
 			events: ['create', 'start:Fetching pull request...', 'show:s1', 'prepare', 'configure', 'clear', 'send:prepared'],
 			createMetadata: { github: { pullRequestUrl: 'https://github.com/owner/repo/pull/42' } },
 		});

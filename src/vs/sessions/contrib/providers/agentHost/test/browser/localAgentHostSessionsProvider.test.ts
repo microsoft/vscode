@@ -2579,20 +2579,17 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		const activity = 'Fetching pull request...';
 		const preparation = provider.startNewSessionRequest(session.sessionId, activity);
-		const duringStatus = session.status.get();
 		const duringDescription = session.description.get();
 		const during = duringDescription ? renderAsPlaintext(duringDescription) : undefined;
 		preparation.dispose();
 
 		assert.deepStrictEqual({
-			duringStatus,
+			status: session.status.get(),
 			during,
-			afterStatus: session.status.get(),
 			after: session.description.get()?.value,
 		}, {
-			duringStatus: SessionStatus.InProgress,
+			status: SessionStatus.InProgress,
 			during: activity,
-			afterStatus: SessionStatus.Untitled,
 			after: undefined,
 		});
 	});

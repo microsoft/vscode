@@ -19,9 +19,8 @@ import { ILifecycleService, InternalBeforeShutdownEvent, ShutdownReason } from '
 import { TestLifecycleService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { LocalAgentHostLifecycleContribution } from '../../electron-browser/localAgentHostLifecycle.contribution.js';
 
@@ -40,7 +39,7 @@ suite('Local Agent Host Lifecycle', () => {
 		confirmed: boolean,
 		reason = ShutdownReason.QUIT,
 		windowCount = 1,
-		visibleSessions: readonly IActiveSession[] = [],
+		inFlightSessions: readonly ISession[] = [],
 	): Promise<{ readonly confirmations: number; readonly vetoes: readonly boolean[] }> {
 		const lifecycleService = store.add(new TestLifecycleService());
 		const instantiationService = store.add(new TestInstantiationService());
@@ -54,8 +53,8 @@ suite('Local Agent Host Lifecycle', () => {
 		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({
 			getProvider: <T extends ISessionsProvider>(providerId: string) => providerId === LOCAL_AGENT_HOST_PROVIDER_ID ? provider as T : undefined,
 		}));
-		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
-			visibleSessions: constObservable(visibleSessions),
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			getInFlightNewSessionRequests: () => inFlightSessions,
 		}));
 		instantiationService.stub(IDialogService, upcastPartial<IDialogService>({
 			confirm: async () => {
@@ -95,8 +94,8 @@ suite('Local Agent Host Lifecycle', () => {
 		});
 	});
 
-	test('prompts for an active visible draft before it enters the provider catalog', async () => {
-		const draft = upcastPartial<IActiveSession>({
+	test('prompts for an in-flight request before it enters the provider catalog', async () => {
+		const draft = upcastPartial<ISession>({
 			...createSession(SessionStatus.InProgress),
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 		});

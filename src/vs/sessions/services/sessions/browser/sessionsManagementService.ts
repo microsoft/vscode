@@ -85,6 +85,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private readonly _providerListeners = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _disposeCts = this._register(new CancellationTokenSource());
 	private readonly _unlistedNewSessions = new ResourceMap<ISession>();
+	private readonly _inFlightNewSessionRequests = new ResourceMap<ISession>();
 
 	/**
 	 * Chat resources for which this service has just kicked off a
@@ -224,6 +225,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// still be resolved by resource, and {@link resolveSessionResource} redirects
 		// it to its agent-host twin when it is opened.
 		return this._dedupeMigratedCopilotCliSessions(this._getMergedSessions());
+	}
+
+	getInFlightNewSessionRequests(): readonly ISession[] {
+		return Array.from(this._inFlightNewSessionRequests.values());
 	}
 
 	private _getMergedSessions(): ISession[] {
@@ -692,14 +697,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			throw new Error(`Sessions provider '${session.providerId}' not found`);
 		}
 
-		let requestActivity: IDisposable | undefined;
-		try {
-			if (session.status.get() === SessionStatus.Untitled) {
-				requestActivity = provider.startNewSessionRequest?.(session.sessionId);
-			}
-		} catch (error) {
-			provider.deleteNewSession(session.sessionId);
-			throw error;
+		const isNewSessionRequest = session.status.get() === SessionStatus.Untitled;
+		if (isNewSessionRequest) {
+			this._inFlightNewSessionRequests.set(session.resource, session);
 		}
 
 		if (options.background) {
@@ -711,7 +711,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 					provider.deleteNewSession(session.sessionId);
 					this.logService.error('[SessionsManagement] Failed to send background request:', e);
 				})
-				.finally(() => requestActivity?.dispose());
+				.finally(() => this._inFlightNewSessionRequests.delete(session.resource));
 			return;
 		}
 
@@ -742,7 +742,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			this._onDidStartSession.fire(updatedSession);
 			this._onDidSendRequest.fire({ session: updatedSession, chat, isNewSession: true, isNewChat: true, options });
 		} finally {
-			requestActivity?.dispose();
+			if (isNewSessionRequest) {
+				this._inFlightNewSessionRequests.delete(session.resource);
+			}
 		}
 	}
 
@@ -807,6 +809,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		folderUri?: URI,
 		requestActivity?: MutableDisposable<IDisposable>,
 	): Promise<ISession | undefined> {
+		this._inFlightNewSessionRequests.set(session.resource, session);
 		try {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
@@ -830,6 +833,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			// rethrowing. Safe no-op if the provider already removed it.
 			provider.deleteNewSession(session.sessionId);
 			throw e;
+		} finally {
+			this._inFlightNewSessionRequests.delete(session.resource);
 		}
 	}
 

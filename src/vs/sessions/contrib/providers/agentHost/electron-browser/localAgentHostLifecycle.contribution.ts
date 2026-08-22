@@ -15,8 +15,8 @@ import { IChatEntitlementService } from '../../../../../workbench/services/chat/
 import { INativeWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/electron-browser/environmentService.js';
 import { ILifecycleService, ShutdownReason } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
+import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { isActiveSessionStatus } from '../../../../services/sessions/common/session.js';
 
 export class LocalAgentHostLifecycleContribution extends Disposable implements IWorkbenchContribution {
@@ -26,7 +26,7 @@ export class LocalAgentHostLifecycleContribution extends Disposable implements I
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
-		@ISessionsService private readonly sessionsService: ISessionsService,
+		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
@@ -41,12 +41,7 @@ export class LocalAgentHostLifecycleContribution extends Disposable implements I
 	}
 
 	private hasActiveSession(): boolean {
-		const visibleSessionIsActive = this.sessionsService.visibleSessions.get().some(session =>
-			session?.providerId === LOCAL_AGENT_HOST_PROVIDER_ID &&
-			!session.isArchived.get() &&
-			isActiveSessionStatus(session.status.get())
-		);
-		if (visibleSessionIsActive) {
+		if (this.sessionsManagementService.getInFlightNewSessionRequests().some(session => session.providerId === LOCAL_AGENT_HOST_PROVIDER_ID)) {
 			return true;
 		}
 

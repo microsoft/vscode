@@ -3076,12 +3076,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		newSession.setStatus(SessionStatus.InProgress);
 		newSession.setActivity(activity);
-		return toDisposable(() => {
-			newSession.setActivity(undefined);
-			if (this._getNewSession(sessionId) === newSession) {
-				newSession.setStatus(SessionStatus.Untitled);
-			}
-		});
+		return toDisposable(() => newSession.setActivity(undefined));
 	}
 
 	createQuickChat(sessionTypeId: string): ISession {
