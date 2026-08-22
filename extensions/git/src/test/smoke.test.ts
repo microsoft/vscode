@@ -147,6 +147,47 @@ suite('git smoke test', function () {
 		assert.strictEqual(repository.state.indexChanges.length, 0);
 	});
 
+	test('reads non-UTF-8 encoded commit messages as UTF-8', async function () {
+		const expectCommitMessage = 'テスト';
+		const commitMessage = Buffer.from('a5c6a5b9a5c8', 'hex'); // Encoded in EUC-JP
+		const commitMessageFile = file('commit-message.txt');
+
+		let previousCommitEncoding: string | undefined;
+		try {
+			previousCommitEncoding = cp.execSync('git config i18n.commitEncoding', { cwd, encoding: 'utf8' }).trim();
+		} catch {
+			previousCommitEncoding = undefined;
+		}
+
+		try {
+			fs.writeFileSync(commitMessageFile, commitMessage);
+			cp.execSync('git config i18n.commitEncoding EUC-JP', { cwd });
+			cp.execSync(`git commit --allow-empty --file "${commitMessageFile}"`, { cwd });
+
+			const [commitLog] = await repository.log({ maxEntries: 1 });
+
+			assert.strictEqual(commitLog.message, expectCommitMessage);
+
+			const commit = await repository.getCommit(commitLog.hash);
+			assert.strictEqual(commit.message, expectCommitMessage);
+		} finally {
+			// Clean up without masking the original failure
+			if (fs.existsSync(commitMessageFile)) {
+				fs.unlinkSync(commitMessageFile);
+			}
+
+			try {
+				if (previousCommitEncoding) {
+					cp.execSync(`git config i18n.commitEncoding ${previousCommitEncoding}`, { cwd });
+				} else {
+					cp.execSync('git config --unset i18n.commitEncoding', { cwd });
+				}
+			} catch {
+				// Ignore cleanup errors if the config was never set or already unset.
+			}
+		}
+	});
+
 	// diabled because of https://github.com/microsoft/vscode/issues/327142
 	test.skip('opens notebook diff and file from active notebook editor', async function () {
 		const committed = JSON.stringify({ cells: [{ cell_type: 'code', source: ['x = 1'], metadata: {}, outputs: [], execution_count: null }], metadata: {}, nbformat: 4, nbformat_minor: 5 });
