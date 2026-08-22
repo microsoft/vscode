@@ -83,6 +83,7 @@ import { createTestGitHubEndpointService } from './testGitHubEndpointService.js'
 class MockCopilotSession {
 	readonly sessionId = 'test-session-1';
 	readonly sendRequests: unknown[] = [];
+	sendGate: Promise<void> | undefined;
 	readonly modeSetCalls: Array<{ mode: 'interactive' | 'plan' | 'autopilot' }> = [];
 	readonly permissionModeSetCalls: PermissionAllowAllMode[] = [];
 	permissionModeSetSuccess = true;
@@ -153,6 +154,7 @@ class MockCopilotSession {
 	disconnectCalls = 0;
 	disconnectGate: Promise<void> | undefined;
 	disconnectHook: (() => void) | undefined;
+	disconnectError: Error | undefined;
 	/**
 	 * Per-call gates, consumed in call order, for holding individual reads in flight.
 	 * Lets a test make an earlier-issued read resolve after a later one.
@@ -242,6 +244,7 @@ class MockCopilotSession {
 	async send(request: unknown) {
 		this.operationLog.push('send');
 		this.sendRequests.push(request);
+		await this.sendGate;
 		return `message-${this.sendRequests.length}`;
 	}
 	async abort() {
@@ -254,6 +257,9 @@ class MockCopilotSession {
 		this.disconnectCalls++;
 		this.disconnectHook?.();
 		await this.disconnectGate;
+		if (this.disconnectError) {
+			throw this.disconnectError;
+		}
 	}
 
 	readonly rpc = {
@@ -1081,6 +1087,47 @@ suite('CopilotAgentSession', () => {
 
 			assert.deepStrictEqual(events, ['session.compaction_start']);
 		});
+
+		test('reports a completed disconnect separately from a pending disconnect', async () => {
+			const disconnectGate = new DeferredPromise<void>();
+			const mockSession = new MockCopilotSession();
+			mockSession.disconnectGate = disconnectGate.p;
+			const wrapper = disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession));
+
+			const disconnect = wrapper.disconnect();
+			const pendingState = wrapper.lifecycleState;
+			disconnectGate.complete();
+			await disconnect;
+
+			assert.deepStrictEqual({
+				pendingState,
+				completedState: wrapper.lifecycleState,
+			}, {
+				pendingState: 'disconnecting',
+				completedState: 'disconnected',
+			});
+		});
+
+		test('returns to active and permits retry after disconnect rejects', async () => {
+			const mockSession = new MockCopilotSession();
+			mockSession.disconnectError = new Error('disconnect failed');
+			const wrapper = disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession));
+
+			await assert.rejects(wrapper.disconnect(), /disconnect failed/);
+			const rejectedState = wrapper.lifecycleState;
+			mockSession.disconnectError = undefined;
+			await wrapper.disconnect();
+
+			assert.deepStrictEqual({
+				rejectedState,
+				completedState: wrapper.lifecycleState,
+				disconnectCalls: mockSession.disconnectCalls,
+			}, {
+				rejectedState: 'active',
+				completedState: 'disconnected',
+				disconnectCalls: 2,
+			});
+		});
 	});
 
 	test('destroySession completes when shutdown arrives before the response', async () => {
@@ -1092,6 +1139,7 @@ suite('CopilotAgentSession', () => {
 				mockSession.disconnectHook = () => { void disconnectStarted.complete(); };
 			},
 		});
+
 		const destroy = session.destroySession();
 
 		await disconnectStarted.p;
@@ -1107,6 +1155,60 @@ suite('CopilotAgentSession', () => {
 		} finally {
 			disconnectGate.complete();
 		}
+	});
+
+	test('reports bounded provider lifecycle state for the active turn', async () => {
+		const sendGate = new DeferredPromise<void>();
+		const { session, mockSession } = await createAgentSession(disposables, {
+			configureMockSession: mockSession => {
+				mockSession.sendGate = sendGate.p;
+			},
+		});
+		session.resetTurnState('turn-1');
+
+		assert.deepStrictEqual(session.getTurnDiagnosticSnapshot('turn-1'), {
+			state: 'available',
+			providerCallState: 'notStarted',
+			providerTurnStarted: false,
+			providerSessionState: 'active',
+		});
+
+		const send = session.send('hello', undefined, 'turn-1');
+		while (mockSession.sendRequests.length === 0) {
+			await timeout(0);
+		}
+		assert.deepStrictEqual(session.getTurnDiagnosticSnapshot('turn-1'), {
+			state: 'available',
+			providerCallState: 'pending',
+			providerTurnStarted: false,
+			providerSessionState: 'active',
+		});
+
+		mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-1' });
+		assert.deepStrictEqual(session.getTurnDiagnosticSnapshot('turn-1'), {
+			state: 'available',
+			providerCallState: 'pending',
+			providerTurnStarted: true,
+			providerSessionState: 'active',
+		});
+
+		sendGate.complete();
+		await send;
+		mockSession.fire('session.shutdown', {
+			codeChanges: { filesModified: [], linesAdded: 0, linesRemoved: 0 },
+			modelMetrics: {},
+			sessionStartTime: 0,
+			shutdownType: 'routine',
+			totalApiDurationMs: 0,
+		});
+
+		assert.deepStrictEqual(session.getTurnDiagnosticSnapshot('turn-1'), {
+			state: 'available',
+			providerCallState: 'resolved',
+			providerTurnStarted: true,
+			providerSessionState: 'shutdown',
+		});
+		assert.strictEqual(session.getTurnDiagnosticSnapshot('other-turn'), undefined);
 	});
 
 	test('logs SDK events without wrapped handlers', async () => {
@@ -2435,12 +2537,19 @@ suite('CopilotAgentSession', () => {
 				sendRequests: mockSession.sendRequests,
 				turnCompleteBeforeIdle: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete).length,
 				hasActiveTurn: session.hasActiveTurn,
+				diagnostics: session.getTurnDiagnosticSnapshot('turn-fleet'),
 			}, {
 				fleetStartCalls: [{ prompt: 'the full analysis' }],
 				commandInvokeCalls: [],
 				sendRequests: [],
 				turnCompleteBeforeIdle: 0,
 				hasActiveTurn: true,
+				diagnostics: {
+					state: 'available',
+					providerCallState: 'resolved',
+					providerTurnStarted: false,
+					providerSessionState: 'active',
+				},
 			});
 
 			mockSession.fire('assistant.message_delta', { deltaContent: 'Deploying fleet' } as SessionEventPayload<'assistant.message_delta'>['data']);
