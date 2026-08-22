@@ -120,12 +120,12 @@ class ToggleRenderWhitespaceAction extends Action2 {
 
 		const renderWhitespace = configurationService.getValue<string>(renderWhitespaceSetting);
 
-		let newRenderWhitespace: string;
-		if (renderWhitespace === 'none') {
-			newRenderWhitespace = 'all';
-		} else {
-			newRenderWhitespace = 'none';
-		}
+		// Treat only explicitly-visible modes (all/boundary/trailing) as "on".
+		// The default 'selection' mode only renders on selected text and provides no
+		// persistent visual feedback, so toggling from 'selection' should enable all
+		// whitespace rather than disabling it entirely (see #305883).
+		const isActivelyRendering = renderWhitespace === 'all' || renderWhitespace === 'boundary' || renderWhitespace === 'trailing';
+		const newRenderWhitespace = isActivelyRendering ? 'none' : 'all';
 
 		return configurationService.updateValue(renderWhitespaceSetting, newRenderWhitespace);
 	}
