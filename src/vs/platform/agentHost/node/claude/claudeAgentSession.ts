@@ -1238,7 +1238,7 @@ export class ClaudeAgentSession extends Disposable {
 			// boundary is the convention for both code paths.
 			uuid: steeringMessage.id as `${string}-${string}-${string}-${string}-${string}`,
 		};
-		pipeline.injectSteering(sdkMessage, steeringMessage.id);
+		pipeline.injectSteering(sdkMessage, steeringMessage);
 	}
 
 	/** Live permission-mode change. Forwards to the pipeline; the pipeline remembers it for re-application after a rebind. */

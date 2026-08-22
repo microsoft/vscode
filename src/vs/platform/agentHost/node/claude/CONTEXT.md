@@ -1420,7 +1420,7 @@ sees the deltas it can act on.
 | IAgent surface | SDK primitive(s) | What it does |
 |---|---|---|
 | `setPendingMessages?(chat, steeringMessage, queuedMessages)` (optional) | Yield an `SDKUserMessage` with `priority: 'now'` into the prompt iterable that was passed to `query()` ([sdk.d.ts:3067-3086](../../../../../../extensions/copilot/node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts#L3067-L3086)) | Notifies the agent that the chat's pending-message state changed. The agent reacts by yielding the steering content as an `SDKUserMessage` whose `priority` is `'now'`, which the SDK treats as "preempt the current turn and run me first." |
-| (outbound signal) `AgentSignal { kind: 'steering_consumed', session, id }` | n/a (host-emitted on SDK ack) | Agent fires this signal when the SDK confirms the steering message was delivered to the model. Host then dispatches `SessionPendingMessageRemoved` so the client clears the pending pill. |
+| (outbound signal) `AgentSignal { kind: 'steering_consumed', session, id }` | n/a (host-emitted) | Fallback for a steering message the SDK accepted but never echoed (abort, dispose). Host dispatches `SessionPendingMessageRemoved` so the client clears the pending pill. On the normal path the echo promotes the message to its own turn and `ChatTurnStarted.queuedMessageId` clears the pill instead. |
 
 ##### Pending-message taxonomy (locked at the protocol layer)
 
@@ -1553,13 +1553,14 @@ operating without the distinction the protocol exposes.
 The signal `IAgentSteeringConsumedSignal { kind: 'steering_consumed', session, id }`
 ([agentService.ts:359-362](../../common/agentService.ts#L359-L362))
 is **not** emitted when the iterable's `yield` resolves — yielding
-only means the SDK accepted the message into its command queue.
-The agent emits the signal when the SDK actually surfaces the
-message to the model (the next `SDKUserMessage` echo on the event
-stream after the SDK's `'now'`-watcher has aborted the previous
-turn and dequeued this message). This matches the client's
-expectation: the pending-message pill should clear when the model
-has *seen* the steering, not when the queue accepted it.
+only means the SDK accepted the message into its command queue. It
+is the fallback for a steer that never reaches the model: on the
+normal path the pill clears when the steering turn starts, which
+happens on the intermediate `result` the SDK emits for the turn the
+steer aborted. (An earlier revision of this document described an
+`SDKUserMessage` echo on the event stream; the SDK sends no such
+echo.) Either way the pill clears when the model has *seen* the
+steering, not when the queue accepted it.
 
 The host's reaction to the signal is to dispatch
 `SessionPendingMessageRemoved { kind: PendingMessageKind.Steering, id }`
@@ -1569,24 +1570,40 @@ This is the second of the three steering touchpoints on the host:
 
 1. Client writes `SessionPendingMessageSet { kind: Steering, ... }`.
 2. Host forwards the new state to `IAgent.setPendingMessages`.
-3. Agent emits `steering_consumed` after SDK ack.
-4. Host dispatches `SessionPendingMessageRemoved { kind: Steering, id }`.
+3. On the SDK echo the agent promotes the steer to its own turn, and
+   `ChatTurnStarted.queuedMessageId` clears the pending message.
+4. Without an echo (abort, dispose) the agent emits `steering_consumed`
+   and the host dispatches `SessionPendingMessageRemoved { kind: Steering, id }`.
 
 ##### Steering vs `sendMessage` boundary
 
-A steering message is **not** a turn boundary. It does not get a
-`Turn.id`, does not appear as a separate user `Turn` in
-`getSessionMessages`, and does not emit a `SessionTurnStart`. From
-the protocol Turn perspective it is invisible — its content shows
-up as part of the *next* assistant message in the current turn,
-because the model received it mid-generation and folded it into
-the response. The agent's transcript reconstruction
-(`getSessionMessages`, M7) collapses the SDK's intermediate
-`SDKUserMessage` for steering into the in-progress Turn rather
-than starting a new one. This is an asymmetry vs `sendMessage`
-that consumers must understand: a UI showing "turns" should not
-expect each pending-message-set + steering-consumed pair to add a
-row.
+A steering message **becomes** a turn boundary, but later than
+`sendMessage` does. Queueing it does not start a turn: the SDK owns
+the message from that moment, while the chat keeps showing the
+pending bubble. `priority: 'now'` makes the SDK abort the current
+generation and emit a `result` for it, and that intermediate `result`
+is the trigger: the pipeline completes the turn the steer interrupted
+and starts one whose `Turn.message` is the steering content, with
+`queuedMessageId` set so the reducer clears the pending bubble in the
+same action. Everything the SDK produces from then on, including the
+final turn completion, belongs to the new turn.
+
+The intermediate `result` is used rather than the queue handoff
+because it is the point at which the message has demonstrably reached
+the model. A steer that never reaches it (abort, dispose, or a turn
+that ends without one) is cleared with `steering_consumed` instead, so
+no pending bubble is left behind.
+
+Note that the SDK does **not** echo a steering `SDKUserMessage` back on
+the event stream. Verified against `@anthropic-ai/claude-agent-sdk` by
+logging every `user` message a live steered turn produced: all of them
+were `tool_result` messages, and the steer appeared only in the
+on-disk transcript. An echo-driven trigger therefore never fires.
+
+This matches the Copilot agent host, which promotes steering the same
+way (`_beginSteeringTurn`). Before that change both harnesses folded
+steering into the running turn, which left the message with no
+representation anywhere once its pending bubble was removed.
 
 #### Truncation: `truncateSession`
 
@@ -1672,10 +1689,10 @@ me first" — via different transports:
 - **Steering preserves the in-flight Turn at the protocol level
   even though the SDK preempts internally.** On the Claude SDK,
   `priority: 'now'` causes the SDK to abort the current
-  generation and run the steering message next. The protocol Turn
-  reconstruction (M7) folds the resulting messages back into the
-  same Turn so consumers see steering as "additional context for
-  the current generation," not a new turn. Provider implementations
+  generation and run the steering message next. The `result` for that
+  aborted generation ends the interrupted Turn and opens the steering
+  Turn, so consumers see the steer as its own row rather than as
+  silent context for the previous one. Provider implementations
   must yield via `priority: 'now'` (or the SDK's equivalent
   preempt hint), **not** via `Query.interrupt()` followed by a new
   send — that path produces explicit Turn boundaries.
@@ -1683,15 +1700,18 @@ me first" — via different transports:
   agent treating non-empty `queuedMessages` is implementing
   behavior the host explicitly excludes from this surface; the
   parameter exists only as a future-proofing slot.
-- **Steering doesn't create a new `Turn.id`.** A steering message
-  is folded into the current Turn's user-side history at
-  reconstruction time. UIs that key off Turn boundaries will not
-  see steering as a separate row.
-- **`steering_consumed` waits for model visibility, not queue
-  acceptance.** The signal must fire after the SDK has actually
-  surfaced the message to the model, not when the agent's `yield`
-  resolves. Premature signals would clear the pill before the
-  user's intent has reached the model.
+- **Steering creates a new `Turn.id`, on preemption rather than on
+  send.** Queueing the message starts nothing; the `result` for the
+  aborted generation completes the interrupted Turn and starts the
+  steering Turn, whose id is the steer's pending-message id. UIs that
+  key off Turn boundaries see the steer as its own row.
+- **The pending pill clears at model visibility, not queue
+  acceptance.** On the normal path the SDK echo promotes the steer to
+  its own turn and `ChatTurnStarted.queuedMessageId` clears the pill.
+  `steering_consumed` is the cleanup fallback for a steer that is never
+  echoed (abort, dispose, or a turn that ends without it), so the pill
+  does not outlive the message. Clearing on `yield` would hide the
+  message while the model is still acting on it.
 - **`truncateSession?` being undefined is a valid protocol
   state.** Clients must check for the optional-ness and degrade
   gracefully (e.g., offer fork instead). Agents must not throw
