@@ -15,7 +15,8 @@ import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } 
 import { IExtensionContributions, ExtensionType, IExtension, IExtensionManifest, IExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { isUndefinedOrNull } from '../../../../../base/common/types.js';
 import { areSameExtensions } from '../../../../../platform/extensionManagement/common/extensionManagementUtil.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
+import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -129,12 +130,35 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 	}
 }
 
+class TestConfigurationServiceWithWorkspaceValues extends TestConfigurationService {
+
+	private readonly workspaceValues = new Map<string, unknown>();
+
+	setWorkspaceValue(key: string, value: unknown): void {
+		this.workspaceValues.set(key, value);
+	}
+
+	override getValue<T>(arg1?: string | IConfigurationOverrides, arg2?: IConfigurationOverrides): T | undefined {
+		if (typeof arg1 === 'string' && this.workspaceValues.has(arg1)) {
+			return this.workspaceValues.get(arg1) as T;
+		}
+		return super.getValue<T>(arg1, arg2);
+	}
+
+	override inspect<T>(key: string): IConfigurationValue<T> {
+		const userValue = super.getValue<T>(key);
+		const workspaceValue = this.workspaceValues.has(key) ? this.workspaceValues.get(key) as T : undefined;
+		return { value: this.getValue<T>(key), userValue, userLocalValue: userValue, workspaceValue };
+	}
+}
+
 suite('ExtensionEnablementService Test', () => {
 
 	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;
 	let testObject: TestExtensionEnablementService;
+	let testConfigurationService: TestConfigurationServiceWithWorkspaceValues;
 
 	const didInstallEvent = new Emitter<readonly InstallExtensionResult[]>();
 	const didUninstallEvent = new Emitter<DidUninstallExtensionEvent>();
@@ -147,7 +171,7 @@ suite('ExtensionEnablementService Test', () => {
 		instantiationService = disposableStore.add(new TestInstantiationService());
 		instantiationService.stub(IFileService, disposableStore.add(new FileService(new NullLogService())));
 		instantiationService.stub(IProductService, TestProductService);
-		const testConfigurationService = new TestConfigurationService();
+		testConfigurationService = new TestConfigurationServiceWithWorkspaceValues();
 		testConfigurationService.setUserConfiguration(AllowedExtensionsConfigKey, { '*': true, 'unallowed': false });
 		instantiationService.stub(IConfigurationService, testConfigurationService);
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
@@ -1217,6 +1241,156 @@ suite('ExtensionEnablementService Test', () => {
 		assert.strictEqual(testObject.getEnablementState(chatExtension), EnablementState.DisabledGlobally);
 	});
 
+	test('test chat extension is disabled when chat.disableAIFeatures is true', async () => {
+		const chatExtension = aChatExtension();
+		testConfigurationService.setUserConfiguration(ChatAIDisabledSettingId, true);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+
+		assert.strictEqual(testObject.getEnablementState(chatExtension), EnablementState.DisabledByAIFeaturesSetting);
+		assert.ok(!testObject.isEnabled(chatExtension));
+		assert.strictEqual(testObject.getEnablementState(aLocalExtension('pub.a')), EnablementState.EnabledGlobally);
+	});
+
+	test('test chat extension enablement cannot be changed while chat.disableAIFeatures is true', async () => {
+		const chatExtension = aChatExtension();
+		installed.push(chatExtension);
+		testConfigurationService.setUserConfiguration(ChatAIDisabledSettingId, true);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		await testObject.waitUntilInitialized();
+
+		assert.strictEqual(testObject.canChangeEnablement(chatExtension), false);
+
+		let error: Error | undefined;
+		try {
+			await testObject.setEnablement([chatExtension], EnablementState.EnabledGlobally);
+		} catch (e) {
+			error = e as Error;
+		}
+		assert.ok(error, 'enablement must not be changeable while the setting owns it');
+	});
+
+	test('test chat extension enablement change is announced when chat.disableAIFeatures changes', async () => {
+		const chatExtension = aChatExtension();
+		installed.push(chatExtension);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		await testObject.waitUntilInitialized();
+		assert.strictEqual(testObject.getEnablementState(chatExtension), EnablementState.EnabledGlobally);
+
+		const target = sinon.spy();
+		disposableStore.add(testObject.onEnablementChanged(target));
+
+		testConfigurationService.setUserConfiguration(ChatAIDisabledSettingId, true);
+		testConfigurationService.onDidChangeConfigurationEmitter.fire(anAIFeaturesConfigurationChangeEvent());
+
+		assert.strictEqual(target.args[0][0].length, 1);
+		assert.deepStrictEqual((<IExtension>target.args[0][0][0]).identifier, chatExtension.identifier);
+		assert.strictEqual(testObject.getEnablementState(chatExtension), EnablementState.DisabledByAIFeaturesSetting);
+	});
+
+	test('test global disablement of chat extension is dropped on startup when chat.disableAIFeatures is true', async () => {
+		const chatExtension = aChatExtension();
+		installed.push(chatExtension);
+		await testObject.setEnablement([chatExtension], EnablementState.DisabledGlobally);
+		assert.ok(testObject.isDisabledGlobally(chatExtension));
+
+		testConfigurationService.setUserConfiguration(ChatAIDisabledSettingId, true);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		await testObject.waitUntilInitialized();
+
+		assert.ok(!testObject.isDisabledGlobally(chatExtension));
+		assert.strictEqual(testObject.getEnablementState(chatExtension), EnablementState.DisabledByAIFeaturesSetting);
+	});
+
+	test('test global disablement of chat extension is dropped when chat.disableAIFeatures turns true later', async () => {
+		const chatExtension = aChatExtension();
+		installed.push(chatExtension);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		await testObject.waitUntilInitialized();
+		await testObject.setEnablement([chatExtension], EnablementState.DisabledGlobally);
+		assert.ok(testObject.isDisabledGlobally(chatExtension));
+
+		testConfigurationService.setUserConfiguration(ChatAIDisabledSettingId, true);
+		testConfigurationService.onDidChangeConfigurationEmitter.fire(anAIFeaturesConfigurationChangeEvent());
+
+		assert.ok(!testObject.isDisabledGlobally(chatExtension));
+		assert.strictEqual(testObject.getEnablementState(chatExtension), EnablementState.DisabledByAIFeaturesSetting);
+	});
+
+	test('test global disablement of chat extension is kept when chat.disableAIFeatures is false', async () => {
+		const chatExtension = aChatExtension();
+		installed.push(chatExtension);
+		await testObject.setEnablement([chatExtension], EnablementState.DisabledGlobally);
+
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		await testObject.waitUntilInitialized();
+
+		assert.ok(testObject.isDisabledGlobally(chatExtension));
+		assert.strictEqual(testObject.getEnablementState(chatExtension), EnablementState.DisabledGlobally);
+	});
+
+	test('test global disablement of chat extension is dropped on profile switch', async () => {
+		const chatExtension = aChatExtension();
+		installed.push(chatExtension);
+		await testObject.setEnablement([chatExtension], EnablementState.DisabledGlobally);
+		assert.ok(testObject.isDisabledGlobally(chatExtension));
+
+		// A profile switch swaps the storage scope without recreating the service or announcing a
+		// configuration change, so the next enablement lookup is what reconciles the new profile
+		testConfigurationService.setUserConfiguration(ChatAIDisabledSettingId, true);
+
+		assert.strictEqual(testObject.getEnablementState(chatExtension), EnablementState.DisabledByAIFeaturesSetting);
+		assert.ok(!testObject.isDisabledGlobally(chatExtension));
+	});
+
+	test('test workspace disablement of chat extension is dropped when chat.disableAIFeatures is set in the workspace', async () => {
+		const chatExtension = aChatExtension();
+		installed.push(chatExtension);
+		await testObject.setEnablement([chatExtension], EnablementState.DisabledWorkspace);
+		assert.strictEqual(testObject.getEnablementState(chatExtension), EnablementState.DisabledWorkspace);
+
+		testConfigurationService.setWorkspaceValue(ChatAIDisabledSettingId, true);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		await testObject.waitUntilInitialized();
+		assert.strictEqual(testObject.getEnablementState(chatExtension), EnablementState.DisabledByAIFeaturesSetting);
+
+		testConfigurationService.setWorkspaceValue(ChatAIDisabledSettingId, false);
+		testConfigurationService.onDidChangeConfigurationEmitter.fire(anAIFeaturesConfigurationChangeEvent());
+
+		assert.strictEqual(testObject.getEnablementState(chatExtension), EnablementState.EnabledGlobally);
+	});
+
+	test('test global disablement of chat extension is dropped when a workspace value masks the user value', async () => {
+		const chatExtension = aChatExtension();
+		installed.push(chatExtension);
+		await testObject.setEnablement([chatExtension], EnablementState.DisabledGlobally);
+		assert.ok(testObject.isDisabledGlobally(chatExtension));
+
+		testConfigurationService.setUserConfiguration(ChatAIDisabledSettingId, true);
+		testConfigurationService.setWorkspaceValue(ChatAIDisabledSettingId, false);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		await testObject.waitUntilInitialized();
+
+		assert.ok(!testObject.isDisabledGlobally(chatExtension));
+		assert.strictEqual(testObject.getEnablementState(chatExtension), EnablementState.EnabledGlobally);
+	});
+
+	test('test global disablement for incomplete chat setup survives chat.disableAIFeatures', async () => {
+		const chatExtension = aChatExtension();
+		installed.push(chatExtension);
+		const storageService = instantiationService.get(IStorageService);
+		storageService.store('builtinChatExtensionEnablementMigration', false, StorageScope.PROFILE, StorageTarget.MACHINE);
+
+		const chatEntitlementService = new TestChatEntitlementService();
+		chatEntitlementService.context = new Lazy(() => ({ state: { completed: false }, onDidChange: Event.None })) as unknown as Lazy<ChatEntitlementContext>;
+
+		testConfigurationService.setUserConfiguration(ChatAIDisabledSettingId, true);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService, chatEntitlementService));
+		await testObject.waitUntilInitialized();
+
+		assert.strictEqual(testObject.getEnablementState(chatExtension), EnablementState.DisabledByAIFeaturesSetting);
+		assert.ok(testObject.isDisabledGlobally(chatExtension));
+	});
+
 	test('test extension is disabled by allowed list', async () => {
 		const target = aLocalExtension2('unallowed.extension');
 		assert.strictEqual(testObject.getEnablementState(target), EnablementState.DisabledByAllowlist);
@@ -1344,6 +1518,14 @@ export function anExtensionManagementServerService(localExtensionManagementServe
 					: ExtensionInstallLocation.Local;
 		}
 	};
+}
+
+function aChatExtension(): ILocalExtension {
+	return aLocalExtension(productService.defaultChatAgent!.chatExtensionId, undefined, ExtensionType.System);
+}
+
+function anAIFeaturesConfigurationChangeEvent(): IConfigurationChangeEvent {
+	return <IConfigurationChangeEvent>{ affectsConfiguration: (key: string) => key === ChatAIDisabledSettingId };
 }
 
 function aLocalExtension(id: string, contributes?: IExtensionContributions, type?: ExtensionType): ILocalExtension {
