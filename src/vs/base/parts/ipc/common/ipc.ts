@@ -294,7 +294,13 @@ export function serialize(writer: IWriter, data: any): void {
 		writer.write(BufferPresets.Uint);
 		writeInt32VQL(writer, data);
 	} else {
-		const buffer = VSBuffer.fromString(JSON.stringify(data));
+		const serialized = JSON.stringify(data);
+		if (typeof serialized === 'undefined') {
+			writer.write(BufferPresets.Undefined);
+			return;
+		}
+
+		const buffer = VSBuffer.fromString(serialized);
 		writer.write(BufferPresets.Object);
 		writeInt32VQL(writer, buffer.byteLength);
 		writer.write(buffer);
