@@ -60,7 +60,7 @@ import { FileKind } from '../../../../platform/files/common/files.js';
 import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { basename } from '../../../../base/common/path.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IEditorService, MODAL_GROUP } from '../../../services/editor/common/editorService.js';
 import { ScmHistoryItemResolver } from '../../multiDiffEditor/browser/scmMultiDiffSourceResolver.js';
 import { IResourceNode, ResourceTree } from '../../../../base/common/resourceTree.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -2064,12 +2064,13 @@ export class SCMHistoryViewPane extends ViewPane {
 				const modifiedUriTitle = `${basename(historyItemChange.modifiedUri.fsPath)} (${historyItemDisplayId})`;
 
 				const title = `${originalUriTitle} \u2194 ${modifiedUriTitle}`;
+				const useModal = this.configurationService.getValue<boolean>('scm.allowOpenInModalEditor');
 				await this._editorService.openEditor({
 					label: title,
 					original: { resource: historyItemChange.originalUri },
 					modified: { resource: historyItemChange.modifiedUri },
 					options: e.editorOptions
-				});
+				}, useModal ? MODAL_GROUP : undefined);
 			} else if (historyItemChange.modifiedUri) {
 				await this._editorService.openEditor({
 					label: `${basename(historyItemChange.modifiedUri.fsPath)} (${historyItemDisplayId})`,
