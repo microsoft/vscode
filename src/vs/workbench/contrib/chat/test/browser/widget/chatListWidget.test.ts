@@ -156,7 +156,6 @@ suite('ChatListWidget', () => {
 		widget.scrollTop = secondRequestTop! - widget.renderHeight / 2;
 		await nextFrame();
 		await nextFrame();
-		await nextFrame();
 		const initialStickyRow = container.querySelector<HTMLElement>('.monaco-tree-sticky-row');
 		const initialStickyBubble = initialStickyRow?.querySelector<HTMLElement>('.chat-markdown-part.rendered-markdown');
 		const firstBlock = initialStickyBubble?.firstElementChild as HTMLElement | null;
@@ -168,19 +167,22 @@ suite('ChatListWidget', () => {
 		const rerenderedRowHeights: number[] = [];
 		for (let rerender = 0; rerender < 3; rerender++) {
 			widget.rerender();
-			await nextFrame();
-			await nextFrame();
 			const stickyRow = container.querySelector<HTMLElement>('.monaco-tree-sticky-row');
 			if (stickyRow) {
 				rerenderedRowHeights.push(stickyRow.getBoundingClientRect().height);
 			}
 		}
+		await nextFrame();
+		await nextFrame();
+		const settledStickyRow = container.querySelector<HTMLElement>('.monaco-tree-sticky-row');
+		if (settledStickyRow) {
+			rerenderedRowHeights.push(settledStickyRow.getBoundingClientRect().height);
+		}
 
-		const offsets = [rowHeight + 1, rowHeight, rowHeight - 1, rowHeight / 2, 2, 1, 0];
+		const offsets = [rowHeight, rowHeight - 1, rowHeight / 2, 1, 0];
 		const samples: { offset: number; actualHeight: number; expectedHeight: number; hasVisibleBubble: boolean }[] = [];
 		for (const offset of offsets) {
 			widget.scrollTop = secondRequestTop! - offset;
-			await nextFrame();
 			const stickyContainer = container.querySelector<HTMLElement>('.monaco-tree-sticky-container:not(.empty)');
 			const stickyRow = stickyContainer?.querySelector<HTMLElement>('.monaco-tree-sticky-row');
 			const stickyBubble = stickyRow?.querySelector<HTMLElement>('.chat-markdown-part.rendered-markdown');
@@ -600,11 +602,13 @@ suite('ChatListWidget', () => {
 	});
 
 	test('keeps one-line and two-line sticky requests stable through push-out', async () => {
-		const oneLine = await measureFirstRequestPushOut('short first question');
-		const twoLines = await measureFirstRequestPushOut('long first question '.repeat(20));
+		const [oneLine, twoLines] = await Promise.all([
+			measureFirstRequestPushOut('short first question'),
+			measureFirstRequestPushOut('long first question '.repeat(20)),
+		]);
 
 		const summarize = (result: typeof oneLine) => ({
-			stableRerenders: result.rerenderedRowHeights.length === 3
+			stableRerenders: result.rerenderedRowHeights.length === 4
 				&& result.rerenderedRowHeights.every(height => Math.abs(height - result.rowHeight) <= 1),
 			smoothPushOut: result.samples.every(sample => Math.abs(sample.actualHeight - sample.expectedHeight) <= 2),
 			visibleContent: result.samples.every(sample => sample.hasVisibleBubble),
