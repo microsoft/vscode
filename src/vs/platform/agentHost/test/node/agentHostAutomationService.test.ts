@@ -989,7 +989,6 @@ suite('AgentHostAutomationService', () => {
 		}), /not available/i);
 		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.automations[0].operations, [
 			AutomationOperation.Update,
-			AutomationOperation.Remove,
 		]);
 	});
 
@@ -1014,6 +1013,25 @@ suite('AgentHostAutomationService', () => {
 			AutomationOperation.Update,
 			AutomationOperation.Remove,
 			AutomationOperation.Run,
+		]);
+	});
+
+	test('staging an existing Automation as import-pending removes Run and Remove authority', async () => {
+		const service = createService();
+		await service.completeMigration();
+		await service.handleCreate({
+			type: ActionType.AutomationCreateRequested,
+			resource: 'ahp-automation:/existing',
+			definition: definition(),
+		});
+		await service.handleUpdate({
+			type: ActionType.AutomationUpdateRequested,
+			resource: 'ahp-automation:/existing',
+			changes: { _meta: { [AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]: true } },
+		});
+
+		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.automations[0].operations, [
+			AutomationOperation.Update,
 		]);
 	});
 
@@ -1070,7 +1088,6 @@ suite('AgentHostAutomationService', () => {
 
 		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.automations[0].operations, [
 			AutomationOperation.Update,
-			AutomationOperation.Remove,
 		]);
 	});
 

@@ -962,6 +962,26 @@ suite('ProtocolServerHandler', () => {
 		}
 	});
 
+	test('unknown action types matching dispatch-map prototype keys are rejected', () => {
+		const transport = connectClient('prototype-action-client', [sessionUri]);
+		transport.sent.length = 0;
+
+		transport.simulateMessage(notification('dispatchAction', {
+			channel: sessionUri,
+			clientSeq: 1,
+			action: { type: 'constructor' },
+		}));
+
+		const actionMessages = findNotifications(transport.sent, 'action');
+		assert.deepStrictEqual({
+			handledActions: agentService.handledActions,
+			rejectionReason: (actionMessages[0]?.params as { rejectionReason?: string } | undefined)?.rejectionReason,
+		}, {
+			handledActions: [],
+			rejectionReason: 'Action is server-owned and cannot be dispatched by a client: constructor',
+		});
+	});
+
 	test('session working-directory actions reach the agent service', () => {
 		stateManager.createSession(makeSessionSummary());
 		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady });

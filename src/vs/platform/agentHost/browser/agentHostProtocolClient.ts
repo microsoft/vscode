@@ -336,8 +336,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			this._clientId,
 			() => this.nextClientSeq(),
 			msg => this._logService.warn(`[AgentHostProtocolClient] ${msg}`),
-			resource => this.subscribe(resource),
-			resource => this.unsubscribe(resource),
+			channel => this._subscribeChannel(channel),
+			channel => this._unsubscribeChannel(channel),
 		));
 
 		// Forward action envelopes from the transport to the subscription manager
@@ -972,12 +972,16 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * response.
 	 */
 	async subscribe(resource: URI): Promise<IStateSnapshot> {
-		this._logService.trace(`[RemoteAgentHostProtocol] subscribe start: ${resource.toString()}`);
-		const result = await this._sendRequest('subscribe', { channel: resource.toString() });
+		return this._subscribeChannel(resource.toString());
+	}
+
+	private async _subscribeChannel(channel: string): Promise<IStateSnapshot> {
+		this._logService.trace(`[RemoteAgentHostProtocol] subscribe start: ${channel}`);
+		const result = await this._sendRequest('subscribe', { channel });
 		if (!result.snapshot) {
-			throw new Error(`subscribe to ${resource.toString()} returned no snapshot`);
+			throw new Error(`subscribe to ${channel} returned no snapshot`);
 		}
-		this._logService.trace(`[RemoteAgentHostProtocol] subscribe done: ${resource.toString()}`);
+		this._logService.trace(`[RemoteAgentHostProtocol] subscribe done: ${channel}`);
 		return result.snapshot;
 	}
 

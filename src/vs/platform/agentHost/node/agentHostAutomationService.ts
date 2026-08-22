@@ -208,7 +208,8 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 					...automation,
 					operations: this._canGrantRun(automation.definition)
 						? withOperation(automation.operations, AutomationOperation.Run)
-						: automation.operations.filter(operation => operation !== AutomationOperation.Run),
+						: automation.operations.filter(operation => operation !== AutomationOperation.Run
+							&& (!isAgentHostLegacyAutomationImportPending(automation.definition) || operation !== AutomationOperation.Remove)),
 				})),
 			};
 			if (!equals(nextCatalog, catalog)) {
@@ -299,17 +300,19 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			automation = this._withInitialScheduleState(automation, new Date());
 		}
 		let operations = automation.operations;
-		if (this._canGrantRun(automation.definition)) {
-			operations = withOperation(operations, AutomationOperation.Run);
-		} else if (operations.includes(AutomationOperation.Run)) {
-			operations = operations.filter(op => op !== AutomationOperation.Run);
-		}
 		if (isAgentHostLegacyAutomationImportPending(existing.definition)
 			&& !isAgentHostLegacyAutomationImportPending(automation.definition)
 			&& !operations.includes(AutomationOperation.Remove)) {
 			// completeMigration may have stripped Remove from pending items;
 			// restore it now that the browser has acknowledged legacy removal.
 			operations = withOperation(operations, AutomationOperation.Remove);
+		}
+		if (isAgentHostLegacyAutomationImportPending(automation.definition)) {
+			operations = operations.filter(operation => operation !== AutomationOperation.Run && operation !== AutomationOperation.Remove);
+		} else if (this._canGrantRun(automation.definition)) {
+			operations = withOperation(operations, AutomationOperation.Run);
+		} else if (operations.includes(AutomationOperation.Run)) {
+			operations = operations.filter(op => op !== AutomationOperation.Run);
 		}
 		if (operations !== automation.operations) {
 			automation = { ...automation, operations };

@@ -22,9 +22,10 @@ import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings
 import { type IAgentService } from '../common/agentService.js';
 import { CollectAgentHostDebugLogsExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod } from '../common/agentHostExtensionProtocol.js';
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
+import { IS_CLIENT_DISPATCHABLE } from '../common/state/protocol/action-origin.generated.js';
 import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
-import { ActionEnvelope, ActionType, INotification } from '../common/state/sessionActions.js';
+import { ActionEnvelope, ActionType, INotification, isChatAction } from '../common/state/sessionActions.js';
 import { isClientDispatchable } from '../common/state/sessionReducers.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { negotiateProtocolVersion } from '../common/state/protocol/version/negotiation.js';
@@ -506,24 +507,34 @@ export class ProtocolServerHandler extends Disposable {
 							this._logService.trace(`[ProtocolServer] dispatchAction: ${JSON.stringify(msg.params.action.type)}`);
 							const action = msg.params.action;
 							const channel = msg.params.channel;
+							const origin = { clientId: client.clientId, clientSeq: msg.params.clientSeq };
+							const rejectServerOwnedAction = () => this._stateManager.rejectClientAction(
+								channel,
+								action,
+								origin,
+								`Action is server-owned and cannot be dispatched by a client: ${action.type}`,
+							);
 							// Unsupported actions are echoed as rejections so optimistic clients roll back.
 							if (UNSUPPORTED_CLIENT_ACTION_TYPES.has(action.type)) {
 								this._logService.warn(`[ProtocolServer] rejecting unsupported client action: ${action.type}`);
 								this._stateManager.rejectClientAction(
 									channel,
 									action,
-									{ clientId: client.clientId, clientSeq: msg.params.clientSeq },
+									origin,
 									`Unsupported action: ${action.type}`,
 								);
-							} else if (isClientDispatchable(action)) {
+							} else if (isChatAction(action)) {
+								if (IS_CLIENT_DISPATCHABLE[action.type] === true) {
+									this._agentService.dispatchAction(channel, action, client.clientId, msg.params.clientSeq, client.telemetryContext);
+								} else {
+									rejectServerOwnedAction();
+								}
+							} else if (Object.hasOwn(IS_CLIENT_DISPATCHABLE, action.type)
+								&& action.type !== ActionType.ResourceWatchChanged
+								&& isClientDispatchable(action)) {
 								this._agentService.dispatchAction(channel, action, client.clientId, msg.params.clientSeq, client.telemetryContext);
 							} else {
-								this._stateManager.rejectClientAction(
-									channel,
-									action,
-									{ clientId: client.clientId, clientSeq: msg.params.clientSeq },
-									`Action is server-owned and cannot be dispatched by a client: ${action.type}`,
-								);
+								rejectServerOwnedAction();
 							}
 						}
 						break;
@@ -1557,18 +1568,6 @@ export class ProtocolServerHandler extends Disposable {
 		},
 		invokeChangesetOperation: async (_client, params) => {
 			return this._agentService.invokeChangesetOperation(params);
-		},
-		// Automations are declared by the protocol but not implemented by this
-		// host: `initialize` never advertises the `automations` capability, so
-		// a conforming client does not reach these methods.
-		listAutomationTriggerDefinitions: async () => {
-			throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'Automations are not supported by this agent host');
-		},
-		runAutomation: async () => {
-			throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'Automations are not supported by this agent host');
-		},
-		fetchAutomationRuns: async () => {
-			throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'Automations are not supported by this agent host');
 		},
 	};
 
