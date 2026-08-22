@@ -91,9 +91,14 @@ suite('terminalEnvironment', () => {
 			strictEqual(escapeNonWindowsPath('/foo/bar\'baz'), '\'/foo/bar\\\'baz\'');
 		});
 
-		test('should remove dangerous characters', () => {
-			strictEqual(escapeNonWindowsPath('/foo/bar$(echo evil)', PosixShellType.Bash), '\'/foo/bar(echo evil)\'');
-			strictEqual(escapeNonWindowsPath('/foo/bar`whoami`', PosixShellType.Bash), '\'/foo/barwhoami\'');
+		test('should preserve special characters inside quotes', () => {
+			strictEqual(escapeNonWindowsPath('/foo/bar$(echo evil)', PosixShellType.Bash), '\'/foo/bar$(echo evil)\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar`whoami`', PosixShellType.Bash), '\'/foo/bar`whoami`\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar~baz', PosixShellType.Bash), '\'/foo/bar~baz\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar#comment', PosixShellType.Bash), '\'/foo/bar#comment\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar!bang', PosixShellType.Bash), '\'/foo/bar!bang\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar&bg', PosixShellType.Bash), '\'/foo/bar&bg\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar*glob', PosixShellType.Bash), '\'/foo/bar*glob\'');
 		});
 	});
 });
