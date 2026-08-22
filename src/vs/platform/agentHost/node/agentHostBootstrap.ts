@@ -165,8 +165,8 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 			sessionDataService,
 			foundation,
 		));
-		agentServiceComposition.setContributions(instantiationService.invokeFunction(accessor => activateAgentHostContributions(accessor, instantiationService!)));
 		agentService = agentServiceComposition.agentService;
+		agentServiceComposition.setContributions(instantiationService.invokeFunction(accessor => activateAgentHostContributions(accessor, instantiationService!)));
 		const worktreeIsolation = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostWorktreeIsolation));
 		if (!(worktreeIsolation instanceof WorktreeIsolation)) {
 			throw new Error('The production Agent Host requires the concrete WorktreeIsolation service');

@@ -105,7 +105,10 @@ existing file first needs it.
 
 ## Descriptor rules
 
-- All non-service parameters must precede the first decorated service parameter.
+- All non-service parameters that bootstrap must supply must precede the first
+  decorated service parameter. A trailing non-service parameter is valid only
+  when it has an optional/default value and the descriptor intentionally accepts
+  that value; DI cannot supply a trailing static argument.
 - `SyncDescriptor.staticArguments.length` must equal the first service
   dependency index exactly. `InstantiationService` otherwise pads or truncates
   arguments after only a `console.trace`.
@@ -206,16 +209,6 @@ service arguments.
 constructor has leading static arguments only and no pre-telemetry ordering
 requirement. Moving one is optional cleanup, not a prerequisite for adding
 unrelated services.
-
-### `AgentService.stateManager` getter
-
-**Why it exists:** the main AgentService suite still inspects orchestration state
-directly.
-
-**Do not use it in production code.**
-
-**Exit condition:** route those tests through the test graph/composition state
-manager, then remove the getter.
 
 ## Anti-patterns
 

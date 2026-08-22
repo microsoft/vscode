@@ -27,6 +27,7 @@ import { createAgentServiceFoundation } from '../../node/agentServiceFoundation.
 import { AgentHostServiceCollection, instantiateAgentHostServices, registerAgentHostCoreServices } from '../../node/agentHostServices.js';
 import { ICopilotApiService } from '../../node/shared/copilotApiService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 
 const compositions = new WeakMap<AgentService, IAgentServiceComposition>();
 
@@ -36,6 +37,10 @@ export function getTestAgentServiceComposition(agentService: AgentService): IAge
 		throw new Error('AgentService was not created by createTestAgentService');
 	}
 	return composition;
+}
+
+export function getTestAgentStateManager(agentService: AgentService): AgentHostStateManager {
+	return getTestAgentServiceComposition(agentService).stateManager;
 }
 
 export function createTestAgentService(

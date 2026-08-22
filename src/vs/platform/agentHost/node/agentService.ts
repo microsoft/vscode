@@ -460,8 +460,6 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private readonly _unpersistedChatBackings = new Set<string>();
 
-	get stateManager(): AgentHostStateManager { return this._stateManager; }
-
 	/** Registered providers keyed by their {@link AgentProvider} id. */
 	private readonly _providers = new Map<AgentProvider, IAgent>();
 	/** Maps each active session URI (toString) to its owning provider. */
