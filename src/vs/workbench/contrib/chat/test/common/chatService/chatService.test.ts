@@ -2120,7 +2120,7 @@ suite('ChatService', () => {
 		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, { async invoke() { return {}; } }));
 
 		const testService = createChatService();
-		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None, undefined, 'computedDefault');
 		assert.ok(ref);
 		testDisposables.add(ref);
 
@@ -2135,12 +2135,13 @@ suite('ChatService', () => {
 			sessionType: event.sessionType,
 			isAgentHostSession: event.isAgentHostSession,
 			requestIndex: event.requestIndex,
+			sessionTypeSelectionReason: event.sessionTypeSelectionReason,
 			isVirtualWorkspace: event.isVirtualWorkspace,
 			settingDefaultToCopilotHarness: event.settingDefaultToCopilotHarness,
 			settingPreferCopilotHarness: event.settingPreferCopilotHarness,
 			settingLocalAgentEnabled: event.settingLocalAgentEnabled,
 			hasRequestId: typeof event.requestId === 'string',
-		})), [{ sessionType: 'remote-agent-host', isAgentHostSession: true, requestIndex: 0, isVirtualWorkspace: true, settingDefaultToCopilotHarness: true, settingPreferCopilotHarness: true, settingLocalAgentEnabled: false, hasRequestId: true }, { sessionType: 'remote-agent-host', isAgentHostSession: true, requestIndex: 1, isVirtualWorkspace: true, settingDefaultToCopilotHarness: true, settingPreferCopilotHarness: true, settingLocalAgentEnabled: false, hasRequestId: true }]);
+		})), [{ sessionType: 'remote-agent-host', isAgentHostSession: true, requestIndex: 0, sessionTypeSelectionReason: 'computedDefault', isVirtualWorkspace: true, settingDefaultToCopilotHarness: true, settingPreferCopilotHarness: true, settingLocalAgentEnabled: false, hasRequestId: true }, { sessionType: 'remote-agent-host', isAgentHostSession: true, requestIndex: 1, sessionTypeSelectionReason: 'computedDefault', isVirtualWorkspace: true, settingDefaultToCopilotHarness: true, settingPreferCopilotHarness: true, settingLocalAgentEnabled: false, hasRequestId: true }]);
 	});
 
 	test('user action telemetry distinguishes agent host sessions from local sessions', () => {

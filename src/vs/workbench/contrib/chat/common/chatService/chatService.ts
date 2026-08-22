@@ -25,7 +25,7 @@ import { IWorkspaceSymbol } from '../../../search/common/search.js';
 import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
 import { IChatRequestVariableValue } from '../attachments/chatVariables.js';
 import { ReadonlyChatSessionOptionsMap } from '../chatSessionsService.js';
-import { ChatAgentLocation, ChatModeKind } from '../constants.js';
+import { ChatAgentLocation, SessionTypeSelectionReason, ChatModeKind } from '../constants.js';
 import { IChatEditingSession } from '../editing/chatEditingService.js';
 import { IChatModel, IChatRequestModeInfo, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData } from '../model/chatModel.js';
 import type { IChatModelReferenceDebugSnapshot } from '../model/chatModelStore.js';
@@ -1989,7 +1989,7 @@ export interface IChatService {
 	 *
 	 * @returns A reference to the session's model, or undefined if the session could not be loaded
 	 */
-	acquireOrLoadSession(sessionResource: URI, location: ChatAgentLocation, token: CancellationToken, debugOwner?: string): Promise<IChatModelReference | undefined>;
+	acquireOrLoadSession(sessionResource: URI, location: ChatAgentLocation, token: CancellationToken, debugOwner?: string, sessionTypeSelectionReason?: SessionTypeSelectionReason): Promise<IChatModelReference | undefined>;
 
 	/**
 	 * Loads a session from exported chat data
@@ -2101,6 +2101,7 @@ export interface IChatSessionStartOptions {
 	canUseTools?: boolean;
 	disableBackgroundKeepAlive?: boolean;
 	debugOwner?: string;
+	sessionTypeSelectionReason?: SessionTypeSelectionReason;
 }
 
 export const ChatStopCancellationNoopEventName = 'chat.stopCancellationNoop';
