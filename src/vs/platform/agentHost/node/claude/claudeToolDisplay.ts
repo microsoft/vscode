@@ -291,9 +291,8 @@ export function getClaudeToolKind(toolName: string): ClaudeToolKind | undefined 
 }
 
 /**
- * Phase 8.5 — build the `_meta` bag stamped at the tool-open seam.
- * Returns `undefined` for tools that have no `toolKind` hint so the
- * resulting envelope stays minimal. Mirrors Copilot's
+ * Builds the `_meta` bag stamped at the tool-open seam for rendering and
+ * file-modification classification. Mirrors Copilot's
  * [`mapSessionEvents.ts:197`](../copilot/mapSessionEvents.ts#L197)
  * single-write pattern.
  */
@@ -305,15 +304,17 @@ export function buildClaudeToolMeta(toolName: string): Record<string, unknown> |
 /**
  * Typed variant of {@link buildClaudeToolMeta} that returns the
  * {@link IToolCallMeta} directly, for callers that consume the typed view
- * rather than the serialized `_meta` bag. Returns `undefined` for tools that
- * have no `toolKind` hint.
+ * rather than the serialized `_meta` bag.
  */
 export function buildClaudeToolCallMeta(toolName: string): IToolCallMeta | undefined {
 	const row = TOOL_ROWS[toolName];
-	if (!row?.toolKind) {
+	if (!row?.toolKind && !row?.isFileEdit) {
 		return undefined;
 	}
-	return { toolKind: row.toolKind };
+	return {
+		modifiesFiles: row.isFileEdit,
+		toolKind: row.toolKind,
+	};
 }
 
 function md(value: string): StringOrMarkdown {

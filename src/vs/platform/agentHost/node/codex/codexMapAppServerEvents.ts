@@ -708,6 +708,7 @@ function mapItemStartedBody(
 				toolCallId,
 				toolName: 'file_edit',
 				displayName: 'Apply file changes',
+				_meta: toToolCallMeta({ modifiesFiles: true }),
 			},
 			{
 				type: ActionType.ChatToolCallDelta,

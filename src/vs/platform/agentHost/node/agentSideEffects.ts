@@ -1055,6 +1055,12 @@ export class AgentSideEffects extends Disposable {
 			|| action.type === ActionType.ChatReasoning) {
 			this._turnTracker.markFirstProgress(sessionKey, turnId);
 		}
+		if ((action.type === ActionType.ChatToolCallStart
+			|| action.type === ActionType.ChatToolCallDelta
+			|| action.type === ActionType.ChatToolCallReady)
+			&& readToolCallMeta(action).modifiesFiles) {
+			this._turnTracker.markFirstEdit(sessionKey, turnId);
+		}
 
 		if (action.type === ActionType.ChatToolCallStart) {
 			this._turnTracker.toolCallStarted(sessionKey, turnId, action.toolCallId, action.toolName, action.contributor);

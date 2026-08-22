@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
@@ -22,7 +23,7 @@ import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportK
 import type { SessionMode } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType, type ChatAction } from '../../common/state/sessionActions.js';
-import { buildDefaultChatUri, buildSubagentChatUri, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, buildSubagentChatUri, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason } from '../../common/state/sessionState.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { AgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
@@ -487,7 +488,97 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
 
 		const data = completedEvents()[0].data as Record<string, unknown>;
-		assert.strictEqual(data.timeToFirstProgress, undefined);
+		assert.deepStrictEqual({
+			timeToFirstProgress: data.timeToFirstProgress,
+			timeToFirstEdit: data.timeToFirstEdit,
+		}, {
+			timeToFirstProgress: undefined,
+			timeToFirstEdit: undefined,
+		});
+	});
+
+	test('records time to the first file-modifying tool request', () => {
+		const clock = sinon.useFakeTimers({ now: 1_000, toFake: ['Date'] });
+		try {
+			setupSession();
+			startTurn('turn-edit');
+			clock.tick(25);
+
+			fire({
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-edit',
+				toolCallId: 'edit-1',
+				toolName: 'edit',
+				displayName: 'Edit',
+				_meta: { modifiesFiles: true },
+			});
+			fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-edit', duration: 1000 });
+
+			assert.strictEqual((completedEvents()[0].data as Record<string, unknown>).timeToFirstEdit, 25);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('retains the first edit timing when multiple edit requests arrive', () => {
+		const clock = sinon.useFakeTimers({ now: 1_000, toFake: ['Date'] });
+		try {
+			setupSession();
+			startTurn('turn-edits');
+			clock.tick(40);
+			fire({
+				type: ActionType.ChatToolCallDelta,
+				turnId: 'turn-edits',
+				toolCallId: 'edit-1',
+				content: '',
+				_meta: { modifiesFiles: true },
+			});
+			clock.tick(60);
+			fire({
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-edits',
+				toolCallId: 'edit-2',
+				toolName: 'create',
+				displayName: 'Create',
+				_meta: { modifiesFiles: true },
+			});
+			fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-edits', duration: 1000 });
+
+			assert.strictEqual((completedEvents()[0].data as Record<string, unknown>).timeToFirstEdit, 40);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('does not count a read operation on a consolidated editor tool', () => {
+		setupSession();
+		startTurn('turn-view');
+		fire({
+			type: ActionType.ChatToolCallStart,
+			turnId: 'turn-view',
+			toolCallId: 'view-1',
+			toolName: 'str_replace_editor',
+			displayName: 'Editor',
+		});
+		fire({
+			type: ActionType.ChatToolCallDelta,
+			turnId: 'turn-view',
+			toolCallId: 'view-1',
+			content: '{"command":"view"}',
+			_meta: { toolKind: 'read' },
+		});
+		fire({
+			type: ActionType.ChatToolCallReady,
+			turnId: 'turn-view',
+			toolCallId: 'view-1',
+			invocationMessage: 'Read file',
+			toolInput: '{"command":"view"}',
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+			_meta: { toolKind: 'read' },
+		});
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-view', duration: 1000 });
+
+		assert.strictEqual((completedEvents()[0].data as Record<string, unknown>).timeToFirstEdit, undefined);
 	});
 
 	test('reports the latest per-turn billed nano-AIU from usage updates when available', () => {

@@ -690,6 +690,7 @@ suite('codexMapAppServerEvents', () => {
 		});
 		assert.deepStrictEqual({
 			startTypes: startActions.map(action => action.type),
+			start: startActions[0],
 			delta: startActions[1],
 			ready: startActions[2],
 			initialContent: startActions[3],
@@ -698,6 +699,7 @@ suite('codexMapAppServerEvents', () => {
 			remainingToolCalls: state.itemToToolCall.size,
 		}, {
 			startTypes: [ActionType.ChatToolCallStart, ActionType.ChatToolCallDelta, ActionType.ChatToolCallReady, ActionType.ChatToolCallContentChanged],
+			start: { type: ActionType.ChatToolCallStart, turnId: 'turn_a', toolCallId, toolName: 'file_edit', displayName: 'Apply file changes', _meta: { modifiesFiles: true } },
 			delta: { type: ActionType.ChatToolCallDelta, turnId: 'turn_a', toolCallId, content: 'update: src/a.ts' },
 			ready: { type: ActionType.ChatToolCallReady, turnId: 'turn_a', toolCallId, invocationMessage: 'update: src/a.ts', toolInput: 'update: src/a.ts', confirmed: ToolCallConfirmationReason.NotNeeded },
 			initialContent: { type: ActionType.ChatToolCallContentChanged, turnId: 'turn_a', toolCallId, content: [{ type: ToolResultContentType.Text, text: 'update: src/a.ts\n@@ -1 +1 @@\n-old\n+new' }] },

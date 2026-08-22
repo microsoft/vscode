@@ -5415,22 +5415,57 @@ suite('CopilotAgentSession', () => {
 			} as SessionEventPayload<'tool.execution_start'>['data']);
 
 			const actions = getActions(signals);
+			const starts = actions.filter(action => action.type === ActionType.ChatToolCallStart) as ChatToolCallStartAction[];
 			const deltas = actions.filter(action => action.type === ActionType.ChatToolCallDelta) as ChatToolCallDeltaAction[];
 			const ready = actions.find(action => action.type === ActionType.ChatToolCallReady) as ChatToolCallReadyAction | undefined;
 			assert.deepStrictEqual({
+				startMeta: starts.map(action => readToolCallMeta(action)),
 				deltas: deltas.flatMap(action => {
 					const message = action.invocationMessage;
 					const text = typeof message === 'string' ? message : message?.markdown;
 					return text ? [text] : [];
 				}),
+				deltaMeta: deltas.map(action => readToolCallMeta(action)),
 				ready: typeof ready?.invocationMessage === 'string' ? ready.invocationMessage : ready?.invocationMessage.markdown,
+				readyMeta: ready && readToolCallMeta(ready),
 			}, {
+				startMeta: [{ modifiesFiles: true }],
 				deltas: [
 					'Replacing 2 lines in [file.ts](file:///repo/file.ts)',
 					'Replacing 2 lines with 3 lines in [file.ts](file:///repo/file.ts)',
 				],
+				deltaMeta: [{ modifiesFiles: true }, { modifiesFiles: true }],
 				ready: 'Edit [file.ts](file:///repo/file.ts)',
+				readyMeta: { modifiesFiles: true },
 			});
+		});
+
+		test('str_replace_editor view operations are not marked as file edits', async () => {
+			const { mockSession, signals } = await createAgentSession(disposables);
+			mockSession.fire('assistant.tool_call_delta', {
+				toolCallId: 'tc-view-stream',
+				toolName: 'str_replace_editor',
+				inputDelta: '{"command":"view","path":"/repo/file.ts"}',
+			});
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-view-stream',
+				toolName: 'str_replace_editor',
+				arguments: {
+					command: 'view',
+					path: '/repo/file.ts',
+				},
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			const actions = getActions(signals).filter(action =>
+				action.type === ActionType.ChatToolCallStart
+				|| action.type === ActionType.ChatToolCallDelta
+				|| action.type === ActionType.ChatToolCallReady
+			);
+			assert.deepStrictEqual(actions.map(action => readToolCallMeta(action)), [
+				{},
+				{ toolKind: 'read' },
+				{ toolKind: 'read' },
+			]);
 		});
 
 		test('raw apply_patch deltas stream line counts and resolved files', async () => {

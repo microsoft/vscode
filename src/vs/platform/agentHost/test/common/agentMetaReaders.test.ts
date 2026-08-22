@@ -43,6 +43,7 @@ suite('Agent host _meta readers', () => {
 
 		test('reads valid keys and drops wrong-typed / unknown keys', () => {
 			const result = readToolCallMeta(toolCall({
+				modifiesFiles: true,
 				toolKind: 'terminal',
 				language: 'bash',
 				subagentDescription: 'Find files',
@@ -55,6 +56,7 @@ suite('Agent host _meta readers', () => {
 				somethingElse: 5,          // unknown key, ignored
 			}));
 			assert.deepStrictEqual(result, {
+				modifiesFiles: true,
 				toolKind: 'terminal',
 				language: 'bash',
 				subagentDescription: 'Find files',
@@ -67,7 +69,7 @@ suite('Agent host _meta readers', () => {
 		});
 
 		test('drops an invalid toolKind and a malformed ui bag', () => {
-			const result = readToolCallMeta(toolCall({ toolKind: 'nope', ui: { channel: 'mcp://c' } }));
+			const result = readToolCallMeta(toolCall({ modifiesFiles: 'yes', toolKind: 'nope', ui: { channel: 'mcp://c' } }));
 			assert.deepStrictEqual(result, {});
 		});
 
