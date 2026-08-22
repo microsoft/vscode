@@ -590,8 +590,12 @@ class CopilotTurn extends Disposable {
 	 */
 	readonly markdownPartIds = new Map<string, string>();
 
-	/** Current reasoning response part IDs for this turn, keyed by `parentToolCallId ?? ''`. */
+	/** Current reasoning response part IDs, keyed by parent/subagent scope and SDK reasoning block ID. */
 	readonly reasoningPartIds = new Map<string, string>();
+	/** Non-empty delta block IDs observed since the last assistant-message boundary, by scope. */
+	readonly pendingReasoningDeltaIds = new Map<string, Set<string>>();
+	/** Message-field fallbacks awaiting the matching completed reasoning event, by scope. */
+	readonly pendingMessageReasoningFallbacks = new Map<string, { content: string; blockKey: string }[]>();
 
 	/**
 	 * Per-turn tool-call aggregate accumulated across the turn's `assistant.message` rounds (main
@@ -1351,7 +1355,6 @@ export class CopilotAgentSession extends Disposable {
 	private _beginToolCallRound(parentToolCallId: string | undefined): void {
 		const scope = parentToolCallId ?? '';
 		this._currentTurn.value?.markdownPartIds.delete(scope);
-		this._currentTurn.value?.reasoningPartIds.delete(scope);
 	}
 
 	/**
@@ -1617,17 +1620,18 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/** Emits a reasoning delta, similar to {@link _emitMarkdownDelta} but for reasoning parts. */
-	private _emitReasoningDelta(content: string, parentToolCallId?: string): void {
+	private _emitReasoningDelta(content: string, parentToolCallId: string | undefined, reasoningId: string): void {
 		const turn = this._currentTurn.value;
 		if (!turn) {
 			this._logService.error(`[Copilot:${this.sessionId}] Reasoning delta emitted with no active turn; dropping`);
 			return;
 		}
 		const reasoningScope = parentToolCallId ?? '';
-		let partId = turn.reasoningPartIds.get(reasoningScope);
+		const reasoningBlock = `${reasoningScope}\0${reasoningId}`;
+		let partId = turn.reasoningPartIds.get(reasoningBlock);
 		if (!partId) {
 			partId = generateUuid();
-			turn.reasoningPartIds.set(reasoningScope, partId);
+			turn.reasoningPartIds.set(reasoningBlock, partId);
 			this._emitAction({
 				type: ActionType.ChatResponsePart,
 				turnId: turn.id,
@@ -1641,6 +1645,73 @@ export class CopilotAgentSession extends Disposable {
 			partId,
 			content,
 		}, parentToolCallId);
+	}
+
+	/**
+	 * Emits completed reasoning only when the SDK did not stream a non-empty
+	 * delta for that exact reasoning block. Some providers
+	 * expose reasoning only on `assistant.reasoning` or
+	 * `assistant.message.reasoningText`; treating those events as fallbacks
+	 * keeps the live view aligned with restored session history without
+	 * duplicating an already-streamed block.
+	 */
+	private _emitCompletedReasoningFallback(content: string | undefined, reasoningId: string, parentToolCallId?: string): void {
+		const turn = this._currentTurn.value;
+		if (!turn) {
+			this._logService.error(`[Copilot:${this.sessionId}] Completed reasoning emitted with no active turn; dropping`);
+			return;
+		}
+		const reasoningScope = parentToolCallId ?? '';
+		const reasoningBlock = `${reasoningScope}\0${reasoningId}`;
+		const pendingReasoningIds = turn.pendingReasoningDeltaIds.get(reasoningScope);
+		pendingReasoningIds?.delete(reasoningId);
+		if (pendingReasoningIds?.size === 0) {
+			turn.pendingReasoningDeltaIds.delete(reasoningScope);
+		}
+		if (!content) {
+			return;
+		}
+		if (turn.reasoningPartIds.has(reasoningBlock)) {
+			return;
+		}
+		const pendingFallbacks = turn.pendingMessageReasoningFallbacks.get(reasoningScope);
+		const matchingFallback = pendingFallbacks?.findIndex(fallback => fallback.content === content) ?? -1;
+		if (pendingFallbacks && matchingFallback >= 0) {
+			const [fallback] = pendingFallbacks.splice(matchingFallback, 1);
+			if (pendingFallbacks.length === 0) {
+				turn.pendingMessageReasoningFallbacks.delete(reasoningScope);
+			}
+			const fallbackPartId = fallback && turn.reasoningPartIds.get(fallback.blockKey);
+			if (fallbackPartId) {
+				turn.reasoningPartIds.set(reasoningBlock, fallbackPartId);
+			}
+			return;
+		}
+		turn.pendingMessageReasoningFallbacks.delete(reasoningScope);
+		this._emitReasoningDelta(content, parentToolCallId, reasoningId);
+	}
+
+	/**
+	 * Handles the message-history copy of reasoning. The SDK emits the message
+	 * before its matching `assistant.reasoning` event, so remember this fallback
+	 * briefly and let the later reasoning ID claim it without rendering twice.
+	 */
+	private _emitMessageReasoningFallback(content: string | undefined, messageId: string, parentToolCallId?: string): void {
+		const turn = this._currentTurn.value;
+		if (!turn) {
+			return;
+		}
+		const reasoningScope = parentToolCallId ?? '';
+		const streamedSinceLastMessage = turn.pendingReasoningDeltaIds.get(reasoningScope);
+		turn.pendingReasoningDeltaIds.delete(reasoningScope);
+		turn.pendingMessageReasoningFallbacks.delete(reasoningScope);
+		if (!content || streamedSinceLastMessage?.size) {
+			return;
+		}
+		const messageReasoningId = `message:${messageId}`;
+		const messageBlock = `${reasoningScope}\0${messageReasoningId}`;
+		this._emitReasoningDelta(content, parentToolCallId, messageReasoningId);
+		turn.pendingMessageReasoningFallbacks.set(reasoningScope, [{ content, blockKey: messageBlock }]);
 	}
 
 	/**
@@ -4145,13 +4216,14 @@ export class CopilotAgentSession extends Disposable {
 			// part when no deltas preceded the message (e.g. text after tool calls
 			// where the SDK delivered the full message at once).
 			//
-			// Other fields (toolRequests, reasoningText, encryptedContent) are
-			// only used for history reconstruction and live tool calls fire their
-			// own tool_start events, so we can safely drop them here.
+			// Live tool calls fire their own tool_start events. `reasoningText` is
+			// retained as a fallback for providers that did not emit live reasoning
+			// deltas; encryptedContent remains history-only.
 			if (this._shouldDropUnmappedSubagentEvent(e, 'assistant.message')) {
 				return;
 			}
 			const markdownScope = parentToolCallId ?? '';
+			this._emitMessageReasoningFallback(e.data.reasoningText, e.data.messageId, parentToolCallId);
 			if (e.data.content && !this._currentTurn.value?.markdownPartIds.has(markdownScope)) {
 				const partId = generateUuid();
 				this._currentTurn.value?.markdownPartIds.set(markdownScope, partId);
@@ -4994,7 +5066,19 @@ export class CopilotAgentSession extends Disposable {
 			if (this._shouldDropUnmappedSubagentEvent(e, 'assistant.reasoning_delta')) {
 				return;
 			}
-			this._emitReasoningDelta(e.data.deltaContent, this._parentToolCallIdForSubagentEvent(e));
+			if (!e.data.deltaContent) {
+				return;
+			}
+			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
+			const reasoningScope = parentToolCallId ?? '';
+			const turn = this._currentTurn.value;
+			let pendingReasoningIds = turn?.pendingReasoningDeltaIds.get(reasoningScope);
+			if (turn && !pendingReasoningIds) {
+				pendingReasoningIds = new Set<string>();
+				turn.pendingReasoningDeltaIds.set(reasoningScope, pendingReasoningIds);
+			}
+			pendingReasoningIds?.add(e.data.reasoningId);
+			this._emitReasoningDelta(e.data.deltaContent, parentToolCallId, e.data.reasoningId);
 		}));
 
 		// Sync the AHP session config when the SDK's `currentMode` changes
@@ -5603,6 +5687,15 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onReasoning(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Reasoning: ${e.data.content.length} chars`);
+			this._resumeSubagentForEvent(e);
+			if (this._shouldDropUnmappedSubagentEvent(e, 'assistant.reasoning')) {
+				return;
+			}
+			this._emitCompletedReasoningFallback(
+				e.data.content,
+				e.data.reasoningId,
+				this._parentToolCallIdForSubagentEvent(e),
+			);
 		}));
 
 		this._register(wrapper.onTurnEnd(e => {
