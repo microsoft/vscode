@@ -137,15 +137,24 @@ export class PromptFilesLocator {
 		let current = folderUri;
 		while (true) {
 			try {
-				const isRepoRoot = await this.fileService.exists(joinPath(current, '.git'));
-				if (isRepoRoot) {
-					if ((await this.workspaceTrustManagementService.getUriTrustInfo(current)).trusted) {
-						candidates.push(current);
-						return candidates;
+				const gitPath = joinPath(current, '.git');
+				if (await this.fileService.exists(gitPath)) {
+					const gitStat = await this.fileService.resolve(gitPath);
+					// A submodule has a `.git` file pointing into `.git/modules` and
+					// should continue walking to find the containing repository. A
+					// linked worktree points into `.git/worktrees` and is itself a
+					// repository root.
+					const gitFileContents = gitStat.isFile ? (await this.fileService.readFile(gitPath)).value.toString() : undefined;
+					const gitDirectory = gitFileContents?.match(/^gitdir:\s*(.+)$/m)?.[1];
+					const isLinkedWorktree = gitDirectory !== undefined && /(?:^|[\\/])\.git[\\/]worktrees(?:[\\/]|$)/.test(gitDirectory);
+					if (gitStat.isDirectory || isLinkedWorktree) {
+						if ((await this.workspaceTrustManagementService.getUriTrustInfo(current)).trusted) {
+							candidates.push(current);
+							return candidates;
+						}
+						logger?.logInfo(`Repository root found at ${current.toString()}, but it is not trusted. Skipping parent folder inclusion for this workspace folder.`);
+						return []; // if the repo root isn't trusted, don't include it or any parents
 					}
-					logger?.logInfo(`Repository root found at ${current.toString()}, but it is not trusted. Skipping parent folder inclusion for this workspace folder.`);
-					return []; // if the repo root isn't trusted, don't include it or any parents
-				}
 			} catch (e) {
 				const msg = e instanceof Error ? e.message : String(e);
 				logger?.logInfo(`No repository root found for folder ${folderUri.toString()}. Error accessing ${joinPath(current, '.git')}: ${msg}.`);
