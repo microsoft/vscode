@@ -72,6 +72,36 @@ suite('NativeManagedSettingsService', () => {
 		assert.deepStrictEqual(watchedSettings.strictPluginOnlyCustomization, { type: ['boolean', 'string'] });
 	});
 
+	test('falls back to the first scalar type for a legacy native watcher', async () => {
+		const watchedSettings: IManagedSettingsPolicyDefinitions[] = [];
+		const watcherFactory: NativePolicyWatcherFactory = (_productName, policies, callback) => {
+			watchedSettings.push(policies);
+			if (Object.values(policies).some(definition => Array.isArray(definition.type))) {
+				throw new TypeError('Expected policy type to be string');
+			}
+			callback({ strictPluginOnlyCustomization: true });
+			return Disposable.None;
+		};
+
+		const service = disposables.add(new NativeManagedSettingsService(new NullLogService(), 'com.github.copilot', undefined, watcherFactory));
+		await service.updatePolicyDefinitions({
+			[policyName]: {
+				type: 'boolean',
+				managedSettings: {
+					strictPluginOnlyCustomization: { type: ['boolean', 'string'] },
+				},
+			},
+		});
+
+		assert.deepStrictEqual({
+			definitions: watchedSettings.map(settings => settings.strictPluginOnlyCustomization),
+			managedSettings: service.managedSettings,
+		}, {
+			definitions: [{ type: ['boolean', 'string'] }, { type: 'boolean' }],
+			managedSettings: { strictPluginOnlyCustomization: true },
+		});
+	});
+
 	test('ignores callbacks from a replaced watcher', async () => {
 		const callbacks: Array<(update: Record<string, PolicyValue | undefined>) => void> = [];
 		const watcherFactory: NativePolicyWatcherFactory = (_productName, _policies, callback) => {
