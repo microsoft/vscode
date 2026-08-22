@@ -248,12 +248,57 @@ export class BrowserHostService extends Disposable implements IHostService {
 		return this.doOpenEmptyWindow(arg1);
 	}
 
+	private async resolveReuseForFolders(options: IOpenWindowOptions): Promise<boolean | undefined> {
+		if (options.waitMarkerFileURI) {
+			return true; // always handle --wait in same window
+		}
+
+		if (options.forceReuseWindow) {
+			return true;
+		}
+
+		if (options.forceNewWindow) {
+			return false;
+		}
+
+		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
+		if (windowConfig?.openFoldersInNewWindow === 'ask') {
+			const { result } = await this.dialogService.prompt<boolean>({
+				type: Severity.Info,
+				message: localize('openFolderInNewWindow', "How would you like to open the folder?"),
+				buttons: [
+					{
+						label: localize({ key: 'openFolderCurrentWindow', comment: ['&& denotes a mnemonic'] }, "&&Current Window"),
+						run: () => true
+					},
+					{
+						label: localize({ key: 'openFolderNewWindow', comment: ['&& denotes a mnemonic'] }, "&&New Window"),
+						run: () => false
+					}
+				],
+				cancelButton: true
+			});
+
+			return result; // undefined when cancelled
+		}
+
+		return this.shouldReuse(options, false /* no file */);
+	}
+
 	private async doOpenWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void> {
 		const payload = this.preservePayload(false /* not an empty window */, options);
 		const fileOpenables: IFileToOpen[] = [];
 
 		const foldersToAdd: IWorkspaceFolderCreationData[] = [];
 		const foldersToRemove: URI[] = [];
+
+		// Pre-resolve the reuse decision for folders/workspaces once for the entire batch
+		// to avoid showing the dialog multiple times when opening multiple folders.
+		const hasFolderOrWorkspace = toOpen.some(o => (isFolderToOpen(o) && !options?.addMode && !options?.removeMode) || isWorkspaceToOpen(o));
+		const reuseForFolders = hasFolderOrWorkspace ? await this.resolveReuseForFolders(options ?? Object.create(null)) : false;
+		if (reuseForFolders === undefined) {
+			return; // cancelled
+		}
 
 		for (const openable of toOpen) {
 			openable.label = openable.label || this.getRecentLabel(openable);
@@ -265,13 +310,13 @@ export class BrowserHostService extends Disposable implements IHostService {
 				} else if (options?.removeMode) {
 					foldersToRemove.push(openable.folderUri);
 				} else {
-					this.doOpen({ folderUri: openable.folderUri }, { reuse: this.shouldReuse(options, false /* no file */), payload });
+					this.doOpen({ folderUri: openable.folderUri }, { reuse: reuseForFolders, payload });
 				}
 			}
 
 			// Workspace
 			else if (isWorkspaceToOpen(openable)) {
-				this.doOpen({ workspaceUri: openable.workspaceUri }, { reuse: this.shouldReuse(options, false /* no file */), payload });
+				this.doOpen({ workspaceUri: openable.workspaceUri }, { reuse: reuseForFolders, payload });
 			}
 
 			// File (handled later in bulk)
