@@ -678,6 +678,45 @@ suite('FindController query options persistence', () => {
 		});
 	});
 
+	test('issue #237774: Update searchScope when the scope changes', async () => {
+		await withAsyncTestCodeEditor([
+			'var x = (3 * 5)',
+			'var y = (3 * 5)',
+			'var z = (3 * 5)',
+		], { serviceCollection: serviceCollection }, async (editor) => {
+			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+			const findState = findController.getState();
+
+			findState.change({ searchScope: [new Selection(1, 1, 2, 1)] }, false);
+			assert.deepStrictEqual(findState.searchScope, [new Selection(1, 1, 2, 1)]);
+
+			// Move the single selection: the scope must follow the new selection
+			findState.change({ searchScope: [new Selection(2, 1, 3, 1)] }, false);
+			assert.deepStrictEqual(findState.searchScope, [new Selection(2, 1, 3, 1)]);
+
+			// Shrink from two selections to one: the scope must shrink too
+			findState.change({ searchScope: [new Selection(1, 1, 2, 1), new Selection(2, 1, 2, 5)] }, false);
+			assert.deepStrictEqual(findState.searchScope, [new Selection(1, 1, 2, 1), new Selection(2, 1, 2, 5)]);
+			findState.change({ searchScope: [new Selection(1, 1, 2, 1)] }, false);
+			assert.deepStrictEqual(findState.searchScope, [new Selection(1, 1, 2, 1)]);
+
+			// Duplicate ranges must not be treated as equal to distinct ranges
+			findState.change({ searchScope: [new Selection(1, 1, 2, 1), new Selection(1, 1, 2, 1)] }, false);
+			assert.deepStrictEqual(findState.searchScope, [new Selection(1, 1, 2, 1), new Selection(1, 1, 2, 1)]);
+
+			// Identical scope must not fire a change event
+			let changeEventFired = false;
+			const listener = findState.onFindReplaceStateChange(() => changeEventFired = true);
+			findState.change({ searchScope: [new Selection(1, 1, 2, 1), new Selection(1, 1, 2, 1)] }, false);
+			listener.dispose();
+			assert.strictEqual(changeEventFired, false);
+
+			// Clearing the scope must be honored
+			findState.change({ searchScope: null }, false);
+			assert.strictEqual(findState.searchScope, null);
+		});
+	});
+
 	test('issue #58604: Update searchScope if it is not empty', async () => {
 		await withAsyncTestCodeEditor([
 			'var x = (3 * 5)',
