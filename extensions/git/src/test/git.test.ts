@@ -6,7 +6,7 @@
 import 'mocha';
 import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
 import * as assert from 'assert';
-import { splitInChunks } from '../util';
+import { getGitErrorHintSelection, isNonActionableGitStderrLine, splitInChunks } from '../util';
 
 suite('git', () => {
 	suite('GitStatusParser', () => {
@@ -715,6 +715,43 @@ suite('git', () => {
 				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 9)],
 				[['0', '01', '012', '0', '01'], ['012', '0', '01', '012']]
 			);
+		});
+	});
+
+	suite('getGitErrorHintSelection', () => {
+		test('detects SSH known_hosts noise', () => {
+			assert.strictEqual(
+				isNonActionableGitStderrLine("Warning: Permanently added 'gitlab.com' (ED25519) to the list of known hosts."),
+				true
+			);
+			assert.strictEqual(
+				isNonActionableGitStderrLine("warning: permanently added 'github.com' (RSA) to the list of known hosts"),
+				true
+			);
+			assert.strictEqual(isNonActionableGitStderrLine('fatal: Authentication failed'), false);
+		});
+
+		test('prefers fatal error over known_hosts warning', () => {
+			const stderr = [
+				"Warning: Permanently added 'gitlab.com' (ED25519) to the list of known hosts.",
+				"fatal: Could not read from remote repository.",
+			].join('\n');
+			const selection = getGitErrorHintSelection(stderr, undefined, undefined);
+			assert.strictEqual(selection.severity, 'error');
+			assert.deepStrictEqual(selection.hintLines, ['fatal: Could not read from remote repository.']);
+		});
+
+		test('known_hosts-only stderr uses warning severity', () => {
+			const stderr = "Warning: Permanently added 'gitlab.com' (ED25519) to the list of known hosts.";
+			const selection = getGitErrorHintSelection(stderr, undefined, undefined);
+			assert.strictEqual(selection.severity, 'warning');
+			assert.deepStrictEqual(selection.hintLines, [stderr]);
+		});
+
+		test('other warning-only stderr uses warning severity', () => {
+			const other = getGitErrorHintSelection('warning: refname is ambiguous', undefined, undefined);
+			assert.strictEqual(other.severity, 'warning');
+			assert.deepStrictEqual(other.hintLines, ['warning: refname is ambiguous']);
 		});
 	});
 });
