@@ -20,7 +20,8 @@ export class InlineDecoration {
 	constructor(
 		public readonly range: Range,
 		public readonly inlineClassName: string,
-		public readonly type: InlineDecorationType
+		public readonly type: InlineDecorationType,
+		public readonly widthInEmPerChar: number | undefined = undefined
 	) { }
 }
 
@@ -242,7 +243,7 @@ export class InjectedTextInlineDecorationsComputer implements IInlineDecorations
 				if (lineStartOffsetInInputWithInjections < injectedTextEndOffsetInInputWithInjections) {
 					// Injected text ends after or in this line (but also starts in or before this line).
 					const options = injectionOptions![currentInjectedOffset];
-					if (options.inlineClassName) {
+					if (options.inlineClassName || options.widthInEm !== undefined) {
 						const wrappedTextIndentLength = this.context.getWrappedTextIndentLength(modelLineNumber);
 						const offset = (outputLineIndex > 0 ? wrappedTextIndentLength : 0);
 						const start = offset + Math.max(injectedTextStartOffsetInInputWithInjections - lineStartOffsetInInputWithInjections, 0);
@@ -250,8 +251,9 @@ export class InjectedTextInlineDecorationsComputer implements IInlineDecorations
 						if (start !== end) {
 							const viewLineNumber = this.context.getBaseViewLineNumber(modelLineNumber) + outputLineIndex;
 							const range = new Range(viewLineNumber, start + 1, viewLineNumber, end + 1);
-							const type: InlineDecorationType = options.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular;
-							inlineDecorations.push(new InlineDecoration(range, options.inlineClassName, type));
+							const type: InlineDecorationType = options.inlineClassNameAffectsLetterSpacing || options.widthInEm !== undefined ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular;
+							const widthInEmPerChar = options.widthInEm === undefined ? undefined : options.widthInEm / length;
+							inlineDecorations.push(new InlineDecoration(range, options.inlineClassName ?? '', type, widthInEmPerChar));
 						}
 					}
 				}
