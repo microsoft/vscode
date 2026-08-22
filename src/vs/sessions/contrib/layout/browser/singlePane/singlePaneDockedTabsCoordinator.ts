@@ -291,6 +291,9 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 			: trigger;
 		this._pending = { sessionKey, target, trigger: mergedTrigger };
 		const generation = ++this._generation;
+		if (this._ctx.isRestoringSessionLayout) {
+			return;
+		}
 		void this._sequencer.queue(() => this._reconcile(generation)).catch(onUnexpectedError);
 	}
 
@@ -309,7 +312,7 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 	// --- Reconcile --------------------------------------------------------
 
 	private async _reconcile(generation: number): Promise<void> {
-		if (generation !== this._generation || !this._pending) {
+		if (generation !== this._generation || !this._pending || this._ctx.isRestoringSessionLayout) {
 			return;
 		}
 
