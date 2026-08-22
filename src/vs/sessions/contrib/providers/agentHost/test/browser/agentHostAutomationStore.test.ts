@@ -111,7 +111,7 @@ class TestAutomationConnection {
 			const timestamp = new Date().toISOString();
 			const isPending = !!(action.definition._meta && action.definition._meta[AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]);
 			const operations = isPending
-				? [AutomationOperation.Update, AutomationOperation.Remove]
+				? [AutomationOperation.Update]
 				: [AutomationOperation.Update, AutomationOperation.Remove, ...(this._migrationComplete ? [AutomationOperation.Run] : [])];
 			const automation = {
 				resource: action.resource,
@@ -136,12 +136,10 @@ class TestAutomationConnection {
 			}
 			const definition = { ...current.definition, ...action.changes };
 			const isPending = !!(definition._meta && definition._meta[AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]);
-			// Recompute Run permission based on the (possibly toggled) pending
-			// flag so tests observe the state transitions the host performs.
-			const withoutRun = current.operations.filter(op => op !== AutomationOperation.Run);
-			const operations = isPending || !this._migrationComplete
-				? withoutRun
-				: [...withoutRun, AutomationOperation.Run];
+			const withoutAuthority = current.operations.filter(op => op !== AutomationOperation.Run && op !== AutomationOperation.Remove);
+			const operations = isPending
+				? withoutAuthority
+				: [...withoutAuthority, AutomationOperation.Remove, ...(this._migrationComplete ? [AutomationOperation.Run] : [])];
 			const automation = {
 				...current,
 				definition,
@@ -166,6 +164,15 @@ class TestAutomationConnection {
 			this._onDidCatalogChange.fire(this._catalog);
 		} else if (action.type === ActionType.RootConfigChanged && action.config[AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY]) {
 			this._migrationComplete = true;
+			this._catalog = {
+				...this._catalog,
+				automations: this._catalog.automations.map(automation => ({
+					...automation,
+					operations: automation.definition._meta?.[AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]
+						? automation.operations.filter(op => op !== AutomationOperation.Run && op !== AutomationOperation.Remove)
+						: [...automation.operations.filter(op => op !== AutomationOperation.Run), AutomationOperation.Run],
+				})),
+			};
 			this._root = {
 				...this._root,
 				config: {
@@ -173,6 +180,7 @@ class TestAutomationConnection {
 					values: { ...this._root.config?.values, ...action.config },
 				},
 			};
+			this._onDidCatalogChange.fire(this._catalog);
 			this._onDidRootChange.fire(this._root);
 		}
 	}
