@@ -211,6 +211,10 @@ export class FindInput extends Widget {
 		this.onkeyup(this.inputBox.inputElement, (e) => this._onKeyUp.fire(e));
 		this.oninput(this.inputBox.inputElement, (e) => this._onInput.fire());
 		this.onmousedown(this.inputBox.inputElement, (e) => this._onMouseDown.fire(e));
+		this._register(dom.addDisposableListener(this.inputBox.inputElement, dom.EventType.DRAG_START, (e: DragEvent) => {
+			e.preventDefault();
+			e.stopPropagation();
+		}));
 	}
 
 	public get isImeSessionInProgress(): boolean {
