@@ -21,3 +21,34 @@ export function urlToUri(url: string, base: vscode.Uri): vscode.Uri | undefined 
 		return undefined;
 	}
 }
+
+/**
+ * Builds a VS Code URI from an http/https URL string without running the URL
+ * through `Uri.parse`, which would decode percent-encoded characters such as
+ * `%2F` in path segments or `%2D` inside text-fragment specifications.
+ *
+ * The WHATWG URL API is used to split the URL into its components; those
+ * components are then handed to `Uri.from`, which stores them verbatim so that
+ * `toString(true)` can reproduce the original percent-encoding faithfully.
+ *
+ * Falls back to `Uri.parse` for URLs that the WHATWG URL parser cannot handle.
+ */
+export function rawHttpUriFromHref(href: string): vscode.Uri {
+	let parsedUrl: URL;
+	try {
+		parsedUrl = new URL(href);
+	} catch {
+		// The WHATWG URL parser only accepts absolute URLs with a recognised
+		// scheme.  For anything it rejects (e.g. a bare path or an unknown
+		// scheme) fall back to the normal VS Code URI parser.
+		return vscode.Uri.parse(href);
+	}
+
+	return vscode.Uri.from({
+		scheme: parsedUrl.protocol.slice(0, -1), // strip trailing ':'
+		authority: parsedUrl.host,
+		path: parsedUrl.pathname,
+		query: parsedUrl.search ? parsedUrl.search.slice(1) : '',   // strip leading '?'
+		fragment: parsedUrl.hash ? parsedUrl.hash.slice(1) : '',    // strip leading '#'
+	});
+}
