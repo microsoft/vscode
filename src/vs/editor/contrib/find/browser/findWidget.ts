@@ -462,9 +462,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			this._matchesCount.title = '';
 		}
 
-		// remove previous content
-		this._matchesCount.firstChild?.remove();
-
 		let label: string;
 		if (this._state.matchesCount > 0) {
 			let matchesCount: string = String(this._state.matchesCount);
@@ -480,7 +477,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			label = NLS_NO_RESULTS;
 		}
 
-		this._matchesCount.appendChild(document.createTextNode(label));
+		this._matchesCount.textContent = label;
 
 		alertFn(this._getAriaLabel(label, this._state.currentMatch, this._state.searchString));
 		MAX_MATCHES_COUNT_WIDTH = Math.max(MAX_MATCHES_COUNT_WIDTH, this._matchesCount.clientWidth);
