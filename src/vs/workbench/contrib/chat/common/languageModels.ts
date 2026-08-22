@@ -1174,7 +1174,12 @@ export class LanguageModelsService implements ILanguageModelsService {
 			provider = this._providers.get(vendorId);
 		}
 		if (!provider) {
-			this._logService.warn(`[LM] No provider registered for vendor ${vendorId}`);
+			const message = `[LM] No provider registered for vendor ${vendorId}`;
+			if (silent) {
+				this._logService.trace(message);
+			} else {
+				this._logService.warn(message);
+			}
 			return;
 		}
 
