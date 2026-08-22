@@ -161,7 +161,9 @@ suite('ChatWidget', () => {
 		let revealedRequest: IChatRequestViewModel | undefined;
 		let requestedTemplateId: string | undefined;
 		let clickedTemplate: IChatListItemTemplate | undefined;
-		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
+		const widget = Object.create(ChatWidget.prototype) as unknown as {
+			handleRequestClick(item: IChatListItemTemplate): void;
+		};
 		Object.defineProperties(widget, {
 			listWidget: {
 				value: {
@@ -178,8 +180,7 @@ suite('ChatWidget', () => {
 			clickedRequest: { value: (item: IChatListItemTemplate) => clickedTemplate = item },
 		});
 
-		(ChatWidget.prototype as unknown as { handleRequestClick(this: ChatWidget, item: IChatListItemTemplate): void })
-			.handleRequestClick.call(widget, stickyTemplate);
+		widget.handleRequestClick(stickyTemplate);
 
 		assert.deepStrictEqual({
 			revealedRequest,

@@ -183,7 +183,6 @@ export interface IChatListItemTemplate {
 	readonly username: HTMLElement;
 	readonly detail: HTMLElement;
 	readonly value: HTMLElement;
-	/** The rendered request content whose viewport crossing activates sticky scroll. */
 	stickyScrollSource?: HTMLElement;
 	readonly requestTimestampContainer: HTMLElement;
 	readonly contextKeyService: IContextKeyService;
@@ -852,7 +851,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return codeBlocks ?? [];
 	}
 
-	/** Returns the measured request-content range, falling back to the full row before first render. */
 	getStickyScrollSourceRange(element: ChatTreeItem, defaultRange: IStickyScrollNodeSourceRange): IStickyScrollNodeSourceRange | undefined {
 		if (!isRequestVM(element)
 			|| element.isSystemInitiated

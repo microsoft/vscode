@@ -1280,13 +1280,10 @@ export interface StickyScrollNode<T, TFilterData> {
 	readonly hasExplicitHeight: boolean;
 }
 
-/** Vertical offsets of the content within a row that should activate and visually merge with sticky scroll. */
 export interface IStickyScrollNodeSourceRange {
 	readonly start: number;
 	readonly end: number;
-	/** Rendered height of the sticky node when it differs from the source range height. */
 	readonly stickyNodeHeight?: number;
-	/** Whether the range should be constrained to the available sticky viewport until measured. */
 	readonly estimated?: boolean;
 }
 
@@ -1919,8 +1916,7 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 				element.style.lineHeight = `${renderedHeight}px`;
 			}
 
-			// Only propagate height increases to the real row — never shrink it,
-			// since sticky elements may represent only part of the source row.
+			// A sticky row may represent only part of its source, so never shrink the source row.
 			if (!stickyNode.hasExplicitHeight && clampedMeasuredHeight > this.view.getElementHeight(stickyNode.startIndex)) {
 				heightChanges.push({ index: stickyNode.startIndex, height: clampedMeasuredHeight });
 			}
@@ -2389,7 +2385,6 @@ export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTr
 	readonly findWidgetContainer?: HTMLElement;
 	readonly defaultFindVisibility?: TreeVisibility | ((e: T) => TreeVisibility);
 	readonly stickyScrollDelegate?: IStickyScrollDelegate<T, TFilterData>;
-	/** Returns the row content range that activates sticky scroll, or `undefined` when the row should not stick. */
 	readonly stickyScrollNodeSourceRangeProvider?: (element: T, defaultRange: IStickyScrollNodeSourceRange) => IStickyScrollNodeSourceRange | undefined;
 	readonly disableExpandOnSpacebar?: boolean; // defaults to false
 }
@@ -2973,12 +2968,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		return this.view.renderHeight;
 	}
 
-	/** Recomputes sticky-scroll state after source range data changes. */
 	refreshStickyScroll(): void {
 		this.stickyScrollController?.refresh();
 	}
 
-	/** Rerenders sticky rows and recomputes their state. */
 	rerenderStickyScroll(): void {
 		this.stickyScrollController?.rerender();
 	}
