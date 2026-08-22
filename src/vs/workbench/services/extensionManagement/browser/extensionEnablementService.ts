@@ -200,7 +200,8 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 	// Releases that applied `chat.disableAIFeatures` by persisting enablement left an entry that
 	// outlives the setting: a global one reaches every window on this machine, a workspace one
-	// survives the setting being cleared. Drop whichever the derived state now accounts for.
+	// survives the setting being cleared. Drop whichever the derived state now accounts for. Runs
+	// at startup and on profile switch only, so it cannot discard a disable made after either.
 	private reconcileChatExtensionDisablement(): void {
 		if (!this._chatExtensionId) {
 			return;
@@ -499,11 +500,11 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			return enablementState;
 		}
 
-		// Called here as well as in the constructor because on profile switch the enablement service
-		// is not recreated, but the storage scope changes to the new profile.
+		// Ensure the chat extension is disabled in fresh profiles where chat setup is not completed.
+		// This is called here (in addition to the constructor) because on profile switch the
+		// enablement service is not recreated, but the storage scope changes to the new profile.
 		if (extension.identifier.id.toLowerCase() === this._chatExtensionId) {
 			this.ensureChatExtensionInitialDisabledState();
-			this.reconcileChatExtensionDisablement();
 		}
 
 		enablementState = this._getUserEnablementState(extension.identifier);
@@ -865,6 +866,11 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	}
 
 	private _onDidChangeExtensions(added: ReadonlyArray<IExtension>, removed: ReadonlyArray<IExtension>, isProfileSwitch: boolean): void {
+		if (isProfileSwitch) {
+			// The disabled extension lists are profile scoped, so the new profile carries its own entries
+			this.reconcileChatExtensionDisablement();
+		}
+
 		const changedExtensions: IExtension[] = added.filter(e => !this.isEnabledEnablementState(this.getEnablementState(e)));
 		const existingDisabledExtensions = this.extensionsDisabledExtensions;
 		this.extensionsDisabledExtensions = this.extensionsManager.extensions.filter(extension => {
