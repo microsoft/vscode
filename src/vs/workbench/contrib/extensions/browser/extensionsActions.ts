@@ -1847,6 +1847,7 @@ export class EnableAIFeaturesInWorkspaceAction extends ExtensionAction {
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 	) {
 		super(EnableAIFeaturesInWorkspaceAction.ID, EnableAIFeaturesInWorkspaceAction.LABEL, ExtensionAction.LABEL_ACTION_CLASS);
 		this.tooltip = localize('enableAIInWorkspaceActionToolTip', "Enable AI features in this workspace");
@@ -1866,7 +1867,14 @@ export class EnableAIFeaturesInWorkspaceAction extends ExtensionAction {
 		if (!ExtensionIdentifier.equals(this.extension.identifier.id, this.productService.defaultChatAgent?.chatExtensionId)) {
 			return;
 		}
-		if (!this.extensionEnablementService.canChangeWorkspaceEnablement(this.extension.local)) {
+		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+			return;
+		}
+		// While the setting resolves to true it owns enablement and canChangeWorkspaceEnablement
+		// reports false. `run` clears the setting before touching persisted state, so this action
+		// stays the way out of it.
+		if (this.extension.enablementState !== EnablementState.DisabledByAIFeaturesSetting
+			&& !this.extensionEnablementService.canChangeWorkspaceEnablement(this.extension.local)) {
 			return;
 		}
 		const inspect = this.configurationService.inspect(ChatAIDisabledSettingId);
@@ -1885,12 +1893,16 @@ export class EnableAIFeaturesInWorkspaceAction extends ExtensionAction {
 	}
 
 	override async run(): Promise<void> {
-		if (!this.extension) {
+		if (!this.extension?.local) {
 			return;
 		}
-		await this.extensionsWorkbenchService.setEnablement(this.extension, EnablementState.EnabledWorkspace);
+
 		if (this.configurationService.getValue<boolean>(ChatAIDisabledSettingId) === true) {
 			await this.configurationService.updateValue(ChatAIDisabledSettingId, false, ConfigurationTarget.WORKSPACE);
+		}
+
+		if (!this.extensionEnablementService.isEnabled(this.extension.local)) {
+			await this.extensionsWorkbenchService.setEnablement(this.extension, EnablementState.EnabledWorkspace);
 		}
 	}
 }

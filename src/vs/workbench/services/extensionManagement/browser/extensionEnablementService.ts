@@ -138,6 +138,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatAIDisabledSettingId)) {
+				this.reconcileChatExtensionGlobalDisablement();
 				this._onEnablementChanged.fire(this.extensionsManager.extensions.filter(ext => ext.identifier.id.toLowerCase() === this._chatExtensionId));
 			}
 		}));
@@ -205,7 +206,8 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		// A globally disabled chat extension applies to every window on this machine, whereas
 		// `chat.disableAIFeatures` applies only where its configuration resolves. Releases that
 		// implemented the setting as a global disable leak into windows the setting does not cover,
-		// so drop the entry that the derived enablement state already accounts for.
+		// so drop the entry that the derived enablement state already accounts for. Runs on every
+		// change too, because the migration above settles the setting asynchronously.
 		if (this.configurationService.getValue(ChatAIDisabledSettingId) !== true || !this._isDisabledGlobally({ id: this._chatExtensionId })) {
 			return;
 		}
