@@ -14,6 +14,7 @@ import { equals } from '../../../../base/common/objects.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { IDefaultChatAgent } from '../../../../base/common/product.js';
 import { isString, isUndefined, Mutable } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IRequestContext } from '../../../../base/parts/request/common/request.js';
 import { localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -47,6 +48,7 @@ interface IDefaultAccountConfig {
 		};
 		readonly enterpriseProviderConfig: string;
 		readonly enterpriseProviderUriSetting: string;
+		readonly enterpriseProviderUriFallbackSetting: string;
 		readonly scopes: string[][];
 	};
 	readonly tokenEntitlementUrl: string;
@@ -105,6 +107,7 @@ function toDefaultAccountConfig(defaultChatAgent: IDefaultChatAgent): IDefaultAc
 			},
 			enterpriseProviderConfig: `${defaultChatAgent.completionsAdvancedSetting}.authProvider`,
 			enterpriseProviderUriSetting: defaultChatAgent.providerUriSetting,
+			enterpriseProviderUriFallbackSetting: 'github-enterprise.uri',
 			scopes: defaultChatAgent.providerScopes,
 		},
 		entitlementUrl: defaultChatAgent.entitlementUrl,
@@ -759,7 +762,10 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 					}
 				}
 
-				return await this.authenticationService.getSessions(authProviderId, undefined, { account: preferredAccount }, true);
+				const authorizationServer = authProviderId === this.defaultAccountConfig.authenticationProvider.enterprise.id
+					? this.getEnterpriseAuthorizationServer()
+					: undefined;
+				return await this.authenticationService.getSessions(authProviderId, undefined, { account: preferredAccount, authorizationServer }, true);
 			} catch (error) {
 				this.logService.warn(`[DefaultAccount] Attempt ${attempt} to get sessions failed:`, getErrorMessage(error));
 				if (attempt === 3) {
@@ -1195,7 +1201,8 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 	}
 
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider {
-		if (this.configurationService.getValue<string | undefined>(this.defaultAccountConfig.authenticationProvider.enterpriseProviderConfig) === this.defaultAccountConfig.authenticationProvider.enterprise.id) {
+		const configuredProvider = this.configurationService.getValue<string | undefined>(this.defaultAccountConfig.authenticationProvider.enterpriseProviderConfig);
+		if (configuredProvider === this.defaultAccountConfig.authenticationProvider.enterprise.id) {
 			return {
 				...this.defaultAccountConfig.authenticationProvider.enterprise,
 				enterprise: true
@@ -1223,11 +1230,36 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 	}
 
 	private getEnterpriseUrl(): URL | undefined {
-		const value = this.configurationService.getValue(this.defaultAccountConfig.authenticationProvider.enterpriseProviderUriSetting);
-		if (!isString(value)) {
+		const value = this.getEnterpriseUriSettingValue();
+		return value ? new URL(value) : undefined;
+	}
+
+	private getEnterpriseUriSettingValue(): string | undefined {
+		const configuredValue = this.configurationService.getValue(this.defaultAccountConfig.authenticationProvider.enterpriseProviderUriSetting);
+		if (isString(configuredValue) && configuredValue.trim().length > 0) {
+			return configuredValue;
+		}
+
+		const fallbackValue = this.configurationService.getValue(this.defaultAccountConfig.authenticationProvider.enterpriseProviderUriFallbackSetting);
+		if (isString(fallbackValue) && fallbackValue.trim().length > 0) {
+			return fallbackValue;
+		}
+
+		return undefined;
+	}
+
+	private getEnterpriseAuthorizationServer(): URI | undefined {
+		const enterpriseUriSettingValue = this.getEnterpriseUriSettingValue();
+		if (!enterpriseUriSettingValue) {
 			return undefined;
 		}
-		return new URL(value);
+		const parsedEnterpriseUri = URI.parse(enterpriseUriSettingValue, true);
+		const enterpriseUri = parsedEnterpriseUri.with({
+			path: parsedEnterpriseUri.path.replace(/\/+$/, ''),
+			query: null,
+			fragment: null
+		});
+		return URI.joinPath(enterpriseUri, '/login/oauth');
 	}
 
 	async signIn(options?: { additionalScopes?: readonly string[];[key: string]: unknown }): Promise<IDefaultAccount | null> {
@@ -1238,7 +1270,8 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		const { additionalScopes, ...sessionOptions } = options ?? {};
 		const defaultAccountScopes = this.defaultAccountConfig.authenticationProvider.scopes[0];
 		const scopes = additionalScopes ? distinct([...defaultAccountScopes, ...additionalScopes]) : defaultAccountScopes;
-		const session = await this.authenticationService.createSession(authProvider.id, scopes, sessionOptions);
+		const authorizationServer = authProvider.enterprise ? this.getEnterpriseAuthorizationServer() : undefined;
+		const session = await this.authenticationService.createSession(authProvider.id, scopes, { ...sessionOptions, authorizationServer });
 		for (const preferredExtension of this.defaultAccountConfig.preferredExtensions) {
 			this.authenticationExtensionsService.updateAccountPreference(preferredExtension, authProvider.id, session.account);
 		}

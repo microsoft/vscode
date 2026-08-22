@@ -119,7 +119,7 @@
 			}
 		},
 		"providerExtensionId": "vscode.github-authentication",
-		"providerUriSetting": "github-enterprise.uri",
+		"providerUriSetting": "github.copilot.enterprise.uri",
 		"providerScopes": [
 			[
 				"read:user",
