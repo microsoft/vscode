@@ -106,6 +106,59 @@ suite('claudeReplayMapper', () => {
 		}
 	});
 
+	test('replays the user prompt without the host-composed context blocks', () => {
+		// resolvePromptToContentBlocks puts the prompt first, then the host-composed blocks.
+		const messages: SessionMessage[] = [
+			{
+				type: 'user',
+				uuid: 'u1',
+				session_id: 'sess-1',
+				parent_tool_use_id: null,
+				parent_agent_id: null,
+				message: {
+					role: 'user',
+					content: [
+						{ type: 'text', text: 'read package.json' },
+						{ type: 'text', text: 'No browser pages are currently shared with you.' },
+						{ type: 'text', text: '<system-reminder>\nThe user provided the following references:\n- /w/a.ts\n</system-reminder>' },
+					],
+				},
+			} as SessionMessage,
+			makeAssistantText('a1', 'done'),
+		];
+
+		const turns = mapSessionMessagesToTurns(messages, session, logService);
+
+		assert.strictEqual(turns.length, 1);
+		assert.strictEqual(turns[0].message.text, 'read package.json');
+	});
+
+	test('an attachment-only turn replays as an empty prompt', () => {
+		// Sending attachments with no typed text leaves the first block empty.
+		const messages: SessionMessage[] = [
+			{
+				type: 'user',
+				uuid: 'u1',
+				session_id: 'sess-1',
+				parent_tool_use_id: null,
+				parent_agent_id: null,
+				message: {
+					role: 'user',
+					content: [
+						{ type: 'text', text: '' },
+						{ type: 'text', text: 'No browser pages are currently shared with you.' },
+					],
+				},
+			} as SessionMessage,
+			makeAssistantText('a1', 'done'),
+		];
+
+		const turns = mapSessionMessagesToTurns(messages, session, logService);
+
+		assert.strictEqual(turns.length, 1);
+		assert.strictEqual(turns[0].message.text, '');
+	});
+
 	test('restores turn timing from persisted message timestamps', () => {
 		const messages: SessionMessage[] = [
 			makeUser('u1', 'hello', '2026-07-09T18:00:00.000Z'),
