@@ -2914,6 +2914,47 @@ suite('LayoutController (desktop)', () => {
 		assert.deepStrictEqual({ bChangesOpenedActive: bActiveCalls.length }, { bChangesOpenedActive: 0 });
 	});
 
+	test('[managed tabs / session switch] waits for working-set restore before replacing the Changes tab', async () => {
+		const controller = createSinglePaneController({ activateAux: true });
+		await settle();
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		harness.activeSessionObs.set(sessionA, undefined);
+		await settle();
+
+		let replacements = 0;
+		harness.onReplaceEditors = () => {
+			replacements++;
+		};
+
+		let releaseRestore!: () => void;
+		const restoreGate = new Promise<void>(resolve => releaseRestore = resolve);
+		controller.runWithRestore(() => restoreGate);
+
+		const sessionB = makeSession(URI.parse('session:b'));
+		harness.activeSessionObs.set(sessionB, undefined);
+		await settle();
+
+		const replacementsDuringRestore = replacements;
+		const changesDuringRestore = harness.activeGroupEditors.find(editor => !(editor instanceof EmptyFileEditorInput))?.resource;
+
+		releaseRestore();
+		await settle();
+
+		const changesAfterRestore = harness.activeGroupEditors.find(editor => !(editor instanceof EmptyFileEditorInput))?.resource;
+		assert.deepStrictEqual({
+			replacementsDuringRestore,
+			changesDuringRestore: changesDuringRestore?.toString(),
+			replacementsAfterRestore: replacements,
+			changesAfterRestore: changesAfterRestore?.toString(),
+		}, {
+			replacementsDuringRestore: 0,
+			changesDuringRestore: harness.sessionChangesService.getChangesEditorResource(sessionA.resource).toString(),
+			replacementsAfterRestore: 1,
+			changesAfterRestore: harness.sessionChangesService.getChangesEditorResource(sessionB.resource).toString(),
+		});
+	});
+
 	test('[managed tabs / session switch] does not publish workspace from a superseded reconcile', async () => {
 		createSinglePaneController({ activateAux: true });
 		await settle();
