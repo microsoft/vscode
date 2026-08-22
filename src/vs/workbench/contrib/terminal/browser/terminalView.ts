@@ -30,7 +30,7 @@ import { ISelectOptionItem, SeparatorSelectOption } from '../../../../base/brows
 import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { TerminalTabbedView } from './terminalTabbedView.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { getColorForSeverity } from './terminalStatusList.js';
 import { getFlatContextMenuActions, MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
@@ -515,7 +515,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 				}
 			}
 			label.style.color = colorStyle;
-			dom.reset(label, ...renderLabelWithIcons(this._instantiationService.invokeFunction(getSingleTabLabel, instance, this._terminaConfigurationService.config.tabs.separator, ThemeIcon.isThemeIcon(this._commandAction.item.icon) ? this._commandAction.item.icon : undefined)));
+			dom.reset(label, ...this._instantiationService.invokeFunction(getSingleTabLabel, instance, this._terminaConfigurationService.config.tabs.separator, ThemeIcon.isThemeIcon(this._commandAction.item.icon) ? this._commandAction.item.icon : undefined));
 
 			if (this._altCommand) {
 				label.classList.remove(this._altCommand);
@@ -564,23 +564,24 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 	}
 }
 
-function getSingleTabLabel(accessor: ServicesAccessor, instance: ITerminalInstance | undefined, separator: string, icon?: ThemeIcon) {
+export function getSingleTabLabel(accessor: ServicesAccessor, instance: ITerminalInstance | undefined, separator: string, icon?: ThemeIcon): Array<Node> {
 	// Don't even show the icon if there is no title as the icon would shift around when the title
 	// is added
 	if (!instance || !instance.title) {
-		return '';
+		return [];
 	}
 	const iconId = ThemeIcon.isThemeIcon(instance.icon) ? instance.icon.id : accessor.get(ITerminalProfileResolverService).getDefaultIcon().id;
-	const label = `$(${icon?.id || iconId}) ${getSingleTabTitle(instance, separator)}`;
+	const title = dom.$('span.single-terminal-tab-label', {}, getSingleTabTitle(instance, separator));
+	const nodes: Node[] = [renderIcon(icon ? { id: icon.id } : { id: iconId }), title];
 
 	const primaryStatus = instance.statusList.primary;
-	if (!primaryStatus?.icon) {
-		return label;
+	if (primaryStatus?.icon) {
+		nodes.push(renderIcon(primaryStatus.icon));
 	}
-	return `${label} $(${primaryStatus.icon.id})`;
+	return nodes;
 }
 
-function getSingleTabTitle(instance: ITerminalInstance | undefined, separator: string): string {
+export function getSingleTabTitle(instance: ITerminalInstance | undefined, separator: string): string {
 	if (!instance) {
 		return '';
 	}
