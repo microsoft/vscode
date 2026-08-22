@@ -359,7 +359,20 @@ export function isNewChatSessionTypeUsable(
 	return isVisibleEditorChatSessionType(sessionType, configurationService, chatSessionsService, workspace, managedSandboxEnforced);
 }
 
-export type SessionTypeSelectionReason = 'explicitOverride' | 'virtualWorkspace' | 'rememberedSelection' | 'currentSession' | 'copilotPreference' | 'computedDefault';
+/** Why a new chat session type was selected. */
+export type SessionTypeSelectionReason =
+	/** A caller explicitly chose the session type. */
+	| 'explicitOverride'
+	/** A virtual workspace forced the local session type. */
+	| 'virtualWorkspace'
+	/** The user's last usable session type was restored. */
+	| 'rememberedSelection'
+	/** The current session's usable type was preserved. */
+	| 'currentSession'
+	/** The Copilot harness preference replaced a local current session. */
+	| 'copilotPreference'
+	/** Settings and available capabilities determined the default type. */
+	| 'computedDefault';
 
 export interface IDefaultNewChatSessionTypeOptions {
 	readonly explicitOverride?: string;

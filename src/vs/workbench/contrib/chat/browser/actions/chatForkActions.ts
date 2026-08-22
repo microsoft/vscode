@@ -244,7 +244,7 @@ export class ForkConversationAction extends Action2 {
 	protected async _openForkedSession(instantiationService: IInstantiationService, parentSessionResource: URI, forkedSessionResource: URI): Promise<void> {
 		await instantiationService.invokeFunction(async accessor => {
 			const chatWidgetService = accessor.get(IChatWidgetService);
-			await chatWidgetService.openSession(forkedSessionResource, ChatViewPaneTarget);
+			await chatWidgetService.openSession(forkedSessionResource, ChatViewPaneTarget, { sessionTypeSelectionReason: 'currentSession' });
 		});
 	}
 

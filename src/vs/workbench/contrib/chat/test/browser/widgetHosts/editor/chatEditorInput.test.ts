@@ -337,11 +337,13 @@ suite('ChatEditorInput', () => {
 			copiedUntitled: isUntitledChatSession(copied.resource),
 			distinctFromSource: !isEqual(copied.resource, source),
 			sourceUnchanged: isEqual(input.resource, source),
+			selectionReason: copied.options.sessionTypeSelectionReason,
 		}, {
 			copiedType: SessionType.AgentHostCopilot,
 			copiedUntitled: true,
 			distinctFromSource: true,
 			sourceUnchanged: true,
+			selectionReason: 'currentSession',
 		});
 	});
 
