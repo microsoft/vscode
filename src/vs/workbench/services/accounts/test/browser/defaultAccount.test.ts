@@ -229,7 +229,95 @@ suite('DefaultAccountProvider managed settings', () => {
 		});
 	});
 
-	async function createProvider(requestService: TestRequestService): Promise<DefaultAccountProvider> {
+	test('transient MCP registry failure preserves cached enterprise registry data', async () => {
+		const requestService = new TestRequestService(async options => {
+			if (options.url?.endsWith('/copilot_internal/user')) {
+				return jsonResponse({ chat_enabled: true });
+			}
+			if (options.url?.endsWith('/copilot_internal/v2/token')) {
+				return jsonResponse({ token: 'mcp=1' });
+			}
+			if (options.url?.includes('/copilot/mcp_registry')) {
+				// 5xx is a transient failure: enterprise registry data must be preserved.
+				return jsonResponse({}, 500);
+			}
+			throw new Error(`Unexpected request: ${options.url}`);
+		});
+		const provider = await createProvider(requestService, {
+			tokenEntitlementUrl: 'https://api.github.com/copilot_internal/v2/token',
+			mcpRegistryDataUrl: 'https://api.github.com/copilot/mcp_registry',
+			managedSettingsUrl: '',
+		});
+		provider['_policyData'] = {
+			accountId,
+			policyData: {
+				mcp: true,
+				mcpRegistryUrl: 'https://example.com/enterprise-registry',
+				mcpAccess: 'registry_only',
+			},
+			mcpRegistryDataFetchedAt: Date.now(),
+		};
+
+		const result = await provider['getDefaultAccountFromAuthenticatedSessions'](
+			{ id: 'github', name: 'GitHub', enterprise: false },
+			sessions,
+			{ forceRefresh: true }
+		);
+
+		assert.deepStrictEqual({
+			mcpRegistryUrl: result?.policyData?.policyData.mcpRegistryUrl,
+			mcpAccess: result?.policyData?.policyData.mcpAccess,
+		}, {
+			mcpRegistryUrl: 'https://example.com/enterprise-registry',
+			mcpAccess: 'registry_only',
+		});
+	});
+
+	test('definitive MCP registry removal clears cached registry data', async () => {
+		const requestService = new TestRequestService(async options => {
+			if (options.url?.endsWith('/copilot_internal/user')) {
+				return jsonResponse({ chat_enabled: true });
+			}
+			if (options.url?.endsWith('/copilot_internal/v2/token')) {
+				return jsonResponse({ token: 'mcp=1' });
+			}
+			if (options.url?.includes('/copilot/mcp_registry')) {
+				// 4xx is a definitive "no registry available" signal: cached data must be cleared.
+				return jsonResponse({}, 404);
+			}
+			throw new Error(`Unexpected request: ${options.url}`);
+		});
+		const provider = await createProvider(requestService, {
+			tokenEntitlementUrl: 'https://api.github.com/copilot_internal/v2/token',
+			mcpRegistryDataUrl: 'https://api.github.com/copilot/mcp_registry',
+			managedSettingsUrl: '',
+		});
+		provider['_policyData'] = {
+			accountId,
+			policyData: {
+				mcp: true,
+				mcpRegistryUrl: 'https://example.com/enterprise-registry',
+				mcpAccess: 'registry_only',
+			},
+			mcpRegistryDataFetchedAt: Date.now(),
+		};
+
+		const result = await provider['getDefaultAccountFromAuthenticatedSessions'](
+			{ id: 'github', name: 'GitHub', enterprise: false },
+			sessions,
+			{ forceRefresh: true }
+		);
+
+		assert.deepStrictEqual({
+			mcpRegistryUrl: result?.policyData?.policyData.mcpRegistryUrl,
+			mcpAccess: result?.policyData?.policyData.mcpAccess,
+		}, {
+			mcpRegistryUrl: undefined,
+			mcpAccess: undefined,
+		});
+	});
+
+	async function createProvider(requestService: TestRequestService, configOverrides?: Partial<{ tokenEntitlementUrl: string; mcpRegistryDataUrl: string; managedSettingsUrl: string }>): Promise<DefaultAccountProvider> {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IAuthenticationService, {
@@ -280,6 +368,7 @@ suite('DefaultAccountProvider managed settings', () => {
 			entitlementUrl: 'https://api.github.com/copilot_internal/user',
 			mcpRegistryDataUrl: '',
 			managedSettingsUrl: 'https://api.github.com/copilot_internal/managed_settings',
+			...configOverrides,
 		}));
 		await provider.refresh();
 		return provider;
