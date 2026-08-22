@@ -393,8 +393,10 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			store.add(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(this.markdown, result.element));
 
 			const layoutParticipants = new Lazy(() => {
-				const observer = store.add(new dom.DisposableResizeObserver('ChatMarkdownContentPart.mathLayout', () => this.mathLayoutParticipants.forEach(layout => layout())));
-				store.add(observer.observe(this.domNode));
+				const registration = context.registerMathLayoutParticipant?.(() => this.layoutMath());
+				if (registration) {
+					store.add(registration);
+				}
 				return this.mathLayoutParticipants;
 			});
 
@@ -620,6 +622,10 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			}
 		});
 
+		this.layoutMath();
+	}
+
+	layoutMath(): void {
 		this.mathLayoutParticipants.forEach(layout => layout());
 	}
 

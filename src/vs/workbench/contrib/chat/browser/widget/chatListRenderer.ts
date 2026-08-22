@@ -156,6 +156,7 @@ export interface IChatListItemTemplate {
 	 */
 	renderedPartsMounted?: boolean;
 	renderedContent?: ReadonlyArray<IChatRendererContent>;
+	readonly mathLayoutParticipants: Set<() => void>;
 	completedResponseDisclosure?: HTMLDetailsElement;
 	completedResponseCollapseEndIndex?: number;
 	completedResponseDisclosureOpen?: boolean;
@@ -1151,7 +1152,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}));
 		const connectionObserver = document.createElement('connection-observer') as dom.ConnectionObserverElement;
 		dom.append(container, connectionObserver);
-		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, requestTimestampContainer, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, footerToolbarContainer, footerDetailsContainer, disabledOverlay, checkpointToolbar, checkpointRestoreToolbar, checkpointContainer, checkpointRestoreContainer, completedResponseDisclosureDisposables, responseTokenStatsHover, feedbackSurveyWidget };
+		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, requestTimestampContainer, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, footerToolbarContainer, footerDetailsContainer, disabledOverlay, checkpointToolbar, checkpointRestoreToolbar, checkpointContainer, checkpointRestoreContainer, completedResponseDisclosureDisposables, responseTokenStatsHover, feedbackSurveyWidget, mathLayoutParticipants: new Set() };
 		this.templateDataByRow.set(rowContainer, template);
 
 		templateDisposables.add(this._onDidUpdateViewModel.event(() => {
@@ -1179,6 +1180,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const resizeObserver = templateDisposables.add(new dom.DisposableResizeObserver('ChatListItemRenderer.itemHeight', (entries) => {
 			const entry = entries[0];
 			if (entry) {
+				template.mathLayoutParticipants.forEach(layout => layout());
 				this.fireItemHeightChange(template, entry.borderBoxSize.at(0)?.blockSize);
 			}
 		}));
@@ -2193,6 +2195,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				currentWidth: this._currentLayoutWidth,
 				onDidChangeVisibility: this._onDidChangeVisibility.event,
 				inlineTextModels: this._inlineTextModels,
+				registerMathLayoutParticipant: layout => {
+					templateData.mathLayoutParticipants.add(layout);
+					return toDisposable(() => templateData.mathLayoutParticipants.delete(layout));
+				},
 				codeBlockStartIndex,
 				treeStartIndex: 0, // no trees in requests
 			};
@@ -2631,6 +2637,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				currentWidth: this._currentLayoutWidth,
 				onDidChangeVisibility: this._onDidChangeVisibility.event,
 				inlineTextModels: this._inlineTextModels,
+				registerMathLayoutParticipant: layout => {
+					templateData.mathLayoutParticipants.add(layout);
+					return toDisposable(() => templateData.mathLayoutParticipants.delete(layout));
+				},
 				codeBlockStartIndex,
 				treeStartIndex,
 			};
