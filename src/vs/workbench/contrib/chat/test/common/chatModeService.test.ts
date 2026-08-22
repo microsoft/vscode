@@ -16,7 +16,7 @@ import { IStorageService } from '../../../../../platform/storage/common/storage.
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { IChatAgentService } from '../../common/participants/chatAgents.js';
-import { ChatMode, ChatModeService } from '../../common/chatModes.js';
+import { ChatMode, ChatModeService, IChatModes, resolveChatModeOrFallback } from '../../common/chatModes.js';
 import { ChatModeKind } from '../../common/constants.js';
 import { IAgentSource, ICustomAgent, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { createVSCodeHarnessDescriptor, CustomizationHarnessServiceBase, ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
@@ -336,6 +336,63 @@ suite('ChatModeService', () => {
 		modes = await chatModeService.getLocalModes();
 		assert.strictEqual(modes.custom.length, 1);
 		assert.strictEqual(modes.custom[0].id, mode1.uri.toString());
+	});
+
+	suite('resolveChatModeOrFallback', () => {
+		const customMode: ICustomAgent = {
+			id: 'resolvable-mode',
+			uri: URI.parse('file:///test/resolvable-mode.md'),
+			name: 'Resolvable Mode',
+			description: 'A resolvable custom mode',
+			tools: [],
+			agentInstructions: { content: 'Resolvable mode body', toolReferences: [] },
+			source: workspaceSource,
+			target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: true },
+			enabled: true
+		};
+		const customModeId = customMode.uri.toString();
+
+		const resolveSnapshot = (modes: IChatModes, id: string) => {
+			const resolved = resolveChatModeOrFallback(modes, id);
+			return { modeId: resolved.mode.id, unresolvedId: resolved.unresolvedId };
+		};
+
+		test('should resolve a known custom mode', async () => {
+			promptsService.setCustomModes([customMode]);
+			await waitForRefresh();
+
+			assert.deepStrictEqual(
+				resolveSnapshot(await chatModeService.getLocalModes(), customModeId),
+				{ modeId: customModeId, unresolvedId: undefined });
+		});
+
+		test('should fall back to Agent and report an id that is not loaded', async () => {
+			assert.deepStrictEqual(
+				resolveSnapshot(await chatModeService.getLocalModes(), customModeId),
+				{ modeId: ChatMode.Agent.id, unresolvedId: customModeId });
+		});
+
+		test('should keep reporting the id until the custom mode becomes available', async () => {
+			const before = resolveSnapshot(await chatModeService.getLocalModes(), customModeId);
+
+			promptsService.setCustomModes([customMode]);
+			await waitForRefresh();
+
+			const after = resolveSnapshot(await chatModeService.getLocalModes(), customModeId);
+			assert.deepStrictEqual({ before, after }, {
+				before: { modeId: ChatMode.Agent.id, unresolvedId: customModeId },
+				after: { modeId: customModeId, unresolvedId: undefined }
+			});
+		});
+
+		test('should fall back to Ask when Agent is unavailable', async () => {
+			chatAgentService.setHasToolsAgent(false);
+
+			assert.deepStrictEqual(
+				resolveSnapshot(await chatModeService.getLocalModes(), customModeId),
+				{ modeId: ChatMode.Ask.id, unresolvedId: customModeId });
+		});
 	});
 
 });

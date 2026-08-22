@@ -91,7 +91,7 @@ import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEd
 import { IChatViewTitleActionContext } from '../../../common/actions/chatActions.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatRequestVariableSet, getImageAttachmentLimit, IChatRequestVariableEntry, isPastedTextArtifact, isAgentHostCompletionVariableEntry, isBrowserViewVariableEntry, isElementVariableEntry, isExplicitFileOrImageVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringVariableEntry, OmittedState } from '../../../common/attachments/chatVariableEntries.js';
-import { ChatMode, getModeNameForTelemetry, IChatMode, IChatModes, IChatModeService } from '../../../common/chatModes.js';
+import { ChatMode, getModeNameForTelemetry, IChatMode, IChatModes, IChatModeService, resolveChatModeOrFallback } from '../../../common/chatModes.js';
 import { IChatFollowup, IChatPlanReview, IChatQuestionCarousel, IChatService, IChatToolInvocation } from '../../../common/chatService/chatService.js';
 import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, isAgentHostTarget, isIChatSessionFileChange2, localChatSessionType, SessionType } from '../../../common/chatSessionsService.js';
 import { getStoredSelectedModel, storeSelectedModel } from '../../../common/chatSelectedModel.js';
@@ -662,6 +662,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private readonly _currentModeObservable: ISettableObservable<IChatMode>;
 	private readonly _currentChatModesObservable: ISettableObservable<IChatModes>;
+	/** Mode id awaiting async resolution; kept out of `_currentModeObservable` so its fallback doesn't overwrite the persisted id. */
+	private _unresolvedModeId: string | undefined;
 	private readonly _currentPermissionLevel: ISettableObservable<ChatPermissionLevel>;
 	private permissionLevelKey: IContextKey<ChatPermissionLevel>;
 
@@ -1519,6 +1521,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._inputModel = model;
 		this._inputModelSessionResource = forSessionResource;
 		this._modelSyncDisposables.clear();
+		this._unresolvedModeId = undefined;
 		const chatModes = this.chatModeService.createModes(forSessionResource);
 		this._currentChatModes.value = chatModes;
 		this._currentChatModesObservable.set(chatModes, undefined);
@@ -1671,7 +1674,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// Sync mode
 			if (state) {
 				const currentMode = this._currentModeObservable.get();
-				if (currentMode.id !== state.mode.id) {
+				// The second clause avoids re-resolving an id already known to be unresolved.
+				if (currentMode.id !== state.mode.id && this._unresolvedModeId !== state.mode.id) {
 					this.setChatMode(state.mode.id, false);
 				}
 			}
@@ -1803,12 +1807,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 
-		const modes = this._currentChatModesObservable.get();
-		const mode2 = modes.findModeById(mode) ??
-			modes.findModeByName(mode) ??
-			modes.findModeById(ChatModeKind.Agent) ??
-			ChatMode.Ask;
-		this.setChatMode2(mode2, storeSelection, isUserInitiated);
+		const resolved = resolveChatModeOrFallback(this._currentChatModesObservable.get(), mode);
+		this._unresolvedModeId = resolved.unresolvedId;
+		this.setChatMode2(resolved.mode, storeSelection, isUserInitiated);
 	}
 
 	private setChatMode2(mode: IChatMode, storeSelection = true, isUserInitiated = false): void {
@@ -2010,7 +2011,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			inputText: this._inputEditor?.getValue() ?? '',
 			attachments: this._attachmentModel.attachments,
 			mode: {
-				id: mode.id,
+				id: this._unresolvedModeId ?? mode.id,
 				kind: mode.kind
 			},
 			selectedModel,
@@ -2075,7 +2076,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.setChatMode(isAgentModeEnabled ? ChatModeKind.Agent : ChatModeKind.Ask);
 			return;
 		}
-		if (currentMode.kind === ChatModeKind.Agent && !isAgentModeEnabled) {
+		// While a custom mode is still loading the current mode is a fallback, so its kind says nothing about the real mode.
+		if (currentMode.kind === ChatModeKind.Agent && !isAgentModeEnabled && this._unresolvedModeId === undefined) {
 			this.setChatMode(ChatModeKind.Ask);
 			return;
 		}
