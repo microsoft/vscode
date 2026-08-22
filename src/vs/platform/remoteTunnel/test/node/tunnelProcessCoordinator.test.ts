@@ -243,18 +243,22 @@ suite('TunnelProcessCoordinator', () => {
 		try {
 			await coordinator.setRemoteAccess(activeMode(true), LogLevel.Info);
 			const sessionTunnel = processes.find(process => process.args.includes('--accept-server-license-terms')
-				&& !process.args.includes('install'));
+				&& !process.args.includes('install'))!;
+			sessionTunnel.stdout.write('__VSCODE_CLI_STATUS__{"type":"connected","tunnelName":"service_host","isAttached":true}\n');
+			await new Promise<void>(resolve => setImmediate(resolve));
 
 			// Without a session process nothing ever reports connected, so the
 			// UI stays stuck on "connecting" after the service is installed.
 			assert.deepStrictEqual({
 				installed: processes.some(process => process.args.includes('install')),
-				startedSessionTunnel: !!sessionTunnel,
+				connectionState: coordinator.getStatus().connectionState,
 				mode: coordinator.getStatus().mode,
+				tunnelName: coordinator.getStatus().tunnelName,
 			}, {
 				installed: true,
-				startedSessionTunnel: true,
+				connectionState: 'connected',
 				mode: 'service',
+				tunnelName: 'service_host',
 			});
 		} finally {
 			for (const process of processes) {
@@ -269,14 +273,15 @@ suite('TunnelProcessCoordinator', () => {
 		const { coordinator, processes } = createCoordinator(true, undefined, 1);
 		try {
 			await coordinator.setRemoteAccess(activeMode(true), LogLevel.Info);
+			const sessionTunnel = processes.find(process => process.args.includes('--accept-server-license-terms')
+				&& !process.args.includes('install'))!;
 
 			assert.deepStrictEqual({
 				serviceInstallFailed: coordinator.getStatus().serviceInstallFailed,
-				startedSessionTunnel: processes.some(process => process.args.includes('--accept-server-license-terms')
-					&& !process.args.includes('install')),
+				sessionArgs: sessionTunnel.args,
 			}, {
 				serviceInstallFailed: true,
-				startedSessionTunnel: true,
+				sessionArgs: ['tunnel', '--accept-server-license-terms', '--log', 'info', '--user-data-dir', 'custom-user-data', '--delegate-to-editor', '--name', 'test_host', '--parent-process-id', String(process.pid)],
 			});
 		} finally {
 			for (const process of processes) {
@@ -334,9 +339,11 @@ suite('TunnelProcessCoordinator', () => {
 			assert.deepStrictEqual({
 				session: session.processes.find(process => process.args.includes('--accept-server-license-terms'))!.args,
 				service: service.processes.find(process => process.args.includes('install'))!.args,
+				serviceStatusClient: service.processes.find(process => process.args.includes('--accept-server-license-terms') && !process.args.includes('install'))!.args,
 			}, {
 				session: ['tunnel', '--accept-server-license-terms', '--log', 'info', '--user-data-dir', 'custom-user-data', '--delegate-to-editor', '--name', 'test_host', '--parent-process-id', String(process.pid)],
 				service: ['tunnel', 'service', 'install', '--accept-server-license-terms', '--log', 'info', '--user-data-dir', 'custom-user-data', '--name', 'test_host'],
+				serviceStatusClient: ['tunnel', '--accept-server-license-terms', '--log', 'info', '--attach-to-existing', '--parent-process-id', String(process.pid)],
 			});
 		} finally {
 			for (const process of [...session.processes, ...service.processes]) {

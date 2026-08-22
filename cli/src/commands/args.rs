@@ -903,6 +903,11 @@ pub struct TunnelServeArgs {
 	#[clap(long, hide = true)]
 	pub parent_process_id: Option<String>,
 
+	/// Attach to an existing tunnel for status and logs without ever becoming
+	/// the singleton that hosts it.
+	#[clap(long, hide = true)]
+	pub attach_to_existing: bool,
+
 	/// If set, the user accepts the server license terms and the server will be started without a user prompt.
 	#[clap(long)]
 	pub accept_server_license_terms: bool,
@@ -1112,6 +1117,16 @@ mod tests {
 		};
 
 		tunnel_args.serve_args.machine_status
+	}
+
+	#[test]
+	fn parses_attach_to_existing() {
+		let cli =
+			IntegratedCli::try_parse_from(["code", "tunnel", "--attach-to-existing"]).unwrap();
+		let Some(Commands::Tunnel(tunnel_args)) = cli.core.subcommand else {
+			panic!("expected tunnel arguments");
+		};
+		assert!(tunnel_args.serve_args.attach_to_existing);
 	}
 
 	/// Mutates process-global environment, which `cargo test` runs in parallel
