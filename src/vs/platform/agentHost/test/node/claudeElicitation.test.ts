@@ -6,7 +6,8 @@
 import assert from 'assert';
 import type { ElicitationRequest } from '@anthropic-ai/claude-agent-sdk';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, type ChatInputAnswer } from '../../common/state/sessionState.js';
+import { ChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ChatInputAnswer } from '../../common/state/sessionState.js';
 import { buildElicitationRequest, cancelledElicitationResult, elicitationResultFromAnswers } from '../../node/claude/claudeElicitation.js';
 import { handleElicitation } from '../../node/claude/claudeElicitationBridge.js';
 
@@ -43,7 +44,7 @@ suite('claudeElicitation', () => {
 	test('buildElicitationRequest (form) projects every primitive field kind', () => {
 		assert.deepStrictEqual(buildElicitationRequest('req-1', formRequest), {
 			id: 'req-1',
-			purpose: ChatInputRequestPurpose.Elicitation,
+			_meta: { purpose: ChatInputRequestPurpose.Elicitation },
 			message: 'Please configure',
 			questions: [
 				{ kind: ChatInputQuestionKind.Text, id: 'name', title: 'Name', message: 'Your name', required: true, format: undefined, min: 1, max: undefined, defaultValue: undefined },
@@ -59,7 +60,7 @@ suite('claudeElicitation', () => {
 	test('buildElicitationRequest (url) surfaces the url with no questions', () => {
 		assert.deepStrictEqual(buildElicitationRequest('req-2', urlRequest), {
 			id: 'req-2',
-			purpose: ChatInputRequestPurpose.Elicitation,
+			_meta: { purpose: ChatInputRequestPurpose.Elicitation },
 			message: 'Authorize',
 			url: 'https://example.com/auth',
 		});
@@ -72,7 +73,7 @@ suite('claudeElicitation', () => {
 			mode: 'form',
 			requestedSchema: { type: 'object', properties: 'not-an-object' as unknown as Record<string, unknown> },
 		};
-		assert.deepStrictEqual(buildElicitationRequest('req-3', malformed), { id: 'req-3', purpose: ChatInputRequestPurpose.Elicitation, message: 'Broken' });
+		assert.deepStrictEqual(buildElicitationRequest('req-3', malformed), { id: 'req-3', _meta: { purpose: ChatInputRequestPurpose.Elicitation }, message: 'Broken' });
 	});
 
 	test('buildElicitationRequest drops a field that fails validation but keeps valid siblings', () => {
@@ -92,7 +93,7 @@ suite('claudeElicitation', () => {
 		};
 		assert.deepStrictEqual(buildElicitationRequest('req-4', mixed), {
 			id: 'req-4',
-			purpose: ChatInputRequestPurpose.Elicitation,
+			_meta: { purpose: ChatInputRequestPurpose.Elicitation },
 			message: 'Mixed',
 			questions: [
 				{ kind: ChatInputQuestionKind.Text, id: 'ok', title: 'Ok', message: 'Ok', required: false, format: undefined, min: undefined, max: undefined, defaultValue: undefined },
@@ -123,7 +124,7 @@ suite('claudeElicitation', () => {
 		};
 		assert.deepStrictEqual(buildElicitationRequest('req-5', variants), {
 			id: 'req-5',
-			purpose: ChatInputRequestPurpose.Elicitation,
+			_meta: { purpose: ChatInputRequestPurpose.Elicitation },
 			message: 'Variants',
 			questions: [
 				{ kind: ChatInputQuestionKind.Number, id: 'ratio', title: 'Ratio', message: 'Ratio', required: false, min: 0, max: 1, defaultValue: 0.5 },
@@ -148,10 +149,10 @@ suite('claudeElicitation', () => {
 			formAllInvalid: buildElicitationRequest('d', { serverName: 'srv', message: 'AllBad', mode: 'form', requestedSchema: { type: 'object', properties: { a: { type: 'string', enum: 123 }, b: { minimum: 'nope' } } } }),
 		};
 		assert.deepStrictEqual(cases, {
-			urlNoUrl: { id: 'a', purpose: ChatInputRequestPurpose.Elicitation, message: 'NoUrl' },
-			formNoSchema: { id: 'b', purpose: ChatInputRequestPurpose.Elicitation, message: 'NoSchema' },
-			formEmptyProps: { id: 'c', purpose: ChatInputRequestPurpose.Elicitation, message: 'Empty' },
-			formAllInvalid: { id: 'd', purpose: ChatInputRequestPurpose.Elicitation, message: 'AllBad' },
+			urlNoUrl: { id: 'a', _meta: { purpose: ChatInputRequestPurpose.Elicitation }, message: 'NoUrl' },
+			formNoSchema: { id: 'b', _meta: { purpose: ChatInputRequestPurpose.Elicitation }, message: 'NoSchema' },
+			formEmptyProps: { id: 'c', _meta: { purpose: ChatInputRequestPurpose.Elicitation }, message: 'Empty' },
+			formAllInvalid: { id: 'd', _meta: { purpose: ChatInputRequestPurpose.Elicitation }, message: 'AllBad' },
 		});
 	});
 

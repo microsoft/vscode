@@ -7,17 +7,19 @@ import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NonPtyShellTerminalStreams } from '../../node/copilot/copilotNonPtyShellTerminals.js';
+import { buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 
 suite('NonPtyShellTerminalStreams', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	const sessionUri = URI.parse('agenthost-session://test/session-1');
 	let manager: TestAgentHostTerminalManager;
 	let streams: NonPtyShellTerminalStreams;
 
 	setup(() => {
 		manager = store.add(new TestAgentHostTerminalManager());
-		streams = store.add(new NonPtyShellTerminalStreams(URI.parse('agenthost-session://test/session-1'), manager));
+		streams = store.add(new NonPtyShellTerminalStreams(sessionUri, URI.parse(buildDefaultChatUri(sessionUri)), manager));
 	});
 
 	function channelContent(): string {

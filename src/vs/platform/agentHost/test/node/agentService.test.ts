@@ -65,7 +65,7 @@ import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
-import { createTestAgentService } from './agentServiceTestUtils.js';
+import { createTestAgentService, getTestAgentServiceComposition } from './agentServiceTestUtils.js';
 
 /**
  * Replace individual operations on an agent's chat surface, delegating every
@@ -82,6 +82,18 @@ function withChatOverrides(base: IAgentChats, overrides: (base: IAgentChats) => 
 
 function getChatSurface(agent: IAgent): IAgentChats {
 	return agent.chats;
+}
+
+function getConfigurationService(service: AgentService) {
+	return getTestAgentServiceComposition(service).configurationService;
+}
+
+function getAuthenticationService(service: AgentService) {
+	return getTestAgentServiceComposition(service).authenticationService;
+}
+
+function getCheckpointService(service: AgentService) {
+	return getTestAgentServiceComposition(service).checkpointService;
 }
 
 /**
@@ -137,16 +149,8 @@ function sessionConfigToChatOptions(config: IAgentCreateSessionConfig): IAgentCr
 		workingDirectories: config.workingDirectories,
 		config: config.config,
 		activeClient: config.activeClient,
-		deferBacking: !config.fork && !config.importConversation,
+		deferBacking: !config.importConversation,
 		importConversation: config.importConversation,
-		...(config.fork ? {
-			fork: {
-				source: config.fork.chat,
-				turnIndex: config.fork.turnIndex,
-				turnId: config.fork.turnId,
-				turnIdMapping: config.fork.turnIdMapping,
-			},
-		} : {}),
 	};
 }
 
@@ -877,7 +881,7 @@ suite('AgentService (node dispatcher)', () => {
 			override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
 				createChat: async (chat, context, options) => {
 					const { configurationResource } = resolveAgentChatContext(context, chat);
-					pendingDuringCreate.push(localService.configurationService.isWorkingDirectoryPending(configurationResource.toString()));
+					pendingDuringCreate.push(getConfigurationService(localService).isWorkingDirectoryPending(configurationResource.toString()));
 					providerCreateConfigs.push(options?.config);
 					if (failCreate) {
 						throw new Error('create failed');
@@ -909,8 +913,8 @@ suite('AgentService (node dispatcher)', () => {
 		assert.deepStrictEqual({
 			pendingDuringCreate,
 			providerCreateConfigs,
-			pendingAfterCreate: localService.configurationService.isWorkingDirectoryPending(session.toString()),
-			pendingAfterFailure: localService.configurationService.isWorkingDirectoryPending(failedSession.toString()),
+			pendingAfterCreate: getConfigurationService(localService).isWorkingDirectoryPending(session.toString()),
+			pendingAfterFailure: getConfigurationService(localService).isWorkingDirectoryPending(failedSession.toString()),
 		}, {
 			pendingDuringCreate: [true, true],
 			providerCreateConfigs: [{}, {}],
@@ -919,7 +923,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
-	test('createSession validates, exposes, persists, and inherits multi-root metadata', async () => {
+	test('createSession validates, exposes, and persists multi-root metadata', async () => {
 		const db = new TestSessionDatabase();
 		const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 		const agent = new MockAgent('copilot');
@@ -939,43 +943,23 @@ suite('AgentService (node dispatcher)', () => {
 			workingDirectories: [URI.file('/workspace/one'), URI.file('/workspace/two')],
 			_meta: { github, multiRoot, ignored: 'client value' },
 		});
-		const sourceChat = buildDefaultChatUri(session.toString());
-		localService.dispatchAction(sourceChat, {
-			type: ActionType.ChatTurnStarted,
-			turnId: 'source-turn',
-			startedAt: new Date().toISOString(),
-			message: { text: 'hello', origin: { kind: MessageKind.User } },
-		}, 'test-client', 1);
-		localService.dispatchAction(sourceChat, {
-			type: ActionType.ChatTurnComplete,
-			turnId: 'source-turn',
-			duration: 0,
-		}, 'test-client', 2);
-		const inherited = await localService.createSession({
-			provider: agent.id,
-			_meta: { multiRoot: { workspaceFile: 'relative.code-workspace' } },
-			fork: { session, chat: URI.parse(sourceChat), turnIndex: 0, turnId: 'source-turn' },
-		});
 		const override = {
 			workspaceFile: 'file:///work/override.code-workspace',
 		};
 		const overridden = await localService.createSession({
 			provider: agent.id,
 			_meta: { multiRoot: override },
-			fork: { session, chat: URI.parse(sourceChat), turnIndex: 0, turnId: 'source-turn' },
 		});
 
 		assert.deepStrictEqual({
 			state: localService.stateManager.getSessionState(session.toString())?._meta,
 			persisted: await db.getMetadata(SESSION_META_MULTI_ROOT_KEY),
 			github: readSessionGitHubState(localService.stateManager.getSessionState(session.toString())?._meta),
-			inherited: readSessionMultiRootMetadata(localService.stateManager.getSessionState(inherited.toString())?._meta),
 			overridden: readSessionMultiRootMetadata(localService.stateManager.getSessionState(overridden.toString())?._meta),
 		}, {
 			state: { github, multiRoot },
 			persisted: JSON.stringify(override),
 			github,
-			inherited: multiRoot,
 			overridden: override,
 		});
 	});
@@ -1065,7 +1049,7 @@ suite('AgentService (node dispatcher)', () => {
 			// Reopen: a fresh service on the same DB rediscovers the provider-native
 			// session and must restore the persisted decision into `_meta`.
 			const reopened = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			reopened.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
+			getConfigurationService(reopened).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
 			const reopenedAgent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => reopenedAgent.dispose()));
 			(reopenedAgent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
@@ -1123,7 +1107,7 @@ suite('AgentService (node dispatcher)', () => {
 		await timeout(0);
 
 		const reopened = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-		reopened.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
+		getConfigurationService(reopened).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
 		const reopenedAgent = new MockAgent('copilot');
 		disposables.add(toDisposable(() => reopenedAgent.dispose()));
 		(reopenedAgent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
@@ -1246,8 +1230,8 @@ suite('AgentService (node dispatcher)', () => {
 			workingDirectories: [URI.file('/workspace/repo')],
 			config: { [SessionConfigKey.Isolation]: 'folder' },
 		});
-		const creatingInitially = localService.configurationService.isWorkingDirectoryPending(creatingSession.toString());
-		const readyInitially = localService.configurationService.isWorkingDirectoryPending(readySession.toString());
+		const creatingInitially = getConfigurationService(localService).isWorkingDirectoryPending(creatingSession.toString());
+		const readyInitially = getConfigurationService(localService).isWorkingDirectoryPending(readySession.toString());
 		const creatingLifecycle = localService.stateManager.getSessionState(creatingSession.toString())?.lifecycle;
 		const readyLifecycle = localService.stateManager.getSessionState(readySession.toString())?.lifecycle;
 
@@ -1255,19 +1239,19 @@ suite('AgentService (node dispatcher)', () => {
 			type: ActionType.SessionConfigChanged,
 			config: { [SessionConfigKey.Isolation]: 'worktree' },
 		}, 'test-client', 1);
-		const creatingAfterWorktree = localService.configurationService.isWorkingDirectoryPending(creatingSession.toString());
+		const creatingAfterWorktree = getConfigurationService(localService).isWorkingDirectoryPending(creatingSession.toString());
 
 		localService.dispatchAction(creatingSession.toString(), {
 			type: ActionType.SessionConfigChanged,
 			config: { [SessionConfigKey.Isolation]: 'folder' },
 		}, 'test-client', 2);
-		const creatingAfterFolder = localService.configurationService.isWorkingDirectoryPending(creatingSession.toString());
+		const creatingAfterFolder = getConfigurationService(localService).isWorkingDirectoryPending(creatingSession.toString());
 
 		localService.dispatchAction(readySession.toString(), {
 			type: ActionType.SessionConfigChanged,
 			config: { [SessionConfigKey.Isolation]: 'worktree' },
 		}, 'test-client', 3);
-		const readyAfterWorktree = localService.configurationService.isWorkingDirectoryPending(readySession.toString());
+		const readyAfterWorktree = getConfigurationService(localService).isWorkingDirectoryPending(readySession.toString());
 
 		assert.deepStrictEqual({
 			creatingInitially,
@@ -1556,7 +1540,7 @@ suite('AgentService (node dispatcher)', () => {
 				undefined,
 				copilotApiService,
 			));
-			svc.configurationService.updateRootConfig({ [AgentHostActiveAgentTitleGenerationConfigKey]: activeAgentTitleGeneration });
+			getConfigurationService(svc).updateRootConfig({ [AgentHostActiveAgentTitleGenerationConfigKey]: activeAgentTitleGeneration });
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
 			svc.registerProvider(agent);
@@ -2039,7 +2023,7 @@ suite('AgentService (node dispatcher)', () => {
 
 				// Drain any in-flight root-config write so its file handle is
 				// closed before we delete the temp directory.
-				await svc.configurationService.whenIdle();
+				await getConfigurationService(svc).whenIdle();
 			} finally {
 				localDisposables.dispose();
 				await rm(tempDir.fsPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
@@ -2095,17 +2079,6 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(copilotApiService.utilityCalls.length, 0);
 			await waitForCondition(async () => await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY) === AGENT_HOST_TITLE_SOURCE_AUTO, 'active-agent fallback provenance should be persisted');
 
-			svc.dispatchAction(
-				buildDefaultChatUri(session.toString()),
-				{ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1 },
-				'test-client', 2,
-			);
-			const forked = await svc.createSession({
-				provider: 'copilot',
-				fork: { session, chat: URI.parse(buildDefaultChatUri(session)), turnIndex: 0, turnId: 'turn-1' },
-			});
-			assert.strictEqual(svc.stateManager.getSessionState(forked.toString())?.title, `Forked: ${title}`);
-			assert.strictEqual(copilotApiService.utilityCalls.length, 0);
 		});
 
 		test('leaves fallback title when AI title generation fails', async () => {
@@ -2186,51 +2159,6 @@ suite('AgentService (node dispatcher)', () => {
 				aborted: true,
 				state: undefined,
 				persistedTitle: undefined,
-			});
-		});
-
-		test('generates an AI title for forked sessions from the forked chat', async () => {
-			const copilotApiService = new TestCopilotApiService();
-			copilotApiService.response = 'Source generated title';
-			const { svc, session: sourceSession } = await setupTitleGeneration(copilotApiService);
-
-			svc.dispatchAction(
-				buildDefaultChatUri(sourceSession.toString()),
-				{ type: ActionType.ChatTurnStarted, turnId: 'source-turn', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'Seed fork title', origin: { kind: MessageKind.User } } },
-				'test-client', 1,
-			);
-			await waitForCondition(() => svc.stateManager.getSessionState(sourceSession.toString())?.title === 'Source generated title', 'source generated title should be applied');
-			svc.dispatchAction(
-				buildDefaultChatUri(sourceSession.toString()),
-				{ type: ActionType.ChatTurnComplete, turnId: 'source-turn', duration: 1000 },
-				'test-client', 2,
-			);
-			await waitForCondition(() => (svc.stateManager.getSessionState(sourceSession.toString())?.turns.length ?? 0) === 1, 'source turn should be complete before forking');
-
-			// The fork inherits a `Forked: …` placeholder, then regenerates a
-			// content-derived title from the copied chat.
-			copilotApiService.response = 'Forked branch title';
-			const forkedSession = await svc.createSession({
-				provider: 'copilot',
-				fork: {
-					session: sourceSession,
-					chat: URI.parse(buildDefaultChatUri(sourceSession)),
-					turnIndex: 0,
-					turnId: 'source-turn',
-				},
-			});
-			await waitForCondition(() => svc.stateManager.getSessionState(forkedSession.toString())?.title === 'Forked branch title', 'forked session should get a content-generated title');
-
-			const forkedCall = copilotApiService.utilityCalls[copilotApiService.utilityCalls.length - 1];
-			const userMessage = forkedCall.request.messages.find(message => message.role === 'user')?.content ?? '';
-			assert.deepStrictEqual({
-				title: svc.stateManager.getSessionState(forkedSession.toString())?.title,
-				utilityCalls: copilotApiService.utilityCalls.length,
-				includesForkedChat: userMessage.includes('Seed fork title'),
-			}, {
-				title: 'Forked branch title',
-				utilityCalls: 2,
-				includesForkedChat: true,
 			});
 		});
 
@@ -3042,7 +2970,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('listSessions discovers provider-native sessions as external and restore preserves provenance', async () => {
 			const db = new TestSessionDatabase();
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
+			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
 
@@ -3637,7 +3565,7 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MockAgent('copilot'));
 			svc.registerProvider(agent);
-			svc.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+			getConfigurationService(svc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
 			await svc.listSessions();
 
 			const session = AgentSession.uri('copilot', 'provider-announced');
@@ -3668,7 +3596,7 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MockAgent('copilot'));
 			svc.registerProvider(agent);
-			svc.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+			getConfigurationService(svc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
 			await svc.listSessions();
 
 			const session = AgentSession.uri('copilot', 'toggled-adoptable');
@@ -3679,13 +3607,13 @@ suite('AgentService (node dispatcher)', () => {
 			}
 			const afterFirstEnable = !!svc.stateManager.getSurfacedSessionSummary(session.toString());
 
-			svc.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: false });
+			getConfigurationService(svc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: false });
 			await timeout(0);
 			const whileDisabled = !!svc.stateManager.getSurfacedSessionSummary(session.toString());
 
 			// Discovery skips chats already in the registry, so re-enabling must restore
 			// them from the registry rather than waiting for another discovery pass.
-			svc.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+			getConfigurationService(svc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
 			for (let i = 0; i < 50 && !svc.stateManager.getSurfacedSessionSummary(session.toString()); i++) {
 				await timeout(0);
 			}
@@ -4102,7 +4030,7 @@ suite('AgentService (node dispatcher)', () => {
 				}
 			}
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
+			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
 			const agent = disposables.add(new GatedListAgent('copilot'));
 			svc.registerProvider(agent);
 			const legacy = AgentSession.uri('copilot', 'legacy-concurrent');
@@ -4152,7 +4080,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 			const db = new TestSessionDatabase();
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
+			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
 			const agent = disposables.add(new TransientListFailureAgent('copilot'));
 			svc.registerProvider(agent);
 			const legacy = AgentSession.uri('copilot', 'legacy-session');
@@ -4173,7 +4101,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('a late-registered provider gets its own native discovery pass', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
+			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
 			const early = disposables.add(new MockAgent('copilot'));
 			svc.registerProvider(early);
 
@@ -4254,7 +4182,7 @@ suite('AgentService (node dispatcher)', () => {
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
 			agent.sessionMetadataOverrides = { _meta: withSessionEhcliAdoptable(undefined) };
 			svc.registerProvider(agent);
-			svc.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+			getConfigurationService(svc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
 			await svc.listSessions();
 
 			const surfaced = svc.stateManager.getSurfacedSessionSummary(legacy.toString());
@@ -4311,7 +4239,7 @@ suite('AgentService (node dispatcher)', () => {
 				}
 			}
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
+			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
 			const providerA = disposables.add(new CountingAgent('copilot'));
 			const providerB = disposables.add(new FailingThenRecoveringAgent('other'));
 
@@ -4362,7 +4290,7 @@ suite('AgentService (node dispatcher)', () => {
 				}
 			}
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
+			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
 			const agent = disposables.add(new NotYetEnumerableAgent('copilot'));
 			const originalListExternalChats = agent.listExternalChats.bind(agent);
 			(agent as unknown as { listExternalChats: () => Promise<readonly IAgentChatMetadata[] | undefined> }).listExternalChats = async () => {
@@ -4400,7 +4328,7 @@ suite('AgentService (node dispatcher)', () => {
 			await db.registerSession(existing.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 			const writesBeforeUnavailable = db.registryWriteAttempts;
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
-			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
+			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
 			const agent = disposables.add(new NotYetMigratableAgent('copilot'));
 			const legacy = AgentSession.uri('copilot', 'legacy-migration-not-ready');
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
@@ -4522,8 +4450,8 @@ suite('AgentService (node dispatcher)', () => {
 			}
 			const db = new TransientRegistryWriteDatabase();
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
-			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
-			svc.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
+			getConfigurationService(svc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
 			const copilot = disposables.add(new CatalogAgent('copilot'));
 			const claude = disposables.add(new CatalogAgent('claude'));
 			const copilotSession = AgentSession.uri('copilot', 'complete-provider');
@@ -4776,7 +4704,7 @@ suite('AgentService (node dispatcher)', () => {
 			// Simulate an old database whose legacy one-time marker is set.
 			await db.markSessionRegistryBackfilled();
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
-			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
+			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
 			const agent = disposables.add(new CountingAgent('copilot'));
 			const legacy = AgentSession.uri('copilot', 'old-db-native-session');
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
@@ -4990,7 +4918,7 @@ suite('AgentService (node dispatcher)', () => {
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
 
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
+			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
 			svc.registerProvider(agent);
 
 			const sessions = await svc.listSessions();
@@ -5036,7 +4964,7 @@ suite('AgentService (node dispatcher)', () => {
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
 
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
+			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
 			svc.registerProvider(agent);
 
 			const sessions = await svc.listSessions();
@@ -5053,7 +4981,7 @@ suite('AgentService (node dispatcher)', () => {
 			disposables.add(toDisposable(() => agent.dispose()));
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
+			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
 			svc.registerProvider(agent);
 
 			const sessions = await svc.listSessions();
@@ -5078,7 +5006,7 @@ suite('AgentService (node dispatcher)', () => {
 			};
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
+			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
 			svc.registerProvider(agent);
 
 			const sessions = await svc.listSessions();
@@ -5099,7 +5027,7 @@ suite('AgentService (node dispatcher)', () => {
 			disposables.add(toDisposable(() => agent.dispose()));
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
+			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
 			svc.registerProvider(agent);
 
 			const sessions = await svc.listSessions();
@@ -5117,7 +5045,7 @@ suite('AgentService (node dispatcher)', () => {
 			};
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
+			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
 			svc.registerProvider(agent);
 
 			const sessions = await svc.listSessions();
@@ -5143,7 +5071,7 @@ suite('AgentService (node dispatcher)', () => {
 				return [];
 			};
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, gitService));
-			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
+			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
 			svc.registerProvider(agent);
 
 			const sessions = await svc.listSessions();
@@ -5178,7 +5106,7 @@ suite('AgentService (node dispatcher)', () => {
 			gitService.getWorktreeRoots = async () => [primaryRoot, linkedCheckout, sessionWorktree];
 			const sessionDataService = createSessionDataService(db);
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
-			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
+			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
 			svc.setWorktreeIsolation(disposables.add(new WorktreeIsolation(
 				{ generateBranchName: async () => 'agents/test' },
 				gitService,
@@ -5225,7 +5153,7 @@ suite('AgentService (node dispatcher)', () => {
 			gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
 			const sessionDataService = createSessionDataService(db);
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
-			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
+			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
 			svc.setWorktreeIsolation(disposables.add(new WorktreeIsolation(
 				{ generateBranchName: async () => 'agents/test' },
 				gitService,
@@ -6095,7 +6023,7 @@ suite('AgentService (node dispatcher)', () => {
 			const annotationsUri = buildAnnotationsUri(session.toString());
 			const annotation = {
 				id: 'feedback-1',
-				turnId: 'turn-1',
+				origin: { session: session.toString(), turnId: 'turn-1' },
 				resource: URI.file('/workspace/reviewed.ts').toString(),
 				resolved: false,
 				entries: [{ id: 'feedback-1:0', text: 'Please revisit this.' }],
@@ -6113,6 +6041,40 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(restored.state, { annotations: [annotation] });
 		});
 
+		test('annotations persisted before the origin migration are restored', async () => {
+			const sessionData = createPerSessionDataService();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const annotationsUri = buildAnnotationsUri(session.toString());
+			// The shape written before annotations carried an origin: a
+			// top-level `turnId` and no owning session.
+			await sessionData.database(session).setMetadata('annotations', JSON.stringify({
+				annotations: [{
+					id: 'feedback-1',
+					turnId: 'turn-1',
+					resource: URI.file('/workspace/reviewed.ts').toString(),
+					resolved: false,
+					entries: [{ id: 'feedback-1:0', text: 'Please revisit this.' }],
+				}],
+			}));
+			localService.stateManager.deleteSession(session.toString());
+
+			const restored = await localService.subscribe(URI.parse(annotationsUri), 'client-after-upgrade');
+
+			assert.deepStrictEqual(restored.state, {
+				annotations: [{
+					id: 'feedback-1',
+					origin: { session: session.toString(), turnId: 'turn-1' },
+					resource: URI.file('/workspace/reviewed.ts').toString(),
+					resolved: false,
+					entries: [{ id: 'feedback-1:0', text: 'Please revisit this.' }],
+				}],
+			});
+		});
+
 		test('annotations subscribe concurrent with session restore returns persisted feedback', async () => {
 			const sessionData = createPerSessionDataService();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
@@ -6123,7 +6085,7 @@ suite('AgentService (node dispatcher)', () => {
 			const annotationsUri = buildAnnotationsUri(session.toString());
 			const annotation = {
 				id: 'feedback-1',
-				turnId: 'turn-1',
+				origin: { session: session.toString(), turnId: 'turn-1' },
 				resource: URI.file('/workspace/reviewed.ts').toString(),
 				resolved: false,
 				entries: [{ id: 'feedback-1:0', text: 'Please revisit this.' }],
@@ -6169,7 +6131,7 @@ suite('AgentService (node dispatcher)', () => {
 				type: ActionType.AnnotationsSet,
 				annotation: {
 					id: 'feedback-1',
-					turnId: 'turn-1',
+					origin: { session: subagent, turnId: 'turn-1' },
 					resource: URI.file('/workspace/reviewed.ts').toString(),
 					resolved: false,
 					entries: [{ id: 'feedback-1:0', text: 'Please revisit this.' }],
@@ -6264,7 +6226,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const result = await service.authenticate({ resource: 'https://unknown.example.com', token: 'tok' });
 
-			assert.deepStrictEqual({ result, token: service.getAuthToken({ resource: 'https://unknown.example.com' }), authenticateCalls: copilotAgent.authenticateCalls }, {
+			assert.deepStrictEqual({ result, token: getAuthenticationService(service).getAuthToken({ resource: 'https://unknown.example.com' }), authenticateCalls: copilotAgent.authenticateCalls }, {
 				result: { authenticated: false },
 				token: undefined,
 				authenticateCalls: [],
@@ -6274,11 +6236,11 @@ suite('AgentService (node dispatcher)', () => {
 		test('stores GitHub Copilot token for operation handlers', async () => {
 			service.registerProvider(copilotAgent);
 			const changes: { resource: string; token: string | undefined }[] = [];
-			disposables.add(service.authenticationService.onDidChangeAuthToken(event => changes.push({ resource: event.resource, token: event.token })));
+			disposables.add(getAuthenticationService(service).onDidChangeAuthToken(event => changes.push({ resource: event.resource, token: event.token })));
 
 			const result = await service.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'copilot-token' });
 
-			assert.deepStrictEqual({ result, token: service.getAuthToken({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, scopes: GITHUB_COPILOT_PROTECTED_RESOURCE.scopes_supported }), authenticateCalls: copilotAgent.authenticateCalls, changes }, {
+			assert.deepStrictEqual({ result, token: getAuthenticationService(service).getAuthToken({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, scopes: GITHUB_COPILOT_PROTECTED_RESOURCE.scopes_supported }), authenticateCalls: copilotAgent.authenticateCalls, changes }, {
 				result: { authenticated: true },
 				token: 'copilot-token',
 				authenticateCalls: [{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'copilot-token' }],
@@ -6294,7 +6256,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			assert.deepStrictEqual({
 				result,
-				token: service.getAuthToken({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource }),
+				token: getAuthenticationService(service).getAuthToken({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource }),
 				authenticateCalls: copilotAgent.authenticateCalls,
 			}, {
 				result: { authenticated: true },
@@ -6320,7 +6282,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			assert.deepStrictEqual({
 				result,
-				token: service.getAuthToken({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource }),
+				token: getAuthenticationService(service).getAuthToken({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource }),
 				lateAuthenticateCalls: lateAgent.authenticateCalls,
 			}, {
 				result: { authenticated: false },
@@ -6336,9 +6298,9 @@ suite('AgentService (node dispatcher)', () => {
 			await service.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, scopes: ['read:user', 'user:email'], token: 'profile-token' });
 
 			assert.deepStrictEqual({
-				readToken: service.getAuthToken({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, scopes: ['read:user'] }),
-				profileToken: service.getAuthToken({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, scopes: ['user:email', 'read:user'] }),
-				supersetToken: service.getAuthToken({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, scopes: ['user:email'] }),
+				readToken: getAuthenticationService(service).getAuthToken({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, scopes: ['read:user'] }),
+				profileToken: getAuthenticationService(service).getAuthToken({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, scopes: ['user:email', 'read:user'] }),
+				supersetToken: getAuthenticationService(service).getAuthToken({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, scopes: ['user:email'] }),
 			}, {
 				readToken: 'read-token',
 				profileToken: 'profile-token',
@@ -7392,7 +7354,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(agent.adoptCalls, 0);
 
 			// Migrate setting on: opening adopts in place.
-			localService.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+			getConfigurationService(localService).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
 			await localService.restoreSession(session);
 
 			assert.deepStrictEqual(
@@ -7422,7 +7384,7 @@ suite('AgentService (node dispatcher)', () => {
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new AdoptThenFailAgent());
 			localService.registerProvider(agent);
-			localService.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+			getConfigurationService(localService).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
 			const session = AgentSession.uri('copilot', 'adopted-restore-fails');
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
 
@@ -7449,7 +7411,7 @@ suite('AgentService (node dispatcher)', () => {
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new AdoptAgent());
 			localService.registerProvider(agent);
-			localService.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+			getConfigurationService(localService).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
 			const session = AgentSession.uri('copilot', 'adopted-registration-fails');
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
 			const registry = (localService as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
@@ -7472,7 +7434,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			localService.registerProvider(disposables.add(new NotAdoptableAgent()));
-			localService.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+			getConfigurationService(localService).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
 
 			const session = AgentSession.uri('copilot', 'external-chat');
 			await assert.rejects(() => localService.restoreSession(session), /not an adoptable legacy chat/);
@@ -7538,7 +7500,7 @@ suite('AgentService (node dispatcher)', () => {
 			localService.registerProvider(agent);
 
 			// Setting on, then surface an adoptable legacy session.
-			localService.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+			getConfigurationService(localService).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
 			const session = AgentSession.uri('copilot', 'surfaced-legacy-unsurface');
 			const sessionStr = session.toString();
 			localService.stateManager.announceSurfacedSession({
@@ -7560,7 +7522,7 @@ suite('AgentService (node dispatcher)', () => {
 			}));
 
 			// Turn the setting off: the un-opened surfaced entry is dropped.
-			localService.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: false });
+			getConfigurationService(localService).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: false });
 
 			assert.deepStrictEqual(
 				{ surfaced: localService.stateManager.getSurfacedSessionSummary(sessionStr), removed },
@@ -7580,7 +7542,7 @@ suite('AgentService (node dispatcher)', () => {
 			const shouldInclude = (localService as unknown as { _shouldIncludeSession(s: IAgentSessionMetadata): boolean })._shouldIncludeSession.bind(localService);
 
 			const includedWhileOff = shouldInclude(adoptable);
-			localService.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+			getConfigurationService(localService).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
 			const includedWhileOn = shouldInclude(adoptable);
 
 			assert.deepStrictEqual({ includedWhileOff, includedWhileOn }, { includedWhileOff: false, includedWhileOn: true });
@@ -8332,9 +8294,10 @@ suite('AgentService (node dispatcher)', () => {
 			const session = await service.createSession({ provider: 'copilot' });
 			const chatUri = URI.parse(buildChatUri(session, 'peer-1'));
 			await service.createChat(session, chatUri);
-			const originalDiscard = service.checkpointService.discardChatTurnStartCheckpoints.bind(service.checkpointService);
-			disposables.add(toDisposable(() => service.checkpointService.discardChatTurnStartCheckpoints = originalDiscard));
-			service.checkpointService.discardChatTurnStartCheckpoints = async (checkpointSession, checkpointChat) => {
+			const checkpointService = getCheckpointService(service);
+			const originalDiscard = checkpointService.discardChatTurnStartCheckpoints.bind(checkpointService);
+			disposables.add(toDisposable(() => checkpointService.discardChatTurnStartCheckpoints = originalDiscard));
+			checkpointService.discardChatTurnStartCheckpoints = async (checkpointSession, checkpointChat) => {
 				assert.deepStrictEqual({
 					session: checkpointSession.toString(),
 					chat: checkpointChat.toString(),
@@ -11178,7 +11141,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const db = new RecordingTitleDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			localService.configurationService.updateRootConfig({ [AgentHostActiveAgentTitleGenerationConfigKey]: true });
+			getConfigurationService(localService).updateRootConfig({ [AgentHostActiveAgentTitleGenerationConfigKey]: true });
 			const agent = disposables.add(new ServerToolAgent('copilot'));
 			localService.registerProvider(agent);
 			const session = await localService.createSession({ provider: 'copilot' });
@@ -11275,7 +11238,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const db = new FailingTitleDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			localService.configurationService.updateRootConfig({ [AgentHostActiveAgentTitleGenerationConfigKey]: true });
+			getConfigurationService(localService).updateRootConfig({ [AgentHostActiveAgentTitleGenerationConfigKey]: true });
 			const agent = disposables.add(new ServerToolAgent('copilot'));
 			localService.registerProvider(agent);
 			const session = await localService.createSession({ provider: 'copilot' });
@@ -12972,44 +12935,6 @@ suite('AgentService (node dispatcher)', () => {
 			assertBackingChangesetsComputing(service.stateManager, sessionStr);
 		});
 
-		test('forked createSession seeds both halves on the forked session', async () => {
-			service.registerProvider(copilotAgent);
-
-			// Set up a source session with at least one completed turn. The
-			// fork path at agentService.ts:493-504 intentionally drops
-			// `config.fork` when the source has zero turns and falls through
-			// to the non-fork create path; without this prelude the test
-			// would silently exercise the non-fork branch and pass vacuously.
-			const sourceSession = await service.createSession({ provider: 'copilot' });
-			const sourceState = service.stateManager.getSessionState(sourceSession.toString())!;
-			const sourceTurnId = 'turn-src-1';
-			sourceState.turns = [{
-				id: sourceTurnId,
-				state: TurnState.Complete,
-				message: { text: 'hi', origin: { kind: MessageKind.User } },
-				responseParts: [],
-				usage: undefined,
-			}];
-
-			const forked = await service.createSession({
-				provider: 'copilot',
-				fork: { session: sourceSession, chat: URI.parse(buildDefaultChatUri(sourceSession)), turnIndex: 0, turnId: sourceTurnId },
-			});
-			assert.notStrictEqual(forked.toString(), sourceSession.toString(), 'fork should produce a distinct session URI');
-			const forkedStr = forked.toString();
-			assert.strictEqual(copilotAgent.lastCreateSessionConfig?.fork?.chat?.toString(), buildDefaultChatUri(sourceSession));
-
-			const forkedState = service.stateManager.getSessionState(forkedStr);
-			assert.ok(forkedState);
-			assert.deepStrictEqual(forkedState!.changesets, defaultCatalogue(forkedStr));
-			// Note: source-session turn was seeded directly on state, so the
-			// reducer never saw a ChatTurnStarted/Complete pair for it;
-			// the fork branch (agentService.ts:548 path) is still exercised
-			// because `config.fork` survives the L493-504 turn-count check.
-			assert.ok(forkedState!.turns.length > 0, 'forked session should carry copied turns');
-			assertBackingChangesetsComputing(service.stateManager, forkedStr);
-		});
-
 		test('provisional session materialization preserves both halves', async () => {
 			// Custom mock that returns `provisional: true` and exposes a hook
 			// to fire `onDidMaterializeChat` later, simulating the
@@ -13086,7 +13011,7 @@ suite('AgentService (node dispatcher)', () => {
 				{ _serviceBrand: undefined } as IProductService, createNoopGitService(),
 				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, orchestratorDb,
 			));
-			localService.configurationService.updateRootConfig({ [AgentMergeConfigKey.Enabled]: true });
+			getConfigurationService(localService).updateRootConfig({ [AgentMergeConfigKey.Enabled]: true });
 			return localService;
 		}
 
@@ -13105,7 +13030,7 @@ suite('AgentService (node dispatcher)', () => {
 			];
 			const sessionResource = (await localAgent.listSessions())[0].session;
 			await localService.restoreSession(sessionResource);
-			localService.configurationService.updateSessionConfig(sessionResource.toString(), { [SessionConfigKey.AgentMerge]: { enabled: true } });
+			getConfigurationService(localService).updateSessionConfig(sessionResource.toString(), { [SessionConfigKey.AgentMerge]: { enabled: true } });
 			await localService.whenAgentMergeSessionsRestored();
 			return { localService, localAgent, sessionResource };
 		}
@@ -13121,7 +13046,7 @@ suite('AgentService (node dispatcher)', () => {
 				await new Promise(resolve => setTimeout(resolve, 60_000));
 				const residentWhileEnabled = localService.stateManager.getSessionState(sessionStr) !== undefined;
 
-				localService.configurationService.updateSessionConfig(sessionStr, { [SessionConfigKey.AgentMerge]: { enabled: false } });
+				getConfigurationService(localService).updateSessionConfig(sessionStr, { [SessionConfigKey.AgentMerge]: { enabled: false } });
 				await new Promise(resolve => setTimeout(resolve, 60_000));
 
 				assert.deepStrictEqual({
@@ -13165,7 +13090,7 @@ suite('AgentService (node dispatcher)', () => {
 
 				// Nothing ever subscribed, so only the monitoring pin is holding
 				// this session resident; disabling must let it go.
-				restarted.configurationService.updateSessionConfig(sessionStr, { [SessionConfigKey.AgentMerge]: { enabled: false } });
+				getConfigurationService(restarted).updateSessionConfig(sessionStr, { [SessionConfigKey.AgentMerge]: { enabled: false } });
 				await new Promise(resolve => setTimeout(resolve, 60_000));
 
 				assert.deepStrictEqual({

@@ -196,7 +196,7 @@ async function main(): Promise<void> {
 		providerConfigurations: [createCodexProviderConfiguration(environmentService.userHome)],
 		byok: { kind: 'unavailable' },
 	});
-	const { agentService, instantiationService, fileService, sessionDataService } = runtime;
+	const { agentService, configurationService: agentConfigurationService, instantiationService, fileService, sessionDataService } = runtime;
 	disposables.add(agentService);
 	errorTelemetry.value = new ErrorTelemetry(runtime.telemetryService);
 
@@ -227,7 +227,6 @@ async function main(): Promise<void> {
 			log('ClaudeAgent registered');
 		}
 		if (!environmentService.isBuilt || agentSdkDownloader.isAvailable(CodexSdkPackage)) {
-			const agentConfigurationService = agentService.configurationService;
 			let codexRegistered = false;
 			const registerCodexIfEnabled = () => {
 				if (codexRegistered) {
@@ -281,7 +280,7 @@ async function main(): Promise<void> {
 	// lifetime, rather than inside `AgentHostService`: a service that arms a
 	// recurring timer in its constructor is one that no faked-timer unit test
 	// can ever drain.
-	disposables.add(instantiationService.createInstance(AgentModelRefreshScheduler, agentService.agents, agentService.onDidStartTurn, MODEL_REFRESH_INTERVAL_MS));
+	disposables.add(instantiationService.createInstance(AgentModelRefreshScheduler, runtime.agents, runtime.onDidStartTurn, MODEL_REFRESH_INTERVAL_MS));
 
 	// WebSocket server
 	const wsServer = disposables.add(await WebSocketProtocolServer.create({
@@ -301,13 +300,13 @@ async function main(): Promise<void> {
 	disposables.add(instantiationService.createInstance(
 		ProtocolServerHandler,
 		agentService,
-		agentService.stateManager,
+		runtime.stateManager,
 		wsServer,
 		{
 			hostLaunchKind: AgentHostLaunchKind.VSCodeCLI,
 			connectionTelemetryTracker,
 			defaultDirectory: URI.file(os.homedir()).toString(),
-			completionTriggerCharacters: agentService.completionTriggerCharacters,
+			completionTriggerCharacters: runtime.completions.triggerCharacters,
 			terminalCommandPrefix: BANG_COMMAND_PREFIX,
 			otlpLogEmitter,
 		},
@@ -370,7 +369,7 @@ async function main(): Promise<void> {
 		// SIGTERM arriving during a session or agent-host storage write can
 		// drop the latest decision.
 		// Capped so a stuck write cannot hang shutdown indefinitely.
-		await raceTimeout(Promise.all([sessionDataService.whenIdle(), agentService.customizationEnablementService.whenIdle()]), 3000, () => {
+		await raceTimeout(Promise.all([sessionDataService.whenIdle(), runtime.customizationEnablementService.whenIdle()]), 3000, () => {
 			logService.warn('[AgentHostServer] Timed out waiting for persistence writes to flush; exiting anyway.');
 		});
 		disposables.dispose();
