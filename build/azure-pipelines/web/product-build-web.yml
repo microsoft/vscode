@@ -59,14 +59,18 @@ jobs:
           # which does not have their own .npmrc file
           npm config set registry "$NPM_REGISTRY"
           echo "##vso[task.setvariable variable=NPMRC_PATH]$(npm config get userconfig)"
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+        condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM
 
       - task: npmAuthenticate@0
         inputs:
           workingFile: $(NPMRC_PATH)
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+        condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Authentication
+
+      - template: ../common/foundry-local.yml@self
+        parameters:
+          phase: prepare
 
       - script: |
           set -e
@@ -92,6 +96,13 @@ jobs:
           GITHUB_TOKEN: "$(github-token-code-oss)"
         displayName: Install dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+      - template: ../common/foundry-local.yml@self
+        parameters:
+          phase: install
+
+      - script: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
+        displayName: Verify native optional dependency binaries
 
       - script: node build/azure-pipelines/distro/mixin-npm.ts
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))

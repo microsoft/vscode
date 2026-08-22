@@ -25,6 +25,8 @@ interface IResourceCacheEntry {
 	readonly resource: string;
 	readonly scopes: readonly string[];
 	readonly token: IAuthorizationTokenResponse;
+	/** Fallback identity (the IdP login account) for sessions built from this token, used when the resource token has no id_token of its own. */
+	readonly account: vscode.AuthenticationSessionAccountInformation;
 	readonly created_at: number;
 }
 
@@ -107,6 +109,11 @@ export function XaaifyAuthProvider<TBase extends Ctor<DynamicAuthProvider>>(Base
 		override async getSessions(scopes: readonly string[] | undefined, options: vscode.AuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession[]> {
 			const resource = options.resource;
 			const audience = options.audience;
+			// Account-enumeration call (getAccounts): no resource to mint against, so surface the IdP
+			// session(s) from the base store. Read-only, so it honors the no-prompt getSessions contract.
+			if (!scopes && !resource && !audience) {
+				return super.getSessions(scopes, options);
+			}
 			if (!resource || !scopes || !audience) {
 				return [];
 			}
@@ -114,7 +121,7 @@ export function XaaifyAuthProvider<TBase extends Ctor<DynamicAuthProvider>>(Base
 			const key = cacheKey(resource, scopes);
 			const entry = this._resourceTokens.get(key);
 			if (entry && !isExpired(entry)) {
-				return [toSession(entry.token, entry.scopes)];
+				return [toSession(entry.token, entry.scopes, entry.account)];
 			}
 			if (entry) {
 				// Expired — drop and try to silently re-mint below.
@@ -134,7 +141,7 @@ export function XaaifyAuthProvider<TBase extends Ctor<DynamicAuthProvider>>(Base
 				if (!minted) {
 					return [];
 				}
-				return [toSession(minted.token, minted.scopes)];
+				return [toSession(minted.token, minted.scopes, minted.account)];
 			} catch (err) {
 				// Silent path: log and fall back to "no session" so the caller decides whether
 				// to escalate to createSession (which is allowed to interact).
@@ -171,7 +178,7 @@ export function XaaifyAuthProvider<TBase extends Ctor<DynamicAuthProvider>>(Base
 				// silent=false — guard defensively anyway.
 				throw new Error('Failed to mint a resource access token for the enterprise-managed MCP server.');
 			}
-			return toSession(minted.token, minted.scopes);
+			return toSession(minted.token, minted.scopes, minted.account);
 		}
 
 		/**
@@ -269,6 +276,8 @@ export function XaaifyAuthProvider<TBase extends Ctor<DynamicAuthProvider>>(Base
 				resource,
 				scopes,
 				token: resourceToken,
+				// Fallback identity, used when the resource token carries no id_token of its own (the usual case).
+				account: idpSession.account,
 				created_at: Date.now(),
 			};
 			this._resourceTokens.set(cacheKey(resource, scopes), entry);
@@ -356,29 +365,29 @@ export function XaaifyAuthProvider<TBase extends Ctor<DynamicAuthProvider>>(Base
 	};
 }
 
-function toSession(token: IAuthorizationTokenResponse, scopes: readonly string[]): vscode.AuthenticationSession {
-	let claims: IAuthorizationJWTClaims | undefined;
+/**
+ * Builds a session from a token response. Identity precedence: the token's own `id_token`, then
+ * `fallbackAccount` (the IdP login identity), then a generic default. Never the `access_token`, which
+ * for XAA is an opaque resource credential. Exported for testing.
+ */
+export function toSession(token: IAuthorizationTokenResponse, scopes: readonly string[], fallbackAccount?: vscode.AuthenticationSessionAccountInformation): vscode.AuthenticationSession {
+	let account: vscode.AuthenticationSessionAccountInformation | undefined;
 	if (token.id_token) {
 		try {
-			claims = getClaimsFromJWT(token.id_token);
+			const claims: IAuthorizationJWTClaims = getClaimsFromJWT(token.id_token);
+			account = {
+				id: claims.sub || 'unknown',
+				label: claims.preferred_username || claims.name || claims.email || 'XAA',
+			};
 		} catch {
-			// ignore
+			// ignore — the id_token wasn't a decodable JWT
 		}
 	}
-	if (!claims) {
-		try {
-			claims = getClaimsFromJWT(token.access_token);
-		} catch {
-			// ignore
-		}
-	}
+	account ??= fallbackAccount ?? { id: 'unknown', label: 'XAA' };
 	return {
 		id: stringHash(token.access_token, 0).toString(),
 		accessToken: token.access_token,
-		account: {
-			id: claims?.sub || 'unknown',
-			label: claims?.preferred_username || claims?.name || claims?.email || 'XAA',
-		},
+		account,
 		scopes: [...scopes],
 		idToken: token.id_token,
 	};

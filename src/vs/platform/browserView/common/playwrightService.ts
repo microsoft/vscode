@@ -3,10 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from '../../../base/common/event.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const IPlaywrightService = createDecorator<IPlaywrightService>('playwrightService');
+
+/**
+ * Identifies the workbench window served by a shared-process Playwright service.
+ */
+export interface IPlaywrightServiceInitializeOptions {
+	readonly windowId: number;
+}
 
 export interface IInvokeFunctionResult {
 	result?: unknown;
@@ -21,51 +27,14 @@ export interface IInvokeFunctionResult {
  *
  * The service maintains a separate Playwright browser instance per session. Callers
  * must pass a {@link sessionId} to every method so operations are routed to the
- * correct instance. Page tracking is shared globally across all sessions.
- *
- * Pages must be explicitly tracked via {@link startTrackingPage} (or implicitly via
- * {@link openPage}) before they can be interacted with.
+ * correct instance. Main-process audience selectors determine which pages each
+ * session can interact with.
  */
 export interface IPlaywrightService {
 	readonly _serviceBrand: undefined;
 
-	/**
-	 * Fires when the set of tracked pages changes.
-	 * The event value is the full list of currently tracked view IDs.
-	 */
-	readonly onDidChangeTrackedPages: Event<readonly string[]>;
-
-	/**
-	 * Start tracking an existing browser view so that agent
-	 * tools can interact with it.
-	 * @param viewId The browser view identifier.
-	 */
-	startTrackingPage(viewId: string): Promise<void>;
-
-	/**
-	 * Stop tracking a browser view.
-	 * @param viewId The browser view identifier.
-	 */
-	stopTrackingPage(viewId: string): Promise<void>;
-
-	/**
-	 * Whether the given page is currently tracked by the service.
-	 */
-	isPageTracked(viewId: string): Promise<boolean>;
-
-	/**
-	 * Get the list of currently tracked page IDs.
-	 */
-	getTrackedPages(): Promise<readonly string[]>;
-
-	/**
-	 * Opens a new page in the browser and returns its associated view ID.
-	 * The page is automatically added to the tracked pages.
-	 * @param sessionId Identifies the session making the request.
-	 * @param url The URL to open in the new page.
-	 * @returns An object containing the new page's view ID and a summary of its initial state.
-	 */
-	openPage(sessionId: string, url: string): Promise<{ pageId: string; summary: string }>;
+	/** Waits for a newly created browser view to become available and returns its initial summary. */
+	waitForPageAndGetSummary(sessionId: string, pageId: string, expectedUrl: string, discoveryTimeoutMs: number): Promise<string>;
 
 	/**
 	 * Gets a summary of the page's current state, including its DOM and visual representation.

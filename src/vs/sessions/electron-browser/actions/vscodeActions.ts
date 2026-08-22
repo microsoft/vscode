@@ -30,6 +30,9 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { resolveRemoteAuthority } from '../../browser/openInVSCodeUtils.js';
 import { INativeHostService } from '../../../platform/native/common/native.js';
+import { IOpenedMainWindow } from '../../../platform/window/common/window.js';
+import { OPEN_VSCODE_WINDOW_COMMAND_ID, RETURN_TO_VSCODE_EDITOR_COMMAND_ID, SHOULD_SHOW_RETURN_TO_VSCODE_EDITOR_COMMAND_ID } from '../../common/sessionCommands.js';
+import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 
 export class OpenSessionInVSCodeAction extends Action2 {
 	static readonly ID = 'agents.openSessionInVSCode';
@@ -62,7 +65,9 @@ export class OpenSessionInVSCodeAction extends Action2 {
 		if (!folderUri) {
 			return nativeHostService.openWindow();
 		}
-		return nativeHostService.openWindow([{ folderUri }], { forceNewWindow: true });
+
+		const chatSessionToOpen = getChatSessionToOpenInEditor(sessionsService.activeSession.get());
+		return nativeHostService.openWindow([{ folderUri }], { forceNewWindow: true, chatSessionToOpen });
 	}
 
 	private getFolderUriToOpen(sessionsService: ISessionsService, sessionsProvidersService: ISessionsProvidersService, remoteAgentHostService: IRemoteAgentHostService): URI | undefined {
@@ -91,8 +96,15 @@ export class OpenSessionInVSCodeAction extends Action2 {
 	}
 }
 
+/**
+ * Provisional sessions remain owned by the Agents composer and may be replaced or disposed, so only materialized sessions are safe to share across windows.
+ */
+export function getChatSessionToOpenInEditor(session: IActiveSession | undefined): URI | undefined {
+	return session?.isCreated.get() ? session.resource : undefined;
+}
+
 export class OpenVSCodeWindowAction extends Action2 {
-	static readonly ID = 'agents.openVSCodeWindow';
+	static readonly ID = OPEN_VSCODE_WINDOW_COMMAND_ID;
 
 	constructor() {
 		super({
@@ -119,6 +131,46 @@ export class OpenVSCodeWindowAction extends Action2 {
 			await nativeHostService.openWindow();
 		}
 	}
+}
+
+export class ReturnToVSCodeEditorAction extends Action2 {
+
+	constructor() {
+		super({
+			id: RETURN_TO_VSCODE_EDITOR_COMMAND_ID,
+			title: localize2('returnToVSCodeEditor', 'Return to VS Code Editor'),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const nativeHostService = accessor.get(INativeHostService);
+		await returnToVSCodeEditor(nativeHostService, getWindowId(mainWindow));
+	}
+}
+
+export class ShouldShowReturnToVSCodeEditorAction extends Action2 {
+
+	constructor() {
+		super({
+			id: SHOULD_SHOW_RETURN_TO_VSCODE_EDITOR_COMMAND_ID,
+			title: localize2('shouldShowReturnToVSCodeEditor', 'Check Whether to Show Return to VS Code Editor'),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<boolean> {
+		const nativeHostService = accessor.get(INativeHostService);
+		const windows = await nativeHostService.getWindows({ includeAuxiliaryWindows: false });
+		return shouldShowReturnToVSCodeEditor(windows, getWindowId(mainWindow));
+	}
+}
+
+export function shouldShowReturnToVSCodeEditor(windows: readonly IOpenedMainWindow[], currentWindowId: number): boolean {
+	return !windows.some(window => window.id !== currentWindowId);
+}
+
+export async function returnToVSCodeEditor(nativeHostService: INativeHostService, currentWindowId: number): Promise<void> {
+	await nativeHostService.openWindow();
+	await nativeHostService.closeWindow({ targetWindowId: currentWindowId });
 }
 
 export class OpenInVSCodeWidgetContribution extends Disposable implements IWorkbenchContribution {

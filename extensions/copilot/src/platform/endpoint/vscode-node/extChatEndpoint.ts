@@ -19,15 +19,23 @@ import { FinishedCallback, OpenAiFunctionTool, OptionalChatRequestParams } from 
 import { Response } from '../../networking/common/fetcherService';
 import { IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions } from '../../networking/common/networking';
 import { APIUsage, ChatCompletion, isApiUsage } from '../../networking/common/openai';
-import { IOTelService } from '../../otel/common/otelService';
+import { IOTelService, type OTelModelOptions } from '../../otel/common/otelService';
 import { retrieveCapturingTokenByCorrelation, storeCapturingTokenForCorrelation } from '../../requestLogger/node/requestLogger';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { TelemetryData } from '../../telemetry/common/telemetryData';
 import { EndpointEditToolName, isEndpointEditToolName } from '../common/endpointProvider';
-import { CustomDataPartMimeTypes } from '../common/endpointTypes';
+import { CustomDataPartMimeTypes, modelVendorHandlesCacheBreakpoints } from '../common/endpointTypes';
 import { decodeStatefulMarker, encodeStatefulMarker, rawPartAsStatefulMarker } from '../common/statefulMarkerContainer';
 import { rawPartAsThinkingData } from '../common/thinkingDataContainer';
 import { ExtensionContributedChatTokenizer } from './extChatTokenizer';
+
+/**
+ * Internal model options transported across VS Code's extension-contributed language model boundary.
+ */
+export interface ExtensionLanguageModelRequestOptions extends OTelModelOptions {
+	readonly _enableThinking?: boolean;
+	readonly _conversationId?: string;
+}
 
 enum ChatImageMimeType {
 	PNG = 'image/png',
@@ -163,13 +171,21 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 	async makeChatRequest2({
 		debugName,
 		messages,
+		ignoreStatefulMarker,
+		summarizedAtRoundId,
 		requestOptions,
 		finishedCb,
 		location,
 		source,
 		telemetryProperties,
+		modelCapabilities,
+		conversationId,
 	}: IMakeChatRequestOptions, token: CancellationToken): Promise<ChatResponse> {
-		const vscodeMessages = convertToApiChatMessage(messages);
+		const vscodeMessages = convertToApiChatMessage(messages, {
+			ignoreStatefulMarker,
+			summarizedAtRoundId,
+			emitCacheBreakpoints: modelVendorHandlesCacheBreakpoints(this.languageModel.vendor),
+		});
 		const ourRequestId = generateUuid();
 
 		// Capture active OTel trace context to propagate through IPC to the BYOK provider.
@@ -186,12 +202,14 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 				description: tool.function.description,
 				inputSchema: tool.function.parameters,
 			})),
-			// Pass correlation ID and OTel trace context through modelOptions for cross-IPC restoration.
+			// Pass internal request context through modelOptions for cross-IPC restoration.
 			modelOptions: {
 				_capturingTokenCorrelationId: ourRequestId,
 				_otelTraceContext: activeTraceCtx ?? null,
 				...(telemetryTurn !== undefined ? { _telemetryTurn: telemetryTurn } : {}),
-			}
+				...(modelCapabilities?.enableThinking !== undefined ? { _enableThinking: modelCapabilities.enableThinking } : {}),
+				...(conversationId !== undefined ? { _conversationId: conversationId } : {}),
+			} satisfies ExtensionLanguageModelRequestOptions
 		};
 
 		// Store current CapturingToken for retrieval by BYOK providers after IPC crossing
@@ -323,7 +341,14 @@ function getTelemetryTurnFromProperties(telemetryProperties: IMakeChatRequestOpt
 	return Number.isSafeInteger(turn) ? turn : undefined;
 }
 
-export function convertToApiChatMessage(messages: Raw.ChatMessage[]): Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2> {
+interface ConvertToApiChatMessageOptions {
+	readonly ignoreStatefulMarker?: boolean;
+	readonly summarizedAtRoundId?: string;
+	/** Emit the {@link CustomDataPartMimeTypes.CacheControl} sentinel for cache breakpoints. Defaults to `false` (fail closed) so it never reaches a provider that can't consume it (#313920). */
+	readonly emitCacheBreakpoints?: boolean;
+}
+
+export function convertToApiChatMessage(messages: Raw.ChatMessage[], options: ConvertToApiChatMessageOptions = {}): Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2> {
 	const apiMessages: Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2> = [];
 	for (const message of messages) {
 		const apiContent: Array<vscode.LanguageModelTextPart | vscode.LanguageModelToolResultPart2 | vscode.LanguageModelToolCallPart | vscode.LanguageModelDataPart | vscode.LanguageModelThinkingPart> = [];
@@ -346,10 +371,17 @@ export function convertToApiChatMessage(messages: Raw.ChatMessage[]): Array<vsco
 					continue;
 				}
 			} else if (contentPart.type === Raw.ChatCompletionContentPartKind.CacheBreakpoint) {
-				apiContent.push(new vscode.LanguageModelDataPart(new TextEncoder().encode('ephemeral'), CustomDataPartMimeTypes.CacheControl));
+				if (options.emitCacheBreakpoints) {
+					apiContent.push(new vscode.LanguageModelDataPart(new TextEncoder().encode('ephemeral'), CustomDataPartMimeTypes.CacheControl));
+				}
 			} else if (contentPart.type === Raw.ChatCompletionContentPartKind.Opaque) {
 				const statefulMarker = rawPartAsStatefulMarker(contentPart);
-				if (statefulMarker) {
+				// A marker created under a different local summary generation points at
+				// server-side history that the rendered summary has replaced. Omit it so
+				// this request establishes a new BYOK Responses chain from the summary.
+				if (statefulMarker
+					&& !options.ignoreStatefulMarker
+					&& statefulMarker.summarizedAtRoundId === options.summarizedAtRoundId) {
 					apiContent.push(new vscode.LanguageModelDataPart(encodeStatefulMarker(statefulMarker.modelId, statefulMarker.marker), CustomDataPartMimeTypes.StatefulMarker));
 				}
 				const thinkingData = rawPartAsThinkingData(contentPart);

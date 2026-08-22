@@ -181,4 +181,55 @@ suite('ChatSelectedTools', () => {
 			assert.strictEqual(userSelectedTools[toolData3.id], true);
 		});
 	});
+
+	test('Can disable a tool from a hidden tool set #324006', () => {
+		return runWithFakedTimers({}, async () => {
+			const toolData1: IToolData = {
+				id: 'testTool1',
+				modelDescription: 'Test Tool 1',
+				displayName: 'Test Tool 1',
+				canBeReferencedInPrompt: true,
+				toolReferenceName: 't1',
+				source: ToolDataSource.Internal,
+			};
+
+			const toolData2: IToolData = {
+				id: 'testTool2',
+				modelDescription: 'Test Tool 2',
+				displayName: 'Test Tool 2',
+				source: ToolDataSource.Internal,
+				canBeReferencedInPrompt: true,
+				toolReferenceName: 't2',
+			};
+
+			// A tool set that is hidden from the tools picker (e.g. a built-in client tool set).
+			// The user can not toggle it, so it always resolves to enabled and must not force its
+			// member tools back on when they are individually disabled.
+			const toolset = toolsService.createToolSet(
+				ToolDataSource.Internal,
+				'hiddenToolSet', 'hiddenToolSet',
+				{ hiddenInToolsPicker: true }
+			);
+
+			store.add(toolsService.registerToolData(toolData1));
+			store.add(toolsService.registerToolData(toolData2));
+
+			store.add(toolset);
+			store.add(toolset.addTool(toolData1));
+			store.add(toolset.addTool(toolData2));
+
+			await timeout(1000); // UGLY the tools service updates its state sync but emits the event async (750ms) delay. This affects the observable that depends on the event
+
+			// Disable tool 2 individually. The hidden tool set has no stored state (the picker
+			// never surfaces it), so it defaults to enabled.
+			const toSet = ToolAndToolSetEnablementMap.fromEntries([[toolData1, true], [toolData2, false]]);
+			selectedTools.set(toSet, false);
+
+			const userSelectedTools = selectedTools.userSelectedTools.get();
+
+			// The individually disabled tool stays disabled even though its owning tool set resolves to enabled.
+			assert.strictEqual(userSelectedTools[toolData1.id], true);
+			assert.strictEqual(userSelectedTools[toolData2.id], false);
+		});
+	});
 });

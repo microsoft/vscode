@@ -236,6 +236,7 @@ knownTermMappings.set('powershell', 'PowerShell');
 knownTermMappings.set('javascript', 'JavaScript');
 knownTermMappings.set('typescript', 'TypeScript');
 knownTermMappings.set('github', 'GitHub');
+knownTermMappings.set('ocaml', 'OCaml');
 knownTermMappings.set('jet brains', 'JetBrains');
 knownTermMappings.set('jetbrains', 'JetBrains');
 knownTermMappings.set('re sharper', 'ReSharper');

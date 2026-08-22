@@ -51,6 +51,7 @@ import './api/browser/viewsExtensionPoint.js';
 //#region --- workbench parts
 
 import './browser/parts/editor/editor.contribution.js';
+import './browser/parts/editor/diffEditor.workbench.contribution.js';
 import './browser/parts/editor/editorParts.js';
 import './browser/parts/paneCompositePartService.js';
 import './browser/parts/banner/bannerPart.js';
@@ -204,6 +205,9 @@ import './services/accounts/browser/defaultAccount.js';
 // Account Policy Gate
 import './services/policies/browser/accountPolicyGate.contribution.js';
 
+// Policy Telemetry
+import './services/policies/browser/policyTelemetry.contribution.js';
+
 // Telemetry
 import './contrib/telemetry/browser/telemetry.contribution.js';
 
@@ -224,6 +228,7 @@ import './contrib/speech/browser/speech.contribution.js';
 // Chat
 import './contrib/chat/browser/chat.shared.contribution.js';
 import './contrib/chat/browser/chat.contribution.js';
+import './contrib/chat/browser/agentSessions/agentHost/agentHost.contribution.js';
 import './contrib/chat/browser/chat.view.contribution.js';
 import './contrib/inlineChat/browser/inlineChat.contribution.js';
 
@@ -335,8 +340,8 @@ import './contrib/externalTerminal/browser/externalTerminal.contribution.js';
 // Relauncher
 import './contrib/relauncher/browser/relauncher.contribution.js';
 
-// Style Overrides (experimental)
-import './contrib/styleOverrides/browser/styleOverrides.contribution.js';
+// Modern UI (experimental)
+import './contrib/modernUI/browser/modernUI.contribution.js';
 
 // Tasks
 import './contrib/tasks/browser/task.contribution.js';

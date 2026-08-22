@@ -5,16 +5,16 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import * as vscode from 'vscode';
-import type { AgentTask, AgentTaskCreateRequest, AgentTaskGetResponse, AgentTaskListEventsResponse, AgentTaskListResponse, AgentTaskSessionEvent, AgentTaskSteerRequest, AgentTaskCreatePullRequestResponse } from '@vscode/copilot-api';
+import type { AgentTask, AgentTaskCreateRequest, AgentTaskGetResponse, AgentTaskListEventsResponse, AgentTaskListResponse, AgentTaskSessionEvent, AgentTaskState, AgentTaskSteerRequest, AgentTaskCreatePullRequestResponse } from '@vscode/copilot-api';
 import { GithubRepoId, IGitService } from '../../../../platform/git/common/gitService';
-import { PullRequestSearchItem, SessionInfo } from '../../../../platform/github/common/githubAPI';
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
 import { mock } from '../../../../util/common/test/simpleMock';
 import { ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseTurn2, ChatToolInvocationPart } from '../../../../vscodeTypes';
 import { ITaskApiClient, ListTaskEventsOptions, ListTasksOptions } from '../../common/taskApiTypes';
-import { ChatSessionContentBuilder } from '../copilotCloudSessionContentBuilder';
-import { normalizeInitialSessionOptions, parseSessionLogChunksSafely } from '../copilotCloudSessionsProvider';
-import { TaskApiBackend, parseRepoFromTaskUrl } from '../taskApiBackend';
+import { ChatSessionContentBuilder, extractTaskErrorDetail, formatTaskStoppedMessage } from '../copilotCloudSessionContentBuilder';
+import { getCloudSessionItemMetadata, getCloudSessionResources, normalizeInitialSessionOptions, taskStateToChatSessionStatus } from '../copilotCloudSessionsProvider';
+import { TaskApiBackend, parseRepoFromTaskUrl, isCloudCodingAgentTask } from '../taskApiBackend';
+import { isActiveTaskState, isFailedTaskState } from '../../vscode/copilotCodingAgentUtils';
 import { NullCloudBackendInstrumentation } from '../cloudBackendTelemetry';
 import { MockOctoKitService } from '../../../agents/vscode-node/test/mockOctoKitService';
 
@@ -39,55 +39,6 @@ class TestGitService extends mock<IGitService>() {
 	override activeRepository = { get: () => undefined } as IGitService['activeRepository'];
 	override initialize = vi.fn(async () => { });
 	override repositories = [];
-}
-
-function createPullRequest(): PullRequestSearchItem {
-	return {
-		id: 'pr-1',
-		number: 1,
-		title: 'Test PR',
-		state: 'OPEN',
-		url: 'https://example.com/pr/1',
-		createdAt: '2026-03-27T00:00:00Z',
-		updatedAt: '2026-03-27T00:00:00Z',
-		author: { login: 'octocat' },
-		repository: {
-			owner: { login: 'microsoft' },
-			name: 'vscode',
-		},
-		additions: 1,
-		deletions: 0,
-		files: { totalCount: 1 },
-		fullDatabaseId: 1,
-		headRefOid: 'abc123',
-		headRefName: 'copilot/test-branch',
-		baseRefName: 'main',
-		body: 'Body',
-	};
-}
-
-function createSession(state: SessionInfo['state'] = 'completed'): SessionInfo {
-	return {
-		id: 'session-1',
-		name: 'Cloud session',
-		user_id: 1,
-		agent_id: 1,
-		logs: '',
-		logs_blob_id: 'blob-1',
-		state,
-		owner_id: 1,
-		repo_id: 1,
-		resource_type: 'pull_request',
-		resource_id: 1,
-		last_updated_at: '2026-03-27T00:00:00Z',
-		created_at: '2026-03-27T00:00:00Z',
-		completed_at: '2026-03-27T00:00:00Z',
-		event_type: 'pull_request',
-		workflow_run_id: 1,
-		premium_requests: 0,
-		error: null,
-		resource_global_id: 'global-1',
-	};
 }
 
 describe('copilotCloudSessionsProvider helpers', () => {
@@ -118,51 +69,38 @@ describe('copilotCloudSessionsProvider helpers', () => {
 		expect(logService.warn).toHaveBeenCalledWith(expect.stringContaining('Ignoring unsupported initialSessionOptions'));
 	});
 
-	it('logs parse failures when streamed log content is malformed', () => {
-		const logService = new RecordingLogService();
-
-		const result = parseSessionLogChunksSafely('data: {not-json}', logService, () => {
-			throw new SyntaxError('Unexpected token');
+	it('includes the task branch in PR-less cloud session metadata', () => {
+		expect(getCloudSessionItemMetadata(
+			{ owner: 'microsoft', name: 'vscode', host: 'github.com' },
+			{ owner: 'microsoft', repo: 'vscode', baseRef: 'main', headRef: 'copilot/task-branch' },
+		)).toEqual({
+			owner: 'microsoft',
+			name: 'vscode',
+			host: 'github.com',
+			branch: 'copilot/task-branch',
 		});
+	});
 
-		expect(result).toEqual([]);
-		expect(logService.error).toHaveBeenCalledWith(expect.any(SyntaxError), expect.stringContaining('Failed to parse streamed log content'));
+	it('keeps the task resource stable and reports the pull request URI for state migration', () => {
+		// A task keeps its `/task/<id>` identity for its whole life. Once it has a pull request
+		// it also reports the `/<prNumber>` URI it used to be listed under, so archive/pin/read
+		// state recorded against that URI migrates forward instead of being orphaned.
+		expect({
+			prLess: getCloudSessionResources('abc-123', undefined),
+			prBacked: getCloudSessionResources('abc-123', 325),
+		}).toEqual({
+			prLess: {
+				resource: vscode.Uri.parse('copilot-cloud-agent:/task/abc-123'),
+			},
+			prBacked: {
+				resource: vscode.Uri.parse('copilot-cloud-agent:/task/abc-123'),
+				legacyResource: vscode.Uri.parse('copilot-cloud-agent:/325'),
+			},
+		});
 	});
 });
 
-describe('ChatSessionContentBuilder', () => {
-	it('ignores malformed tool_calls payloads instead of throwing', async () => {
-		const builder = new ChatSessionContentBuilder('copilot-cloud-agent', new TestGitService(), new TestLogService());
-		const logs = [
-			'data: {"choices":[{"finish_reason":"stop","delta":{"role":"assistant","content":"Cloud reply","tool_calls":{"id":"not-an-array"}}}],"created":0,"id":"chunk-1","usage":{"completion_tokens":0,"prompt_tokens":0,"prompt_tokens_details":{"cached_tokens":0},"total_tokens":0},"model":"test-model","object":"chat.completion.chunk"}',
-		].join('\n');
-
-		const history = await builder.buildSessionHistory(
-			Promise.resolve('Continue in cloud'),
-			[createSession()],
-			createPullRequest(),
-			async () => logs,
-			Promise.resolve([]),
-		);
-
-		expect(history).toHaveLength(2);
-		const responseTurn = history[1];
-		expect(responseTurn).toBeInstanceOf(ChatResponseTurn2);
-		if (!(responseTurn instanceof ChatResponseTurn2)) {
-			throw new Error('Expected a response turn.');
-		}
-
-		expect(responseTurn.response).toHaveLength(1);
-		expect(responseTurn.response[0]).toBeInstanceOf(ChatResponseMarkdownPart);
-		if (!(responseTurn.response[0] instanceof ChatResponseMarkdownPart)) {
-			throw new Error('Expected markdown response content.');
-		}
-
-		expect(responseTurn.response[0].value.value).toBe('Cloud reply');
-	});
-});
-
-// --- Task API (v2) history rendering ------------------------------------------------------
+// --- Task API history rendering ------------------------------------------------------------
 
 interface MakeEventOpts {
 	readonly id?: string;
@@ -187,10 +125,10 @@ function userMessage(content: string): AgentTaskSessionEvent {
 	return evt('user.message', { content, transformedContent: `${content}\n\n<context>...</context>` });
 }
 
-function makeTask(sessions: Array<{ state: string; prompt?: string }> = []): AgentTaskGetResponse {
+function makeTask(sessions: Array<{ state: string; prompt?: string }> = [], taskState: string = 'completed'): AgentTaskGetResponse {
 	return {
 		id: 'task-1',
-		state: 'completed',
+		state: taskState,
 		created_at: '2026-03-27T00:00:00Z',
 		sessions: sessions.map((s, i) => ({
 			id: `s-${i}`,
@@ -318,9 +256,107 @@ describe('ChatSessionContentBuilder Task API history', () => {
 		const req = history[0] as ChatRequestTurn2;
 		expect(req.prompt).toBe('Original prompt from creation');
 	});
+
+	it('renders a stopped notice (not a progress spinner) when the task terminally failed but its latest session state is still active', async () => {
+		// "Failed to launch agent": the task ends in `failed` while its only session's state is
+		// stuck at `in_progress` and no renderable events were ever emitted. Keying off the task
+		// state must surface the stop instead of a perpetual "Session is in progress…" spinner.
+		const events: AgentTaskSessionEvent[] = [
+			evt('session.requested', {}),
+			evt('session.start', {}),
+		];
+		const task = makeTask([{ state: 'in_progress', prompt: 'Do the thing' }], 'failed');
+
+		const history = await newBuilder().buildTaskHistory(task, events, undefined, Promise.resolve([]));
+
+		expect(summarise(history)).toEqual([
+			{ kind: 'request', prompt: 'Do the thing' },
+			{ kind: 'response', parts: [{ type: 'markdown', value: 'Copilot stopped: an error occurred' }] },
+		]);
+	});
+
+	it('renders a cancellation reason (not an error) when the task was cancelled with no error event', async () => {
+		// A cancelled task emits no session.error/session.shutdown; the reason comes from the state.
+		const events: AgentTaskSessionEvent[] = [
+			evt('session.requested', {}),
+			evt('session.start', {}),
+			userMessage('one more'),
+		];
+		const task = makeTask([{ state: 'cancelled', prompt: 'Do the thing' }], 'cancelled');
+
+		const history = await newBuilder().buildTaskHistory(task, events, undefined, Promise.resolve([]));
+
+		expect(summarise(history)).toEqual([
+			{ kind: 'request', prompt: 'one more' },
+			{ kind: 'response', parts: [{ type: 'markdown', value: 'Copilot stopped: cancelled' }] },
+		]);
+	});
+
+	it('includes the concrete error detail from a bootstrap session.error in the stopped notice', async () => {
+		// A `session.error` emitted during bootstrap (before any user.message) is suppressed from
+		// the rendered turn, but its detail is still surfaced in the terminal-stopped notice.
+		const events: AgentTaskSessionEvent[] = [
+			evt('session.requested', {}),
+			evt('session.start', {}),
+			evt('session.error', { errorType: 'launch_failed', message: 'Failed to launch agent' }),
+		];
+		const task = makeTask([{ state: 'in_progress', prompt: 'Do the thing' }], 'failed');
+
+		const history = await newBuilder().buildTaskHistory(task, events, undefined, Promise.resolve([]));
+
+		expect(summarise(history)).toEqual([
+			{ kind: 'request', prompt: 'Do the thing' },
+			{ kind: 'response', parts: [{ type: 'markdown', value: 'Copilot stopped: (launch_failed) Failed to launch agent' }] },
+		]);
+	});
+
+	it('still shows the in-progress spinner when the task is active with no renderable events yet', async () => {
+		const events: AgentTaskSessionEvent[] = [
+			evt('session.requested', {}),
+			evt('session.start', {}),
+		];
+		const task = makeTask([{ state: 'in_progress', prompt: 'Do the thing' }], 'in_progress');
+
+		const history = await newBuilder().buildTaskHistory(task, events, undefined, Promise.resolve([]));
+
+		expect(summarise(history)).toEqual([
+			{ kind: 'request', prompt: 'Do the thing' },
+			{ kind: 'response', parts: [{ type: 'ChatResponseProgressPart' }] },
+		]);
+	});
 });
 
-// --- TaskApiBackend (v2) -------------------------------------------------------------------
+describe('extractTaskErrorDetail / formatTaskStoppedMessage', () => {
+	it('prefers the last session.error message, falls back to session.shutdown errorReason, else undefined', () => {
+		expect(extractTaskErrorDetail([
+			evt('session.error', { errorType: 'launch_failed', message: 'Failed to launch agent' }),
+		])).toBe('(launch_failed) Failed to launch agent');
+
+		expect(extractTaskErrorDetail([
+			evt('session.error', { message: 'boom' }),
+		])).toBe('boom');
+
+		expect(extractTaskErrorDetail([
+			evt('session.error', { errorType: 'x', message: 'first' }, { dismissed: true }),
+			evt('session.shutdown', { shutdownType: 'error', errorReason: 'agent crashed' }),
+		])).toBe('agent crashed');
+
+		expect(extractTaskErrorDetail([
+			evt('session.shutdown', { shutdownType: 'routine' }),
+			evt('session.start', {}),
+		])).toBeUndefined();
+	});
+
+	it('uses the detail when present, else a state-derived reason', () => {
+		expect(formatTaskStoppedMessage('failed', '(launch_failed) Failed to launch agent'))
+			.toBe('Copilot stopped: (launch_failed) Failed to launch agent');
+		expect(formatTaskStoppedMessage('cancelled', undefined)).toBe('Copilot stopped: cancelled');
+		expect(formatTaskStoppedMessage('timed_out', undefined)).toBe('Copilot stopped: timed out');
+		expect(formatTaskStoppedMessage('failed', undefined)).toBe('Copilot stopped: an error occurred');
+	});
+});
+
+// --- TaskApiBackend ------------------------------------------------------------------------
 
 class FakeTaskApiClient implements ITaskApiClient {
 	public lastCreateRequest: AgentTaskCreateRequest | undefined;
@@ -330,8 +366,9 @@ class FakeTaskApiClient implements ITaskApiClient {
 	private readonly _createPRResult: AgentTaskCreatePullRequestResponse;
 	private readonly _createResult: AgentTask;
 	private readonly _repoTasks: readonly AgentTask[];
+	private readonly _globalTasks: readonly AgentTask[];
 
-	constructor(opts?: { createResult?: AgentTask; createPRResult?: AgentTaskCreatePullRequestResponse; repoTasks?: readonly AgentTask[] }) {
+	constructor(opts?: { createResult?: AgentTask; createPRResult?: AgentTaskCreatePullRequestResponse; repoTasks?: readonly AgentTask[]; globalTasks?: readonly AgentTask[] }) {
 		this._createResult = opts?.createResult ?? ({
 			id: 'task-created',
 			state: 'queued',
@@ -340,6 +377,7 @@ class FakeTaskApiClient implements ITaskApiClient {
 		} as unknown as AgentTask);
 		this._createPRResult = opts?.createPRResult ?? { id: 1, number: 42, repository_id: 1 };
 		this._repoTasks = opts?.repoTasks ?? [];
+		this._globalTasks = opts?.globalTasks ?? [];
 	}
 
 	async createTask(_owner: string, _repo: string, request: AgentTaskCreateRequest): Promise<AgentTask> {
@@ -352,7 +390,7 @@ class FakeTaskApiClient implements ITaskApiClient {
 	}
 	async listTasks(options?: ListTasksOptions): Promise<AgentTaskListResponse> {
 		this.listCalls.push({ options });
-		return { tasks: [] } as unknown as AgentTaskListResponse;
+		return { tasks: this._globalTasks } as unknown as AgentTaskListResponse;
 	}
 	async getTask(_taskId: string): Promise<AgentTaskGetResponse> {
 		return { id: _taskId } as unknown as AgentTaskGetResponse;
@@ -373,23 +411,19 @@ class FakeTaskApiClient implements ITaskApiClient {
 	}
 }
 
-const fakeChatStream = {} as vscode.ChatResponseStream;
-const noToken = { isCancellationRequested: false, onCancellationRequested: () => ({ dispose() { } }) } as unknown as vscode.CancellationToken;
-
 describe('TaskApiBackend', () => {
-	it('createSession sends create_pull_request: false so the v2 backend no longer auto-creates PRs', async () => {
+	it('createSession sends create_pull_request: false so tasks do not auto-create PRs', async () => {
 		const client = new FakeTaskApiClient();
 		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService(), NullCloudBackendInstrumentation);
 
 		await backend.createSession({
 			owner: 'octocat',
 			repo: 'hello-world',
-			host: 'github.com',
 			title: 'New task',
 			prompt: 'Do the thing',
 			problemStatement: 'Statement',
 			baseRef: 'main',
-		}, fakeChatStream, noToken);
+		});
 
 		expect(client.lastCreateRequest?.create_pull_request).toBe(false);
 	});
@@ -429,7 +463,7 @@ describe('TaskApiBackend', () => {
 		octoKitService.getCurrentAuthedUser = async () => ({ id: 4242, login: 'octocat', name: 'The Octocat', avatar_url: '' });
 		const backend = new TaskApiBackend(client, new TestLogService(), octoKitService, NullCloudBackendInstrumentation);
 
-		await backend.fetchSessionList([new GithubRepoId('octocat', 'hello-world')], false, false);
+		await backend.fetchSessionList([new GithubRepoId('octocat', 'hello-world')], false);
 
 		expect(client.listForRepoCalls).toEqual([
 			{ owner: 'octocat', repo: 'hello-world', options: { per_page: 100, creator_id: 4242 } },
@@ -442,7 +476,7 @@ describe('TaskApiBackend', () => {
 		octoKitService.getCurrentAuthedUser = async () => undefined;
 		const backend = new TaskApiBackend(client, new TestLogService(), octoKitService, NullCloudBackendInstrumentation);
 
-		const result = await backend.fetchSessionList([new GithubRepoId('octocat', 'hello-world')], false, false);
+		const result = await backend.fetchSessionList([new GithubRepoId('octocat', 'hello-world')], false);
 
 		expect(client.listForRepoCalls).toEqual([]);
 		expect(result).toEqual([]);
@@ -452,16 +486,172 @@ describe('TaskApiBackend', () => {
 		const client = new FakeTaskApiClient();
 		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService(), NullCloudBackendInstrumentation);
 
-		await backend.fetchSessionList(undefined, false, false);
+		await backend.fetchSessionList(undefined, false);
 
 		expect(client.listForRepoCalls).toEqual([]);
 		expect(client.listCalls).toEqual([{ options: { per_page: 100 } }]);
+	});
+
+	it('fetchSessionList uses the global user-scoped list in the agents window even when repoIds are present', async () => {
+		// The agents window surfaces all of the user's sessions rather than scoping to the active
+		// workspace's repositories, so it must hit the global list and never the repo-scoped one.
+		const client = new FakeTaskApiClient();
+		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService(), NullCloudBackendInstrumentation);
+
+		await backend.fetchSessionList([new GithubRepoId('octocat', 'hello-world')], true);
+
+		expect(client.listForRepoCalls).toEqual([]);
+		expect(client.listCalls).toEqual([{ options: { per_page: 100 } }]);
+	});
+
+	it('fetchSessionList resolves a global-list task repo by numeric id when it has no html_url', async () => {
+		// Global-list (repoIds undefined) tasks may carry only `repository.id` and no `html_url`.
+		// Without resolving it the session has no repo metadata and groups under "Unknown".
+		const client = new FakeTaskApiClient({
+			globalTasks: [
+				{ id: 'g1', state: 'completed', created_at: '2026-03-27T00:00:00Z', agent_collaborators: [{ slug: 'copilot-developer' }], repository: { id: 123 } } as unknown as AgentTask,
+				{ id: 'g2', state: 'completed', created_at: '2026-03-27T00:00:00Z', agent_collaborators: [{ slug: 'copilot-developer' }], repository: { id: 123 } } as unknown as AgentTask,
+			],
+		});
+		const octoKitService = new MockOctoKitService();
+		let getRepositoryByIdCalls = 0;
+		octoKitService.getRepositoryById = async () => { getRepositoryByIdCalls++; return { owner: 'octocat', name: 'hello-world' }; };
+		const backend = new TaskApiBackend(client, new TestLogService(), octoKitService, NullCloudBackendInstrumentation);
+
+		const result = await backend.fetchSessionList(undefined, false);
+
+		expect(result.map(r => r.repo)).toEqual([
+			{ owner: 'octocat', name: 'hello-world' },
+			{ owner: 'octocat', name: 'hello-world' },
+		]);
+		// Same repo id across both tasks resolves via a single cached lookup.
+		expect(getRepositoryByIdCalls).toBe(1);
+	});
+
+	it('fetchSessionList preserves the task lifecycle state', async () => {
+		const client = new FakeTaskApiClient({ repoTasks: [{ id: 't-idle', state: 'idle', created_at: '2026-03-27T00:00:00Z', creator: { id: 4242 }, agent_collaborators: [{ slug: 'copilot-developer' }] } as unknown as AgentTask] });
+		const octoKitService = new MockOctoKitService();
+		octoKitService.getCurrentAuthedUser = async () => ({ id: 4242, login: 'octocat', name: 'The Octocat', avatar_url: '' });
+		const backend = new TaskApiBackend(client, new TestLogService(), octoKitService, NullCloudBackendInstrumentation);
+
+		const result = await backend.fetchSessionList([new GithubRepoId('octocat', 'hello-world')], false);
+
+		expect(result.map(r => ({ taskId: r.taskId, state: r.state }))).toEqual([
+			{ taskId: 't-idle', state: 'idle' },
+		]);
+	});
+
+	it('fetchSessionList shows only cloud coding agent tasks and excludes local-client tasks (CLI / VS Code / JetBrains)', async () => {
+		const repoTasks = [
+			{ id: 'cloud-dev', state: 'idle', created_at: '2026-03-27T00:00:00Z', creator: { id: 4242 }, agent_collaborators: [{ slug: 'copilot-developer' }] },
+			{ id: 'cloud-swe', state: 'idle', created_at: '2026-03-27T00:00:00Z', creator: { id: 4242 }, agent_collaborators: [{ slug: 'copilot-swe-agent' }] },
+			{ id: 'cli', state: 'idle', created_at: '2026-03-27T00:00:00Z', creator: { id: 4242 }, agent_collaborators: [{ slug: 'copilot-developer-cli' }] },
+			{ id: 'vscode', state: 'idle', created_at: '2026-03-27T00:00:00Z', creator: { id: 4242 }, agent_collaborators: [{ slug: 'vscode-chat' }] },
+			{ id: 'jetbrains', state: 'idle', created_at: '2026-03-27T00:00:00Z', creator: { id: 4242 }, agent_collaborators: [{ slug: 'jetbrains-chat' }] },
+			{ id: 'no-collaborators', state: 'idle', created_at: '2026-03-27T00:00:00Z', creator: { id: 4242 } },
+		] as unknown as readonly AgentTask[];
+		const client = new FakeTaskApiClient({ repoTasks });
+		const octoKitService = new MockOctoKitService();
+		octoKitService.getCurrentAuthedUser = async () => ({ id: 4242, login: 'octocat', name: 'The Octocat', avatar_url: '' });
+		const backend = new TaskApiBackend(client, new TestLogService(), octoKitService, NullCloudBackendInstrumentation);
+
+		const result = await backend.fetchSessionList([new GithubRepoId('octocat', 'hello-world')], false);
+
+		expect(result.map(r => r.taskId)).toEqual(['cloud-dev', 'cloud-swe']);
+	});
+});
+
+describe('isCloudCodingAgentTask', () => {
+	it('keeps cloud coding agent slugs and rejects local-client / missing / malformed slugs', () => {
+		const classify = (agent_collaborators?: Array<{ slug?: unknown }>) =>
+			isCloudCodingAgentTask({ id: 't', state: 'idle', created_at: '2026-03-27T00:00:00Z', ...(agent_collaborators && { agent_collaborators }) } as unknown as AgentTask);
+
+		expect({
+			'copilot-developer': classify([{ slug: 'copilot-developer' }]),
+			'copilot-swe-agent': classify([{ slug: 'copilot-swe-agent' }]),
+			'copilot-developer-cli': classify([{ slug: 'copilot-developer-cli' }]),
+			'vscode-chat': classify([{ slug: 'vscode-chat' }]),
+			'jetbrains-chat': classify([{ slug: 'jetbrains-chat' }]),
+			'missing-slug': classify([{}]),
+			'null-slug': classify([{ slug: null }]),
+			'no-collaborators': classify(undefined),
+			'empty-collaborators': classify([]),
+		}).toEqual({
+			'copilot-developer': true,
+			'copilot-swe-agent': true,
+			'copilot-developer-cli': false,
+			'vscode-chat': false,
+			'jetbrains-chat': false,
+			'missing-slug': false,
+			'null-slug': false,
+			'no-collaborators': false,
+			'empty-collaborators': false,
+		});
+	});
+});
+
+describe('taskStateToChatSessionStatus', () => {
+	it('maps each Task API lifecycle state to the right ChatSessionStatus', () => {
+		const states: readonly AgentTaskState[] = ['queued', 'in_progress', 'idle', 'waiting_for_user', 'completed', 'failed', 'timed_out', 'cancelled'];
+		const mapped = Object.fromEntries(states.map(state => [state, taskStateToChatSessionStatus(state)]));
+
+		expect(mapped).toEqual({
+			queued: vscode.ChatSessionStatus.InProgress,
+			in_progress: vscode.ChatSessionStatus.InProgress,
+			// Agent finished its turn / is waiting — must not look like active work.
+			idle: vscode.ChatSessionStatus.Completed,
+			waiting_for_user: vscode.ChatSessionStatus.NeedsInput,
+			completed: vscode.ChatSessionStatus.Completed,
+			failed: vscode.ChatSessionStatus.Failed,
+			timed_out: vscode.ChatSessionStatus.Failed,
+			cancelled: vscode.ChatSessionStatus.Failed,
+		});
+	});
+
+	it('falls back to InProgress for an unknown/forward-compat state instead of returning undefined', () => {
+		expect(taskStateToChatSessionStatus('some_new_server_state' as AgentTaskState)).toBe(vscode.ChatSessionStatus.InProgress);
+	});
+});
+
+describe('isActiveTaskState / isFailedTaskState', () => {
+	it('classifies each Task API lifecycle state and falls back to active for unknown states', () => {
+		const states: readonly AgentTaskState[] = ['queued', 'in_progress', 'idle', 'waiting_for_user', 'completed', 'failed', 'timed_out', 'cancelled'];
+		const active = Object.fromEntries(states.map(state => [state, isActiveTaskState(state)]));
+		const failed = Object.fromEntries(states.map(state => [state, isFailedTaskState(state)]));
+
+		expect({ active, failed }).toEqual({
+			active: {
+				queued: true,
+				in_progress: true,
+				idle: true,
+				waiting_for_user: true,
+				completed: false,
+				failed: false,
+				timed_out: false,
+				cancelled: false,
+			},
+			failed: {
+				queued: false,
+				in_progress: false,
+				idle: false,
+				waiting_for_user: false,
+				completed: false,
+				failed: true,
+				timed_out: true,
+				cancelled: true,
+			},
+		});
+	});
+
+	it('treats an unknown/forward-compat state as active (never undefined) so the streamer keeps polling', () => {
+		expect(isActiveTaskState('some_new_server_state' as AgentTaskState)).toBe(true);
+		expect(isFailedTaskState('some_new_server_state' as AgentTaskState)).toBe(false);
 	});
 });
 
 describe('parseRepoFromTaskUrl', () => {
 	it('extracts owner and name from a task html_url', () => {
-		expect(parseRepoFromTaskUrl('https://github.com/octocat/hello-world/agents/tasks/abc')).toEqual({ owner: 'octocat', name: 'hello-world' });
+		expect(parseRepoFromTaskUrl('https://github.example.com/octocat/hello-world/agents/tasks/abc')).toEqual({ owner: 'octocat', name: 'hello-world', host: 'github.example.com' });
 	});
 
 	it('returns undefined for an unparseable URL', () => {

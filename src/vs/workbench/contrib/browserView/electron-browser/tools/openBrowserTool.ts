@@ -23,11 +23,13 @@ import { IChatRequestModel } from '../../../chat/common/model/chatModel.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
 import { BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
-import { BrowserChatToolReferenceName } from '../../common/browserChatToolReferenceNames.js';
+import { BrowserChatToolReferenceName } from '../../../../../platform/browserView/common/browserChatToolReferenceNames.js';
 import { createBrowserPageLink, findExistingPagesByHost, getExistingPagesResult, getSessionId, remoteUrlRewriteNotice, rewriteRemoteLocalhostUrl } from './browserToolHelpers.js';
 import { IRemoteExplorerService } from '../../../../services/remote/common/remoteExplorerService.js';
+import { getAgentBrowserViewCreationDefaults } from '../../../../../platform/browserView/common/browserView.js';
 
 export const OpenPageToolId = 'open_browser_page';
+const OPEN_PAGE_READY_TIMEOUT_MS = 5000;
 
 export const OpenBrowserToolData: IToolData = {
 	id: OpenPageToolId,
@@ -284,8 +286,13 @@ export class OpenBrowserTool implements IToolImpl {
 	}
 
 	private async _openNewPage(sessionId: string, url: string): Promise<IToolResult> {
-		const { pageId, summary } = await this.playwrightService.openPage(sessionId, url);
-		return this._pageResult(pageId, summary, localize('browser.open.result', "Opened {0}", createBrowserPageLink(pageId)));
+		const input = await this.browserViewService.createBrowserView({
+			...getAgentBrowserViewCreationDefaults(sessionId),
+			initialUrl: url,
+			openSource: 'cdpCreated'
+		}, { preserveFocus: true });
+		const summary = await this.playwrightService.waitForPageAndGetSummary(sessionId, input.id, url, OPEN_PAGE_READY_TIMEOUT_MS);
+		return this._pageResult(input.id, summary, localize('browser.open.result', "Opened {0}", createBrowserPageLink(input.id)));
 	}
 
 	private async _shareExistingPage(sessionId: string, editor: BrowserEditorInput): Promise<IToolResult> {

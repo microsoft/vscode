@@ -11,7 +11,10 @@ import { FileOperationResult, IFileService, toFileOperationResult } from '../../
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
-import { AgentSession } from '../../common/agentService.js';
+import { AgentSession } from '../../common/agent.js';
+import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
+import { isAhpChatChannel, parseRequiredSessionUriFromChatUri } from '../../common/state/sessionState.js';
+import { toInitiatorTelemetry, type IAgentHostInitiatorClassification, type IAgentHostInitiatorTelemetry } from '../agentHostTelemetryReporter.js';
 import { computeChunkedEditSurvival, computeWholeFileEditSurvival } from './editSurvivalTracker.js';
 
 /**
@@ -27,6 +30,7 @@ import { computeChunkedEditSurvival, computeWholeFileEditSurvival } from './edit
  * revisit when we have a notebook-aware tracker.
  */
 export interface IEditSurvivalReporterLaunchParams {
+	readonly clientContext?: IAgentHostClientTelemetryContext;
 	/** Full session URI string (e.g. `claude:/abc123`). */
 	readonly sessionUri: string;
 	readonly turnId: string;
@@ -80,7 +84,7 @@ export class NullEditSurvivalReporterFactory implements IEditSurvivalReporterFac
 	}
 }
 
-interface IEditSurvivalTelemetryEvent {
+interface IEditSurvivalTelemetryEvent extends IAgentHostInitiatorTelemetry {
 	provider: string;
 	modelId: string;
 	toolName: string;
@@ -101,7 +105,7 @@ interface IEditSurvivalTelemetryEvent {
 	currentTextLength: number;
 }
 
-type IEditSurvivalTelemetryClassification = {
+type IEditSurvivalTelemetryClassification = IAgentHostInitiatorClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
 	modelId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model that produced the edit, e.g. "claude-sonnet-4.5" or "gpt-5-mini". Empty if the host could not determine the per-edit model.' };
 	toolName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Name of the edit tool that produced the edit, e.g. "Edit", "apply_patch". Empty if unknown.' };
@@ -191,13 +195,19 @@ class SessionEditSurvivalReporter extends Disposable {
 					? computeChunkedEditSurvival(this._params.beforeText, this._params.afterText, aiChunks, currentText)
 					: computeWholeFileEditSurvival(this._params.beforeText, this._params.afterText, currentText);
 
+			// Sub-channel URIs (e.g. `ahp-chat:` for the default chat or
+			// subagent chats) encode the parent session URI; resolve them
+			// back so provider/id reflect the underlying harness rather than
+			// the chat scheme. See telemetry gap #6 in #8209.
+			const sessionUri = isAhpChatChannel(this._params.sessionUri) ? parseRequiredSessionUriFromChatUri(this._params.sessionUri) : this._params.sessionUri;
 			this._telemetryService.publicLog2<IEditSurvivalTelemetryEvent, IEditSurvivalTelemetryClassification>(
 				'agentHost.trackEditSurvival',
 				{
-					provider: AgentSession.provider(this._params.sessionUri) ?? 'unknown',
+					...toInitiatorTelemetry(this._params.clientContext),
+					provider: AgentSession.provider(sessionUri) ?? 'unknown',
 					modelId: this._params.modelId ?? '',
 					toolName: this._params.toolName ?? '',
-					agentSessionId: AgentSession.id(this._params.sessionUri),
+					agentSessionId: AgentSession.id(sessionUri),
 					turnId: this._params.turnId,
 					toolCallId: this._params.toolCallId,
 					fileExtension: extname(this._params.filePath),

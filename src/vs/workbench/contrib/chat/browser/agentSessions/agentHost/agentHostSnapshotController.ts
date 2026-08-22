@@ -301,7 +301,8 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 	}
 
 	hasEditsInRequest(requestId: string, _reader?: IReader): boolean {
-		return this._checkpoints.some(cp => cp.requestId === requestId);
+		const cp = this._checkpoints.find(c => c.requestId === requestId);
+		return !!cp && cp.edits.length > 0;
 	}
 
 	// ---- Unsupported / no-op (agent host owns edits server-side) ------------

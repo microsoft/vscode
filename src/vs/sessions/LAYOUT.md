@@ -1,261 +1,180 @@
-# Agents Window Layout
+# Agents Window layout
 
-This document describes the layout structure and concepts for the Agents Window workbench.
+> **Specification change gate:** Do not update this document for layout bug
+> fixes, styling, dimensions, or action placement. Update it only when part
+> ownership, workbench topology, or a cross-part contract intentionally changes.
 
----
+## Scope
 
-## 1. Overview
+The Agents Window uses a Sessions-owned workbench layout optimized for agent
+work. This specification defines stable part ownership, composition, and
+presentation modes. Per-session capture and restoration are owned by
+[LAYOUT_CONTROLLER.md](LAYOUT_CONTROLLER.md).
 
-The Agents Window workbench (`Workbench` in `sessions/browser/workbench.ts`) provides a simplified, fixed layout optimized for agent session workflows. Unlike the default VS Code workbench, this layout:
+Exact dimensions, styling, action placement, and regression behavior belong in
+code, design tokens, component fixtures, and focused tests.
 
-- Does **not** support settings-based customization
-- Has **fixed** part positions
-- Excludes several standard workbench parts (activity bar, status bar, banner)
+## Workbench topology
 
----
-
-## 2. Layout Structure
-
-```
-┌────────────────────────────────────────────────────────────────────────────┐
-│                                  Titlebar                                    │
-├─────────┬───────────────────────────┬───────────────┬───────────────────────┤
-│         │       Sessions Part       │ Editor (hid.) │     Auxiliary Bar     │
-│ Sidebar ├───────────────────────────┴───────────────┴───────────────────────┤
-│         │                              Panel                                 │
-└─────────┴────────────────────────────────────────────────────────────────────┘
-```
-
-The **Sessions Part** is the primary content surface. It hosts an internal grid of one or more **Session Views** (left-to-right) — see [§4 Sessions Part](#4-sessions-part) for the visibility model.
-
-Editors open as modal overlays via `ModalEditorPart`. The main editor part exists in the workbench grid but is hidden by default.
-
-### 2.1 Parts
-
-| Part | Position | Default Visibility | Purpose |
-|------|----------|-------------------|---------|
-| Titlebar | Top, full width | Always visible | Session picker, toggle actions, account widget |
-| Sidebar | Left, below titlebar | Visible | Sessions list |
-| Sessions Part | Center of right section | Visible | Grid of one or more session views (each rendering the active chat of its session) |
-| Editor | In grid, beside Sessions Part | Hidden | Shown for explicit editor workflows |
-| Auxiliary Bar | Right side | Visible | Changes view, file tree |
-| Panel | Below Sessions Part + Aux Bar | Hidden | Terminal, debug output |
-
-### 2.2 Grid Tree
-
-```
-Orientation: VERTICAL (root)
-├── Titlebar (leaf, full window width)
-└── Content Section (HORIZONTAL)
-    ├── Sidebar (leaf, 300px default)
-    └── Right Section (VERTICAL)
-        ├── Top Right (HORIZONTAL)
-        │   ├── Sessions Part (leaf, remaining width)
-        │   ├── Editor (leaf, hidden by default)
-        │   └── Auxiliary Bar (leaf, 340px default)
-        └── Panel (leaf, 300px default, hidden)
+```text
+Title bar
+Content
+├── Sidebar
+└── Main region
+    ├── Sessions Part | Editor | Auxiliary Bar | Custom View Grid
+    └── Panel
 ```
 
-The titlebar spans the full window width at the root level. Below it, a content section holds the sidebar (left) and the right section. The Sessions Part itself contains an **internal** horizontal grid (one leaf per visible session) — that grid is private to the part and is not part of the workbench grid above.
+The workbench omits the standard Activity Bar, Status Bar, and Banner. Part
+positions are fixed by the Agents Window rather than user settings.
 
-The **Sessions Part is the flexible ("remaining width") view** in the top-right row: it has `LayoutPriority.High` so it absorbs auxiliary bar / editor visibility changes and window resizes. The editor and auxiliary bar keep their user-set widths (`LayoutPriority.Normal` / `Low`). Making the editor the high-priority view caused its width to drift to its 300px minimum when the auxiliary bar was toggled across session switches.
+| Part | Ownership |
+|------|-----------|
+| Title bar | Window navigation and window-scoped actions |
+| Sidebar | Sessions list and Sessions-owned sidebar views |
+| Sessions Part | One or more visible session surfaces |
+| Editor | File, browser, diff, and other editor inputs |
+| Auxiliary Bar | Session details such as changes and files |
+| Panel | Terminal and other panel views |
+| Custom View Grid | Full-surface contributed views that replace session content |
 
-### 2.3 Layout Priority Model
+The Sessions Part contains its own horizontal grid. Its leaves are not workbench
+editor groups.
 
-The workbench grid is built with `proportionalLayout: false` (see `createWorkbenchLayout()` in [browser/workbench.ts](src/vs/sessions/browser/workbench.ts)). In this mode the split views do **not** distribute resize deltas proportionally — instead each delta (window resize, or a part being shown/hidden) is absorbed by the highest-`LayoutPriority` view, while the others keep their established sizes. Each part therefore declares an explicit `priority`:
+## Grid behavior
 
-| Part | `LayoutPriority` | Width behaviour |
-|------|------------------|-----------------|
-| Sidebar | `Low` | Fixed user-set width; never absorbs deltas. `minimumWidth` 170 (270 web), `maximumWidth` ∞, snaps closed below the minimum. |
-| Sessions Part | **`High`** | The single flexible view — grows/shrinks to absorb every horizontal delta. `minimumWidth` 300, `maximumWidth` ∞. |
-| Editor | `Normal` | Keeps its user-set width (`600` default); only resized via its own sash. |
-| Auxiliary Bar | `Low` | Keeps its user-set width (`340` default); only resized via its own sash. |
+The main workbench grid is non-proportional. The Sessions Part is the flexible
+surface that absorbs container resize and part-visibility deltas. The Sidebar,
+Editor, Auxiliary Bar, and Panel preserve user-established sizes within their
+constraints.
 
-**Invariant — exactly one `High` view in the horizontal chain.** A grid branch derives its priority from its children (`BranchNode.priority` in [base/browser/ui/grid/gridview.ts](src/vs/base/browser/ui/grid/gridview.ts)): `High` if any child is `High`, else `Low` if any child is `Low`, else `Normal`. The Top Right row contains a `Low` auxiliary bar, so unless the Sessions Part is `High` the whole Right Section derives to `Low`. The Content Section would then be `Sidebar (Low) | Right Section (Low)` — two equal-priority views — and with no high-priority absorber the resize delta spreads across **both**, growing the sidebar toward half the window. The Sessions Part being `High` is what lifts the Right Section to `High` so it (not the sidebar) absorbs the delta.
+At most one high-priority surface is visible in the main horizontal chain:
+normally the Sessions Part, or the Custom View Grid while a custom view is
+active. This prevents fixed side parts from absorbing general window resize.
 
-> **Pitfall:** the `High` role must live on the Sessions Part, not the editor. It was previously on the editor, but that made the editor drift to its 300px minimum when the auxiliary bar was toggled across session switches. When moving the role, set the Sessions Part to `High` **and** the editor to `Normal` together — removing `High` from the editor without adding it to the Sessions Part leaves the chain with no `High` view and reintroduces the growing-sidebar bug.
+The single-pane presentation may place the Auxiliary Bar inside the Editor's
+grid node. Consumers must distinguish the actual Editor content area from the
+shared grid node when interpreting visibility or size.
 
----
+## Sessions Part
 
-## 3. Titlebar
+Each visible session has one Sessions-owned view. The view presents the active
+chat for that session and scopes commands, menus, and context keys to the
+represented session.
 
-The titlebar is a standalone implementation (`TitlebarPart`) — not extending `BrowserTitlebarPart`. It has three menu-driven sections:
+`ISessionsService` owns:
 
-| Section | Menu ID | Content |
-|---------|---------|---------|
-| Left | `Menus.TitleBarLeftLayout` | Toggle sidebar, agent host filter |
-| Center | `Menus.CommandCenter` | Session picker widget (plus `Menus.TitleBarSessionMenu` for active-session actions) |
-| Right | `Menus.TitleBarRightLayout` | Run script (split button), Open Terminal/VS Code, toggle auxiliary bar, account widget |
+- visible-session identity and order;
+- the active visible session;
+- which chat is active in each session;
+- restoration of the visible arrangement.
 
-No menubar, no editor actions, no `WindowTitle` dependency.
+The Sessions Part renders that model. It does not create a second active-session
+store.
 
-### Session Picker (Center)
+Multiple visible sessions share the available Sessions Part width. Opening,
+closing, and reordering views operate through `ISessionsService`.
 
-The center section shows a clickable session picker widget. When a session is active it renders:
-- **Provider icon** — the session type icon (e.g. Copilot CLI, Cloud)
-- **Session title** — the AI-generated or user-assigned session title
-- **Workspace name** — the repository or folder name
-- **Branch / worktree** — the active git branch or worktree name in parentheses
-- **Changes summary** — `+insertions -deletions` when the session has pending changes
+## Editor presentation
 
-When no session is active (new chat view) the widget hides its chrome so the center is empty. Clicking opens the session switcher quick pick.
+The Agents Window supports two presentation families:
 
-### Agent Host Filter (Left)
+The single-pane layout is the default on non-phone viewports when its startup
+setting is enabled. Phone viewports always use the classic layout. The selection
+is made during workbench creation and requires a reload when the setting changes.
 
-When multiple remote agent hosts are known, a dropdown pill in the left toolbar scopes the workbench to a specific host. When no hosts are known the pill acts as a re-discover trigger.
+### Classic layout
 
-### Account Widget (Right)
+The Editor is a workbench-grid part and may be hidden independently of the
+Sessions Part and Auxiliary Bar. Ordinary editors open in that main Editor;
+editors that require modal presentation use `ModalEditorPart` without changing
+the underlying workbench topology.
 
-Shows the signed-in GitHub profile image (falls back to the account codicon). Clicking opens a combined account and Copilot status panel with sign-in/sign-out and settings actions.
+### Single-pane detail layout
 
----
+The Editor and Auxiliary Bar compose one side pane next to the active session.
+Editor tabs choose either editor content or a details view while the layout
+coordinators preserve one coherent visibility model.
 
-## 4. Sessions Part
+The main Editor supports exactly one editor group. Its shared multiple-group
+capability is disabled, which removes editor split/grid commands, keybindings,
+menus, and split drop targets; the part also rejects group creation and
+multi-group layout requests from open-to-side and programmatic paths. The
+independent chat grid remains supported.
 
-The Sessions Part (`SessionsPart` in [browser/parts/sessionsPart.ts](src/vs/sessions/browser/parts/sessionsPart.ts)) is the central content surface of the Agents window. It does **not** render a chat directly — instead it owns an internal `SerializableGrid` of one or more **session views**.
+The durable state and transition catalog lives in
+[SINGLE_PANE_SCENARIOS.md](SINGLE_PANE_SCENARIOS.md). Implementation behavior is
+covered by the layout-controller and single-pane strategy tests.
 
-### 4.1 Session View
+Editors must be opened through `IEditorService`. Sessions-specific presentation
+must not bypass editor service behavior by opening directly on an editor group.
 
-A `SessionView` ([browser/parts/sessionView.ts](src/vs/sessions/browser/parts/sessionView.ts)) is a single leaf in the Sessions Part's internal grid. It hosts:
+## Custom views
 
-- A **session header** at the top ([browser/parts/sessionHeader.ts](src/vs/sessions/browser/parts/sessionHeader.ts)) — the session status icon + title, a meta row (workspace · diff stats), and the session toolbars (Run, Open in VS Code, New Chat). The meta row hosts a generic `Menus.SessionHeaderMeta` toolbar that any feature can contribute actions into; the changes view contributes the diff stats as a clickable menu item (gated by the per-view `SessionHasChangesContext` key, which `SessionView` sets from the session's changes, with its custom action view item registered via `IActionViewItemService` from `contrib/changes/browser/changesActions.ts`) that, when activated, opens the multi-file diff editor for the session. Visible once the bound session is created. It is also the drag handle for the session. Right-clicking the header opens `Menus.SessionHeaderContext`, which surfaces pin view / close (`1_view`), rename (`2_edit`), and mark read / unread (`3_read`). The built-in rename action is registered from `contrib/sessions/browser/sessionsActions.ts` and uses `ISessionsPartService` to find the matching `SessionView`, which delegates to the header's inline rename control.
-- A **chat composite bar** below the header ([browser/parts/chatCompositeBar.ts](src/vs/sessions/browser/parts/chatCompositeBar.ts)) — the chat tab strip. Visibility is **sticky per opened session**: it appears once the session has more than one chat, or its single (default) chat carries a title that differs from the session title (so both independent titles stay visible), and from then on it stays shown for that session's lifetime — it is never hidden again when chats are later removed or renamed, keeping the experience consistent. A single chat that still inherits the session title (and never diverged) keeps the strip hidden.
-- A **chat view** below the bars, swapped in/out based on session state.
-- A floating toolbar overlay ([browser/parts/sessionHeader.ts](src/vs/sessions/browser/parts/sessionHeader.ts), `SessionViewFloatingToolbar`) shown for not-yet-created sessions in place of the header.
+`ICustomViewService` owns the active contributed full-surface view.
 
-The header and the composite bar are deliberately separate widgets: the header represents the session identity/actions and is always present, while the tab strip is a per-chat navigation concern that appears (and then stays, per the sticky rule above) once a session has multiple chats or a diverged default-chat title. They share visual tokens via `applySessionBarThemeColors` ([browser/parts/sessionBarStyles.ts](src/vs/sessions/browser/parts/sessionBarStyles.ts)) and stylesheet ([browser/parts/media/chatCompositeBar.css](src/vs/sessions/browser/parts/media/chatCompositeBar.css)). `SessionView` sums each widget's reported height to lay out the chat view below them. The header and tab strip are centered and capped to 990px via their own CSS classes (`.chat-composite-bar.session-header-bar` / `.chat-composite-bar.session-chat-tabs-bar` in [chatCompositeBar.css](src/vs/sessions/browser/parts/media/chatCompositeBar.css)). The chat view itself is still laid out at full session width so its scrollable viewport (and scrollbar) stays flush to the far-right edge; only the inner chat content (message/input cards, via `.interactive-item-container`, capped to 950px in [browser/media/style.css](src/vs/sessions/browser/media/style.css)) is width-constrained and centered via CSS.
+A custom view is mutually exclusive with the Sessions Part, grid Editor,
+Auxiliary Bar, and Panel. The title bar and Sidebar remain available. Covered
+parts retain desired visibility separately from effective grid visibility so
+their state can be restored when the custom view closes.
 
-**Pitfall:** don't cap the chat viewport width in `SessionView` layout when you need edge-aligned scrollbars. Keep the viewport full-width and center only the inner chat content so alignment and scroll ergonomics both hold.
+Opening a session dismisses the active custom view. On phone layouts, custom
+views participate in mobile navigation so platform back navigation dismisses
+them.
 
-The chat view inside a session view is one of three kinds (`ChatViewKind` in [browser/parts/chatView.ts](src/vs/sessions/browser/parts/chatView.ts)), selected per autorun based on the bound session:
+## Part lifecycle
 
-| Kind | Used when | Concrete view |
-|------|-----------|---------------|
-| `'newSession'` | The bound session is `undefined` **or** the session has not been created yet | `NewChatView` (workspace / session-type picker + input) |
-| `'newChatInSession'` | The session exists but the active chat has `SessionStatus.Untitled` | `NewChatView` (variant for new chat in an existing session) |
-| `'chat'` | The session and active chat are both created | `ChatView` (renders `session.activeChat`) |
+The workbench:
 
-Concrete implementations live under `contrib/chat/` and are obtained via `IChatViewFactory` so the `browser/` layer doesn't have to import contrib code.
+1. creates the fixed grid and part instances;
+2. restores persisted workbench part sizes and visibility;
+3. starts the applicable layout controller;
+4. reacts to visible-session, editor, and contributed-view state;
+5. persists state through the owning services during shutdown.
 
-When a `ChatView` loads its chat model (`acquireOrLoadSession`), it surfaces progress on **its own** progress bar, pinned to the top of that grid leaf. This mirrors how each editor group owns its `ProgressBar` (see `EditorGroupView`): the bar is created by the leaf host `AbstractChatView`, wrapped in a `ScopedProgressIndicator` (reused from `vs/workbench`) with an always-active scope, and driven via `AbstractChatView.showProgressWhile(promise, delay)`. Concurrent loads in other visible sessions each show their own progress instead of competing for a single part-wide bar, and overlapping loads on the same leaf are joined by the indicator so the bar only hides once all have settled. A short delay avoids flashing the bar for fast (cached) loads.
+Part instances and listeners are disposables. Repeatedly created per-session or
+per-view state is owned by a scoped disposable store.
 
-### 4.2 Visibility Model
+## Layout-controller boundary
 
-The set of session views in the part is driven by `ISessionsService.visibleSessions` (services — see [services/sessions/browser/sessionsService.ts](src/vs/sessions/services/sessions/browser/sessionsService.ts)), which is backed by the `VisibleSessions` model helper (see [services/sessions/browser/visibleSessions.ts](src/vs/sessions/services/sessions/browser/visibleSessions.ts)).
+Layout controllers translate session activation into part capture and
+restoration. They do not own session identity or the visible-session model.
 
-Key invariants:
+Classic desktop, mobile, and single-pane presentations intentionally use
+different strategies where their compositions differ. Shared behavior belongs
+in the base controller; presentation-specific behavior stays in the relevant
+controller or strategy.
 
-- **Multiple visible sessions, one active.** The Sessions Part may show one or several session views side-by-side. Exactly one of them is the **active** session at any time — the one that receives keyboard focus, drives context keys, and is reflected in the titlebar / sidebar / auxiliary bar.
-- **Active session is observable.** Visible and active sessions are exposed as `IObservable<readonly (IActiveSession | undefined)[]>` and `IObservable<IActiveSession | undefined>` respectively. `SessionsService` (services) owns the single reconcile autorun: it subscribes once and calls `SessionsPartService.updateVisibleSessions(visible, active)`, which forwards to `SessionsPart`. The part is a **passive renderer** — it injects neither the model nor the view.
-- **One slot may be the "empty" slot.** A visible session of `undefined` represents a not-yet-created chat — its session view renders the `'newSession'` chat view (workspace picker + input). At most **one** slot may be `undefined` at any time. When the user submits its first message, the placeholder transitions into a real session and the grid slot is preserved.
-- **Sticky vs non-sticky.** The visibility model marks each slot as sticky (user-pinned) or non-sticky. Non-sticky slots are recycled when a new session opens; sticky slots are preserved. The empty slot is always non-sticky. This lets the user pin a session to keep it visible while still flowing through other sessions in the remaining slots.
-- **Slot reuse on reconcile.** `SessionsPart.updateVisibleSessions` grows or shrinks its internal pool of `SessionView`s to match the visible count, then rebinds each surviving slot to its session by position via `SessionView.openSession(session)`. Slots are never destroyed and recreated for an existing session — only added at the right or popped from the right when the count changes.
-- **Focus promotes to active.** Focus-in or pointer-down on a non-placeholder session view promotes that session to active (via `SessionsPartService.onDidFocusSession` → `ISessionsService.setActive`, which updates the active visible slot — and hence `ISessionsService.activeSession`).
-- **Maximize.** When two or more non-placeholder views are visible, the active view can be maximized within the part's internal grid; the part exposes `toggleMaximizeSession(sessionId)`.
-- **Restored on reload.** The visibility model is persisted to workspace storage (order, sticky state, and which slot is active, including the empty new-session slot). On startup `ISessionsService.restoreVisibleSessions()` rebuilds the grid, waiting for each session's provider to make it available and re-applying order, sticky flags, and the active session. To avoid flicker, restore waits for the active session, then lays out all sessions that are already available in one atomic transaction (`VisibleSessions.restoreGrid`) rather than showing the active session alone and reflowing as siblings load. Sessions whose provider surfaces them later are inserted into their persisted position incrementally. Once the grid has been laid out, keyboard focus is moved into the restored active session (matching the behaviour when a session is opened explicitly) so the user can start typing immediately. Focus is driven by `ISessionsService` observing its own `activeSession` (the active visible slot) rather than any model service calling into the view. The move is guarded so it never steals focus from another surface: focus is pulled into a session only when it currently rests on `<body>`/nothing (startup restore) or already within the grid (moving between leaves), so an incidental active-session change (e.g. the fallback after deleting a session from the list) does not yank focus out of the list. Deliberate opens originating elsewhere move focus via their own explicit `focusSession` call. Restore must win the race against the empty new-session slot, whose workspace picker resolves asynchronously on the same provider-registration event restore waits for and would otherwise create and activate an untitled draft. Three mechanisms guarantee restore wins: (1) `ISessionsService` and `ISessionsManagementService` are both registered **eagerly** so the restore wiring and visibility model are alive before the first paint; (2) when restore rebinds the placeholder slot to the restored session, the new-session view (and its `NewChatWidget`) is disposed, and `NewChatWidget` guards its async workspace-selection handler with `this._store.isDisposed` so a late-resolving picker cannot create a draft for a slot that has already been claimed by a restored session; (3) untitled drafts are never persisted — `restoreVisibleSessions` drops them from the snapshot (`_snapshotVisibleSessionStates`) — so a stale draft can never be restored. The restoring state is intentionally not a UI suppression flag. (Restore itself drives no part-wide progress; once a session's leaf is laid out, that leaf shows its own load progress as described above.)
+See [LAYOUT_CONTROLLER.md](LAYOUT_CONTROLLER.md) for rule tags, persistence, and
+test ownership.
 
-### 4.3 Mobile / Phone
+## Mobile boundary
 
-On phone-class viewports the Sessions Part is replaced by `MobileSessionsPart` (chosen at construction time by `SessionsPartService`). It enforces a single visible session — never a side-by-side layout — and otherwise reuses the same `SessionView` host.
+Phone layouts replace selected parts and pickers with mobile subclasses while
+preserving the same service and provider contracts. Mobile composition and
+navigation are specified in [MOBILE.md](MOBILE.md).
 
----
+## Contributions and loading
 
-## 5. Editor Modal
+Layout contributions register through the appropriate
+`sessions.*.main.ts` entry point. Shared workbench code should change only when
+the capability is useful outside the Agents Window; Sessions-specific policy
+stays under `vs/sessions`.
 
-Editors open as modal overlays rather than occupying grid space. The configuration `workbench.editor.useModal: 'all'` redirects all editor opens (without an explicit preferred group) to `ModalEditorPart`.
+## Change policy
 
-| Trigger | Behavior |
-|---------|----------|
-| Editor opens (no explicit group) | Opens in modal overlay |
-| All editors closed / Escape / backdrop click | Modal closes and is disposed |
+Update this specification only when part ownership, grid topology, presentation
+families, or a cross-part invariant changes. Do not update it for:
 
-When the editor part is shown in the grid (not as a modal), its title toolbar (`MenuId.EditorTitleLayout`, right of the tabs) hosts layout actions registered in `contrib/editor/browser/editor.contribution.ts`, ordered left-to-right as: open in modal editor, **maximize / restore editor area**, a single **Toggle Secondary Side Bar** action for the auxiliary bar, and **close editor area**. The auxiliary-bar toggle sits to the right of maximize/restore because it changes the right-hand side of the layout. It reuses the core `workbench.action.toggleAuxiliaryBar` command (already registered in the agents window by the workbench auxiliary bar part, and available in the Command Palette under **View**) surfaced through two `when`-gated menu items in `browser/layoutActions.ts` so the icon flips without rendering a checked/highlighted state: the `right-panel-show` codicon shows when the auxiliary bar is hidden (`AuxiliaryBarVisibleContext` negated, click to show) and the `right-panel-hide` codicon shows when it is visible (click to hide).
+- pixel values, styling, icons, or action placement;
+- individual view or editor behavior;
+- bug narratives and rejected implementations;
+- per-session restoration scenarios already owned by controller rules and tests.
 
-When the auxiliary bar is hidden the editor becomes the rightmost card and expands into the freed space; the workbench's 10px right gutter still applies, and a `.noauxiliarybar` rule in `browser/media/style.css` restores the editor's right border and right corner radii so it keeps its card appearance.
+## Related specifications
 
-The Toggle Secondary Side Bar action collapses or restores the secondary side bar while the editor stays open. When a session's editor working set is restored on session switch, the editor part is revealed programmatically and the session's saved auxiliary bar visibility is honored (a side bar the user hid for a session stays hidden when returning to it).
-
-The main editor part can be explicitly revealed for workflows that target it directly.
-
----
-
-## 6. Feature Support
-
-| Feature | Supported | Notes |
-|---------|-----------|-------|
-| Sidebar / Aux Bar / Panel toggle | ✅ | Fixed positions (sidebar: left, panel: bottom) |
-| Maximize Panel | ✅ | Excludes titlebar |
-| Resize Parts | ✅ | Via grid sash or programmatic API |
-| Zen Mode / Centered Layout / Menu Bar Toggle | ❌ No-op | — |
-| Maximize Auxiliary Bar | ❌ No-op | — |
-
----
-
-## 7. Parts Architecture
-
-The Sidebar, Auxiliary Bar, and Panel extend `AbstractPaneCompositePart`; the Titlebar extends `Part` directly; the Sessions Part also extends `Part` (it is not a pane composite — it owns its own internal grid of session views, see [§4](#4-sessions-part)). All parts are instantiated eagerly so they register themselves with the workbench layout service before `createWorkbenchLayout()` builds the grid. The pane-composite parts are accessed through `AgenticPaneCompositePartService`, which replaces the standard `IPaneCompositePartService`.
-
-Key differences from standard workbench parts:
-- **No activity bar** — account widget lives in the sidebar footer
-- **Fixed composite bar** — for pane-composite parts the position is always `Title`; the sidebar hides its composite bar (only the sessions list shows)
-- **Card appearance** — Sessions Part, Auxiliary Bar, and Panel render as cards with rounded borders and margins; Sidebar is flush
-- **Separate storage keys** — each part uses `workbench.agentsession.*` keys to avoid conflicts with regular workbench state
-- **Sidebar footer** — a menu-driven toolbar below the sessions list, hosting the account widget
-- **macOS traffic lights** — sidebar includes a spacer (70px) for window controls when using custom titlebar
-
----
-
-## 8. Contributions
-
-Contributions are registered via module imports in entry points (`sessions.common.main.ts`, `sessions.desktop.main.ts`).
-
-Key UI surfaces:
-- **Sessions View** — sidebar, shows sessions grouped by workspace with pinned section
-- **Changes View** — auxiliary bar, shows file changes for the active session
-- **Chat / New Chat views** — hosted inside each `SessionView` in the Sessions Part, registered via `IChatViewFactory` from `contrib/chat/`
-
-All session-window contributions use `WindowVisibility.Sessions` to only appear in the Agents Window.
-
----
-
-## 9. Lifecycle
-
-1. `constructor()` → `startup()` → `initServices()` → `initLayout()`
-2. `renderWorkbench()` — creates DOM and parts (editor part created hidden)
-3. `createWorkbenchLayout()` — builds the workbench grid
-4. `createWorkbenchManagement()` — eagerly creates the welcome/setup service. Wiring of the Sessions Part lives in `SessionsService` (an eager singleton): it owns the single reconcile autorun that reads `ISessionsService.visibleSessions` and calls `SessionsPartService.updateVisibleSessions(...)`, and it observes its own `activeSession` (the active visible slot) to move keyboard focus into that session's view via `SessionsPartService.focusSession` (guarded so it does not steal focus from a session the user is already interacting with). The part itself is a passive renderer; focus is a pure view concern — the management service never reaches into the part.
-5. `layout()` → `restore()` — opens default view containers for visible parts
-
-**Initial part visibility:** Sidebar ✅, Sessions Part ✅, Auxiliary Bar ✅, Editor ❌, Panel ❌
-
----
-
-## 10. Per-Session Layout State
-
-`LayoutController` (`contrib/layout/browser/sessionLayoutController.ts`) manages layout state as the user switches between sessions. All state is persisted to workspace storage so it survives restarts. This section is a summary — see **[LAYOUT_CONTROLLER.md](LAYOUT_CONTROLLER.md)** for the full specification (switch trigger, multi-session handling, auto-reveal, persistence, and invariants).
-
-### Auxiliary Bar
-
-Each session independently remembers whether the auxiliary bar is visible and which view container is active. When switching to a session, the saved state is restored. When switching away, the current state is captured.
-
-**Auto-reveal on changes:** When a chat turn completes and new file changes appeared (changes count was zero when the turn was submitted, non-zero when it ends), the auxiliary bar is automatically revealed to show the Changes view. This lets the user see what the agent modified without manual intervention. On mobile the auto-reveal is suppressed to avoid disruptive layout shifts.
-
-**Default view on new sessions:** An untitled session always opens the Files view. A session with a workspace but no changes defaults to the Files view; once changes exist it defaults to the Changes view.
-
-### Panel
-
-The panel (terminal / debug output) is hidden by default for all sessions. Each session independently tracks the user's last explicit show/hide action, and that state is restored on session switch.
-
-### Editor Working Sets
-
-When `workbench.editor.useModal` is not `'all'`, each session remembers which editors were open. On session switch the previous session's open editors are saved as a named working set and the incoming session's working set is restored. Archived or deleted sessions have their working sets removed.
-
-This is coordinated carefully: the active session observable is updated before the workspace folders update, so `LayoutController` waits until the workspace folders reflect the new session before applying the working set (to avoid restoring editors into the wrong workspace).
-
----
-
-## 11. CSS
-
-The workbench root element has class `agent-sessions-workbench`. Visibility classes (`nosidebar`, `noauxiliarybar`, `nosessionspart`, `nopanel`) are toggled on the main container.
-
-The shell background uses an accent-tinted radial gradient derived from `button.background`, with titlebar and sidebar wrappers transparent so the gradient reads continuously. High-contrast themes disable the gradient.
+- [Documentation index](README.md)
+- [Sessions architecture](SESSIONS.md)
+- [Layout controllers](LAYOUT_CONTROLLER.md)
+- [Single-pane scenarios](SINGLE_PANE_SCENARIOS.md)
+- [Mobile layout](MOBILE.md)

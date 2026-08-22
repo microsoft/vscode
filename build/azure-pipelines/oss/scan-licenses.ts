@@ -1101,6 +1101,12 @@ async function main(): Promise<void> {
 	// *.stuboverride.json file that merge-notices.ts consumes to let the scanner
 	// entry beat CG on collision (mirrors the presence.json sibling pattern).
 	const stubOverrideKeys = new Set<string>();
+	// Unresolved index: packages the scanner TRIED to resolve but for which it
+	// created NO row at all (fetch failed / no license / API failed). Written as
+	// a sibling *.unresolved.json that merge-notices.ts cross-checks against the
+	// final merged NOTICE so packages rescued downstream (e.g. via a
+	// cglicenses.json override) are excluded from the "not accounted for" list.
+	const unresolved: Array<{ name: string; version: string; reason: string }> = [];
 	let scanned = 0;
 	let noLicense = 0;
 
@@ -1358,6 +1364,7 @@ async function main(): Promise<void> {
 					continue;
 				}
 				cgManifestFetchFailed++;
+				unresolved.push({ name, version: reg.version || commitHash.substring(0, 7), reason: 'cgmanifest-fetch-failed' });
 				console.warn(`  FETCH FAILED: ${name} (${repoUrl}@${commitHash.substring(0, 7)}) -- no LICENSE resolved`);
 				continue;
 			}
@@ -1484,6 +1491,7 @@ async function main(): Promise<void> {
 			const info = await fetchCratesIoJson(p.name);
 			if (!info) {
 				cargoApiFailed++;
+				unresolved.push({ name: p.name, version: p.version, reason: 'cargo-api-failed' });
 				console.warn(`  CRATES.IO FAILED: ${p.name}@${p.version} -- no crate info`);
 				return;
 			}
@@ -1495,6 +1503,7 @@ async function main(): Promise<void> {
 			// Spec sec. 6.6: a failed crates.io call must log and continue, never crash.
 			if (!Array.isArray(info.versions) || !info.crate || typeof info.crate.id !== 'string') {
 				cargoApiFailed++;
+				unresolved.push({ name: p.name, version: p.version, reason: 'cargo-api-failed' });
 				console.warn(`  CRATES.IO FAILED: ${p.name}@${p.version} -- unexpected response shape (no versions/crate)`);
 				return;
 			}
@@ -1506,6 +1515,7 @@ async function main(): Promise<void> {
 			const repoUrl = getCrateRepository(info);
 			if (!repoUrl) {
 				cargoFetchFailed++;
+				unresolved.push({ name: p.name, version: p.version, reason: 'cargo-no-repo-url' });
 				console.warn(`  FETCH FAILED: ${p.name}@${p.version} -- no repository URL`);
 				return;
 			}
@@ -1518,6 +1528,7 @@ async function main(): Promise<void> {
 			const result = await fetchCargoLicense(repoUrl, p.name, p.version, license);
 			if (!result) {
 				cargoFetchFailed++;
+				unresolved.push({ name: p.name, version: p.version, reason: 'cargo-no-license-resolved' });
 				console.warn(`  FETCH FAILED: ${p.name}@${p.version} (${repoUrl}) -- no LICENSE resolved at any ref (needs cglicenses.json override)`);
 				return;
 			}
@@ -1553,6 +1564,7 @@ async function main(): Promise<void> {
 			// Defense-in-depth: any unexpected throw in this task must log and
 			// continue, never reject (which would crash the build per sec. 6.6).
 			cargoApiFailed++;
+			unresolved.push({ name: p.name, version: p.version, reason: 'cargo-api-failed' });
 			console.warn(`  CRATES.IO FAILED: ${p.name}@${p.version} -- unexpected error: ${(err as Error).message}`);
 		}
 	});
@@ -2131,6 +2143,14 @@ async function main(): Promise<void> {
 	const stubOverrideList = [...stubOverrideKeys].sort();
 	fs.writeFileSync(stubOverridePath, JSON.stringify(stubOverrideList, null, '\t'), 'utf8');
 
+	// Write the unresolved index as a sibling file. These are packages the scanner
+	// tried to resolve but produced NO row for. merge-notices.ts cross-checks this
+	// against the final merged NOTICE so packages rescued downstream (e.g. a
+	// cglicenses.json override) are excluded. Mirrors the presence.json sibling.
+	const unresolvedPath = args['unresolved'] || (outputPath + '.unresolved.json');
+	const unresolvedSorted = unresolved.slice().sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+	fs.writeFileSync(unresolvedPath, JSON.stringify(unresolvedSorted, null, '\t'), 'utf8');
+
 	// Summary
 	console.log('');
 	console.log('=== License Scan Summary ===');
@@ -2188,6 +2208,7 @@ async function main(): Promise<void> {
 	console.log(`  Output: ${outputPath}`);
 	console.log(`  Presence index (present but unlicensed): ${presence.length}`);
 	console.log(`  Presence output: ${presencePath}`);
+	console.log(`  Unresolved (tried, no row created): ${unresolved.length}`);
 	console.log(`  Stub-override index: ${stubOverrideList.length}`);
 	console.log(`  Stub-override output: ${stubOverridePath}`);
 

@@ -6,7 +6,7 @@
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { disposableWindowInterval } from '../../../../base/browser/dom.js';
+import { disposableWindowInterval, getWindow } from '../../../../base/browser/dom.js';
 import { FileAccess } from '../../../../base/common/network.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -27,12 +27,19 @@ import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { isDark } from '../../../../platform/theme/common/theme.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { resolveVoiceGlowColors } from '../../chat/browser/voiceClient/voiceGlow.js';
 import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { editorWidgetBorder, widgetShadow } from '../../../../platform/theme/common/colors/editorColors.js';
 import { inputBackground, inputBorder } from '../../../../platform/theme/common/colors/inputColors.js';
 import { AgentsVoiceWidget } from './agentsVoiceWidget.js';
 import { bindWidgetToController } from './agentsVoiceWidgetBinding.js';
 import { AgentsVoiceSessionsPicker } from './agentsVoiceSessionsPicker.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import { getVoiceModeContextMenuActions } from '../../chat/browser/speechToText/micButtonMenuActions.js';
 
 export class AgentsVoiceWindowService extends Disposable implements IAgentsVoiceWindowService {
 
@@ -55,14 +62,6 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 	 * Calls setWindowAlwaysOnTop via a registered command (Electron only).
 	 * Avoids importing INativeHostService in the browser layer.
 	 */
-	private async trySetWindowAlwaysOnTop(alwaysOnTop: boolean, targetWindowId: number): Promise<void> {
-		try {
-			await this.commandService.executeCommand('_agentsVoice.setWindowAlwaysOnTop', alwaysOnTop, targetWindowId);
-		} catch {
-			// Command not registered (e.g. web) — ignore
-		}
-	}
-
 	constructor(
 		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -79,8 +78,10 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IThemeService private readonly themeService: IThemeService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		super();
 
@@ -101,17 +102,10 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		mainWindow.addEventListener('beforeunload', onBeforeUnload);
 		this._register({ dispose: () => mainWindow.removeEventListener('beforeunload', onBeforeUnload) });
 
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('agents.voice.alwaysOnTop') && this._window) {
-				const alwaysOnTop = this.configurationService.getValue<boolean>('agents.voice.alwaysOnTop') ?? true;
-				this.trySetWindowAlwaysOnTop(alwaysOnTop, this._window.window.vscodeWindowId);
-			}
-		}));
-
 		const wasOpen = this.storageService.getBoolean(AgentsVoiceStorageKeys.WindowOpen, StorageScope.WORKSPACE, false);
-		if (wasOpen && this.configurationService.getValue<boolean>('agents.voice.enabled')) {
-			const reopenTimeout = setTimeout(() => this.openWindow(), 1000);
-			this._register({ dispose: () => clearTimeout(reopenTimeout) });
+		if (wasOpen) {
+			// Clear the stored state so it doesn't try to reopen in the future
+			this.storageService.store(AgentsVoiceStorageKeys.WindowOpen, false, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
 	}
 
@@ -121,11 +115,10 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		}
 
 		const bounds = this.loadBounds();
-		const alwaysOnTop = this.configurationService.getValue<boolean>('agents.voice.alwaysOnTop') ?? true;
 
 		const auxiliaryWindow = await this.auxiliaryWindowService.open({
 			bounds,
-			alwaysOnTop,
+			alwaysOnTop: true,
 			frameless: true,
 			transparent: false,
 			disableFullscreen: true,
@@ -148,11 +141,13 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		const theme = this.themeService.getColorTheme();
 		const bgColor = theme.getColor(editorBackground)?.toString() ?? '#1e1e1e';
 		const inputBg = theme.getColor(inputBackground)?.toString() ?? '#3C3C3C';
-		const inputBd = theme.getColor(inputBorder)?.toString() ?? 'transparent';
+		const inputBd = theme.getColor(inputBorder)?.toString() ?? theme.getColor(editorWidgetBorder)?.toString() ?? 'transparent';
+		const shadow = theme.getColor(widgetShadow)?.toString() ?? 'transparent';
 
 		auxiliaryWindow.container.style.setProperty('--vscode-agents-background', bgColor);
 		auxiliaryWindow.container.style.backgroundColor = inputBg;
 		auxiliaryWindow.container.style.border = `1px solid ${inputBd}`;
+		auxiliaryWindow.container.style.boxShadow = `0 2px 8px ${shadow}`;
 		auxiliaryWindow.container.style.boxSizing = 'border-box';
 		auxiliaryWindow.window.document.body.style.setProperty('background-color', inputBg, 'important');
 
@@ -164,13 +159,14 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		// expand them via the chevron.
 		const widget = new AgentsVoiceWidget(auxiliaryWindow.container, {
 			copilotIconSrc: FileAccess.asBrowserUri('vs/sessions/browser/media/sessions-icon.svg').toString(true),
+			hideDisconnect: this.configurationService.getValue<boolean>('agents.voice.handsFree') === true,
 			connect: () => {
 				// Connecting from any surface marks onboarding as completed so
 				// the main panel drops it too.
 				this.storageService.store(AgentsVoiceStorageKeys.OnboardingCompleted, true, StorageScope.PROFILE, StorageTarget.USER);
 				this.voiceSessionController.connect(mainWindow);
 			},
-			disconnect: () => this.voiceSessionController.disconnect(),
+			disconnect: () => this.voiceSessionController.disconnect('explicit'),
 			pttDown: () => {
 				if (!this.voiceSessionController.isConnected.get() && !this.voiceSessionController.isConnecting.get()) {
 					this.voiceSessionController.connect(mainWindow).then(() => {
@@ -183,6 +179,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 				this.voiceSessionController.pttDown();
 			},
 			pttUp: () => this.voiceSessionController.pttUp(),
+			toggleMute: () => this.voiceSessionController.setMuted(!this.voiceSessionController.isMuted.get()),
 			closeWindow: () => this.closeWindow(),
 			stopPlayback: () => this.ttsPlaybackService.stopPlayback(),
 			openSession: (resource) => {
@@ -220,7 +217,18 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 					?? null;
 			},
 			onResize: () => this._resizeWindow(auxiliaryWindow),
+			getGlowTheme: () => isDark(this.themeService.getColorTheme().type) ? 'dark' : 'light',
+			getGlowColors: () => resolveVoiceGlowColors(this.themeService.getColorTheme()),
+			isMotionReduced: () => this.accessibilityService.isMotionReduced(),
+			onDidChangeGlowTheme: Event.map(this.themeService.onDidColorThemeChange, () => undefined),
 			openPttKeySettings: () => this.commandService.executeCommand('workbench.action.openGlobalKeybindings', 'agentsVoice.pushToTalk'),
+			showVoiceContextMenu: (e: MouseEvent) => {
+				const anchor = new StandardMouseEvent(getWindow(e.target as Node ?? auxiliaryWindow.container), e);
+				this.contextMenuService.showContextMenu({
+					getAnchor: () => anchor,
+					getActions: () => getVoiceModeContextMenuActions(this.commandService, this.configurationService, this.keybindingService, 'agentsVoice.pushToTalk'),
+				});
+			},
 			submitFeedback: (text) => this.voiceSessionController.submitFeedback(text),
 			showSessionsPicker: () => {
 				const picker = this.instantiationService.createInstance(
@@ -232,6 +240,11 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		}, {
 			defaultExpanded: false,
 			inputBoxLayout: true,
+			// Make the aux-window container focusable so keyboard Push-to-Talk
+			// (the `agentsVoice.pushToTalk` keybinding) can be received and its
+			// key-release tracking is registered. Without this the keyboard-PTT
+			// handlers are never wired and a held key never stops recording.
+			focusable: true,
 		});
 		this._windowDisposables.add(widget);
 
@@ -250,6 +263,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 			voicePlaybackService: this.voicePlaybackService,
 			environmentService: this.environmentService,
 			chatService: this.chatService,
+			configurationService: this.configurationService,
 		}));
 
 		// Poll for session updates

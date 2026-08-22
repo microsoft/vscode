@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import type { SectionOverride } from '@github/copilot-sdk';
-import { appendUniversalToolInstructions, composeToolInstructions, resolveToolInstructionsOverride, universalToolInstructions } from '../../node/copilot/prompts/toolInstructions.js';
+import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION, resolveToolInstructionsOverride, toolSearchInstructionLines, universalToolInstructions } from '../../node/copilot/prompts/toolInstructions.js';
+import { CLIENT_TOOL_SEARCH_REFERENCE_NAME } from '../../common/toolSearchConstants.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 /** Builds a `hasTool` predicate backed by the given available tool names. */
@@ -23,20 +24,53 @@ suite('toolInstructions', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	const LARGE_OUTPUT_LINE = COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION;
+
 	suite('universalToolInstructions', () => {
 		test('joins applicable lines in order and drops gated-out ones', () => {
 			assert.strictEqual(universalToolInstructions(hasTools('a', 'c'), [lineFor('a'), lineFor('b'), lineFor('c')]), 'use a\nuse c');
 		});
 
-		test('returns undefined when no line applies (including the empty registry)', () => {
+		test('returns undefined when no injected line applies', () => {
 			assert.strictEqual(universalToolInstructions(hasTools('x'), [lineFor('a')]), undefined);
-			assert.strictEqual(universalToolInstructions(hasTools('a')), undefined);
+		});
+
+		test('always renders the registered large-output line from the default registry', () => {
+			assert.deepStrictEqual([
+				COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION,
+				universalToolInstructions(hasTools()),
+			], [
+				'When a tool reports that its output was saved to a temporary file because it was too large, ONLY use the `view` tool with a narrow `view_range` to inspect that file. NEVER read it with shell commands such as `cat`, `head`, `tail`, or `sed`, because their output may be offloaded again.',
+				LARGE_OUTPUT_LINE,
+			]);
+		});
+
+		test('adds the registered browser line only when openBrowserPage + an agentic browser tool are present', () => {
+			assert.deepStrictEqual(
+				[
+					universalToolInstructions(hasTools('openBrowserPage', 'readPage')),
+					universalToolInstructions(hasTools('openBrowserPage')),
+					universalToolInstructions(hasTools('readPage')),
+				],
+				[
+					`${LARGE_OUTPUT_LINE}\nUse the browser tools (openBrowserPage, readPage, etc.) when beneficial for front-end tasks, such as when visualizing or validating UI changes.`,
+					LARGE_OUTPUT_LINE,
+					LARGE_OUTPUT_LINE,
+				]
+			);
 		});
 	});
 
-	suite('composeToolInstructions', () => {
-		test('appends to the foundation section when there is no per-model override', () => {
-			assert.deepStrictEqual(composeToolInstructions(undefined, 'LINE'), { action: 'append', content: '\nLINE' });
+	// `composeToolInstructions` is module-private; its composition/spacing
+	// behavior is exercised here through the public `resolveToolInstructionsOverride`
+	// (injecting synthetic lines via the `lines` seam).
+	suite('resolveToolInstructionsOverride', () => {
+		test('returns undefined (keep existing) when no line applies', () => {
+			assert.strictEqual(resolveToolInstructionsOverride(hasTools('x'), { action: 'append', content: 'A' }, [lineFor('a')]), undefined);
+		});
+
+		test('with no per-model override, appends the rendered line after the foundation section', () => {
+			assert.deepStrictEqual(resolveToolInstructionsOverride(hasTools('a'), undefined, [lineFor('a')]), { action: 'append', content: '\nuse a' });
 		});
 
 		test('folds into a per-model string override, preserving action and foundation spacing', () => {
@@ -46,42 +80,57 @@ suite('toolInstructions', () => {
 				{ action: 'replace', content: 'OWN' },// owns the section → no padding
 				{ action: 'replace', content: '' },   // empty replace → no spurious leading newline
 			];
-			assert.deepStrictEqual(overrides.map(o => composeToolInstructions(o, 'LINE')), [
-				{ action: 'append', content: '\nA\nLINE' },
-				{ action: 'prepend', content: 'P\nLINE\n' },
-				{ action: 'replace', content: 'OWN\nLINE' },
-				{ action: 'replace', content: 'LINE' },
+			assert.deepStrictEqual(overrides.map(o => resolveToolInstructionsOverride(hasTools('a'), o, [lineFor('a')])), [
+				{ action: 'append', content: '\nA\nuse a' },
+				{ action: 'prepend', content: 'P\nuse a\n' },
+				{ action: 'replace', content: 'OWN\nuse a' },
+				{ action: 'replace', content: 'use a' },
 			]);
 		});
 
 		test('preserves a remove or transform-function override untouched', () => {
 			const transform = (s: string) => s;
-			assert.deepStrictEqual(composeToolInstructions({ action: 'remove' }, 'LINE'), { action: 'remove' });
-			assert.deepStrictEqual(composeToolInstructions({ action: transform }, 'LINE'), { action: transform });
+			assert.deepStrictEqual(resolveToolInstructionsOverride(hasTools('a'), { action: 'remove' }, [lineFor('a')]), { action: 'remove' });
+			assert.deepStrictEqual(resolveToolInstructionsOverride(hasTools('a'), { action: transform }, [lineFor('a')]), { action: transform });
 		});
 	});
 
-	suite('resolveToolInstructionsOverride', () => {
-		test('returns undefined (keep existing) when no line applies', () => {
-			const existing: SectionOverride = { action: 'append', content: 'A' };
-			assert.strictEqual(resolveToolInstructionsOverride(hasTools('x'), existing, [lineFor('a')]), undefined);
+	// The tool-search line is the model-facing instruction gated on BOTH
+	// `toolSearchActive` (via `toolSearchInstructionLines`) and the client
+	// exposing the tool-search tool. These lock its content, gating, and
+	// composition so neither the instruction nor its gate can silently regress.
+	suite('toolSearchInstructionLines', () => {
+		const TOOL_SEARCH_LINE = `Most tools are deferred and hidden until you search for them. Before calling a tool that has not already been loaded, ALWAYS use tool search first with a short description of the capability you need, then call the specific tool it returns; tools it returns are immediately available and must not be searched for again.`;
+
+		test('active tool search contributes the tool-search line only when the client exposes the tool-search tool', () => {
+			assert.deepStrictEqual([
+				universalToolInstructions(hasTools(CLIENT_TOOL_SEARCH_REFERENCE_NAME), toolSearchInstructionLines(true)),
+				universalToolInstructions(hasTools('other'), toolSearchInstructionLines(true)),
+			], [
+				`${LARGE_OUTPUT_LINE}\n${TOOL_SEARCH_LINE}`,
+				LARGE_OUTPUT_LINE,
+			]);
 		});
 
-		test('composes the rendered lines with the existing override', () => {
-			assert.deepStrictEqual(
-				resolveToolInstructionsOverride(hasTools('a'), { action: 'append', content: 'A' }, [lineFor('a')]),
-				{ action: 'append', content: '\nA\nuse a' }
+		test('inactive tool search never contributes the tool-search line', () => {
+			assert.strictEqual(universalToolInstructions(hasTools(CLIENT_TOOL_SEARCH_REFERENCE_NAME), toolSearchInstructionLines(false)), LARGE_OUTPUT_LINE);
+		});
+
+		test('composes the tool-search line after the registered large-output and browser lines', () => {
+			assert.strictEqual(
+				universalToolInstructions(hasTools('openBrowserPage', 'readPage', CLIENT_TOOL_SEARCH_REFERENCE_NAME), toolSearchInstructionLines(true)),
+				`${LARGE_OUTPUT_LINE}\nUse the browser tools (openBrowserPage, readPage, etc.) when beneficial for front-end tasks, such as when visualizing or validating UI changes.\n${TOOL_SEARCH_LINE}`
 			);
 		});
-	});
 
-	suite('appendUniversalToolInstructions', () => {
-		test('returns the prompt unchanged while no lines apply (empty registry)', () => {
-			assert.strictEqual(appendUniversalToolInstructions('FULL PROMPT', hasTools('a')), 'FULL PROMPT');
-		});
-
-		test('appends the rendered lines after a blank line when a line applies', () => {
-			assert.strictEqual(appendUniversalToolInstructions('FULL PROMPT', hasTools('a'), [lineFor('a')]), 'FULL PROMPT\n\nuse a');
+		test('folds the tool-search line into an existing per-model override only while active', () => {
+			assert.deepStrictEqual([
+				resolveToolInstructionsOverride(hasTools(CLIENT_TOOL_SEARCH_REFERENCE_NAME), { action: 'append', content: 'A' }, toolSearchInstructionLines(true)),
+				resolveToolInstructionsOverride(hasTools(CLIENT_TOOL_SEARCH_REFERENCE_NAME), { action: 'append', content: 'A' }, toolSearchInstructionLines(false)),
+			], [
+				{ action: 'append', content: `\nA\n${LARGE_OUTPUT_LINE}\n${TOOL_SEARCH_LINE}` },
+				{ action: 'append', content: `\nA\n${LARGE_OUTPUT_LINE}` },
+			]);
 		});
 	});
 });

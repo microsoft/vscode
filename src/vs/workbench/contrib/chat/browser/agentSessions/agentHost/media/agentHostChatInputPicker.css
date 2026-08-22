@@ -35,9 +35,8 @@
 .agent-host-chat-input-picker-slot span.action-label {
 	display: inline-flex;
 	align-items: center;
-	gap: 4px;
 	height: 16px;
-	padding: 3px 6px;
+	padding: 3px 8px;
 	border-radius: 4px;
 	color: var(--vscode-icon-foreground);
 }
@@ -67,7 +66,7 @@
 .chat-secondary-generic-chips {
 	display: inline-flex;
 	align-items: center;
-	gap: 12px;
+	gap: 2px;
 
 	&:empty {
 		display: none;
@@ -89,9 +88,6 @@
 		}
 	}
 
-	> .agent-host-generic-chip-slot + .agent-host-generic-chip-slot {
-		box-shadow: -5px 0 0 -4px var(--vscode-editorWidget-border);
-	}
 }
 
 /* Collapse agent host picker labels to icon-only when the secondary toolbar gets narrow. */
@@ -99,7 +95,7 @@
 	container-type: inline-size;
 }
 
-@container (max-width: 400px) {
+@container (max-width: 350px) {
 	.agent-host-chat-input-picker-label {
 		display: none;
 	}
@@ -140,4 +136,8 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+.agent-host-chat-input-picker-slot .action-label .codicon + .agent-host-chat-input-picker-label {
+	margin-left: 6px;
 }

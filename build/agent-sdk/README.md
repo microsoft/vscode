@@ -124,6 +124,11 @@ gulp graph. As its own pipeline step:
 4. `npm install` at repo root to refresh the root lockfile.
 5. Commit all four edits together.
 
+The `test/versionSync.test.ts` build test (run by `cd build && npm run
+test` in PR CI) enforces step 3: it fails if an SDK's `agents/<sdk>`
+`package.json` pin, its `package-lock.json`, and the repo-root
+`devDependencies` pin ever fall out of lockstep.
+
 The next pipeline run rebuilds + uploads each platform tarball at the
 new content-addressed CDN path and re-stamps each `product.json` with
 the new `urlTemplate` pointing at the bumped version.

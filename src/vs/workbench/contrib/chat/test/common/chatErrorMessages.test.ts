@@ -217,6 +217,23 @@ suite('ChatErrorMessages', () => {
 				'You\'ve exhausted your premium model quota. For additional paid premium requests, please reach out to your organization\'s Copilot admin or wait for your allowance to renew.',
 			);
 		});
+
+		test('edu plan with usage-based billing', () => {
+			assert.deepStrictEqual(
+				[getQuotaMessageForPlan('edu', true, '2030-01-15T00:00:00.000Z'), getQuotaMessageForPlan('edu', true)],
+				[
+					`You've reached your monthly credit limit. Please enable additional paid credits, upgrade to Copilot Pro, or wait until your credits reset on ${new Date('2030-01-15T00:00:00.000Z').toLocaleString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.`,
+					'You\'ve reached your monthly credit limit. Please enable additional paid credits, upgrade to Copilot Pro, or wait for your credits to reset.',
+				],
+			);
+		});
+
+		test('edu plan without usage-based billing', () => {
+			assert.strictEqual(
+				getQuotaMessageForPlan('edu'),
+				'You\'ve exhausted your premium model quota. Please enable additional paid premium requests, upgrade to Copilot Pro, or wait for your allowance to renew.',
+			);
+		});
 	});
 
 	suite('getCopilotPlanFromEntitlement', () => {
@@ -232,7 +249,7 @@ suite('ChatErrorMessages', () => {
 				ChatEntitlement.EDU,
 				ChatEntitlement.Unknown,
 			].map(getCopilotPlanFromEntitlement);
-			assert.deepStrictEqual(actual, ['free', 'individual', 'individual_pro', 'individual_max', 'business', 'enterprise', 'individual', undefined]);
+			assert.deepStrictEqual(actual, ['free', 'individual', 'individual_pro', 'individual_max', 'business', 'enterprise', 'edu', undefined]);
 		});
 	});
 });

@@ -4,26 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { session } from 'electron';
+import { createHash } from 'crypto';
 import { normalize } from '../../../base/common/path.js';
 import { isLinux } from '../../../base/common/platform.js';
 import { joinPath } from '../../../base/common/resources.js';
 import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
 import { URI } from '../../../base/common/uri.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
-import { BrowserViewStorageScope, IBrowserSessionOptions } from '../common/browserView.js';
+import { BrowserViewStorageScope, IBrowserViewSessionOptions } from '../common/browserView.js';
 import { BrowserSessionTrust, IBrowserSessionTrust } from './browserSessionTrust.js';
 import { BrowserSessionHistory, IBrowserSessionHistory } from './browserSessionHistory.js';
+import { BrowserSessionPermissions, IBrowserSessionPermissions } from './browserSessionPermissions.js';
 import { BrowserSessionRemote, IBrowserSessionRemote } from './browserSessionRemote.js';
 import { FileAccess, Schemas } from '../../../base/common/network.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { localize } from '../../../nls.js';
-
-// Same as webviews, minus clipboard-read
-const allowedPermissions = new Set([
-	'pointerLock',
-	'notifications',
-	'clipboard-sanitized-write'
-]);
 
 /**
  * Holds an Electron session along with its storage scope and unique browser
@@ -61,7 +56,9 @@ export class BrowserSession {
 	 * ID derivation rules (one-to-one with Electron sessions):
 	 *  - Global scope         -> `"global"`
 	 *  - Workspace scope      -> `"workspace:${workspaceId}"`
-	 *  - Ephemeral scope      -> `"ephemeral:${viewId}"` or `"${type}:${viewId}"` for custom types
+	 *  - Ephemeral per-view   -> `"ephemeral:${viewId}"`
+	 *  - Ephemeral affinity   -> `"ephemeral-affinity:${affinityHash}"`
+	 *  - Custom type          -> `"${type}:${viewId}"`
 	 */
 	private static readonly _byId = new Map<string, WeakRef<BrowserSession>>();
 
@@ -138,7 +135,7 @@ export class BrowserSession {
 	}
 
 	/**
-	 * Get or create an ephemeral session for the given view / target id.
+	 * Get or create an ephemeral session for the given view or target ID.
 	 */
 	static getOrCreateEphemeral(instantiationService: IInstantiationService, viewId: string, type?: string): BrowserSession {
 		if (type === 'workspace' || type === 'ephemeral') {
@@ -151,6 +148,13 @@ export class BrowserSession {
 			?? instantiationService.createInstance(BrowserSession, sessionId, electronSession, BrowserViewStorageScope.Ephemeral);
 	}
 
+	private static getOrCreateEphemeralForAffinity(instantiationService: IInstantiationService, affinity: string): BrowserSession {
+		const affinityHash = createHash('sha256').update(affinity).digest('hex');
+		const electronSession = session.fromPartition(`vscode-browser-affinity-${affinityHash}`);
+		return BrowserSession._bySession.get(electronSession)
+			?? instantiationService.createInstance(BrowserSession, `ephemeral-affinity:${affinityHash}`, electronSession, BrowserViewStorageScope.Ephemeral);
+	}
+
 	/**
 	 * Get or create a session for a workbench-originated browser view.
 	 * The session id is derived from the *scope* -- not the view id -- so
@@ -160,9 +164,8 @@ export class BrowserSession {
 	 * @param instantiationService Used to construct the session and inject
 	 *                             its service dependencies (tunnel proxy,
 	 *                             log) when a new session is needed.
-	 * @param viewId   Used only for ephemeral sessions where every view
-	 *                 needs its own Electron session.
-	 * @param sessionOptions  Determines the storage scope for the session.
+	 * @param viewId   Used for ephemeral sessions without an explicit affinity.
+	 * @param options  Determines the storage scope for the session.
 	 * @param workspaceStorageHome  Root folder under which per-workspace
 	 *                              browser storage is created
 	 *                              (`IEnvironmentMainService.workspaceStorageHome`).
@@ -171,29 +174,33 @@ export class BrowserSession {
 	static getOrCreate(
 		instantiationService: IInstantiationService,
 		viewId: string,
-		sessionOptions: IBrowserSessionOptions,
+		options: IBrowserViewSessionOptions,
 		workspaceStorageHome: URI,
 		workspaceId?: string,
 	): BrowserSession {
-		switch (sessionOptions.scope) {
+		switch (options.scope) {
 			case BrowserViewStorageScope.Global:
 				return BrowserSession.getOrCreateGlobal(instantiationService);
 			case BrowserViewStorageScope.Workspace:
 				if (workspaceId) {
 					return BrowserSession.getOrCreateWorkspace(instantiationService, workspaceId, workspaceStorageHome);
 				}
-			// fallthrough -- no workspace context -> ephemeral
-			case BrowserViewStorageScope.Ephemeral:
-			default:
 				return BrowserSession.getOrCreateEphemeral(instantiationService, viewId);
+			case BrowserViewStorageScope.Ephemeral:
+				return options.affinity !== undefined
+					? BrowserSession.getOrCreateEphemeralForAffinity(instantiationService, options.affinity)
+					: BrowserSession.getOrCreateEphemeral(instantiationService, viewId);
 		}
 	}
 
 	private static readonly _trustedFileRoots = TernarySearchTree.forPaths<true>(!isLinux);
+	private static _trustAllFiles = false;
+
 	/**
 	 * Set trusted file roots for all browser sessions.
 	 */
-	static setTrustedFileRoots(roots: readonly string[]): void {
+	static setTrustedFileRoots(roots: readonly string[], trustAllFiles: boolean): void {
+		BrowserSession._trustAllFiles = trustAllFiles;
 		BrowserSession._trustedFileRoots.clear();
 		for (const root of roots) {
 			if (root) {
@@ -209,6 +216,7 @@ export class BrowserSession {
 	private readonly _trust: BrowserSessionTrust;
 	private readonly _history: BrowserSessionHistory;
 	private readonly _remote: BrowserSessionRemote;
+	private readonly _permissions: BrowserSessionPermissions;
 
 	/**
 	 * @deprecated Don't use this directly. Create sessions via the static factory methods.
@@ -228,6 +236,7 @@ export class BrowserSession {
 		this._trust = new BrowserSessionTrust(this);
 		this._history = new BrowserSessionHistory(this);
 		this._remote = new BrowserSessionRemote(this);
+		this._permissions = new BrowserSessionPermissions(this);
 		this.configure();
 		BrowserSession.knownSessions.add(electronSession);
 		BrowserSession._bySession.set(electronSession, this);
@@ -250,6 +259,11 @@ export class BrowserSession {
 		return this._remote;
 	}
 
+	/** Public permissions interface owning per-origin permission state. */
+	get permissions(): IBrowserSessionPermissions {
+		return this._permissions;
+	}
+
 	/**
 	 * Connect application storage to this session so that preferences
 	 * (trusted certificates, history, etc.) are persisted across restarts.
@@ -259,25 +273,21 @@ export class BrowserSession {
 	connectStorage(storage: IApplicationStorageMainService): void {
 		this._trust.connectStorage(storage);
 		this._history.connectStorage(storage);
+		this._permissions.connectStorage(storage);
 	}
 
 	/**
 	 * Apply the permission policy and preload scripts to the session.
 	 */
 	private configure(): void {
-		this.electronSession.setPermissionRequestHandler((_webContents, permission, callback) => {
-			return callback(allowedPermissions.has(permission));
-		});
-		this.electronSession.setPermissionCheckHandler((_webContents, permission, _origin) => {
-			return allowedPermissions.has(permission);
-		});
+		this._permissions.configure(this.electronSession);
 		this.electronSession.registerPreloadScript({
 			type: 'frame',
 			filePath: FileAccess.asFileUri('vs/platform/browserView/electron-browser/preload-browserView.js').fsPath
 		});
 		this.electronSession.protocol.handle(Schemas.file, request => {
 			const filePath = normalize(URI.parse(request.url).fsPath);
-			if (!BrowserSession._trustedFileRoots.findSubstr(filePath)) {
+			if (!BrowserSession._trustAllFiles && !BrowserSession._trustedFileRoots.findSubstr(filePath)) {
 				return new Response(localize('browserSession.untrustedFile', 'Forbidden. File does not reside within a trusted folder.'), { status: 403 });
 			}
 			return this.electronSession.fetch(request, { bypassCustomProtocolHandlers: true });
@@ -290,6 +300,7 @@ export class BrowserSession {
 	async clearData(): Promise<void> {
 		await this._trust.clear();
 		this._history.delete();
+		this._permissions.clear();
 		await this.electronSession.clearData();
 	}
 

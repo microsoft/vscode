@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
+import { fixupPluginRules } from '@eslint/compat';
 import { defineConfig } from 'eslint/config';
 import fs from 'fs';
 import { builtinModules } from 'module';
 import path from 'path';
 import tseslint from 'typescript-eslint';
 
-import stylisticTs from '@stylistic/eslint-plugin-ts';
+import stylistic from '@stylistic/eslint-plugin';
 import * as pluginLocal from './.eslint-plugin-local/index.ts';
 import * as pluginCopilotLocal from './extensions/copilot/.eslintplugin/index.ts';
 import pluginImport from 'eslint-plugin-import';
@@ -44,7 +45,7 @@ export default defineConfig(
 		},
 		plugins: {
 			'local': pluginLocal,
-			'header': pluginHeader,
+			'header': fixupPluginRules(/** @type {any} */ (pluginHeader)),
 		},
 		rules: {
 			'constructor-super': 'warn',
@@ -152,7 +153,7 @@ export default defineConfig(
 			parser: tseslint.parser,
 		},
 		plugins: {
-			'@stylistic/ts': stylisticTs,
+			'@stylistic': stylistic,
 			'@typescript-eslint': tseslint.plugin,
 			'local': pluginLocal,
 			'jsdoc': pluginJsdoc,
@@ -160,8 +161,8 @@ export default defineConfig(
 		rules: {
 			// Disable built-in semi rules in favor of stylistic
 			'semi': 'off',
-			'@stylistic/ts/semi': 'warn',
-			'@stylistic/ts/member-delimiter-style': 'warn',
+			'@stylistic/semi': 'warn',
+			'@stylistic/member-delimiter-style': 'warn',
 			'local/code-no-unused-expressions': [
 				'warn',
 				{
@@ -987,6 +988,7 @@ export default defineConfig(
 						'register',
 						'remove',
 						'rename',
+						'reveal',
 						'save',
 						'send',
 						'start',
@@ -1577,6 +1579,7 @@ export default defineConfig(
 						'undici',
 						'undici-types',
 						'url',
+						'module',
 						'util',
 						'vscode-regexpp',
 						'vscode-textmate',
@@ -1676,13 +1679,26 @@ export default defineConfig(
 						'@microsoft/1ds-core-js', // node module allowed even in /common/
 						'@microsoft/1ds-post-js', // node module allowed even in /common/
 						'@xterm/headless', // node module allowed even in /common/
+						'@vscode/fs-copyfile', // used by agentHost for file copying after worktree creation
 						'@vscode/tree-sitter-wasm', // used by agentHost for command auto-approval
 						'@vscode/copilot-api', // used by agentHost for Copilot API requests
 						'@anthropic-ai/sdk', // used by agentHost for Anthropic API requests
 						'@anthropic-ai/claude-agent-sdk', // used by agentHost for Claude Agent SDK session enumeration / queries
 						'@modelcontextprotocol/sdk/**/*', // used by agentHost for Claude client-tool MCP result types (Phase 10)
 						'@github/copilot-sdk',
-						'zod' // used by agentHost for Claude client-tool MCP input schemas
+						'zod', // used by agentHost for Claude client-tool MCP input schemas
+						{
+							'when': 'test',
+							'pattern': 'events'
+						},
+						{
+							'when': 'test',
+							'pattern': 'module'
+						},
+						{
+							'when': 'test',
+							'pattern': 'websocket'
+						}
 					]
 				},
 				{
@@ -2200,6 +2216,8 @@ export default defineConfig(
 						'vs/sessions/contrib/*/~',
 						'vs/sessions/contrib/providers/*/~',
 						'vs/sessions/services/*/~',
+						'@microsoft/dev-tunnels-connections', // type-only browser bundle conformance check
+						'@microsoft/dev-tunnels-management', // type-only browser bundle conformance check
 					]
 				},
 				{
@@ -2312,9 +2330,21 @@ export default defineConfig(
 					]
 				},
 				{
+					'target': 'test/scenario/**',
+					'restrictions': [
+						'test/automation',
+						'test/scenario/**',
+						'@vscode/*',
+						'@parcel/*',
+						'@playwright/*',
+						'*' // node modules
+					]
+				},
+				{
 					'target': 'test/mcp/**',
 					'restrictions': [
 						'test/automation',
+						'test/scenario',
 						'test/mcp/**',
 						'@vscode/*',
 						'@parcel/*',
@@ -2529,7 +2559,7 @@ export default defineConfig(
 			parser: tseslint.parser,
 		},
 		plugins: {
-			'import': pluginImport,
+			'import': fixupPluginRules(pluginImport),
 			'copilot-local': pluginCopilotLocal,
 		},
 		rules: {

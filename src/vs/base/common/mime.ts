@@ -101,10 +101,12 @@ export function getMediaMime(path: string): string | undefined {
 }
 
 export function getExtensionForMimeType(mimeType: string): string | undefined {
-	for (const extension in mapExtToMediaMimes) {
-		const value = mapExtToMediaMimes[extension];
-		if (Array.isArray(value) ? value.includes(mimeType) : value === mimeType) {
-			return extension;
+	for (const mapping of [mapExtToTextMimes, mapExtToMediaMimes]) {
+		for (const extension in mapping) {
+			const value = mapping[extension];
+			if (Array.isArray(value) ? value.includes(mimeType) : value === mimeType) {
+				return extension;
+			}
 		}
 	}
 

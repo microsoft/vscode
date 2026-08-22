@@ -37,6 +37,10 @@ jobs:
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Registry
 
+      - template: ../common/apply-sdk-canary.yml@self
+        parameters:
+          windows: true
+
       - pwsh: |
           mkdir .build -ea 0
           node build/azure-pipelines/common/computeNodeModulesCacheKey.ts win32 $(VSCODE_ARCH) $(node -p process.arch) > .build/packagelockhash
@@ -67,6 +71,11 @@ jobs:
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Authentication
 
+      - template: ../common/foundry-local.yml@self
+        parameters:
+          phase: prepare
+          onlyOnNodeModulesCacheMiss: true
+
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
@@ -80,6 +89,15 @@ jobs:
         retryCountOnTaskFailure: 5
         displayName: Install dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+      - template: ../common/foundry-local.yml@self
+        parameters:
+          phase: install
+          onlyOnNodeModulesCacheMiss: true
+
+      - powershell: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
+        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+        displayName: Verify native optional dependency binaries
 
       - powershell: node build/azure-pipelines/distro/mixin-npm.ts
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))

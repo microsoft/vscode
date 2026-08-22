@@ -86,7 +86,7 @@ export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLens
 		item: Proto.NavigationTree,
 		parent: Proto.NavigationTree | undefined
 	): vscode.Range | undefined {
-		if (parent && parent.kind === PConst.Kind.enum) {
+		if (parent?.kind === PConst.Kind.enum) {
 			return getSymbolRange(document, item);
 		}
 

@@ -498,7 +498,7 @@
 		right: 0;
 		bottom: 0;
 		background-image: none;
-		background-size: cover;
+		background-size: contain;
 		background-repeat: no-repeat;
 	}
 
@@ -768,6 +768,11 @@
 
 		&:focus-within {
 			text-overflow: clip;
+		}
+
+		&[aria-readonly="true"] {
+			color: var(--vscode-descriptionForeground);
+			cursor: default;
 		}
 
 		&:empty::before {

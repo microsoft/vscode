@@ -7,8 +7,8 @@ import { Raw } from '@vscode/prompt-tsx';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChatFetchResponseType, ChatResponse } from '../../../../platform/chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
-import { CustomDataPartMimeTypes } from '../../../../platform/endpoint/common/endpointTypes';
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../../platform/endpoint/common/endpointProvider';
+import { CustomDataPartMimeTypes } from '../../../../platform/endpoint/common/endpointTypes';
 import { ChatEndpoint } from '../../../../platform/endpoint/node/chatEndpoint';
 import { ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions } from '../../../../platform/networking/common/networking';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
@@ -43,6 +43,29 @@ const createTestOptions = (messages: Raw.ChatMessage[]): ICreateEndpointBodyOpti
 	finishedCb: undefined,
 	location: undefined as any
 });
+
+const createParameterlessToolOptions = (): ICreateEndpointBodyOptions => {
+	const tools = [{
+		type: 'function' as const,
+		function: {
+			name: 'terminal_last_command',
+			description: 'Get the last command run in the active terminal.',
+			parameters: undefined,
+		}
+	}];
+	return {
+		...createTestOptions([{
+			role: Raw.ChatRole.User,
+			content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello' }]
+		}]),
+		postOptions: {
+			tools
+		},
+		requestOptions: {
+			tools
+		}
+	};
+};
 
 const createMakeRequestOptions = (messages: Raw.ChatMessage[], ignoreStatefulMarker?: boolean): IMakeChatRequestOptions => ({
 	debugName: 'test',
@@ -127,6 +150,35 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 	});
 
 	describe('CAPI mode (useResponsesApi = false)', () => {
+		it('adds an empty object schema to a parameterless tool', () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				{
+					...modelMetadata,
+					supported_endpoints: [ModelSupportedEndpoint.ChatCompletions],
+					capabilities: {
+						...modelMetadata.capabilities,
+						supports: {
+							...modelMetadata.capabilities.supports,
+							tool_calls: true,
+						}
+					}
+				},
+				'test-api-key',
+				'https://api.openai.com/v1/chat/completions');
+
+			const body = endpoint.createRequestBody(createParameterlessToolOptions());
+			endpoint.interceptBody(body);
+
+			expect(body.tools).toStrictEqual([{
+				type: 'function',
+				function: {
+					name: 'terminal_last_command',
+					description: 'Get the last command run in the active terminal.',
+					parameters: { type: 'object', properties: {} },
+				}
+			}]);
+		});
+
 		it('should set cot_id and cot_summary properties when processing thinking content', () => {
 			const endpoint = instaService.createInstance(OpenAIEndpoint,
 				{
@@ -245,10 +297,47 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 	});
 
 	describe('Responses API mode (useResponsesApi = true)', () => {
-		it('should preserve reasoning object when thinking is supported', () => {
-			accessor.get(IConfigurationService).setConfig(ConfigKey.ResponsesApiReasoningSummary, 'detailed');
+		it('adds an empty object schema to a parameterless tool', () => {
 			const endpoint = instaService.createInstance(OpenAIEndpoint,
-				modelMetadata,
+				{
+					...modelMetadata,
+					capabilities: {
+						...modelMetadata.capabilities,
+						supports: {
+							...modelMetadata.capabilities.supports,
+							tool_calls: true,
+						}
+					}
+				},
+				'test-api-key',
+				'https://api.openai.com/v1/responses');
+
+			const body = endpoint.createRequestBody(createParameterlessToolOptions());
+			endpoint.interceptBody(body);
+
+			expect(body.tools).toStrictEqual([{
+				type: 'function',
+				name: 'terminal_last_command',
+				description: 'Get the last command run in the active terminal.',
+				parameters: { type: 'object', properties: {} },
+				strict: false,
+			}]);
+		});
+
+		it('should preserve reasoning object when thinking is supported', () => {
+			const modelWithReasoningEffort = {
+				...modelMetadata,
+				capabilities: {
+					...modelMetadata.capabilities,
+					supports: {
+						...modelMetadata.capabilities.supports,
+						reasoning_effort: ['low', 'medium', 'high']
+					}
+				}
+			};
+
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				modelWithReasoningEffort,
 				'test-api-key',
 				'https://api.openai.com/v1/chat/completions');
 
@@ -275,7 +364,6 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 				}
 			};
 
-			accessor.get(IConfigurationService).setConfig(ConfigKey.ResponsesApiReasoningSummary, 'detailed');
 			const endpoint = instaService.createInstance(OpenAIEndpoint,
 				modelWithoutThinking,
 				'test-api-key',
@@ -401,14 +489,74 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 			expect(parentRequestSpy.mock.calls[0][0].ignoreStatefulMarker).toBe(false);
 		});
 
-		it('disables marker reuse and store for ZDR Responses requests', () => {
+		// Regression for https://github.com/microsoft/vscode/issues/330408
+		//
+		// BYOK promotes the serialized stream error to the whole user-facing reason. A
+		// message-less error must not displace the reason the fetcher already computed,
+		// otherwise the user is left with an empty struct and nothing to act on.
+		it('issue #330408: keeps the original reason when a stream error carries no message', async () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				modelMetadata,
+				'test-api-key',
+				'https://api.openai.com/v1/responses');
+			const parentResponse: ChatResponse = {
+				type: ChatFetchResponseType.Failed,
+				requestId: 'request-id',
+				serverRequestId: 'server-request-id',
+				reason: 'Server error. Stream terminated',
+				streamError: { code: 0, message: '', metadata: {} },
+			};
+			vi.spyOn(ChatEndpoint.prototype, 'makeChatRequest2').mockResolvedValue(parentResponse);
+
+			const response = await endpoint.makeChatRequest2(
+				createMakeRequestOptions([
+					{
+						role: Raw.ChatRole.User,
+						content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hello' }]
+					}
+				]),
+				CancellationToken.None,
+			);
+
+			expect(response.type === ChatFetchResponseType.Failed && response.reason).toBe('Server error. Stream terminated');
+		});
+
+		it('surfaces the serialized stream error when it carries a message', async () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				modelMetadata,
+				'test-api-key',
+				'https://api.openai.com/v1/responses');
+			const parentResponse: ChatResponse = {
+				type: ChatFetchResponseType.Failed,
+				requestId: 'request-id',
+				serverRequestId: 'server-request-id',
+				reason: 'Server error. Stream terminated',
+				streamError: { code: 0, message: 'something broke', metadata: { code: 'server_error' } },
+			};
+			vi.spyOn(ChatEndpoint.prototype, 'makeChatRequest2').mockResolvedValue(parentResponse);
+
+			const response = await endpoint.makeChatRequest2(
+				createMakeRequestOptions([
+					{
+						role: Raw.ChatRole.User,
+						content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hello' }]
+					}
+				]),
+				CancellationToken.None,
+			);
+
+			expect(response.type === ChatFetchResponseType.Failed && response.reason).toBe('{"code":0,"message":"something broke","metadata":{"code":"server_error"}}');
+		});
+
+		it('keeps store and marker reuse disabled for ordinary OpenAI BYOK ZDR Responses requests', () => {
 			const endpoint = instaService.createInstance(OpenAIEndpoint,
 				{
 					...modelMetadata,
+					vendor: 'OpenAI',
 					zeroDataRetentionEnabled: true,
 				},
 				'test-api-key',
-				'https://api.openai.com/v1/chat/completions');
+				'https://api.openai.com/v1/responses');
 			const messages: Raw.ChatMessage[] = [
 				{
 					role: Raw.ChatRole.User,
@@ -516,6 +664,48 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 
 			expect(body.reasoning_effort).toBe('high');
 			expect(body.reasoning?.effort).toBeUndefined();
+		});
+
+		it('places `output_config.effort` on the Messages API path when the model supports the requested level', () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				buildModel({ supported_endpoints: [ModelSupportedEndpoint.Messages] }),
+				'test-api-key',
+				'https://api.anthropic.com/v1/messages');
+
+			const body = endpoint.createRequestBody(buildOptions('high'));
+
+			expect(body.output_config).toEqual({ effort: 'high' });
+			expect(body.reasoning_effort).toBeUndefined();
+			expect(body.reasoning).toBeUndefined();
+		});
+
+		it('emits top-level `reasoning_effort` instead of `output_config.effort` when `reasoningEffortFormat` is `chat-completions` on a Messages URL', () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				buildModel({
+					reasoningEffortFormat: 'chat-completions',
+					supported_endpoints: [ModelSupportedEndpoint.Messages],
+				}),
+				'test-api-key',
+				'https://api.anthropic.com/v1/messages');
+
+			const body = endpoint.createRequestBody(buildOptions('high'));
+
+			expect(body.reasoning_effort).toBe('high');
+			expect(body.output_config).toBeUndefined();
+		});
+
+		it('scrubs `output_config.effort` while preserving other `output_config` fields', () => {
+			// `output_config` also carries structured-output fields (e.g. `format`); only the effort may be rewritten
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				buildModel({ supported_endpoints: [ModelSupportedEndpoint.Messages] }),
+				'test-api-key',
+				'https://api.anthropic.com/v1/messages');
+			const apply = (endpoint as unknown as { _applyReasoningEffort: (body: IEndpointBody, options: ICreateEndpointBodyOptions) => void })._applyReasoningEffort.bind(endpoint);
+
+			const body: IEndpointBody = { output_config: { effort: 'unsupported-level', format: { type: 'json_schema', schema: {} } } as IEndpointBody['output_config'] };
+			apply(body, buildOptions('high'));
+
+			expect(body.output_config).toEqual({ format: { type: 'json_schema', schema: {} }, effort: 'high' });
 		});
 
 		it('does not emit a reasoning field when the model declares no reasoning support', () => {

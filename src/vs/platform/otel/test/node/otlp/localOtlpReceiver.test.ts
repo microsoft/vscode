@@ -167,6 +167,27 @@ suite('platform/otel - localOtlpHttpReceiver', () => {
 		}
 	});
 
+	test('transforms the body before forwarding and local decoding', async () => {
+		let forwarded: Buffer | undefined;
+		let decoded: IDecodeResult | undefined;
+		const receiver = await startLocalOtlpHttpReceiver(
+			{
+				transformBody: body => Buffer.from(body.toString('utf8').replace('invoke_agent copilotcli', 'transformed span')),
+				onSpans: result => { decoded = result; },
+				onForward: body => { forwarded = body; },
+			},
+			logService,
+		);
+		try {
+			const res = await send(receiver.port, { contentType: 'application/json', body: JSON.stringify(validRequestBody()) });
+			strictEqual(res.statusCode, 200);
+			ok(forwarded?.toString('utf8').includes('transformed span'));
+			strictEqual(decoded?.spans[0].name, 'transformed span');
+		} finally {
+			receiver.dispose();
+		}
+	});
+
 	test('still responds 200 even if onForward throws', async () => {
 		const receiver = await startLocalOtlpHttpReceiver(
 			{
