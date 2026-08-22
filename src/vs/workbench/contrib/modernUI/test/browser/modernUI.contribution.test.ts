@@ -1063,7 +1063,7 @@ suite('ModernUIContribution', () => {
 			hoverLeft: getActionBackgroundColors(activeGroup, 'tab tab-actions-left'),
 			unfocusedHover: getActionBackgroundColors(unfocusedGroup, 'tab'),
 			unfocusedHoverLeft: getActionBackgroundColors(unfocusedGroup, 'tab tab-actions-left'),
-			// Active hover states can not be tested because it requires :hover state.
+			// Active hover states cannot be tested because they require the :hover state.
 			// activeHover: getActionBackgroundColors(activeGroup, 'tab active'),
 			// activeHoverLeft: getActionBackgroundColors(activeGroup, 'tab active tab-actions-left'),
 			// unfocusedActiveHover: getActionBackgroundColors(unfocusedGroup, 'tab active'),
