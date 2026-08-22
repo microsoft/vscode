@@ -6557,7 +6557,7 @@ suite('AgentService (node dispatcher)', () => {
 			const restore = svc.restoreSession(session);
 			await timeout(0);
 			// Metadata reads are now made before the catalog wait, so counting them here would only track scheduling.
-			const hydratedBeforeMigration = !!svc.stateManager.getSessionState(session.toString());
+			const hydratedBeforeMigration = !!getStateManager(svc).getSessionState(session.toString());
 			agent.migrationGate.complete();
 			await restore;
 
@@ -6630,7 +6630,7 @@ suite('AgentService (node dispatcher)', () => {
 				agent.migrationGate.complete();
 
 				await restore;
-				assert.strictEqual(!!svc.stateManager.getSessionState(session.toString()), true);
+				assert.strictEqual(!!getStateManager(svc).getSessionState(session.toString()), true);
 			});
 
 			/** Provider whose catalog migration is gated; per-session metadata is unavailable until it completes. */
