@@ -444,7 +444,7 @@ suite('ChatConfiguration defaults', () => {
 		});
 	});
 
-	test('virtual workspace defaults implicit new chats to local', () => {
+	test('virtual workspace respects Copilot harness defaults', () => {
 		const configurationService = new TestConfigurationService({
 			[ChatConfiguration.DefaultToCopilotHarness]: true,
 			[ChatConfiguration.EditorLocalAgentEnabled]: false,
@@ -468,16 +468,45 @@ suite('ChatConfiguration defaults', () => {
 			localVisible: isVisibleEditorChatSessionType(localChatSessionType, configurationService, chatSessionsService, workspace),
 			localRememberedUsable: isNewChatSessionTypeUsable(localChatSessionType, configurationService, chatSessionsService, workspace),
 		}, {
-			computed: localChatSessionType,
+			computed: SessionType.AgentHostCopilot,
 			remembered: SessionType.AgentHostClaude,
-			rememberedAware: localChatSessionType,
-			currentAware: localChatSessionType,
-			resolvedRemembered: { sessionType: localChatSessionType },
-			resolvedCurrent: { sessionType: localChatSessionType },
-			resolvedPreferMigration: { sessionType: localChatSessionType },
+			rememberedAware: SessionType.AgentHostClaude,
+			currentAware: SessionType.AgentHostCopilot,
+			resolvedRemembered: { sessionType: SessionType.AgentHostClaude },
+			resolvedCurrent: { sessionType: SessionType.AgentHostCopilot },
+			resolvedPreferMigration: { sessionType: SessionType.AgentHostCopilot },
 			explicitOverride: { sessionType: SessionType.AgentHostClaude },
 			localVisible: true,
 			localRememberedUsable: true,
+		});
+	});
+
+	test('virtual workspace applies Copilot default and preference independently', () => {
+		const defaultConfigurationService = new TestConfigurationService({
+			[ChatConfiguration.DefaultToCopilotHarness]: true,
+		});
+		const preferenceConfigurationService = new TestConfigurationService({
+			[ChatConfiguration.EditorPreferCopilotHarness]: true,
+		});
+		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
+		const defaultStorageService = disposables.add(new TestStorageService());
+		const preferenceStorageService = disposables.add(new TestStorageService());
+		const workspace = createWorkspace(URI.parse('vscode-vfs://github/microsoft/vscode'));
+
+		assert.deepStrictEqual({
+			defaultForNewUser: getComputedDefaultSessionType(defaultConfigurationService, chatSessionsService, workspace, true),
+			defaultFromLocal: resolveSessionType(defaultConfigurationService, chatSessionsService, defaultStorageService, workspace, true, { currentSessionType: localChatSessionType }),
+			preferenceForNewUser: getComputedDefaultSessionType(preferenceConfigurationService, chatSessionsService, workspace, true),
+			preferenceFromLocal: resolveSessionType(preferenceConfigurationService, chatSessionsService, preferenceStorageService, workspace, true, { currentSessionType: localChatSessionType }),
+			unavailableDefault: getComputedDefaultSessionType(defaultConfigurationService, chatSessionsService, workspace, false),
+			unavailablePreference: resolveSessionType(preferenceConfigurationService, chatSessionsService, preferenceStorageService, workspace, false, { currentSessionType: localChatSessionType }),
+		}, {
+			defaultForNewUser: SessionType.AgentHostCopilot,
+			defaultFromLocal: { sessionType: localChatSessionType },
+			preferenceForNewUser: localChatSessionType,
+			preferenceFromLocal: { sessionType: SessionType.AgentHostCopilot },
+			unavailableDefault: localChatSessionType,
+			unavailablePreference: { sessionType: localChatSessionType },
 		});
 	});
 
@@ -641,7 +670,7 @@ suite('ChatConfiguration defaults', () => {
 			computed: getComputedDefaultSessionType(configurationService, chatSessionsService, workspace, true, true),
 		}, {
 			localEnabled: true,
-			computed: localChatSessionType,
+			computed: SessionType.AgentHostCopilot,
 		});
 	});
 
