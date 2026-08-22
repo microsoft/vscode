@@ -3543,6 +3543,66 @@ suite('CopilotAgentSession', () => {
 		assert.deepStrictEqual(rootMeta?.copilotUsage, { totalNanoAiu: 400_000_000 });
 	});
 
+	test('does not fold an old background child legacy usage into a newly active root', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		// Spawn a background child under the first root so it owns `tc-legacy-bg`.
+		session.resetTurnState('turn-old-root');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-legacy-bg',
+			agentName: 'explore',
+			agentDisplayName: 'Explore',
+			agentDescription: 'Background legacy tests',
+		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-legacy-bg' });
+		mockSession.fire('session.idle', { aborted: false } as SessionEventPayload<'session.idle'>['data']);
+
+		// A new root becomes active while the old child is still alive.
+		session.resetTurnState('turn-new-root');
+		mockSession.fire('assistant.usage', {
+			model: 'claude-opus-4.8',
+			inputTokens: 10,
+			outputTokens: 2,
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+
+		// The old child emits a legacy (agentId-less) usage event: it must stay
+		// attributed to its original root, not fold into the new root.
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 100,
+			outputTokens: 20,
+			parentToolCallId: 'tc-legacy-bg',
+			copilotUsage: { totalNanoAiu: 400_000_000, tokenDetails: [] },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+
+		// No new-root inclusive usage may carry the child's model/tokens.
+		const newRootUsages = signals.filter((signal): signal is IAgentActionSignal =>
+			signal.kind === 'action'
+			&& signal.parentToolCallId === undefined
+			&& signal.action.type === ActionType.ChatUsage
+			&& signal.action.turnId === 'turn-new-root'
+		);
+		for (const signal of newRootUsages) {
+			assert.ok(signal.action.type === ActionType.ChatUsage);
+			const meta = signal.action.usage._meta as UsageInfoMeta | undefined;
+			assert.deepStrictEqual(meta?.turnTokenTotals, [
+				{ model: 'claude-opus-4.8', inputTokens: 10, cachedTokens: 0, outputTokens: 2 },
+			]);
+		}
+
+		// The child's own direct usage is still reported on its child session.
+		const childUsage = signals.filter((signal): signal is IAgentActionSignal =>
+			signal.kind === 'action'
+			&& signal.parentToolCallId === 'tc-legacy-bg'
+			&& signal.action.type === ActionType.ChatUsage
+		).at(-1);
+		assert.ok(childUsage?.action.type === ActionType.ChatUsage);
+		const childMeta = childUsage.action.usage._meta as UsageInfoMeta | undefined;
+		assert.deepStrictEqual(childMeta?.directTurnTokenTotals, [
+			{ model: 'gpt-5.5', inputTokens: 100, cachedTokens: 0, outputTokens: 20 },
+		]);
+		assert.deepStrictEqual(childMeta?.directCopilotUsage, { totalNanoAiu: 400_000_000 });
+	});
+
 	test('attributes subagent compaction to the child direct bucket', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 

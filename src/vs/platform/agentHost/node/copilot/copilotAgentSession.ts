@@ -4827,7 +4827,13 @@ export class CopilotAgentSession extends Disposable {
 			const mappedParentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 			const parentToolCallId = mappedParentToolCallId ?? e.data.parentToolCallId;
 			const isUnmappedSubagent = !!e.agentId && !parentToolCallId;
-			if (!mappedParentToolCallId && e.data.parentToolCallId && this._currentTurn.value) {
+			// Associate a genuinely mapping-less legacy `parentToolCallId` event with
+			// the current root. Never overwrite an existing mapping: a retained
+			// background child from an older root keeps its original owner, so its
+			// usage is not folded into whatever root happens to be active now.
+			// Spawn/resume already refresh ownership for real (re)associations.
+			if (!mappedParentToolCallId && e.data.parentToolCallId && this._currentTurn.value
+				&& !this._rootTurnIdBySubagentToolCallId.has(e.data.parentToolCallId)) {
 				this._rootTurnIdBySubagentToolCallId.set(e.data.parentToolCallId, this._currentTurn.value.id);
 			}
 			if (isUnmappedSubagent) {
