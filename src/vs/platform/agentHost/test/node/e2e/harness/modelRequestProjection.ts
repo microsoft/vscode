@@ -56,6 +56,29 @@ const ORDINAL_UUID_RE = /\$\{uuid_\d+\}/g;
 const PATH_PLACEHOLDER = '${path}';
 
 /**
+ * Runtime-injected one-turn "change notice" blocks that the CLI/runtime prepends
+ * to the next user message when something about the environment changed since the
+ * previous turn: the working directory (`<working_directory_changed>`), the
+ * explicit additional-directory set (`<additional_directories_changed>`), or the
+ * available tools / model (`<tools_changed_notice>`, e.g. when `exit_plan_mode`
+ * is withdrawn after a plan is approved).
+ *
+ * These blocks are authored by the runtime, not by the host: whether one appears
+ * depends on session timing and runtime version rather than on anything VS Code
+ * composes, so a bump that starts emitting a new notice would otherwise read as a
+ * host regression. Like a `tool_result` payload or a run-time id, their presence
+ * is environment-derived and not part of the host-authored structure this
+ * projection asserts, so both sides elide them (including the whitespace that
+ * separates the notice from the actual message) before comparison.
+ */
+const CHANGE_NOTICE_RE = /<(tools_changed_notice|working_directory_changed|additional_directories_changed)>[\s\S]*?<\/\1>\n*/g;
+
+/** Removes any runtime-injected change-notice block from a message's text. */
+function elideChangeNotices(text: string): string {
+	return text.replace(CHANGE_NOTICE_RE, '');
+}
+
+/**
  * A path: a recorder placeholder root (`${workdir}`, with or without a
  * trailing segment), a Windows absolute path (`C:\x\y`), or a POSIX absolute
  * path (`/x/y`). Stops at whitespace and at the punctuation that typically
@@ -105,7 +128,7 @@ export interface IProjectedModelRequest {
 }
 
 function elideRuntimeIds(text: string): string {
-	return elidePaths(text.replace(RAW_UUID_RE, RUNTIME_ID_PLACEHOLDER).replace(ORDINAL_UUID_RE, RUNTIME_ID_PLACEHOLDER));
+	return elidePaths(elideChangeNotices(text).replace(RAW_UUID_RE, RUNTIME_ID_PLACEHOLDER).replace(ORDINAL_UUID_RE, RUNTIME_ID_PLACEHOLDER));
 }
 
 function projectValue(value: unknown): unknown {

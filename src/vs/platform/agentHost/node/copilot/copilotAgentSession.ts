@@ -2018,6 +2018,7 @@ export class CopilotAgentSession extends Disposable {
 			this._reconcileMcpServerEnablement().catch(error => this._logService.error(error, `[Copilot:${this.sessionId}] Failed to reconcile MCP enablement after customizations changed`));
 		}));
 		this._subscribeToEvents();
+		await this._registerSamplingInterest();
 		this._subscribeForLogging();
 		this._subscribeForMemoInvalidation();
 		this._subscribeForInstructionsCollectedTelemetry();
@@ -3084,6 +3085,36 @@ export class CopilotAgentSession extends Disposable {
 			throw new Error(`sampling/createMessage ${result.action}${result.error ? `: ${result.error}` : ''}`);
 		} finally {
 			this._pendingMcpSamplings.delete(requestId);
+		}
+	}
+
+	/**
+	 * Advertises the MCP `sampling` client capability to plugin MCP
+	 * servers for the lifetime of this session.
+	 *
+	 * The Copilot runtime only exposes the `sampling` capability to a
+	 * plugin server (so its `createMessage` calls succeed rather than
+	 * failing with "sampling is not supported by this client") when the
+	 * session has a live consumer registered for the `sampling.requested`
+	 * event. SDK clients that drive sampling purely through
+	 * {@link rpc.mcp.executeSampling} (as we do in
+	 * {@link _handleSamplingCreateMessage}) do not implicitly count as a
+	 * consumer, so we register interest explicitly and release it on
+	 * disposal.
+	 */
+	private async _registerSamplingInterest(): Promise<void> {
+		try {
+			const { handle } = await this._wrapper.session.rpc.eventLog.registerInterest({ eventType: 'sampling.requested' });
+			if (this._store.isDisposed) {
+				await this._wrapper.session.rpc.eventLog.releaseInterest({ handle }).catch(() => undefined);
+				return;
+			}
+			this._register(toDisposable(() => {
+				this._wrapper.session.rpc.eventLog.releaseInterest({ handle }).catch(error =>
+					this._logService.error(error, `[Copilot:${this.sessionId}] Failed to release sampling.requested interest`));
+			}));
+		} catch (error) {
+			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to register sampling.requested interest`);
 		}
 	}
 
