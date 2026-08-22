@@ -57,8 +57,6 @@ export interface ISessionChatPillMenuEntry {
 	readonly label: string;
 	/** Whether the pill shows when it has data. */
 	readonly checked: boolean;
-	/** Kinds without data cannot be toggled. */
-	readonly enabled: boolean;
 }
 
 /**
@@ -73,8 +71,8 @@ export interface ISessionChatPillMenu {
 }
 
 /**
- * Builds the visibility menu. Every hideable kind is listed, checked while it is
- * not hidden, and disabled while the session reports no data for it.
+ * Builds the visibility menu. Every hideable kind is listed and toggleable,
+ * checked while it is not hidden, grouped by whether the session has data for it.
  *
  * @param targetKind The pill that was right-clicked, which gains a "Hide X"
  * entry. Omitted when the click did not land on a pill.
@@ -90,12 +88,10 @@ export function getSessionChatPillMenu(
 		if (!isSessionChatPillHideable(kind)) {
 			continue;
 		}
-		const enabled = kindsWithData.has(kind);
-		(enabled ? withData : withoutData).push({
+		(kindsWithData.has(kind) ? withData : withoutData).push({
 			kind,
 			label: getSessionChatPillLabel(kind),
 			checked: !hiddenKinds.has(kind),
-			enabled,
 		});
 	}
 

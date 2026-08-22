@@ -393,17 +393,6 @@ export type ChatInputQuestion = ChatInputTextQuestion
 	| ChatInputMultiSelectQuestion;
 
 /**
- * Why the agent requested chat input.
- *
- * @category Chat Input Types
- */
-export const enum ChatInputRequestPurpose {
-	AskUser = 'askUser',
-	Elicitation = 'elicitation',
-	PlanReview = 'planReview',
-}
-
-/**
  * The request payload carried by an {@link InputRequestResponsePart}.
  *
  * The server creates or replaces the containing response part with
@@ -415,8 +404,6 @@ export const enum ChatInputRequestPurpose {
 export interface ChatInputRequest {
 	/** Stable request identifier */
 	id: string;
-	/** Input lifecycle classification. Missing for requests from older clients or persisted sessions. */
-	purpose?: ChatInputRequestPurpose;
 	/** Display message for the request as a whole */
 	message?: string;
 	/** URL the user should review or open, for URL-style elicitations */
@@ -614,6 +601,8 @@ export enum MessageKind {
 	 * worker chat whose first message carries a seed prompt.
 	 */
 	Tool = 'tool',
+	/** Emitted automatically when an automation run starts a session. */
+	Automation = 'automation',
 	/** A system-generated notification rather than a direct user message. */
 	SystemNotification = 'systemNotification',
 }
@@ -632,7 +621,8 @@ export interface MessageOrigin {
 
 /**
  * A message that initiates or steers a turn. Messages can originate from the
- * user, the agent, a tool, or be system-generated (see {@link MessageOrigin}).
+ * user, the agent, a tool, an automation, or be system-generated (see
+ * {@link MessageOrigin}).
  *
  * Attachments MAY be referenced inside {@link Message.text} via their
  * {@link MessageAttachmentBase.range} field. Attachments without a range are

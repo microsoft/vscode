@@ -92,9 +92,14 @@ export interface ICustomizationEnablementChangeEvent {
 
 export const IAgentHostCustomizationEnablementService = createDecorator<IAgentHostCustomizationEnablementService>('agentHostCustomizationEnablementService');
 
+export interface IAgentHostCustomizationEnablementWorktreeBinding {
+	setWorktreeIsolation(worktree: IAgentHostWorktreeIsolation): void;
+}
+
 export interface IAgentHostCustomizationEnablementService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChange: Event<ICustomizationEnablementChangeEvent>;
+	readonly setWorktreeIsolation?: IAgentHostCustomizationEnablementWorktreeBinding['setWorktreeIsolation'];
 	initializeSession(session: string): Promise<void>;
 	getWorkingDirectoryState(session: string): WorkingDirectoryState;
 	resolve(session: string, target: ICustomizationEnablementTarget): CustomizationEnablementResolution;
@@ -102,6 +107,12 @@ export interface IAgentHostCustomizationEnablementService {
 	replaceEnablement(session: string, target: ICustomizationEnablementTarget, enablement: readonly CustomizationEnablement[]): CustomizationEnablementResolution;
 	setEnablement(session: string, target: ICustomizationEnablementTarget, kind: CustomizationEnablementKind, enabled: boolean): CustomizationEnablementResolution;
 	whenIdle(): Promise<void>;
+}
+
+export function supportsCustomizationEnablementWorktreeBinding(
+	service: IAgentHostCustomizationEnablementService,
+): service is IAgentHostCustomizationEnablementService & IAgentHostCustomizationEnablementWorktreeBinding {
+	return typeof service.setWorktreeIsolation === 'function';
 }
 
 /**
@@ -191,7 +202,7 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 		}));
 	}
 
-	/** Bound after AgentService construction because WorktreeIsolation depends on ICopilotApiService and AgentService's endpoint service. */
+	/** Bound after orchestration composition because WorktreeIsolation depends on its ICopilotApiService registration. */
 	setWorktreeIsolation(worktree: IAgentHostWorktreeIsolation): void {
 		this._worktree = worktree;
 		const onDidChangeWorkingDirectoryPending = worktree.onDidChangeWorkingDirectoryPending;
