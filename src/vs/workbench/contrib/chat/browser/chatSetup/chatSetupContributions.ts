@@ -799,8 +799,7 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 			this.maybeHideAuxiliaryBar();
 		}
 
-		// The chat extension is disabled by the enablement service deriving this setting,
-		// the extension host still has to be told to pick the change up.
+		// Enablement is derived, but the extension host still has to be told to pick the change up.
 		await this.extensionsWorkbenchService.updateRunningExtensions(chatDisabled ? localize('restartExtensionHost.reason.disable', "Disabling AI features") : localize('restartExtensionHost.reason.enable', "Enabling AI features"));
 	}
 

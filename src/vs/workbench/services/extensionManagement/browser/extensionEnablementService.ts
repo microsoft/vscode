@@ -138,7 +138,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatAIDisabledSettingId)) {
-				this.reconcileChatExtensionGlobalDisablement();
+				this.reconcileChatExtensionDisablement();
 				this._onEnablementChanged.fire(this.extensionsManager.extensions.filter(ext => ext.identifier.id.toLowerCase() === this._chatExtensionId));
 			}
 		}));
@@ -157,7 +157,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		}
 
 		this.ensureChatExtensionInitialDisabledState();
-		this.reconcileChatExtensionGlobalDisablement();
+		this.reconcileChatExtensionDisablement();
 	}
 
 	private ensureChatExtensionInitialDisabledState(): void {
@@ -198,22 +198,39 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		}
 	}
 
-	private reconcileChatExtensionGlobalDisablement(): void {
+	// Releases that applied `chat.disableAIFeatures` by persisting enablement left an entry that
+	// outlives the setting: a global one reaches every window on this machine, a workspace one
+	// survives the setting being cleared. Drop whichever the derived state now accounts for.
+	private reconcileChatExtensionDisablement(): void {
 		if (!this._chatExtensionId) {
 			return;
 		}
 
-		// A globally disabled chat extension applies to every window on this machine, whereas
-		// `chat.disableAIFeatures` applies only where its configuration resolves. Releases that
-		// implemented the setting as a global disable leak into windows the setting does not cover,
-		// so drop the entry that the derived enablement state already accounts for. Runs on every
-		// change too, because the migration above settles the setting asynchronously.
-		if (this.configurationService.getValue(ChatAIDisabledSettingId) !== true || !this._isDisabledGlobally({ id: this._chatExtensionId })) {
+		const identifier = { id: this._chatExtensionId };
+		const inspect = this.configurationService.inspect<boolean>(ChatAIDisabledSettingId);
+
+		if (typeof inspect.workspaceValue === 'boolean') {
+			if (inspect.workspaceValue === true && this._getWorkspaceDisabledExtensions().some(e => areSameExtensions(e, identifier))) {
+				this.logService.debug('Removing workspace disablement of builtin chat extension in favor of chat.disableAIFeatures');
+				this._removeFromWorkspaceDisabledExtensions(identifier)
+					.catch(err => this.logService.error('Failed to remove workspace disablement of builtin chat extension', err));
+			}
+			return;
+		}
+
+		if (inspect.value !== true || !this._isDisabledGlobally(identifier)) {
+			return;
+		}
+
+		// The disable for a profile where chat setup never completed belongs to
+		// ensureChatExtensionInitialDisabledState and has to survive.
+		const context = (this.chatEntitlementService as ChatEntitlementService).context;
+		if (context && !context.value.state.completed) {
 			return;
 		}
 
 		this.logService.debug('Removing global disablement of builtin chat extension in favor of chat.disableAIFeatures');
-		this.globalExtensionEnablementService.enableExtension({ id: this._chatExtensionId }, SOURCE)
+		this.globalExtensionEnablementService.enableExtension(identifier, SOURCE)
 			.catch(err => this.logService.error('Failed to remove global disablement of builtin chat extension', err));
 	}
 
@@ -480,11 +497,11 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			return enablementState;
 		}
 
-		// Ensure the chat extension is disabled in fresh profiles where chat setup is not completed.
-		// This is called here (in addition to the constructor) because on profile switch the
-		// enablement service is not recreated, but the storage scope changes to the new profile.
+		// Called here as well as in the constructor because on profile switch the enablement service
+		// is not recreated, but the storage scope changes to the new profile.
 		if (extension.identifier.id.toLowerCase() === this._chatExtensionId) {
 			this.ensureChatExtensionInitialDisabledState();
+			this.reconcileChatExtensionDisablement();
 		}
 
 		enablementState = this._getUserEnablementState(extension.identifier);

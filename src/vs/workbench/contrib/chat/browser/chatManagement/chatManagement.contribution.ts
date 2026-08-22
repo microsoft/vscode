@@ -100,8 +100,7 @@ async function ensureChatExtensionEnabled(accessor: ServicesAccessor): Promise<v
 	await progressService.withProgress(
 		{ location: ProgressLocation.Window, title: localize('enableChatForByok', "Enabling AI features…") },
 		async () => {
-			// Enablement is derived from `chat.disableAIFeatures` wherever it resolves to true, so
-			// the setting has to go before persisted enablement can be changed.
+			// Enablement is derived from the setting, so it has to be cleared first.
 			if (configurationService.getValue<boolean>(ChatAIDisabledSettingId) === true) {
 				await configurationService.updateValue(ChatAIDisabledSettingId, false);
 			}

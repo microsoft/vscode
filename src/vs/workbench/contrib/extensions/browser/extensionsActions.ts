@@ -1870,9 +1870,7 @@ export class EnableAIFeaturesInWorkspaceAction extends ExtensionAction {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			return;
 		}
-		// While the setting resolves to true it owns enablement and canChangeWorkspaceEnablement
-		// reports false. `run` clears the setting before touching persisted state, so this action
-		// stays the way out of it.
+		// `run` clears the setting first, so the state it owns must not gate this action.
 		if (this.extension.enablementState !== EnablementState.DisabledByAIFeaturesSetting
 			&& !this.extensionEnablementService.canChangeWorkspaceEnablement(this.extension.local)) {
 			return;
