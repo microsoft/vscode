@@ -42,7 +42,7 @@ import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../common/me
 import { readChatSurfaceMeta, withChatSurfaceMeta } from '../common/meta/agentChatSurfaceMeta.js';
 import { buildBoundedSideChatSourceContext, getSideChatPartialResponse } from './agentPeerChats.js';
 import { AgentConfigurationService, getEffectiveWorkingDirectories } from './agentConfigurationService.js';
-import { AgentHostTerminalManager } from './agentHostTerminalManager.js';
+import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { ISessionDbUriFields, parseSessionDbUri } from '../common/sessionDbUri.js';
 import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
 import { resolveSessionRepositories } from './agentHostSessionRepositories.js';
@@ -336,7 +336,7 @@ export interface IAgentServiceCollaborators {
 	readonly changesets: IAgentHostChangesetService;
 	readonly changesetCoordinator: AgentHostChangesetCoordinator;
 	readonly completions: IAgentHostCompletions;
-	readonly terminalManager: AgentHostTerminalManager;
+	readonly terminalManager: IAgentHostTerminalManager;
 	readonly localTurns: AgentHostLocalTurns;
 	readonly sideEffects: AgentSideEffects;
 	readonly sessionCoordination: SessionCoordinationService;
@@ -455,7 +455,7 @@ export class AgentService extends Disposable implements IAgentService {
 	/** Owns session git-state probing and git-backed catalogue decoration. */
 	private readonly _gitStateService: IAgentHostGitStateService;
 	/** Manages PTY-backed terminals for the agent host protocol. */
-	private readonly _terminalManager: AgentHostTerminalManager;
+	private readonly _terminalManager: IAgentHostTerminalManager;
 	/** Persists host-injected `/rename` / `!command` turns for restore & fork/truncate. */
 	private readonly _localTurns: AgentHostLocalTurns;
 	/** Server-side host for the agent host's server tools. */

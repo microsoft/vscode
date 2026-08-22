@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Event } from '../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { URI } from '../../../../base/common/uri.js';
 import { SyncDescriptor } from '../../../instantiation/common/descriptors.js';
@@ -70,7 +71,19 @@ suite('AgentHostServiceCollection', () => {
 	test('registers descriptors with exact leading static arguments', () => {
 		const services = new AgentHostServiceCollection();
 		const ids = [
-			...registerAgentHostCoreServices(services),
+			...registerAgentHostCoreServices(services, {
+				storageResource: URI.file('/storage.json'),
+				fetchFn: globalThis.fetch,
+				gitHubServiceOptions: {
+					endpoint: {
+						onDidChange: Event.None,
+						getApiBaseUri: () => 'https://api.github.com',
+						getGraphQlUri: () => 'https://api.github.com/graphql',
+					},
+					tokenProvider: { getToken: () => undefined },
+					fetch: globalThis.fetch,
+				},
+			}),
 			...registerAgentHostHostServices(services, {
 				userDataPath: URI.file('/user-data'),
 				fetchFn: globalThis.fetch,
@@ -102,7 +115,19 @@ suite('AgentHostServiceCollection', () => {
 		const override = new NullAgentEditAttributionService();
 		services.set(IAgentEditAttributionService, override);
 
-		const ids = registerAgentHostCoreServices(services);
+		const ids = registerAgentHostCoreServices(services, {
+			storageResource: undefined,
+			fetchFn: globalThis.fetch,
+			gitHubServiceOptions: {
+				endpoint: {
+					onDidChange: Event.None,
+					getApiBaseUri: () => 'https://api.github.com',
+					getGraphQlUri: () => 'https://api.github.com/graphql',
+				},
+				tokenProvider: { getToken: () => undefined },
+				fetch: globalThis.fetch,
+			},
+		});
 
 		assert.deepStrictEqual({
 			preserved: services.get(IAgentEditAttributionService) === override,

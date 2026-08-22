@@ -92,19 +92,24 @@ export function createTestAgentService(
 		proxyResolver,
 		fetchFn,
 	});
-	const coreServiceIds = registerAgentHostCoreServices(services);
-	const instantiationService = new InstantiationService(services, /*strict*/ true);
-	instantiateAgentHostServices(instantiationService, coreServiceIds);
-	const composition = createAgentServiceComposition(
-		options,
-		services,
-		instantiationService,
+	const coreServiceIds = registerAgentHostCoreServices(services, {
+		storageResource,
 		fetchFn,
+		gitHubServiceOptions: foundation.gitHubServiceOptions,
+		copilotApiService,
+	});
+	const instantiationService = new InstantiationService(services, /*strict*/ true);
+	services.seal();
+	instantiateAgentHostServices(instantiationService, coreServiceIds);
+	const composition = instantiationService.invokeFunction(accessor => createAgentServiceComposition(
+		options,
+		accessor,
+		instantiationService,
 		logService,
 		sessionDataService,
 		foundation,
 		fileMonitorService ? [instantiationService, foundationDisposables] : [effectiveFileMonitorService, instantiationService, foundationDisposables],
-	);
+	));
 	compositions.set(composition.agentService, composition);
 	return composition.agentService;
 }

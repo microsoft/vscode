@@ -34,8 +34,6 @@ import { AgentHostServiceCollection, instantiateAgentHostServices, registerAgent
 import { INetworkDiagnosticsService } from './networkDiagnosticsService.js';
 import { IAgentHostWorktreeIsolation, WorktreeIsolation } from './shared/worktreeIsolation.js';
 import { IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
-import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';
-import { CodexProxyService, ICodexProxyService } from './codex/codexProxyService.js';
 import { IByokLmBridgeRegistry, NullByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
 import { registerPendingEditContentProvider } from './copilot/pendingEditContentStore.js';
 import { SessionDataService } from './sessionDataService.js';
@@ -177,15 +175,27 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		services.set(ITelemetryService, telemetryService);
 		const byokBridgeRegistry = options.byok.kind === 'renderer' ? options.byok.bridgeRegistry : new NullByokLmBridgeRegistry();
 		services.set(IByokLmBridgeRegistry, byokBridgeRegistry);
-		const coreServiceIds = registerAgentHostCoreServices(services);
+		const coreServiceIds = registerAgentHostCoreServices(services, {
+			storageResource: agentServiceOptions.storageResource,
+			fetchFn,
+			gitHubServiceOptions: foundation.gitHubServiceOptions,
+		});
 		const hostServiceIds = registerAgentHostHostServices(services, {
 			userDataPath: URI.file(environmentService.userDataPath),
 			fetchFn,
 			byok: options.byok,
 		});
 		instantiationService = new InstantiationService(services, /*strict*/ true);
+		services.seal();
 		instantiateAgentHostServices(instantiationService, [...coreServiceIds, ...hostServiceIds]);
-		const agentServiceComposition = createAgentServiceComposition(agentServiceOptions, services, instantiationService, fetchFn, logService, sessionDataService, foundation);
+		const agentServiceComposition = instantiationService.invokeFunction(accessor => createAgentServiceComposition(
+			agentServiceOptions,
+			accessor,
+			instantiationService!,
+			logService,
+			sessionDataService,
+			foundation,
+		));
 		agentService = agentServiceComposition.agentService;
 		const { configurationService } = agentServiceComposition;
 		const networkDiagnosticsService = instantiationService.invokeFunction(accessor => accessor.get(INetworkDiagnosticsService));
@@ -193,13 +203,13 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		const editAttributionService = instantiationService.invokeFunction(accessor => accessor.get(IAgentEditAttributionService));
 		agentService.setEditAttributionService(editAttributionService);
 
-		const worktreeIsolation = infrastructure.add(instantiationService.createInstance(WorktreeIsolation, undefined));
-		services.set(IAgentHostWorktreeIsolation, worktreeIsolation);
+		const worktreeIsolation = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostWorktreeIsolation));
+		if (!(worktreeIsolation instanceof WorktreeIsolation)) {
+			throw new Error('The production Agent Host requires the concrete WorktreeIsolation service');
+		}
 		agentService.setWorktreeIsolation(worktreeIsolation);
 
 		const agentSdkDownloader = instantiationService.invokeFunction(accessor => accessor.get(IAgentSdkDownloader));
-		services.set(IClaudeProxyService, infrastructure.add(instantiationService.createInstance(ClaudeProxyService)));
-		services.set(ICodexProxyService, infrastructure.add(instantiationService.createInstance(CodexProxyService)));
 
 		return new AgentHostRuntime({
 			instantiationService,
