@@ -47,6 +47,7 @@ import { TerminalCapabilityStoreMultiplexer } from '../../../../platform/termina
 import { IEnvironmentVariableCollection, IMergedEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariable.js';
 import { deserializeEnvironmentVariableCollections } from '../../../../platform/terminal/common/environmentVariableShared.js';
 import { GeneralShellType, IProcessDataEvent, IProcessPropertyMap, IReconnectionProperties, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalLogService, PosixShellType, ProcessPropertyType, remoteResolverTerminal, ShellIntegrationStatus, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalSettingId, TerminalShellType, TitleEventSource, WindowsShellType, type ShellIntegrationInjectionFailureReason } from '../../../../platform/terminal/common/terminal.js';
+import { TERMINAL_MOUSE_TRACKING_RESET, TERMINAL_PROCESS_EXIT_RESET } from '../../../../platform/terminal/common/terminalMouseModeReset.js';
 import { formatMessageForTerminal } from '../../../../platform/terminal/common/terminalStrings.js';
 import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { getIconRegistry } from '../../../../platform/theme/common/iconRegistry.js';
@@ -1578,7 +1579,17 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}));
 
 		this._initialDataEventsListener.value = processManager.onProcessData(ev => this._initialDataEvents?.push(ev.data));
-		this._register(processManager.onProcessReplayComplete(() => this._onProcessReplayComplete.fire()));
+		this._register(processManager.onProcessReplayComplete(() => {
+			if (this._exitCode !== undefined) {
+				// Root process already exited (possibly raced ahead of replay).
+				// Full cleanup incl. leave alt — only path that resets after replay.
+				this._resetStickyMouseModes('process-replay-complete-dead', 'exit');
+			}
+			// Live process: no mouse-only reset. Conditional strip on the pty host
+			// already handled nested-dead shells; live TUIs keep mouse from
+			// verbatim replay. Do not synthesize CSI I.
+			this._onProcessReplayComplete.fire();
+		}));
 		this._register(processManager.onEnvironmentVariableInfoChanged(e => this._onEnvironmentVariableInfoChanged(e)));
 		this._register(processManager.onPtyDisconnect(() => {
 			if (this.xterm) {
@@ -1725,8 +1736,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		await this._flushXtermData();
 
+		// Assign exit code before the sticky reset so a concurrent replay-complete
+		// handler can see a dead process and take the full-exit path.
 		this._exitCode = parsedExitResult?.code;
 		const exitMessage = parsedExitResult?.message;
+
+		// Root PTY process exited (shell / root child). Clear sticky DEC mouse
+		// modes left without teardown, leave alt screen, show cursor. Does not
+		// fire when a nested TUI (vim under bash) exits back to a live shell.
+		this._resetStickyMouseModes('process-exit', 'exit');
 
 		this._logService.debug('Terminal process exit', 'instanceId', this.instanceId, 'code', this._exitCode, 'processState', this._processManager.processState);
 
@@ -1794,6 +1812,37 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this.isDisposed) {
 			this._onExit.dispose();
 		}
+	}
+
+	/**
+	 * Reset sticky DEC mouse modes on the xterm instance (app-output path).
+	 * @param kind 'mouse': clear mouse tracking only (live TUI keeps ?1004/?2004
+	 * so it can reassert on FocusGained). 'exit': root process is known dead —
+	 * also clear paste/focus, leave the alt screen and show the cursor.
+	 */
+	private _resetStickyMouseModes(reason: string, kind: 'mouse' | 'exit'): void {
+		const seq = kind === 'mouse' ? TERMINAL_MOUSE_TRACKING_RESET : TERMINAL_PROCESS_EXIT_RESET;
+		const writeReset = (xterm: XtermTerminal) => {
+			try {
+				xterm.raw.write(seq);
+				this._logService.info('Terminal mouse mode reset written', 'instanceId', this.instanceId, 'reason', reason, 'kind', kind);
+			} catch (err) {
+				this._logService.warn('Terminal mouse mode reset failed', 'instanceId', this.instanceId, 'reason', reason, err);
+			}
+		};
+
+		const xterm = this.xterm;
+		if (xterm) {
+			writeReset(xterm);
+			return;
+		}
+
+		this._logService.info('Terminal mouse mode reset deferred (no xterm yet)', 'instanceId', this.instanceId, 'reason', reason);
+		this._xtermReadyPromise.then(ready => {
+			if (ready && !this.isDisposed) {
+				writeReset(ready);
+			}
+		}).catch(() => { /* disposed during create */ });
 	}
 
 	private _relaunchWithShellIntegrationDisabled(exitMessage: string | undefined): void {
