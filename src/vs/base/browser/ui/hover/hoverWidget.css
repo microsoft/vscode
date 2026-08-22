@@ -191,6 +191,29 @@
 	margin-bottom: 2px;
 }
 
+/**
+ * Render borders for tables in hover markdown
+ * https://github.com/microsoft/vscode/issues/143884
+ */
+.monaco-hover table {
+	border-collapse: collapse;
+	margin: 8px 0;
+}
+
+.monaco-hover table:first-child {
+	margin-top: 0;
+}
+
+.monaco-hover table:last-child {
+	margin-bottom: 0;
+}
+
+.monaco-hover table th,
+.monaco-hover table td {
+	border: 1px solid var(--vscode-editorHoverWidget-border);
+	padding: 4px 6px;
+}
+
 .monaco-hover-content .action-container a {
 	-webkit-user-select: none;
 	user-select: none;
