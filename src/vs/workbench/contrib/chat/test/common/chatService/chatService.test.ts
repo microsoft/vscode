@@ -573,6 +573,35 @@ suite('ChatService', () => {
 		await assertSnapshot(toSnapshotExportData(chatModel2));
 	});
 
+	test('loadSessionFromData applies creation metadata to the model and telemetry', async () => {
+		const providerInvokedEvents: Record<string, unknown>[] = [];
+		instantiationService.stub(ITelemetryService, {
+			...NullTelemetryService,
+			publicLog2(eventName: string, data: Record<string, unknown> | undefined): void {
+				if (eventName === 'interactiveSessionProviderInvoked' && data) {
+					providerInvokedEvents.push(data);
+				}
+			}
+		});
+		const testService = createChatService();
+		const sourceRef = startSessionModel(testService);
+		const forkedData = sourceRef.object.toJSON();
+		forkedData.sessionId = 'forked-session';
+
+		const forkedRef = testDisposables.add(testService.loadSessionFromData(forkedData, 'ChatServiceTest#forkedSession', 'currentSession'));
+		const response = await testService.sendRequest(forkedRef.object.sessionResource, 'hello');
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+
+		assert.deepStrictEqual({
+			modelSelectionReason: forkedRef.object.sessionTypeSelectionReason,
+			telemetrySelectionReasons: providerInvokedEvents.map(event => event.sessionTypeSelectionReason),
+		}, {
+			modelSelectionReason: 'currentSession',
+			telemetrySelectionReasons: ['currentSession'],
+		});
+	});
+
 	test('can deserialize with response', async () => {
 		let serializedChatData: ISerializableChatData;
 		testDisposables.add(chatAgentService.registerAgentImplementation(chatAgentWithMarkdownId, chatAgentWithMarkdown));

@@ -1994,7 +1994,7 @@ export interface IChatService {
 	/**
 	 * Loads a session from exported chat data
 	 */
-	loadSessionFromData(data: IExportableChatData | ISerializableChatData, debugOwner?: string): IChatModelReference;
+	loadSessionFromData(data: IExportableChatData | ISerializableChatData, debugOwner?: string, sessionTypeSelectionReason?: SessionTypeSelectionReason): IChatModelReference;
 
 	getChatModelReferenceDebugInfo(): IChatModelReferenceDebugSnapshot;
 

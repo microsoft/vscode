@@ -102,7 +102,7 @@ export class ForkConversationAction extends Action2 {
 				}
 			}
 
-			const modelRef = chatService.loadSessionFromData(cleanData, 'ChatForkActions#forkCleanSession');
+			const modelRef = chatService.loadSessionFromData(cleanData, 'ChatForkActions#forkCleanSession', 'currentSession');
 
 			// Defer navigation until after the slash command flow completes.
 			const newSessionResource = modelRef.object.sessionResource;
@@ -226,7 +226,7 @@ export class ForkConversationAction extends Action2 {
 			}
 		}
 
-		const modelRef = chatService.loadSessionFromData(forkedData, 'ChatForkActions#forkSession');
+		const modelRef = chatService.loadSessionFromData(forkedData, 'ChatForkActions#forkSession', 'currentSession');
 
 		if (!modelRef) {
 			return;

@@ -669,7 +669,7 @@ export class ChatService extends Disposable implements IChatService {
 			this._chatSessionStore.getMetadataForSessionSync(sessionResource)?.title;
 	}
 
-	loadSessionFromData(data: IExportableChatData | ISerializableChatData, debugOwner?: string): IChatModelReference {
+	loadSessionFromData(data: IExportableChatData | ISerializableChatData, debugOwner?: string, sessionTypeSelectionReason?: SessionTypeSelectionReason): IChatModelReference {
 		const sessionId = (data as ISerializableChatData).sessionId ?? generateUuid();
 		const sessionResource = LocalChatSessionUri.forSession(sessionId);
 		return this._sessionModels.acquireOrCreate({
@@ -677,6 +677,7 @@ export class ChatService extends Disposable implements IChatService {
 			location: data.initialLocation ?? ChatAgentLocation.Chat,
 			sessionResource,
 			canUseTools: true,
+			sessionTypeSelectionReason,
 		}, debugOwner ?? 'ChatService#loadSessionFromData');
 	}
 
