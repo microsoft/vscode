@@ -637,6 +637,8 @@ export interface ITextModelCreationOptions {
 	defaultEOL: DefaultEndOfLine;
 	isForSimpleWidget: boolean;
 	largeFileOptimizations: boolean;
+	/** Maximum file size in MB for synchronizing the editor model. Use 0 for no limit. */
+	largeFileSizeLimit: number;
 	bracketPairColorizationOptions: BracketPairColorizationOptions;
 }
 

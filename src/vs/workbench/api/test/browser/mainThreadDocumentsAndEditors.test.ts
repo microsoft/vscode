@@ -27,7 +27,6 @@ import { TestTextResourcePropertiesService, TestWorkingCopyFileService } from '.
 import { UriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentityService.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
-import { TextModel } from '../../../../editor/common/model/textModel.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -49,6 +48,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 	let modelService: ModelService;
 	let codeEditorService: TestCodeEditorService;
 	let textFileService: ITextFileService;
+	let configService: TestConfigurationService;
 	let mainThreadDocumentsAndEditors: MainThreadDocumentsAndEditors;
 	let propertyChanges: number;
 	const deltas: IDocumentsAndEditorsDelta[] = [];
@@ -66,6 +66,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 		disposables = new DisposableStore();
 
 		deltas.length = 0;
+		configService = new TestConfigurationService();
 		propertyChanges = 0;
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('editor', { 'detectIndentation': false });
@@ -170,11 +171,14 @@ suite('MainThreadDocumentsAndEditors', () => {
 
 	test('ignore huge model', function () {
 
-		const oldLimit = TextModel._MODEL_SYNC_LIMIT;
-		try {
-			const largeModelString = 'abc'.repeat(1024);
-			TextModel._MODEL_SYNC_LIMIT = largeModelString.length / 2;
+		const largeModelString = 'abc'.repeat(1024);
+		// Use a small fractional limit (0.001 MB = ~1048 chars) to ensure the model is too large
+		const limitInMB = 0.001;
 
+		// Override configuration for this test
+		configService.setUserConfiguration('editor', { 'detectIndentation': false, 'largeFileSizeLimit': limitInMB });
+
+		try {
 			const model = modelService.createModel(largeModelString, null);
 			disposables.add(model);
 			assert.ok(model.isTooLargeForSyncing());
@@ -186,19 +190,21 @@ suite('MainThreadDocumentsAndEditors', () => {
 			assert.strictEqual(delta.removedDocuments, undefined);
 			assert.strictEqual(delta.addedEditors, undefined);
 			assert.strictEqual(delta.removedEditors, undefined);
-
 		} finally {
-			TextModel._MODEL_SYNC_LIMIT = oldLimit;
+			configService.setUserConfiguration('editor', { 'detectIndentation': false });
 		}
 	});
 
 	test('ignore huge model from editor', function () {
 
-		const oldLimit = TextModel._MODEL_SYNC_LIMIT;
-		try {
-			const largeModelString = 'abc'.repeat(1024);
-			TextModel._MODEL_SYNC_LIMIT = largeModelString.length / 2;
+		const largeModelString = 'abc'.repeat(1024);
+		// Use a small fractional limit (0.001 MB = ~1048 chars) to ensure the model is too large
+		const limitInMB = 0.001;
 
+		// Override configuration for this test
+		configService.setUserConfiguration('editor', { 'detectIndentation': false, 'largeFileSizeLimit': limitInMB });
+
+		try {
 			const model = modelService.createModel(largeModelString, null);
 			const editor = myCreateTestCodeEditor(model);
 
@@ -209,7 +215,22 @@ suite('MainThreadDocumentsAndEditors', () => {
 			model.dispose();
 
 		} finally {
-			TextModel._MODEL_SYNC_LIMIT = oldLimit;
+			configService.setUserConfiguration('editor', { 'detectIndentation': false });
+		}
+	});
+
+	test('large model with zero limit is synchronizable', function () {
+		const largeModelString = 'abc'.repeat(1024); // Create a ~3KB model
+
+		// Set limit to 0 (no limit)
+		configService.setUserConfiguration('editor', { 'detectIndentation': false, 'largeFileSizeLimit': 0 });
+
+		try {
+			const model = modelService.createModel(largeModelString, null);
+			disposables.add(model);
+			assert.ok(!model.isTooLargeForSyncing(), 'Model should be synchronizable when limit is 0');
+		} finally {
+			configService.setUserConfiguration('editor', { 'detectIndentation': false });
 		}
 	});
 
