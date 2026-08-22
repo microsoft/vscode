@@ -112,10 +112,9 @@ enum LayoutClasses {
 	NO_SHADOWS = 'no-shadows',
 	FLOATING_PANELS = 'floating-panels',
 	// Presentation class for the Modern UI Update experiment, owned/toggled at
-	// runtime by `StyleOverridesContribution`. It is *also* applied here at render
-	// time (see `getLayoutClasses`) because parts read it back during layout (e.g.
-	// the 32px vs 35px part title height in `PartLayout`).
-	STYLE_OVERRIDE = 'style-override',
+	// runtime by `ModernUIContribution`. It is *also* applied here at render
+	// time (see `getLayoutClasses`) to avoid a flash of unstyled workbench chrome.
+	MODERN_UI = 'modern-ui',
 	// Module-specific gate shared with the Agents workbench.
 	MODERN_UI_TABS = 'modern-ui-tabs'
 }
@@ -1931,8 +1930,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.state.runtime.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined,
 			this.isShadowsDisabled() ? LayoutClasses.NO_SHADOWS : undefined,
 			this.isFloatingPanelsEnabled() ? LayoutClasses.FLOATING_PANELS : undefined,
-			// Also seed the style-override class here (see `LayoutClasses.STYLE_OVERRIDE`).
-			this.isFloatingPanelsEnabled() ? LayoutClasses.STYLE_OVERRIDE : undefined,
+			// Also seed the modern-ui class here (see `LayoutClasses.MODERN_UI`).
+			this.isFloatingPanelsEnabled() ? LayoutClasses.MODERN_UI : undefined,
 			this.isFloatingPanelsEnabled() ? LayoutClasses.MODERN_UI_TABS : undefined,
 			`panel-position-${positionToString(this.getPanelPosition())}`,
 			`panel-alignment-${this.getPanelAlignment()}`

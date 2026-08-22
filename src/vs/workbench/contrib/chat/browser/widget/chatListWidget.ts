@@ -8,6 +8,7 @@ import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent
 import { IMouseWheelEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { ITreeContextMenuEvent, ITreeElement, ITreeFilter } from '../../../../../base/browser/ui/tree/tree.js';
+import { RenderIndentGuides } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
@@ -16,6 +17,7 @@ import { Disposable, DisposableMap, IDisposable, MutableDisposable, toDisposable
 import { Mimes } from '../../../../../base/common/mime.js';
 import { ScrollEvent } from '../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -24,13 +26,14 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { asCssVariable, buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground } from '../../../../../platform/theme/common/colorRegistry.js';
+import { asCssVariable, asCssVariableWithDefault, buttonSecondaryBackground, buttonSecondaryForeground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { katexContainerClassName } from '../../../markdown/common/markedKatexExtension.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatFollowup, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { IChatRequestModeInfo } from '../../common/model/chatModel.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
+import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../common/promptTimeline.js';
 import { ChatAccessibilityProvider } from '../accessibility/chatAccessibilityProvider.js';
 import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions } from '../chat.js';
 import { CodeBlockPart } from './chatContentParts/codeBlockPart.js';
@@ -43,6 +46,7 @@ import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
 export interface IChatListWidgetStyles {
 	listForeground?: string;
 	listBackground?: string;
+	listShadow?: string;
 }
 
 /**
@@ -269,6 +273,11 @@ export interface IChatListWidgetOptions {
 	 * Callback to get current mode info (for rerun requests).
 	 */
 	readonly getCurrentModeInfo?: () => IChatRequestModeInfo | undefined;
+
+	/**
+	 * Callback to get the current editing input value.
+	 */
+	readonly getEditingValue?: () => string | undefined;
 }
 
 /**
@@ -349,6 +358,7 @@ export class ChatListWidget extends Disposable {
 	private readonly _location: ChatAgentLocation | undefined;
 	private readonly _getSelectedModelRequestOptions: (() => Pick<IChatSendRequestOptions, 'userSelectedModelId' | 'userSelectedModelConfiguration'>) | undefined;
 	private readonly _getCurrentModeInfo: (() => IChatRequestModeInfo | undefined) | undefined;
+	private readonly _useTreeHierarchy: boolean;
 
 	//#endregion
 
@@ -392,6 +402,27 @@ export class ChatListWidget extends Disposable {
 		return this._lastItem;
 	}
 
+	/**
+	 * The bottom-most item intersecting the viewport, or `undefined` when the list is empty.
+	 * Reads the layout height model, so it resolves independently of which rows are mounted.
+	 */
+	get lastVisibleItem(): ChatTreeItem | undefined {
+		const items = this._viewModel?.getItems();
+		if (!items?.length) {
+			return undefined;
+		}
+		const viewportBottom = this._tree.scrollTop + this._tree.renderHeight;
+		// Walking back from the end settles in a step or two for the common case of a
+		// transcript sitting at the bottom.
+		for (let index = items.length - 1; index >= 0; index--) {
+			const top = this.getElementTop(items[index]);
+			if (top !== undefined && top <= viewportBottom) {
+				return items[index];
+			}
+		}
+		return items[0];
+	}
+
 
 
 	//#endregion
@@ -413,6 +444,7 @@ export class ChatListWidget extends Disposable {
 		this._location = options.location;
 		this._getSelectedModelRequestOptions = options.getSelectedModelRequestOptions;
 		this._getCurrentModeInfo = options.getCurrentModeInfo;
+		this._useTreeHierarchy = !options.filter;
 		this._lastItemIdContextKey = ChatContextKeys.lastItemId.bindTo(this.contextKeyService);
 		this._container = container;
 
@@ -457,10 +489,11 @@ export class ChatListWidget extends Disposable {
 
 		// Create renderer delegate
 		const rendererDelegate: IChatRendererDelegate = {
-			getListLength: () => this._tree.getNode(null).visibleChildrenCount,
+			getListLength: () => this._tree.getListRenderCount(null),
 			onDidScroll: this.onDidScroll,
 			container: this._container,
 			currentChatMode: options.currentChatMode ?? (() => ChatModeKind.Ask),
+			getEditingValue: options.getEditingValue,
 		};
 
 		// Create renderer
@@ -518,6 +551,15 @@ export class ChatListWidget extends Disposable {
 				alwaysConsumeMouseWheel: false,
 				supportDynamicHeights: true,
 				hideTwistiesOfChildlessElements: true,
+				enableStickyScroll: this.isTreeStickyScrollEnabled(),
+				stickyScrollMaxItemCount: 1,
+				stickyScrollMaxNodeHeight: 150,
+				stickyScrollShowOnlyWhenNodeFullyHidden: true,
+				indent: 0,
+				expandOnDoubleClick: false,
+				expandOnlyOnTwistieClick: true,
+				allowNonCollapsibleParents: true,
+				renderIndentGuides: RenderIndentGuides.None,
 				accessibilityProvider: this.instantiationService.createInstance(ChatAccessibilityProvider),
 				keyboardNavigationLabelProvider: {
 					getKeyboardNavigationLabel: (e: ChatTreeItem) =>
@@ -542,15 +584,22 @@ export class ChatListWidget extends Disposable {
 					listFocusAndSelectionForeground: styles.listForeground,
 					listActiveSelectionIconForeground: undefined,
 					listInactiveSelectionIconForeground: undefined,
+					treeStickyScrollBackground: styles.listBackground,
+					treeStickyScrollBorder: undefined,
+					treeStickyScrollShadow: styles.listShadow,
 				}
 			}
 		));
 
 		// Create scroll-down button
+		const scrollToBottomLabel = localize('chat.scrollToBottom', "Scroll to Bottom");
+		const scrollToBottomBackground = asCssVariableWithDefault('chat.list.background', asCssVariable(buttonSecondaryBackground));
 		this._scrollDownButton = this._register(new Button(this._container, {
-			buttonBackground: asCssVariable(buttonSecondaryBackground),
+			title: scrollToBottomLabel,
+			ariaLabel: scrollToBottomLabel,
+			buttonBackground: scrollToBottomBackground,
 			buttonForeground: asCssVariable(buttonSecondaryForeground),
-			buttonHoverBackground: asCssVariable(buttonSecondaryHoverBackground),
+			buttonHoverBackground: scrollToBottomBackground,
 			buttonSecondaryBackground: undefined,
 			buttonSecondaryForeground: undefined,
 			buttonSecondaryHoverBackground: undefined,
@@ -632,7 +681,12 @@ export class ChatListWidget extends Disposable {
 		this._register(dom.addDisposableListener(this._container, 'copy', e => this.handleCopy(e)));
 
 		this._register(this.configurationService.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration(ChatConfiguration.EditRequests) || e.affectsConfiguration(ChatConfiguration.CheckpointsEnabled)) {
+			if (e.affectsConfiguration(ChatConfiguration.ExperimentalStickyScrollEnabled) || e.affectsConfiguration(PROMPT_TIMELINE_STICKY_SCROLL_SETTING)) {
+				this._tree.updateOptions({ enableStickyScroll: this.isTreeStickyScrollEnabled() });
+			}
+			if (e.affectsConfiguration(ChatConfiguration.EditRequests)
+				|| e.affectsConfiguration(ChatConfiguration.CheckpointsEnabled)
+				|| e.affectsConfiguration(ChatConfiguration.RichLinks)) {
 				this._settingChangeCounter++;
 				this.refresh();
 			}
@@ -676,7 +730,7 @@ export class ChatListWidget extends Disposable {
 			return;
 		}
 
-		const holder = this._container.ownerDocument.createElement('div');
+		const holder = dom.$('div');
 		for (const fragment of fragments) {
 			holder.appendChild(fragment);
 		}
@@ -791,21 +845,21 @@ export class ChatListWidget extends Disposable {
 		this._lastItem = items.at(-1);
 		this._lastItemIdContextKey.set(this._lastItem ? [this._lastItem.id] : []);
 
-		const treeItems: ITreeElement<ChatTreeItem>[] = items.map(item => ({
-			element: item,
-			collapsed: false,
-			collapsible: false,
-		}));
+		const treeItems = this._useTreeHierarchy
+			? this.createRequestTreeItems(items)
+			: items.map(item => ({ element: item, collapsed: false, collapsible: false }));
 
 		const editing = this._viewModel.editing;
 
 		this._withPersistedAutoScroll(() => {
 			this._tree.setChildren(null, treeItems, {
+				diffDepth: 1,
 				diffIdentityProvider: {
 					getId: (element) => {
 						// Pending types only have 'id', request/response have 'dataId'
 						const baseId = (isRequestVM(element) || isResponseVM(element)) ? element.dataId : element.id;
 						const disablement = (isRequestVM(element) || isResponseVM(element)) ? element.shouldBeRemovedOnSend : undefined;
+						const isLastItem = element.id === this._lastItem?.id;
 						// Per-element editing state: only re-render items whose editing role changed
 						const isEditTarget = isRequestVM(element) && editing?.id === element.id;
 						const isBlocked = (isRequestVM(element) || isResponseVM(element)) ? element.shouldBeBlocked.get() : false;
@@ -822,6 +876,8 @@ export class ChatListWidget extends Disposable {
 							`_${isBlocked ? 'blocked' : ''}` +
 							// Re-render requests when editing starts/stops (for hover button visibility, click handlers)
 							(isRequestVM(element) ? `_${editing ? '1' : '0'}` : '') +
+							// Re-render the old and new tail rows when the list grows or shrinks.
+							`_${isLastItem ? 'last' : ''}` +
 							// Re-render all if invoked by setting change
 							`_setting${this._settingChangeCounter}` +
 							// Rerender request if we got new content references in the response
@@ -885,12 +941,47 @@ export class ChatListWidget extends Disposable {
 	private getItems(): ChatTreeItem[] {
 		const items: ChatTreeItem[] = [];
 		const root = this._tree.getNode(null);
-		for (const child of root.children) {
-			if (child.element) {
-				items.push(child.element);
+		const collect = (children: Iterable<typeof root>) => {
+			for (const child of children) {
+				if (child.visible && child.element) {
+					items.push(child.element);
+				}
+				if (!child.collapsed) {
+					collect(child.children);
+				}
+			}
+		};
+		collect(root.children);
+		return items;
+	}
+
+	private createRequestTreeItems(items: ChatTreeItem[]): ITreeElement<ChatTreeItem>[] {
+		const treeItems: ITreeElement<ChatTreeItem>[] = [];
+		for (let i = 0; i < items.length; i++) {
+			const item = items[i];
+			if (isRequestVM(item)) {
+				const children: ITreeElement<ChatTreeItem>[] = [];
+				while (i + 1 < items.length && isResponseVM(items[i + 1])) {
+					i++;
+					children.push({ element: items[i], collapsed: false, collapsible: false });
+				}
+				treeItems.push({
+					element: item,
+					collapsed: false,
+					collapsible: false,
+					children,
+				});
+			} else {
+				treeItems.push({ element: item, collapsed: false, collapsible: false });
 			}
 		}
-		return items;
+		return treeItems;
+	}
+
+	private isTreeStickyScrollEnabled(): boolean {
+		return this._useTreeHierarchy
+			&& this.configurationService.getValue<boolean>(PROMPT_TIMELINE_STICKY_SCROLL_SETTING) === true
+			&& this.configurationService.getValue<boolean>(ChatConfiguration.ExperimentalStickyScrollEnabled) === true;
 	}
 
 
@@ -1014,9 +1105,9 @@ export class ChatListWidget extends Disposable {
 	 * Scroll the list to reveal the last item.
 	 */
 	scrollToEnd(): void {
-		// Reveal the tree's actual last node rather than the held `_lastItem`. `reveal` reliably
+		// Reveal the tree's actual last visible item rather than the held `_lastItem`. `reveal` reliably
 		// scrolls all the way down even while item heights are still settling (see #234089)
-		const lastElement = this._tree.getNode(null).children.at(-1)?.element;
+		const lastElement = this.getItems().at(-1);
 		if (lastElement) {
 			const offset = Math.max(lastElement.currentRenderedHeight ?? 0, 1e6);
 			this._tree.reveal(lastElement, offset);

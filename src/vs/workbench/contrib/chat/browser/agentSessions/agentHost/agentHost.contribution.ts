@@ -23,6 +23,8 @@ import { AgentHostContribution } from './agentHostChatContribution.js';
 import { AgentHostCopilotCliSettingsContribution } from './agentHostCopilotCliSettingsContribution.js';
 import { AgentHostOpenSessionLinkOpenerContribution } from './openSessionLinkOpener.contribution.js';
 import { AgentHostSessionListContribution } from './agentHostSessionListContribution.js';
+import { AgentHostSdkSetupNotificationContribution } from './agentHostSdkSetupNotification.js';
+import { AgentHostSignedOutModelsNotificationContribution } from './agentHostSignedOutModelsNotification.js';
 import { AgentHostTerminalContribution } from './agentHostTerminalContribution.js';
 import { CopilotConfigSlashSubmitHandlerContribution } from './copilotConfigSlashSubmitHandler.js';
 import './agentHostSettings.contribution.js';
@@ -35,5 +37,7 @@ registerWorkbenchContribution2(AgentHostOpenSessionLinkOpenerContribution.ID, Ag
 registerWorkbenchContribution2(AgentHostTerminalContribution.ID, AgentHostTerminalContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentHostCopilotCliSettingsContribution.ID, AgentHostCopilotCliSettingsContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentHostAllowSignedOutWhenUsableContribution.ID, AgentHostAllowSignedOutWhenUsableContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentHostSignedOutModelsNotificationContribution.ID, AgentHostSignedOutModelsNotificationContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentHostSdkSetupNotificationContribution.ID, AgentHostSdkSetupNotificationContribution, WorkbenchPhase.AfterRestored);
 
 registerSingleton(IAgentHostByokLmHandler, AgentHostByokLmHandler, InstantiationType.Delayed);

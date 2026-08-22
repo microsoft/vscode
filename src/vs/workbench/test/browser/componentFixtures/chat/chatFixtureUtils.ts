@@ -14,7 +14,10 @@ import { IMenu, IMenuItem, IMenuService, MenuId, MenuItemAction } from '../../..
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
+import { IChatModelFeedbackSurveyService } from '../../../../contrib/chat/browser/feedbackSurvey/chatModelFeedbackSurveyService.js';
+import { MockChatModelFeedbackSurveyService } from '../../../../contrib/chat/test/browser/feedbackSurvey/mockChatModelFeedbackSurveyService.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { ILinkPresentationService } from '../../../../../platform/dataChannel/common/dataChannel.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IUpdateService, StateType } from '../../../../../platform/update/common/update.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -26,6 +29,7 @@ import { IDecorationsService } from '../../../../services/decorations/common/dec
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IHostService } from '../../../../services/host/browser/host.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
@@ -38,13 +42,15 @@ import { IBrowserViewWorkbenchService } from '../../../../contrib/browserView/co
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { RootState, StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostNewSessionFolderService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
+import { IAgentHostCustomizationService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IVoiceModeOnboardingService } from '../../../../contrib/agentsVoice/browser/voiceModeOnboarding.js';
 import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
+import { IChatResponseFileChangesService } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
 import { IChatPetService } from '../../../../contrib/chat/browser/chatPetService.js';
 import { IChatOutputRendererService } from '../../../../contrib/chat/browser/chatOutputItemRenderer.js';
 import { IAiEditTelemetryService } from '../../../../contrib/editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
@@ -54,8 +60,10 @@ import { IChatAttachmentWidgetRegistry } from '../../../../contrib/chat/browser/
 import { IChatContextPickService } from '../../../../contrib/chat/browser/attachments/chatContextPickService.js';
 import { IChatContextService } from '../../../../contrib/chat/browser/contextContrib/chatContextService.js';
 import { IChatImageCarouselService } from '../../../../contrib/chat/browser/chatImageCarouselService.js';
-import { IChatInputNotificationService } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
+import { IChatInputNotification, IChatInputNotificationService } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
+import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../contrib/chat/browser/speechToText/chatSpeechToTextService.js';
 import { IDictationOnboardingService } from '../../../../contrib/chat/browser/speechToText/dictationOnboarding.js';
+import { IChatInputNoticeHubService } from '../../../../contrib/chat/browser/widget/input/chatInputNoticeHub.js';
 import { ChatSubmitRequestHandlerService, IChatSubmitRequestHandlerService } from '../../../../contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { IChatMarkdownAnchorService } from '../../../../contrib/chat/browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IChatWidgetHistoryService } from '../../../../contrib/chat/common/widget/chatWidgetHistoryService.js';
@@ -117,6 +125,8 @@ export interface IChatFixtureServicesOptions {
 	readonly artifactGroups?: IObservable<readonly IArtifactSourceGroup[]>;
 	/** Initial todos returned from IChatTodoListService.getTodos(). */
 	readonly todos?: readonly IChatTodo[];
+	/** Active notification returned from IChatInputNotificationService. */
+	readonly notification?: IChatInputNotification;
 }
 
 /**
@@ -131,6 +141,11 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.define(IMenuService, FixtureMenuService);
 	reg.define(IMarkdownRendererService, MarkdownRendererService);
 	reg.define(IListService, ListService);
+	reg.defineInstance(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
+	reg.defineInstance(ILinkPresentationService, new class extends mock<ILinkPresentationService>() {
+		override getLinkPresentationRule() { return undefined; }
+		override createLinkPresentationWatcher() { return undefined; }
+	}());
 
 	reg.defineInstance(IDecorationsService, new class extends mock<IDecorationsService>() { override onDidChangeDecorations = Event.None; }());
 	reg.defineInstance(IBrowserViewWorkbenchService, new class extends mock<IBrowserViewWorkbenchService>() {
@@ -148,6 +163,11 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	// overflow nodes (suggest widget, post-paste selector); the fixture document body
 	// is the closest equivalent.
 	reg.defineInstance(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() { override onDidChangePartVisibility = Event.None; override onDidChangeWindowMaximized = Event.None; override isVisible() { return true; } override getContainer(targetWindow: Window): HTMLElement { return targetWindow.document.body; } }());
+	reg.defineInstance(IHostService, new class extends mock<IHostService>() {
+		override readonly hasFocus = true;
+		override readonly onDidChangeFocus = Event.None;
+		override readonly onDidChangeActiveWindow = Event.None;
+	}());
 	reg.defineInstance(IViewDescriptorService, new class extends mock<IViewDescriptorService>() { override onDidChangeLocation = Event.None; }());
 	reg.defineInstance(INotebookDocumentService, new class extends mock<INotebookDocumentService>() { }());
 	reg.defineInstance(ISCMService, new class extends mock<ISCMService>() {
@@ -183,9 +203,21 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override readonly enabled = observableValue('chatPetEnabled', false);
 		override readonly variant = observableValue('chatPetVariant', 'stable' as const);
 		override readonly onTheRun = observableValue('chatPetOnTheRun', false);
+		override readonly scale = observableValue('chatPetScale', 1);
+		override readonly unlockedAchievements = observableValue('chatPetUnlockedAchievements', []);
+		override readonly unseenAchievements = observableValue('chatPetUnseenAchievements', []);
+		override readonly selectedAccessory = observableValue('chatPetSelectedAccessory', undefined);
+		override readonly onDidUnlockAchievement = Event.None;
+		override readonly horizontalPosition = observableValue<number | undefined>('chatPetHorizontalPosition', undefined);
 		override toggle() { return false; }
 		override setVariant() { }
 		override setOnTheRun() { }
+		override setScale(scale: number) { this.scale.set(scale, undefined); }
+		override unlockAchievement() { return false; }
+		override markAchievementSeen() { return false; }
+		override setAccessory() { }
+		override resetAchievements() { }
+		override setHorizontalPosition(position: number) { this.horizontalPosition.set(position, undefined); }
 	}());
 	reg.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() {
 		override readonly lastFocusedWidget = undefined;
@@ -205,13 +237,29 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override acceptResponse() { }
 		override acceptElicitation() { }
 	}());
+	reg.defineInstance(IChatResponseFileChangesService, new class extends mock<IChatResponseFileChangesService>() {
+		override registerProvider() { return Disposable.None; }
+		override getChangesForRequest() { return undefined; }
+		override getFileEditsForRequest() { return undefined; }
+		override openChangesForRequest() { }
+	}());
 	reg.defineInstance(IDictationOnboardingService, new class extends mock<IDictationOnboardingService>() {
 		override readonly isVisible = false;
 		override registerHost() { return Disposable.None; }
 	}());
+	reg.defineInstance(IChatSpeechToTextService, new class extends mock<IChatSpeechToTextService>() {
+		override readonly onDidChangeState = Event.None;
+		override readonly onDidChangePreparingModel = Event.None;
+		override readonly state = ChatSpeechToTextState.Idle;
+		override readonly isPreparingModel = false;
+	}());
 	reg.defineInstance(IVoiceModeOnboardingService, new class extends mock<IVoiceModeOnboardingService>() {
 		override readonly isVisible = false;
 		override registerHost() { return Disposable.None; }
+	}());
+	reg.defineInstance(IChatInputNoticeHubService, new class extends mock<IChatInputNoticeHubService>() {
+		override registerHost() { return Disposable.None; }
+		override toggleNoticeFocus() { return false; }
 	}());
 	reg.defineInstance(IWorkbenchEnvironmentService, new class extends mock<IWorkbenchEnvironmentService>() {
 		override readonly isExtensionDevelopment = false;
@@ -230,6 +278,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override supportsDelegationForSessionType() { return false; }
 		override getSessionOption() { return undefined; }
 		override getCapabilitiesForSessionType() { return undefined; }
+		override resolveChatResponseUri(_sessionResource: URI, href: string) { return href; }
 	}());
 	reg.defineInstance(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
 		override readonly quotas = {};
@@ -271,7 +320,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IChatMarkdownAnchorService, new class extends mock<IChatMarkdownAnchorService>() { override register() { return { dispose() { } }; } }());
 	reg.defineInstance(IChatInputNotificationService, new class extends mock<IChatInputNotificationService>() {
 		override readonly onDidChange = Event.None;
-		override getActiveNotification() { return undefined; }
+		override getActiveNotification() { return options.notification; }
 		override announceRendered() { }
 	}());
 	reg.defineInstance(IChatSubmitRequestHandlerService, new ChatSubmitRequestHandlerService());
@@ -284,6 +333,14 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	// inert, never-hydrating subscription (value `undefined`) so no config chips
 	// render and nothing crashes.
 	reg.defineInstance(IAgentHostService, new class extends mock<IAgentHostService>() {
+		override readonly onAgentHostStart = Event.None;
+		override readonly rootState: IAgentSubscription<RootState> = {
+			value: undefined,
+			verifiedValue: undefined,
+			onDidChange: Event.None,
+			onWillApplyAction: Event.None,
+			onDidApplyAction: Event.None,
+		};
 		override getSubscription<T>(_kind: StateComponents, _resource: URI): IReference<IAgentSubscription<T>> {
 			return {
 				object: {
@@ -311,8 +368,13 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override readonly onDidChangeFolder = Event.None;
 		override getFolder() { return undefined; }
 	}());
+	reg.defineInstance(IAgentHostCustomizationService, new class extends mock<IAgentHostCustomizationService>() {
+		override readonly onDidChangeCustomizations = Event.None;
+		override getFolderPickerDecision() { return undefined; }
+	}());
 	reg.defineInstance(IAgentHostEnablementService, new class extends mock<IAgentHostEnablementService>() {
 		override readonly enabled = constObservable(false);
+		override readonly managedSandboxEnforced = constObservable(false);
 	}());
 
 	const artifactGroups = options.artifactGroups ?? observableValue<readonly IArtifactSourceGroup[]>('artifactGroups', []);

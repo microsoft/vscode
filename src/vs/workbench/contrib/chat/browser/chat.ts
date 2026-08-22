@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
-import { IAnchor } from '../../../../base/browser/ui/contextview/contextview.js';
 import { Event } from '../../../../base/common/event.js';
-import { AnchorPosition } from '../../../../base/common/layout.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
@@ -128,6 +126,7 @@ export interface IChatWidgetService {
 	readonly lastFocusedWidget: IChatWidget | undefined;
 
 	readonly onDidAddWidget: Event<IChatWidget>;
+	readonly onDidRemoveWidget: Event<IChatWidget>;
 
 	readonly onDidChangeWidgetVisibility: Event<IChatWidget>;
 
@@ -261,8 +260,7 @@ export interface IChatWidgetViewOptions {
 	renderFollowups?: boolean;
 	renderStyle?: 'compact' | 'minimal';
 	renderInputToolbarBelowInput?: boolean;
-	inputEditorMaxHeight?: number;
-	renderGettingStartedTip?: boolean;
+	renderGettingStartedTip?: boolean | (() => boolean);
 	supportsFileReferences?: boolean;
 	filter?: (item: ChatTreeItem) => boolean;
 	/**
@@ -322,17 +320,14 @@ export interface IChatWidgetViewOptions {
 	 * instead of silently dropping them.
 	 */
 	submitHandler?: (query: string, mode: ChatModeKind, attachedContext?: IChatRequestVariableEntry[], isVoiceModeInput?: boolean) => Promise<boolean>;
-	onDidChangeModelPickerVisibility?: (visible: boolean) => void | Promise<void>;
-	inputPickerPosition?: AnchorPosition;
-	inputPickerContainer?: HTMLElement | (() => HTMLElement | undefined);
-	inputPickerAnchor?: (anchor: HTMLElement) => HTMLElement | IAnchor;
-	inputPickerOpenOnMouseUp?: boolean;
-
 	/**
 	 * Whether we are running in the sessions window.
 	 * When true, the secondary toolbar (permissions picker) is hidden.
 	 */
 	isSessionsWindow?: boolean;
+
+	/** Enables the transcript Find widget (`Ctrl/Cmd+F`) for this chat widget. Off by default. */
+	enableFind?: boolean;
 }
 
 export interface IChatViewViewContext {
@@ -448,6 +443,7 @@ export interface IChatWidget {
 	acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined>;
 	getSelectedModelRequestOptions(): Pick<IChatSendRequestOptions, 'userSelectedModelId' | 'userSelectedModelConfiguration'>;
 	startEditing(requestId: string): void;
+	cancelEditing(): Promise<void>;
 	finishedEditing(completedEdit?: boolean): void;
 	rerunLastRequest(): Promise<void>;
 	setInputPlaceholder(placeholder: string): void;
@@ -493,12 +489,6 @@ export interface IChatWidget {
 	 * @returns Whether the operation succeeded (i.e., a terminal was found and focused).
 	 */
 	focusQuestionCarouselTerminal(): boolean;
-	/**
-	 * Toggles focus between the tip widget and the chat input.
-	 * Returns false if no tip is visible.
-	 * @returns Whether the operation succeeded (i.e., the focus was toggled).
-	 */
-	toggleTipFocus(): boolean;
 	hasInputFocus(): boolean;
 	getModeRequestOptions(): Partial<IChatSendRequestOptions>;
 	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined;
@@ -525,6 +515,24 @@ export interface IChatWidget {
 	executeHandoff(handoff: IHandOff, agentId?: string): Promise<void>;
 
 	delegateScrollFromMouseWheelEvent(event: IMouseWheelEvent): void;
+
+	/** Returns the widget's transcript Find controller, or `undefined` if `enableFind` was not set. */
+	getFindController(): IChatFindController | undefined;
+}
+
+/** Minimal surface used to route `Ctrl/Cmd+F` and Find Next/Previous to a chat widget's transcript Find widget. */
+export interface IChatFindController {
+	readonly visible: boolean;
+	/** Shows the Find widget, optionally seeding the query and focusing the input. */
+	show(seedText?: string, focus?: boolean): void;
+	hide(): void;
+	next(): void;
+	previous(): void;
+	toggleCaseSensitive(): void;
+	toggleWholeWord(): void;
+	toggleRegex(): void;
+	/** Focuses the Find widget's last-focused element (defaults to the input). */
+	focus(): void;
 }
 
 /**

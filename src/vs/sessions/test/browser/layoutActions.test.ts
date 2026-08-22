@@ -12,10 +12,9 @@ import { isIMenuItem, MenuId, MenuRegistry } from '../../../platform/actions/com
 import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { ToggleAuxiliaryBarAction } from '../../../workbench/browser/parts/auxiliarybar/auxiliaryBarActions.js';
-import { AuxiliaryBarVisibleContext, MainEditorAreaVisibleContext, PanelVisibleContext, SecondarySideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
+import { PanelVisibleContext, SecondarySideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../browser/menus.js';
-import { HasDockedDetailsContext } from '../../common/contextkeys.js';
 
 // Import layout actions to trigger menu registration
 import '../../browser/layoutActions.js';
@@ -126,49 +125,37 @@ suite('Sessions - Layout Actions', () => {
 		assert.strictEqual(toggled.condition.serialize(), SecondarySideBarVisibleContext.key);
 	});
 
-	test('single-pane Hide/Show Editor render in the editor-title layout cluster after Maximize/Restore', () => {
+	test('single-pane Hide/Show Editor remain registered but are always hidden', () => {
 		const layoutItems = MenuRegistry.getMenuItems(MenuId.EditorTitleLayout)
-			.filter(isIMenuItem)
-			.filter(item => (item.when?.serialize() ?? '').includes(MainEditorAreaVisibleContext.key));
-		const groupOrder = (id: string) => layoutItems
+			.filter(isIMenuItem);
+		const actionState = (id: string) => layoutItems
 			.filter(item => item.command.id === id)
 			.map(item => ({
 				group: item.group,
 				order: item.order,
-				precondition: item.command.precondition?.serialize(),
 				icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
+				when: item.when?.serialize(),
 			}));
 
 		assert.deepStrictEqual({
-			maximize: groupOrder('workbench.action.agentSessions.maximizeMainEditorPart'),
-			restore: groupOrder('workbench.action.agentSessions.restoreMainEditorPart'),
-			hide: groupOrder('workbench.action.agentSessions.hideMainEditorPart'),
-			show: groupOrder('workbench.action.agentSessions.showMainEditorPart'),
+			hideCommandRegistered: Boolean(CommandsRegistry.getCommand('workbench.action.agentSessions.hideMainEditorPart')),
+			showCommandRegistered: Boolean(CommandsRegistry.getCommand('workbench.action.agentSessions.showMainEditorPart')),
+			hide: actionState('workbench.action.agentSessions.hideMainEditorPart'),
+			show: actionState('workbench.action.agentSessions.showMainEditorPart'),
 		}, {
-			maximize: [{ group: 'navigation', order: 10, precondition: undefined, icon: Codicon.screenFull.id }],
-			restore: [{ group: 'navigation', order: 10, precondition: undefined, icon: Codicon.screenNormal.id }],
-			hide: [{ group: 'navigation', order: 20, precondition: undefined, icon: Codicon.rightPanelHide.id }],
-			show: [{ group: 'navigation', order: 20, precondition: undefined, icon: Codicon.rightPanelShow.id }],
+			hideCommandRegistered: true,
+			showCommandRegistered: true,
+			hide: [{ group: 'navigation', order: 20, icon: Codicon.rightPanelHide.id, when: 'false' }],
+			show: [{ group: 'navigation', order: 20, icon: Codicon.rightPanelShow.id, when: 'false' }],
 		});
 
-		const hideWhen = layoutItems.find(item => item.command.id === 'workbench.action.agentSessions.hideMainEditorPart')?.when?.serialize() ?? '';
-		assert.ok(!hideWhen.includes(HasDockedDetailsContext.key), 'Hide Editor should always show, regardless of whether the active tab has a docked detail');
-		assert.ok(!hideWhen.includes(AuxiliaryBarVisibleContext.key));
-		assert.ok(hideWhen.includes(MainEditorAreaVisibleContext.key));
-		assert.ok(!hideWhen.includes(`!${MainEditorAreaVisibleContext.key}`));
-
-		const showWhen = layoutItems.find(item => item.command.id === 'workbench.action.agentSessions.showMainEditorPart')?.when?.serialize() ?? '';
-		assert.ok(!showWhen.includes(HasDockedDetailsContext.key), 'Show Editor should always show, regardless of whether the active tab has a docked detail');
-		assert.ok(showWhen.includes(`!${MainEditorAreaVisibleContext.key}`));
-
-		// Hide/Show no longer render in the trailing editor-header layout group; Toggle Details stays there alone.
 		const headerIds = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout).filter(isIMenuItem).map(item => item.command.id);
 		assert.ok(!headerIds.includes('workbench.action.agentSessions.hideMainEditorPart'));
 		assert.ok(!headerIds.includes('workbench.action.agentSessions.showMainEditorPart'));
 
-		// Add File as Context stays a right-header action, not a layout action.
-		const headerSecondaryIds = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary).filter(isIMenuItem).map(item => item.command.id);
-		assert.ok(headerSecondaryIds.includes('workbench.action.agentSessions.addFileAsContext'));
+		// Add File as Context stays an editor action, not a group-header layout action.
+		const editorTitleIds = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle).filter(isIMenuItem).map(item => item.command.id);
+		assert.ok(editorTitleIds.includes('workbench.action.agentSessions.addFileAsContext'));
 		assert.ok(!layoutItems.some(item => item.command.id === 'workbench.action.agentSessions.addFileAsContext'));
 	});
 
@@ -184,7 +171,7 @@ suite('Sessions - Layout Actions', () => {
 
 		await command.handler(accessor);
 
-		// SinglePaneDetailPanelStrategy, not this action, decides what the panel shows.
+		// The New/Existing Session strategy's detail-panel mapping, not this action, decides what the panel shows.
 		assert.deepStrictEqual(calls, [
 			{ hidden: false, part: Parts.AUXILIARYBAR_PART },
 			{ hidden: true, part: Parts.EDITOR_PART },

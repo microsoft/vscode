@@ -71,6 +71,13 @@ suite('SessionDatabase', () => {
 			});
 		}
 
+		async runRaw(sql: string): Promise<void> {
+			const rawDb = await this._ensureDb();
+			await new Promise<void>((resolve, reject) => {
+				rawDb.exec(sql, err => err ? reject(err) : resolve());
+			});
+		}
+
 		/** Extract the raw db connection; this instance becomes inert. */
 		async ejectDb(): Promise<Database> {
 			const rawDb = await this._ensureDb();
@@ -725,6 +732,104 @@ suite('SessionDatabase', () => {
 			await db.setMetadata('customTitle', 'First');
 			await db.setMetadata('customTitle', 'Second');
 			assert.strictEqual(await db.getMetadata('customTitle'), 'Second');
+		});
+
+		test('setMetadataValues rolls back every key when one write fails', async () => {
+			const database = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			db = database;
+			await database.setMetadata('customTitle', 'Original title');
+			await database.setMetadata('customTitleSource', 'user');
+			await database.runRaw(`CREATE TRIGGER fail_title_source BEFORE INSERT ON session_metadata
+				WHEN NEW.key = 'customTitleSource' BEGIN SELECT RAISE(ABORT, 'source write failed'); END`);
+
+			await assert.rejects(() => database.setMetadataValues({
+				customTitle: 'Replacement title',
+				customTitleSource: 'agent',
+			}), /source write failed/);
+
+			assert.deepStrictEqual(await database.getMetadataObject({
+				customTitle: true,
+				customTitleSource: true,
+			}), {
+				customTitle: 'Original title',
+				customTitleSource: 'user',
+			});
+		});
+
+		test('setMetadataValuesIfAbsent atomically copies source metadata', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadata('customTitleSource', 'auto');
+
+			const stored = await db.setMetadataValuesIfAbsent('customChatTitle:default', {
+				'customChatTitle:default': 'Inherited title',
+			}, {
+				'customChatTitleSource:default': 'customTitleSource',
+			});
+
+			assert.deepStrictEqual({
+				stored,
+				metadata: await db.getMetadataObject({
+					'customChatTitle:default': true,
+					'customChatTitleSource:default': true,
+				}),
+			}, {
+				stored: true,
+				metadata: {
+					'customChatTitle:default': 'Inherited title',
+					'customChatTitleSource:default': 'auto',
+				},
+			});
+		});
+
+		test('setMetadataValuesIfAbsent preserves existing metadata', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadataValues({
+				'customChatTitle:default': 'Existing title',
+				'customChatTitleSource:default': 'user',
+				customTitleSource: 'auto',
+			});
+
+			const stored = await db.setMetadataValuesIfAbsent('customChatTitle:default', {
+				'customChatTitle:default': 'Replacement title',
+			}, {
+				'customChatTitleSource:default': 'customTitleSource',
+			});
+
+			assert.deepStrictEqual({
+				stored,
+				metadata: await db.getMetadataObject({
+					'customChatTitle:default': true,
+					'customChatTitleSource:default': true,
+				}),
+			}, {
+				stored: false,
+				metadata: {
+					'customChatTitle:default': 'Existing title',
+					'customChatTitleSource:default': 'user',
+				},
+			});
+		});
+
+		test('setMetadataValues serializes with turn ID remapping transactions', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('old-1');
+			await db.setTurnUsage('old-1', '{"inputTokens":1}');
+
+			await Promise.all([
+				db.setMetadataValues({
+					customTitle: 'Concurrent title',
+					customTitleSource: 'agent',
+				}),
+				db.remapTurnIds(new Map([['old-1', 'new-1']])),
+			]);
+
+			assert.deepStrictEqual({
+				metadata: await db.getMetadataObject({ customTitle: true, customTitleSource: true }),
+				usages: [...(await db.getTurnUsages()).entries()],
+			}, {
+				metadata: { customTitle: 'Concurrent title', customTitleSource: 'agent' },
+				usages: [['new-1', '{"inputTokens":1}']],
+			});
 		});
 
 		test('metadata persists across reopen', async () => {

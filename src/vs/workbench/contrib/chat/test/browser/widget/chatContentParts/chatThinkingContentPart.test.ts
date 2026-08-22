@@ -12,18 +12,19 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
+import { isResourceMultiDiffEditorInput } from '../../../../../../common/editor.js';
+import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatCollapsibleContentPart } from '../../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
-import { ChatThinkingContentPart, getToolInvocationIcon, maybePickFunWorkingMessage } from '../../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
+import { ChatThinkingContentPart, getToolInvocationIcon, maybePickFunWorkingMessage, splitReasoningSummaryRows } from '../../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
 import { IChatExternalEdit, IChatMarkdownContent, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
-import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
+import { IChatContentPartDiffData, IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
-import { IEditSessionDiffStats } from '../../../../common/editing/chatEditingService.js';
 import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
-import { IRenderedMarkdown, MarkdownRenderOptions } from '../../../../../../../base/browser/markdownRenderer.js';
-import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { IRenderedMarkdown, MarkdownRenderOptions, renderMarkdown } from '../../../../../../../base/browser/markdownRenderer.js';
+import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { ChatConfiguration, ThinkingDisplayMode } from '../../../../common/constants.js';
 import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
@@ -32,6 +33,7 @@ import { ToolDataSource } from '../../../../common/tools/languageModelToolsServi
 import { URI } from '../../../../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { chatSessionResourceToId } from '../../../../common/model/chatUri.js';
+import { mock } from '../../../../../../../base/test/common/mock.js';
 
 suite('ChatThinkingContentPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -73,6 +75,18 @@ suite('ChatThinkingContentPart', () => {
 			kind: 'thinking',
 			value: value ?? '',
 			id: id ?? 'test-thinking-id'
+		};
+	}
+
+	function createDiffData(added: number, removed: number, resourceName = 'file.ts', version = '1'): IChatContentPartDiffData {
+		return {
+			added,
+			removed,
+			resources: [{
+				resource: URI.file(`/workspace/${resourceName}`),
+				originalURI: URI.file(`/snapshots/${version}/before/${resourceName}`),
+				modifiedURI: URI.file(`/snapshots/${version}/after/${resourceName}`),
+			}],
 		};
 	}
 
@@ -631,6 +645,39 @@ suite('ChatThinkingContentPart', () => {
 			assert.ok(thinkingItem, 'Should have thinking item');
 		});
 
+		test('re-splits a summary into rows as later headers stream in', () => {
+			const markdownRenderer: IMarkdownRenderer = {
+				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
+			};
+			const firstSummary = '**Refactoring session policy and cleanup**';
+			const content = createThinkingPart(firstSummary);
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				createMockRenderContext(false),
+				markdownRenderer,
+				false
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+			part.domNode.querySelector<HTMLElement>('.monaco-button')?.click();
+
+			part.updateThinking(createThinkingPart(
+				`${firstSummary}\n\n**Updating session token handling**`,
+				content.id
+			));
+
+			const rows = Array.from(part.domNode.querySelectorAll('.chat-thinking-item.markdown-content'));
+			assert.deepStrictEqual({
+				rowTexts: rows.map(row => row.textContent?.trim()),
+				hasLiteralMarkers: part.domNode.textContent?.includes('**') ?? false,
+			}, {
+				rowTexts: ['Updating session token handling'],
+				hasLiteralMarkers: false,
+			});
+		});
+
 		test('should track multiple title extractions', () => {
 			const content = createThinkingPart('**First title**');
 			const context = createMockRenderContext(false);
@@ -679,6 +726,378 @@ suite('ChatThinkingContentPart', () => {
 			button.click();
 
 			assert.strictEqual(button.textContent, 'Thinking: Read chatListRenderer.ts, lines 2230 to 2270');
+		});
+	});
+
+	suite('Reasoning summary rows', () => {
+		setup(() => {
+			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.Collapsed);
+		});
+
+		function expandedSummaryRows(value: string): HTMLElement[] {
+			const markdownRenderer: IMarkdownRenderer = {
+				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
+			};
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				createThinkingPart(value),
+				createMockRenderContext(false),
+				markdownRenderer,
+				false
+			));
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+			part.domNode.querySelector<HTMLElement>('.monaco-button')?.click();
+			return Array.from(part.domNode.querySelectorAll<HTMLElement>('.chat-thinking-item.markdown-content'));
+		}
+
+		test('splitReasoningSummaryRows parses headers, bodies, and prose', () => {
+			assert.deepStrictEqual({
+				headersOnly: splitReasoningSummaryRows('**H1**\n\n**H2**\n\n**H3**'),
+				headerBodies: splitReasoningSummaryRows('**H1**\n\nbody1\n\n**H2**\n\nbody2'),
+				twoHeadersNoBody: splitReasoningSummaryRows('**H1**\n\n**H2**'),
+				leadingProse: splitReasoningSummaryRows('intro\n\n**H1**\n\n**H2**'),
+				keepLeadingHeader: splitReasoningSummaryRows('**H1**\n\n**H2**', false),
+				singleHeader: splitReasoningSummaryRows('**Only header**'),
+				prose: splitReasoningSummaryRows('Just thinking about the problem.'),
+			}, {
+				headersOnly: ['**H2**', '**H3**'],
+				headerBodies: ['body1', '**H2**\n\nbody2'],
+				twoHeadersNoBody: ['**H2**'],
+				leadingProse: ['intro', '**H1**', '**H2**'],
+				keepLeadingHeader: ['**H1**', '**H2**'],
+				singleHeader: undefined,
+				prose: undefined,
+			});
+		});
+
+		test('keeps a later grouped block\'s leading header so no header is lost', () => {
+			const markdownRenderer: IMarkdownRenderer = {
+				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
+			};
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				createThinkingPart('**Reviewing the plan**\n\n**Weighing tradeoffs**'),
+				createMockRenderContext(false),
+				markdownRenderer,
+				false
+			));
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+			part.domNode.querySelector<HTMLElement>('.monaco-button')?.click();
+
+			part.setupThinkingContainer(createThinkingPart('**Editing files**\n\n**Verifying the change**', 'block-2'));
+
+			const rowTexts = Array.from(
+				part.domNode.querySelectorAll<HTMLElement>('.chat-thinking-item.markdown-content'),
+				row => row.textContent?.trim()
+			);
+			assert.deepStrictEqual({
+				rowTexts,
+				hasLiteralMarkers: part.domNode.textContent?.includes('**') ?? false,
+			}, {
+				// First block drops its title header ("Reviewing the plan"); the grouped
+				// block keeps both of its headers so neither is lost.
+				rowTexts: ['Weighing tradeoffs', 'Editing files', 'Verifying the change'],
+				hasLiteralMarkers: false,
+			});
+		});
+
+		test('renders each summary header as its own row and drops the leading header', () => {
+			const rows = expandedSummaryRows([
+				'**Analyzing bold syntax with spaces**',
+				'**Examining special stripping logic**',
+				'**Explaining Markdown bold whitespace nuances**',
+			].join('\n\n'));
+
+			assert.deepStrictEqual({
+				rowTexts: rows.map(row => row.textContent?.trim()),
+				hasLiteralMarkers: rows.some(row => row.textContent?.includes('**')),
+				anyRowBold: rows.some(row => !!row.querySelector('strong')),
+			}, {
+				rowTexts: ['Examining special stripping logic', 'Explaining Markdown bold whitespace nuances'],
+				hasLiteralMarkers: false,
+				anyRowBold: false,
+			});
+		});
+
+		test('keeps a section body attached to its header row', () => {
+			const rows = expandedSummaryRows('**Reviewing the plan**\n\nWeigh the tradeoffs\n\n**Applying the change**\n\nEdit the file');
+
+			assert.deepStrictEqual(rows.map(row => ({
+				strong: Array.from(row.querySelectorAll('strong'), element => element.textContent),
+				text: row.textContent?.replace(/\s+/g, ' ').trim(),
+			})), [
+				{ strong: [], text: 'Weigh the tradeoffs' },
+				{ strong: ['Applying the change'], text: 'Applying the changeEdit the file' },
+			]);
+		});
+
+		test('renders a single-header summary as one block', () => {
+			const rows = expandedSummaryRows('**Working on it**');
+
+			assert.deepStrictEqual({
+				rowCount: rows.length,
+				text: rows[0]?.textContent?.trim(),
+				hasStrong: !!rows[0]?.querySelector('strong'),
+			}, {
+				rowCount: 1,
+				text: 'Working on it',
+				hasStrong: false,
+			});
+		});
+
+		test('surfaces the dropped leading header as the finalized title', () => {
+			const markdownRenderer: IMarkdownRenderer = {
+				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
+			};
+			const content = createThinkingPart('**Reviewing the plan**');
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				createMockRenderContext(false),
+				markdownRenderer,
+				false
+			));
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+			part.domNode.querySelector<HTMLElement>('.monaco-button')?.click();
+
+			part.updateThinking(createThinkingPart('**Reviewing the plan**\n\n**Weighing tradeoffs**\n\n**Applying the change**', content.id));
+			part.finalizeTitleIfDefault();
+
+			const titleButton = part.domNode.querySelector('.chat-used-context-label .monaco-button');
+			assert.deepStrictEqual({
+				title: titleButton?.textContent?.trim(),
+				rows: Array.from(part.domNode.querySelectorAll<HTMLElement>('.chat-thinking-item.markdown-content'), row => row.textContent?.trim()),
+			}, {
+				title: 'Reviewing the plan',
+				rows: ['Weighing tradeoffs', 'Applying the change'],
+			});
+		});
+
+		test('keeps the dropped header as the title over a restored content title', () => {
+			const markdownRenderer: IMarkdownRenderer = {
+				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
+			};
+			const content = createThinkingPart('**Reviewing the plan**\n\n**Applying the change**');
+			content.generatedTitle = 'Reviewed implementation details';
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				createMockRenderContext(true),
+				markdownRenderer,
+				true
+			));
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			part.finalizeTitleIfDefault();
+			part.domNode.querySelector<HTMLElement>('.monaco-button')?.click();
+
+			assert.deepStrictEqual({
+				title: part.domNode.querySelector('.chat-used-context-label .monaco-button')?.textContent?.trim(),
+				rows: Array.from(part.domNode.querySelectorAll<HTMLElement>('.chat-thinking-item.markdown-content'), row => row.textContent?.trim()),
+				generatedTitle: content.generatedTitle,
+			}, {
+				title: 'Reviewing the plan',
+				rows: ['Applying the change'],
+				generatedTitle: 'Reviewing the plan',
+			});
+		});
+
+		test('keeps the dropped header as the title when a titled tool joins the group', () => {
+			const markdownRenderer: IMarkdownRenderer = {
+				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
+			};
+			const content = createThinkingPart('**Analyzing the request**');
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				createMockRenderContext(false),
+				markdownRenderer,
+				false
+			));
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+			part.domNode.querySelector<HTMLElement>('.monaco-button')?.click();
+
+			part.updateThinking(createThinkingPart('**Analyzing the request**\n\n**Planning the edits**', content.id));
+
+			const toolInvocation = {
+				kind: 'toolInvocation',
+				toolId: 'edit',
+				toolCallId: 'call-1',
+				invocationMessage: 'Editing file.ts',
+				originMessage: undefined,
+				pastTenseMessage: undefined,
+				presentation: undefined,
+				source: ToolDataSource.Internal,
+				isAttachedToThinking: false,
+				generatedTitle: 'Edited implementation details',
+				state: observableValue('state', {
+					type: IChatToolInvocation.StateKind.Executing,
+					confirmed: { type: 0 },
+					progress: observableValue('progress', { progress: 0 }),
+					parameters: {},
+					confirmationMessages: undefined,
+				}),
+				toolSpecificDataKind: observableValue('tool', undefined),
+				toJSON: () => ({} as IChatToolInvocationSerialized),
+			} as unknown as IChatToolInvocation;
+			part.appendItem(() => ({ domNode: $('div.test-tool-item') }), toolInvocation.toolId, toolInvocation);
+
+			part.finalizeTitleIfDefault();
+
+			const titleButton = part.domNode.querySelector('.chat-used-context-label .monaco-button');
+			assert.deepStrictEqual({
+				title: titleButton?.textContent?.trim(),
+				summaryRows: Array.from(part.domNode.querySelectorAll<HTMLElement>('.chat-thinking-item.markdown-content'), row => row.textContent?.trim()),
+			}, {
+				title: 'Analyzing the request',
+				summaryRows: ['Planning the edits'],
+			});
+		});
+
+		test('keeps the dropped header as the title over a cached title', () => {
+			const markdownRenderer: IMarkdownRenderer = {
+				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
+			};
+			const context = createMockRenderContext(true);
+			const thinkingId = 'restored-summary-part';
+			const cacheKey = `${chatSessionResourceToId(context.element.sessionResource)}:${thinkingId}`;
+			instantiationService.get(IStorageService).store(
+				'chat.thinkingTitleCache',
+				JSON.stringify({ [cacheKey]: { title: 'Reviewed implementation details', storedAt: Date.now() } }),
+				StorageScope.PROFILE,
+				StorageTarget.MACHINE
+			);
+			const content = createThinkingPart('**Analyzing the request**\n\n**Verifying the result**', thinkingId);
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				markdownRenderer,
+				true
+			));
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			part.finalizeTitleIfDefault();
+			part.domNode.querySelector<HTMLElement>('.monaco-button')?.click();
+
+			assert.deepStrictEqual({
+				title: part.domNode.querySelector('.chat-used-context-label .monaco-button')?.textContent?.trim(),
+				rows: Array.from(part.domNode.querySelectorAll<HTMLElement>('.chat-thinking-item.markdown-content'), row => row.textContent?.trim()),
+				generatedTitle: content.generatedTitle,
+			}, {
+				title: 'Analyzing the request',
+				rows: ['Verifying the result'],
+				generatedTitle: 'Analyzing the request',
+			});
+		});
+
+		test('surfaces the dropped header as the title when collapsed through completion', () => {
+			const markdownRenderer: IMarkdownRenderer = {
+				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
+			};
+			const content = createThinkingPart('**Analyzing the request**');
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				createMockRenderContext(false),
+				markdownRenderer,
+				false
+			));
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			// Stays collapsed (rows never lazily render) through streaming and a tool call.
+			part.updateThinking(createThinkingPart('**Analyzing the request**\n\n**Planning the edits**', content.id));
+			const toolInvocation = {
+				kind: 'toolInvocation',
+				toolId: 'edit',
+				toolCallId: 'call-1',
+				invocationMessage: 'Editing file.ts',
+				originMessage: undefined,
+				pastTenseMessage: undefined,
+				presentation: undefined,
+				source: ToolDataSource.Internal,
+				isAttachedToThinking: false,
+				generatedTitle: undefined,
+				state: observableValue('state', {
+					type: IChatToolInvocation.StateKind.Executing,
+					confirmed: { type: 0 },
+					progress: observableValue('progress', { progress: 0 }),
+					parameters: {},
+					confirmationMessages: undefined,
+				}),
+				toolSpecificDataKind: observableValue('tool', undefined),
+				toJSON: () => ({} as IChatToolInvocationSerialized),
+			} as unknown as IChatToolInvocation;
+			part.appendItem(() => ({ domNode: $('div.test-tool-item') }), toolInvocation.toolId, toolInvocation);
+
+			part.finalizeTitleIfDefault();
+
+			const titleButton = part.domNode.querySelector('.chat-used-context-label .monaco-button');
+			assert.strictEqual(titleButton?.textContent?.trim(), 'Analyzing the request');
+		});
+
+		test('tracks the dropped header off a later grouped block when the first has one header', () => {
+			const markdownRenderer: IMarkdownRenderer = {
+				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
+			};
+			// The first block is a single-header block (renders as one block, drops nothing).
+			const content = createThinkingPart('**Reading the file**', 'block-0');
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				createMockRenderContext(false),
+				markdownRenderer,
+				false
+			));
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			// A later grouped block is the first multi-header summary; collapsed through completion.
+			part.setupThinkingContainer(createThinkingPart('**Analyzing the request**\n\n**Planning the edits**', 'block-1'));
+			part.finalizeTitleIfDefault();
+
+			const titleButton = part.domNode.querySelector('.chat-used-context-label .monaco-button');
+			assert.strictEqual(titleButton?.textContent?.trim(), 'Analyzing the request');
+		});
+
+		test('does not drop a grouped block header that is not the tracked title', () => {
+			const markdownRenderer: IMarkdownRenderer = {
+				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
+			};
+			// Two multi-header summary blocks grouped, collapsed through completion.
+			const content = createThinkingPart('**Analyzing the request**\n\n**Reviewing constraints**', 'block-0');
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				createMockRenderContext(false),
+				markdownRenderer,
+				false
+			));
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			part.setupThinkingContainer(createThinkingPart('**Editing files**\n\n**Verifying output**', 'block-1'));
+			part.finalizeTitleIfDefault();
+			// Expand afterwards to materialize the lazy blocks.
+			part.domNode.querySelector<HTMLElement>('.monaco-button')?.click();
+
+			const titleButton = part.domNode.querySelector('.chat-used-context-label .monaco-button');
+			const rows = Array.from(part.domNode.querySelectorAll<HTMLElement>('.chat-thinking-item.markdown-content'), row => row.textContent?.trim());
+			assert.deepStrictEqual({
+				title: titleButton?.textContent?.trim(),
+				// The later block's leading header is not the tracked title, so it is kept as a row.
+				keepsLaterHeader: rows.includes('Editing files'),
+			}, {
+				title: 'Analyzing the request',
+				keepsLaterHeader: true,
+			});
 		});
 	});
 
@@ -1674,7 +2093,12 @@ suite('ChatThinkingContentPart', () => {
 			} as IChatToolInvocation;
 		}
 
-		function createMockExecutingToolInvocation(toolId: string, invocationMessage: string, toolCallId: string): IChatToolInvocation {
+		function createMockExecutingToolInvocation(
+			toolId: string,
+			invocationMessage: string | IMarkdownString,
+			toolCallId: string,
+			progress = observableValue<{ message?: string | IMarkdownString; progress: number | undefined }>('progress', { progress: 0 }),
+		): IChatToolInvocation {
 			return {
 				kind: 'toolInvocation',
 				toolId,
@@ -1689,7 +2113,7 @@ suite('ChatThinkingContentPart', () => {
 				state: observableValue('state', {
 					type: IChatToolInvocation.StateKind.Executing,
 					confirmed: { type: 0 },
-					progress: observableValue('progress', { progress: 0 }),
+					progress,
 					parameters: {},
 					confirmationMessages: undefined,
 				}),
@@ -2033,6 +2457,53 @@ suite('ChatThinkingContentPart', () => {
 			assert.ok(labelText.includes('Replacing 5 lines in file.ts'), `Title should contain "Replacing 5 lines in file.ts" but got "${labelText}"`);
 		});
 
+		test('should preserve markdown file pills in the thinking header', () => {
+			const markdownRenderer: IMarkdownRenderer = {
+				render: (markdown, options) => renderMarkdown(markdown, options),
+			};
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				createThinkingPart('**Working**'),
+				createMockRenderContext(false),
+				markdownRenderer,
+				false
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			const title = 'Edit [](claudeAgent.ts)';
+			const progress = observableValue<{ message?: string | IMarkdownString; progress: number | undefined }>('progress', { progress: 0 });
+			const editTool = createMockExecutingToolInvocation('edit', title, 'call-markdown', progress);
+			part.appendItem(() => ({ domNode: $('div.test-item') }), editTool.toolId, editTool);
+
+			const button = part.domNode.querySelector<HTMLElement>('.chat-used-context-label .monaco-button');
+			const header = part.domNode.querySelector<HTMLElement>('.chat-used-context-label');
+			const initialPill = header?.querySelector<HTMLElement>('.chat-inline-anchor-widget .icon-label');
+			const invocationMessage = new MarkdownString(title);
+			invocationMessage.baseUri = URI.file('/workspace/');
+			progress.set({ message: invocationMessage, progress: undefined }, undefined);
+
+			const updatedPill = header?.querySelector<HTMLElement>('.chat-inline-anchor-widget .icon-label');
+			button?.click();
+			button?.click();
+			const restoredPill = header?.querySelector<HTMLElement>('.chat-inline-anchor-widget .icon-label');
+
+			assert.deepStrictEqual({
+				initialPill: initialPill?.textContent,
+				updatedPill: updatedPill?.textContent,
+				pillInsideCollapseButton: !!updatedPill?.closest('.monaco-button'),
+				restoredPill: restoredPill?.textContent,
+				ariaLabel: button?.ariaLabel,
+			}, {
+				initialPill: undefined,
+				updatedPill: 'claudeAgent.ts',
+				pillInsideCollapseButton: false,
+				restoredPill: 'claudeAgent.ts',
+				ariaLabel: 'Working: Edit claudeAgent.ts',
+			});
+		});
+
 		test('should keep original message for create_file tool even when streaming', () => {
 			const content = createThinkingPart('**Working**');
 			const context = createMockRenderContext(false);
@@ -2159,7 +2630,7 @@ suite('ChatThinkingContentPart', () => {
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 
-			const diffEmitter = store.add(new Emitter<IEditSessionDiffStats>());
+			const diffEmitter = store.add(new Emitter<IChatContentPartDiffData>());
 
 			part.appendItem(
 				() => ({ domNode: $('div.test-edit-pill') }),
@@ -2172,14 +2643,32 @@ suite('ChatThinkingContentPart', () => {
 			part.finalizeTitleIfDefault();
 
 			// Fire diff event
-			diffEmitter.fire({ added: 10, removed: 3 });
+			diffEmitter.fire(createDiffData(10, 3));
 
 			const addedEl = part.domNode.querySelector('.label-added');
 			const removedEl = part.domNode.querySelector('.label-removed');
-			assert.ok(addedEl, 'Should render +N element');
-			assert.ok(removedEl, 'Should render -N element');
-			assert.strictEqual(addedEl?.textContent, '+10');
-			assert.strictEqual(removedEl?.textContent, '-3');
+			const label = part.domNode.querySelector('.chat-used-context-label');
+			const titleButton = label?.querySelector<HTMLElement>('.monaco-icon-button');
+			const chevron = label?.querySelector<HTMLElement>('.chat-collapsible-hover-chevron');
+			const initialExpanded = titleButton?.ariaExpanded;
+			chevron?.click();
+			assert.deepStrictEqual({
+				added: addedEl?.textContent,
+				removed: removedEl?.textContent,
+				childClasses: [...label!.children].map(child => child.className),
+				initialExpanded,
+				expandedAfterChevronClick: titleButton?.ariaExpanded,
+			}, {
+				added: '+10',
+				removed: '-3',
+				childClasses: [
+					'monaco-button monaco-icon-button monaco-text-button chat-thinking-title-with-diff',
+					'monaco-button chat-thinking-title-diff',
+					'chat-collapsible-hover-chevron codicon codicon-chevron-right expanded',
+				],
+				initialExpanded: 'false',
+				expandedAfterChevronClick: 'true',
+			});
 		});
 
 		test('should aggregate diffs from multiple edit parts', () => {
@@ -2197,8 +2686,8 @@ suite('ChatThinkingContentPart', () => {
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 
-			const diffEmitter1 = store.add(new Emitter<IEditSessionDiffStats>());
-			const diffEmitter2 = store.add(new Emitter<IEditSessionDiffStats>());
+			const diffEmitter1 = store.add(new Emitter<IChatContentPartDiffData>());
+			const diffEmitter2 = store.add(new Emitter<IChatContentPartDiffData>());
 
 			part.appendItem(
 				() => ({ domNode: $('div.test-edit-pill-1') }),
@@ -2218,8 +2707,8 @@ suite('ChatThinkingContentPart', () => {
 
 			part.finalizeTitleIfDefault();
 
-			diffEmitter1.fire({ added: 5, removed: 2 });
-			diffEmitter2.fire({ added: 8, removed: 1 });
+			diffEmitter1.fire(createDiffData(5, 2, 'first.ts'));
+			diffEmitter2.fire(createDiffData(8, 1, 'second.ts'));
 
 			const addedEl = part.domNode.querySelector('.label-added');
 			const removedEl = part.domNode.querySelector('.label-removed');
@@ -2242,7 +2731,7 @@ suite('ChatThinkingContentPart', () => {
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 
-			const diffEmitter = store.add(new Emitter<IEditSessionDiffStats>());
+			const diffEmitter = store.add(new Emitter<IChatContentPartDiffData>());
 
 			part.appendItem(
 				() => ({ domNode: $('div.test-edit-pill') }),
@@ -2253,7 +2742,7 @@ suite('ChatThinkingContentPart', () => {
 			);
 
 			part.finalizeTitleIfDefault();
-			diffEmitter.fire({ added: 0, removed: 0 });
+			diffEmitter.fire(createDiffData(0, 0));
 
 			const addedEl = part.domNode.querySelector('.label-added');
 			const removedEl = part.domNode.querySelector('.label-removed');
@@ -2276,7 +2765,7 @@ suite('ChatThinkingContentPart', () => {
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 
-			const diffEmitter = store.add(new Emitter<IEditSessionDiffStats>());
+			const diffEmitter = store.add(new Emitter<IChatContentPartDiffData>());
 
 			part.appendItem(
 				() => ({ domNode: $('div.test-edit-pill') }),
@@ -2287,7 +2776,7 @@ suite('ChatThinkingContentPart', () => {
 			);
 
 			part.finalizeTitleIfDefault();
-			diffEmitter.fire({ added: 7, removed: 2 });
+			diffEmitter.fire(createDiffData(7, 2));
 
 			const button = part.domNode.querySelector('.monaco-button') as HTMLElement;
 			assert.ok(button?.ariaLabel?.includes('7'), 'aria-label should include added count');
@@ -2315,6 +2804,61 @@ suite('ChatThinkingContentPart', () => {
 			assert.strictEqual(diffContainer, null, 'Should not render diff container when no diffs exist');
 		});
 
+		test('opens each file from its first original to its last modified snapshot', () => {
+			let opened: unknown;
+			instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+				override async openEditor(...args: unknown[]): Promise<undefined> {
+					opened = args[0];
+					return undefined;
+				}
+			}());
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				createThinkingPart('**Editing files**'),
+				createMockRenderContext(true),
+				mockMarkdownRenderer,
+				true
+			));
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			const firstAppEdit = store.add(new Emitter<IChatContentPartDiffData>());
+			const utilEdit = store.add(new Emitter<IChatContentPartDiffData>());
+			const lastAppEdit = store.add(new Emitter<IChatContentPartDiffData>());
+			part.appendItem(() => ({ domNode: $('div') }), 'app-edit-1', undefined, undefined, firstAppEdit.event);
+			part.appendItem(() => ({ domNode: $('div') }), 'util-edit', undefined, undefined, utilEdit.event);
+			part.appendItem(() => ({ domNode: $('div') }), 'app-edit-2', undefined, undefined, lastAppEdit.event);
+			part.finalizeTitleIfDefault();
+
+			lastAppEdit.fire(createDiffData(4, 1, 'app.ts', 'last'));
+			utilEdit.fire(createDiffData(2, 3, 'util.ts', 'only'));
+			firstAppEdit.fire(createDiffData(5, 0, 'app.ts', 'first'));
+
+			part.domNode.querySelector<HTMLElement>('.chat-thinking-title-diff')?.click();
+
+			assert.ok(isResourceMultiDiffEditorInput(opened));
+			assert.deepStrictEqual({
+				label: opened.label,
+				resources: opened.resources?.map(resource => ({
+					original: resource.original.resource?.toString(),
+					modified: resource.modified.resource?.toString(),
+					goToFileResource: resource.goToFileResource?.toString(),
+				})),
+			}, {
+				label: 'Section File Changes',
+				resources: [{
+					original: 'file:///snapshots/first/before/app.ts',
+					modified: 'file:///snapshots/last/after/app.ts',
+					goToFileResource: 'file:///workspace/app.ts',
+				}, {
+					original: 'file:///snapshots/only/before/util.ts',
+					modified: 'file:///snapshots/only/after/util.ts',
+					goToFileResource: 'file:///workspace/util.ts',
+				}],
+			});
+		});
+
 		test('removeEditPillByPartId cleans up lazy item and diff stats', () => {
 			const content = createThinkingPart('**Editing files**');
 			const context = createMockRenderContext(true);
@@ -2330,8 +2874,8 @@ suite('ChatThinkingContentPart', () => {
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 
-			const diffEmitter1 = store.add(new Emitter<IEditSessionDiffStats>());
-			const diffEmitter2 = store.add(new Emitter<IEditSessionDiffStats>());
+			const diffEmitter1 = store.add(new Emitter<IChatContentPartDiffData>());
+			const diffEmitter2 = store.add(new Emitter<IChatContentPartDiffData>());
 
 			// Append two edit pills
 			part.appendItem(
@@ -2352,8 +2896,8 @@ suite('ChatThinkingContentPart', () => {
 			part.finalizeTitleIfDefault();
 
 			// Fire diff events for both
-			diffEmitter1.fire({ added: 5, removed: 2 });
-			diffEmitter2.fire({ added: 8, removed: 1 });
+			diffEmitter1.fire(createDiffData(5, 2, 'first.ts'));
+			diffEmitter2.fire(createDiffData(8, 1, 'second.ts'));
 
 			// Remove the first edit pill
 			part.removeEditPillByPartId('edit-part-1');

@@ -25,9 +25,10 @@ import { AgentsWindowOpenSource, isAgentsWindowOpenSource } from '../../../../pl
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTracker.js';
-import { ISessionsWindowOpenViewState, SessionsWindowOpenTelemetry } from '../../sessions/browser/sessionsWindowOpenTelemetry.js';
-import { SessionsWindowStartupExperiment } from '../../sessions/browser/sessionsWindowStartupExperiment.js';
+import { ISessionsWindowOpenViewState, SessionsWindowOpenTelemetry, SessionsWindowSessionStartTelemetry } from '../../sessions/browser/sessionsWindowOpenTelemetry.js';
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from '../browser/newSessionComposerService.js';
+import { ChatPetAchievementIds } from '../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
+import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
 
 class SelectAgentsFolderContribution extends Disposable implements IWorkbenchContribution {
 
@@ -68,7 +69,9 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 			return;
 		}
 		this._didHandleInitialWindowOpen = true;
-		if (this.storageService.getNumber(TOTAL_SESSIONS_KEY, StorageScope.APPLICATION, 0) !== 0) {
+		const hasPreviouslyStartedSession = this.storageService.getNumber(TOTAL_SESSIONS_KEY, StorageScope.APPLICATION, 0) !== 0;
+		new SessionsWindowSessionStartTelemetry(source, hasPreviouslyStartedSession, this.telemetryService);
+		if (hasPreviouslyStartedSession) {
 			return;
 		}
 
@@ -223,9 +226,18 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 	}
 }
 
+class ChatPetAgentsWindowAchievementContribution implements IWorkbenchContribution {
+
+	static readonly ID = 'sessions.contrib.chatPetAgentsWindowAchievement';
+
+	constructor(@IChatPetService chatPetService: IChatPetService) {
+		chatPetService.unlockAchievement(ChatPetAchievementIds.AgentsWindowOpened);
+	}
+}
+
 registerWorkbenchContribution2(SelectAgentsFolderContribution.ID, SelectAgentsFolderContribution, WorkbenchPhase.BlockStartup);
-registerWorkbenchContribution2(SessionsWindowStartupExperiment.ID, SessionsWindowStartupExperiment, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(SessionsCopilotConfigSlashSubmitHandlerContribution.ID, SessionsCopilotConfigSlashSubmitHandlerContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ChatPetAgentsWindowAchievementContribution.ID, ChatPetAgentsWindowAchievementContribution, WorkbenchPhase.AfterRestored);
 
 // Renderer-side BYOK language-model handler that backs the node agent host's
 // OpenAI proxy, mirroring the registration in the workbench's

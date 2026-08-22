@@ -9,7 +9,6 @@ import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable } from '../../../../base/common/observable.js';
-import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -21,6 +20,9 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { NewChatInputWidget } from './newChatInput.js';
 import { IChatViewOptions } from '../../../browser/parts/chatView.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { ChatInputNoticeLane } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
+import { ChatInputNoticeVariant, ChatInputNoticeWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeWidget.js';
+import { chatInputStackClass, chatInputStackSlotClass, ChatInputStackSlot, setChatInputStackSlot } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 
 // #region --- New Chat In Session Widget ---
 
@@ -81,7 +83,7 @@ export class NewChatInSessionWidget extends Disposable {
 	render(parent: HTMLElement): void {
 		const element = dom.append(parent, dom.$('.sessions-chat-widget.new-chat-in-session'));
 		const chatWidgetContainer = dom.append(element, dom.$('.new-chat-widget-container'));
-		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$('.new-chat-widget-content'));
+		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$(`.new-chat-widget-content.${chatInputStackClass}`));
 
 		this._renderSubSessionTip(chatWidgetContent);
 		this._newChatInput.render(chatWidgetContent, parent);
@@ -94,43 +96,73 @@ export class NewChatInSessionWidget extends Disposable {
 			return;
 		}
 
-		const tipContainer = dom.append(container, dom.$('.sub-session-tip-container'));
-		const tipWidget = dom.append(tipContainer, dom.$('.sub-session-tip-widget'));
-		tipWidget.setAttribute('role', 'status');
-		tipWidget.setAttribute('aria-label', localize('subSessionTip.ariaLabel', "New chat tip"));
+		const store = new DisposableStore();
+		const tipContainer = dom.append(container, dom.$(`.sub-session-tip-container.${chatInputStackSlotClass}`));
 
-		// Tip icon
-		const iconEl = dom.append(tipWidget, renderIcon(Codicon.lightbulb));
-		iconEl.classList.add('sub-session-tip-icon');
-
-		// Tip text
-		const textEl = dom.append(tipWidget, dom.$('span.sub-session-tip-text'));
-		textEl.textContent = localize(
+		const message = localize(
 			'subSessionTip.message',
 			"Start a parallel conversation to build on all the changes made in this session."
 		);
 
-		// Dismiss button
-		const dismissBtn = dom.append(tipWidget, dom.$('button.sub-session-tip-dismiss')) as HTMLButtonElement;
-		dismissBtn.type = 'button';
-		dismissBtn.setAttribute('aria-label', localize('subSessionTip.dismiss', "Dismiss tip"));
-		dom.append(dismissBtn, renderIcon(Codicon.close));
+		// Named by what it says, like every other tip: the label is both what the
+		// landmark is called and what is spoken when the tip first appears.
+		const tip = store.add(new ChatInputNoticeWidget({
+			container: tipContainer,
+			variant: ChatInputNoticeVariant.Tip,
+			ariaLabel: message,
+			ariaRoleDescription: localize('subSessionTip.ariaLabel', "New chat tip"),
+		}));
+
+		const iconEl = dom.append(tip.domNode, renderIcon(Codicon.lightbulb));
+		iconEl.classList.add('sub-session-tip-icon');
+
+		const textEl = dom.append(tip.domNode, dom.$('span.sub-session-tip-text'));
+		textEl.textContent = message;
 
 		const dismiss = () => {
+			// Removing the banner would strand keyboard focus on <body>, which also
+			// drops the context keys the chat keybindings depend on.
+			const hadFocus = tip.hasFocus();
 			this.storageService.store(STORAGE_KEY_SUB_SESSION_TIP_DISMISSED, true, StorageScope.PROFILE, StorageTarget.USER);
+			// Stood down before it leaves the DOM: once detached it cannot report.
+			setChatInputStackSlot(tipContainer, ChatInputStackSlot.Empty);
 			tipContainer.remove();
 			this._tipDisposable.clear();
+			if (hadFocus) {
+				this._newChatInput.focus();
+			}
 		};
 
-		const handleDismiss = (e: Event) => {
-			dom.EventHelper.stop(e, true);
-			dismiss();
-		};
+		tip.addDismissAction({
+			ariaLabel: localize('subSessionTip.dismiss', "Dismiss tip"),
+			onActivate: dismiss,
+		});
 
-		const store = new DisposableStore();
-		store.add(Gesture.addTarget(dismissBtn));
-		store.add(dom.addDisposableListener(dismissBtn, dom.EventType.CLICK, handleDismiss));
-		store.add(dom.addDisposableListener(dismissBtn, TouchEventType.Tap, handleDismiss));
+		// Claims the tip lane above this input, so the banner yields to a
+		// notification or a first-run introduction instead of stacking with them.
+		// Hidden until the claim leads, which it does immediately when nothing
+		// else holds the space.
+		let leading = false;
+		let announced = false;
+		setChatInputStackSlot(tipContainer, ChatInputStackSlot.Empty);
+		store.add(this._newChatInput.noticeHost.occupy(ChatInputNoticeLane.Tip, {
+			focusTarget: {
+				hasFocus: () => tip.hasFocus(),
+				focus: () => tip.focus(),
+				canFocus: () => leading,
+			},
+			onDidChangeLeading: isLeading => {
+				leading = isLeading;
+				setChatInputStackSlot(tipContainer, isLeading ? ChatInputStackSlot.Docked : ChatInputStackSlot.Empty);
+				// Spoken once, the first time it actually reaches the screen. The
+				// lane can hand back and forth as notifications come and go, and
+				// re-announcing on every return would talk over the user.
+				if (isLeading && !announced) {
+					announced = true;
+					tip.announce();
+				}
+			},
+		}));
 		this._tipDisposable.value = store;
 	}
 

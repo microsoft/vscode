@@ -1,7 +1,8 @@
 jobs:
   - job: Quality
     displayName: Quality Checks
-    timeoutInMinutes: 20
+    # Leave enough time for NOTICE retries and the fallback path to finish.
+    timeoutInMinutes: 30
     variables:
       - name: skipComponentGovernanceDetection
         value: true
@@ -55,6 +56,10 @@ jobs:
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Authentication
 
+      - template: ./common/foundry-local.yml@self
+        parameters:
+          phase: prepare
+
       - script: |
           set -e
 
@@ -104,6 +109,13 @@ jobs:
         displayName: Install dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
+      - template: ./common/foundry-local.yml@self
+        parameters:
+          phase: install
+
+      - script: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
+        displayName: Verify native optional dependency binaries
+
       - script: node build/azure-pipelines/distro/mixin-npm.ts
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
         displayName: Mixin distro node modules
@@ -151,7 +163,7 @@ jobs:
         inputs:
           outputfile: $(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt
         retryCountOnTaskFailure: 3
-        timeoutInMinutes: 10
+        timeoutInMinutes: 20
         continueOnError: true
         condition: and(succeeded(), eq(lower(variables['VSCODE_CIBUILD']), 'false'))
 

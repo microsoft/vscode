@@ -10,6 +10,7 @@ import { isEqual as _urisEqual } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
+import { serializeChatRequestOrigin } from '../chatRequestOrigin.js';
 import { IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatMcpServersStartingSlow, IChatVoiceProgressPart, ResponseModelState } from '../chatService/chatService.js';
 import { ModifiedFileEntryState } from '../editing/chatEditingService.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
@@ -170,6 +171,7 @@ const requestSchema = Adapt.object<IChatRequestModel, ISerializableChatRequestDa
 	isSystemInitiated: Adapt.v(m => m.isSystemInitiated),
 	systemInitiatedLabel: Adapt.v(m => m.systemInitiatedLabel),
 	terminalExecutionId: Adapt.v(m => m.terminalExecutionId),
+	origin: Adapt.v(m => m.origin ? serializeChatRequestOrigin(m.origin) : undefined, objectsEqual),
 }, {
 	sealed: (o) => o.modelState?.value === ResponseModelState.Cancelled || o.modelState?.value === ResponseModelState.Failed || o.modelState?.value === ResponseModelState.Complete,
 });

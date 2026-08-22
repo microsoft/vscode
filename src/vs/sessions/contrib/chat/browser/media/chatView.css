@@ -5,6 +5,19 @@
 
 /* ---- Chat Layout ---- */
 
+.chat-view-chat {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+}
+
+.chat-view-chat > .chat-view-widget {
+	position: relative;
+	flex: 1 1 auto;
+	min-width: 0;
+	min-height: 0;
+}
+
 .agent-sessions-workbench .interactive-session {
 	max-width: none;
 }
@@ -63,16 +76,6 @@
 	left: 0;
 	right: 0;
 	z-index: 1;
-	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size60);
-	max-width: var(--session-view-centered-content-max-width, 950px);
-	margin: 0 auto;
-	padding: 0 var(--vscode-spacing-size320);
-	box-sizing: border-box;
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-agents-fontSize-body1);
-	font-weight: var(--vscode-agents-fontWeight-regular);
 	pointer-events: none;
 }
 
@@ -132,7 +135,6 @@
 /* ---- Chat Input ---- */
 
 .agent-sessions-workbench .interactive-session .chat-input-container {
-	border-radius: var(--vscode-cornerRadius-large);
 	border-color: var(--vscode-agentsChatInput-border) !important;
 	background-color: var(--vscode-agentsChatInput-background);
 	color: var(--vscode-agentsChatInput-foreground);

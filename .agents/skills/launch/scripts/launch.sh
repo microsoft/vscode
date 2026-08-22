@@ -77,7 +77,21 @@ MAIN_PORT=$(pick_port)
 AGENTHOST_PORT=$(pick_port)
 
 STAMP=$(date +%Y%m%d-%H%M%S)-$$
-RUN_DIR="${TMPDIR:-/tmp}/code-oss-dev/$STAMP"
+# mktemp fills in the X's only when they trail the template; elsewhere they stay literal.
+RUN_NAME="code-oss-dev-$STAMP-XXXXXX"
+RUN_BASE="${TMPDIR:-/tmp}"
+# Electron's main IPC socket ("<run-dir>/user-data/<version>-main.sock") must fit
+# the ~103-byte unix socket limit, which macOS's default TMPDIR alone overflows.
+# Measure bytes, not characters, since a multibyte TMPDIR would pass a char count
+# and still fail to bind.
+if (( $(printf '%s' "$RUN_BASE/$RUN_NAME" | wc -c) + 25 > 103 )); then
+	RUN_BASE=/tmp
+	echo "[launch.sh] TMPDIR too long for unix sockets; using $RUN_BASE" >&2
+fi
+# mktemp -d creates the directory atomically with 0700 perms, so this copy of the
+# authenticated profile can't be pre-created or symlinked by another user, and its
+# token files aren't left world-readable when the temp base is shared (/tmp).
+RUN_DIR=$(mktemp -d "$RUN_BASE/$RUN_NAME")
 DEST_UDD="$RUN_DIR/user-data"
 SHARED_DATA_DIR="$RUN_DIR/shared-data"
 mkdir -p "$DEST_UDD" "$SHARED_DATA_DIR"

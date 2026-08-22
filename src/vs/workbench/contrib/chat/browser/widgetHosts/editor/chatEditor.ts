@@ -117,6 +117,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 					renderFollowups: true,
 					supportsFileReferences: true,
 					clear: (targetSessionType?: string) => this.clear(targetSessionType),
+					enableFind: true,
 					rendererOptions: {
 						renderTextEditsAsSummary: (uri) => {
 							return true;

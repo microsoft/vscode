@@ -21,6 +21,7 @@ import { AgentsVoiceStorageKeys } from '../../common/agentsVoice.js';
 import { IVoiceSessionController, VoiceState } from '../../../chat/browser/voiceClient/voiceSessionController.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { VoiceModeOnboardingBanner, VoiceModeOnboardingService } from '../../browser/voiceModeOnboarding.js';
+import { isChatInputStackSlotShowing } from '../../../chat/browser/widget/input/chatInputStack.js';
 
 suite('Voice Mode onboarding', () => {
 
@@ -51,9 +52,13 @@ suite('Voice Mode onboarding', () => {
 	}
 
 	function register(service: VoiceModeOnboardingService, host: ITestHost) {
-		return service.registerHost(host.container, host.root, () => {
-			host.focused++;
-			host.root.focus();
+		return service.registerHost({
+			container: host.container,
+			focusRoot: host.root,
+			focus: () => {
+				host.focused++;
+				host.root.focus();
+			},
 		});
 	}
 
@@ -94,7 +99,7 @@ suite('Voice Mode onboarding', () => {
 		disposables.add(register(service, host));
 
 		service.showIfNeeded();
-		const shown = host.container.classList.contains('has-voice-mode-onboarding');
+		const shown = isChatInputStackSlotShowing(host.container);
 
 		// Nothing is chosen until the user chooses: the card asks a question
 		// rather than arriving with an answer already filled in.
@@ -109,9 +114,9 @@ suite('Voice Mode onboarding', () => {
 
 		// Dismissal is never gated, and having been seen it must not come back.
 		host.container.querySelector<HTMLElement>('.voice-mode-onboarding-close')!.click();
-		const shownAfterClose = host.container.classList.contains('has-voice-mode-onboarding');
+		const shownAfterClose = isChatInputStackSlotShowing(host.container);
 		service.showIfNeeded();
-		const shownAgain = host.container.classList.contains('has-voice-mode-onboarding');
+		const shownAgain = isChatInputStackSlotShowing(host.container);
 
 		assert.deepStrictEqual(
 			{
@@ -297,7 +302,7 @@ suite('Voice Mode onboarding', () => {
 		service.showIfNeeded();
 		host.container.querySelector<HTMLElement>('.voice-mode-onboarding-close')!.click();
 
-		assert.strictEqual(host.container.classList.contains('has-voice-mode-onboarding'), false);
+		assert.strictEqual(isChatInputStackSlotShowing(host.container), false);
 	});
 
 	test('places the introduction in the tab order', () => {
@@ -313,14 +318,14 @@ suite('Voice Mode onboarding', () => {
 				activeElement: document.activeElement,
 				card,
 				tabIndex: card?.tabIndex,
-				closeIcon: host.container.querySelector('.voice-mode-onboarding-close .codicon')?.className,
+				closeIcon: host.container.querySelector('.voice-mode-onboarding-close')?.className,
 				listeningNotice: host.container.querySelector('.voice-mode-onboarding-listening-notice'),
 			},
 			{
 				activeElement: document.body,
 				card,
 				tabIndex: 0,
-				closeIcon: 'codicon codicon-close-compact',
+				closeIcon: 'action-label codicon codicon-close-compact voice-mode-onboarding-close chat-input-notice-dismiss',
 				listeningNotice: null,
 			});
 	});
@@ -337,7 +342,7 @@ suite('Voice Mode onboarding', () => {
 
 		assert.deepStrictEqual(
 			{
-				visible: host.container.classList.contains('has-voice-mode-onboarding'),
+				visible: isChatInputStackSlotShowing(host.container),
 				cards: host.container.querySelectorAll('.voice-mode-onboarding-banner').length,
 			},
 			{ visible: true, cards: 1 });
@@ -354,7 +359,7 @@ suite('Voice Mode onboarding', () => {
 		disposables.add(register(service, host));
 		service.showIfNeeded();
 
-		assert.strictEqual(host.container.classList.contains('has-voice-mode-onboarding'), true);
+		assert.strictEqual(isChatInputStackSlotShowing(host.container), true);
 	});
 
 	test('the description links open Voice Mode settings and instructions', () => {
@@ -409,7 +414,7 @@ suite('Voice Mode onboarding', () => {
 				? (key: string, value: boolean, scope: StorageScope, target2: StorageTarget) => {
 					if (key === AgentsVoiceStorageKeys.IntroBannerShown) {
 						cardWhenStored = {
-							visible: host.container.classList.contains('has-voice-mode-onboarding'),
+							visible: isChatInputStackSlotShowing(host.container),
 							cards: host.container.querySelectorAll('.voice-mode-onboarding-banner').length,
 						};
 					}
@@ -473,8 +478,8 @@ suite('Voice Mode onboarding', () => {
 
 		assert.deepStrictEqual(
 			{
-				first: first.container.classList.contains('has-voice-mode-onboarding'),
-				second: second.container.classList.contains('has-voice-mode-onboarding'),
+				first: isChatInputStackSlotShowing(first.container),
+				second: isChatInputStackSlotShowing(second.container),
 			},
 			{ first: false, second: true });
 	});

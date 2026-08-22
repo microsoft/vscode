@@ -10,7 +10,7 @@ import { Action } from '../../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { constObservable, derived, derivedObservableWithCache, autorun, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { constObservable, derived, derivedObservableWithCache, autorun, IObservable, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -22,7 +22,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { localize } from '../../../../nls.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISession, SESSION_WORKSPACE_GROUP_GITHUB, SessionTypeAuthRequirement } from '../../../services/sessions/common/session.js';
+import { ISession, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../services/sessions/common/session.js';
 import { IOpenNewSessionResult, ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { isAllowSignedOutWhenUsableEnabled, shouldShowGitHubWorkspaceGroupSignIn } from '../../../browser/sessionsAuthGate.js';
 import { AGENTIC_SIGN_IN_COMMAND_ID } from '../../../common/sessionCommands.js';
@@ -40,8 +40,8 @@ import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackState, IAgentFeedback
 import { buildNewSessionPrompt } from '../../agentFeedback/browser/agentFeedbackAttachmentEntry.js';
 import { SessionInputBannerWidget } from '../../sessionInputBanners/browser/sessionInputBannerWidget.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { ChatTipContentPart } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatTipContentPart.js';
-import { ChatContentMarkdownRenderer } from '../../../../workbench/contrib/chat/browser/widget/chatContentMarkdownRenderer.js';
+import { ChatInputTipPresenter } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputTipPresenter.js';
+import { chatInputStackClass, ChatInputStackSlot, setChatInputStackSlot } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { IChatTipService } from '../../../../workbench/contrib/chat/browser/chatTipService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -53,18 +53,15 @@ import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } fro
 
 // #region --- New Chat Widget ---
 
-/** Minimum number of started sessions required before showing tips. */
-const MIN_SESSIONS_FOR_TIPS = 2;
+/** Minimum number of started sessions required before showing tips and promotions. */
+const MIN_SESSIONS_FOR_FIRST_RUN_NOTICES = 2;
 
 export class NewChatWidget extends Disposable {
 
 	private readonly _workspacePicker: WorkspacePicker;
 	private readonly _newChatInput: NewChatInputWidget;
-	private readonly _chatTipPart = this._register(new MutableDisposable<DisposableStore>());
-	private _chatTipContainer: HTMLElement | undefined;
+	private readonly _chatTipPresenter = this._register(new MutableDisposable<ChatInputTipPresenter>());
 	private _isChatTipSessionInitialized = false;
-	private _isInputOnboardingVisible = false;
-	private _isInputNotificationVisible = false;
 	private _aquariumToggle: IMountedToggleHandle | undefined;
 
 	/** Recreates the draft once a better/late-registering provider can serve the folder (see {@link _createNewSession}). */
@@ -201,6 +198,11 @@ export class NewChatWidget extends Disposable {
 		});
 		const hasFeedback = derived(this, reader => this._feedbackItems.read(reader).length > 0);
 		const canSubmitWithoutSession = derived(this, reader => !this._session.read(reader) && hasFeedback.read(reader));
+		const deferredNotificationsEnabled = observableFromEvent(
+			this,
+			this.storageService.onDidChangeValue(StorageScope.APPLICATION, TOTAL_SESSIONS_KEY, this._store),
+			() => this._hasEnoughSessionsForFirstRunNotices(),
+		);
 
 		const newChatInput = this.instantiationService.createInstance(NewChatInputWidget, {
 			session: this._session,
@@ -216,9 +218,7 @@ export class NewChatWidget extends Disposable {
 			historyKey: constObservable(undefined), // no persisted history for the new-session view
 			renderSessionTypePickerInControls: this._renderHarnessPickerInControls,
 			supportsBackground: true,
-			getInputOnboardingTipContainer: () => this._chatTipContainer,
-			onDidChangeInputOnboardingVisible: visible => this.setInputOnboardingVisible(visible),
-			onDidChangeInputNotificationVisible: visible => this.setInputNotificationVisible(visible),
+			deferredNotificationsEnabled,
 		});
 		this._register(toDisposable(() => newChatInput.saveState()));
 		this._newChatInput = this._register(newChatInput);
@@ -236,7 +236,7 @@ export class NewChatWidget extends Disposable {
 		// (which this composer is not registered with).
 		this._register(this.openerService.registerOpener({
 			open: async (resource: URI | string): Promise<boolean> => {
-				if (!this._chatTipPart.value) {
+				if (!this._chatTipPresenter.value?.current) {
 					return false;
 				}
 				const link = typeof resource === 'string' ? resource : resource.toString();
@@ -279,7 +279,7 @@ export class NewChatWidget extends Disposable {
 				this._clearChatTip();
 			}
 		}));
-		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, TOTAL_SESSIONS_KEY, this._store)(() => this.updateChatTipVisibility()));
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, TOTAL_SESSIONS_KEY, this._store)(() => this._renderChatTip()));
 		const foregroundSessionCountContextKeys = new Set([ChatContextKeys.foregroundSessionCount.key]);
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(foregroundSessionCountContextKeys)) {
@@ -331,7 +331,7 @@ export class NewChatWidget extends Disposable {
 	render(parent: HTMLElement): void {
 		const element = dom.append(parent, dom.$('.sessions-chat-widget'));
 		const chatWidgetContainer = dom.append(element, dom.$('.new-chat-widget-container'));
-		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$('.new-chat-widget-content'));
+		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$(`.new-chat-widget-content.${chatInputStackClass}`));
 
 		this._aquariumToggle = this._register(this.aquariumService.mountToggle(element));
 		const aquariumAction = this._register(new Action(
@@ -391,9 +391,35 @@ export class NewChatWidget extends Disposable {
 		}
 
 		this._renderFeedbackBanner(chatWidgetContent);
-		this._chatTipContainer = dom.append(chatWidgetContent, dom.$('.chat-getting-started-tip-container'));
-		this._renderChatTip();
 		this._newChatInput.render(chatWidgetContent, parent);
+
+		// The tip lives in the input's notice slot, so the presenter is created
+		// after the input has rendered it.
+		const chatTipContainer = this._newChatInput.gettingStartedTipContainerElement;
+		this._chatTipPresenter.value = chatTipContainer && this.instantiationService.createInstance(
+			ChatInputTipPresenter,
+			{
+				container: chatTipContainer,
+				// Reset tip rotation the first time this composer becomes the only
+				// foreground surface, so a returning user gets a fresh tip.
+				onBeforeUpdate: () => {
+					if (this.contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key) !== 0) {
+						this._isChatTipSessionInitialized = false;
+					} else if (!this._isChatTipSessionInitialized) {
+						this._isChatTipSessionInitialized = true;
+						this.chatTipService.resetSession();
+					}
+				},
+				// No tip in the no-agent-host empty state: there is no usable composer.
+				// Tips also stay away until the user has actually started a couple of
+				// sessions, so a first-run composer is not busy.
+				isEligible: () => !chatWidgetContent.classList.contains('no-agent-host')
+					&& this._hasEnoughSessionsForFirstRunNotices()
+					&& this.contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key) === 0,
+				focusInput: () => this.focusInput(),
+			},
+			this._newChatInput.noticeHost,
+		);
 
 		// Quick chat composer: hide the workspace picker for workspace-less
 		// drafts (there is nothing to pick) and reflect it in the picker-visible
@@ -449,85 +475,15 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private _renderChatTip(): void {
-		if (!this._chatTipContainer) {
-			return;
-		}
-		if (this.isChatTipSuppressed()) {
-			this._clearChatTip();
-			return;
-		}
-		// Don't show a tip in the no-agent-host empty state — there is no usable composer.
-		if (this._chatTipContainer.parentElement?.classList.contains('no-agent-host')) {
-			return;
-		}
-		if (this.contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key) !== 0) {
-			this._isChatTipSessionInitialized = false;
-			this._clearChatTip();
-			return;
-		}
-		if (!this._isChatTipSessionInitialized) {
-			this._isChatTipSessionInitialized = true;
-			this.chatTipService.resetSession();
-		}
-
-		const tip = this.chatTipService.getWelcomeTip(this.contextKeyService);
-		if (!tip) {
-			this._clearChatTip();
-			return;
-		}
-		if (this._chatTipPart.value) {
-			dom.setVisibility(true, this._chatTipContainer);
-			return;
-		}
-
-		const store = new DisposableStore();
-		const renderer = this.instantiationService.createInstance(ChatContentMarkdownRenderer);
-		const tipPart = store.add(this.instantiationService.createInstance(ChatTipContentPart, tip, renderer));
-		store.add(tipPart.onDidHide(() => {
-			this._clearChatTip();
-			// Restore focus to the input after the tip DOM is removed so keyboard
-			// focus is not stranded on <body> (matches ChatWidget behaviour).
-			this.focusInput();
-		}));
-		this._chatTipPart.value = store;
-		dom.clearNode(this._chatTipContainer);
-		this._chatTipContainer.appendChild(tipPart.domNode);
-		dom.setVisibility(true, this._chatTipContainer);
+		this._chatTipPresenter.value?.update();
 	}
 
 	private _clearChatTip(): void {
-		this._chatTipPart.clear();
-		if (this._chatTipContainer) {
-			dom.clearNode(this._chatTipContainer);
-			dom.setVisibility(false, this._chatTipContainer);
-		}
+		this._chatTipPresenter.value?.clear();
 	}
 
-	private isInputOnboardingVisible(): boolean {
-		return this._isInputOnboardingVisible;
-	}
-
-	private setInputOnboardingVisible(visible: boolean): void {
-		this._isInputOnboardingVisible = visible;
-		this.updateChatTipVisibility();
-	}
-
-	private setInputNotificationVisible(visible: boolean): void {
-		this._isInputNotificationVisible = visible;
-		this.updateChatTipVisibility();
-	}
-
-	private isChatTipSuppressed(): boolean {
-		const sessionCount = this.storageService.getNumber(TOTAL_SESSIONS_KEY, StorageScope.APPLICATION, 0);
-		return sessionCount < MIN_SESSIONS_FOR_TIPS || this.isInputOnboardingVisible() || this._isInputNotificationVisible;
-	}
-
-	private updateChatTipVisibility(): void {
-		if (this.isChatTipSuppressed()) {
-			this._clearChatTip();
-		} else {
-			this._renderChatTip();
-		}
+	private _hasEnoughSessionsForFirstRunNotices(): boolean {
+		return this.storageService.getNumber(TOTAL_SESSIONS_KEY, StorageScope.APPLICATION, 0) >= MIN_SESSIONS_FOR_FIRST_RUN_NOTICES;
 	}
 
 	/**
@@ -647,19 +603,12 @@ export class NewChatWidget extends Disposable {
 		const preferredPick = userPick && this._isPreferredServable(folderUri, userPick)
 			? userPick
 			: this._newChatInput.sessionTypePicker.getPreferredSessionType(folderUri);
-		// A signed-out user (under the conditional-auth opt-in) can't run a type
-		// that requires GitHub, so default to the first offered type usable
-		// without it. No-op when signed in or the opt-in is off — today's behavior.
-		// TODO: reconsider silently switching away from the remembered selection;
-		// instead keep it and surface an inline "sign in for this type" affordance
-		// for GitHub-only types.
-		const effectivePick = this._preferUsableSessionTypeWhenSignedOut(folderUri, preferredPick);
 		const fallbackProviderId = this._workspacePicker.selectedResolved?.providerId;
 		try {
 			return await this.sessionsService.openNewSession({
 				folderUri,
-				...(effectivePick
-					? { providerId: effectivePick.providerId, sessionTypeId: effectivePick.sessionTypeId }
+				...(preferredPick
+					? { providerId: preferredPick.providerId, sessionTypeId: preferredPick.sessionTypeId }
 					: fallbackProviderId
 						? { providerId: fallbackProviderId }
 						: undefined),
@@ -668,29 +617,6 @@ export class NewChatWidget extends Disposable {
 			this.logService.error('Failed to create new session:', e);
 			return { session: undefined, trustDeclined: false };
 		}
-	}
-
-	/**
-	 * While the user is signed out and the conditional-auth opt-in is on, replace
-	 * a pick that requires GitHub with the first offered session type usable
-	 * without it. A no-op when signed in, when the opt-in is off (today's
-	 * behavior), or when no offered type is usable — in which case the caller's
-	 * existing fallbacks still apply.
-	 */
-	private _preferUsableSessionTypeWhenSignedOut(folderUri: URI, pick: IPreferredSessionType | undefined): IPreferredSessionType | undefined {
-		if (this.defaultAccountService.currentDefaultAccount !== null || !isAllowSignedOutWhenUsableEnabled(this.configurationService)) {
-			return pick;
-		}
-		const usable = this.sessionsManagementService.getSessionTypesForFolder(folderUri)
-			.filter(type => type.sessionType.authRequirement === SessionTypeAuthRequirement.None);
-		// Match on provider too when the pick names one: two providers can offer
-		// the same session type id, and only one of them may be usable.
-		const pickIsUsable = usable.some(type => type.sessionType.id === pick?.sessionTypeId
-			&& (pick?.providerId === undefined || type.providerId === pick.providerId));
-		if (usable.length === 0 || pickIsUsable) {
-			return pick;
-		}
-		return { providerId: usable[0].providerId, sessionTypeId: usable[0].sessionType.id };
 	}
 
 	private _scheduleRecreateOnProviderChange(folderUri: URI, userPick: IPreferredSessionType | undefined, created: ISession | undefined, replayMissedChange: boolean): void {
@@ -711,6 +637,12 @@ export class NewChatWidget extends Disposable {
 			if (userPick) {
 				if (!this._isPreferredServable(folderUri, userPick)) {
 					return; // the preferred provider still cannot serve the folder
+				}
+				// Already running the pick: nothing left to upgrade to, so stop watching.
+				if (userPick.sessionTypeId === active.sessionType
+					&& (userPick.providerId === undefined || userPick.providerId === active.providerId)) {
+					this._pendingPreferredUpgrade.clear();
+					return;
 				}
 			} else {
 				// No explicit pick: keep the draft on the preferred (first)
@@ -923,6 +855,7 @@ export class NewChatWidget extends Disposable {
 			content.clear();
 			dom.clearNode(host);
 			if (!feedbackItems.length) {
+				setChatInputStackSlot(host, ChatInputStackSlot.Empty);
 				return;
 			}
 
@@ -943,6 +876,8 @@ export class NewChatWidget extends Disposable {
 				}],
 			}));
 			host.appendChild(banner.domNode);
+			// Docks to the composer below it.
+			setChatInputStackSlot(host, ChatInputStackSlot.Docked);
 		}));
 	}
 

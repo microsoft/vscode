@@ -9,7 +9,7 @@ import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../../../../platform/ag
 import type { AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { resolveAgentAuthRequirement } from '../../browser/baseAgentHostSessionsProvider.js';
-import { areLocalModelsLoaded, hasAvailableAgentHostByokModels, shouldShowSignedOutModelsNotification } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSignedOutModelsNotification.js';
+import { areLocalModelsLoaded, getSignedOutModelsNotificationState, SignedOutModelsNotificationState } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSignedOutModelsNotification.js';
 import { SessionTypeAuthRequirement } from '../../../../../services/sessions/common/session.js';
 
 function agent(protectedResources: ProtectedResourceMetadata[] | undefined, modelCount: number): AgentInfo {
@@ -69,26 +69,39 @@ suite('Agent Host - session type auth requirement', () => {
 	});
 
 	test('no-model notification follows sign-in and model availability', () => {
+		const ready = {
+			allowSignedOutWhenUsable: true,
+			accountResolved: true,
+			entitlementResolved: true,
+			signedIn: false,
+			hasCopilotHarness: true,
+			hasModels: false,
+			localModelsLoaded: true,
+			gracePeriodElapsed: false,
+			setupDialogVisible: false,
+		};
 		assert.deepStrictEqual({
-			featureDisabled: shouldShowSignedOutModelsNotification(false, true, true, false, false),
-			loadingSignedOutWithoutModelsNotification: shouldShowSignedOutModelsNotification(true, false, true, false, false),
-			unresolvedAccountNotification: shouldShowSignedOutModelsNotification(true, true, false, false, false),
-			signedOutWithoutModelsNotification: shouldShowSignedOutModelsNotification(true, true, true, false, false),
-			signedOutWithModelsNotification: shouldShowSignedOutModelsNotification(true, true, true, false, true),
-			signedOutWithTargetedByokNotification: shouldShowSignedOutModelsNotification(true, true, true, false, hasAvailableAgentHostByokModels(true, true)),
-			signedOutWithSourceOnlyByokNotification: shouldShowSignedOutModelsNotification(true, true, true, false, hasAvailableAgentHostByokModels(true, false)),
-			signedOutWithClientByokDisabledNotification: shouldShowSignedOutModelsNotification(true, true, true, false, hasAvailableAgentHostByokModels(false, true)),
-			signedInWithoutModelsNotification: shouldShowSignedOutModelsNotification(true, true, true, true, false),
+			featureDisabled: getSignedOutModelsNotificationState({ ...ready, allowSignedOutWhenUsable: false }),
+			loading: getSignedOutModelsNotificationState({ ...ready, localModelsLoaded: false }),
+			loadingPastGracePeriod: getSignedOutModelsNotificationState({ ...ready, localModelsLoaded: false, gracePeriodElapsed: true }),
+			accountUnresolved: getSignedOutModelsNotificationState({ ...ready, accountResolved: false }),
+			entitlementUnresolved: getSignedOutModelsNotificationState({ ...ready, entitlementResolved: false }),
+			harnessUnavailable: getSignedOutModelsNotificationState({ ...ready, hasCopilotHarness: false }),
+			visible: getSignedOutModelsNotificationState(ready),
+			modelsAvailable: getSignedOutModelsNotificationState({ ...ready, hasModels: true }),
+			signedIn: getSignedOutModelsNotificationState({ ...ready, signedIn: true }),
+			setupDialogVisible: getSignedOutModelsNotificationState({ ...ready, setupDialogVisible: true }),
 		}, {
-			featureDisabled: false,
-			loadingSignedOutWithoutModelsNotification: false,
-			unresolvedAccountNotification: false,
-			signedOutWithoutModelsNotification: true,
-			signedOutWithModelsNotification: false,
-			signedOutWithTargetedByokNotification: false,
-			signedOutWithSourceOnlyByokNotification: true,
-			signedOutWithClientByokDisabledNotification: true,
-			signedInWithoutModelsNotification: false,
+			featureDisabled: SignedOutModelsNotificationState.Hidden,
+			loading: SignedOutModelsNotificationState.Waiting,
+			loadingPastGracePeriod: SignedOutModelsNotificationState.Visible,
+			accountUnresolved: SignedOutModelsNotificationState.Hidden,
+			entitlementUnresolved: SignedOutModelsNotificationState.Hidden,
+			harnessUnavailable: SignedOutModelsNotificationState.Hidden,
+			visible: SignedOutModelsNotificationState.Visible,
+			modelsAvailable: SignedOutModelsNotificationState.Hidden,
+			signedIn: SignedOutModelsNotificationState.Hidden,
+			setupDialogVisible: SignedOutModelsNotificationState.Hidden,
 		});
 	});
 
@@ -110,4 +123,5 @@ suite('Agent Host - session type auth requirement', () => {
 			settledConfigured: true,
 		});
 	});
+
 });

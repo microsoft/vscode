@@ -19,6 +19,7 @@ import { localize } from '../../../../nls.js';
 import { IAgentHostConnectionInfo, IAgentHostConnectionsService, LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { remoteAgentHostSessionTypeId } from '../../../../platform/agentHost/common/agentHostSessionType.js';
 import { AgentSession } from '../../../../platform/agentHost/common/agentService.js';
+import { isCustomizationEnabled } from '../../../../platform/agentHost/common/customizationEnablement.js';
 import { ActionType } from '../../../../platform/agentHost/common/state/protocol/actions.js';
 import { CustomizationType, McpServerStatus, type ChildCustomization, type Customization, type SessionState } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
@@ -632,7 +633,7 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 				if (customization.type === CustomizationType.McpServer) {
 					servers.push({
 						name: customization.name,
-						enabled: customization.enabled,
+						enabled: isCustomizationEnabled(customization),
 						status: customization.state.kind,
 					});
 				} else if (customization.type === CustomizationType.Directory || customization.type === CustomizationType.Plugin) {

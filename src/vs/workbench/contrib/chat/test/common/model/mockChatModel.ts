@@ -36,6 +36,8 @@ export class MockChatModel extends Disposable implements IChatModel {
 	readonly responderUsername: string = 'agent';
 	readonly inputModel: IInputModel = {
 		state: observableValue('inputModelState', undefined),
+		intendedModel: undefined,
+		setIntendedModel: () => { },
 		setState: () => { },
 		clearState: () => { },
 		toJSON: () => undefined

@@ -12,10 +12,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
-import { ActionType } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ResponsePart, type SessionSummary, type ToolCallCompletedState, type Turn } from '../../common/state/sessionState.js';
+import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
+import { ActionType, NotificationType } from '../../common/state/sessionActions.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ResponsePart, type SessionSummary, type ToolCallCompletedState, type Turn } from '../../common/state/sessionState.js';
 import { type AutoMergeMethod, type CreatedPullRequest, type GitHubIssueOrPullRequest, type IAgentHostOctoKitService } from '../../node/shared/agentHostOctoKitService.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
+import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
+import { sessionServerToolDefinitions } from '../../node/shared/sessionServerTools.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
 class TestCopilotApiService implements ICopilotApiService {
@@ -100,7 +103,7 @@ suite('AgentHostSessionTitleController', () => {
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createSummary(session: URI, title = ''): SessionSummary {
+	function createSummary(session: URI, title = '', isEphemeral = false): SessionSummary {
 		return {
 			resource: session.toString(),
 			provider: 'copilot',
@@ -108,6 +111,7 @@ suite('AgentHostSessionTitleController', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date(1).toISOString(),
 			modifiedAt: new Date(1).toISOString(),
+			...(isEphemeral ? { _meta: withEphemeralSessionMeta(undefined, true) } : {}),
 		};
 	}
 
@@ -129,6 +133,8 @@ suite('AgentHostSessionTitleController', () => {
 		getGitHubToken = () => 'github-token',
 		gitHubContextRequestTimeout?: number,
 		getGitHubHost = () => 'github.com',
+		activeAgentTitleGeneration = false,
+		isEphemeral = false,
 	): {
 		controller: AgentHostSessionTitleController;
 		stateManager: AgentHostStateManager;
@@ -141,7 +147,7 @@ suite('AgentHostSessionTitleController', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const db = new TestSessionDatabase();
 		const session = URI.parse('agenthost-session://copilot/session-title-test');
-		stateManager.createSession(createSummary(session, title));
+		stateManager.createSession(createSummary(session, title, isEphemeral));
 		const titleActions: string[] = [];
 		disposables.add(stateManager.onDidEmitEnvelope(e => {
 			if (e.action.type === ActionType.SessionTitleChanged) {
@@ -156,9 +162,186 @@ suite('AgentHostSessionTitleController', () => {
 			gitHubContextRequestTimeout,
 			octoKitService,
 			copilotApiService,
+			isActiveAgentTitleGenerationEnabled: () => activeAgentTitleGeneration,
 		}, new NullLogService()));
 		return { controller, stateManager, session, db, titleActions, copilotApiService, octoKitService };
 	}
+
+	test('active-agent mode completes the word crossing the 40-character fallback target without utility generation', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const { controller, session, db, titleActions } = setup(copilotApiService, '', undefined, undefined, undefined, undefined, undefined, true);
+
+		controller.seedTitleFromFirstMessage(session.toString(), 'Investigate why restored Agent Host sessions sometimes lose titles');
+		const instruction = await controller.prepareInstructionForAgent(session.toString(), buildDefaultChatUri(session));
+
+		assert.deepStrictEqual(titleActions, ['Investigate why restored Agent Host sessions...']);
+		assert.strictEqual(copilotApiService.utilityCalls.length, 0);
+		assert.strictEqual(instruction, 'Reminder: This chat currently has an auto-generated or placeholder title. If the user references an issue or PR, fetch it first. Please give the chat a short, descriptive title based on the user\'s intent by calling `rename_chat` with `automatic: true`, silently and without a preamble. The user must not know that you are renaming. Do not skip it.');
+		await waitForCondition(async () => await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY) === AGENT_HOST_TITLE_SOURCE_AUTO, 'auto provenance should be persisted');
+	});
+
+	test('active-agent fallback hard-truncates a single oversized word', () => {
+		const { controller, session, titleActions } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, true);
+
+		controller.seedTitleFromFirstMessage(session.toString(), 'x'.repeat(50));
+
+		assert.deepStrictEqual(titleActions, [`${'x'.repeat(37)}...`]);
+	});
+
+	test('active-agent fallback hard-caps an oversized token crossing the target', () => {
+		const { controller, session, titleActions } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, true);
+
+		controller.seedTitleFromFirstMessage(session.toString(), `Fix https://example.com/${'x'.repeat(500)}`);
+
+		assert.strictEqual(titleActions[0].length, 40);
+		assert.ok(titleActions[0].endsWith('...'));
+	});
+
+	test('active-agent fallback omits the ellipsis when the crossing word completes the prompt', () => {
+		const { controller, session, titleActions } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, true);
+
+		controller.seedTitleFromFirstMessage(session.toString(), 'Investigate why restored Agent Host sessions');
+
+		assert.deepStrictEqual(titleActions, ['Investigate why restored Agent Host sessions']);
+	});
+
+	test('utility-model mode does not add an active-agent reminder', async () => {
+		const { controller, session } = setup();
+		controller.seedTitleFromFirstMessage(session.toString(), 'Explain title generation');
+
+		assert.strictEqual(await controller.prepareInstructionForAgent(session.toString(), buildDefaultChatUri(session)), undefined);
+	});
+
+	test('does not generate or instruct titles for ephemeral sessions', async () => {
+		const { controller, session, titleActions, copilotApiService } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, true, true);
+
+		controller.seedTitleFromFirstMessage(session.toString(), 'Optimize an inline edit');
+		controller.seedProvisionalTitle(session.toString(), 'Provisional inline edit');
+		controller.refineTitleFromFirstTurn(session.toString());
+		controller.generateForkedTitle(session.toString(), undefined, [], 'Forked inline edit');
+
+		assert.deepStrictEqual({
+			titleActions,
+			utilityCalls: copilotApiService.utilityCalls.length,
+			instruction: await controller.prepareInstructionForAgent(session.toString(), buildDefaultChatUri(session)),
+		}, {
+			titleActions: [],
+			utilityCalls: 0,
+			instruction: undefined,
+		});
+	});
+
+	test('materialized server tools override later root setting changes', async () => {
+		const enabled = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, false);
+		enabled.stateManager.dispatchServerAction(enabled.session.toString(), {
+			type: ActionType.SessionServerToolsChanged,
+			tools: sessionServerToolDefinitions,
+		});
+		enabled.controller.seedTitleFromFirstMessage(enabled.session.toString(), 'Use advertised rename tool');
+
+		const disabled = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, true);
+		disabled.stateManager.dispatchServerAction(disabled.session.toString(), {
+			type: ActionType.SessionServerToolsChanged,
+			tools: [],
+		});
+		disabled.controller.seedTitleFromFirstMessage(disabled.session.toString(), 'Do not use missing rename tool');
+
+		assert.ok((await enabled.controller.prepareInstructionForAgent(enabled.session.toString(), buildDefaultChatUri(enabled.session)))?.includes('`rename_chat`'));
+		assert.strictEqual(await disabled.controller.prepareInstructionForAgent(disabled.session.toString(), buildDefaultChatUri(disabled.session)), undefined);
+		assert.strictEqual(disabled.copilotApiService.utilityCalls.length, 1);
+	});
+
+	test('active-agent mode reminds peer chats and keeps deterministic fork provenance without utility calls', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const { controller, stateManager, session, db } = setup(copilotApiService, 'Session title', undefined, undefined, undefined, undefined, undefined, true);
+		const chat = buildChatUri(session.toString(), 'peer-1');
+		stateManager.addChat(session.toString(), chat, {});
+		controller.seedTitleFromFirstMessage(session.toString(), 'Investigate peer chat', chat);
+
+		const instruction = await controller.prepareInstructionForAgent(session.toString(), chat);
+		assert.strictEqual(instruction, 'Reminder: This chat currently has an auto-generated or placeholder title. If the user references an issue or PR, fetch it first. Please give the chat a short, descriptive title based on the user\'s intent by calling `rename_chat` with `automatic: true`, silently and without a preamble. The user must not know that you are renaming. Do not skip it.');
+
+		controller.generateForkedTitle(session.toString(), undefined, [], 'Forked: Session title', 'Session title');
+		assert.strictEqual(copilotApiService.utilityCalls.length, 0);
+		await waitForCondition(async () => await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY) === AGENT_HOST_TITLE_SOURCE_AUTO, 'fork auto provenance should be persisted');
+		await waitForCondition(async () => await db.getMetadata(customChatTitleSourceMetadataKey(chat)) === AGENT_HOST_TITLE_SOURCE_AUTO, 'peer auto provenance should be persisted');
+	});
+
+	test('multi-chat default uses its own persisted title provenance after controller recreation', async () => {
+		const independentlyRenamed = setup(undefined, 'Session title', undefined, undefined, undefined, undefined, undefined, true);
+		const defaultChat = buildDefaultChatUri(independentlyRenamed.session);
+		independentlyRenamed.stateManager.addChat(independentlyRenamed.session.toString(), buildChatUri(independentlyRenamed.session.toString(), 'peer'), {});
+		await independentlyRenamed.db.setMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_AUTO);
+		await independentlyRenamed.db.setMetadata(customChatTitleSourceMetadataKey(defaultChat), AGENT_HOST_TITLE_SOURCE_AGENT);
+
+		const independentRenameInstruction = await independentlyRenamed.controller.prepareInstructionForAgent(independentlyRenamed.session.toString(), defaultChat);
+
+		const independentlyAutomatic = setup(undefined, 'Session title', undefined, undefined, undefined, undefined, undefined, true);
+		independentlyAutomatic.stateManager.addChat(independentlyAutomatic.session.toString(), buildChatUri(independentlyAutomatic.session.toString(), 'peer'), {});
+		await independentlyAutomatic.db.setMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_AGENT);
+		await independentlyAutomatic.db.setMetadata(customChatTitleSourceMetadataKey(defaultChat), AGENT_HOST_TITLE_SOURCE_AUTO);
+		const independentAutoInstruction = await independentlyAutomatic.controller.prepareInstructionForAgent(independentlyAutomatic.session.toString(), defaultChat);
+
+		assert.deepStrictEqual({
+			independentRenameInstruction,
+			independentAutoInstruction,
+		}, {
+			independentRenameInstruction: undefined,
+			independentAutoInstruction: 'Reminder: This chat currently has an auto-generated or placeholder title. If the user references an issue or PR, fetch it first. Please give the chat a short, descriptive title based on the user\'s intent by calling `rename_chat` with `automatic: true`, silently and without a preamble. The user must not know that you are renaming. Do not skip it.',
+		});
+	});
+
+	test('clearSession releases session and peer-chat rename state', async () => {
+		const { controller, stateManager, session, db } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, true);
+		const defaultChat = buildDefaultChatUri(session);
+		const chat = buildChatUri(session.toString(), 'peer-clear');
+		stateManager.addChat(session.toString(), chat, {});
+		controller.markTitleAuto(session.toString(), defaultChat, 'Default fallback');
+		controller.markTitleAuto(session.toString(), chat, 'Chat fallback');
+		await waitForCondition(async () =>
+			await db.getMetadata(customChatTitleSourceMetadataKey(defaultChat)) === AGENT_HOST_TITLE_SOURCE_AUTO
+			&& await db.getMetadata(customChatTitleSourceMetadataKey(chat)) === AGENT_HOST_TITLE_SOURCE_AUTO,
+			'auto provenance should be persisted');
+		controller.markTitleRenamed(session.toString(), defaultChat);
+		controller.markTitleRenamed(session.toString(), chat);
+		assert.strictEqual(await controller.prepareInstructionForAgent(session.toString(), defaultChat), undefined);
+		assert.strictEqual(await controller.prepareInstructionForAgent(session.toString(), chat), undefined);
+
+		controller.clearSession(session.toString(), [chat]);
+
+		assert.ok((await controller.prepareInstructionForAgent(session.toString(), defaultChat))?.includes('`rename_chat`'));
+		assert.ok((await controller.prepareInstructionForAgent(session.toString(), chat))?.includes('`rename_chat`'));
+	});
+
+	test('clearSession cancels generation and clears every title-state collection', () => {
+		const copilotApiService = new TestCopilotApiService();
+		copilotApiService.responsePromise = new Promise(() => { });
+		const { controller, stateManager, session } = setup(copilotApiService);
+		const provisionalChat = buildChatUri(session.toString(), 'peer-provisional');
+		const renamedChat = buildChatUri(session.toString(), 'peer-renamed');
+		stateManager.addChat(session.toString(), provisionalChat, {});
+		stateManager.addChat(session.toString(), renamedChat, {});
+		controller.seedTitleFromFirstMessage(session.toString(), 'Generate a title');
+		controller.seedProvisionalTitle(session.toString(), 'Provisional', provisionalChat);
+		controller.markTitleAuto(session.toString(), renamedChat, 'Automatic');
+		controller.markTitleRenamed(session.toString(), renamedChat);
+
+		controller.clearSession(session.toString(), [provisionalChat, renamedChat]);
+
+		assert.deepStrictEqual({
+			cancellations: controller['_titleGenerationCancellationSources'].size,
+			lastApplied: controller['_lastAppliedTitle'].size,
+			provisional: controller['_provisionalTitles'].size,
+			auto: controller['_autoTitles'].size,
+			renamed: controller['_renamedTitles'].size,
+		}, {
+			cancellations: 0,
+			lastApplied: 0,
+			provisional: 0,
+			auto: 0,
+			renamed: 0,
+		});
+	});
 
 	test('seedTitleFromFirstMessage applies fallback and persists generated title', async () => {
 		const copilotApiService = new TestCopilotApiService();
@@ -888,6 +1071,77 @@ suite('AgentHostSessionTitleController', () => {
 		}, {
 			title: 'Manual title',
 			persistedTitle: undefined,
+		});
+	});
+
+	test('generateExternalSessionTitle titles a surfaced external session from its first prompt', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		copilotApiService.response = 'Flaky renderer test';
+		const { controller, stateManager, db } = setup(copilotApiService);
+		const external = URI.parse('agenthost-session://claude/external-session');
+		const summaryTitles: (string | undefined)[] = [];
+		disposables.add(stateManager.onDidEmitNotification(n => {
+			if (n.type === NotificationType.SessionSummaryChanged && n.session === external.toString()) {
+				summaryTitles.push(n.changes.title);
+			}
+		}));
+
+		stateManager.announceSurfacedSession(createSummary(external));
+		await controller.generateExternalSessionTitle(external.toString(), 'Fix the flaky renderer test');
+		// No polling: awaiting the call must mean the title is applied and persisted.
+
+		assert.deepStrictEqual({
+			summaryTitles,
+			persistedTitle: await db.getMetadata('customTitle'),
+			persistedSource: await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY),
+			isLive: !!stateManager.getSessionState(external.toString()),
+		}, {
+			summaryTitles: ['Flaky renderer test'],
+			persistedTitle: 'Flaky renderer test',
+			persistedSource: AGENT_HOST_TITLE_SOURCE_AUTO,
+			isLive: false,
+		});
+	});
+
+	test('generateExternalSessionTitle does not clobber a rename during generation', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		let resolveTitle!: (title: string) => void;
+		copilotApiService.responsePromise = new Promise(resolve => { resolveTitle = resolve; });
+		const { controller, stateManager, db } = setup(copilotApiService);
+		const external = URI.parse('agenthost-session://claude/external-session');
+
+		stateManager.announceSurfacedSession(createSummary(external));
+		const generation = controller.generateExternalSessionTitle(external.toString(), 'Fix the flaky renderer test');
+		await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'title generation should start');
+		controller.markTitleRenamed(external.toString());
+		resolveTitle('Flaky renderer test');
+		// Also proves a cancelled generation settles rather than hanging its caller.
+		await generation;
+
+		assert.deepStrictEqual({
+			aborted: copilotApiService.utilityCalls[0].options?.signal?.aborted,
+			persistedTitle: await db.getMetadata('customTitle'),
+		}, {
+			aborted: true,
+			persistedTitle: undefined,
+		});
+	});
+
+	test('generateExternalSessionTitle keeps an already persisted title', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const { controller, stateManager, db } = setup(copilotApiService);
+		const external = URI.parse('agenthost-session://claude/external-session');
+		await db.setMetadata('customTitle', 'Renamed by the user');
+
+		stateManager.announceSurfacedSession(createSummary(external));
+		await controller.generateExternalSessionTitle(external.toString(), 'Fix the flaky renderer test');
+
+		assert.deepStrictEqual({
+			utilityCalls: copilotApiService.utilityCalls.length,
+			persistedTitle: await db.getMetadata('customTitle'),
+		}, {
+			utilityCalls: 0,
+			persistedTitle: 'Renamed by the user',
 		});
 	});
 });

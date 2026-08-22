@@ -18,37 +18,26 @@
 	z-index: 1;
 }
 
-.new-chat-widget-content > .chat-getting-started-tip-container:has(> .chat-tip-widget) {
-	margin-bottom: 0;
-}
-
-.new-chat-widget-content > .chat-getting-started-tip-container:has(> .chat-tip-widget) + .new-chat-input-container {
-	margin-top: 0;
-}
-
-.new-chat-widget-content > .chat-getting-started-tip-container:has(> .chat-tip-widget) + .new-chat-input-container .new-chat-input-area {
-	border-radius: 0 0 var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large);
+/* The tip sits in the input's notice slot, attached to the top of the input. */
+.new-chat-input-container > .chat-getting-started-tip-container {
+	width: 100%;
 }
 
 .new-session-feedback-banners {
 	width: 100%;
 	max-width: 800px;
+}
+
+/* Clear of the picker above only while showing a banner. Prefixed with the stack
+	so it does not tie on specificity with the stack's own `margin-top` rule. */
+.chat-input-stack > .new-session-feedback-banners.chat-input-stack-docked {
 	margin-top: var(--vscode-spacing-size120);
 }
 
 .new-session-feedback-banners .session-input-banner {
 	padding-bottom: var(--vscode-spacing-size100);
-	margin-bottom: calc(-1 * var(--vscode-spacing-size80));
-	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
+	border-radius: var(--chat-input-stack-radius-top, var(--vscode-cornerRadius-large)) var(--chat-input-stack-radius-top, var(--vscode-cornerRadius-large)) 0 0;
 	background-color: var(--session-view-background);
-}
-
-.new-session-feedback-banners:not(:has(.session-input-banner)) {
-	margin-top: 0;
-}
-
-.new-session-feedback-banners:has(.session-input-banner) + .new-chat-input-container {
-	margin-top: 0;
 }
 
 /* Ensure the input editor fits properly */
@@ -83,7 +72,11 @@
 	max-width: 800px;
 	box-sizing: border-box;
 	border: 1px solid var(--vscode-agentsChatInput-border);
-	border-radius: var(--vscode-cornerRadius-large);
+	border-radius:
+		var(--chat-input-stack-radius-top, var(--vscode-cornerRadius-large))
+		var(--chat-input-stack-radius-top, var(--vscode-cornerRadius-large))
+		var(--vscode-cornerRadius-large)
+		var(--vscode-cornerRadius-large);
 	background-color: var(--vscode-agentsChatInput-background);
 	color: var(--vscode-agentsChatInput-foreground);
 	overflow: hidden;
@@ -663,42 +656,3 @@
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-/* --- Chat input notification in the new-session homepage --- */
-
-/* Hide the container when no notification is active */
-.new-chat-input-container > .chat-input-notification-container:not(.has-notification) {
-	display: none;
-}
-
-.new-chat-input-container > .chat-input-notification-container.has-notification {
-	/* Overlap the following input-stack surface to avoid a gap between their rounded edges. */
-	margin-bottom: calc(-1 * var(--vscode-spacing-size80));
-}
-
-.new-chat-input-container > .chat-input-notification-container .chat-input-notification {
-	padding: 10px 16px 16px 16px;
-	box-sizing: border-box;
-	border: 1px solid var(--vscode-input-border, transparent);
-	border-bottom: none;
-	border-top-left-radius: 8px;
-	border-top-right-radius: 8px;
-	display: flex;
-	flex-direction: column;
-	gap: 4px;
-}
-
-/* Severity variants */
-.new-chat-input-container > .chat-input-notification-container .chat-input-notification.severity-info {
-	border-color: var(--vscode-focusBorder);
-	background-color: color-mix(in srgb, var(--vscode-focusBorder) 6%, var(--vscode-editorWidget-background));
-}
-
-.new-chat-input-container > .chat-input-notification-container .chat-input-notification.severity-warning {
-	border-color: var(--vscode-editorWarning-foreground);
-	background-color: color-mix(in srgb, var(--vscode-editorWarning-foreground) 6%, var(--vscode-editorWidget-background));
-}
-
-.new-chat-input-container > .chat-input-notification-container .chat-input-notification.severity-error {
-	border-color: var(--vscode-editorError-foreground);
-	background-color: color-mix(in srgb, var(--vscode-editorError-foreground) 6%, var(--vscode-editorWidget-background));
-}

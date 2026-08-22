@@ -7,18 +7,30 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { AICustomizationManagementSection } from './aiCustomizationManagement.js';
-import { IPromptMigrationInfo } from './promptMigration.js';
+import { CustomizationMigrationCategoryId } from './customizationMigrationCategories.js';
 import { IAICustomizationWorkspaceService, IWelcomePageFeatures } from '../../common/aiCustomizationWorkspaceService.js';
 import { PromptLaunchersAICustomizationWelcomePage } from './aiCustomizationWelcomePagePromptLaunchers.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 
 const $ = DOM.$;
 
+/**
+ * A migration flow offered on the overview, already resolved to display copy.
+ */
+export interface ICustomizationMigrationCategorySummary {
+	readonly id: CustomizationMigrationCategoryId;
+	readonly label: string;
+	readonly description: string;
+	readonly actionLabel: string;
+	readonly actionAriaLabel: string;
+	readonly count: number;
+}
+
 export interface IWelcomePageCallbacks {
 	selectSection(section: AICustomizationManagementSection): void;
 	selectSectionWithMarketplace(section: AICustomizationManagementSection): void;
 	closeEditor(): void;
-	migratePromptFiles(): void;
+	migrateCustomizations(categoryId: CustomizationMigrationCategoryId): void;
 	/**
 	 * Prefill the chat input with a query. In the sessions window this
 	 * uses the sessions chat widget; in core VS Code it opens the chat view.
@@ -33,7 +45,7 @@ export interface IAICustomizationWelcomePageImplementation extends IDisposable {
 	readonly container: HTMLElement;
 	rebuildCards(visibleSectionIds: ReadonlySet<AICustomizationManagementSection>): void;
 	setHarnessLabel(label: string): void;
-	setPromptMigrationInfo(info: IPromptMigrationInfo | undefined): void;
+	setMigrationCategories(categories: readonly ICustomizationMigrationCategorySummary[]): void;
 	focus(): void;
 	/** Called when the welcome page becomes visible after navigation — clears any transient state. */
 	reset?(): void;
@@ -73,8 +85,8 @@ export class AICustomizationWelcomePage extends Disposable {
 		this.implementation.setHarnessLabel(label);
 	}
 
-	setPromptMigrationInfo(info: IPromptMigrationInfo | undefined): void {
-		this.implementation.setPromptMigrationInfo(info);
+	setMigrationCategories(categories: readonly ICustomizationMigrationCategorySummary[]): void {
+		this.implementation.setMigrationCategories(categories);
 	}
 
 	focus(): void {
