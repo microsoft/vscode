@@ -774,7 +774,9 @@ class PrimitiveToolResult<T extends IPrimitiveToolResultProps> extends PromptEle
 				<IfEmpty alt='(empty)'>
 					{await Promise.all(this.props.content.filter(part => this.hasAssistantAudience(part)).map(async part => {
 						if (part instanceof LanguageModelTextPart) {
-							return await this.onText(part.value);
+							// Tool results (e.g. from MCP servers) may include text parts with an undefined value;
+							// render them as empty text instead of crashing the renderer (#324371)
+							return await this.onText(part.value ?? '');
 						} else if (part instanceof LanguageModelPromptTsxPart) {
 							return await this.onTSX(part.value as JSONTree.PromptElementJSON);
 						} else if (isImageDataPart(part)) {
