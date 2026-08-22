@@ -128,7 +128,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	}
 
 	override copy(): EditorInput {
-		return this.instantiationService.createInstance(ChatEditorInput, this.getNewResourceForCopy(), {});
+		return this.instantiationService.createInstance(ChatEditorInput, this.getNewResourceForCopy(), { sessionTypeSelectionReason: 'currentSession' });
 	}
 
 	/**
