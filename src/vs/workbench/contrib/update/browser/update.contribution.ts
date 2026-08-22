@@ -21,8 +21,9 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { isWindows } from '../../../../base/common/platform.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { mnemonicButtonLabel } from '../../../../base/common/labels.js';
-import { ShowCurrentReleaseNotesActionId, ShowCurrentReleaseNotesFromCurrentFileActionId } from '../common/update.js';
+import { ShowCurrentReleaseNotesActionId, ShowCurrentReleaseNotesFromCurrentFileActionId, UpdateTitleBarChatInProgressContext } from '../common/update.js';
 import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -167,7 +168,10 @@ class RestartToUpdateAction extends Action2 {
 			title: localize2('restartToUpdate', 'Restart to Update'),
 			category: { value: product.nameShort, original: product.nameShort },
 			f1: true,
-			precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready)
+			precondition: ContextKeyExpr.and(
+				CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready),
+				UpdateTitleBarChatInProgressContext.negate()
+			)
 		});
 	}
 

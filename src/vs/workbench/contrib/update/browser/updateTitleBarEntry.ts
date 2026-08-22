@@ -125,13 +125,14 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 
 		if (additionalMenuPlacement) {
 			const { menuId, item } = additionalMenuPlacement;
+			// Chat-in-progress hide stays on the editor title bar; Agents keeps Update visible (#328473).
 			MenuRegistry.appendMenuItem(menuId, {
 				...item,
 				command: {
 					id: UPDATE_TITLE_BAR_ACTION_ID,
 					title: localize('updateIndicatorTitleBarAction', 'Update'),
 				},
-				when: ContextKeyExpr.and(UpdateTitleBarContext, UpdateTitleBarChatInProgressContext.negate(), item.when),
+				when: ContextKeyExpr.and(UpdateTitleBarContext, item.when),
 			});
 			this._register(actionViewItemService.register(
 				menuId,
@@ -242,6 +243,7 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 		@IHoverService private readonly hoverService: IHoverService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IUpdateService private readonly updateService: IUpdateService,
+		@IChatService private readonly chatService: IChatService,
 	) {
 		super(undefined, action, options);
 
@@ -320,6 +322,11 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 				commandId = 'update.install';
 				break;
 			case StateType.Ready:
+				// Don't quit while a chat request is running; show the tooltip instead.
+				if (this.chatService.requestInProgressObs.get()) {
+					this.showTooltip(true);
+					return;
+				}
 				commandId = 'update.restart';
 				break;
 			default:

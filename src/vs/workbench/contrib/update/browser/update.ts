@@ -32,7 +32,7 @@ import { Event } from '../../../../base/common/event.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { getInternalOrg } from '../../../../platform/assignment/common/assignment.js';
 import { IVersion, tryParseVersion } from '../common/updateUtils.js';
-import { UpdateGlobalActivityBadgeVisibleContext } from '../common/update.js';
+import { UpdateGlobalActivityBadgeVisibleContext, UpdateTitleBarChatInProgressContext } from '../common/update.js';
 
 export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
 export const MAJOR_MINOR_UPDATE_AVAILABLE = new RawContextKey<boolean>('majorMinorUpdateAvailable', false);
@@ -153,7 +153,10 @@ export function appendUpdateMenuItems(menuId: MenuId, group: string): void {
 			id: 'update.restart',
 			title: nls.localize('restartToUpdate', "Restart to Update (1)")
 		},
-		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready)
+		when: ContextKeyExpr.and(
+			CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready),
+			UpdateTitleBarChatInProgressContext.negate()
+		)
 	});
 }
 
