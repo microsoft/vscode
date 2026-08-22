@@ -92,6 +92,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 	private searchOperation: LongRunningOperation;
 	private searchHistoryDelayer: Delayer<void>;
 	private readonly messageDisposables: DisposableStore;
+	private readonly inputDisposables = this._register(new DisposableStore());
 	private container: HTMLElement;
 	private searchModel: SearchModelImpl;
 	private ongoingOperations: number = 0;
@@ -708,6 +709,8 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		if (token.isCancellationRequested) {
 			return;
 		}
+		// A new input can replace the current one without clearInput being called first.
+		this.inputDisposables.clear();
 
 		const { configurationModel, resultsModel } = await newInput.resolveModels();
 		if (token.isCancellationRequested) { return; }
@@ -719,7 +722,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 
 		this.setSearchConfig(configurationModel.config);
 
-		this._register(configurationModel.onConfigDidUpdate(newConfig => {
+		this.inputDisposables.add(configurationModel.onConfigDidUpdate(newConfig => {
 			if (newConfig !== this.priorConfig) {
 				this.pauseSearching = true;
 				this.setSearchConfig(newConfig);
@@ -741,6 +744,12 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 				this.onSearchComplete(complete, existingConfig, newInput);
 			});
 		}
+	}
+
+	override clearInput(): void {
+		// An input can be cleared without another input being set.
+		this.inputDisposables.clear();
+		super.clearInput();
 	}
 
 	private toggleIncludesExcludes(_shouldShow?: boolean): void {

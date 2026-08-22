@@ -242,6 +242,7 @@ export class SearchEditorInput extends EditorInput {
 	}
 
 	override dispose() {
+		this.model.dispose();
 		this.modelService.destroyModel(this.modelUri);
 		super.dispose();
 	}
