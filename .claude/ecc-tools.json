@@ -1,0 +1,227 @@
+{
+  "version": "1.3",
+  "schemaVersion": "1.0",
+  "generatedBy": "ecc-tools",
+  "generatedAt": "2026-07-14T20:20:34.604Z",
+  "repo": "https://github.com/devops2626/vscode",
+  "referenceSetReadiness": {
+    "score": 0,
+    "present": 0,
+    "total": 7,
+    "items": [
+      {
+        "id": "deep-analyzer-corpus",
+        "label": "Deep analyzer corpus",
+        "status": "missing",
+        "evidence": [],
+        "recommendation": "Add analyzer fixture, golden, benchmark, or reference-set files that can catch analyzer regressions."
+      },
+      {
+        "id": "rag-evaluator",
+        "label": "RAG/evaluator comparison",
+        "status": "missing",
+        "evidence": [],
+        "recommendation": "Add retrieval or evaluator reference-set comparison fixtures with expected ranking behavior."
+      },
+      {
+        "id": "pr-salvage",
+        "label": "PR salvage/review corpus",
+        "status": "missing",
+        "evidence": [],
+        "recommendation": "Add stale-PR, review-thread, reopen-flow, or salvage reference cases for queue cleanup automation."
+      },
+      {
+        "id": "discussion-triage",
+        "label": "Discussion triage corpus",
+        "status": "missing",
+        "evidence": [],
+        "recommendation": "Add public discussion triage fixtures, golden cases, or reference sets for informational, answered, and no-response classifications."
+      },
+      {
+        "id": "harness-compatibility",
+        "label": "Harness compatibility",
+        "status": "missing",
+        "evidence": [],
+        "recommendation": "Add cross-harness, adapter-compliance, or harness-audit evidence for Claude, Codex, OpenCode, Zed, dmux, and agent surfaces."
+      },
+      {
+        "id": "security-evidence",
+        "label": "Security evidence",
+        "status": "missing",
+        "evidence": [],
+        "recommendation": "Attach security evidence such as SBOMs, SARIF, audit reports, or AgentShield evidence packs."
+      },
+      {
+        "id": "ci-failure-mode",
+        "label": "CI failure-mode evidence",
+        "status": "missing",
+        "evidence": [],
+        "recommendation": "Add captured CI failure logs, dry-run fixtures, or troubleshooting docs for common workflow failure modes."
+      }
+    ]
+  },
+  "profiles": {
+    "requested": "core",
+    "recommended": "core",
+    "effective": "core",
+    "requestedAlias": "core",
+    "recommendedAlias": "core",
+    "effectiveAlias": "core"
+  },
+  "requestedProfile": "core",
+  "profile": "core",
+  "recommendedProfile": "core",
+  "effectiveProfile": "core",
+  "tier": "free",
+  "requestedComponents": [
+    "repo-baseline"
+  ],
+  "selectedComponents": [
+    "repo-baseline"
+  ],
+  "requestedAddComponents": [],
+  "requestedRemoveComponents": [],
+  "blockedRemovalComponents": [],
+  "tierFilteredComponents": [],
+  "requestedRootPackages": [
+    "runtime-core"
+  ],
+  "selectedRootPackages": [
+    "runtime-core"
+  ],
+  "requestedPackages": [
+    "runtime-core"
+  ],
+  "requestedAddPackages": [],
+  "requestedRemovePackages": [],
+  "selectedPackages": [
+    "runtime-core"
+  ],
+  "packages": [
+    "runtime-core"
+  ],
+  "blockedRemovalPackages": [],
+  "tierFilteredRootPackages": [],
+  "tierFilteredPackages": [],
+  "conflictingPackages": [],
+  "dependencyGraph": {
+    "runtime-core": []
+  },
+  "resolutionOrder": [
+    "runtime-core"
+  ],
+  "requestedModules": [
+    "runtime-core"
+  ],
+  "selectedModules": [
+    "runtime-core"
+  ],
+  "modules": [
+    "runtime-core"
+  ],
+  "managedFiles": [
+    ".claude/skills/vscode/SKILL.md",
+    ".agents/skills/vscode/SKILL.md",
+    ".agents/skills/vscode/agents/openai.yaml",
+    ".claude/identity.json",
+    ".codex/config.toml",
+    ".codex/AGENTS.md",
+    ".codex/agents/explorer.toml",
+    ".codex/agents/reviewer.toml",
+    ".codex/agents/docs-researcher.toml",
+    ".claude/homunculus/instincts/inherited/vscode-instincts.yaml"
+  ],
+  "packageFiles": {
+    "runtime-core": [
+      ".claude/skills/vscode/SKILL.md",
+      ".agents/skills/vscode/SKILL.md",
+      ".agents/skills/vscode/agents/openai.yaml",
+      ".claude/identity.json",
+      ".codex/config.toml",
+      ".codex/AGENTS.md",
+      ".codex/agents/explorer.toml",
+      ".codex/agents/reviewer.toml",
+      ".codex/agents/docs-researcher.toml",
+      ".claude/homunculus/instincts/inherited/vscode-instincts.yaml"
+    ]
+  },
+  "moduleFiles": {
+    "runtime-core": [
+      ".claude/skills/vscode/SKILL.md",
+      ".agents/skills/vscode/SKILL.md",
+      ".agents/skills/vscode/agents/openai.yaml",
+      ".claude/identity.json",
+      ".codex/config.toml",
+      ".codex/AGENTS.md",
+      ".codex/agents/explorer.toml",
+      ".codex/agents/reviewer.toml",
+      ".codex/agents/docs-researcher.toml",
+      ".claude/homunculus/instincts/inherited/vscode-instincts.yaml"
+    ]
+  },
+  "files": [
+    {
+      "moduleId": "runtime-core",
+      "path": ".claude/skills/vscode/SKILL.md",
+      "description": "Repository-specific Claude Code skill generated from git history."
+    },
+    {
+      "moduleId": "runtime-core",
+      "path": ".agents/skills/vscode/SKILL.md",
+      "description": "Codex-facing copy of the generated repository skill."
+    },
+    {
+      "moduleId": "runtime-core",
+      "path": ".agents/skills/vscode/agents/openai.yaml",
+      "description": "Codex skill metadata so the repo skill appears cleanly in the skill interface."
+    },
+    {
+      "moduleId": "runtime-core",
+      "path": ".claude/identity.json",
+      "description": "Suggested identity.json baseline derived from repository conventions."
+    },
+    {
+      "moduleId": "runtime-core",
+      "path": ".codex/config.toml",
+      "description": "Repo-local Codex MCP and multi-agent baseline aligned with ECC defaults."
+    },
+    {
+      "moduleId": "runtime-core",
+      "path": ".codex/AGENTS.md",
+      "description": "Codex usage guide that points at the generated repo skill and workflow bundle."
+    },
+    {
+      "moduleId": "runtime-core",
+      "path": ".codex/agents/explorer.toml",
+      "description": "Read-only explorer role config for Codex multi-agent work."
+    },
+    {
+      "moduleId": "runtime-core",
+      "path": ".codex/agents/reviewer.toml",
+      "description": "Read-only reviewer role config focused on correctness and security."
+    },
+    {
+      "moduleId": "runtime-core",
+      "path": ".codex/agents/docs-researcher.toml",
+      "description": "Read-only docs researcher role config for API verification."
+    },
+    {
+      "moduleId": "runtime-core",
+      "path": ".claude/homunculus/instincts/inherited/vscode-instincts.yaml",
+      "description": "Continuous-learning instincts derived from repository patterns."
+    }
+  ],
+  "workflows": [],
+  "adapters": {
+    "claudeCode": {
+      "skillPath": ".claude/skills/vscode/SKILL.md",
+      "identityPath": ".claude/identity.json",
+      "commandPaths": []
+    },
+    "codex": {
+      "configPath": ".codex/config.toml",
+      "agentsGuidePath": ".codex/AGENTS.md",
+      "skillPath": ".agents/skills/vscode/SKILL.md"
+    }
+  }
+}
