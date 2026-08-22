@@ -11,6 +11,7 @@ import { TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallCancella
 import { SessionStatus } from '../channels-session/state.js';
 import type { ChatAction } from '../action-origin.generated.js';
 import { softAssertNever } from '../common/reducer-helpers.js';
+import { addMillisecondsToTimestamp } from '../common/timestamps.js';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -106,6 +107,10 @@ function findOpenInputRequestPart(
 function hasResumableError(turn: Turn): boolean {
 	const part = turn.responseParts[turn.responseParts.length - 1];
 	return part?.kind === ResponsePartKind.Error && part.resumable === true;
+}
+
+function isErrorResponsePart(part: ResponsePart): part is ErrorResponsePart {
+	return part.kind === ResponsePartKind.Error;
 }
 
 /** Bitmask covering the mutually-exclusive activity bits (bits 0–4). */
@@ -204,7 +209,7 @@ function endTurn(
 		...state,
 		turns: [...state.turns, turn],
 		activeTurn: undefined,
-		modifiedAt: new Date(Date.now()).toISOString(),
+		modifiedAt: addMillisecondsToTimestamp(active.startedAt, turn.duration ?? 0),
 	};
 	return {
 		...next,
@@ -239,7 +244,7 @@ function upsertInputRequestPart(state: ChatState, request: InputRequestResponseP
 			responseParts,
 		},
 	};
-	return { ...next, status: withStatusFlag(summaryStatus(next), SessionStatus.IsRead, false), modifiedAt: new Date(Date.now()).toISOString() };
+	return { ...next, status: withStatusFlag(summaryStatus(next), SessionStatus.IsRead, false) };
 }
 
 /**
@@ -345,7 +350,7 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 			next = {
 				...next,
 				status: withStatusFlag(summaryStatus(next), SessionStatus.IsRead, false),
-				modifiedAt: new Date(Date.now()).toISOString(),
+				modifiedAt: action.startedAt,
 			};
 
 			// If this turn was auto-started from a pending message, remove it
@@ -374,7 +379,7 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 			if (!state.activeTurn || state.activeTurn.id !== action.turnId) {
 				return state;
 			}
-			if (action.part.kind === ResponsePartKind.Error) {
+			if (isErrorResponsePart(action.part)) {
 				return state;
 			}
 			return {
@@ -740,7 +745,6 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 				...state,
 				turns,
 				activeTurn: undefined,
-				modifiedAt: new Date(Date.now()).toISOString(),
 			};
 			if (action.turnId === undefined) {
 				delete next.turnsNextCursor;
@@ -796,7 +800,6 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 					...activeTurn,
 					responseParts,
 				},
-				modifiedAt: new Date(Date.now()).toISOString(),
 			};
 		}
 
@@ -829,7 +832,6 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 			return {
 				...next,
 				status: summaryStatus(next),
-				modifiedAt: new Date(Date.now()).toISOString(),
 			};
 		}
 

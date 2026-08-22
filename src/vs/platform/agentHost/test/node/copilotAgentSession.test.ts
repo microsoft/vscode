@@ -31,6 +31,7 @@ import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
+import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
@@ -5741,7 +5742,7 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(terminalManager.outputTerminalsCreated, [{
 				uri: terminalUri,
 				title: 'Run Shell Command',
-				claim: { kind: TerminalClaimKind.Session, session: AgentSession.uri('copilot', 'test-session-1').toString(), toolCallId: 'tc-stream' },
+				claim: { kind: TerminalClaimKind.Session, session: AgentSession.uri('copilot', 'test-session-1').toString(), chat: buildDefaultChatUri(AgentSession.uri('copilot', 'test-session-1')), toolCallId: 'tc-stream' },
 			}]);
 			assert.deepStrictEqual(terminalManager.outputTerminalData, [
 				{ uri: terminalUri, data: 'tick 1\n' },
@@ -7566,7 +7567,7 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(signals.length, 1);
 			const request = getInputRequest(signals[0]);
 			const requestId = request.id;
-			assert.strictEqual(request.message, undefined);
+			assert.strictEqual(readChatInputRequestPurpose(request), ChatInputRequestPurpose.AskUser);
 			assert.ok(request.questions);
 			assert.strictEqual(request.questions[0].message, 'What is your name?');
 			const questionId = request.questions[0].id;
@@ -7710,7 +7711,7 @@ suite('CopilotAgentSession', () => {
 				ActionType.ChatInputCompleted,
 			]);
 			const requested = getActions(signals)[0];
-			assert.strictEqual(requested.type === ActionType.ChatInputRequested ? requested.request.message : undefined, undefined);
+			assert.strictEqual(requested.type === ActionType.ChatInputRequested ? readChatInputRequestPurpose(requested.request) : undefined, undefined);
 			const completed = getActions(signals)[1];
 			assert.deepStrictEqual(completed.type === ActionType.ChatInputCompleted ? Object.values(completed.answers ?? {}) : [], [{
 				state: ChatInputAnswerState.Submitted,
@@ -7761,7 +7762,7 @@ suite('CopilotAgentSession', () => {
 				ActionType.ChatInputCompleted,
 			]);
 			const requested = getActions(signals)[0];
-			assert.strictEqual(requested.type === ActionType.ChatInputRequested ? requested.request.message : undefined, undefined);
+			assert.strictEqual(requested.type === ActionType.ChatInputRequested ? readChatInputRequestPurpose(requested.request) : undefined, undefined);
 			const completed = getActions(signals)[1];
 			assert.deepStrictEqual(completed.type === ActionType.ChatInputCompleted ? Object.values(completed.answers ?? {}) : [], [{
 				state: ChatInputAnswerState.Submitted,
@@ -7800,7 +7801,7 @@ suite('CopilotAgentSession', () => {
 
 			assert.strictEqual(signals.length, 1);
 			const request = getInputRequest(signals[0]);
-			assert.strictEqual(request.message, 'Configure deployment');
+			assert.strictEqual(readChatInputRequestPurpose(request), ChatInputRequestPurpose.Elicitation);
 			assert.strictEqual(request.message, 'Configure deployment');
 			assert.ok(request.questions);
 			assert.deepStrictEqual(request.questions.map(q => ({ id: q.id, kind: q.kind, required: q.required })), [
@@ -9285,7 +9286,7 @@ suite('CopilotAgentSession', () => {
 
 			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
 			const request = getInputRequest(signal);
-			assert.strictEqual(request.message, undefined);
+			assert.strictEqual(readChatInputRequestPurpose(request), ChatInputRequestPurpose.PlanReview);
 
 			const planReview = (request as ChatInputRequestWithPlanReview).planReview;
 			assert.deepStrictEqual(planReview, {

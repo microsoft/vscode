@@ -31,6 +31,7 @@ import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { getCopilotHomePath } from '../../common/copilotHome.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
+import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { gitHubMcpServerUrl } from '../../common/githubEndpoints.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
@@ -993,7 +994,7 @@ export class CopilotAgentSession extends Disposable {
 		this._isLaunchTokenStillCurrent = options.isLaunchTokenCurrent ?? (() => true);
 		this._onTurnEnded = options.onTurnEnded ?? (() => { });
 		this._shellManager = options.shellManager;
-		this._nonPtyShellTerminals = this._register(this._instantiationService.createInstance(NonPtyShellTerminalStreams, options.sessionUri));
+		this._nonPtyShellTerminals = this._register(this._instantiationService.createInstance(NonPtyShellTerminalStreams, options.sessionUri, options.chatChannelUri));
 		this._workingDirectory = options.workingDirectory;
 		this._customizationDirectory = options.customizationDirectory;
 		this._serverToolHost = options.serverToolHost;
@@ -1967,6 +1968,7 @@ export class CopilotAgentSession extends Disposable {
 
 	private _createRuntimeAdapter(): ICopilotSessionRuntime {
 		return {
+			chatUri: this._chatChannelUri,
 			handlePermissionRequest: this._guarded(request => this._handlePermissionRequest(request), { kind: 'reject' } satisfies PermissionRequestResult, 'permission'),
 			handleExitPlanModeRequest: this._guarded((request, invocation) => this._handleExitPlanModeRequest(request, invocation), { approved: false } satisfies CopilotExitPlanModeResponse, 'exit-plan-mode'),
 			handleUserInputRequest: this._guarded((request, invocation) => this._handleUserInputRequest(request, invocation), { answer: '', wasFreeform: true } satisfies UserInputResponse, 'user-input'),
@@ -3661,7 +3663,7 @@ export class CopilotAgentSession extends Disposable {
 
 			this._emitAction({
 				type: ActionType.ChatInputRequested,
-				request: inputRequest,
+				request: withChatInputRequestPurpose(inputRequest, ChatInputRequestPurpose.AskUser),
 			});
 
 			const result = await pendingInput;
@@ -3731,12 +3733,12 @@ export class CopilotAgentSession extends Disposable {
 
 			const pendingElicitation = this._pendingElicitations.register(requestId, { schema });
 
-			const inputRequest: ChatInputRequest = {
+			const inputRequest = withChatInputRequestPurpose<ChatInputRequest>({
 				id: requestId,
 				message: context.message,
 				...(context.mode === 'url' && context.url ? { url: context.url } : {}),
 				...(questions && questions.length > 0 ? { questions } : {}),
-			};
+			}, ChatInputRequestPurpose.Elicitation);
 
 			this._emitAction({
 				type: ActionType.ChatInputRequested,
@@ -5314,7 +5316,7 @@ export class CopilotAgentSession extends Disposable {
 			...(option.recommended ? { default: true } : {}),
 		}));
 
-		const inputRequest: ChatInputRequestWithPlanReview = {
+		const inputRequest: ChatInputRequestWithPlanReview = withChatInputRequestPurpose({
 			id: requestId,
 			planReview: {
 				title: localize('agentHost.planReview.title', "Review Plan"),
@@ -5333,7 +5335,7 @@ export class CopilotAgentSession extends Disposable {
 				options,
 				allowFreeformInput: true,
 			}],
-		};
+		}, ChatInputRequestPurpose.PlanReview);
 
 		const pendingPlanReview = this._pendingPlanReviews.register(requestId, {
 			actions: data.actions,

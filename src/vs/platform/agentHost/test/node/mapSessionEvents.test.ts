@@ -174,6 +174,68 @@ suite('mapSessionEvents — history replay', () => {
 		}]);
 	});
 
+	test('keeps a resumable error terminal when a later notification starts another turn', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'failed-turn', timestamp: '2026-08-11T00:00:00.000Z', data: { interactionId: 'm1', content: 'Start the background agent' } },
+			{ type: 'assistant.turn_start', timestamp: '2026-08-11T00:00:00.100Z', data: { turnId: 'sdk-turn-1' } },
+			{ type: 'session.error', timestamp: '2026-08-11T00:00:02.000Z', data: { errorType: 'requestFailed', message: 'First failure' } },
+			{
+				type: 'system.notification',
+				id: 'notification-turn',
+				timestamp: '2026-08-11T00:10:00.000Z',
+				data: {
+					content: '<system_notification>\nAgent completed\n</system_notification>',
+					kind: { type: 'agent_idle', agentId: 'agent-a', agentType: 'general-purpose' },
+				},
+			},
+			{ type: 'assistant.turn_start', timestamp: '2026-08-11T00:10:00.100Z', data: { turnId: 'sdk-turn-2' } },
+			{ type: 'assistant.message', timestamp: '2026-08-11T00:10:01.000Z', data: { messageId: 'm2', content: 'The background agent finished.' } },
+			{ type: 'assistant.turn_end', timestamp: '2026-08-11T00:10:01.000Z', data: { turnId: 'sdk-turn-2' } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns.map(turn => ({
+			id: turn.id,
+			message: turn.message,
+			state: turn.state,
+			parts: partKinds(turn.responseParts),
+		})), [{
+			id: 'failed-turn',
+			message: { text: 'Start the background agent', origin: { kind: MessageKind.User } },
+			state: TurnState.Error,
+			parts: [{ kind: ResponsePartKind.Error }],
+		}, {
+			id: 'notification-turn',
+			message: { text: 'Background agent agent-a is complete', origin: { kind: MessageKind.SystemNotification } },
+			state: TurnState.Complete,
+			parts: [{ kind: ResponsePartKind.Markdown, content: 'The background agent finished.' }],
+		}]);
+		assert.strictEqual(getErrorResponsePart(turns[0])?.resumable, true);
+	});
+
+	test('keeps a resumable error as the final part when a late tool completion arrives', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'failed-turn', data: { interactionId: 'm1', content: 'Run a command' } },
+			{ type: 'assistant.turn_start', data: { turnId: 'sdk-turn-1' } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'bash', arguments: { command: 'echo hi' } } },
+			{ type: 'session.error', data: { errorType: 'requestFailed', message: 'First failure' } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success: true, result: { content: 'hi\n' } } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual({
+			state: turns[0].state,
+			parts: partKinds(turns[0].responseParts),
+			resumable: getErrorResponsePart(turns[0])?.resumable,
+		}, {
+			state: TurnState.Error,
+			parts: [{ kind: ResponsePartKind.Error }],
+			resumable: true,
+		});
+	});
+
 	test('fallback task_complete marks the turn complete', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'finish the task' } },

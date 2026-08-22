@@ -617,13 +617,20 @@ export async function mapSessionEvents(
 				if (!notification) {
 					break;
 				}
-				if (parentBuilder && (rootAssistantTurnActive || notification.startsTurn)) {
+				if (parentBuilder && (rootAssistantTurnActive || (notification.startsTurn && !(parentTurnTerminated && parentTurnState === TurnState.Error)))) {
 					rootRequestActive ||= notification.startsTurn;
 					parentBuilder.responseParts.push({
 						kind: ResponsePartKind.SystemNotification,
 						content: notification.messageText,
 					});
 					touch(parentBuilder);
+				} else if (notification.startsTurn) {
+					flushParent();
+					parentBuilder = newTurnBuilder(e.id ?? generateUuid(), notification.messageText, {
+						origin: MessageKind.SystemNotification,
+						startedAt: currentEventTimestamp,
+					});
+					rootRequestActive = true;
 				}
 				break;
 			}
@@ -671,6 +678,10 @@ export async function mapSessionEvents(
 				}
 				toolInfoByCallId.delete(d.toolCallId);
 				const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId);
+				if ((!parentToolCallId && parentTurnTerminated && parentTurnState === TurnState.Error)
+					|| (parentToolCallId && terminatedSubagentTurns.has(parentToolCallId) && subagentTurnStates.get(parentToolCallId) === TurnState.Error)) {
+					break;
+				}
 				if (isTaskCompleteTool(info.toolName)) {
 					const builder = targetBuilderFor(parentToolCallId);
 					if (!builder) {

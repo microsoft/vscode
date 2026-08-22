@@ -3033,6 +3033,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _resumeTurn(chat: URI, turnId: string, operationContext: URI | IAgentChatContext, senderClientId?: string, clientType = AgentHostClientType.Unknown): Promise<void> {
+		try {
+			await this._resumeTurnOnce(chat, turnId, operationContext, senderClientId, clientType);
+		} catch (error) {
+			const recovery = await this._handleClientOperationFailure(error, 'resumeTurn', this._clientFailureCorrelation(chat, turnId, operationContext));
+			if (recovery?.failedTurnIds.has(turnId)) {
+				return;
+			}
+			throw error;
+		}
+	}
+
+	private async _resumeTurnOnce(chat: URI, turnId: string, operationContext: URI | IAgentChatContext, senderClientId?: string, clientType = AgentHostClientType.Unknown): Promise<void> {
 		const context = this._resolveChatContext(chat, operationContext);
 		const clientTelemetryContext = URI.isUri(operationContext) ? undefined : operationContext.clientTelemetryContext;
 		await this._queueChat(context.configurationId, context.sequencerKey, async () => {

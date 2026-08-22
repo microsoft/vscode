@@ -10,13 +10,14 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType, NotificationType, type ActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
-import { ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, createErrorResponsePart, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
+import { ChatInputQuestionKind, ChatInputResponseKind, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, createErrorResponsePart, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { buildChangesetUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
 import { withAgentCustomizationSettings } from '../../common/agentCustomizationSettings.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
+import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 
 suite('AgentHostStateManager', () => {
 
@@ -1578,11 +1579,10 @@ suite('AgentHostStateManager', () => {
 			});
 			manager.dispatchServerAction(defaultChat, {
 				type: ActionType.ChatInputRequested,
-				request: {
+				request: withChatInputRequestPurpose({
 					id: 'request',
-					purpose: ChatInputRequestPurpose.AskUser,
 					questions: [{ kind: ChatInputQuestionKind.Text, id: 'question', message: 'Continue?' }],
-				},
+				}, ChatInputRequestPurpose.AskUser),
 			});
 			manager.dispatchServerAction(defaultChat, {
 				type: ActionType.ChatInputCompleted,

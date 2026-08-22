@@ -47,6 +47,7 @@ import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.j
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
+import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { applyMcpServerEnablement } from '../../node/shared/mcpCustomizationController.js';
@@ -303,6 +304,38 @@ suite('AgentSideEffects', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	// ---- handleAction: session/turnStarted ------------------------------
+
+	test('tracks a resumed turn as a new provider execution', () => {
+		setupSession();
+		stateManager.dispatchServerAction(defaultChatUri, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		});
+		stateManager.dispatchServerAction(defaultChatUri, {
+			type: ActionType.ChatError,
+			turnId: 'turn-1',
+			duration: 100,
+			part: createErrorResponsePart({ errorType: 'requestFailed', message: 'failed' }, true),
+		});
+		const resumedTurn = stateManager.getChatState(defaultChatUri)?.turns.at(-1);
+		assert.ok(resumedTurn);
+		stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatTurnResume, turnId: 'turn-1' });
+		agent.chats.resumeTurn = async () => { };
+		const startedProviders: string[] = [];
+		disposables.add(sideEffects.onDidStartTurn(provider => startedProviders.push(provider)));
+
+		sideEffects.handleAction(
+			defaultChatUri,
+			{ type: ActionType.ChatTurnResume, turnId: 'turn-1' },
+			'client-1',
+			AgentHostClientType.EditorWindow,
+			resumedTurn,
+		);
+
+		assert.deepStrictEqual(startedProviders, ['mock']);
+	});
 
 	test('records customization toggles in the enablement service', () => {
 		const calls: { session: string; target: string; enablement: unknown }[] = [];
@@ -1273,7 +1306,7 @@ suite('AgentSideEffects', () => {
 			}, {
 				chatError: true,
 				creationFailed: true,
-				lifecycle: SessionLifecycle.CreationFailed,
+				lifecycle: SessionLifecycle.Failed,
 				sessionAddedWithError: true,
 			});
 		});
@@ -1310,7 +1343,7 @@ suite('AgentSideEffects', () => {
 			}, {
 				chatError: true,
 				creationFailed: true,
-				lifecycle: SessionLifecycle.CreationFailed,
+				lifecycle: SessionLifecycle.Failed,
 				sendMessageCalls: [],
 			});
 		});
@@ -6151,10 +6184,10 @@ suite('AgentSideEffects', () => {
 
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatInputRequested,
-				request: {
+				request: withChatInputRequestPurpose({
 					id: 'req-1',
 					questions: [{ kind: ChatInputQuestionKind.Text, id: 'question-1', message: 'Which value?' }],
-				},
+				}, ChatInputRequestPurpose.AskUser),
 			});
 			stateManager.dispatchClientAction(defaultChatUri, {
 				type: ActionType.ChatInputAnswerChanged,
@@ -6201,10 +6234,10 @@ suite('AgentSideEffects', () => {
 			setupSession();
 			startTurn('turn-1');
 
-			const request: ChatInputRequest = {
+			const request: ChatInputRequest = withChatInputRequestPurpose({
 				id: 'req-1',
 				questions: [{ kind: ChatInputQuestionKind.Text, id: 'question-1', message: 'Which value?' }],
-			};
+			}, ChatInputRequestPurpose.AskUser);
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatInputRequested,
 				request,

@@ -1699,6 +1699,10 @@ export class AgentSideEffects extends Disposable {
 				if (!agent?.chats.resumeTurn) {
 					throw new Error(`ChatTurnResume reached side effects without provider support: ${sessionChannel}`);
 				}
+				const state = this._stateManager.getSessionState(channel);
+				const { model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode } = this._getTurnTelemetryContext(agent, channel, this._chatContext(sessionChannel, channel), state, resumedTurn.message.model?.id);
+				this._turnTracker.turnStarted(agent.id, channel, action.turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, clientContext);
+				this._turnTracker.setCurrentStage(channel, action.turnId, 'provider');
 				const key = this._resumedTurnExecutionKey(channel, action.turnId);
 				const execution: IResumedTurnExecution = {
 					duration: resumedTurn.duration ?? 0,
