@@ -147,7 +147,7 @@ export class LineEdit {
 			result.push(`${specialChar} ${origLn} ${modLn} ${content}`);
 		}
 
-		function pushSeperator() {
+		function pushSeparator() {
 			result.push('---');
 		}
 
@@ -156,7 +156,7 @@ export class LineEdit {
 
 		for (const edits of groupAdjacentBy(this.replacements, (e1, e2) => e1.lineRange.distanceToRange(e2.lineRange) <= 5)) {
 			if (!first) {
-				pushSeperator();
+				pushSeparator();
 			} else {
 				first = false;
 			}
