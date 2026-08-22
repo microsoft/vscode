@@ -24,6 +24,12 @@ suite('MarkdownString', () => {
 		assert.strictEqual(mds.value, '\\>&nbsp;Text\n\n\\>More');
 	});
 
+	test('MarkdownString.appendText escapes angle brackets', function () {
+		const mds = new MarkdownString();
+		mds.appendText('<img src=x onerror=alert(1)>');
+		assert.strictEqual(mds.value, '\\<img&nbsp;src=x&nbsp;onerror=alert\\(1\\)\\>');
+	});
+
 	test('appendText', () => {
 
 		const mds = new MarkdownString();
