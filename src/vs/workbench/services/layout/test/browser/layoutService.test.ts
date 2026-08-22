@@ -4,10 +4,40 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { setFullscreen } from '../../../../../base/browser/browser.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { isMacintosh, isNative } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, getFloatingEditorVerticalMargins, getFloatingOuterEdgeOwners, getFloatingPaneCompositeHorizontalMargins, getFloatingPaneCompositeVerticalMargins, getFloatingSidebarSiblingToEditorStatus, isFloatingTopEdgeExposed, type PanelAlignment, Parts, Position } from '../../browser/layoutService.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { CustomTitleBarVisibility, TitleBarSetting, TitlebarStyle } from '../../../../../platform/window/common/window.js';
+import { FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, getFloatingEditorVerticalMargins, getFloatingOuterEdgeOwners, getFloatingPaneCompositeHorizontalMargins, getFloatingPaneCompositeVerticalMargins, getFloatingSidebarSiblingToEditorStatus, isFloatingTopEdgeExposed, type PanelAlignment, Parts, Position, shouldShowCustomTitleBar } from '../../browser/layoutService.js';
 import { TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
+
+suite('LayoutService - shouldShowCustomTitleBar', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => setFullscreen(false, mainWindow));
+
+	(isMacintosh && isNative ? test : test.skip)('respects custom title bar visibility in macOS fullscreen', () => {
+		setFullscreen(true, mainWindow);
+
+		const isVisible = (visibility: CustomTitleBarVisibility) => shouldShowCustomTitleBar(new TestConfigurationService({
+			window: { titleBarStyle: TitlebarStyle.CUSTOM },
+			[TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY]: visibility,
+		}), mainWindow);
+
+		assert.deepStrictEqual({
+			auto: isVisible(CustomTitleBarVisibility.AUTO),
+			windowed: isVisible(CustomTitleBarVisibility.WINDOWED),
+			never: isVisible(CustomTitleBarVisibility.NEVER),
+		}, {
+			auto: true,
+			windowed: false,
+			never: false,
+		});
+	});
+});
 
 suite('LayoutService - isFloatingTopEdgeExposed', () => {
 
