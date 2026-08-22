@@ -523,6 +523,7 @@ export interface IManagedMarkdownPreview {
 	dispose(): void;
 	refresh(): void;
 	updateConfiguration(): void;
+	toggleTableOfContents(): void;
 
 	matchesResource(
 		otherResource: vscode.Uri,
@@ -616,6 +617,10 @@ export class StaticMarkdownPreview extends Disposable implements IManagedMarkdow
 			source: this.resource.toString(),
 			id: id
 		});
+	}
+
+	toggleTableOfContents() {
+		this.#preview.postMessage({ type: 'toggleTableOfContents', source: this.resource.toString() });
 	}
 
 	readonly #onDispose = this._register(new vscode.EventEmitter<void>());
@@ -865,6 +870,10 @@ export class DynamicMarkdownPreview extends Disposable implements IManagedMarkdo
 	public toggleLock() {
 		this.#locked = !this.#locked;
 		this.#webviewPanel.title = DynamicMarkdownPreview.#getPreviewTitle(this.#preview.resource, this.#locked);
+	}
+
+	public toggleTableOfContents() {
+		this.#preview.postMessage({ type: 'toggleTableOfContents', source: this.#preview.resource.toString() });
 	}
 
 	static #getPreviewTitle(resource: vscode.Uri, locked: boolean): string {

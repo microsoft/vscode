@@ -82,6 +82,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 	readonly #staticPreviews = this._register(new PreviewStore<StaticMarkdownPreview>());
 
 	#activePreview: IManagedMarkdownPreview | undefined = undefined;
+	#tocVisible = true;
 
 	readonly #contentProvider: MdDocumentRenderer;
 	readonly #logger: ILogger;
@@ -186,6 +187,15 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 				}
 			}
 		}
+	}
+
+	public toggleTableOfContents() {
+		this.#tocVisible = !this.#tocVisible;
+		this.#activePreview?.toggleTableOfContents();
+	}
+
+	public isTableOfContentsVisible(): boolean {
+		return this.#tocVisible;
 	}
 
 	public openDocumentLink(linkText: string, fromResource: vscode.Uri) {
@@ -403,6 +413,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 	#setActivePreview(preview: IManagedMarkdownPreview | undefined): void {
 		this.#activePreview = preview;
 		this.#renderedDiffWarning.setActiveDiffPreview(!!preview?.isDiffView);
+		void vscode.commands.executeCommand('setContext', 'markdown.tocVisible', this.#tocVisible);
 	}
 
 }

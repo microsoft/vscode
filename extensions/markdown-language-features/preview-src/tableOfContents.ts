@@ -3,12 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/**
- * A floating table of contents panel generated from the `h1`-`h6` headings
- * of the rendered markdown document. The current section is highlighted as
- * the user scrolls, and clicking an entry scrolls to the corresponding heading.
- */
-
 interface TocEntry {
 	readonly element: HTMLElement;
 	readonly level: number;
@@ -25,19 +19,23 @@ const TOC_RESIZING_BODY_CLASS = 'resizing-toc';
 const TOC_WIDTH_STORAGE_KEY = 'markdown.tocWidth';
 const TOC_MIN_WIDTH = 120;
 const TOC_MAX_WIDTH = 500;
+const TOC_EDGE_GAP = 4;
 
 let tocEntries: TocEntry[] = [];
 let tocPanel: HTMLElement | undefined;
 let tocList: HTMLElement | undefined;
 let activeEntry: HTMLElement | undefined;
+let tocVisible = true;
 
 /**
- * Build the floating table of contents from the headings in the document.
+ * Build the table of contents from the headings in the document.
  * Safe to call multiple times (e.g. after the document is re-rendered).
  */
 export function buildTableOfContents(): void {
-	// Remove any previously built panel so we don't duplicate it on re-render.
 	removeTableOfContents();
+	if (!tocVisible) {
+		return;
+	}
 
 	const headings = Array.from(document.querySelectorAll<HTMLElement>('h1, h2, h3, h4, h5, h6'))
 		.filter(heading => heading.classList.contains('code-line'));
@@ -105,7 +103,7 @@ export function buildTableOfContents(): void {
 }
 
 /**
- * Remove the floating table of contents panel, if present.
+ * Remove the table of contents panel, if present.
  */
 export function removeTableOfContents(): void {
 	tocPanel?.remove();
@@ -114,6 +112,20 @@ export function removeTableOfContents(): void {
 	tocEntries = [];
 	activeEntry = undefined;
 	document.body.classList.remove(TOC_BODY_CLASS);
+}
+
+/**
+ * Toggle the visibility of the table of contents. When hidden, the TOC panel
+ * is removed and the body layout returns to normal. When shown, the TOC is
+ * rebuilt from the document headings.
+ */
+export function toggleTableOfContents(): void {
+	tocVisible = !tocVisible;
+	if (tocVisible) {
+		buildTableOfContents();
+	} else {
+		removeTableOfContents();
+	}
 }
 
 /**
@@ -173,19 +185,17 @@ function scrollActiveEntryIntoView(): void {
 		return;
 	}
 
-	const gap = 4; // px of breathing room at the top and bottom of the TOC
-
 	const panelRect = tocPanel.getBoundingClientRect();
 	const entryRect = activeEntry.getBoundingClientRect();
 
-	if (entryRect.top < panelRect.top + gap) {
+	if (entryRect.top < panelRect.top + TOC_EDGE_GAP) {
 		// Entry is above the visible area (or too close to the top edge):
-		// scroll up so it sits `gap` px below the top edge.
-		tocPanel.scrollTop -= (panelRect.top + gap - entryRect.top);
-	} else if (entryRect.bottom > panelRect.bottom - gap) {
+		// scroll up so it sits just below the top edge.
+		tocPanel.scrollTop -= (panelRect.top + TOC_EDGE_GAP - entryRect.top);
+	} else if (entryRect.bottom > panelRect.bottom - TOC_EDGE_GAP) {
 		// Entry is below the visible area (or too close to the bottom edge):
-		// scroll down just enough so it sits `gap` px above the bottom edge.
-		tocPanel.scrollTop += (entryRect.bottom - (panelRect.bottom - gap));
+		// scroll down just enough so it sits just above the bottom edge.
+		tocPanel.scrollTop += (entryRect.bottom - (panelRect.bottom - TOC_EDGE_GAP));
 	}
 }
 

@@ -7,7 +7,7 @@ import { ActiveLineMarker } from './activeLineMarker';
 import { onceDocumentLoaded } from './events';
 import { createPosterForVsCode } from './messaging';
 import { getEditorLineNumberForPageOffset, getElementsForSourceLine, getElementsForSourceLineRange, getLineElementForFragment, scrollToRevealSourceLine } from './scroll-sync';
-import { buildTableOfContents, updateActiveTocEntry } from './tableOfContents';
+import { buildTableOfContents, toggleTableOfContents, updateActiveTocEntry } from './tableOfContents';
 import { SettingsManager, getData, getRawData } from './settings';
 import throttle = require('lodash.throttle');
 import morphdom from 'morphdom';
@@ -370,6 +370,10 @@ window.addEventListener('message', async event => {
 			if (data.source === documentResource) {
 				onUpdateView(data.line);
 			}
+			return;
+
+		case 'toggleTableOfContents':
+			toggleTableOfContents();
 			return;
 
 		case 'updateContent': {
