@@ -341,7 +341,14 @@ class ModelSemanticColoring extends Disposable {
 				}
 
 				const srcData = currentResponse.data;
-				const destData = new Uint32Array(srcData.length + deltaLength);
+				const destDataLength = srcData.length + deltaLength;
+				if (destDataLength < 0) {
+					styling.warnInvalidEditDeleteCount(currentResponse.resultId, tokens.resultId, srcData.length, deltaLength);
+					// The edits delete more tokens than the previous result contains and there's no way to recover
+					this._model.tokenization.setSemanticTokens(null, true);
+					return;
+				}
+				const destData = new Uint32Array(destDataLength);
 
 				let srcLastStart = srcData.length;
 				let destLastStart = destData.length;
