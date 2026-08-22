@@ -25,6 +25,28 @@ export const GITHUB_COPILOT_WIN32_POLICY_NAME = 'GitHubCopilot';
 /** macOS CFPreferences application ID for GitHub Copilot managed preferences. */
 export const GITHUB_COPILOT_MACOS_BUNDLE_ID = 'com.github.copilot';
 
+/** Path of the server-delivered managed settings endpoint. */
+export const MANAGED_SETTINGS_PATH = '/copilot_internal/managed_settings';
+
+/**
+ * Header carrying the HTTP status that the managed settings endpoint really answered with, for
+ * responses whose status was rewritten on the way to a window. See {@link isManagedSettingsUrl}.
+ */
+export const MANAGED_SETTINGS_ORIGINAL_STATUS_HEADER = 'x-vscode-managed-settings-original-status';
+
+/**
+ * Whether `url` addresses the server-delivered managed settings endpoint, for either
+ * `api.github.com` or the `api.`-prefixed host of a GitHub Enterprise deployment.
+ */
+export function isManagedSettingsUrl(url: string): boolean {
+	try {
+		const { protocol, hostname, pathname } = new URL(url);
+		return protocol === 'https:' && hostname.startsWith('api.') && pathname === MANAGED_SETTINGS_PATH;
+	} catch {
+		return false; // not a parseable URL, so not our endpoint
+	}
+}
+
 /** MDM key for the V0 managed setting. */
 export const COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY = 'permissions.disableBypassPermissionsMode';
 
