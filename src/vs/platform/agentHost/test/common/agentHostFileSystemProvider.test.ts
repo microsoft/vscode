@@ -7,12 +7,13 @@ import assert from 'assert';
 import { timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileChangeType, FileSystemProviderErrorCode, FileType, IFileChange, toFileSystemProviderErrorCode } from '../../../files/common/files.js';
 import { AgentHostFileSystemProvider, agentHostRemotePath, agentHostUri, type IRemoteFilesystemConnection } from '../../common/agentHostFileSystemProvider.js';
 import { remoteAgentHostSessionTypeId } from '../../common/agentHostSessionType.js';
-import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../../common/agentHostUri.js';
+import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri, inWindowAgentHostAuthority, LOCAL_AGENT_HOST_AUTHORITY, toAgentHostUri, windowRemoteAuthorityOf } from '../../common/agentHostUri.js';
 import { ContentEncoding, ResourceType, type CreateResourceWatchParams, type ResourceCopyParams, type ResourceListResult, type ResourceMkdirParams, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult } from '../../common/state/protocol/commands.js';
 import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
 import { ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -170,6 +171,53 @@ suite('toAgentHostUri / fromAgentHostUri', () => {
 		const original = URI.file('/workspace/test.ts');
 		const result = toAgentHostUri(original, 'local');
 		assert.strictEqual(result.toString(), original.toString());
+	});
+
+	test('a local window uses the local authority, so its paths pass through', () => {
+		const authority = inWindowAgentHostAuthority(undefined);
+		const original = URI.file('/workspace/test.ts');
+		assert.strictEqual(authority, LOCAL_AGENT_HOST_AUTHORITY);
+		assert.strictEqual(toAgentHostUri(original, authority).toString(), original.toString());
+	});
+
+	test('a remote window rebases host paths onto its own remote connection', () => {
+		const authority = inWindowAgentHostAuthority('dev-container+7b22686f7374');
+		const rebased = toAgentHostUri(URI.file('/workspace/test.ts'), authority);
+
+		assert.deepStrictEqual({
+			scheme: rebased.scheme,
+			authority: rebased.authority,
+			path: rebased.path,
+		}, {
+			scheme: Schemas.vscodeRemote,
+			authority: 'dev-container+7b22686f7374',
+			path: '/workspace/test.ts',
+		});
+	});
+
+	test('a remote window still wraps host URIs that are not files', () => {
+		const authority = inWindowAgentHostAuthority('dev-container+7b22686f7374');
+		const original = URI.from({ scheme: 'agenthost-content', authority: 'session1', path: '/snap/before' });
+		const wrapped = toAgentHostUri(original, authority);
+
+		assert.strictEqual(wrapped.scheme, AGENT_HOST_SCHEME);
+		assert.strictEqual(fromAgentHostUri(wrapped).toString(), original.toString());
+	});
+
+	test('a mixed case window authority survives a URI round trip', () => {
+		const authority = inWindowAgentHostAuthority('ssh-remote+MyHost');
+		const wrapped = toAgentHostUri(URI.from({ scheme: 'agenthost-content', path: '/snap/before' }), authority);
+		const reparsed = URI.parse(wrapped.toString());
+
+		// URI serialization lowercases the authority, and the filesystem provider
+		// looks its connections up by exact match.
+		assert.strictEqual(reparsed.authority, authority);
+		assert.strictEqual(windowRemoteAuthorityOf(reparsed.authority), 'ssh-remote+myhost');
+	});
+
+	test('a remote agent host is unaffected by the local encoding', () => {
+		assert.strictEqual(windowRemoteAuthorityOf('my-server'), undefined);
+		assert.strictEqual(toAgentHostUri(URI.file('/w/a.ts'), 'my-server').scheme, AGENT_HOST_SCHEME);
 	});
 
 	test('agentHostUri for root path produces valid encoded URI', () => {
