@@ -912,6 +912,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			mightContainNonBasicASCII,
 			lineData.tokens,
 			inlineDecorations,
+			lineData.injectedTextLineParts ?? [],
 			tabSize,
 			lineData.startVisibleColumn,
 			this._getTextDirection(lineNumber, decorations),

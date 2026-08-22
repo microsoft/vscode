@@ -2463,14 +2463,19 @@ export class ModelDecorationInjectedTextOptions implements model.InjectedTextOpt
 	public readonly tokens: TokenArray | null;
 	readonly inlineClassName: string | null;
 	readonly inlineClassNameAffectsLetterSpacing: boolean;
+	readonly widthInEm: number | undefined;
 	readonly attachedData: unknown | null;
 	readonly cursorStops: model.InjectedTextCursorStops | null;
 
 	private constructor(options: model.InjectedTextOptions) {
+		if (options.widthInEm !== undefined && options.tokens) {
+			throw new BugIndicatingError('Injected text cannot define both tokens and widthInEm');
+		}
 		this.content = options.content || '';
 		this.tokens = options.tokens ?? null;
 		this.inlineClassName = options.inlineClassName || null;
 		this.inlineClassNameAffectsLetterSpacing = options.inlineClassNameAffectsLetterSpacing || false;
+		this.widthInEm = options.widthInEm;
 		this.attachedData = options.attachedData || null;
 		this.cursorStops = options.cursorStops || null;
 	}

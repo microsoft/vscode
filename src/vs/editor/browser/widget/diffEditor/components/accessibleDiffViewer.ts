@@ -672,6 +672,7 @@ class View extends Disposable {
 			0,
 			lineTokens,
 			[],
+			[],
 			tabSize,
 			0,
 			fontInfo.spaceWidth,

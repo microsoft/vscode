@@ -8,6 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { Range } from '../../../common/core/range.js';
 import { IModelDecoration, IModelDecorationOptions, InjectedTextOptions } from '../../../common/model.js';
 import { InlineDecoration, InlineDecorationType, InlineModelDecorationsComputer, IInlineModelDecorationsComputerContext, InjectedTextInlineDecorationsComputer, IInjectedTextInlineDecorationsComputerContext } from '../../../common/viewModel/inlineDecorations.js';
+import { InjectedTextLinePart } from '../../../common/viewModel/injectedTextLinePart.js';
 import { createTextModel } from '../testTextModel.js';
 import { IdentityCoordinatesConverter } from '../../../common/coordinatesConverter.js';
 
@@ -314,6 +315,25 @@ suite('InjectedTextInlineDecorationsComputer', () => {
 		assert.deepStrictEqual(result, [
 			[] // empty - no inlineClassName
 		]);
+	});
+
+	test('fixed width injection creates a projected line part', () => {
+		const injectionOptions: InjectedTextOptions[] = [
+			{ content: '\xa0', widthInEm: 3 }
+		];
+		const context: IInjectedTextInlineDecorationsComputerContext = {
+			getInjectionOptions: () => injectionOptions,
+			getInjectionOffsets: () => [5],
+			getBreakOffsets: () => [11],
+			getWrappedTextIndentLength: () => 0,
+			getBaseViewLineNumber: () => 1,
+		};
+		const computer = new InjectedTextInlineDecorationsComputer(context);
+		const result = computer.getDecorations(1);
+		assert.deepStrictEqual(result, {
+			inlineDecorations: [[]],
+			injectedTextLineParts: [[new InjectedTextLinePart(6, 7, '', 3)]]
+		});
 	});
 
 	test('injection with inlineClassNameAffectsLetterSpacing', () => {

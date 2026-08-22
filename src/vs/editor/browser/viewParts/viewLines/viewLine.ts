@@ -158,6 +158,7 @@ export class ViewLine implements IVisibleLine {
 			lineData.minColumn - 1,
 			lineData.tokens,
 			actualInlineDecorations,
+			lineData.injectedTextLineParts,
 			lineData.tabSize,
 			lineData.startVisibleColumn,
 			options.spaceWidth,

@@ -14,6 +14,7 @@ import { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
 import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
 import { CharacterMapping, DomPosition, IRenderLineInputOptions, RenderLineInput, RenderLineOutput2, renderViewLine2 as renderViewLine } from '../../../common/viewLayout/viewLineRenderer.js';
 import { InlineDecorationType } from '../../../common/viewModel/inlineDecorations.js';
+import { InjectedTextLinePart } from '../../../common/viewModel/injectedTextLinePart.js';
 import { TestLineToken, TestLineTokens } from '../core/testLineToken.js';
 
 const HTML_EXTENSION = { extension: 'html' };
@@ -65,6 +66,7 @@ const defaultRenderLineInputOptions: IRenderLineInputOptions = {
 	fauxIndentLength: 0,
 	lineTokens: createViewLineTokens([]),
 	lineDecorations: [],
+	injectedTextLineParts: [],
 	tabSize: 4,
 	startVisibleColumn: 0,
 	spaceWidth: 10,
@@ -99,6 +101,7 @@ function createRenderLineInput(opts: IRelaxedRenderLineInputOptions): RenderLine
 		options.fauxIndentLength,
 		options.lineTokens,
 		options.lineDecorations,
+		options.injectedTextLineParts,
 		options.tabSize,
 		options.startVisibleColumn,
 		options.spaceWidth,
@@ -189,6 +192,105 @@ suite('renderViewLine', () => {
 		assertParts('xy', 4, [createPart(1, 1), createPart(2, 2)], '<span class="mtk1">x</span><span class="mtk2">y</span>', [[0, [0, 0]], [1, [1, 0]], [2, [1, 1]]]);
 		assertParts('xyz', 4, [createPart(1, 1), createPart(3, 2)], '<span class="mtk1">x</span><span class="mtk2">yz</span>', [[0, [0, 0]], [1, [1, 0]], [2, [1, 1]], [3, [1, 2]]]);
 		assertParts('xyz', 4, [createPart(2, 1), createPart(3, 2)], '<span class="mtk1">xy</span><span class="mtk2">z</span>', [[0, [0, 0]], [1, [0, 1]], [2, [1, 0]], [3, [1, 1]]]);
+	});
+
+	test('enforces fixed injected text width on a flat span', () => {
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent: '\xa0',
+			lineTokens: createViewLineTokens([createPart(1, 0)]),
+			injectedTextLineParts: [new InjectedTextLinePart(1, 2, 'injected', 1)]
+		}));
+
+		assert.strictEqual(actual.html, '<span><span style="display:inline-block;width:1em;" class="mtk0 injected">\xa0</span></span>');
+	});
+
+	test('enforces fixed injected text width without a class name', () => {
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent: '\xa0',
+			lineTokens: createViewLineTokens([createPart(1, 0)]),
+			injectedTextLineParts: [new InjectedTextLinePart(1, 2, '', 1)]
+		}));
+
+		assert.strictEqual(actual.html, '<span><span style="display:inline-block;width:1em;" class="mtk0">\xa0</span></span>');
+	});
+
+	test('does not render whitespace markers inside fixed injected text', () => {
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent: ' ',
+			lineTokens: createViewLineTokens([createPart(1, 0)]),
+			injectedTextLineParts: [new InjectedTextLinePart(1, 2, 'injected', 1)],
+			renderWhitespace: 'all'
+		}));
+
+		assert.strictEqual(actual.html, '<span><span style="display:inline-block;width:1em;" class="mtkw injected">\xa0</span></span>');
+	});
+
+	test('preserves content around fixed injected text', () => {
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent: 'xabcy',
+			lineTokens: createViewLineTokens([createPart(1, 0), createPart(4, 0), createPart(5, 0)]),
+			injectedTextLineParts: [new InjectedTextLinePart(2, 5, 'injected', 3)]
+		}));
+
+		assert.strictEqual(actual.html, '<span><span class="mtk0">x</span><span style="display:inline-block;width:3em;" class="mtk0 injected">abc</span><span class="mtk0">y</span></span>');
+	});
+
+	test('applies fixed injected text width once across line parts', () => {
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent: 'a b',
+			lineTokens: createViewLineTokens([createPart(1, 1), createPart(3, 2)]),
+			injectedTextLineParts: [new InjectedTextLinePart(1, 4, 'injected', 3)],
+			renderWhitespace: 'all'
+		}));
+
+		assert.strictEqual(actual.html, '<span><span style="display:inline-block;width:3em;" class="mtk1 injected">a\xa0b</span></span>');
+	});
+
+	test('keeps adjacent equal fixed widths separate', () => {
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent: 'ab',
+			lineTokens: createViewLineTokens([createPart(1, 0), createPart(2, 0)]),
+			injectedTextLineParts: [
+				new InjectedTextLinePart(1, 2, 'injected', 1),
+				new InjectedTextLinePart(2, 3, 'injected', 1)
+			]
+		}));
+
+		assert.strictEqual(actual.html, '<span><span style="display:inline-block;width:1em;" class="mtk0 injected">a</span><span style="display:inline-block;width:1em;" class="mtk0 injected">b</span></span>');
+	});
+
+	test('applies decorations covering fixed-width injected text', () => {
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent: 'abc',
+			lineTokens: createViewLineTokens([createPart(3, 0)]),
+			lineDecorations: [new LineDecoration(1, 4, 'secondary', InlineDecorationType.Regular)],
+			injectedTextLineParts: [new InjectedTextLinePart(1, 4, 'injected', 3)]
+		}));
+
+		assert.strictEqual(actual.html, '<span><span style="display:inline-block;width:3em;" class="mtk0 secondary injected">abc</span></span>');
+	});
+
+	test('keeps fixed-width RTL injected text atomic', () => {
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent: ' אב',
+			isBasicASCII: false,
+			containsRTL: true,
+			lineTokens: createViewLineTokens([createPart(3, 0)]),
+			injectedTextLineParts: [new InjectedTextLinePart(1, 4, 'injected', 3)]
+		}));
+
+		assert.strictEqual(actual.html, '<span><span style="unicode-bidi:isolate;display:inline-block;width:3em;" class="mtk0 injected">\xa0אב</span></span>');
+	});
+
+	test('clamps fixed injected text to the rendered line length', () => {
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent: 'abcde',
+			lineTokens: createViewLineTokens([createPart(1, 0), createPart(5, 0)]),
+			injectedTextLineParts: [new InjectedTextLinePart(2, 6, 'injected', 3)],
+			stopRenderingLineAfter: 3
+		}));
+
+		assert.ok(actual.html.includes('<span style="display:inline-block;width:3em;" class="mtk0 injected">bc</span>'));
 	});
 
 	// overflow
@@ -428,6 +530,7 @@ suite('renderViewLine', () => {
 			true,
 			0,
 			lineTokens,
+			[],
 			[],
 			4,
 			0,
