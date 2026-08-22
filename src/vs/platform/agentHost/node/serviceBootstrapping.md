@@ -207,15 +207,6 @@ constructor has leading static arguments only and no pre-telemetry ordering
 requirement. Moving one is optional cleanup, not a prerequisite for adding
 unrelated services.
 
-### Concrete customization enablement assertion
-
-Composition currently asserts that `IAgentHostCustomizationEnablementService`
-is the concrete implementation because `AgentService.setWorktreeIsolation`
-needs an API not exposed by the public service contract.
-
-**Exit condition:** widen or split the contract so the worktree bridge is typed
-without an `instanceof` assertion.
-
 ### `AgentService.stateManager` getter
 
 **Why it exists:** the main AgentService suite still inspects orchestration state

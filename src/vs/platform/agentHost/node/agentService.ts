@@ -81,7 +81,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostArtifactToolsConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
-import { AgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
+import { IAgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementWorktreeBinding } from './agentHostCustomizationEnablementService.js';
 import { SessionCoordinationService } from './sessionCoordination.js';
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
@@ -381,7 +381,7 @@ export interface IAgentServiceCallbackBinder {
 
 export interface IAgentServiceCollaborators {
 	readonly gitHubEndpointService: IAgentHostGitHubEndpointService;
-	readonly customizationEnablementService: AgentHostCustomizationEnablementService;
+	readonly customizationEnablementService: IAgentHostCustomizationEnablementService & IAgentHostCustomizationEnablementWorktreeBinding;
 	readonly gitStateService: IAgentHostGitStateService;
 	readonly agentMergeController: AgentMergeController;
 	readonly checkpointService: IAgentHostCheckpointService;
@@ -516,7 +516,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _serverToolHost: AgentServerToolHost;
 	private readonly _debugLogsCollector: AgentHostDebugLogsCollector | undefined;
 	private readonly _configurationService: AgentConfigurationService;
-	private readonly _customizationEnablementService: AgentHostCustomizationEnablementService;
+	private readonly _customizationEnablementService: IAgentHostCustomizationEnablementService & IAgentHostCustomizationEnablementWorktreeBinding;
 	/** Captures baseline / per-turn git checkpoints backing the changeset pipeline. */
 	private readonly _checkpointService: IAgentHostCheckpointService;
 	/**
