@@ -64,4 +64,19 @@ suite('combineUriFlags', () => {
 			]
 		);
 	});
+
+	test('rewrites --trust-folder followed by a path or URI', () => {
+		assert.deepStrictEqual(
+			combineUriFlags([
+				'--trust-folder', 'vscode-remote://ssh-remote+host/workspace',
+				'--trust-folder', '/local/path',
+				'--wait',
+			]),
+			[
+				'--trust-folder=vscode-remote://ssh-remote+host/workspace',
+				'--trust-folder=/local/path',
+				'--wait',
+			]
+		);
+	});
 });

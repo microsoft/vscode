@@ -192,6 +192,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'use-inmemory-secretstorage': { type: 'boolean', deprecates: ['disable-keytar'] },
 	'password-store': { type: 'string' },
 	'disable-workspace-trust': { type: 'boolean' },
+	'trust-folder': { type: 'string[]', cat: 'o', args: 'folder', description: localize('trustFolder', "Trust the given folder and its subfolders for Workspace Trust. Accepts a folder path or URI, can be repeated, and is persisted so the folder stays trusted when reopened.") },
 	'disable-crash-reporter': { type: 'boolean' },
 	'crash-reporter-directory': { type: 'string' },
 	'crash-reporter-id': { type: 'string' },

@@ -19,7 +19,7 @@ import { ISerializableCommandAction } from '../../action/common/action.js';
 import { IBackupMainService } from '../../backup/electron-main/backup.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../configuration/common/configuration.js';
 import { IDialogMainService } from '../../dialogs/electron-main/dialogMainService.js';
-import { NativeParsedArgs } from '../../environment/common/argv.js';
+import { NativeParsedArgs, removeOneShotWindowArgs } from '../../environment/common/argv.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { isLaunchedFromCli } from '../../environment/node/argvHelper.js';
 import { IFileService } from '../../files/common/files.js';
@@ -1307,6 +1307,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		delete configuration.filesToDiff;
 		delete configuration.filesToMerge;
 		delete configuration.filesToWait;
+		removeOneShotWindowArgs(configuration);
 
 		// Some configuration things get inherited if the window is being reloaded and we are
 		// in extension development mode. These options are all development related.

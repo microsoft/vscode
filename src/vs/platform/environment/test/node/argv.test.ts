@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { consumeInitialWindowArgs, NativeParsedArgs, removeOneShotWindowArgs } from '../../common/argv.js';
 import { formatOptions, Option, OptionDescriptions, Subcommand, parseArgs, ErrorReporter } from '../../node/argv.js';
 import { addArg } from '../../node/argvHelper.js';
 
@@ -18,6 +19,23 @@ function c(description: string, options: OptionDescriptions<any>): Subcommand<an
 		description, type: 'subcommand', options
 	};
 }
+
+suite('consumeInitialWindowArgs', () => {
+	test('removes --trust-folder from shared process and reload arguments', () => {
+		const args: NativeParsedArgs = { _: ['/workspace'], wait: true, 'trust-folder': ['/trusted'] };
+		const initialWindowArgs = consumeInitialWindowArgs(args);
+		const reloadArgs = { ...initialWindowArgs };
+		removeOneShotWindowArgs(reloadArgs);
+
+		assert.deepStrictEqual({ initialWindowArgs, remainingProcessArgs: args, reloadArgs }, {
+			initialWindowArgs: { _: ['/workspace'], wait: true, 'trust-folder': ['/trusted'] },
+			remainingProcessArgs: { _: ['/workspace'], wait: true },
+			reloadArgs: { _: ['/workspace'], wait: true }
+		});
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+});
 
 suite('formatOptions', () => {
 
