@@ -296,6 +296,23 @@ suite('Workbench - TerminalInstance', () => {
 			strictEqual(taskTerminal.title, 'Test Task Name', 'Task terminal should preserve API-set title');
 		});
 
+		test('should only load the line data event addon once when listeners are re-added', async () => {
+			const instance = await createTerminalInstance();
+			const lineDataEventAddon = instance['_lineDataEventAddon']!;
+			const originalActivate = lineDataEventAddon.activate.bind(lineDataEventAddon);
+			let activationCount = 0;
+			lineDataEventAddon.activate = xterm => {
+				activationCount++;
+				return originalActivate(xterm);
+			};
+
+			const firstListener = instance.onLineData(() => { });
+			firstListener.dispose();
+			store.add(instance.onLineData(() => { }));
+
+			strictEqual(activationCount, 1);
+		});
+
 		test('should preserve agent shell type detected from sequence until the parent shell returns', async () => {
 			const instance = await createTerminalInstance() as TerminalInstance;
 			const onTitleChange = (title: string) => (instance as unknown as Record<string, (value: string) => void>)['_onTitleChange'](title);
