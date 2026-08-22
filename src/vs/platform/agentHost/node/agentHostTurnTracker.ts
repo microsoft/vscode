@@ -60,6 +60,7 @@ interface ITurnTiming {
 	readonly session: string;
 	readonly turnId: string;
 	readonly parentTurnId: string | undefined;
+	readonly parentToolCallId: string | undefined;
 	model: string | undefined;
 	modelTelemetryKind: AgentHostModelTelemetryKind | undefined;
 	readonly modelSelectionKind: 'default' | 'auto' | 'explicit';
@@ -158,7 +159,7 @@ export class AgentHostTurnTracker extends Disposable {
 		}));
 	}
 
-	turnStarted(agent: IAgent, session: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, modelSelectionKind: 'default' | 'auto' | 'explicit', permissionLevel: string | undefined, interactionMode: SessionMode | undefined, clientContext = createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown), initiatorClientId?: string, parentTurnId?: string): void {
+	turnStarted(agent: IAgent, session: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, modelSelectionKind: 'default' | 'auto' | 'explicit', permissionLevel: string | undefined, interactionMode: SessionMode | undefined, clientContext = createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown), initiatorClientId?: string, parentTurnId?: string, parentToolCallId?: string): void {
 		const key = this._key(session, turnId);
 		this._turnTimings.set(key, {
 			stopWatch: StopWatch.create(false),
@@ -166,6 +167,7 @@ export class AgentHostTurnTracker extends Disposable {
 			session,
 			turnId,
 			parentTurnId,
+			parentToolCallId,
 			model,
 			modelTelemetryKind,
 			modelSelectionKind,
@@ -379,6 +381,7 @@ export class AgentHostTurnTracker extends Disposable {
 			session: timing.session,
 			turnId,
 			parentTurnId: timing.parentTurnId,
+			parentToolCallId: timing.parentToolCallId,
 			timeToFirstProgress: timing.firstProgressMs,
 			totalTime: timing.stopWatch.elapsed(),
 			result,

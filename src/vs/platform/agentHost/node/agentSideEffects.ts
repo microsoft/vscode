@@ -1298,7 +1298,7 @@ export class AgentSideEffects extends Disposable {
 		});
 		const agent = this._options.getAgent(parentSessionUri);
 		if (agent) {
-			this._turnTracker.turnStarted(agent, subagentChatUri, turnId, undefined, undefined, 'default', undefined, undefined, parentClientContext, initiatorClientId, correlatedParentTurnId);
+			this._turnTracker.turnStarted(agent, subagentChatUri, turnId, undefined, undefined, 'default', undefined, undefined, parentClientContext, initiatorClientId, correlatedParentTurnId, toolCallId);
 			this._turnTracker.setCurrentStage(subagentChatUri, turnId, 'provider');
 		}
 
@@ -1373,7 +1373,7 @@ export class AgentSideEffects extends Disposable {
 		});
 		const agent = this._options.getAgent(subagent.sessionUri);
 		if (agent) {
-			this._turnTracker.turnStarted(agent, subagent.chatUri, turnId, undefined, undefined, 'default', undefined, undefined, parentClientContext, initiatorClientId, correlatedParentTurnId);
+			this._turnTracker.turnStarted(agent, subagent.chatUri, turnId, undefined, undefined, 'default', undefined, undefined, parentClientContext, initiatorClientId, correlatedParentTurnId, toolCallId);
 			this._turnTracker.setCurrentStage(subagent.chatUri, turnId, 'provider');
 		}
 		this._subagentChats.set({ ...subagent, immediateParentChatUri: correlatedParentChatUri, turnStopWatch: StopWatch.create(false) }, parentChatURI, toolCallId);

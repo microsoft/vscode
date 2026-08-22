@@ -176,6 +176,7 @@ export interface IAgentHostTurnCompletedEvent extends IAgentHostInitiatorTelemet
 	isSubagentSession: boolean;
 	turnId: string;
 	parentTurnId: string | undefined;
+	parentToolCallId: string | undefined;
 	timeToFirstProgress: number | undefined;
 	totalTime: number;
 	result: AgentHostTurnResult;
@@ -203,6 +204,7 @@ export type IAgentHostTurnCompletedClassification = IAgentHostInitiatorClassific
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the turn belongs to a subagent session.' };
 	turnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the turn within the agent host session.' };
 	parentTurnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The immediate parent turn identifier for a subagent turn.' };
+	parentToolCallId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the tool call that spawned the subagent owning this turn; stable across resumed turns of the same subagent.' };
 	timeToFirstProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from turn start to the first visible progress (text delta, response part, tool call start, or reasoning).' };
 	totalTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total time in milliseconds from turn start to turn completion.' };
 	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the turn completed successfully, with an error, or was cancelled.' };
@@ -272,6 +274,7 @@ export interface IAgentHostTurnCompletedReport extends IAgentHostTurnAttributedR
 	session: string;
 	turnId: string;
 	parentTurnId: string | undefined;
+	parentToolCallId: string | undefined;
 	timeToFirstProgress: number | undefined;
 	totalTime: number;
 	result: AgentHostTurnResult;
@@ -1167,6 +1170,7 @@ export class AgentHostTelemetryReporter {
 			isSubagentSession: isSubagent,
 			turnId: report.turnId,
 			parentTurnId: report.parentTurnId,
+			parentToolCallId: report.parentToolCallId,
 			timeToFirstProgress: report.timeToFirstProgress,
 			totalTime: report.totalTime,
 			result: report.result,

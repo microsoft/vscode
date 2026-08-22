@@ -429,13 +429,14 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			return {
 				turnId: data.turnId,
 				parentTurnId: data.parentTurnId,
+				parentToolCallId: data.parentToolCallId,
 				directPromptTokenCount: data.directPromptTokenCount,
 			};
 		}), [
-			{ turnId: level2TurnId, parentTurnId: level1TurnId, directPromptTokenCount: 30 },
-			{ turnId: resumedLevel2TurnId, parentTurnId: level1TurnId, directPromptTokenCount: undefined },
-			{ turnId: level1TurnId, parentTurnId: 'turn-parent', directPromptTokenCount: 20 },
-			{ turnId: 'turn-parent', parentTurnId: undefined, directPromptTokenCount: 10 },
+			{ turnId: level2TurnId, parentTurnId: level1TurnId, parentToolCallId: 'call-level-2', directPromptTokenCount: 30 },
+			{ turnId: resumedLevel2TurnId, parentTurnId: level1TurnId, parentToolCallId: 'call-level-2', directPromptTokenCount: undefined },
+			{ turnId: level1TurnId, parentTurnId: 'turn-parent', parentToolCallId: 'call-level-1', directPromptTokenCount: 20 },
+			{ turnId: 'turn-parent', parentTurnId: undefined, parentToolCallId: undefined, directPromptTokenCount: 10 },
 		]);
 	});
 
@@ -459,6 +460,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 
 		const data = completedEvents()[0].data as Record<string, unknown>;
 		assert.strictEqual(data.parentTurnId, undefined);
+		assert.strictEqual(data.parentToolCallId, 'call-orphaned-child');
 	});
 
 	test('emits turnCompleted with the multi-root working-directory shape', () => {
