@@ -2127,8 +2127,9 @@ suite('ChatService', () => {
 			isVirtualWorkspace: event.isVirtualWorkspace,
 			settingDefaultToCopilotHarness: event.settingDefaultToCopilotHarness,
 			settingPreferCopilotHarness: event.settingPreferCopilotHarness,
+			settingLocalAgentEnabled: event.settingLocalAgentEnabled,
 			hasRequestId: typeof event.requestId === 'string',
-		})), [{ sessionType: 'remote-agent-host', isAgentHostSession: true, requestIndex: 0, isVirtualWorkspace: false, settingDefaultToCopilotHarness: false, settingPreferCopilotHarness: false, hasRequestId: true }]);
+		})), [{ sessionType: 'remote-agent-host', isAgentHostSession: true, requestIndex: 0, isVirtualWorkspace: false, settingDefaultToCopilotHarness: false, settingPreferCopilotHarness: false, settingLocalAgentEnabled: true, hasRequestId: true }]);
 	});
 
 	test('user action telemetry distinguishes agent host sessions from local sessions', () => {
