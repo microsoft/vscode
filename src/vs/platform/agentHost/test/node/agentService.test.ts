@@ -2894,7 +2894,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 		}
 
-		function createExternalSessionService(sessionDataService = createSessionDataService(), orchestratorDatabase?: IAgentHostDatabase): AgentService {
+		function createExternalSessionService(sessionDataService = createSessionDataService(), orchestratorDatabase?: IAgentHostDatabase, copilotApiService?: ICopilotApiService): AgentService {
 			return disposables.add(createTestAgentService(
 				new NullLogService(),
 				fileService,
@@ -2904,7 +2904,7 @@ suite('AgentService (node dispatcher)', () => {
 				undefined,
 				undefined,
 				undefined,
-				undefined,
+				copilotApiService,
 				undefined,
 				[],
 				undefined,
@@ -3011,13 +3011,13 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = createExternalSessionService();
 			const agent = disposables.add(new TimedExternalAgent('copilot'));
 			const stale = agent.addSession('stale', now - 30 * day - 1);
-			const fresh = agent.addSession('fresh', now - 30 * day + 60_000);
+			const fresh = agent.addSession('fresh', now - 29 * day);
 			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.Last30Days, 1);
 			await waitForSessionListReconciliation(svc);
 			svc.registerProvider(agent);
 			await (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats(agent, [
 				{ chat: URI.parse(buildDefaultChatUri(stale)), startTime: now - 30 * day - 1, modifiedTime: now - 30 * day - 1, external: true },
-				{ chat: URI.parse(buildDefaultChatUri(fresh)), startTime: now - 30 * day + 60_000, modifiedTime: now - 30 * day + 60_000, external: true },
+				{ chat: URI.parse(buildDefaultChatUri(fresh)), startTime: now - 29 * day, modifiedTime: now - 29 * day, external: true },
 			]);
 
 			const listed = (await svc.listSessions()).map(session => AgentSession.id(session.session)).sort();
@@ -3031,6 +3031,52 @@ suite('AgentService (node dispatcher)', () => {
 				registered: [fresh.toString()],
 			});
 			assert.ok(!registered.has(stale.toString()));
+		});
+
+		test('defers titling the two most recently updated untitled external sessions until startup settled', async () => {
+			const now = Date.now();
+			const copilotApiService = new TestCopilotApiService();
+			const svc = createExternalSessionService(createPerSessionDataService().service, undefined, copilotApiService);
+			const agent = disposables.add(new TimedExternalAgent('copilot'));
+			const oldest = agent.addSession('oldest', now - 3000);
+			const middle = agent.addSession('middle', now - 2000);
+			const newest = agent.addSession('newest', now - 1000);
+			agent.chats.getMessages = async (chat: URI) => [{
+				id: 'turn-1',
+				state: TurnState.Complete,
+				message: { text: `prompt of ${chat.toString()}`, origin: { kind: MessageKind.User } },
+				responseParts: [],
+				usage: undefined,
+			}];
+			svc.registerProvider(agent);
+			await svc.authenticate({
+				resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource,
+				scopes: GITHUB_COPILOT_PROTECTED_RESOURCE.scopes_supported,
+				token: 'gh-token',
+			});
+
+			await (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats(agent, [
+				discoveredChat(oldest, true, now - 3000),
+				discoveredChat(middle, true, now - 2000),
+				discoveredChat(newest, true, now - 1000),
+			]);
+			const callsBeforeStartupSettled = copilotApiService.utilityCalls.length;
+			await svc.listSessions();
+			svc.markStartupComplete();
+			// The lane is serialized, so settling implies generation finished: no polling.
+			await svc.whenDeferredWorkSettled();
+
+			const titled = [oldest, middle, newest].filter(session => copilotApiService.utilityCalls.some(
+				call => call.request.messages.some(message => message.content.includes(`prompt of ${buildDefaultChatUri(session)}`))));
+			assert.deepStrictEqual({
+				callsBeforeStartupSettled,
+				callsAfterSettled: copilotApiService.utilityCalls.length,
+				titled: titled.map(session => AgentSession.id(session)),
+			}, {
+				callsBeforeStartupSettled: 0,
+				callsAfterSettled: 2,
+				titled: ['middle', 'newest'],
+			});
 		});
 
 		testWithExternalSessionClock('prune removes stale external sessions but keeps adoptable-legacy sessions', async () => {
@@ -4322,6 +4368,38 @@ suite('AgentService (node dispatcher)', () => {
 				retriedBeforeFailure: true,
 				retriedAfterFailure: true,
 				listed: [existing.toString(), legacy.toString()].sort(),
+			});
+		});
+
+		test('a failed listing does not settle startup, so deferred work waits for a served one', async () => {
+			class UnavailableCatalogAgent extends MockAgent {
+				override readonly onDidDiscoverChats = Event.None;
+				enumerable = false;
+				override async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | undefined> {
+					return this.enumerable ? [] : undefined;
+				}
+			}
+			const svc = createExternalSessionService();
+			const agent = disposables.add(new UnavailableCatalogAgent('copilot'));
+			svc.registerProvider(agent);
+			svc.markStartupComplete();
+
+			await assert.rejects(svc.listSessions());
+			let deferredWorkSettled = false;
+			void svc.whenDeferredWorkSettled().then(() => { deferredWorkSettled = true; });
+			// Ample turns for the gated maintenance to run if the gate were open.
+			for (let i = 0; i < 50; i++) {
+				await timeout(0);
+			}
+			const settledByFailedListing = deferredWorkSettled;
+
+			agent.enumerable = true;
+			await svc.listSessions();
+			await svc.whenDeferredWorkSettled();
+
+			assert.deepStrictEqual({ settledByFailedListing, settledAfterServedListing: deferredWorkSettled }, {
+				settledByFailedListing: false,
+				settledAfterServedListing: true,
 			});
 		});
 

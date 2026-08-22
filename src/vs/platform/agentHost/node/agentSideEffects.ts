@@ -1920,6 +1920,11 @@ export class AgentSideEffects extends Disposable {
 		this._titleController.markTitleAuto(channel, chatChannel, title);
 	}
 
+	/** Generates a title for an external session the provider surfaced without one. */
+	generateExternalSessionTitle(session: ProtocolURI, userPrompt: string): Promise<void> {
+		return this._titleController.generateExternalSessionTitle(session, userPrompt);
+	}
+
 	markTitleRenamed(channel: ProtocolURI, chatChannel?: ProtocolURI): void {
 		this._titleController.markTitleRenamed(channel, chatChannel);
 	}
