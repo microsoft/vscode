@@ -142,6 +142,16 @@ suite('adaptManagedSettings', () => {
 		});
 	});
 
+	test('carries selective customization lockdown controls', () => {
+		assert.deepStrictEqual(adaptManagedSettings({
+			strictPluginOnlyCustomization: ['skills', 'mcp'],
+		}), {
+			managedSettings: {
+				strictPluginOnlyCustomization: '["skills","mcp"]',
+			},
+		});
+	});
+
 	test('flattens scalar telemetry leaves and carries resourceAttributes and headers as single JSON keys', () => {
 		assert.deepStrictEqual(adaptManagedSettings({
 			telemetry: {

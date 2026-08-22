@@ -7,7 +7,7 @@ import assert from 'assert';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { collectManagedSettingsDefinitions, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, hasManagedSettingsDefinitions, managedModelValue, managedSettingValue, projectManagedSettings, pickManagedSettings, shouldForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
+import { collectManagedSettingsDefinitions, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, hasManagedSettingsDefinitions, managedModelValue, managedSettingValue, projectManagedSettings, pickManagedSettings, shouldForceRemoteSettingsRefresh, strictPluginOnlyCustomizationValue } from '../../common/copilotManagedSettings.js';
 import { PolicyDefinition } from '../../common/policy.js';
 
 suite('Copilot managed settings projection', () => {
@@ -144,6 +144,45 @@ suite('Copilot managed settings projection', () => {
 			),
 			{ 'permissions.disableBypassPermissionsMode': 'false' },
 		);
+	});
+
+	test('projectManagedSettings accepts any declared scalar type', () => {
+		assert.deepStrictEqual({
+			boolean: projectManagedSettings(
+				{ [COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY]: true },
+				{ [COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY]: { type: ['boolean', 'string'] } },
+			),
+			string: projectManagedSettings(
+				{ [COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY]: '["mcp"]' },
+				{ [COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY]: { type: ['boolean', 'string'] } },
+			),
+		}, {
+			boolean: { [COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY]: true },
+			string: { [COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY]: '["mcp"]' },
+		});
+	});
+
+	test('strictPluginOnlyCustomizationValue validates structured policy values', () => {
+		const read = (value: string | boolean | undefined) => strictPluginOnlyCustomizationValue({
+			managedSettings: value === undefined ? {} : { [COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY]: value },
+		} as IPolicyData);
+		assert.deepStrictEqual([
+			read(undefined),
+			read(false),
+			read(true),
+			read('false'),
+			read('["skills","mcp"]'),
+			read('["skills","unknown"]'),
+			read('{'),
+		], [
+			undefined,
+			false,
+			true,
+			false,
+			'["skills","mcp"]',
+			true,
+			true,
+		]);
 	});
 
 	test('projectManagedSettings warns once per type mismatch', () => {

@@ -4898,6 +4898,29 @@ suite('PromptsService', () => {
 			assert.strictEqual((await service.listPromptFiles(PromptsType.prompt, CancellationToken.None)).length, 1);
 		});
 
+		test('selective agent lockdown filters agents without affecting skills', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+			testConfigService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, ['agents']);
+			const rootFolderUri = URI.file('/selective-agent-lockdown');
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			await mockFiles(fileService, [{
+				path: '/selective-agent-lockdown/.github/agents/reviewer.agent.md',
+				contents: ['---', 'description: "Review code"', '---'],
+			}, {
+				path: '/selective-agent-lockdown/.github/skills/review/SKILL.md',
+				contents: ['---', 'name: "review"', 'description: "Review skill"', '---'],
+			}]);
+
+			assert.deepStrictEqual({
+				agents: await service.getCustomAgents(CancellationToken.None),
+				skills: (await service.listPromptFiles(PromptsType.skill, CancellationToken.None)).map(skill => skill.uri.path),
+			}, {
+				agents: [],
+				skills: ['/selective-agent-lockdown/.github/skills/review/SKILL.md'],
+			});
+		});
+
 		test('skill lockdown filters standalone skills before discovery and preserves plugin skills', async () => {
 			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
 			testConfigService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, true);
@@ -5006,6 +5029,31 @@ suite('PromptsService', () => {
 
 			const agents = await service.getCustomAgents(CancellationToken.None);
 			assert.deepStrictEqual(agents, []);
+		});
+
+		test('selective hook lockdown removes standalone agent hooks without removing the agent', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CHAT_HOOKS, true);
+			testConfigService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, ['hooks']);
+			const rootFolderUri = URI.file('/selective-hook-lockdown');
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			await mockFiles(fileService, [{
+				path: '/selective-hook-lockdown/.github/agents/reviewer.agent.md',
+				contents: [
+					'---',
+					'description: "Review code"',
+					'hooks:',
+					'  PreToolUse:',
+					'    - type: command',
+					'      command: "echo blocked"',
+					'---',
+				],
+			}]);
+
+			const agents = await service.getCustomAgents(CancellationToken.None);
+			assert.deepStrictEqual(agents.map(agent => ({ name: agent.name, hooks: agent.hooks })), [{
+				name: 'reviewer',
+				hooks: undefined,
+			}]);
 		});
 
 		test('managed-only hooks preserve frontmatter hooks from force-enabled plugin agents', async () => {

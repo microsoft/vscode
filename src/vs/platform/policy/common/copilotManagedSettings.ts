@@ -46,6 +46,14 @@ export const COPILOT_DENIED_MCP_SERVERS_KEY = 'deniedMcpServers';
 /** Managed-settings key that blocks standalone user/workspace customizations. */
 export const COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY = 'strictPluginOnlyCustomization';
 
+export const STRICT_PLUGIN_ONLY_CUSTOMIZATION_SELECTORS = ['skills', 'agents', 'hooks', 'mcp'] as const;
+
+export type StrictPluginOnlyCustomizationSelector = typeof STRICT_PLUGIN_ONLY_CUSTOMIZATION_SELECTORS[number];
+
+export function isStrictPluginOnlyCustomizationSelectorArray(value: unknown): value is readonly StrictPluginOnlyCustomizationSelector[] {
+	return Array.isArray(value) && value.every(selector => isString(selector) && STRICT_PLUGIN_ONLY_CUSTOMIZATION_SELECTORS.includes(selector as StrictPluginOnlyCustomizationSelector));
+}
+
 /** Managed-settings key that makes the enterprise MCP allowlist authoritative. */
 export const COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_KEY = 'allowManagedMcpServersOnly';
 
@@ -148,6 +156,22 @@ export function managedSettingValue(key: string): (policyData: IPolicyData) => M
 		managedSettingValueCallbacks.set(key, callback);
 	}
 	return callback;
+}
+
+export function strictPluginOnlyCustomizationValue(policyData: IPolicyData): ManagedSettingValue | undefined {
+	const value = policyData.managedSettings?.[COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY];
+	if (typeof value !== 'string') {
+		return value;
+	}
+	try {
+		const parsed: unknown = JSON.parse(value);
+		if (typeof parsed === 'boolean') {
+			return parsed;
+		}
+		return isStrictPluginOnlyCustomizationSelectorArray(parsed) ? value : true;
+	} catch {
+		return true;
+	}
 }
 
 /**
@@ -317,10 +341,11 @@ export function projectManagedSettings(values: ManagedSettingsData, definitions:
 		if (value === undefined) {
 			continue;
 		}
-		if (typeof value === definitions[key].type) {
+		const expectedTypes = definitions[key].type;
+		if (Array.isArray(expectedTypes) ? expectedTypes.includes(typeof value as 'string' | 'number' | 'boolean') : typeof value === expectedTypes) {
 			projected[key] = value;
 		} else {
-			onWarn?.(`Ignoring managed setting "${key}": expected ${definitions[key].type}, got ${typeof value}`);
+			onWarn?.(`Ignoring managed setting "${key}": expected ${Array.isArray(expectedTypes) ? expectedTypes.join(' or ') : expectedTypes}, got ${typeof value}`);
 		}
 	}
 	return projected;
@@ -616,11 +641,28 @@ export function normalizeManagedSettings(parsed: Record<string, unknown>, onWarn
 	// `__proto__` key, matching a destructuring rest. Structured keys may be nested (e.g.
 	// `telemetry.resourceAttributes`), so removal clones only the touched path.
 	let scalarRest: Record<string, unknown> = { ...parsed };
+	scalarRest = withNestedManagedKeyDeleted(scalarRest, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY);
 	for (const setting of STRUCTURED_MANAGED_SETTINGS) {
 		scalarRest = withNestedManagedKeyDeleted(scalarRest, setting.key);
 	}
 
 	const result: Record<string, ManagedSettingValue> = { ...flattenManagedSettings(scalarRest) };
+	const strictPluginOnlyCustomization = parsed[COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY];
+	if (strictPluginOnlyCustomization !== undefined) {
+		if (typeof strictPluginOnlyCustomization === 'boolean') {
+			result[COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY] = strictPluginOnlyCustomization;
+		} else if (Array.isArray(strictPluginOnlyCustomization)) {
+			if (isStrictPluginOnlyCustomizationSelectorArray(strictPluginOnlyCustomization)) {
+				result[COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY] = JSON.stringify(strictPluginOnlyCustomization);
+			} else {
+				onWarn?.(`Managed setting "${COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY}" contains an invalid selector and will fail closed`);
+				result[COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY] = true;
+			}
+		} else {
+			onWarn?.(`Managed setting "${COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY}" has an invalid value and will fail closed`);
+			result[COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY] = true;
+		}
+	}
 
 	for (const setting of STRUCTURED_MANAGED_SETTINGS) {
 		const encoded = setting.encode(readNestedManagedKey(parsed, setting.key), onWarn);

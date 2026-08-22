@@ -37,7 +37,7 @@ import { IMcpSandboxService } from './mcpSandboxService.js';
 import { McpServerConnection } from './mcpServerConnection.js';
 import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpCollectionProvenance, McpDefinitionReference, McpServerDefinition, McpServerLaunch, McpServerTrust, McpStartServerInteraction, UserInteractionRequiredError } from './mcpTypes.js';
 import { COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG } from '../../../../platform/policy/common/copilotManagedSettings.js';
-import { isStrictPluginOnlyCustomizationEnabled, StrictPluginOnlyCustomization } from '../../chat/common/customizationLockdown.js';
+import { isStrictPluginOnlyCustomizationBlocked, StrictPluginOnlyCustomization } from '../../chat/common/customizationLockdown.js';
 
 const notTrustedNonce = '__vscode_not_trusted';
 
@@ -496,7 +496,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 	}
 
 	private isCollectionAllowed(collection: McpCollectionDefinition, strictPluginOnly: StrictPluginOnlyCustomization): boolean {
-		return !isStrictPluginOnlyCustomizationEnabled(strictPluginOnly)
+		return !isStrictPluginOnlyCustomizationBlocked(strictPluginOnly, 'mcp')
 			|| collection.provenance === McpCollectionProvenance.Plugin;
 	}
 
@@ -518,21 +518,22 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		if (!collection || !definition) {
 			throw new Error(`Collection or definition not found for ${collectionRef.id} and ${definitionRef.id}`);
 		}
+		const resolvedCollection = collection;
 
-		const delegate = this._delegates.get().find(d => d.canStart(collection, definition));
+		const delegate = this._delegates.get().find(d => d.canStart(resolvedCollection, definition));
 		if (!delegate) {
 			throw new Error('No delegate found that can handle the connection');
 		}
 
-		const trusted = await this._checkTrust(collection, definition, opts);
+		const trusted = await this._checkTrust(resolvedCollection, definition, opts);
 		interaction?.participants.set(definition.id, { s: 'resolved' });
 		if (!trusted) {
 			return undefined;
 		}
 
 		let launch: McpServerLaunch | undefined = definition.launch;
-		if (collection.resolveServerLanch) {
-			launch = await collection.resolveServerLanch(definition);
+		if (resolvedCollection.resolveServerLanch) {
+			launch = await resolvedCollection.resolveServerLanch(definition);
 			if (!launch) {
 				return undefined; // interaction cancelled by user
 			}
@@ -545,7 +546,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 				launch = await this._instantiationService.invokeFunction(accessor => accessor.get(IMcpDevModeDebugging).transform(definition, launch!));
 			}
 			// If sandbox is enabled for this server, attempt to launch in sandbox
-			launch = await this._mcpSandboxService.launchInSandboxIfEnabled(definition, launch, collection.remoteAuthority ?? undefined, collection.configTarget);
+			launch = await this._mcpSandboxService.launchInSandboxIfEnabled(definition, launch, resolvedCollection.remoteAuthority ?? undefined, resolvedCollection.configTarget);
 		} catch (e) {
 			if (e instanceof UserInteractionRequiredError) {
 				throw e;
@@ -555,7 +556,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 				severity: Severity.Error,
 				message: localize('mcp.launchError', 'Error starting {0}: {1}', definition.label, String(e)),
 				actions: {
-					primary: collection.presentation?.origin && [
+					primary: resolvedCollection.presentation?.origin && [
 						{
 							id: 'mcp.launchError.openConfig',
 							class: undefined,
@@ -563,7 +564,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 							tooltip: '',
 							label: localize('mcp.launchError.openConfig', 'Open Configuration'),
 							run: () => this._editorService.openEditor({
-								resource: collection.presentation!.origin,
+								resource: resolvedCollection.presentation!.origin,
 								options: { selection: definition.presentation?.origin?.range }
 							}),
 						}
@@ -573,9 +574,17 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 			return;
 		}
 
+		const currentCollection = this._collections.get().find(candidate => candidate.id === collectionRef.id);
+		if (currentCollection !== resolvedCollection || !currentCollection.serverDefinitions.get().includes(definition)) {
+			throw new Error(`MCP collection ${collectionRef.id} changed while resolving the connection`);
+		}
+		if (!this.isCollectionAllowed(currentCollection, this._strictPluginOnlyCustomization.get())) {
+			throw new Error(`MCP collection ${collectionRef.id} is blocked by enterprise customization policy`);
+		}
+
 		return this._instantiationService.createInstance(
 			McpServerConnection,
-			collection,
+			currentCollection,
 			definition,
 			delegate,
 			launch,

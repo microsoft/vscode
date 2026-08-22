@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { isPromptTypeBlocked, isStrictPluginOnlyCustomizationEnabled } from '../../common/customizationLockdown.js';
+import { isPromptTypeBlocked, isStrictPluginOnlyCustomizationBlocked, isStrictPluginOnlyCustomizationEnabled } from '../../common/customizationLockdown.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 
 suite('Customization lockdown', () => {
@@ -23,5 +23,37 @@ suite('Customization lockdown', () => {
 		assert.strictEqual(isPromptTypeBlocked(true, PromptsType.hook), true);
 		assert.strictEqual(isPromptTypeBlocked(true, PromptsType.instructions), true);
 		assert.strictEqual(isPromptTypeBlocked(true, PromptsType.prompt), false);
+	});
+
+	test('selective values block only named surfaces', () => {
+		const values = [undefined, false, [], ['skills'], ['agents'], ['hooks'], ['mcp'], ['skills', 'hooks'], true];
+		assert.deepStrictEqual(values.map(value => ({
+			skills: isStrictPluginOnlyCustomizationBlocked(value, 'skills'),
+			agents: isStrictPluginOnlyCustomizationBlocked(value, 'agents'),
+			hooks: isStrictPluginOnlyCustomizationBlocked(value, 'hooks'),
+			mcp: isStrictPluginOnlyCustomizationBlocked(value, 'mcp'),
+			instructions: isStrictPluginOnlyCustomizationBlocked(value, 'instructions'),
+		})), [
+			{ skills: false, agents: false, hooks: false, mcp: false, instructions: false },
+			{ skills: false, agents: false, hooks: false, mcp: false, instructions: false },
+			{ skills: false, agents: false, hooks: false, mcp: false, instructions: false },
+			{ skills: true, agents: false, hooks: false, mcp: false, instructions: false },
+			{ skills: false, agents: true, hooks: false, mcp: false, instructions: false },
+			{ skills: false, agents: false, hooks: true, mcp: false, instructions: false },
+			{ skills: false, agents: false, hooks: false, mcp: true, instructions: false },
+			{ skills: true, agents: false, hooks: true, mcp: false, instructions: false },
+			{ skills: true, agents: true, hooks: true, mcp: true, instructions: true },
+		]);
+	});
+
+	test('malformed values fail closed without partially applying selectors', () => {
+		const malformed = [null, ['skills', 'unknown'], ['skills', 1], 'skills' as never];
+		assert.deepStrictEqual(malformed.map(value => ({
+			skills: isStrictPluginOnlyCustomizationBlocked(value, 'skills'),
+			agents: isStrictPluginOnlyCustomizationBlocked(value, 'agents'),
+			hooks: isStrictPluginOnlyCustomizationBlocked(value, 'hooks'),
+			mcp: isStrictPluginOnlyCustomizationBlocked(value, 'mcp'),
+			instructions: isStrictPluginOnlyCustomizationBlocked(value, 'instructions'),
+		})), malformed.map(() => ({ skills: true, agents: true, hooks: true, mcp: true, instructions: true })));
 	});
 });
