@@ -14,6 +14,7 @@ import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { type IAgentCustomizationSettingsRegistration } from '../../common/agentCustomizationSettings.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
 import { AgentHostLaunchKind } from '../../common/agentHostTelemetry.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
@@ -22,7 +23,7 @@ import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { AgentService } from '../../node/agentService.js';
 import { createAgentServiceComposition, type IAgentServiceComposition } from '../../node/agentServiceComposition.js';
 import { createAgentServiceFoundation } from '../../node/agentServiceFoundation.js';
-import { AgentHostServiceCollection } from '../../node/agentHostServices.js';
+import { AgentHostServiceCollection, instantiateAgentHostServices, registerAgentHostCoreServices } from '../../node/agentHostServices.js';
 import { ICopilotApiService } from '../../node/shared/copilotApiService.js';
 
 const compositions = new WeakMap<AgentService, IAgentServiceComposition>();
@@ -69,6 +70,7 @@ export function createTestAgentService(
 		[IAgentHostGitService, gitService],
 		[ITelemetryService, telemetryService],
 		[IAgentHostFileMonitorService, effectiveFileMonitorService],
+		[IAgentEditAttributionService, new NullAgentEditAttributionService()],
 	);
 	const options = {
 		rootConfigResource,
@@ -90,7 +92,9 @@ export function createTestAgentService(
 		proxyResolver,
 		fetchFn,
 	});
+	const coreServiceIds = registerAgentHostCoreServices(services);
 	const instantiationService = new InstantiationService(services, /*strict*/ true);
+	instantiateAgentHostServices(instantiationService, coreServiceIds);
 	const composition = createAgentServiceComposition(
 		options,
 		services,

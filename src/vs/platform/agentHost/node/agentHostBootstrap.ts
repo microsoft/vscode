@@ -18,19 +18,9 @@ import { InstantiationService } from '../../instantiation/common/instantiationSe
 import { ILoggerService, ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { ISandboxHelperService } from '../../sandbox/common/sandboxHelperService.js';
-import { SandboxHelperService } from '../../sandbox/node/sandboxHelper.js';
-import { IWindowsMxcTerminalSandboxRuntime, WindowsMxcTerminalSandboxRuntime } from '../../sandbox/common/terminalSandboxMxcRuntime.js';
-import { IAgentPluginManager } from '../common/agentPluginManager.js';
-import { IDiffComputeService } from '../common/diffComputeService.js';
 import { IAgentEditAttributionService } from '../common/fileEditAttribution.js';
-import { IAgentHostGitService } from '../common/agentHostGitService.js';
-import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import type { IAgent } from '../common/agent.js';
-import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
-import { AgentHostGitService } from './agentHostGitService.js';
-import { AgentHostOTelService } from './otel/agentHostOTelService.js';
 import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { createAgentHostTelemetryService, IAgentHostTelemetryService } from './agentHostTelemetryService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
@@ -40,20 +30,13 @@ import { AgentHostStateManager } from './agentHostStateManager.js';
 import { AgentService, IAgentServiceOptions } from './agentService.js';
 import { createAgentServiceComposition } from './agentServiceComposition.js';
 import { createAgentServiceFoundation } from './agentServiceFoundation.js';
-import { AgentHostServiceCollection } from './agentHostServices.js';
-import { INetworkDiagnosticsService, NetworkDiagnosticsService } from './networkDiagnosticsService.js';
-import { AgentPluginManager } from './agentPluginManager.js';
-import { NodeWorkerDiffComputeService } from './diffComputeService.js';
-import { AgentEditAttributionService } from './shared/agentEditAttributionService.js';
-import { EditArcReporterService, IEditArcReporterService } from './shared/editArcReporter.js';
-import { EditSurvivalReporterFactory, IEditSurvivalReporterFactory } from './shared/editSurvivalReporter.js';
+import { AgentHostServiceCollection, instantiateAgentHostServices, registerAgentHostCoreServices, registerAgentHostHostServices } from './agentHostServices.js';
+import { INetworkDiagnosticsService } from './networkDiagnosticsService.js';
 import { IAgentHostWorktreeIsolation, WorktreeIsolation } from './shared/worktreeIsolation.js';
-import { AgentSdkDownloader, IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
-import { IClaudeAgentSdkService, ClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';
+import { IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
 import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';
 import { CodexProxyService, ICodexProxyService } from './codex/codexProxyService.js';
 import { IByokLmBridgeRegistry, NullByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
-import { ByokLmProxyService, IByokLmProxyService, NullByokLmProxyService } from './copilot/byokLmProxyService.js';
 import { registerPendingEditContentProvider } from './copilot/pendingEditContentStore.js';
 import { SessionDataService } from './sessionDataService.js';
 import { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
@@ -88,7 +71,7 @@ export interface IAgentHostRuntime extends IDisposable {
 	readonly sessionDataService: ISessionDataService;
 	readonly proxyResolver: IAgentHostProxyResolver;
 	readonly telemetryService: IAgentHostTelemetryService;
-	readonly agentSdkDownloader: AgentSdkDownloader;
+	readonly agentSdkDownloader: IAgentSdkDownloader;
 	readonly sdkDownloadProgress: Event<IAgentSdkDownloadProgress>;
 }
 
@@ -105,7 +88,7 @@ class AgentHostRuntime extends Disposable implements IAgentHostRuntime {
 	readonly sessionDataService: ISessionDataService;
 	readonly proxyResolver: IAgentHostProxyResolver;
 	readonly telemetryService: IAgentHostTelemetryService;
-	readonly agentSdkDownloader: AgentSdkDownloader;
+	readonly agentSdkDownloader: IAgentSdkDownloader;
 	readonly sdkDownloadProgress: Event<IAgentSdkDownloadProgress>;
 
 	constructor(
@@ -192,42 +175,31 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 			requestService: foundation.requestService,
 		});
 		services.set(ITelemetryService, telemetryService);
+		const byokBridgeRegistry = options.byok.kind === 'renderer' ? options.byok.bridgeRegistry : new NullByokLmBridgeRegistry();
+		services.set(IByokLmBridgeRegistry, byokBridgeRegistry);
+		const coreServiceIds = registerAgentHostCoreServices(services);
+		const hostServiceIds = registerAgentHostHostServices(services, {
+			userDataPath: URI.file(environmentService.userDataPath),
+			fetchFn,
+			byok: options.byok,
+		});
 		instantiationService = new InstantiationService(services, /*strict*/ true);
-		const fileMonitorService = infrastructure.add(instantiationService.createInstance(AgentHostFileMonitorService));
-		services.set(IAgentHostFileMonitorService, fileMonitorService);
-		services.set(IWindowsMxcTerminalSandboxRuntime, instantiationService.createInstance(WindowsMxcTerminalSandboxRuntime));
-		services.set(ISandboxHelperService, new SandboxHelperService());
-		services.set(IAgentHostGitService, instantiationService.createInstance(AgentHostGitService));
+		instantiateAgentHostServices(instantiationService, [...coreServiceIds, ...hostServiceIds]);
 		const agentServiceComposition = createAgentServiceComposition(agentServiceOptions, services, instantiationService, fetchFn, logService, sessionDataService, foundation);
 		agentService = agentServiceComposition.agentService;
 		const { configurationService } = agentServiceComposition;
-		const networkDiagnosticsService = instantiationService.createInstance(NetworkDiagnosticsService);
-		services.set(INetworkDiagnosticsService, networkDiagnosticsService);
+		const networkDiagnosticsService = instantiationService.invokeFunction(accessor => accessor.get(INetworkDiagnosticsService));
 		agentService.setNetworkDiagnosticsService(networkDiagnosticsService);
-		services.set(IAgentPluginManager, new AgentPluginManager(URI.file(environmentService.userDataPath), fileService, logService));
-		services.set(IDiffComputeService, infrastructure.add(instantiationService.createInstance(NodeWorkerDiffComputeService)));
-		const editAttributionService = infrastructure.add(instantiationService.createInstance(AgentEditAttributionService, undefined, undefined));
-		services.set(IAgentEditAttributionService, editAttributionService);
+		const editAttributionService = instantiationService.invokeFunction(accessor => accessor.get(IAgentEditAttributionService));
 		agentService.setEditAttributionService(editAttributionService);
-		services.set(IEditSurvivalReporterFactory, instantiationService.createInstance(EditSurvivalReporterFactory));
-		services.set(IEditArcReporterService, infrastructure.add(instantiationService.createInstance(EditArcReporterService, undefined)));
 
 		const worktreeIsolation = infrastructure.add(instantiationService.createInstance(WorktreeIsolation, undefined));
 		services.set(IAgentHostWorktreeIsolation, worktreeIsolation);
 		agentService.setWorktreeIsolation(worktreeIsolation);
 
-		const agentSdkDownloader = infrastructure.add(instantiationService.createInstance(AgentSdkDownloader));
-		services.set(IAgentSdkDownloader, agentSdkDownloader);
+		const agentSdkDownloader = instantiationService.invokeFunction(accessor => accessor.get(IAgentSdkDownloader));
 		services.set(IClaudeProxyService, infrastructure.add(instantiationService.createInstance(ClaudeProxyService)));
-		services.set(IClaudeAgentSdkService, instantiationService.createInstance(ClaudeAgentSdkService));
 		services.set(ICodexProxyService, infrastructure.add(instantiationService.createInstance(CodexProxyService)));
-		services.set(IAgentHostOTelService, infrastructure.add(instantiationService.createInstance(AgentHostOTelService, fetchFn)));
-		const byokBridgeRegistry = options.byok.kind === 'renderer' ? options.byok.bridgeRegistry : new NullByokLmBridgeRegistry();
-		services.set(IByokLmBridgeRegistry, byokBridgeRegistry);
-		const byokLmProxyService: IByokLmProxyService = options.byok.kind === 'renderer'
-			? infrastructure.add(instantiationService.createInstance(ByokLmProxyService))
-			: new NullByokLmProxyService();
-		services.set(IByokLmProxyService, byokLmProxyService);
 
 		return new AgentHostRuntime({
 			instantiationService,
