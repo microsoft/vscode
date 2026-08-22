@@ -131,7 +131,7 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 					id: UPDATE_TITLE_BAR_ACTION_ID,
 					title: localize('updateIndicatorTitleBarAction', 'Update'),
 				},
-				when: ContextKeyExpr.and(UpdateTitleBarContext, UpdateTitleBarChatInProgressContext.negate(), item.when),
+				when: ContextKeyExpr.and(UpdateTitleBarContext, item.when),
 			});
 			this._register(actionViewItemService.register(
 				menuId,

@@ -692,42 +692,58 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			throw new Error(`Sessions provider '${session.providerId}' not found`);
 		}
 
+		let requestActivity: IDisposable | undefined;
+		try {
+			if (session.status.get() === SessionStatus.Untitled) {
+				requestActivity = provider.startNewSessionRequest?.(session.sessionId);
+			}
+		} catch (error) {
+			provider.deleteNewSession(session.sessionId);
+			throw error;
+		}
+
 		if (options.background) {
 			// Fire-and-forget so the composer can reset immediately. On commit
 			// failure the graduating draft is stranded, so dispose it through
 			// its provider (no-op if already graduated/removed).
-			this._sendNewChatRequestInBackground(provider, session, options).catch(e => {
-				provider.deleteNewSession(session.sessionId);
-				this.logService.error('[SessionsManagement] Failed to send background request:', e);
-			});
+			this._sendNewChatRequestInBackground(provider, session, options)
+				.catch(e => {
+					provider.deleteNewSession(session.sessionId);
+					this.logService.error('[SessionsManagement] Failed to send background request:', e);
+				})
+				.finally(() => requestActivity?.dispose());
 			return;
 		}
 
-		// Foreground send: notify listeners that a send is starting. Listeners
-		// (e.g., telemetry) can use this to prewarm caches whose result is
-		// consumed when `onDidSendRequest` fires below. The background path
-		// fires this from within `_sendNewChatRequestInBackground`. The view
-		// service observes the will/did send pair to keep the newest chat
-		// active in the visible slot while the send materialises.
-		this._onWillSendRequest.fire(session);
-
-		// Ask the provider to create the new chat, then send the request.
-		const chat = await provider.createNewChat(session.sessionId, options.query);
-
-		const sendOptions = this._augmentOptionsForTroubleshoot(session, options);
-		const chatResourceKey = chat.resource.toString();
-		this._pendingSendChatResources.add(chatResourceKey);
-		let updatedSession: ISession;
 		try {
-			updatedSession = await provider.sendRequest(session.sessionId, chat.resource, sendOptions);
+			// Foreground send: notify listeners that a send is starting. Listeners
+			// (e.g., telemetry) can use this to prewarm caches whose result is
+			// consumed when `onDidSendRequest` fires below. The background path
+			// fires this from within `_sendNewChatRequestInBackground`. The view
+			// service observes the will/did send pair to keep the newest chat
+			// active in the visible slot while the send materialises.
+			this._onWillSendRequest.fire(session);
+
+			// Ask the provider to create the new chat, then send the request.
+			const chat = await provider.createNewChat(session.sessionId, options.query);
+
+			const sendOptions = this._augmentOptionsForTroubleshoot(session, options);
+			const chatResourceKey = chat.resource.toString();
+			this._pendingSendChatResources.add(chatResourceKey);
+			let updatedSession: ISession;
+			try {
+				updatedSession = await provider.sendRequest(session.sessionId, chat.resource, sendOptions);
+			} finally {
+				this._pendingSendChatResources.delete(chatResourceKey);
+			}
+			if (updatedSession.sessionId !== session.sessionId) {
+				this.logService.info(`[SessionsManagement] sendRequest: active session replaced: ${session.sessionId} -> ${updatedSession.sessionId}`);
+			}
+			this._onDidStartSession.fire(updatedSession);
+			this._onDidSendRequest.fire({ session: updatedSession, chat, isNewSession: true, isNewChat: true, options });
 		} finally {
-			this._pendingSendChatResources.delete(chatResourceKey);
+			requestActivity?.dispose();
 		}
-		if (updatedSession.sessionId !== session.sessionId) {
-			this.logService.info(`[SessionsManagement] sendRequest: active session replaced: ${session.sessionId} -> ${updatedSession.sessionId}`);
-		}
-		this._onDidStartSession.fire(updatedSession);
-		this._onDidSendRequest.fire({ session: updatedSession, chat, isNewSession: true, isNewChat: true, options });
 	}
 
 	/**

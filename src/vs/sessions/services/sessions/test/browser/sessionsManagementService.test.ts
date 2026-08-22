@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -958,6 +959,86 @@ suite('SessionsManagementService', () => {
 		// follows the send and never resets the active slot).
 		await service.sendNewChatRequest(session, { query: 'hi' });
 		assert.strictEqual(view.activeSession.get()?.sessionId, 's1');
+	});
+
+	test('sendNewChatRequest marks the draft as started before creating its chat', async () => {
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+			status: constObservable(SessionStatus.Untitled),
+		});
+		const createChatBarrier = new DeferredPromise<void>();
+		const events: string[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override startNewSessionRequest(): IDisposable {
+				events.push('start');
+				return { dispose: () => events.push('clear') };
+			}
+			override async createNewChat(): Promise<IChat> {
+				events.push('create');
+				await createChatBarrier.p;
+				return session.mainChat.get();
+			}
+			override async sendRequest(): Promise<ISession> {
+				events.push('send');
+				return session;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		const send = service.sendNewChatRequest(session, { query: 'hi' });
+		await timeout(0);
+		const duringCreate = [...events];
+		createChatBarrier.complete();
+		await send;
+
+		assert.deepStrictEqual({ duringCreate, events }, {
+			duringCreate: ['start', 'create'],
+			events: ['start', 'create', 'send', 'clear'],
+		});
+	});
+
+	test('sendNewChatRequest does not prepare an existing session as a draft', async () => {
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+			status: constObservable(SessionStatus.Completed),
+		});
+		let startCount = 0;
+		const provider = new class extends TestSessionsProvider {
+			override startNewSessionRequest(): IDisposable {
+				startCount++;
+				return Disposable.None;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		await service.sendNewChatRequest(session, { query: 'hi' });
+
+		assert.strictEqual(startCount, 0);
+	});
+
+	test('sendNewChatRequest clears draft preparation when chat creation fails', async () => {
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+			status: constObservable(SessionStatus.Untitled),
+		});
+		const events: string[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override startNewSessionRequest(): IDisposable {
+				events.push('start');
+				return { dispose: () => events.push('clear') };
+			}
+			override async createNewChat(): Promise<IChat> {
+				throw new Error('create failed');
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		await assert.rejects(service.sendNewChatRequest(session, { query: 'hi' }), /create failed/);
+
+		assert.deepStrictEqual(events, ['start', 'clear']);
 	});
 
 	test('sendNewChatRequest with background resolves before provider send commits', async () => {
