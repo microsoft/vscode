@@ -483,8 +483,12 @@ class MouseDownOperation extends Disposable {
 						// cancel
 						this._viewController.emitMouseDropCanceled();
 					} else {
+						// Send out the pointer up event, such that listeners observe the modifier
+						// state at the time of the drop. The position is still derived from the last
+						// pointer move event, because the pointer up event is captured and its target
+						// does not necessarily reflect a position in the editor.
 						this._viewController.emitMouseDrop({
-							event: this._lastMouseEvent!,
+							event: browserEvent ? new EditorMouseEvent(browserEvent, true, this._viewHelper.viewDomNode) : this._lastMouseEvent!,
 							target: (position ? this._createMouseTarget(this._lastMouseEvent!, true) : null) // Ignoring because position is unknown, e.g., Content View Zone
 						});
 					}
