@@ -1668,10 +1668,19 @@ suite('ChatService', () => {
 		assert.strictEqual(ref, undefined, 'Should return undefined when no provider is registered');
 	});
 
-	test('sendRequest on untitled remote session propagates initialSessionOptions to new model', async () => {
+	test('sendRequest on untitled remote session propagates creation metadata to new model', async () => {
 		const remoteScheme = 'remoteProvider';
 		const untitledResource = URI.from({ scheme: remoteScheme, path: '/untitled-test-session' });
 		const realResource = URI.from({ scheme: remoteScheme, path: '/real-session-123' });
+		const providerInvokedEvents: Record<string, unknown>[] = [];
+		instantiationService.stub(ITelemetryService, {
+			...NullTelemetryService,
+			publicLog2(eventName: string, data: Record<string, unknown> | undefined): void {
+				if (eventName === 'interactiveSessionProviderInvoked' && data) {
+					providerInvokedEvents.push(data);
+				}
+			}
+		});
 
 		// Set up the mock chat sessions service
 		const mockSessionsService = new MockChatSessionsService();
@@ -1713,7 +1722,7 @@ suite('ChatService', () => {
 		const testService = createChatService();
 
 		// Load the untitled session to create the initial model
-		const untitledRef = await testService.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None);
+		const untitledRef = await testService.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None, undefined, 'rememberedSelection');
 		assert.ok(untitledRef, 'Should load untitled session');
 		testDisposables.add(untitledRef);
 
@@ -1725,13 +1734,18 @@ suite('ChatService', () => {
 		// The new model (with real resource) should have initialSessionOptions set
 		const newModel = testService.getSession(realResource) as ChatModel;
 		assert.ok(newModel, 'New model should exist at the real resource');
-		assert.deepStrictEqual(
-			ChatSessionOptionsMap.toStrValueArray(mockSessionsService.getSessionOptions(realResource)),
-			[
+		assert.deepStrictEqual({
+			sessionOptions: ChatSessionOptionsMap.toStrValueArray(mockSessionsService.getSessionOptions(realResource)),
+			modelSelectionReason: newModel.sessionTypeSelectionReason,
+			telemetrySelectionReasons: providerInvokedEvents.map(event => event.sessionTypeSelectionReason),
+		}, {
+			sessionOptions: [
 				{ optionId: 'model', value: 'claude-3.5-sonnet' },
 				{ optionId: 'repo', value: 'my-repo' },
-			]
-		);
+			],
+			modelSelectionReason: 'rememberedSelection',
+			telemetrySelectionReasons: ['rememberedSelection'],
+		});
 	});
 
 	suite('untitled session materialization is idempotent/serialized (avoids duplicate sessions)', () => {
