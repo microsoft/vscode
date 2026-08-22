@@ -1867,11 +1867,11 @@
               "secret": true,
               "description": "API key for the models",
               "title": "API Key",
-              "markdownDeprecationMessage": "**Deprecated.** Use the `customendpoint` provider (\"Custom Endpoint\") instead. It supports the Chat Completions API, the Responses API, and the Messages API — selectable per model via the `apiType` property."
+              "markdownDeprecationMessage": "**Deprecated.** Use the `customendpoint` provider (\"Custom Endpoint\") instead. It supports the Chat Completions API, the Responses API, the Messages API, and the Gemini `generateContent` API — selectable per model via the `apiType` property."
             },
             "models": {
               "type": "array",
-              "markdownDeprecationMessage": "**Deprecated.** Use the `customendpoint` provider (\"Custom Endpoint\") instead. It supports the Chat Completions API, the Responses API, and the Messages API — selectable per model via the `apiType` property.",
+              "markdownDeprecationMessage": "**Deprecated.** Use the `customendpoint` provider (\"Custom Endpoint\") instead. It supports the Chat Completions API, the Responses API, the Messages API, and the Gemini `generateContent` API — selectable per model via the `apiType` property.",
               "defaultSnippets": [
                 {
                   "label": "New Model",
@@ -2019,17 +2019,20 @@
               "enum": [
                 "chat-completions",
                 "responses",
-                "messages"
+                "messages",
+                "gemini"
               ],
               "enumItemLabels": [
                 "Chat Completions",
                 "Responses",
-                "Messages"
+                "Messages",
+                "Gemini"
               ],
               "enumDescriptions": [
                 "Chat Completions API",
                 "Responses API",
-                "Messages API"
+                "Messages API",
+                "Gemini generateContent API"
               ],
               "default": "chat-completions",
               "title": "API Type",
@@ -2069,27 +2072,30 @@
                     "type": "string",
                     "pattern": "^https?://.+",
                     "patternErrorMessage": "URL must start with http:// or https://",
-                    "markdownDescription": "URL endpoint for the model.\n\n**Important:** Base URLs default to Chat Completions API. Explicit API paths are respected: `/chat/completions`, `/responses`, and `/v1/messages` (Anthropic-compatible). Use the `apiType` property to override the request/response format independently of the URL."
+                    "markdownDescription": "URL endpoint for the model.\n\n**Important:** Base URLs default to Chat Completions API. Explicit API paths are respected for detecting the format: `/chat/completions`, `/responses`, `/v1/messages` (Anthropic-compatible), and `models/{model}:generateContent` (Gemini-compatible). Use the `apiType` property to override the request/response format independently of the URL.\n\nFor Gemini, the URL is only used to detect the format and derive a base URL; the `:generateContent` vs `:streamGenerateContent` suffix is not preserved as-is. Whether requests actually stream is controlled by the `streaming` property (defaults to `true`), not by that suffix."
                   },
                   "apiType": {
                     "type": "string",
                     "enum": [
                       "chat-completions",
                       "responses",
-                      "messages"
+                      "messages",
+                      "gemini"
                     ],
                     "enumItemLabels": [
                       "Chat Completions",
                       "Responses",
-                      "Messages"
+                      "Messages",
+                      "Gemini"
                     ],
                     "enumDescriptions": [
                       "Chat Completions API",
                       "Responses API",
-                      "Messages API"
+                      "Messages API",
+                      "Gemini generateContent API"
                     ],
                     "title": "API Type",
-                    "markdownDescription": "Request/response format used to talk to this endpoint:\n- `chat-completions`: Chat Completions API (default).\n- `responses`: Responses API.\n- `messages`: Messages API.\n\nWhen omitted, falls back to the group-level `apiType`, then to the URL path."
+                    "markdownDescription": "Request/response format used to talk to this endpoint:\n- `chat-completions`: Chat Completions API (default).\n- `responses`: Responses API.\n- `messages`: Messages API.\n- `gemini`: Gemini `generateContent` API — for the official Google Generative Language API or a compatible gateway/proxy.\n\nWhen omitted, falls back to the group-level `apiType`, then to the URL path."
                   },
                   "adaptiveThinking": {
                     "type": "boolean",

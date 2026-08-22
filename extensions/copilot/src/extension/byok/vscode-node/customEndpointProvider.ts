@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken, LanguageModelChatMessage, LanguageModelChatMessage2, LanguageModelResponsePart2, Progress, ProvideLanguageModelChatResponseOptions } from 'vscode';
 import { IChatMLFetcher } from '../../../platform/chat/common/chatMLFetcher';
 import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IDomainService } from '../../../platform/endpoint/common/domainService';
@@ -15,13 +16,26 @@ import { IExperimentationService } from '../../../platform/telemetry/common/null
 import { ITokenizerProvider } from '../../../platform/tokenizer/node/tokenizer';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { resolveModelInfo } from '../common/byokProvider';
+import { hasAuthOverrideHeader, isReservedHeaderAllowingAuthOverride, sanitizeCustomHeaders } from '../common/customHeaderSanitizer';
 import { OpenAIEndpoint } from '../node/openAIEndpoint';
-import { AbstractOpenAICompatibleLMProvider, LanguageModelChatConfiguration, OpenAICompatibleLanguageModelChatInformation } from './abstractLanguageModelChatProvider';
+import { AbstractOpenAICompatibleLMProvider, ExtendedLanguageModelChatInformation, LanguageModelChatConfiguration, OpenAICompatibleLanguageModelChatInformation } from './abstractLanguageModelChatProvider';
 import { byokKnownModelToAPIInfoWithEffort } from './byokModelInfo';
 import { IBYOKStorageService } from './byokStorageService';
+import { GeminiModelConfiguration, GeminiNativeBYOKLMProvider } from './geminiNativeProvider';
 
-export type CustomEndpointApiType = 'chat-completions' | 'responses' | 'messages';
+export type CustomEndpointApiType = 'chat-completions' | 'responses' | 'messages' | 'gemini';
 
+/** Matches the `:generateContent` / `:streamGenerateContent` method marker of a Gemini REST call. */
+const GEMINI_GENERATE_CONTENT_PATTERN = /:(?:stream)?generateContent\b/i;
+
+function isGeminiGenerateContentUrl(url: string): boolean {
+	return GEMINI_GENERATE_CONTENT_PATTERN.test(url);
+}
+
+/**
+ * Builds the request URL for `chat-completions` / `responses` / `messages`.
+ * Not used for `gemini`; see {@link resolveGeminiBaseUrl}.
+ */
 export function resolveCustomEndpointUrl(modelId: string, url: string, apiType?: CustomEndpointApiType): string {
 	// The fully resolved url was already passed in
 	if (hasExplicitApiPath(url)) {
@@ -50,16 +64,20 @@ function apiTypeToPath(apiType: CustomEndpointApiType | undefined): string {
 		case 'responses': return '/responses';
 		case 'messages': return '/messages';
 		case 'chat-completions':
+		case 'gemini':
 		default:
 			return '/chat/completions';
 	}
 }
 
 export function hasExplicitApiPath(url: string): boolean {
-	return url.includes('/responses') || url.includes('/chat/completions') || url.includes('/messages');
+	return url.includes('/responses') || url.includes('/chat/completions') || url.includes('/messages') || isGeminiGenerateContentUrl(url);
 }
 
 function inferApiTypeFromUrl(url: string): CustomEndpointApiType {
+	if (isGeminiGenerateContentUrl(url)) {
+		return 'gemini';
+	}
 	if (url.includes('/messages')) {
 		return 'messages';
 	}
@@ -67,6 +85,25 @@ function inferApiTypeFromUrl(url: string): CustomEndpointApiType {
 		return 'responses';
 	}
 	return 'chat-completions';
+}
+
+/**
+ * Normalizes a Custom Endpoint URL into `{ baseUrl, apiVersion }` for the Gemini
+ * SDK, which builds the full request URL itself
+ * (`{baseUrl}/{apiVersion}/models/{model}:generateContent`) rather than taking one.
+ * Strips a trailing version segment and a `models/...:generateContent` tail;
+ * leaves gateway path prefixes untouched.
+ */
+export function resolveGeminiBaseUrl(url: string): { baseUrl: string; apiVersion: string | undefined } {
+	let baseUrl = url.endsWith('/') ? url.slice(0, -1) : url;
+
+	baseUrl = baseUrl.replace(/\/models\/[^/]+:(?:stream)?generateContent(?:\?.*)?$/i, '');
+
+	const versionMatch = baseUrl.match(/\/(v1(?:alpha|beta)?)$/);
+	if (!versionMatch) {
+		return { baseUrl, apiVersion: undefined };
+	}
+	return { baseUrl: baseUrl.slice(0, -versionMatch[0].length), apiVersion: versionMatch[1] };
 }
 
 function apiTypeToSupportedEndpoints(apiType: CustomEndpointApiType): ModelSupportedEndpoint[] | undefined {
@@ -115,13 +152,45 @@ export interface CustomEndpointModelConfig extends _CustomEndpointModelConfig {
 	id: string;
 }
 
+/**
+ * Resolves apiType: per-model override, then group default, then URL inference.
+ * Uses the raw URL, before {@link resolveCustomEndpointUrl} would append anything,
+ * so a bare Gemini URL infers correctly instead of defaulting to Chat Completions.
+ */
+function resolveModelApiType(url: string, modelApiType: CustomEndpointApiType | undefined, groupApiType: CustomEndpointApiType | undefined): CustomEndpointApiType {
+	return modelApiType ?? groupApiType ?? inferApiTypeFromUrl(url);
+}
+
+/**
+ * Replaces the literal token `${apiKey}` in each header value with the configured
+ * API key, mirroring {@link CustomEndpointOAIEndpoint}'s interpolation for the other
+ * three apiTypes. Lets a gateway-specific header pull from the same secret-stored
+ * key instead of requiring a second one.
+ */
+function interpolateApiKeyInHeaders(headers: Record<string, string> | undefined, apiKey: string | undefined): Record<string, string> | undefined {
+	if (!headers || !apiKey) {
+		return headers;
+	}
+	const result: Record<string, string> = {};
+	for (const [key, value] of Object.entries(headers)) {
+		result[key] = value.includes('${apiKey}') ? value.split('${apiKey}').join(apiKey) : value;
+	}
+	return result;
+}
+
 export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMProvider<CustomEndpointModelProviderConfig> {
 
 	public static readonly providerName = 'CustomEndpoint';
 	public static readonly providerId = this.providerName.toLowerCase();
 
+	// Handles every `apiType: 'gemini'` request. Reused from the registered Gemini
+	// provider singleton (passed in from byokContribution.ts) rather than constructed
+	// here, so its legacy API-key migration only ever runs once at extension startup.
+	private readonly _geminiDelegate: GeminiNativeBYOKLMProvider;
+
 	constructor(
 		_byokStorageService: IBYOKStorageService,
+		geminiDelegate: GeminiNativeBYOKLMProvider,
 		@ILogService logService: ILogService,
 		@IFetcherService fetcherService: IFetcherService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -129,11 +198,69 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 		@IExperimentationService expService: IExperimentationService,
 	) {
 		super(CustomEndpointBYOKModelProvider.providerId, CustomEndpointBYOKModelProvider.providerName, undefined, _byokStorageService, fetcherService, logService, instantiationService, configurationService, expService);
+		this._geminiDelegate = geminiDelegate;
 	}
 
 	protected override async configureDefaultGroupWithApiKeyOnly(): Promise<string | undefined> {
 		// No-op: Custom Endpoint models are configured via the JSON snippet flow, not by an API-key-only prompt.
 		return;
+	}
+
+	/**
+	 * Adapts a Custom Endpoint model into the shape the native Gemini provider expects,
+	 * pointing it at the user's endpoint instead of the official Gemini Developer API.
+	 */
+	private _toGeminiModel(model: OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>): ExtendedLanguageModelChatInformation<GeminiModelConfiguration> {
+		const modelConfiguration = model.configuration?.models?.find(m => m.id === model.id);
+		const { baseUrl, apiVersion } = resolveGeminiBaseUrl(model.url);
+		const headers = interpolateApiKeyInHeaders(
+			// Same auth-override allowance as CustomEndpointOAIEndpoint: api-key/authorization
+			// are permitted through so a gateway behind this URL can replace the inferred auth.
+			sanitizeCustomHeaders(modelConfiguration?.requestHeaders, model.id, this._logService, isReservedHeaderAllowingAuthOverride),
+			model.configuration?.apiKey
+		) ?? {};
+		if (hasAuthOverrideHeader(headers) && !Object.keys(headers).some(key => key.toLowerCase() === 'x-goog-api-key')) {
+			// The user is authenticating via their own header. @google/genai's NodeAuth still
+			// auto-adds x-goog-api-key from the configured apiKey unless that exact header is
+			// already present, so pre-empt it with an empty placeholder to avoid sending a
+			// second, conflicting credential to the gateway.
+			headers['x-goog-api-key'] = '';
+		}
+		return {
+			...model,
+			configuration: {
+				apiKey: model.configuration?.apiKey,
+				// Custom Endpoint models don't require an apiKey (see CustomEndpointOAIEndpoint,
+				// which passes '' the same way for the other apiTypes): the endpoint may be
+				// unauthenticated, or authenticated solely via a requestHeaders entry.
+				apiKeyOptional: true,
+				baseUrl,
+				apiVersion,
+				headers,
+				modelOptions: modelConfiguration?.modelOptions,
+				streaming: modelConfiguration?.streaming,
+				supportsReasoningEffort: modelConfiguration?.supportsReasoningEffort,
+			}
+		};
+	}
+
+	override async provideLanguageModelChatResponse(model: OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>, messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2>, options: ProvideLanguageModelChatResponseOptions, progress: Progress<LanguageModelResponsePart2>, token: CancellationToken): Promise<void> {
+		if (this._resolveApiType(model) === 'gemini') {
+			return this._geminiDelegate.provideLanguageModelChatResponse(this._toGeminiModel(model), messages, options, progress, token);
+		}
+		return super.provideLanguageModelChatResponse(model, messages, options, progress, token);
+	}
+
+	override async provideTokenCount(model: OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>, text: string | LanguageModelChatMessage | LanguageModelChatMessage2, token: CancellationToken): Promise<number> {
+		if (this._resolveApiType(model) === 'gemini') {
+			return this._geminiDelegate.provideTokenCount(this._toGeminiModel(model), text, token);
+		}
+		return super.provideTokenCount(model, text, token);
+	}
+
+	private _resolveApiType(model: OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>): CustomEndpointApiType {
+		const modelConfiguration = model.configuration?.models?.find(m => m.id === model.id);
+		return resolveModelApiType(model.url, modelConfiguration?.apiType, model.configuration?.apiType);
 	}
 
 	protected override async getAllModels(silent: boolean, apiKey: string | undefined, configuration: CustomEndpointModelProviderConfig | undefined): Promise<OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>[]> {
@@ -154,9 +281,8 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 
 	protected override async createOpenAIEndPoint(model: OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>): Promise<OpenAIEndpoint> {
 		const modelConfiguration = model.configuration?.models?.find(m => m.id === model.id);
-		const apiTypeOverride = modelConfiguration?.apiType ?? model.configuration?.apiType;
-		const url = resolveCustomEndpointUrl(model.id, model.url, apiTypeOverride);
-		const apiType: CustomEndpointApiType = apiTypeOverride ?? inferApiTypeFromUrl(url);
+		const apiType = resolveModelApiType(model.url, modelConfiguration?.apiType, model.configuration?.apiType);
+		const url = resolveCustomEndpointUrl(model.id, model.url, apiType);
 		const modelCapabilities = {
 			maxInputTokens: model.maxInputTokens,
 			maxOutputTokens: model.maxOutputTokens,
@@ -208,34 +334,6 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
  *    explicitly configured, allowing custom implementations to use their own default.
  */
 export class CustomEndpointOAIEndpoint extends OpenAIEndpoint {
-	/**
-	 * Reserved auth headers that we permit users to override via `requestHeaders`
-	 * for this subclass only. Other well-known auth headers like `x-api-key`,
-	 * `x-goog-api-key`, `apikey`, `ocp-apim-subscription-key`, and
-	 * `x-functions-key` are not on the base reserved list, so they already pass
-	 * through without needing to be listed here.
-	 */
-	private static readonly _overridableReservedAuthHeaders: ReadonlySet<string> = new Set([
-		'api-key',
-		'authorization',
-	]);
-
-	/**
-	 * Well-known auth header names whose presence in `requestHeaders` signals
-	 * that the user is supplying their own credentials, so the default URL-
-	 * inferred auth header should not also be sent (otherwise the endpoint
-	 * receives two conflicting credentials). Headers that are typically
-	 * complementary to a backend auth header (e.g. APIM subscription keys,
-	 * Azure Functions keys) are intentionally excluded.
-	 */
-	private static readonly _userAuthHeaderSuppressionSet: ReadonlySet<string> = new Set([
-		'api-key',
-		'authorization',
-		'x-api-key',
-		'x-goog-api-key',
-		'apikey',
-	]);
-
 	constructor(
 		modelMetadata: IChatModelInformation,
 		apiKey: string,
@@ -265,10 +363,7 @@ export class CustomEndpointOAIEndpoint extends OpenAIEndpoint {
 	}
 
 	protected override _isReservedHeader(lowerKey: string): boolean {
-		if (CustomEndpointOAIEndpoint._overridableReservedAuthHeaders.has(lowerKey)) {
-			return false;
-		}
-		return super._isReservedHeader(lowerKey);
+		return isReservedHeaderAllowingAuthOverride(lowerKey);
 	}
 
 	public override getExtraHeaders(): Record<string, string> {
@@ -296,12 +391,7 @@ export class CustomEndpointOAIEndpoint extends OpenAIEndpoint {
 	}
 
 	private _hasUserAuthHeader(): boolean {
-		for (const key of Object.keys(this._customHeaders)) {
-			if (CustomEndpointOAIEndpoint._userAuthHeaderSuppressionSet.has(key.toLowerCase())) {
-				return true;
-			}
-		}
-		return false;
+		return hasAuthOverrideHeader(this._customHeaders);
 	}
 
 	/**
