@@ -9,7 +9,7 @@ import { localize } from '../../../../nls.js';
 import type { IAgentModelCallCompletedSignal } from '../../common/agent.js';
 import { toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { ActionType, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState, type ErrorInfo } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState, type ErrorInfo, type ToolResultTodoItem } from '../../common/state/sessionState.js';
 import { extractForwardedErrorInfo } from '../shared/proxyChatError.js';
 import { getServerToolDisplay } from '../shared/serverToolGroups.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
@@ -38,6 +38,8 @@ import type { DynamicToolCallOutputContentItem } from './protocol/generated/v2/D
 import type { JsonValue } from './protocol/generated/serde_json/JsonValue.js';
 import type { CollabAgentTool } from './protocol/generated/v2/CollabAgentTool.js';
 import type { CollabAgentState } from './protocol/generated/v2/CollabAgentState.js';
+import type { TurnPlanStep } from './protocol/generated/v2/TurnPlanStep.js';
+import type { TurnPlanUpdatedNotification } from './protocol/generated/v2/TurnPlanUpdatedNotification.js';
 
 /**
  * Per-session mutable state held by the mapper. Carries the bookkeeping
@@ -524,6 +526,67 @@ export function mapTokenUsageModelCallCompleted(params: ThreadTokenUsageUpdatedN
 			total.totalTokens,
 		].join(':'),
 	};
+}
+
+function mapCodexPlanTodoStatus(status: TurnPlanStep['status']): ToolResultTodoItem['status'] {
+	switch (status) {
+		case 'inProgress': return 'in-progress';
+		case 'completed': return 'completed';
+		case 'pending': return 'not-started';
+	}
+}
+
+/** Maps a Codex plan snapshot to the Agent Host protocol's todo items. */
+export function mapCodexPlanTodos(plan: readonly TurnPlanStep[]): ToolResultTodoItem[] {
+	const result: ToolResultTodoItem[] = [];
+	for (let i = 0; i < plan.length; i++) {
+		const title = plan[i].step;
+		if (!title) {
+			continue;
+		}
+		result.push({
+			id: `plan-${i}`,
+			title,
+			status: mapCodexPlanTodoStatus(plan[i].status),
+		});
+	}
+	return result;
+}
+
+/** Maps an out-of-band Codex plan snapshot to a completed structured tool call. */
+export function mapTurnPlanUpdated(params: TurnPlanUpdatedNotification): (SessionAction | ChatAction)[] {
+	const todos = mapCodexPlanTodos(params.plan);
+	if (todos.length === 0) {
+		return [];
+	}
+	const toolCallId = generateUuid();
+	const displayName = localize('codex.updatePlan.displayName', "Update todo list");
+	return [
+		{
+			type: ActionType.ChatToolCallStart,
+			turnId: params.turnId,
+			toolCallId,
+			toolName: 'update_plan',
+			displayName,
+		},
+		{
+			type: ActionType.ChatToolCallReady,
+			turnId: params.turnId,
+			toolCallId,
+			invocationMessage: localize('codex.updatePlan.inProgress', "Updating todo list"),
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+		},
+		{
+			type: ActionType.ChatToolCallComplete,
+			turnId: params.turnId,
+			toolCallId,
+			result: {
+				success: true,
+				pastTenseMessage: localize('codex.updatePlan.completed', "Updated todo list"),
+				content: [{ type: ToolResultContentType.TodoList, todos }],
+			},
+		},
+	];
 }
 
 /**
