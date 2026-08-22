@@ -13,10 +13,9 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { exportAgentHostDebugLogs, IActiveAgentHostSessionForExport } from '../../../../../workbench/contrib/chat/browser/actions/exportAgentHostDebugLogsAction.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { type IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
 
 export class ExportAgentHostDebugLogsAction extends Action2 {
 
@@ -40,22 +39,21 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
 		const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 
 		const activeSession = sessionsService.activeSession.get();
-		const activeAgentHostSession = isAgentHostSession(activeSession, sessionsProvidersService) ? activeSession : undefined;
-		const activeSessionContext: IActiveAgentHostSessionForExport | undefined = activeAgentHostSession
+		const provider = activeSession ? sessionsProvidersService.getProvider(activeSession.providerId) : undefined;
+		const activeProvider = provider && isAgentHostProvider(provider) ? provider : undefined;
+		const activeChat = activeSession?.activeChat.get();
+		const activeSessionContext: IActiveAgentHostSessionForExport | undefined = activeSession && activeProvider
 			? {
-				resource: activeAgentHostSession.resource,
-				title: activeAgentHostSession.title.get(),
-				isLocal: activeAgentHostSession.resource.scheme.startsWith('agent-host-'),
-				chatId: activeAgentHostSession.activeChat.get().resource.fragment || DEFAULT_CHAT_ID,
+				resource: activeSession.resource,
+				title: activeSession.title.get(),
+				isLocal: activeSession.resource.scheme.startsWith('agent-host-'),
+				chatId: activeChat?.resource.fragment || DEFAULT_CHAT_ID,
+				backendChatResource: activeChat ? activeProvider.getBackendChatResource(activeChat.resource) : undefined,
 			}
 			: undefined;
 
 		await exportAgentHostDebugLogs(accessor, activeSessionContext);
 	}
-}
-
-function isAgentHostSession(session: IActiveSession | undefined, sessionsProvidersService: ISessionsProvidersService): session is IActiveSession {
-	return !!session && sessionsProvidersService.getProvider(session.providerId) instanceof BaseAgentHostSessionsProvider;
 }
 
 registerAction2(ExportAgentHostDebugLogsAction);

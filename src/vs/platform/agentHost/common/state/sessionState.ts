@@ -985,13 +985,6 @@ export function buildSubagentChatUri(sessionUri: ProtocolURI | ResourceURI, tool
 	return `${AHP_CHAT_SCHEME}://${SUBAGENT_CHAT_ID}/${encoded}/${encodeURIComponent(toolCallId)}`;
 }
 
-export function buildChatUriFromId(sessionUri: ProtocolURI | ResourceURI, chatId: string): string {
-	const subagentPrefix = `${SUBAGENT_CHAT_ID}/`;
-	return chatId.startsWith(subagentPrefix)
-		? buildSubagentChatUri(sessionUri, chatId.slice(subagentPrefix.length))
-		: buildChatUri(sessionUri, chatId);
-}
-
 /**
  * Inverse of {@link buildChatUri}: recovers the owning session URI and chat id
  * from any chat channel URI. Returns `undefined` when `uri` is not a well-formed
@@ -1047,6 +1040,12 @@ export function parseRequiredSessionUriFromChatUri(uri: ProtocolURI | ResourceUR
 /** Returns `true` when `uri` is the default chat of its session. */
 export function isDefaultChatUri(uri: ProtocolURI | ResourceURI): boolean {
 	return parseChatUri(uri)?.chatId === DEFAULT_CHAT_ID;
+}
+
+export function getSessionChatResource(state: Pick<SessionState, 'defaultChat'> & { readonly chats: readonly Pick<ChatSummary, 'resource'>[] }, chatId: string): ProtocolURI | undefined {
+	return chatId === DEFAULT_CHAT_ID
+		? state.defaultChat ?? state.chats.find(chat => isDefaultChatUri(chat.resource))?.resource
+		: state.chats.find(chat => parseChatUri(chat.resource)?.chatId === chatId)?.resource;
 }
 
 /**

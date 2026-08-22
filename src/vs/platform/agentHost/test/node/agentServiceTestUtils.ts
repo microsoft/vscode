@@ -20,7 +20,7 @@ import { ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
 import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
-import { AgentService } from '../../node/agentService.js';
+import { AgentService, type IAgentServiceOptions } from '../../node/agentService.js';
 import { createAgentService } from '../../node/agentServiceComposition.js';
 import { ICopilotApiService } from '../../node/shared/copilotApiService.js';
 
@@ -39,6 +39,7 @@ export function createTestAgentService(
 	hostLaunchKind = AgentHostLaunchKind.Unknown,
 	storageResource?: URI,
 	orchestratorDatabase?: IAgentHostDatabase,
+	agentServiceOptions: Pick<IAgentServiceOptions, 'debugLogsEnvironment'> = {},
 ): AgentService {
 	const effectiveFileMonitorService = fileMonitorService ?? new AgentHostFileMonitorService(fileService, logService);
 	const proxyResolver: IAgentHostProxyResolver = {
@@ -69,6 +70,7 @@ export function createTestAgentService(
 		hostLaunchKind,
 		storageResource,
 		orchestratorDatabase,
+		...agentServiceOptions,
 	};
 	const service = createAgentService(
 		options,
@@ -80,4 +82,31 @@ export function createTestAgentService(
 		fileMonitorService ? [instantiationService] : [effectiveFileMonitorService, instantiationService],
 	);
 	return service;
+}
+
+export function createTestAgentServiceWithOptions(
+	logService: ILogService,
+	fileService: IFileService,
+	sessionDataService: ISessionDataService,
+	productService: IProductService,
+	gitService: IAgentHostGitService,
+	options: Pick<IAgentServiceOptions, 'debugLogsEnvironment'>,
+): AgentService {
+	return createTestAgentService(
+		logService,
+		fileService,
+		sessionDataService,
+		productService,
+		gitService,
+		undefined,
+		undefined,
+		undefined,
+		undefined,
+		undefined,
+		[],
+		AgentHostLaunchKind.Unknown,
+		undefined,
+		undefined,
+		options,
+	);
 }
