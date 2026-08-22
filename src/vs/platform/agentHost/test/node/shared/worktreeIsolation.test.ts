@@ -578,7 +578,7 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
-	test('resolveWorkingDirectoryForResume recreates a missing live worktree from legacy metadata', async () => {
+	test('resolveWorkingDirectoryForResume recreates a missing live worktree from legacy working directory metadata', async () => {
 		const isolation = createIsolation(disposables);
 		const missingWorktree = URI.joinPath(worktreesRoot, 'missing-legacy-live-worktree');
 		await Promise.all([
@@ -595,6 +595,61 @@ suite('WorktreeIsolation', () => {
 			resolved: missingWorktree.toString(),
 			recreatedWorktrees: [{ worktree: missingWorktree.toString(), branchName: 'feature/x' }],
 		});
+	});
+
+	test('resolveWorkingDirectoryForResume recreates a missing live worktree from adopted legacy metadata', async () => {
+		const missingWorktree = URI.joinPath(worktreesRoot, 'agents-missing-legacy-live-worktree');
+		await db.setMetadata('copilot.workingDirectory', missingWorktree.toString());
+		const gitService = createGitService();
+		gitService.getBranches = async () => [
+			{ ref: 'refs/heads/roblou/agents/missing-legacy-live-worktree', name: 'roblou/agents/missing-legacy-live-worktree', kind: GitRefType.Head },
+			{ ref: 'refs/remotes/origin/agents/missing-legacy-live-worktree', name: 'origin/agents/missing-legacy-live-worktree', remote: 'origin', kind: GitRefType.RemoteHead },
+		];
+		const isolation = createIsolation(disposables, { gitService });
+
+		const metadata = await isolation.readWorktreeMetadata(sessionUri);
+		const resolved = await isolation.resolveWorkingDirectoryForResume(sessionUri, sessionId, missingWorktree);
+
+		assert.deepStrictEqual({
+			metadata: metadata && {
+				branchName: metadata.branchName,
+				worktreePath: metadata.worktreePath?.toString(),
+				repositoryRoot: metadata.repositoryRoot?.toString(),
+			},
+			resolved: resolved.toString(),
+			recreatedWorktrees: addExistingCalls.map(call => ({ worktree: call.worktree.toString(), branchName: call.branchName })),
+			persistedBranchName: await db.getMetadata('copilot.worktree.branchName'),
+			persistedWorktreePath: await db.getMetadata('copilot.worktree.path'),
+			persistedRepositoryRoot: await db.getMetadata('copilot.worktree.repositoryRoot'),
+		}, {
+			metadata: {
+				branchName: 'roblou/agents/missing-legacy-live-worktree',
+				worktreePath: missingWorktree.toString(),
+				repositoryRoot: repoRoot.toString(),
+			},
+			resolved: missingWorktree.toString(),
+			recreatedWorktrees: [{ worktree: missingWorktree.toString(), branchName: 'roblou/agents/missing-legacy-live-worktree' }],
+			persistedBranchName: 'roblou/agents/missing-legacy-live-worktree',
+			persistedWorktreePath: missingWorktree.toString(),
+			persistedRepositoryRoot: repoRoot.toString(),
+		});
+	});
+
+	test('resolveWorkingDirectoryForResume does not guess between matching legacy branches', async () => {
+		const missingWorktree = URI.joinPath(worktreesRoot, 'agents-ambiguous-worktree');
+		await db.setMetadata('copilot.workingDirectory', missingWorktree.toString());
+		const gitService = createGitService();
+		gitService.getBranches = async () => [
+			{ ref: 'refs/heads/alice/agents/ambiguous-worktree', name: 'alice/agents/ambiguous-worktree', kind: GitRefType.Head },
+			{ ref: 'refs/heads/bob/agents/ambiguous-worktree', name: 'bob/agents/ambiguous-worktree', kind: GitRefType.Head },
+		];
+		const isolation = createIsolation(disposables, { gitService });
+
+		await assert.rejects(
+			() => isolation.resolveWorkingDirectoryForResume(sessionUri, sessionId, missingWorktree),
+			(error: Error) => error instanceof SessionWorkingDirectoryMissingError,
+		);
+		assert.strictEqual(addExistingCalls.length, 0);
 	});
 
 	test('resolveWorkingDirectoryForResume uses the repository root for archived history', async () => {
