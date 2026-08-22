@@ -54,7 +54,30 @@ export class CopyLinesCommand implements ICommand {
 		}
 
 		if (this._noop) {
-			builder.addEditOperation(new Range(s.endLineNumber, model.getLineMaxColumn(s.endLineNumber), s.endLineNumber + 1, 1), s.endLineNumber === model.getLineCount() ? '' : '\n');
+			// Use a unique no-op edit range anchored at this cursor's column so
+			// multiple no-op commands produced for cursors on the same line do
+			// not collide in the cursor-conflict resolution (which would drop
+			// all but one of those cursors). See issue #309282. Each no-op
+			// replaces a single character on the source line with the same
+			// character — a true round-trip — but the range itself differs per
+			// cursor so the operations don't overlap.
+			const noopLine = s.endLineNumber;
+			const noopLineMaxColumn = model.getLineMaxColumn(noopLine);
+			let noopRange: Range;
+			if (noopLineMaxColumn > 1) {
+				// Clamp the cursor's column into the valid intra-line range so
+				// the round-trip range is always one character wide.
+				const cursorColumn = Math.min(Math.max(this._selection.endColumn, 1), noopLineMaxColumn);
+				const startColumn = cursorColumn < noopLineMaxColumn ? cursorColumn : noopLineMaxColumn - 1;
+				noopRange = new Range(noopLine, startColumn, noopLine, startColumn + 1);
+			} else {
+				// Empty source line — there is no character to round-trip on
+				// the line itself, so anchor the no-op across the trailing
+				// newline. Cursors on a fully empty line cannot be visually
+				// distinguished, so any residual collision is benign.
+				noopRange = new Range(noopLine, noopLineMaxColumn, noopLine === model.getLineCount() ? noopLine : noopLine + 1, 1);
+			}
+			builder.addEditOperation(noopRange, model.getValueInRange(noopRange));
 		} else {
 			if (!this._isCopyingDown) {
 				builder.addEditOperation(new Range(s.endLineNumber, model.getLineMaxColumn(s.endLineNumber), s.endLineNumber, model.getLineMaxColumn(s.endLineNumber)), '\n' + sourceText);
