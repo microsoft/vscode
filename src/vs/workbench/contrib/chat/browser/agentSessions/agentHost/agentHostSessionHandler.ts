@@ -2038,7 +2038,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		this._remotePendingMessageProjections.add(sessionResource);
 		try {
-			this._chatService.syncPendingRequestsFromRemote(sessionResource, remote);
+			this._chatService.syncPendingRequestsFromRemote(sessionResource, remote, state.activeTurn?.id);
 		} finally {
 			this._remotePendingMessageProjections.delete(sessionResource);
 		}
@@ -2247,10 +2247,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 			this._logService.info(`[AgentHost] Server-initiated turn detected: ${activeTurn.id}`);
 
-			// Determine which queued message was consumed by diffing queue state
+			// The message that became this turn was consumed, not withdrawn.
 			if (previousQueuedIds) {
 				for (const prevId of previousQueuedIds) {
-					if (!currentQueuedIds.has(prevId)) {
+					if (!currentQueuedIds.has(prevId) && prevId !== activeTurn.id) {
 						this._chatService.removePendingRequest(sessionResource, prevId);
 					}
 				}
