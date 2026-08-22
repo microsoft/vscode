@@ -244,6 +244,16 @@ export interface IConversationState {
 	readonly turns: Turn[];
 }
 
+export function getUnavailableHistoryImageSourceHashes(turns: readonly Turn[]): string[] {
+	const hashes = new Set<string>();
+	for (const turn of turns) {
+		for (const hash of turn.resultMetadata?.unavailableHistoryImageSourceHashes ?? []) {
+			hashes.add(hash);
+		}
+	}
+	return [...hashes];
+}
+
 export class Conversation {
 
 	private readonly _turns: Turn[] = [];
@@ -374,6 +384,7 @@ export interface IResultMetadata {
 	renderedUserMessage?: Raw.ChatCompletionContentPart[];
 	renderedGlobalContext?: Raw.ChatCompletionContentPart[];
 	globalContextCacheKey?: string;
+	unavailableHistoryImageSourceHashes?: readonly string[];
 	command?: string;
 	filterCategory?: FilterReason;
 

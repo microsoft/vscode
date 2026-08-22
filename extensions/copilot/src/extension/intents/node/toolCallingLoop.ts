@@ -10,7 +10,7 @@ import { IAuthenticationChatUpgradeService } from '../../../platform/authenticat
 import { IChatDebugFileLoggerService } from '../../../platform/chat/common/chatDebugFileLoggerService';
 import { IChatHookService, SessionStartHookInput, SessionStartHookOutput, StopHookInput, StopHookOutput, SubagentStartHookInput, SubagentStartHookOutput, SubagentStopHookInput, SubagentStopHookOutput } from '../../../platform/chat/common/chatHookService';
 import { FetchStreamSource, IResponsePart } from '../../../platform/chat/common/chatMLFetcher';
-import { CanceledResult, ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';
+import { CanceledResult, ChatFetchResponseType, ChatLocation, ChatResponse, VISION_ATTACHMENT_NOT_ACCESSIBLE } from '../../../platform/chat/common/commonTypes';
 import { IHistoricalTurn, ISessionTranscriptService, ToolRequest } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { isAnthropicFamily, isGeminiFamily } from '../../../platform/endpoint/common/chatModelCapabilities';
@@ -996,6 +996,8 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 			case ChatFetchResponseType.OffTopic:
 			case ChatFetchResponseType.Refusal:
 				return false;
+			case ChatFetchResponseType.BadRequest:
+				return response.capiError?.code !== VISION_ATTACHMENT_NOT_ACCESSIBLE;
 			default:
 				return response.type !== ChatFetchResponseType.Success;
 		}

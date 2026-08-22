@@ -8,6 +8,7 @@ import { Raw, RenderPromptResult } from '@vscode/prompt-tsx';
 import { afterEach, beforeEach, expect, suite, test, vi } from 'vitest';
 import type { ChatLanguageModelToolReference, ChatPromptReference, ChatRequest, ExtendedChatResponsePart, LanguageModelChat, LanguageModelToolInformation } from 'vscode';
 import { IChatMLFetcher } from '../../../../platform/chat/common/chatMLFetcher';
+import { ChatFetchResponseType } from '../../../../platform/chat/common/commonTypes';
 import { toTextPart } from '../../../../platform/chat/common/globalStringUtils';
 import { StaticChatMLFetcher } from '../../../../platform/chat/test/common/staticChatMLFetcher';
 import { MockEndpoint } from '../../../../platform/endpoint/test/node/mockEndpoint';
@@ -200,6 +201,24 @@ suite('defaultIntentRequestHandler', () => {
 		// Wait for event loop to finish as we often fire off telemetry without properly awaiting it as it doesn't matter when it is sent
 		await new Promise(setImmediate);
 		expect(getDerandomizedTelemetry()).toMatchSnapshot();
+	});
+
+	test('persists unavailable history hashes from a non-success terminal response', async () => {
+		fetcher.nextResponse = {
+			type: ChatFetchResponseType.Canceled,
+			reason: 'test cancellation',
+			requestId: 'request-id',
+			serverRequestId: undefined,
+			unavailableHistoryImageSourceHashes: ['unavailable-image'],
+		};
+		promptResult = {
+			...nullRenderPromptResult(),
+			messages: [{ role: Raw.ChatRole.User, content: [toTextPart('hello world!')] }],
+		};
+
+		const result = await makeHandler().getResult();
+
+		expect(result.metadata?.unavailableHistoryImageSourceHashes).toEqual(['unavailable-image']);
 	});
 
 	test('isolates and closes a subagent WebSocket connection', async () => {

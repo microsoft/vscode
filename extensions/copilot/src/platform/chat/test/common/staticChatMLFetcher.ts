@@ -15,10 +15,16 @@ export class StaticChatMLFetcher implements IChatMLFetcher {
 	onDidMakeChatMLRequest = Event.None;
 	private reqs = 0;
 	public resolvedModel = '';
+	public nextResponse: ChatResponse | undefined;
 
 	constructor(public readonly value: StaticChatMLFetcherInput) { }
 
 	async fetchOne({ finishedCb }: IFetchMLOptions): Promise<ChatResponse> {
+		if (this.nextResponse) {
+			const response = this.nextResponse;
+			this.nextResponse = undefined;
+			return response;
+		}
 		// chunk up
 		const value = typeof this.value === 'string'
 			? this.value

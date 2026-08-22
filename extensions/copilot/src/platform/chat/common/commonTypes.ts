@@ -114,9 +114,15 @@ export enum ChatFetchResponseType {
 	Success = 'success'
 }
 
+export const VISION_ATTACHMENT_NOT_ACCESSIBLE = 'vision_attachment_not_accessible';
+
 export const RESPONSE_CONTAINED_NO_CHOICES = 'Response contained no choices.';
 
-export type ChatFetchError =
+interface IUnavailableHistoryImageMetadata {
+	unavailableHistoryImageSourceHashes?: readonly string[];
+}
+
+export type ChatFetchError = (
 	/**
 	 * We requested conversation, but the message was deemed off topic by the intent classifier.
 	 */
@@ -166,7 +172,7 @@ export type ChatFetchError =
 	/**
 	 * We requested conversation, but didn't come up with any results because of a bad request
 	 */
-	| { type: ChatFetchResponseType.BadRequest; reason: string; reasonDetail?: string; requestId: string; serverRequestId: string | undefined }
+	| { type: ChatFetchResponseType.BadRequest; reason: string; reasonDetail?: string; requestId: string; serverRequestId: string | undefined; capiError?: { code?: string; message?: string } }
 	| { type: ChatFetchResponseType.NotFound; reason: string; reasonDetail?: string; requestId: string; serverRequestId: string | undefined }
 	/**
 	 * We requested conversation, but didn't come up with any results because something
@@ -186,7 +192,8 @@ export type ChatFetchError =
 	 * The `statefulMarker` present in the request was invalid or expired. The
 	 * request may be retried without that marker to resubmit it anew.
 	 */
-	| { type: ChatFetchResponseType.InvalidStatefulMarker; reason: string; reasonDetail?: string; requestId: string; serverRequestId: string | undefined };
+	| { type: ChatFetchResponseType.InvalidStatefulMarker; reason: string; reasonDetail?: string; requestId: string; serverRequestId: string | undefined }
+) & IUnavailableHistoryImageMetadata;
 
 export type ChatFetchRetriableError<T> =
 	/**
@@ -195,7 +202,7 @@ export type ChatFetchRetriableError<T> =
 	{ type: ChatFetchResponseType.FilteredRetry; reason: string; category: FilterReason; value: T; requestId: string; serverRequestId: string | undefined };
 
 export type FetchSuccess<T> =
-	{ type: ChatFetchResponseType.Success; value: T; requestId: string; serverRequestId: string | undefined; usage: APIUsage | undefined; resolvedModel: string; modelCallId?: string };
+	{ type: ChatFetchResponseType.Success; value: T; requestId: string; serverRequestId: string | undefined; usage: APIUsage | undefined; resolvedModel: string; modelCallId?: string } & IUnavailableHistoryImageMetadata;
 
 export type FetchResponse<T> = FetchSuccess<T> | ChatFetchError;
 

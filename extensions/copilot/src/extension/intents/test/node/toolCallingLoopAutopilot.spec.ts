@@ -6,7 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatRequest, ChatResponseStream, LanguageModelToolInformation } from 'vscode';
 import { IChatHookService } from '../../../../platform/chat/common/chatHookService';
-import { ChatFetchResponseType, ChatResponse } from '../../../../platform/chat/common/commonTypes';
+import { ChatFetchResponseType, ChatResponse, VISION_ATTACHMENT_NOT_ACCESSIBLE } from '../../../../platform/chat/common/commonTypes';
 import { SpyChatResponseStream } from '../../../../util/common/test/mockChatResponseStream';
 import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
@@ -547,8 +547,8 @@ describe('ToolCallingLoop autopilot', () => {
 	});
 
 	describe('shouldAutoRetry', () => {
-		function mockResponse(type: ChatFetchResponseType): ChatResponse {
-			return { type, reason: 'test', requestId: 'req-1', serverRequestId: undefined } as any;
+		function mockResponse(type: ChatFetchResponseType, capiError?: { code: string; message: string }): ChatResponse {
+			return { type, reason: 'test', requestId: 'req-1', serverRequestId: undefined, capiError } as any;
 		}
 
 		it('should retry on network error in autoApprove mode', () => {
@@ -561,7 +561,15 @@ describe('ToolCallingLoop autopilot', () => {
 			expect(loop.testShouldAutoRetry(mockResponse(ChatFetchResponseType.Failed))).toBe(true);
 		});
 
-		it('should retry on BadRequest', () => {
+		it('should not retry when a vision attachment is inaccessible', () => {
+			const loop = createLoop('autoApprove');
+			expect(loop.testShouldAutoRetry(mockResponse(ChatFetchResponseType.BadRequest, {
+				code: VISION_ATTACHMENT_NOT_ACCESSIBLE,
+				message: 'The image could not be accessed.',
+			}))).toBe(false);
+		});
+
+		it('should retry on an unrelated BadRequest', () => {
 			const loop = createLoop('autoApprove');
 			expect(loop.testShouldAutoRetry(mockResponse(ChatFetchResponseType.BadRequest))).toBe(true);
 		});

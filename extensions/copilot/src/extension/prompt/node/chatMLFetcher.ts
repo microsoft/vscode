@@ -10,7 +10,7 @@ import { IAuthenticationService } from '../../../platform/authentication/common/
 import { CopilotToken } from '../../../platform/authentication/common/copilotToken';
 import { FetchStreamRecorder, IChatMLFetcher, IFetchMLOptions, Source } from '../../../platform/chat/common/chatMLFetcher';
 import { IChatQuotaService } from '../../../platform/chat/common/chatQuotaService';
-import { ChatFetchError, ChatFetchResponseType, ChatFetchRetriableError, ChatLocation, ChatResponse, ChatResponses, RESPONSE_CONTAINED_NO_CHOICES } from '../../../platform/chat/common/commonTypes';
+import { ChatFetchError, ChatFetchResponseType, ChatFetchRetriableError, ChatLocation, ChatResponse, ChatResponses, RESPONSE_CONTAINED_NO_CHOICES, VISION_ATTACHMENT_NOT_ACCESSIBLE } from '../../../platform/chat/common/commonTypes';
 import { IConversationOptions } from '../../../platform/chat/common/conversationOptions';
 import { getTextPart, toTextParts } from '../../../platform/chat/common/globalStringUtils';
 import { IInteractionService } from '../../../platform/chat/common/interactionService';
@@ -18,6 +18,7 @@ import { ConfigKey, HARD_TOOL_LIMIT, IConfigurationService } from '../../../plat
 import { ICAPIClientService } from '../../../platform/endpoint/common/capiClient';
 import { isAutoModel } from '../../../platform/endpoint/node/autoChatEndpoint';
 import { getResponsesApiCompactionThresholdFromBody, OpenAIResponsesProcessor, responseApiInputToRawMessagesForLogging, sendCompletionOutputTelemetry } from '../../../platform/endpoint/node/responsesApi';
+import { getHistoryImageSourceHashes, omitHistoryImages } from '../../../platform/endpoint/node/imageLimits';
 import { getImageTelemetryMeasurementsFromMessages, type ImageTelemetryMeasurements } from '../../../platform/image/common/imageTelemetry';
 import { collectSingleLineErrorMessage, ILogService } from '../../../platform/log/common/logService';
 import { FinishedCallback, getRequestId, IResponseDelta, OptionalChatRequestParams, RequestId } from '../../../platform/networking/common/fetch';
@@ -139,6 +140,10 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 	 */
 	public async fetchMany(opts: IFetchMLOptions, token: CancellationToken): Promise<ChatResponses> {
 		let { debugName, endpoint: chatEndpoint, finishedCb, location, messages, requestOptions, source, telemetryProperties, userInitiatedRequest, interactionTypeOverride, conversationId, webSocketConnectionId, turnId, topLevelTurnId, useWebSocket, ignoreStatefulMarker } = opts;
+		if (opts.unavailableHistoryImageSourceHashes?.length) {
+			messages = omitHistoryImages(messages, new Set(opts.unavailableHistoryImageSourceHashes));
+			opts = { ...opts, messages };
+		}
 		const interactionType = interactionTypeOverride ?? locationToIntent(location);
 		if (useWebSocket && this._consecutiveWebSocketRetryFallbacks >= ChatMLFetcherImpl._maxConsecutiveWebSocketFallbacks) {
 			this._logService.debug(`[ChatWebSocketManager] Disabling WebSocket for request due to ${this._consecutiveWebSocketRetryFallbacks} consecutive WebSocket failures with successful HTTP fallback.`);
@@ -576,6 +581,26 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					otelInferenceSpan = undefined;
 					return this.processCanceledResponse(response, ourRequestId, streamRecorder, telemetryProperties);
 				case FetchResponseKind.Failed: {
+					if (response.failKind === ChatFailKind.BadRequest && response.data?.capiError?.code === VISION_ATTACHMENT_NOT_ACCESSIBLE) {
+						const unavailableHistoryImageSourceHashes = getHistoryImageSourceHashes(messages);
+						const recoveryMessages = omitHistoryImages(messages, new Set(unavailableHistoryImageSourceHashes));
+						if (recoveryMessages !== messages) {
+							if (conversationId) {
+								this._webSocketManager.closeConnection(conversationId, webSocketConnectionId);
+							}
+							const recoveryResult = await this.fetchMany({
+								...opts,
+								messages: recoveryMessages,
+								unavailableHistoryImageSourceHashes,
+								useWebSocket: false,
+								ignoreStatefulMarker: true,
+								userInitiatedRequest: false,
+								enableRetryOnError: false,
+							}, token);
+							pendingLoggedChatRequest?.resolve(recoveryResult, streamRecorder.deltas);
+							return { ...recoveryResult, unavailableHistoryImageSourceHashes };
+						}
+					}
 					const processed = this.processFailedResponse(response, ourRequestId, isAutoModel(chatEndpoint) === 1);
 					// Retry on server errors based on configured status codes
 					const retryServerErrorStatusCodes = this._configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.RetryServerErrorStatusCodes, this._experimentationService);
@@ -655,6 +680,29 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				resumeEventSeen = true;
 			}
 			const processed = this.processError(err, ourRequestId, err.gitHubRequestId, usernameToScrub, isAutoModel(chatEndpoint) === 1);
+			if (processed.type === ChatFetchResponseType.BadRequest && processed.capiError?.code === VISION_ATTACHMENT_NOT_ACCESSIBLE) {
+				const unavailableHistoryImageSourceHashes = getHistoryImageSourceHashes(messages);
+				const recoveryMessages = omitHistoryImages(messages, new Set(unavailableHistoryImageSourceHashes));
+				if (recoveryMessages !== messages) {
+					if (conversationId) {
+						this._webSocketManager.closeConnection(conversationId, webSocketConnectionId);
+					}
+					if (streamRecorder.deltas.length === 0) {
+						const recoveryResult = await this.fetchMany({
+							...opts,
+							messages: recoveryMessages,
+							unavailableHistoryImageSourceHashes,
+							useWebSocket: false,
+							ignoreStatefulMarker: true,
+							userInitiatedRequest: false,
+							enableRetryOnError: false,
+						}, token);
+						pendingLoggedChatRequest?.resolve(recoveryResult, streamRecorder.deltas);
+						return { ...recoveryResult, unavailableHistoryImageSourceHashes };
+					}
+					processed.unavailableHistoryImageSourceHashes = unavailableHistoryImageSourceHashes;
+				}
+			}
 			const retryNetworkError = enableRetryOnError && processed.type === ChatFetchResponseType.NetworkError && this._configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.RetryNetworkErrors, this._experimentationService);
 			const retryWithoutWebSocket = enableRetryOnError && useWebSocket && (processed.type === ChatFetchResponseType.NetworkError || processed.type === ChatFetchResponseType.Failed);
 			if (retryNetworkError || retryWithoutWebSocket) {
@@ -1659,6 +1707,16 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				};
 			}
 
+			if (response.status === 400 && jsonData?.code === VISION_ATTACHMENT_NOT_ACCESSIBLE) {
+				return {
+					type: FetchResponseKind.Failed,
+					modelRequestId: modelRequestIdObj,
+					failKind: ChatFailKind.BadRequest,
+					reason: jsonData?.message || text,
+					data: { capiError: jsonData },
+				};
+			}
+
 			if (response.status === 401 || response.status === 403) {
 				// Token has expired or invalid, fetch a new one on next request
 				// TODO(drifkin): these actions should probably happen in vsc specific code
@@ -2080,8 +2138,8 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		if (response.failKind === ChatFailKind.OffTopic) {
 			return { type: ChatFetchResponseType.OffTopic, reason, requestId, serverRequestId };
 		}
-		if (response.failKind === ChatFailKind.TokenExpiredOrInvalid || response.failKind === ChatFailKind.ClientNotSupported || reason.includes('Bad request: ')) {
-			return { type: ChatFetchResponseType.BadRequest, reason, requestId, serverRequestId };
+		if (response.failKind === ChatFailKind.BadRequest || response.failKind === ChatFailKind.TokenExpiredOrInvalid || response.failKind === ChatFailKind.ClientNotSupported || reason.includes('Bad request: ')) {
+			return { type: ChatFetchResponseType.BadRequest, reason, requestId, serverRequestId, capiError: response.data?.capiError };
 		}
 		if (response.failKind === ChatFailKind.ServerError) {
 			return { type: ChatFetchResponseType.Failed, reason, requestId, serverRequestId };
@@ -2241,6 +2299,15 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				reason: `Request Failed: ${code} ${message}`,
 			};
 		}
+		if (code === VISION_ATTACHMENT_NOT_ACCESSIBLE) {
+			return {
+				type: FetchResponseKind.Failed,
+				modelRequestId,
+				failKind: ChatFailKind.BadRequest,
+				reason: `Request Failed: ${code} ${message}`,
+				data: { capiError },
+			};
+		}
 		if (code === 'bad_request') {
 			return {
 				type: FetchResponseKind.Failed,
@@ -2275,6 +2342,9 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		}
 		if (code === 'not_found') {
 			return { type: ChatFetchResponseType.NotFound, reason: message, requestId, serverRequestId };
+		}
+		if (code === VISION_ATTACHMENT_NOT_ACCESSIBLE) {
+			return { type: ChatFetchResponseType.BadRequest, reason: message, requestId, serverRequestId, capiError };
 		}
 		if (code === 'bad_request') {
 			return { type: ChatFetchResponseType.BadRequest, reason: message, requestId, serverRequestId };
