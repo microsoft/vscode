@@ -84,9 +84,6 @@ export function createAgentServiceComposition(
 	const owned = new DisposableStore();
 	let agentService: AgentService | undefined;
 	try {
-		for (const disposable of additionalDisposables) {
-			owned.add(disposable);
-		}
 		const databasePath = options.rootConfigResource
 			? joinPath(dirname(options.rootConfigResource), 'agent-host.db').fsPath
 			: ':memory:';
@@ -215,6 +212,9 @@ export function createAgentServiceComposition(
 			serverToolHost,
 		};
 		agentService = instantiationService.createInstance(AgentService, core, collaborators);
+		for (const disposable of additionalDisposables) {
+			owned.add(disposable);
+		}
 		return {
 			agentService,
 			authenticationService: core.authenticationService,
@@ -231,6 +231,9 @@ export function createAgentServiceComposition(
 			agentService.dispose();
 		} else {
 			owned.dispose();
+			for (const disposable of additionalDisposables) {
+				disposable.dispose();
+			}
 		}
 		throw error;
 	}

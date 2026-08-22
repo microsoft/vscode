@@ -479,10 +479,6 @@ export class AgentService extends Disposable implements IAgentService {
 	/** Pluggable completion item providers (e.g. workspace file completions, agent-specific @-mentions). */
 	private readonly _completions: IAgentHostCompletions;
 	private _skillCompletionProviderRegistered = false;
-	/** Backs {@link getNetworkDiagnosticsInfo} / {@link diagnosticsFetch}; wired via {@link setNetworkDiagnosticsService}. */
-	private _networkDiagnostics: INetworkDiagnosticsService | undefined;
-	private _editAttributionService: IAgentEditAttributionService | undefined;
-
 	/**
 	 * Authoritative server-side per-resource subscription refcount, keyed by
 	 * resource URI string and valued by the set of subscribed protocol
@@ -559,9 +555,10 @@ export class AgentService extends Disposable implements IAgentService {
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@INetworkDiagnosticsService private readonly _networkDiagnostics: INetworkDiagnosticsService,
+		@IAgentEditAttributionService private readonly _editAttributionService: IAgentEditAttributionService,
 	) {
 		super();
-		this._register(core.disposables);
 		this._authService = core.authenticationService;
 		this._orchestratorDatabase = core.orchestratorDatabase;
 		this._debugLogsCollector = core.debugLogsCollector;
@@ -660,7 +657,9 @@ export class AgentService extends Disposable implements IAgentService {
 				reason: AuthRequiredReason.Required,
 			});
 		}));
+		this._editAttributionService.setEnabled(this._stateManager.rootState.config?.values[AgentHostEditTelemetryEnabledConfigKey] !== false);
 		this._scheduleExternalSessionPrune();
+		this._register(core.disposables);
 	}
 
 	private _scheduleExternalSessionPrune(): void {
@@ -4344,7 +4343,7 @@ export class AgentService extends Disposable implements IAgentService {
 			this._configurationService.persistRootConfig();
 			const editTelemetryEnabled = action.config[AgentHostEditTelemetryEnabledConfigKey];
 			if (typeof editTelemetryEnabled === 'boolean') {
-				this._editAttributionService?.setEnabled(editTelemetryEnabled);
+				this._editAttributionService.setEnabled(editTelemetryEnabled);
 			}
 		}
 		this._sideEffects.handleAction(channel, action, clientId, clientContext);
@@ -5794,15 +5793,15 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	prepareEditAttributionFlush(params: IPrepareEditAttributionFlushParams): Promise<IPreparedEditAttributionFlush | undefined> {
-		return this._editAttributionService?.prepareFlush(params) ?? Promise.resolve(undefined);
+		return this._editAttributionService.prepareFlush(params);
 	}
 
 	commitEditAttributionFlush(params: ICommitEditAttributionFlushParams): Promise<IEditAttributionFlushResult> {
-		return this._editAttributionService?.commitFlush(params) ?? Promise.resolve({ outcome: 'missing', agentModifiedCount: 0 });
+		return this._editAttributionService.commitFlush(params);
 	}
 
 	cancelEditAttributionFlush(params: ICancelEditAttributionFlushParams): Promise<IEditAttributionFlushResult> {
-		return this._editAttributionService?.cancelFlush(params) ?? Promise.resolve({ outcome: 'missing', agentModifiedCount: 0 });
+		return this._editAttributionService.cancelFlush(params);
 	}
 
 	async resourceWrite(params: ResourceWriteParams): Promise<ResourceWriteResult> {
@@ -6226,25 +6225,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	/**
-	 * Wire the network diagnostics service backing {@link getNetworkDiagnosticsInfo}
-	 * and {@link diagnosticsFetch}. A setter rather than a constructor argument
-	 * because the service depends on the agent-host proxy resolver, which the
-	 * remote server constructs lazily — after this service.
-	 */
-	setNetworkDiagnosticsService(service: INetworkDiagnosticsService): void {
-		this._networkDiagnostics = service;
-	}
-
-	setEditAttributionService(service: IAgentEditAttributionService): void {
-		this._editAttributionService = service;
-		service.setEnabled(this._stateManager.rootState.config?.values[AgentHostEditTelemetryEnabledConfigKey] !== false);
-	}
-
 	async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
-		if (!this._networkDiagnostics) {
-			throw new Error('Network diagnostics unavailable: service not wired');
-		}
 		const providers = [...this._providers.values()];
 		const contributions = await Promise.all(providers.map(async provider => {
 			try {
@@ -6291,9 +6272,6 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> {
-		if (!this._networkDiagnostics) {
-			throw new Error('Network diagnostics unavailable: service not wired');
-		}
 		return this._networkDiagnostics.fetch(url);
 	}
 

@@ -59,7 +59,6 @@ import { buildBranchChangesetUri, buildSessionChangesetUri, buildUncommittedChan
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../../common/state/sessionProtocol.js';
-import type { INetworkDiagnosticsService } from '../../node/networkDiagnosticsService.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
@@ -579,12 +578,6 @@ suite('AgentService (node dispatcher)', () => {
 			disposables.add(toDisposable(() => failingProvider.dispose()));
 			const failingProviderContract: IAgent = failingProvider;
 			failingProviderContract.getNetworkDiagnosticsEndpoints = async () => { throw new Error('unavailable'); };
-			const diagnostics: INetworkDiagnosticsService = {
-				_serviceBrand: undefined,
-				getInfo: async (endpoints, account) => ({ version: 'test', os: 'test', arch: 'test', account, proxySettings: {}, proxyEnv: {}, endpoints }),
-				fetch: async url => ({ url }),
-			};
-			service.setNetworkDiagnosticsService(diagnostics);
 			service.registerProvider(providerA);
 			service.registerProvider(providerB);
 			service.registerProvider(failingProvider);

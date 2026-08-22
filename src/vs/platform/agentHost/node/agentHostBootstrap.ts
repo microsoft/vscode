@@ -18,7 +18,6 @@ import { InstantiationService } from '../../instantiation/common/instantiationSe
 import { ILoggerService, ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { IAgentEditAttributionService } from '../common/fileEditAttribution.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import type { IAgent } from '../common/agent.js';
 import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
@@ -31,7 +30,6 @@ import { AgentService, IAgentServiceOptions } from './agentService.js';
 import { createAgentServiceComposition } from './agentServiceComposition.js';
 import { createAgentServiceFoundation } from './agentServiceFoundation.js';
 import { AgentHostServiceCollection, instantiateAgentHostServices, registerAgentHostCoreServices, registerAgentHostHostServices } from './agentHostServices.js';
-import { INetworkDiagnosticsService } from './networkDiagnosticsService.js';
 import { IAgentHostWorktreeIsolation, WorktreeIsolation } from './shared/worktreeIsolation.js';
 import { IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
 import { IByokLmBridgeRegistry, NullByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
@@ -198,11 +196,6 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		));
 		agentService = agentServiceComposition.agentService;
 		const { configurationService } = agentServiceComposition;
-		const networkDiagnosticsService = instantiationService.invokeFunction(accessor => accessor.get(INetworkDiagnosticsService));
-		agentService.setNetworkDiagnosticsService(networkDiagnosticsService);
-		const editAttributionService = instantiationService.invokeFunction(accessor => accessor.get(IAgentEditAttributionService));
-		agentService.setEditAttributionService(editAttributionService);
-
 		const worktreeIsolation = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostWorktreeIsolation));
 		if (!(worktreeIsolation instanceof WorktreeIsolation)) {
 			throw new Error('The production Agent Host requires the concrete WorktreeIsolation service');
