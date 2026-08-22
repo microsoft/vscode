@@ -90,7 +90,8 @@ import { AccessibilityCommandId } from '../../../../accessibility/common/accessi
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEditorSelectionStyling } from '../../../../codeEditor/browser/simpleEditorOptions.js';
 import { IChatViewTitleActionContext } from '../../../common/actions/chatActions.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
-import { ChatRequestVariableSet, getImageAttachmentLimit, IChatRequestVariableEntry, isPastedTextArtifact, isAgentHostCompletionVariableEntry, isBrowserViewVariableEntry, isElementVariableEntry, isExplicitFileOrImageVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringVariableEntry, OmittedState } from '../../../common/attachments/chatVariableEntries.js';
+import { ChatRequestVariableSet, getImageAttachmentLimit, IChatRequestVariableEntry, isPastedTextArtifact, isAgentHostCompletionVariableEntry, isBrowserViewVariableEntry, isElementVariableEntry, isExplicitFileOrImageVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, OmittedState } from '../../../common/attachments/chatVariableEntries.js';
+import { isImplicitContextAlreadyAttached, IImplicitContextAttachmentTarget } from '../../../common/attachments/chatImplicitContextMatching.js';
 import { ChatMode, getModeNameForTelemetry, IChatMode, IChatModes, IChatModeService } from '../../../common/chatModes.js';
 import { IChatFollowup, IChatPlanReview, IChatQuestionCarousel, IChatService, IChatToolInvocation } from '../../../common/chatService/chatService.js';
 import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, isAgentHostTarget, isIChatSessionFileChange2, localChatSessionType, SessionType } from '../../../common/chatSessionsService.js';
@@ -3834,21 +3835,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			? this._implicitContext?.hasValue ?? false
 			: this._implicitContext?.values.some(v => v.enabled || v.isSelection) ?? false;
 		if (this._implicitContext && hasVisibleImplicitContext) {
-			const isAttachmentAlreadyAttached = (targetUri: URI | undefined, targetRange: IRange | undefined, targetHandle: number | undefined): boolean => {
-				return this._attachmentModel.attachments.some(a => {
-					const aUri = URI.isUri(a.value) ? a.value : isLocation(a.value) ? a.value.uri : undefined;
-					const aRange = isLocation(a.value) ? a.value.range : undefined;
-					if (targetHandle !== undefined && isStringVariableEntry(a) && a.handle === targetHandle) {
-						return true;
-					}
-					if (targetUri && aUri && isEqual(targetUri, aUri)) {
-						if (targetRange && aRange) {
-							return Range.equalsRange(targetRange, aRange);
-						}
-						return !targetRange && !aRange;
-					}
-					return false;
-				});
+			const isAttachmentAlreadyAttached = (target: IImplicitContextAttachmentTarget): boolean => {
+				return isImplicitContextAlreadyAttached(this._attachmentModel.attachments, target);
 			};
 			const implicitContextWidget = this.instantiationService.createInstance(
 				ImplicitContextAttachmentWidget,

@@ -31,13 +31,13 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { ChatContextIconPath, IChatRequestStringVariableEntry, isStringImplicitContextValue, resolveChatContextIcon } from '../../common/attachments/chatVariableEntries.js';
+import { IImplicitContextAttachmentTarget } from '../../common/attachments/chatImplicitContextMatching.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { IChatWidget } from '../chat.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { IChatContextService } from '../contextContrib/chatContextService.js';
 import { ChatImplicitContext, ChatImplicitContexts } from './chatImplicitContext.js';
-import { IRange } from '../../../../../editor/common/core/range.js';
 import { IBrowserViewWorkbenchService } from '../../../browserView/common/browserView.js';
 import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
 
@@ -48,7 +48,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 
 	constructor(
 		private readonly widgetRef: () => IChatWidget | undefined,
-		private readonly isAttachmentAlreadyAttached: (targetUri: URI | undefined, targetRange: IRange | undefined, targetHandle: number | undefined) => boolean,
+		private readonly isAttachmentAlreadyAttached: (target: IImplicitContextAttachmentTarget) => boolean,
 		private readonly attachment: ChatImplicitContexts,
 		private readonly resourceLabels: ResourceLabels,
 		private readonly attachmentModel: ChatAttachmentModel,
@@ -90,10 +90,14 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		this.renderedCount = 0;
 
 		for (const context of this.attachment.values) {
-			const targetUri: URI | undefined = context.uri;
-			const targetRange = isLocation(context.value) ? context.value.range : undefined;
-			const targetHandle = isStringImplicitContextValue(context.value) ? context.value.handle : undefined;
-			const currentlyAttached = this.isAttachmentAlreadyAttached(targetUri, targetRange, targetHandle);
+			const stringValue = isStringImplicitContextValue(context.value) ? context.value : undefined;
+			const currentlyAttached = this.isAttachmentAlreadyAttached({
+				uri: context.uri,
+				range: isLocation(context.value) ? context.value.range : undefined,
+				isStringTarget: stringValue !== undefined,
+				handle: stringValue?.handle,
+				resourceUri: stringValue?.resourceUri,
+			});
 			if (!currentlyAttached) {
 				this.renderMainContext(context, context.isSelection);
 				this.renderedCount++;
