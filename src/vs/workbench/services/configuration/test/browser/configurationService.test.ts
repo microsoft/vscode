@@ -2796,7 +2796,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 suite('WorkspaceConfigurationService - Remote Folder', () => {
 
 	let testObject: WorkspaceService, folder: URI,
-		machineSettingsResource: URI, remoteSettingsResource: URI, fileSystemProvider: InMemoryFileSystemProvider, resolveRemoteEnvironment: () => void,
+		machineSettingsResource: URI, remoteSettingsResource: URI, machineMcpResource: URI, remoteMcpResource: URI, fileSystemProvider: InMemoryFileSystemProvider, resolveRemoteEnvironment: () => void,
 		instantiationService: TestInstantiationService, fileService: IFileService, environmentService: BrowserWorkbenchEnvironmentService, userDataProfileService: IUserDataProfileService;
 	const remoteAuthority = 'configuraiton-tests';
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -2848,10 +2848,12 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 		await fileService.createFolder(appSettingsHome);
 		machineSettingsResource = joinPath(ROOT, 'machine-settings.json');
 		remoteSettingsResource = machineSettingsResource.with({ scheme: Schemas.vscodeRemote, authority: remoteAuthority });
+		machineMcpResource = joinPath(ROOT, 'machine-mcp.json');
+		remoteMcpResource = machineMcpResource.with({ scheme: Schemas.vscodeRemote, authority: remoteAuthority });
 
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		environmentService = TestEnvironmentService;
-		const remoteEnvironmentPromise = new Promise<Partial<IRemoteAgentEnvironment>>(c => resolveRemoteEnvironment = () => c({ settingsPath: remoteSettingsResource }));
+		const remoteEnvironmentPromise = new Promise<Partial<IRemoteAgentEnvironment>>(c => resolveRemoteEnvironment = () => c({ settingsPath: remoteSettingsResource, mcpResource: remoteMcpResource }));
 		const remoteAgentService = instantiationService.stub(IRemoteAgentService, <Partial<IRemoteAgentService>>{ getEnvironment: () => remoteEnvironmentPromise });
 		const configurationCache: IConfigurationCache = { read: () => Promise.resolve(''), write: () => Promise.resolve(), remove: () => Promise.resolve(), needsCaching: () => false };
 		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
@@ -2948,6 +2950,18 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 		resolveRemoteEnvironment();
 		await initialize();
 		assert.strictEqual(testObject.getValue('configurationService.remote.machineSetting'), 'isSet');
+	}));
+
+	test('remote user-level mcp.json is loaded into userRemoteValue', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const mcpContent = {
+			inputs: [{ id: 'test-token', type: 'promptString', description: 'Test token' }],
+			servers: { echo: { command: 'echo', args: ['${input:test-token}'] } }
+		};
+		await fileService.writeFile(machineMcpResource, VSBuffer.fromString(JSON.stringify(mcpContent)));
+		registerRemoteFileSystemProvider();
+		resolveRemoteEnvironment();
+		await initialize();
+		assert.deepStrictEqual(testObject.inspect('mcp').userRemoteValue, mcpContent);
 	}));
 
 	test('remote application machine settings override globals', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
