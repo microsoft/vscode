@@ -48,7 +48,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/brow
 import { InEditorZenModeContext } from '../../../../common/contextkeys.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
-import { IExtension, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
+import { ExtensionRuntimeActionType, IExtension, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { UpdateTitleBarEditorVisibleContext } from '../../../update/common/update.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
@@ -780,7 +780,8 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IHostService private readonly hostService: IHostService
 	) {
 		super();
 
@@ -800,6 +801,11 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 		}
 
 		// Enablement is derived, but the extension host still has to be told to pick the change up.
+		const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.chatExtensionId));
+		if (defaultChatExtension?.runtimeState?.action === ExtensionRuntimeActionType.ReloadWindow) {
+			return this.hostService.reload(); // a remote extension host cannot be restarted in place
+		}
+
 		await this.extensionsWorkbenchService.updateRunningExtensions(chatDisabled ? localize('restartExtensionHost.reason.disable', "Disabling AI features") : localize('restartExtensionHost.reason.enable', "Enabling AI features"));
 	}
 

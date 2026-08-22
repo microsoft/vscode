@@ -1899,7 +1899,8 @@ export class EnableAIFeaturesInWorkspaceAction extends ExtensionAction {
 			await this.configurationService.updateValue(ChatAIDisabledSettingId, false, ConfigurationTarget.WORKSPACE);
 		}
 
-		if (!this.extensionEnablementService.isEnabled(this.extension.local)) {
+		// A persisted disable outlives the setting, but only once the setting stops owning enablement.
+		if (!this.extensionEnablementService.isEnabled(this.extension.local) && this.extensionEnablementService.canChangeWorkspaceEnablement(this.extension.local)) {
 			await this.extensionsWorkbenchService.setEnablement(this.extension, EnablementState.EnabledWorkspace);
 		}
 	}
@@ -1945,31 +1946,40 @@ class DisableAIFeaturesInWorkspaceAction extends ExtensionAction {
 
 	constructor(
 		@IProductService private readonly productService: IProductService,
-		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
 		super(DisableAIFeaturesInWorkspaceAction.ID, DisableAIFeaturesInWorkspaceAction.LABEL, ExtensionAction.LABEL_ACTION_CLASS);
 		this.tooltip = localize('disableAIInWorkspaceActionToolTip', "Disable AI features in this workspace");
 		this.update();
 		this._register(this.extensionService.onDidChangeExtensions(() => this.update()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatAIDisabledSettingId)) {
+				this.update();
+			}
+		}));
 	}
 
 	update(): void {
 		this.enabled = false;
-		if (this.extension && this.extension.local && ExtensionIdentifier.equals(this.extension.identifier.id, this.productService.defaultChatAgent?.chatExtensionId)) {
-			this.enabled = this.extension.state === ExtensionState.Installed
-				&& (this.extension.enablementState === EnablementState.EnabledGlobally || this.extension.enablementState === EnablementState.EnabledWorkspace)
-				&& this.extensionEnablementService.canChangeWorkspaceEnablement(this.extension.local);
+		if (!this.extension?.local) {
+			return;
 		}
+		if (!ExtensionIdentifier.equals(this.extension.identifier.id, this.productService.defaultChatAgent?.chatExtensionId)) {
+			return;
+		}
+		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+			return;
+		}
+		this.enabled = this.extension.state === ExtensionState.Installed
+			&& this.configurationService.getValue<boolean>(ChatAIDisabledSettingId) !== true
+			&& this.extensionEnablementService.isEnabled(this.extension.local);
 	}
 
 	override async run(): Promise<void> {
-		if (!this.extension) {
-			return;
-		}
-		await this.extensionsWorkbenchService.setEnablement(this.extension, EnablementState.DisabledWorkspace);
-		await this.extensionsWorkbenchService.updateRunningExtensions(localize('restartExtensionHost.reason.disable', "Disabling AI features"));
+		await this.configurationService.updateValue(ChatAIDisabledSettingId, true, ConfigurationTarget.WORKSPACE);
 	}
 }
 
