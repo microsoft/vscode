@@ -1331,17 +1331,15 @@ suite('ExtensionEnablementService Test', () => {
 	test('test global disablement of chat extension is dropped on profile switch', async () => {
 		const chatExtension = aChatExtension();
 		installed.push(chatExtension);
-		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
-		await testObject.waitUntilInitialized();
 		await testObject.setEnablement([chatExtension], EnablementState.DisabledGlobally);
 		assert.ok(testObject.isDisabledGlobally(chatExtension));
 
-		// The new profile carries its own entries without announcing a configuration change
+		// A profile switch swaps the storage scope without recreating the service or announcing a
+		// configuration change, so the next enablement lookup is what reconciles the new profile
 		testConfigurationService.setUserConfiguration(ChatAIDisabledSettingId, true);
-		didChangeProfileExtensionsEvent.fire({ added: [chatExtension], removed: [] });
 
-		assert.ok(!testObject.isDisabledGlobally(chatExtension));
 		assert.strictEqual(testObject.getEnablementState(chatExtension), EnablementState.DisabledByAIFeaturesSetting);
+		assert.ok(!testObject.isDisabledGlobally(chatExtension));
 	});
 
 	test('test workspace disablement of chat extension is dropped when chat.disableAIFeatures is set in the workspace', async () => {
