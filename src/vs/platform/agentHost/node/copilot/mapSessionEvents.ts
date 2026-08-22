@@ -485,6 +485,12 @@ export async function mapSessionEvents(
 						parentBuilder.waitingStartedAt = undefined;
 						parentTurnState = TurnState.Cancelled;
 						parentTurnTerminated = false;
+					} else if (parentBuilder && rootAssistantTurnActive) {
+						const interruptedAt = parentBuilder.lastEventAt === undefined ? undefined : Date.parse(parentBuilder.lastEventAt);
+						const resumedAt = currentEventTimestamp === undefined ? undefined : Date.parse(currentEventTimestamp);
+						if (interruptedAt !== undefined && resumedAt !== undefined && Number.isFinite(interruptedAt) && Number.isFinite(resumedAt)) {
+							parentBuilder.waitingDuration += Math.max(0, resumedAt - interruptedAt);
+						}
 					}
 					rootAssistantTurnActive = true;
 					rootRequestActive = true;

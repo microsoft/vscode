@@ -1472,10 +1472,10 @@ suite('AgentHostProtocolClient', () => {
 		assert.strictEqual((await resultPromise).uncompressedSize, entrySize * 2);
 	});
 
-	test('collectDebugLogs accepts a directory containing 30 MiB of rotated logs', async () => {
+	test('collectDebugLogs accepts a directory larger than the previous 256 MiB limit', async () => {
 		const { client, transport } = createClient();
 		const resultPromise = client.collectDebugLogs(URI.parse('copilotcli:/session-1'), 'directory');
-		const entrySize = 5 * 1024 * 1024;
+		const entrySize = 50 * 1024 * 1024;
 		const entries = Array.from({ length: 6 }, (_, index) => ({
 			path: index === 0 ? 'agenthost.log' : `agenthost.${index}.log`,
 			size: entrySize,
@@ -1488,7 +1488,7 @@ suite('AgentHostProtocolClient', () => {
 			},
 		});
 
-		assert.strictEqual((await resultPromise).uncompressedSize, 30 * 1024 * 1024);
+		assert.strictEqual((await resultPromise).uncompressedSize, 300 * 1024 * 1024);
 	});
 
 	test('collectDebugLogs rejects an unsafe or inconsistent artifact manifest', async () => {

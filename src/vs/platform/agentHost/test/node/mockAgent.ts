@@ -59,6 +59,7 @@ export class MockAgent implements IAgent {
 	readonly onDidMaterializeChat = Event.None;
 	readonly onDidChangeChatData = Event.None;
 	readonly onDidSpawnChat = Event.None;
+	getTurnDiagnosticSnapshot?: IAgent['getTurnDiagnosticSnapshot'];
 	private readonly _onDidSendMessage = new Emitter<IMockSendMessageCall>();
 	readonly onDidSendMessage = this._onDidSendMessage.event;
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);

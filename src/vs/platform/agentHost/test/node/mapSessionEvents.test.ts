@@ -174,6 +174,38 @@ suite('mapSessionEvents — history replay', () => {
 		}]);
 	});
 
+	test('excludes host downtime when an interrupted execution resumes and is interrupted again', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'turn-1', timestamp: '2026-08-11T00:00:00.000Z', data: { interactionId: 'm1', content: 'Keep working' } },
+			{ type: 'assistant.turn_start', timestamp: '2026-08-11T00:00:00.100Z', data: { turnId: 'sdk-turn-1' } },
+			{ type: 'assistant.message', timestamp: '2026-08-11T00:00:02.000Z', data: { messageId: 'm2', content: 'First segment' } },
+			{ type: 'assistant.turn_start', timestamp: '2026-08-11T00:10:00.000Z', data: { turnId: 'sdk-turn-2' } },
+			{ type: 'assistant.message', timestamp: '2026-08-11T00:10:03.000Z', data: { messageId: 'm3', content: 'Second segment' } },
+		];
+		const interruptedTurnError = {
+			errorType: 'executionInterrupted',
+			message: 'The agent host stopped before this request finished.',
+		};
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events), { interruptedTurnError });
+
+		assert.deepStrictEqual({
+			duration: turns[0].duration,
+			state: turns[0].state,
+			parts: partKinds(turns[0].responseParts),
+			resumable: getErrorResponsePart(turns[0])?.resumable,
+		}, {
+			duration: 5000,
+			state: TurnState.Error,
+			parts: [
+				{ kind: ResponsePartKind.Markdown, content: 'First segment' },
+				{ kind: ResponsePartKind.Markdown, content: 'Second segment' },
+				{ kind: ResponsePartKind.Error },
+			],
+			resumable: true,
+		});
+	});
+
 	test('keeps a resumable error terminal when a later notification starts another turn', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', id: 'failed-turn', timestamp: '2026-08-11T00:00:00.000Z', data: { interactionId: 'm1', content: 'Start the background agent' } },
