@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { IDefaultAccount, IDefaultAccountAuthenticationProvider, IPolicyData } from '../../../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { ManagedSettingsData, PolicyCategory } from '../../../../../base/common/policy.js';
+import { IManagedSettingPolicyDefinition, ManagedSettingsData, PolicyCategory } from '../../../../../base/common/policy.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { DefaultConfiguration, PolicyConfiguration } from '../../../../../platform/configuration/common/configurations.js';
@@ -635,7 +635,7 @@ suite('AccountPolicyService', () => {
 		readonly _serviceBrand: undefined;
 		private readonly _onDidChangeManagedSettings = new Emitter<ManagedSettingsData>();
 		readonly onDidChangeManagedSettings = this._onDidChangeManagedSettings.event;
-		registeredManagedSettings: Record<string, { type: 'string' | 'number' | 'boolean' }> = {};
+		registeredManagedSettings: Record<string, IManagedSettingPolicyDefinition> = {};
 
 		constructor(public managedSettings: ManagedSettingsData = {}) { }
 

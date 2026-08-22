@@ -8,7 +8,7 @@ import { IStringDictionary } from '../../../base/common/collections.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
-import { IManagedSettingsPolicyDefinitions, ManagedSettingsData } from '../../../base/common/policy.js';
+import { IManagedSettingPolicyDefinition, IManagedSettingsPolicyDefinitions, ManagedSettingsData } from '../../../base/common/policy.js';
 import { ILogService } from '../../log/common/log.js';
 import { collectManagedSettingsDefinitions, INativeManagedSettingsService, MANAGED_SETTINGS_CONTROL_DEFINITIONS } from '../common/copilotManagedSettings.js';
 import { PolicyDefinition, PolicyValue } from '../common/policy.js';
@@ -20,7 +20,7 @@ export interface INativePolicyWatcherOptions {
 
 export type NativePolicyWatcherFactory = (
 	productName: string,
-	policies: Record<string, { type: 'string' | 'number' | 'boolean' }>,
+	policies: Record<string, IManagedSettingPolicyDefinition>,
 	onDidChange: (update: Record<string, PolicyValue | undefined>) => void,
 	options?: INativePolicyWatcherOptions,
 ) => Watcher;
@@ -87,7 +87,7 @@ export class NativeManagedSettingsService extends Disposable implements INativeM
 
 	private async updateWatcherAndTrack(version: number): Promise<void> {
 		try {
-			await this.updateWatcher();
+			await this.updateWatcher(version);
 		} catch (error) {
 			if (this.initializationVersion === version) {
 				this.initializationPromise = undefined;
@@ -107,7 +107,7 @@ export class NativeManagedSettingsService extends Disposable implements INativeM
 		return changed;
 	}
 
-	private async updateWatcher(): Promise<void> {
+	private async updateWatcher(version: number): Promise<void> {
 		const managedSettingDefinitions = this.getManagedSettingDefinitions();
 		this.logService.trace(`NativeManagedSettingsService#updateWatcher - Found ${Object.keys(managedSettingDefinitions).length} managed-settings definitions`);
 		if (Object.keys(managedSettingDefinitions).length === 0) {
@@ -125,7 +125,9 @@ export class NativeManagedSettingsService extends Disposable implements INativeM
 			try {
 				this.logService.trace(`Creating native managed-settings watcher for productName ${this.productName}`);
 				this.watcher.value = createWatcher(this.productName, managedSettingDefinitions, update => {
-					this._onDidManagedSettingsChange(update as Record<string, PolicyValue | undefined>);
+					if (this.initializationVersion === version) {
+						this._onDidManagedSettingsChange(update as Record<string, PolicyValue | undefined>);
+					}
 					c();
 				}, this.watcherOptions);
 			} catch (err) {
@@ -142,8 +144,8 @@ export class NativeManagedSettingsService extends Disposable implements INativeM
 	 * watcher our internal state: it decouples the two shapes so a future field on
 	 * `IManagedSettingPolicyDefinition` cannot silently leak across the native boundary.
 	 */
-	private getManagedSettingDefinitions(): Record<string, { type: 'string' | 'number' | 'boolean' }> {
-		const definitions: Record<string, { type: 'string' | 'number' | 'boolean' }> = {};
+	private getManagedSettingDefinitions(): Record<string, IManagedSettingPolicyDefinition> {
+		const definitions: Record<string, IManagedSettingPolicyDefinition> = {};
 		for (const key in this.watchedSettings) {
 			definitions[key] = { type: this.watchedSettings[key].type };
 		}
