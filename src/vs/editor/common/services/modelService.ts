@@ -173,7 +173,7 @@ export class ModelService extends Disposable implements IModelService {
 					largeFileSizeLimit = EDITOR_MODEL_DEFAULTS.largeFileSizeLimit; // negative values use default
 				} else {
 					// Use the value as-is (including fractional values), clamped to valid range
-					largeFileSizeLimit = Math.min(Math.max(rawValue, 0), Number.MAX_SAFE_INTEGER);
+					largeFileSizeLimit = Math.min(rawValue, Number.MAX_SAFE_INTEGER);
 				}
 			}
 		}
