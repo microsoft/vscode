@@ -29,6 +29,11 @@ class TestService implements ITestService {
 	readonly value = 1;
 }
 
+class ReplacementTestService implements ITestService {
+	declare readonly _serviceBrand: undefined;
+	readonly value = 2;
+}
+
 class DisposableTestService extends Disposable implements ITestService {
 	declare readonly _serviceBrand: undefined;
 	readonly value = 1;
@@ -82,6 +87,7 @@ suite('AgentHostServiceCollection', () => {
 		assert.throws(() => services.set(createDecorator<ITestService>('agentHostLateService'), new TestService()), /service collection is sealed/);
 		assert.throws(() => services.set(ITestService, new TestService()), /service collection is sealed/);
 		assert.throws(() => services.set(IReplacementService, new SyncDescriptor(TestService)), /service collection is sealed/);
+		assert.throws(() => services.set(IReplacementService, new ReplacementTestService()), /service collection is sealed/);
 	});
 
 	test('registers descriptors with exact leading static arguments', () => {

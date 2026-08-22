@@ -69,7 +69,7 @@ export class AgentHostServiceCollection extends ServiceCollection {
 	override set<T>(id: ServiceIdentifier<T>, instanceOrDescriptor: T | SyncDescriptor<T>): T | SyncDescriptor<T> {
 		if (this.sealed) {
 			const current = this.get(id);
-			const isDescriptorResolution = current instanceof SyncDescriptor && !(instanceOrDescriptor instanceof SyncDescriptor);
+			const isDescriptorResolution = current instanceof SyncDescriptor && instanceOrDescriptor instanceof current.ctor;
 			if (!isDescriptorResolution) {
 				throw new Error(`Agent Host service collection is sealed: ${id}`);
 			}
