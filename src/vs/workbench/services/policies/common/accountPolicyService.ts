@@ -42,6 +42,11 @@ export interface IAccountPolicyGateInfo {
 	readonly approvedOrganizations?: readonly string[];
 }
 
+export function isAccountPolicyGateBlocked(info: IAccountPolicyGateInfo): boolean {
+	return info.state === AccountPolicyGateState.Restricted
+		&& info.reason !== AccountPolicyGateUnsatisfiedReason.PolicyNotResolved;
+}
+
 export const ChatAccountPolicyGateActiveContext = new RawContextKey<boolean>(
 	'chatAccountPolicyGateActive',
 	false,
@@ -156,8 +161,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		// `policyData` is null, so no account overrides slip through. Forcing
 		// `restrictedValue` would transiently flip `chat.disableAIFeatures = true`,
 		// surfacing confusing "Unable to write" errors and a UI flash.
-		const gateRestricted = this._gateInfo.state === AccountPolicyGateState.Restricted
-			&& this._gateInfo.reason !== AccountPolicyGateUnsatisfiedReason.PolicyNotResolved;
+		const gateRestricted = isAccountPolicyGateBlocked(this._gateInfo);
 
 		for (const key in policyDefinitions) {
 			const resolvedPolicy = this.resolvePolicyValue(policyDefinitions[key], resolvedPolicyData, gateRestricted);

@@ -20,7 +20,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { DEFAULT_ACCOUNT_SIGN_IN_COMMAND } from '../../accounts/browser/defaultAccount.js';
 import { IChatEntitlementService } from '../../chat/common/chatEntitlementService.js';
-import { AccountPolicyGateState, AccountPolicyGateUnsatisfiedReason, ChatAccountPolicyGateActiveContext, IAccountPolicyGateInfo, IAccountPolicyGateService } from '../common/accountPolicyService.js';
+import { AccountPolicyGateState, AccountPolicyGateUnsatisfiedReason, ChatAccountPolicyGateActiveContext, IAccountPolicyGateInfo, IAccountPolicyGateService, isAccountPolicyGateBlocked } from '../common/accountPolicyService.js';
 
 const NOTIFICATION_DISMISSED_KEY = 'accountPolicy.gateNotificationDismissed';
 
@@ -100,7 +100,7 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 
 		// Suppress the context key during the transient `policyNotResolved` state
 		// (user IS in approved org, just waiting for data) so the UI doesn't flash.
-		const isRestricted = this.isGateRestricted(info);
+		const isRestricted = isAccountPolicyGateBlocked(info);
 		this.updatePolicyGateState();
 		this.logService.info(`[AccountPolicyGate] apply: state=${info.state}, reason=${info.reason}, isRestricted=${isRestricted}`);
 
@@ -207,13 +207,8 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 		this.notificationHandle.value = handleDisposables;
 	}
 
-	private isGateRestricted(info: IAccountPolicyGateInfo): boolean {
-		return info.state === AccountPolicyGateState.Restricted
-			&& info.reason !== AccountPolicyGateUnsatisfiedReason.PolicyNotResolved;
-	}
-
 	private updatePolicyGateState(): void {
-		const blocked = this.isGateRestricted(this.lastInfo) || this.defaultAccountService.managedSettingsCompatibilityError !== null;
+		const blocked = isAccountPolicyGateBlocked(this.lastInfo) || this.defaultAccountService.managedSettingsCompatibilityError !== null;
 		this.contextKey.set(blocked);
 		this.chatEntitlementService.setForceHidden(blocked);
 	}
