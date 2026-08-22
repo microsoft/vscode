@@ -22,24 +22,29 @@ import { CodexCompactCompletionProvider } from './codexCompactCommand.js';
 
 export function activateAgentHostContributions(accessor: ServicesAccessor, instantiationService: IInstantiationService): DisposableStore {
 	const store = new DisposableStore();
-	const changesetOperationService = accessor.get(IAgentHostChangesetOperationService);
-	store.add(changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostCommitOperationContribution)));
-	store.add(changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostPullRequestOperationContribution)));
-	store.add(changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostMergeOperationContribution)));
-	store.add(changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostSyncOperationContribution)));
-	store.add(changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostDiscardChangesOperationContribution)));
+	try {
+		const changesetOperationService = accessor.get(IAgentHostChangesetOperationService);
+		store.add(changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostCommitOperationContribution)));
+		store.add(changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostPullRequestOperationContribution)));
+		store.add(changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostMergeOperationContribution)));
+		store.add(changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostSyncOperationContribution)));
+		store.add(changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostDiscardChangesOperationContribution)));
 
-	const completions = accessor.get(IAgentHostCompletions);
-	const stateManager = accessor.get(IAgentHostStateManager);
-	const logService = accessor.get(ILogService);
-	const workspaceFiles = store.add(instantiationService.createInstance(AgentHostWorkspaceFiles));
-	store.add(completions.registerProvider(new AgentHostFileCompletionProvider(stateManager, workspaceFiles, logService)));
-	store.add(completions.registerProvider(new AgentHostChatCompletionProvider(stateManager)));
-	store.add(completions.registerProvider(new AgentHostRenameCompletionProvider(
-		session => (stateManager.getSessionState(session)?.turns.length ?? 0) > 0,
-	)));
-	store.add(completions.registerProvider(new CodexCompactCompletionProvider(
-		session => (stateManager.getSessionState(session)?.turns.length ?? 0) > 0,
-	)));
-	return store;
+		const completions = accessor.get(IAgentHostCompletions);
+		const stateManager = accessor.get(IAgentHostStateManager);
+		const logService = accessor.get(ILogService);
+		const workspaceFiles = store.add(instantiationService.createInstance(AgentHostWorkspaceFiles));
+		store.add(completions.registerProvider(new AgentHostFileCompletionProvider(stateManager, workspaceFiles, logService)));
+		store.add(completions.registerProvider(new AgentHostChatCompletionProvider(stateManager)));
+		store.add(completions.registerProvider(new AgentHostRenameCompletionProvider(
+			session => (stateManager.getSessionState(session)?.turns.length ?? 0) > 0,
+		)));
+		store.add(completions.registerProvider(new CodexCompactCompletionProvider(
+			session => (stateManager.getSessionState(session)?.turns.length ?? 0) > 0,
+		)));
+		return store;
+	} catch (error) {
+		store.dispose();
+		throw error;
+	}
 }
