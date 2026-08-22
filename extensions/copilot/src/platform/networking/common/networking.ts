@@ -385,7 +385,7 @@ export interface IChatEndpoint extends IEndpoint {
 	 * @param expectedNumChoices The expected number of choices in the response
 	 * @param finishCallback A finish callback to indicate when the response should be complete
 	 * @param telemetryData GH telemetry data from the originating request, will be extended with request information
-	 * @param cancellationToken A cancellation tokenf for cancelling the request
+	 * @param cancellationToken A cancellation token for cancelling the request
 	 * @returns An async iterable object of chat completions
 	 */
 	processResponseFromChatEndpoint(

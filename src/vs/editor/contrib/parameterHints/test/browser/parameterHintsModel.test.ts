@@ -334,10 +334,10 @@ suite('ParameterHintsModel', () => {
 			assert.strictEqual(-1, didRequestCancellationOf);
 
 			return new Promise<void>((resolve, reject) =>
-				disposables.add(hintsModel.onChangedHints(newParamterHints => {
+				disposables.add(hintsModel.onChangedHints(newParameterHints => {
 					try {
 						assert.strictEqual(0, didRequestCancellationOf);
-						assert.strictEqual('1', newParamterHints!.signatures[0].label);
+						assert.strictEqual('1', newParameterHints!.signatures[0].label);
 						resolve();
 					} catch (e) {
 						reject(e);
@@ -401,7 +401,7 @@ suite('ParameterHintsModel', () => {
 		const triggerChar = 'a';
 		const firstProviderId = 'firstProvider';
 		const secondProviderId = 'secondProvider';
-		const paramterLabel = 'parameter';
+		const parameterLabel = 'parameter';
 
 		const editor = createMockEditor('');
 		const model = disposables.add(new ParameterHintsModel(editor, registry, 5));
@@ -423,7 +423,7 @@ suite('ParameterHintsModel', () => {
 								signatures: [{
 									label: firstProviderId,
 									parameters: [
-										{ label: paramterLabel }
+										{ label: parameterLabel }
 									]
 								}]
 							},
@@ -468,12 +468,12 @@ suite('ParameterHintsModel', () => {
 			const firstHint = (await getNextHint(model))!.value;
 			assert.strictEqual(firstHint.signatures[0].label, firstProviderId);
 			assert.strictEqual(firstHint.activeSignature, 0);
-			assert.strictEqual(firstHint.signatures[0].parameters[0].label, paramterLabel);
+			assert.strictEqual(firstHint.signatures[0].parameters[0].label, parameterLabel);
 
 			const secondHint = (await getNextHint(model))!.value;
 			assert.strictEqual(secondHint.signatures[0].label, secondProviderId);
 			assert.strictEqual(secondHint.activeSignature, 1);
-			assert.strictEqual(secondHint.signatures[0].parameters[0].label, paramterLabel);
+			assert.strictEqual(secondHint.signatures[0].parameters[0].label, parameterLabel);
 		});
 	});
 
