@@ -5,33 +5,33 @@
 
 import './media/sessionInputBanners.css';
 import * as dom from '../../../../base/browser/dom.js';
-import { Button } from '../../../../base/browser/ui/button/button.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { disposableTimeout } from '../../../../base/common/async.js';
-import type { ThemeIcon } from '../../../../base/common/themables.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import type { ThemeIcon } from '../../../../base/common/themables.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { chartsOrange } from '../../../../platform/theme/common/colors/chartsColors.js';
 
 /**
- * Delay before the "working" border animation is shown after an async action
- * starts. Actions that settle faster than this don't animate, avoiding a
- * loading flicker for very fast work.
+ * Delay before the working border is shown while the chat model loads.
  */
-const SHOW_WORKING_DELAY_MS = 50;
+const SHOW_WORKING_DELAY_MS = 1_000;
 
 export interface ISessionInputBannerAction {
 	readonly label: string;
 	/** Renders the action with the prominent button colors. */
 	readonly primary?: boolean;
 	/**
-	 * Runs the action. When a {@link Promise} is returned, the banner shows an
-	 * animated "working" border and disables its buttons until it settles.
+	 * Waits until the action can run. The primary button is disabled immediately
+	 * and the banner shows progress when this takes longer than one second.
 	 */
+	readonly waitUntilReady?: () => Promise<boolean>;
 	run(): void | Promise<unknown>;
 }
 
@@ -57,10 +57,11 @@ export class SessionInputBannerWidget extends Disposable {
 
 	readonly domNode: HTMLElement;
 
-	private readonly _buttons: Button[] = [];
+	private readonly _buttons: Array<{ readonly button: Button; readonly primary: boolean }> = [];
+	private readonly _showWorkingAnimation = this._register(new MutableDisposable());
 
-	/** Guards against overlapping runs while an action is already in flight. */
-	private _running = false;
+	private _runningPrimaryAction = false;
+	private _disposed = false;
 
 	constructor(
 		banner: ISessionInputBanner,
@@ -106,8 +107,8 @@ export class SessionInputBannerWidget extends Disposable {
 			button.element.classList.add('session-input-banner-action');
 			button.label = action.label;
 			button.element.ariaLabel = `${banner.ariaLabel} ${action.label}`;
-			this._buttons.push(button);
-			this._register(button.onDidClick(() => { void this._runAction(action); }));
+			this._buttons.push({ button, primary: !!action.primary });
+			this._register(button.onDidClick(() => { void this._runAction(action).catch(onUnexpectedError); }));
 		}
 
 		if (banner.dismiss && banner.dismissTooltip) {
@@ -123,62 +124,65 @@ export class SessionInputBannerWidget extends Disposable {
 		}
 	}
 
-	/**
-	 * Runs an action. When it returns a promise (e.g. the CI "Fix Checks"
-	 * action, which fetches check annotations before submitting a prompt), the
-	 * banner disables its buttons for the duration and shows an animated
-	 * "working" border so the delay is visible to the user. Buttons are disabled
-	 * immediately, but the animation is only shown once the work has been running
-	 * for {@link SHOW_WORKING_DELAY_MS} so very fast actions don't cause a
-	 * loading flicker. Never rejects: action errors are swallowed here since this
-	 * is invoked fire-and-forget from the click handler (the action is
-	 * responsible for surfacing its own errors).
-	 */
 	private async _runAction(action: ISessionInputBannerAction): Promise<void> {
-		if (this._running) {
+		if (!action.primary) {
+			await action.run();
 			return;
 		}
-		let result: void | Promise<unknown>;
+		if (this._runningPrimaryAction) {
+			return;
+		}
+
+		this._runningPrimaryAction = true;
+		this._setPrimaryButtonsEnabled(false);
 		try {
-			result = action.run();
-		} catch {
-			return;
-		}
-		if (!result) {
-			return;
-		}
-		this._running = true;
-		// Disable the buttons immediately while the action is pending, but delay
-		// showing the animated border so very fast actions don't flicker.
-		this._setButtonsEnabled(false);
-		const showAnimation = disposableTimeout(() => this.domNode.classList.add('working'), SHOW_WORKING_DELAY_MS);
-		try {
-			await result;
-		} catch {
-			// Swallow: the action logs/surfaces its own errors and this handler
-			// is fire-and-forget, so it must not produce an unhandled rejection.
+			if (action.waitUntilReady && !await this._waitUntilReady(action.waitUntilReady)) {
+				return;
+			}
+			// Readiness can resolve after the banner was replaced or torn down
+			// (e.g. the comments it acted on disappeared), and running then would
+			// act on state this banner no longer represents.
+			if (this._disposed) {
+				return;
+			}
+			await action.run();
 		} finally {
-			showAnimation.dispose();
-			this.domNode.classList.remove('working');
-			this._setButtonsEnabled(true);
-			this._running = false;
+			this._setPrimaryButtonsEnabled(true);
+			this._runningPrimaryAction = false;
 		}
 	}
 
-	/**
-	 * Renders the in-flight "working" state: shows the animated border and
-	 * disables the action buttons. Intended for fixtures/tests that need to
-	 * display the loading appearance statically; production toggles this state
-	 * via {@link _runAction} (which additionally delays the animation).
-	 */
+	private async _waitUntilReady(waitUntilReady: () => Promise<boolean>): Promise<boolean> {
+		this.domNode.setAttribute('aria-busy', 'true');
+		this._showWorkingAnimation.value = disposableTimeout(() => this.domNode.classList.add('working'), SHOW_WORKING_DELAY_MS);
+		try {
+			return await waitUntilReady();
+		} finally {
+			this._showWorkingAnimation.clear();
+			this.domNode.classList.remove('working');
+			this.domNode.setAttribute('aria-busy', 'false');
+		}
+	}
+
 	setWorking(working: boolean): void {
 		this.domNode.classList.toggle('working', working);
-		this._setButtonsEnabled(!working);
+		this.domNode.setAttribute('aria-busy', String(working));
+		this._setPrimaryButtonsEnabled(!working);
 	}
 
-	private _setButtonsEnabled(enabled: boolean): void {
-		for (const button of this._buttons) {
-			button.enabled = enabled;
+	private _setPrimaryButtonsEnabled(enabled: boolean): void {
+		if (this._disposed) {
+			return;
 		}
+		for (const { button, primary } of this._buttons) {
+			if (primary) {
+				button.enabled = enabled;
+			}
+		}
+	}
+
+	override dispose(): void {
+		this._disposed = true;
+		super.dispose();
 	}
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { PermissionRequest, SkillInvokedData } from '@github/copilot-sdk';
-import { hasKey } from '../../../../base/common/types.js';
+import { hasKey, isObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { hash } from '../../../../base/common/hash.js';
@@ -37,7 +37,7 @@ import { getServerToolDisplay } from '../shared/serverToolGroups.js';
  * Known Copilot CLI tool names. These are the `toolName` values that appear
  * in `tool.execution_start` events from the SDK.
  */
-const enum CopilotToolName {
+export const enum CopilotToolName {
 	StrReplaceEditor = 'str_replace_editor',
 	StrReplace = 'str_replace',
 	Insert = 'insert',
@@ -95,6 +95,14 @@ const enum CopilotToolName {
 	ToolSearchToolRegex = 'tool_search_tool_regex',
 	CodeqlChecker = 'codeql_checker',
 }
+
+/**
+ * Copilot CLI tools withheld from ephemeral sessions, where subagents only add
+ * latency.
+ */
+export const EPHEMERAL_DISABLED_COPILOT_TOOLS: readonly CopilotToolName[] = [
+	CopilotToolName.Task,
+];
 
 /** Parameters for the `bash` / `powershell` shell tools. */
 interface ICopilotShellToolArgs {
@@ -1131,7 +1139,7 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 		case 'custom-tool': {
 			// Custom tool overrides (e.g. our shell tool). Extract the actual
 			// tool args from the SDK's wrapper envelope.
-			const args = request.args;
+			const args = isObject(request.args) ? request.args as Record<string, unknown> : undefined;
 			const sdkToolName = str(request.toolName);
 			if (args && sdkToolName && isShellTool(sdkToolName) && typeof args.command === 'string') {
 				stripRedundantCdPrefix(sdkToolName, args, workingDirectory);

@@ -208,6 +208,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				default: 'right',
 				markdownDescription: localize({ comment: ['{0} will be a setting name rendered as a link'], key: 'tabActionLocation' }, "Controls the position of the editor's tabs action buttons (close, unpin). This value is ignored when {0} is not set to {1}.", '`#workbench.editor.showTabs#`', '`multiple`')
 			},
+			'workbench.editor.tabActionReserveSpace': {
+				type: 'boolean',
+				default: true,
+				description: localize('workbench.editor.tabActionReserveSpace', "Controls whether Modern UI editor tabs always reserve space for tab action buttons. When disabled, clean tabs stay compact; tabs with persistent dirty or pinned indicators reserve space regardless.")
+			},
 			'workbench.editor.tabActionCloseVisibility': {
 				type: 'boolean',
 				default: true,
@@ -366,7 +371,6 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				],
 				'description': localize('useModal', "Controls whether editors open in a modal overlay."),
 				'default': 'some',
-				agentsWindow: { default: 'all' },
 				experiment: {
 					mode: 'startup'
 				}

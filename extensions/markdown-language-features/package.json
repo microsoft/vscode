@@ -10,9 +10,10 @@
   "enabledApiProposals": [
     "agentEditorComments",
     "customEditorDiffs",
-    "dataChannels",
     "documentDiff",
     "documentSyntaxHighlighting",
+    "externalUriOpener",
+    "linkPresentation",
     "textEditorDiffInformation"
   ],
   "engines": {
@@ -44,6 +45,13 @@
     }
   },
   "contributes": {
+    "linkPresentationProviders": [
+      {
+        "id": "markdown.linkPresentations",
+        "initialKind": "resource",
+        "uriPattern": "^(?:(?:file|vscode-remote|vscode-vfs):[^?#]*|commit:[^?#]+|https?://[^\\s?#]+/(?:commit|-/commit)/[^/?#]+|https://github\\.com/[^/?#]+/[^/?#]+(?:/(?:issues/[^/?#]+|pull/[^/?#]+|tree/[^?#]+|blob/[^?#]+))?|(?!(?:[a-z][a-z0-9+.-]*:|#))[^?#]+)(?:[?#].*)?$"
+      }
+    ],
     "notebookRenderer": [
       {
         "id": "vscode.markdown-it-renderer",
@@ -1261,6 +1269,16 @@
         "title": "%configuration.editor%",
         "order": 20,
         "properties": {
+          "markdown.experimental.richLinks.enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "%configuration.markdown.experimental.richLinks.enabled%",
+            "scope": "window",
+            "tags": [
+              "experimental",
+              "onExP"
+            ]
+          },
           "markdown.links.openLocation": {
             "type": "string",
             "default": "currentGroup",

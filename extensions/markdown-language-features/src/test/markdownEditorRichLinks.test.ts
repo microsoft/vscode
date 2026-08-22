@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { autorun } from '@vscode/observables';
+import { autorun, derived, observableValue } from '@vscode/observables';
 import 'mocha';
 import * as vscode from 'vscode';
 import {
@@ -14,10 +14,33 @@ import {
 	GitHubLookupError,
 	resolveGitHubTreePath,
 	shouldShowGitHubPullRequestChecks,
-} from '../preview/githubLinkPresentationResolver';
-import { getSessionLinkPresentation } from '../preview/agentSessionLinkPresentationResolver';
-import { getGitCommitPresentation, GitLinkPresentationResolver, normalizeGitRemoteUrl } from '../preview/gitLinkPresentationResolver';
-import { createAsyncLinkPresentation, ImmutableLinkPresentationCache, LinkPresentationCache } from '../preview/linkPresentationResolver';
+} from '../preview/linkPresentation/githubLinkPresentationResolver';
+import { getGitCommitPresentation, GitLinkPresentationResolver, normalizeGitRemoteUrl } from '../preview/linkPresentation/gitLinkPresentationResolver';
+import { createAsyncLinkPresentation, ImmutableLinkPresentationCache, LinkPresentationCache } from '../preview/linkPresentation/linkPresentationResolver';
+import { LinkPresentationService } from '../preview/linkPresentation/linkPresentationService';
+
+class TestMemento implements vscode.Memento {
+	readonly #values = new Map<string, unknown>();
+
+	keys(): readonly string[] {
+		return [...this.#values.keys()];
+	}
+
+	get<T>(key: string): T | undefined;
+	get<T>(key: string, defaultValue: T): T;
+	get<T>(key: string, defaultValue?: T): T | undefined {
+		return (this.#values.get(key) as T | undefined) ?? defaultValue;
+	}
+
+	update(key: string, value: unknown): Thenable<void> {
+		if (value === undefined) {
+			this.#values.delete(key);
+		} else {
+			this.#values.set(key, value);
+		}
+		return Promise.resolve();
+	}
+}
 
 suite('Markdown editor rich links', () => {
 	test('separates GitHub branch names from folder paths', () => {
@@ -87,37 +110,6 @@ suite('Markdown editor rich links', () => {
 		assert.strictEqual(
 			getGitHubLookupFailurePresentation('https://example.com/issues/1', new Error('offline')),
 			undefined,
-		);
-	});
-
-	test('publishes complete data-driven session presentations', () => {
-		assert.deepStrictEqual(
-			getSessionLinkPresentation({
-				title: 'Implement rich-link metadata',
-				description: 'Updating the Markdown extension',
-				status: vscode.AgentSessionStatus.InProgress,
-			}),
-			{
-				kind: 'session',
-				title: 'Implement rich-link metadata',
-				detail: 'Updating the Markdown extension',
-				status: { kind: 'pending', label: 'Working' },
-				tooltip: 'Implement rich-link metadata · Working',
-				ariaLabel: 'Agent session Implement rich-link metadata, Working',
-			},
-		);
-		assert.deepStrictEqual(
-			getSessionLinkPresentation({
-				title: 'Implement rich-link metadata',
-				status: vscode.AgentSessionStatus.NeedsInput,
-			}),
-			{
-				kind: 'session',
-				title: 'Implement rich-link metadata',
-				status: { kind: 'warning', label: 'Needs input' },
-				tooltip: 'Implement rich-link metadata · Needs input',
-				ariaLabel: 'Agent session Implement rich-link metadata, Needs input',
-			},
 		);
 	});
 
@@ -212,6 +204,43 @@ suite('Markdown editor rich links', () => {
 		refresh.dispose();
 	});
 
+	test('shares one live resolver observable per canonical URL', () => {
+		const source = observableValue('presentation', { kind: 'pullRequest' as const, title: 'Shared presentation' });
+		let resolveCount = 0;
+		let activeSubscriptions = 0;
+		let resolverDisposeCount = 0;
+		const resolver = {
+			refreshOnInterval: false,
+			resolve: () => {
+				resolveCount++;
+				return derived(reader => {
+					activeSubscriptions++;
+					reader.store.add({
+						dispose: () => activeSubscriptions--,
+					});
+					return source.read(reader);
+				});
+			},
+			dispose: () => resolverDisposeCount++,
+		};
+		const service = new LinkPresentationService([resolver], { trace: () => { } });
+
+		const first = service.watch('https://github.com/microsoft/vscode/pull/1')!;
+		const second = service.watch('https://github.com/microsoft/vscode/pull/1')!;
+		assert.deepStrictEqual({ resolveCount, activeSubscriptions }, { resolveCount: 1, activeSubscriptions: 1 });
+
+		first.dispose();
+		assert.strictEqual(activeSubscriptions, 1);
+		second.dispose();
+		assert.strictEqual(activeSubscriptions, 0);
+
+		const third = service.watch('https://github.com/microsoft/vscode/pull/1')!;
+		assert.deepStrictEqual({ resolveCount, activeSubscriptions }, { resolveCount: 2, activeSubscriptions: 1 });
+		third.dispose();
+		service.dispose();
+		assert.deepStrictEqual({ activeSubscriptions, resolverDisposeCount }, { activeSubscriptions: 0, resolverDisposeCount: 1 });
+	});
+
 	test('caches immutable Git commit presentations without expiry', async () => {
 		const cache = new ImmutableLinkPresentationCache();
 		let resolveCount = 0;
@@ -272,5 +301,109 @@ suite('Markdown editor rich links', () => {
 			refreshed: { kind: 'issue', title: '2' },
 			resolveCount: 2,
 		});
+	});
+
+	test('restores persistent presentations as loading and refreshes them', async () => {
+		const storage = new TestMemento();
+		const href = 'https://github.com/microsoft/vscode/issues/1';
+		let resolveCount = 0;
+		const resolve = async () => ({ kind: 'issue' as const, title: String(++resolveCount) });
+		const firstCache = new LinkPresentationCache(storage);
+		await firstCache.get(href, resolve);
+		await Promise.resolve();
+
+		const restoredCache = new LinkPresentationCache(storage);
+		const loading = restoredCache.getPersisted(href);
+		const refreshed = await restoredCache.get(href, resolve);
+
+		assert.deepStrictEqual({ loading, refreshed, resolveCount }, {
+			loading: { kind: 'issue', title: '1', isLoading: true },
+			refreshed: { kind: 'issue', title: '2' },
+			resolveCount: 2,
+		});
+	});
+
+	test('does not restore a request that completes after the cache is cleared', async () => {
+		const storage = new TestMemento();
+		const cache = new LinkPresentationCache(storage);
+		const href = 'https://github.com/microsoft/vscode/issues/1';
+		let completeRequest!: (value: { kind: 'issue'; title: string }) => void;
+		const request = new Promise<{ kind: 'issue'; title: string }>(resolve => completeRequest = resolve);
+
+		const pending = cache.get(href, () => request);
+		cache.clear();
+		completeRequest({ kind: 'issue', title: 'Old issue' });
+		await pending;
+		await Promise.resolve();
+
+		assert.strictEqual(new LinkPresentationCache(storage).getPersisted(href), undefined);
+	});
+
+	test('keeps a restored presentation visible while loading in the background', async () => {
+		const requestRefresh = new vscode.EventEmitter<void>();
+		let completeRefresh!: (value: { kind: 'issue'; title: string }) => void;
+		const refresh = new Promise<{ kind: 'issue'; title: string }>(resolve => completeRefresh = resolve);
+		const presentation = createAsyncLinkPresentation(
+			'https://github.com/microsoft/vscode/issues/1',
+			{ kind: 'issue', title: 'Cached issue', isLoading: true },
+			{
+				onDidRequestRefresh: requestRefresh.event,
+				logger: { trace: () => { } },
+			},
+			() => refresh,
+			() => ({ kind: 'issue', status: { kind: 'error', label: 'Error' } }),
+			[],
+		);
+		const values: unknown[] = [];
+		const observer = autorun(reader => values.push(presentation.read(reader)));
+		completeRefresh({ kind: 'issue', title: 'Fresh issue' });
+		await refresh;
+		await Promise.resolve();
+		observer.dispose();
+		requestRefresh.dispose();
+
+		assert.deepStrictEqual(values, [
+			{ kind: 'issue', title: 'Cached issue', isLoading: true },
+			{ kind: 'issue', title: 'Fresh issue', isLoading: undefined },
+		]);
+	});
+
+	test('does not mark a fresh presentation loading during background refresh', async () => {
+		const requestRefresh = new vscode.EventEmitter<void>();
+		let resolveCount = 0;
+		let completeRefresh!: (value: { kind: 'issue'; title: string }) => void;
+		const presentation = createAsyncLinkPresentation(
+			'https://github.com/microsoft/vscode/issues/1',
+			{ kind: 'issue', status: { kind: 'pending', label: 'Loading' } },
+			{
+				onDidRequestRefresh: requestRefresh.event,
+				logger: { trace: () => { } },
+			},
+			() => {
+				resolveCount++;
+				return resolveCount === 1
+					? Promise.resolve({ kind: 'issue', title: 'Fresh issue' })
+					: new Promise(resolve => completeRefresh = resolve);
+			},
+			() => ({ kind: 'issue', status: { kind: 'error', label: 'Error' } }),
+			[requestRefresh.event],
+		);
+		const values: unknown[] = [];
+		const observer = autorun(reader => values.push(presentation.read(reader)));
+		await Promise.resolve();
+		await Promise.resolve();
+		requestRefresh.fire();
+		await Promise.resolve();
+		completeRefresh({ kind: 'issue', title: 'Refreshed issue' });
+		await Promise.resolve();
+		await Promise.resolve();
+		observer.dispose();
+		requestRefresh.dispose();
+
+		assert.deepStrictEqual(values, [
+			{ kind: 'issue', status: { kind: 'pending', label: 'Loading' } },
+			{ kind: 'issue', title: 'Fresh issue', isLoading: undefined },
+			{ kind: 'issue', title: 'Refreshed issue', isLoading: undefined },
+		]);
 	});
 });

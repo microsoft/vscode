@@ -30,7 +30,7 @@ suite('ChatWidget Slash Commands', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('during-request execution trims from the parsed slash-command range and forwards explicit context', async () => {
+	test('during-request execution handles an active request waiting for input', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
 		instantiationService.stub(ILogService, new NullLogService());
@@ -55,10 +55,14 @@ suite('ChatWidget Slash Commands', () => {
 		instantiationService.stub(IChatSlashCommandService, chatSlashCommandService);
 
 		const pastedText = toPasteVariableEntry('Pasted text #1', 'Long pasted text');
+		let hasActiveRequest = false;
 		const widget = {
 			viewModel: {
 				sessionResource: LocalChatSessionUri.forSession('test-session'),
-				model: { getRequests: () => [] },
+				model: {
+					getRequests: () => [],
+					hasActiveRequest: { get: () => hasActiveRequest },
+				},
 			},
 			instantiationService,
 			location: ChatAgentLocation.Chat,
@@ -82,15 +86,19 @@ suite('ChatWidget Slash Commands', () => {
 		};
 		const attachedContext = privateMethods._getAttachedContextForConcurrentSlashCommand.call(widget, false);
 		const preservedInputContext = privateMethods._getAttachedContextForConcurrentSlashCommand.call(widget, true);
+		const handledWithoutActiveRequest = await privateMethods._executeSlashCommandDuringRequest.call(widget, '   /btw   keep indentation', { attachedContext }, true, true);
+		hasActiveRequest = true;
 		const handled = await privateMethods._executeSlashCommandDuringRequest.call(widget, '   /btw   keep indentation', { attachedContext }, true, true);
 
 		assert.deepStrictEqual({
+			handledWithoutActiveRequest,
 			handled,
 			executedPrompt,
 			acceptedInput,
 			attachedContext: executedRequestOptions?.attachedContext,
 			preservedInputContext,
 		}, {
+			handledWithoutActiveRequest: false,
 			handled: true,
 			executedPrompt: 'keep indentation',
 			acceptedInput: { storeToHistory: true, preserveFocus: true },

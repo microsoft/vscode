@@ -551,6 +551,9 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 						}
 						continue;
 					}
+					if (setting.key === mcpConfigurationSection && this.settingsEditorModel instanceof WorkspaceConfigurationEditorModel) {
+						continue;
+					}
 					const configuration = configurationRegistry[setting.key];
 					if (configuration) {
 						this.handleUnstableSettingConfiguration(setting, configuration, markerData);

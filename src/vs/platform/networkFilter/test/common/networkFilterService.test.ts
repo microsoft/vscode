@@ -107,6 +107,26 @@ suite('AgentNetworkFilterService', () => {
 			assert.strictEqual(service.isUriAllowed(URI.parse('https://other.com/page')), false);
 		});
 
+		test('allows explicitly configured local hosts', async () => {
+			configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['localhost', '*.localhost', '127.0.0.1', '0.0.0.0', '::1']);
+			const service = await createService();
+			assert.deepStrictEqual([
+				service.isUriAllowed(URI.parse('http://localhost:3000')),
+				service.isUriAllowed(URI.parse('http://sub.localhost:3000')),
+				service.isUriAllowed(URI.parse('http://127.0.0.1:3000')),
+				service.isUriAllowed(URI.parse('http://0.0.0.0:3000')),
+				service.isUriAllowed(URI.parse('http://[::1]:3000')),
+				service.isUriAllowed(URI.parse('http://other.internal:3000')),
+			], [
+				true,
+				true,
+				true,
+				true,
+				true,
+				false,
+			]);
+		});
+
 		test('denies IPv6 literals when both domain lists are empty', async () => {
 			const service = await createService();
 			assert.deepStrictEqual([

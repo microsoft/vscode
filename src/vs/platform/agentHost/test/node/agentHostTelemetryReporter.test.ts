@@ -95,6 +95,52 @@ suite('AgentHostTelemetryReporter', () => {
 		}]);
 	});
 
+	test('userMessageSent includes only provided initiating client telemetry identity', () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+
+		reporter.userMessageSent('copilot', 'client-1', {
+			...createUnknownAgentHostClientTelemetryContext(AgentHostClientType.AgentsWindow),
+			machineId: 'client-machine-id',
+			devDeviceId: 'client-dev-device-id',
+		}, session, 'turn-1', undefined, 'direct', undefined);
+		reporter.userMessageSent('copilot', 'client-2', createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow), session, 'turn-2', undefined, 'direct', undefined);
+
+		assert.deepStrictEqual(service.standardEvents.map(event => ({
+			initiatorMachineId: event.data?.initiatorMachineId,
+			initiatorDevDeviceId: event.data?.initiatorDevDeviceId,
+		})), [{
+			initiatorMachineId: 'client-machine-id',
+			initiatorDevDeviceId: 'client-dev-device-id',
+		}, {
+			initiatorMachineId: undefined,
+			initiatorDevDeviceId: undefined,
+		}]);
+	});
+
+	test('executionModeChanged attributes a client-originated mode change', () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+
+		reporter.executionModeChanged('copilot', session, 'interactive', 'plan', 2, {
+			...createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow),
+			machineId: 'client-machine-id',
+			devDeviceId: 'client-dev-device-id',
+		});
+
+		assert.deepStrictEqual(service.standardEvents.map(event => ({
+			eventName: event.eventName,
+			initiatorClientType: event.data?.initiatorClientType,
+			initiatorMachineId: event.data?.initiatorMachineId,
+			initiatorDevDeviceId: event.data?.initiatorDevDeviceId,
+		})), [{
+			eventName: 'agentHost.executionModeChanged',
+			initiatorClientType: 'editor_window',
+			initiatorMachineId: 'client-machine-id',
+			initiatorDevDeviceId: 'client-dev-device-id',
+		}]);
+	});
+
 	test('assistantMessageReceived emits request.options.tools keyed on the client request id, and no-ops without one or without tools', async () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
@@ -170,6 +216,7 @@ suite('AgentHostTelemetryReporter', () => {
 		}); // dropped: no tools were available
 		await reporter.toolCallDetails({
 			provider: 'copilot', session, turnId: 'a1b2c3d4-0000-4000-8000-000000000000', clientType: AgentHostClientType.EditorWindow, model: 'gpt-x', responseType: 'success',
+			clientContext: { ...createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow), machineId: 'client-machine-id', devDeviceId: 'client-dev-device-id' },
 			toolCounts: {}, availableTools: ['grep', 'edit'],
 			turnIndex: 2, turnDuration: 1200, messageCharLen: 11,
 			numRequests: 1, totalToolCalls: 0, parallelToolCallRounds: 0, parallelToolCallsTotal: 0,
@@ -184,6 +231,9 @@ suite('AgentHostTelemetryReporter', () => {
 		assert.deepStrictEqual(service.standardEvents, [{
 			eventName: 'toolCallDetails',
 			data: {
+				initiatorClientType: 'editor_window',
+				initiatorMachineId: 'client-machine-id',
+				initiatorDevDeviceId: 'client-dev-device-id',
 				provider: 'copilot',
 				agentSessionId: AgentSession.id(session),
 				isSubagentSession: false,
@@ -266,6 +316,7 @@ suite('AgentHostTelemetryReporter', () => {
 		});
 		reporter.toolApproval({
 			provider: 'copilot', session, turnId: 'turn-2',
+			clientContext: { ...createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow), machineId: 'client-machine-id', devDeviceId: 'client-dev-device-id' },
 			toolId: 'bash', toolSourceKind: 'internal',
 			confirmKind: 'userAction',
 			confirmationNotNeededReason: undefined,
@@ -301,6 +352,9 @@ suite('AgentHostTelemetryReporter', () => {
 		}, {
 			eventName: 'chat.toolApproval',
 			data: {
+				initiatorClientType: 'editor_window',
+				initiatorMachineId: 'client-machine-id',
+				initiatorDevDeviceId: 'client-dev-device-id',
 				provider: 'copilot',
 				agentSessionId: AgentSession.id(session),
 				isSubagentSession: false,
@@ -350,6 +404,15 @@ suite('AgentHostTelemetryReporter', () => {
 			hangReason: 'stalledAfterProgress',
 			hadAnyProgress: true,
 			lastActivityKind: ActionType.ChatToolCallDelta,
+			currentStage: 'provider',
+			providerDiagnosticState: 'available',
+			providerDiagnosticSnapshot: {
+				state: 'available',
+				providerCallState: 'resolved',
+				providerTurnStarted: true,
+				providerSessionState: 'active',
+			},
+			initiatorClientConnectionState: 'connected',
 			blockedOn: undefined,
 			toolId: undefined,
 			toolSourceKind: undefined,
@@ -368,6 +431,10 @@ suite('AgentHostTelemetryReporter', () => {
 			hangReason: 'stalledAfterProgress',
 			hadAnyProgress: true,
 			lastActivityKind: 'custom/path/value',
+			currentStage: 'provider',
+			providerDiagnosticState: 'unsupported',
+			providerDiagnosticSnapshot: undefined,
+			initiatorClientConnectionState: 'unknown',
 			blockedOn: undefined,
 			toolId: undefined,
 			toolSourceKind: undefined,
@@ -392,6 +459,12 @@ suite('AgentHostTelemetryReporter', () => {
 				isExpected: false,
 				hadAnyProgress: true,
 				lastActivityKind: 'chat.toolCallDelta',
+				currentStage: 'provider',
+				providerDiagnosticState: 'available',
+				providerCallState: 'resolved',
+				providerTurnStarted: true,
+				providerSessionState: 'active',
+				initiatorClientConnectionState: 'connected',
 				blockedOn: undefined,
 				toolId: undefined,
 				toolSourceKind: undefined,
@@ -414,6 +487,9 @@ suite('AgentHostTelemetryReporter', () => {
 				isExpected: false,
 				hadAnyProgress: true,
 				lastActivityKind: 'other',
+				currentStage: 'provider',
+				providerDiagnosticState: 'unsupported',
+				initiatorClientConnectionState: 'unknown',
 				blockedOn: undefined,
 				toolId: undefined,
 				toolSourceKind: undefined,

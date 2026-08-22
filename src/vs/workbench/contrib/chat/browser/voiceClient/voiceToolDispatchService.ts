@@ -129,7 +129,6 @@ export const IVoiceToolDispatchService = createDecorator<IVoiceToolDispatchServi
 /** Action labels displayed in the status bar during tool execution. */
 const ACTION_LABELS: Record<string, string> = {
 	send_to_chat: localize('agentsVoice.action.sendToChat', "Sending to chat..."),
-	new_sessions: localize('agentsVoice.action.newSessions', "Starting new sessions..."),
 	get_session_info: localize('agentsVoice.action.getSessionInfo', "Checking sessions..."),
 	get_session_changes: localize('agentsVoice.action.getSessionChanges', "Checking changes..."),
 	get_session_thread: localize('agentsVoice.action.getSessionThread', "Checking conversation..."),
@@ -207,29 +206,6 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 							await this.chatService.sendRequest(ref.object.sessionResource, text, this._agentModeOptions);
 							ref.dispose();
 						}
-					}
-				}
-				break;
-			}
-			case 'new_sessions': {
-				const sessions = args['sessions'];
-				const items: { text?: string }[] = Array.isArray(sessions) ? sessions : [{ text: argString('text') }];
-				let firstResource: URI | undefined;
-				for (const item of items) {
-					const text = item.text;
-					if (text) {
-						const ref = this.chatService.startNewLocalSession(ChatAgentLocation.Chat);
-						const resource = ref.object.sessionResource;
-						if (!firstResource) {
-							firstResource = resource;
-						}
-						await this.chatService.sendRequest(resource, text, this._agentModeOptions);
-						ref.dispose();
-					}
-				}
-				if (firstResource) {
-					if (await delegate.switchToSession(firstResource)) {
-						delegate.setTargetSession(firstResource);
 					}
 				}
 				break;

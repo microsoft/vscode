@@ -48,7 +48,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { SessionIsActiveContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { defaultCountBadgeStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, WorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { fillEditorsDragData } from '../../../../workbench/browser/dnd.js';
 import { ResourceLabels } from '../../../../workbench/browser/labels.js';
 import { ViewPane, IViewPaneOptions, ViewAction } from '../../../../workbench/browser/parts/views/viewPane.js';
@@ -60,6 +60,7 @@ import { createFileIconThemableTreeContainerScope } from '../../../../workbench/
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { IWorkspaceFolderLabelService } from '../../../../workbench/services/workspaces/common/workspaceFolderLabelService.js';
 import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { getChangesEditorLabels } from './changesEditorLabels.js';
@@ -588,6 +589,7 @@ export class ChangesViewPane extends ViewPane {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ISessionChangesService private readonly sessionChangesService: ISessionChangesService,
 		@IWorkbenchLayoutService private readonly workbenchLayoutService: IWorkbenchLayoutService,
+		@IWorkspaceFolderLabelService private readonly workspaceFolderLabelService: IWorkspaceFolderLabelService,
 	) {
 		super({ ...options, titleMenuId: MenuId.ChatEditingSessionTitleToolbar }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -1276,39 +1278,36 @@ export class ChangesViewPane extends ViewPane {
 			return undefined;
 		}
 
-		// Get the repository details for the session
-		// - uri: location of the repository
-		// - workingDirectory: location of the worktree
 		const activeSession = this.sessionsService.activeSession.get();
 		const folder = activeSession?.workspace.get()?.folders[0];
-		const workspaceFolderUri = folder?.workingDirectory;
-		if (!folder?.root || !workspaceFolderUri) {
+		if (!folder) {
 			return undefined;
 		}
 
-		let name: string = '';
-		let resourceTreeRootUri = workspaceFolderUri;
-
+		const workspaceFolderUri = folder.workingDirectory;
 		if (workspaceFolderUri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
-			// Cloud session
-			resourceTreeRootUri = URI.from({ scheme: Schemas.copilotPr, path: '/' });
 			const segments = workspaceFolderUri.path.split('/').filter(Boolean);
-			name = `${segments.slice(0, 2).join('/')} (${decodeURIComponent(segments[2])})`;
-		} else {
-			// Local session
-			const branchName = this.changesViewService.activeSessionStateObs.get()?.branchName;
-			name = branchName
-				? `${basename(folder.workingDirectory)} (${branchName})`
-				: basename(folder.workingDirectory);
+			return {
+				root: {
+					type: 'root',
+					uri: workspaceFolderUri,
+					name: `${segments.slice(0, 2).join('/')} (${decodeURIComponent(segments[2])})`
+				},
+				resourceTreeRootUri: URI.from({ scheme: Schemas.copilotPr, path: '/' })
+			};
 		}
 
+		const folderLabel = this.workspaceFolderLabelService.getWorkspaceFolderLabel(
+			new WorkspaceFolder({ uri: folder.workingDirectory, name: folder.name, index: 0 }),
+			true
+		) ?? folder.name;
 		return {
 			root: {
 				type: 'root',
 				uri: workspaceFolderUri,
-				name
+				name: folderLabel
 			},
-			resourceTreeRootUri
+			resourceTreeRootUri: workspaceFolderUri
 		};
 	}
 
@@ -2040,7 +2039,6 @@ registerAction2(ChangesDiffStatsAction);
 
 /**
  * Opens the Changes view and reveals (expands + focuses) the CI checks section.
- * Used by the CI failures banner above the chat input.
  */
 class RevealCIChecksAction extends Action2 {
 	static readonly ID = REVEAL_CI_CHECKS_COMMAND_ID;

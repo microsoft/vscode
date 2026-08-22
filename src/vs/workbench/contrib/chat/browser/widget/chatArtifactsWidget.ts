@@ -476,7 +476,7 @@ class ChatArtifactGroupRenderer implements ITreeRenderer<ArtifactTreeElement, vo
 			templateData.actionBar.push(toAction({
 				id: 'chatArtifacts.clearSource',
 				label: localize('chat.artifacts.clearSource', "Clear"),
-				class: ThemeIcon.asClassName(Codicon.close),
+				class: ThemeIcon.asClassName(Codicon.closeSmall),
 				run: () => clearFn(),
 			}), { icon: true, label: false });
 		}
@@ -542,7 +542,7 @@ class ChatArtifactLeafRenderer implements ITreeRenderer<ArtifactTreeElement, voi
 			actions.push(toAction({
 				id: 'chatArtifacts.clearSource',
 				label: localize('chat.artifacts.clearSource', "Clear"),
-				class: ThemeIcon.asClassName(Codicon.close),
+				class: ThemeIcon.asClassName(Codicon.closeSmall),
 				run: () => clearFn(),
 			}));
 		}

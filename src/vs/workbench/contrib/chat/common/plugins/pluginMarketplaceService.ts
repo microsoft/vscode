@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { runWhenGlobalIdle } from '../../../../../base/common/async.js';
+import { runWhenGlobalIdle, ThrottledDelayer } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
@@ -18,6 +19,7 @@ import { IEnvironmentService } from '../../../../../platform/environment/common/
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IMeteredConnectionService } from '../../../../../platform/meteredConnection/common/meteredConnection.js';
 import { ObservableMemento, observableMemento } from '../../../../../platform/observable/common/observableMemento.js';
 import { asJson, IRequestService } from '../../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -315,7 +317,9 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	private readonly _trustedMarketplacesStore: ObservableMemento<readonly string[]>;
 	private readonly _lastFetchedPluginsStore: ObservableMemento<IStoredLastFetchedPlugins>;
 	private readonly _marketplacesWithUpdates = observableValue<ReadonlySet<string>>('marketplacesWithUpdates', new Set());
-	private _updateCheckTimer: ReturnType<typeof setTimeout> | undefined;
+	private readonly _updateCheckDelayer = this._register(new ThrottledDelayer<void>(PLUGIN_UPDATE_CHECK_INTERVAL_MS));
+	private _updateChecksInitialized = false;
+	private _updateCheckRunning = false;
 
 	readonly onDidChangeMarketplaces: Event<void>;
 
@@ -335,6 +339,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		@IWorkspacePluginSettingsService private readonly _workspacePluginSettingsService: IWorkspacePluginSettingsService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustService: IWorkspaceTrustManagementService,
 		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IMeteredConnectionService private readonly _meteredConnectionService: IMeteredConnectionService,
 	) {
 		super();
 
@@ -404,6 +409,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		);
 
 		this._register(runWhenGlobalIdle(() => {
+			this._updateChecksInitialized = true;
 			this._scheduleUpdateCheck();
 			this._register(Event.filter(
 				_configurationService.onDidChangeConfiguration,
@@ -411,8 +417,15 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 					|| e.affectsConfiguration(ChatConfiguration.ExtraMarketplaces)
 					|| e.affectsConfiguration(ChatConfiguration.StrictMarketplaces),
 			)(() => {
-				this.clearUpdatesAvailable();
-				this._scheduleUpdateCheck();
+				this._marketplacesWithUpdates.set(new Set(), undefined);
+				this._scheduleUpdateCheck(0);
+			}));
+			this._register(this._meteredConnectionService.onDidChangeIsConnectionMetered(isMetered => {
+				if (isMetered) {
+					this._updateCheckDelayer.cancel();
+				} else if (!this._updateCheckRunning && !this._updateCheckDelayer.isTriggered()) {
+					this._scheduleUpdateCheck();
+				}
 			}));
 		}));
 
@@ -429,21 +442,18 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		}));
 	}
 
-	override dispose(): void {
-		if (this._updateCheckTimer !== undefined) {
-			clearTimeout(this._updateCheckTimer);
-			this._updateCheckTimer = undefined;
-		}
-		super.dispose();
-	}
-
 	clearUpdatesAvailable(marketplaceIds?: ReadonlySet<string>): void {
-		if (!marketplaceIds) {
-			this._marketplacesWithUpdates.set(new Set(), undefined);
-			return;
-		}
-		const remaining = new Set([...this._marketplacesWithUpdates.get()].filter(id => !marketplaceIds.has(id)));
+		const remaining = marketplaceIds
+			? new Set([...this._marketplacesWithUpdates.get()].filter(id => !marketplaceIds.has(id)))
+			: new Set<string>();
 		this._marketplacesWithUpdates.set(remaining, undefined);
+
+		if (remaining.size === 0
+			&& this._updateChecksInitialized
+			&& !this._updateCheckRunning
+			&& !this._updateCheckDelayer.isTriggered()) {
+			this._scheduleUpdateCheck();
+		}
 	}
 
 	async fetchMarketplacePlugins(token: CancellationToken, marketplaceIds?: ReadonlySet<string>, options?: IFetchMarketplacePluginsOptions): Promise<IMarketplacePlugin[]> {
@@ -823,16 +833,16 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	}
 
 	/**
-	 * (Re-)schedules the next periodic update check. Called on
-	 * construction and whenever the auto-update config changes.
+	 * (Re-)schedules the next periodic update check after startup idle and
+	 * whenever the auto-update config or metered connection state changes.
 	 */
-	private _scheduleUpdateCheck(): void {
-		if (this._updateCheckTimer !== undefined) {
-			clearTimeout(this._updateCheckTimer);
-			this._updateCheckTimer = undefined;
-		}
+	private _scheduleUpdateCheck(delayOverride?: number): void {
+		this._updateCheckDelayer.cancel();
 
-		if (!this._hasAutoUpdateEnabledMarketplace()) {
+		if (this._store.isDisposed
+			|| this._meteredConnectionService.isConnectionMetered
+			|| this._marketplacesWithUpdates.get().size > 0
+			|| !this._hasAutoUpdateEnabledMarketplace()) {
 			return;
 		}
 
@@ -842,13 +852,29 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			0,
 		);
 		const elapsed = Date.now() - lastCheck;
-		const delay = Math.max(0, PLUGIN_UPDATE_CHECK_INTERVAL_MS - elapsed);
+		const delay = delayOverride ?? Math.max(0, PLUGIN_UPDATE_CHECK_INTERVAL_MS - elapsed);
 
-		this._updateCheckTimer = setTimeout(() => this._runUpdateCheck(), delay);
+		this._updateCheckDelayer.trigger(async () => {
+			this._updateCheckRunning = true;
+			try {
+				await this._doRunUpdateCheck();
+			} finally {
+				this._updateCheckRunning = false;
+				if (!this._updateCheckDelayer.isTriggered()) {
+					this._scheduleUpdateCheck(PLUGIN_UPDATE_CHECK_INTERVAL_MS);
+				}
+			}
+		}, delay).catch(error => {
+			if (!isCancellationError(error)) {
+				onUnexpectedError(error);
+			}
+		});
 	}
 
-	private async _runUpdateCheck(): Promise<void> {
-		this._updateCheckTimer = undefined;
+	private async _doRunUpdateCheck(): Promise<void> {
+		if (this._meteredConnectionService.isConnectionMetered) {
+			return;
+		}
 
 		try {
 			const installed = this.installedPlugins.get();
@@ -887,11 +913,6 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			);
 		} catch (err) {
 			this._logService.debug('[PluginMarketplaceService] Periodic update check failed:', err);
-		} finally {
-			// Reschedule for the next check
-			if (this._hasAutoUpdateEnabledMarketplace()) {
-				this._updateCheckTimer = setTimeout(() => this._runUpdateCheck(), PLUGIN_UPDATE_CHECK_INTERVAL_MS);
-			}
 		}
 	}
 

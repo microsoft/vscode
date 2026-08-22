@@ -57,7 +57,7 @@ import { LayoutSettings } from '../../../../services/layout/browser/layoutServic
 import { TestContextService } from '../../../common/workbenchTestServices.js';
 import { workbenchInstantiationService } from '../../workbenchTestServices.js';
 import { ComponentFixtureAdditionalTheme, ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
-import '../../../../contrib/styleOverrides/browser/media/tabs.css';
+import '../../../../contrib/modernUI/browser/media/tabs.css';
 import './editorTabBar.fixture.css';
 
 // ============================================================================
@@ -199,6 +199,21 @@ function dirtyEditorSpecs(): IEditorSpec[] {
 		{ resource: file('/project/src/app/index.ts'), pinned: true, dirty: true },
 		{ resource: file('/project/README.md'), pinned: true },
 		{ resource: file('/project/package.json'), pinned: true, dirty: true },
+	];
+}
+
+/**
+ * A mix of clean, dirty and sticky tabs used to show `tabActionReserveSpace`:
+ * clean tabs collapse to the compact width when the column is not reserved,
+ * while the dirty and sticky tabs keep their persistent-indicator column.
+ */
+function reserveSpaceEditorSpecs(): IEditorSpec[] {
+	return [
+		{ resource: file('/project/src/app/main.ts'), icon: ThemeIcon.fromId(Codicon.symbolFile.id), sticky: true, pinned: true },
+		{ resource: file('/project/src/app/index.ts'), pinned: true },
+		{ resource: file('/project/README.md'), icon: ThemeIcon.fromId(Codicon.markdown.id), pinned: true },
+		{ resource: file('/project/package.json'), icon: ThemeIcon.fromId(Codicon.json.id), pinned: true, dirty: true, active: true },
+		{ resource: file('/project/src/app/components/button.tsx'), pinned: true },
 	];
 }
 
@@ -450,6 +465,7 @@ export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options:
 		override get activeEditorPane() { return undefined; }
 		override get selectedEditors() { return model.selectedEditors; }
 		override get ariaLabel() { return 'Editor Group 1'; }
+		override get groupsView(): IEditorGroupsView { return groupsView; }
 		override getEditorByIndex(index: number) { return model.getEditorByIndex(index); }
 		override getIndexOfEditor(editor: EditorInput) { return model.indexOf(editor); }
 		override getEditors(order: EditorsOrder, opts?: { excludeSticky?: boolean }) { return model.getEditors(order, opts); }
@@ -470,8 +486,8 @@ export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options:
 
 	const groupsView = new class extends mock<IEditorGroupsView>() {
 		override get partOptions() { return partOptions; }
-		override get activeGroup() { return isGroupActive ? groupView : otherActiveGroup; }
-		override get groups() { return [groupView]; }
+		override get activeGroup(): IEditorGroupView { return isGroupActive ? groupView : otherActiveGroup; }
+		override get groups(): IEditorGroupView[] { return [groupView]; }
 		override readonly onDidChangeEditorPartOptions = Event.None;
 		override readonly onDidVisibilityChange = Event.None;
 	};
@@ -584,6 +600,10 @@ function createFixtures(modernUI: boolean, additionalThemes: readonly ComponentF
 
 		// tabActionUnpinVisibility (with sticky/compact tabs where the unpin action shows)
 		TabActionUnpinHidden: defineComponentFixture({ render: render(modernUI, { partOptions: { tabActionUnpinVisibility: false, pinnedTabSizing: 'normal' }, editors: stickyEditorSpecs() }) }),
+
+		// tabActionReserveSpace (Modern UI: reserved by default; when disabled clean tabs go compact while dirty/sticky still reserve their indicator column)
+		TabActionReserveSpaceOn: defineComponentFixture({ render: render(modernUI, { partOptions: { tabActionReserveSpace: true }, editors: reserveSpaceEditorSpecs() }) }),
+		TabActionReserveSpaceOff: defineComponentFixture({ render: render(modernUI, { partOptions: { tabActionReserveSpace: false }, editors: reserveSpaceEditorSpecs() }) }),
 
 		// showTabIndex
 		ShowTabIndex: defineComponentFixture({ render: render(modernUI, { partOptions: { showTabIndex: true } }) }),

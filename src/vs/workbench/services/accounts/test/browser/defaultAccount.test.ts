@@ -52,14 +52,12 @@ suite('DefaultAccountProvider managed settings', () => {
 
 		assert.deepStrictEqual({
 			requestCount: requestService.requestCount,
-			headers: requestService.requests[0].headers,
+			requestQuery: new URL(requestService.requests[0].url!).search,
 			first: first.data,
 			second: second.data,
 		}, {
 			requestCount: 1,
-			// The request carries authorization only: client-identity headers are dropped by
-			// GitHub's edge, so we do not send any.
-			headers: { 'Authorization': 'Bearer token' },
+			requestQuery: '?client_id=vscode&client_version=1.132.0&copilot_runtime_version=0.0.344',
 			first: cachedPolicy.policyData,
 			second: cachedPolicy.policyData,
 		});
@@ -147,6 +145,34 @@ suite('DefaultAccountProvider managed settings', () => {
 		});
 	});
 
+	test('repeated no-response fetches let cached managed settings age out instead of renewing them', async () => {
+		const requestService = new TestRequestService(async () => {
+			throw new Error('managed settings unavailable');
+		});
+		const provider = await createProvider(requestService);
+		const freshlyCached = createCachedPolicy(false);
+		const staleFetchedAt = Date.now() - 2 * 60 * 60 * 1000; // twice the one-hour poll interval
+
+		const whileFresh = await provider['getManagedSettings'](sessions, freshlyCached, { forceRefresh: true });
+		const onceStale = await provider['getManagedSettings'](
+			sessions,
+			{ ...freshlyCached, managedSettingsFetchedAt: staleFetchedAt },
+			{ forceRefresh: true }
+		);
+
+		assert.deepStrictEqual({
+			status: provider.managedSettingsFetchStatus,
+			whileFresh: { data: whileFresh.data, fetchedAt: whileFresh.fetchedAt },
+			onceStale: { data: onceStale.data, fetchedAt: onceStale.fetchedAt },
+		}, {
+			status: 'no-response',
+			// A fresh cache still applies, but keeps its original timestamp so it can expire.
+			whileFresh: { data: freshlyCached.policyData, fetchedAt: freshlyCached.managedSettingsFetchedAt },
+			// Once expired it is dropped rather than replayed with a renewed timestamp.
+			onceStale: { data: { managedSettings: undefined }, fetchedAt: undefined },
+		});
+	});
+
 	test('transient failure does not clear an update-required state', async () => {
 		let requestCount = 0;
 		const requestService = new TestRequestService(async () => {
@@ -178,7 +204,7 @@ suite('DefaultAccountProvider managed settings', () => {
 			if (options.url?.endsWith('/copilot_internal/user')) {
 				return jsonResponse({ chat_enabled: true });
 			}
-			if (options.url?.endsWith('/copilot_internal/managed_settings')) {
+			if (options.url?.includes('/copilot_internal/managed_settings')) {
 				return jsonResponse({});
 			}
 			throw new Error(`Unexpected request: ${options.url}`);

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { disposableTimeout } from '../../../base/common/async.js';
+import { encodeBase64 } from '../../../base/common/buffer.js';
 import { Emitter } from '../../../base/common/event.js';
 import { isJsonRpcResponse } from '../../../base/common/jsonRpcProtocol.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
@@ -15,10 +16,11 @@ import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
 import { getAgentHostClientType } from '../common/agentHostClientInfo.js';
-import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, readClientDevDeviceId, readClientMachineId, readClientTelemetryLevel, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentSession, type IAgentCreateChatOptions, type IMcpNotification } from '../common/agent.js';
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { type IAgentService } from '../common/agentService.js';
+import { CollectAgentHostDebugLogsExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod } from '../common/agentHostExtensionProtocol.js';
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
@@ -64,8 +66,9 @@ import {
 } from '../common/otlp/otlpLogEmitter.js';
 import { isFileResourceRead } from '../common/resourceReadLogging.js';
 import type { Implementation } from '../common/state/protocol/common/commands.js';
-import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, AgentHostClientConnectionTelemetryTracker } from './agentHostClientConnectionTelemetry.js';
+import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, IAgentHostClientConnectionService, type IAgentHostClientConnectionSource } from './agentHostClientConnectionService.js';
 import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
+import { isAgentHostTelemetryService } from './agentHostTelemetryService.js';
 
 /** Default capacity of the server-side action replay buffer. */
 const REPLAY_BUFFER_CAPACITY = 1000;
@@ -205,7 +208,6 @@ interface IConnectedClient {
 	readonly protocolVersion: string;
 	readonly transport: IProtocolTransport;
 	readonly connectionStopWatch: StopWatch;
-	readonly telemetryTransportToken: object;
 	readonly isReconnect: boolean;
 	telemetryConnectionActive: boolean;
 	/**
@@ -254,6 +256,7 @@ interface IActiveClientRecord {
 
 interface IGraceClientRecord {
 	readonly state: 'grace';
+	readonly seenConnection: boolean;
 	readonly clientInfo: Implementation | undefined;
 	readonly telemetryContext: IAgentHostClientTelemetryContext | undefined;
 	readonly protocolVersion: string | undefined;
@@ -307,8 +310,6 @@ function classifyChannel(channel: string): ChannelSubscription | undefined {
 export interface IProtocolServerConfig {
 	/** Process launcher that owns this agent host. */
 	readonly hostLaunchKind?: AgentHostLaunchKind;
-	/** Process-wide client count tracker shared by every listener in this host. */
-	readonly connectionTelemetryTracker?: AgentHostClientConnectionTelemetryTracker;
 
 	/** Default directory returned to clients during the initialize handshake. */
 	readonly defaultDirectory?: string;
@@ -345,7 +346,7 @@ export interface IProtocolServerConfig {
  * messages to the agent service, and broadcasts actions/notifications
  * to subscribed clients.
  */
-export class ProtocolServerHandler extends Disposable {
+export class ProtocolServerHandler extends Disposable implements IAgentHostClientConnectionSource {
 
 	/**
 	 * Per-client records keyed by clientId. Holds both connected clients
@@ -356,7 +357,6 @@ export class ProtocolServerHandler extends Disposable {
 	private readonly _clients = new Map<string, IClientRecord>();
 	private readonly _replayBuffer: ActionEnvelope[] = [];
 	private readonly _telemetryReporter: AgentHostTelemetryReporter;
-	private readonly _connectionTelemetryTracker: AgentHostClientConnectionTelemetryTracker;
 	private readonly _managedSettingsOwnerId = generateUuid();
 
 	private readonly _onDidChangeConnectionCount = this._register(new Emitter<number>());
@@ -371,12 +371,13 @@ export class ProtocolServerHandler extends Disposable {
 		private readonly _config: IProtocolServerConfig,
 		private readonly _clientFileSystemProvider: AHPFileSystemProvider,
 		@ILogService private readonly _logService: ILogService,
-		@ITelemetryService telemetryService: ITelemetryService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IAgentHostManagedSettingsService private readonly _managedSettingsService: IAgentHostManagedSettingsService,
+		@IAgentHostClientConnectionService private readonly _clientConnections: IAgentHostClientConnectionService,
 	) {
 		super();
-		this._telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
-		this._connectionTelemetryTracker = this._config.connectionTelemetryTracker ?? this._register(new AgentHostClientConnectionTelemetryTracker());
+		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
+		this._register(this._clientConnections.registerSource(this));
 
 		this._register(this._server.onConnection(transport => {
 			this._handleNewConnection(transport);
@@ -547,6 +548,7 @@ export class ProtocolServerHandler extends Disposable {
 						this._logService.info(`[ProtocolServer] Client disconnected: ${client.clientId}, subscriptions=${subscriptionCount}`);
 						this._clients.set(client.clientId, {
 							state: 'grace',
+							seenConnection: true,
 							clientInfo: record.clientInfo,
 							telemetryContext: client.telemetryContext,
 							protocolVersion: client.protocolVersion,
@@ -596,7 +598,7 @@ export class ProtocolServerHandler extends Disposable {
 		}
 
 		const previousRecord = this._clients.get(params.clientId);
-		const telemetryTransportToken = {};
+		this._applyClientTelemetryLevel(params._meta);
 		const initializationDisposables = disposables.add(new DisposableStore());
 		const telemetryContext = this._createClientTelemetryContext(params.clientInfo, params._meta, transport);
 		const client: IConnectedClient = {
@@ -606,8 +608,7 @@ export class ProtocolServerHandler extends Disposable {
 			protocolVersion: negotiated,
 			transport,
 			connectionStopWatch: StopWatch.create(true),
-			telemetryTransportToken,
-			isReconnect: this._connectionTelemetryTracker.hasSeenClient(params.clientId),
+			isReconnect: this._clientConnections.hasSeenClient(params.clientId),
 			telemetryConnectionActive: false,
 			subscriptions: new Map(),
 			disposables,
@@ -627,12 +628,8 @@ export class ProtocolServerHandler extends Disposable {
 				}
 			}
 
-			const counts = this._connectionTelemetryTracker.connect(params.clientId, telemetryTransportToken);
 			client.telemetryConnectionActive = true;
-			if (previousRecord?.state === 'grace') {
-				previousRecord.disconnectTimeouts.dispose();
-			}
-			this._onDidChangeConnectionCount.fire(this._connectedClientCount);
+			const counts = this._clientConnections.getConnectionCounts(params.clientId);
 			this._telemetryReporter.clientConnection({
 				action: 'connected',
 				context: telemetryContext,
@@ -640,8 +637,13 @@ export class ProtocolServerHandler extends Disposable {
 				clientImplementationName: client.clientInfo?.name,
 				clientImplementationVersion: client.clientInfo?.version,
 				protocolVersion: client.protocolVersion,
+				isReconnect: client.isReconnect,
 				...counts,
 			});
+			if (previousRecord?.state === 'grace') {
+				previousRecord.disconnectTimeouts.dispose();
+			}
+			this._onDidChangeConnectionCount.fire(this._connectedClientCount);
 
 			return {
 				client,
@@ -736,6 +738,7 @@ export class ProtocolServerHandler extends Disposable {
 		if (!existingRecord) {
 			throw new ProtocolError(AhpErrorCodes.NotFound, `Reconnect client not found: ${params.clientId}`);
 		}
+		this._applyClientTelemetryLevel(params._meta);
 
 		// Synchronously install the client so messages arriving on this transport
 		// while we restore subscriptions can find a valid client object. The
@@ -746,7 +749,7 @@ export class ProtocolServerHandler extends Disposable {
 		const priorProtocolVersion = existingRecord.state === 'active'
 			? existingRecord.connections.at(-1)?.protocolVersion
 			: existingRecord.protocolVersion;
-		const telemetryTransportToken = {};
+		const isReconnect = this._clientConnections.hasSeenClient(params.clientId);
 		const initializationDisposables = disposables.add(new DisposableStore());
 		const client: IConnectedClient = {
 			clientId: params.clientId,
@@ -755,8 +758,7 @@ export class ProtocolServerHandler extends Disposable {
 			protocolVersion: priorProtocolVersion ?? PROTOCOL_VERSION,
 			transport,
 			connectionStopWatch: StopWatch.create(true),
-			telemetryTransportToken,
-			isReconnect: true,
+			isReconnect,
 			telemetryConnectionActive: false,
 			subscriptions: new Map(),
 			disposables,
@@ -775,12 +777,8 @@ export class ProtocolServerHandler extends Disposable {
 			const canReplay = params.lastSeenServerSeq >= oldestBuffered;
 			const responsePromise = this._restoreReconnectSubscriptions(client, params, canReplay);
 
-			const counts = this._connectionTelemetryTracker.connect(params.clientId, telemetryTransportToken);
 			client.telemetryConnectionActive = true;
-			if (existingRecord.state === 'grace') {
-				existingRecord.disconnectTimeouts.dispose();
-			}
-			this._onDidChangeConnectionCount.fire(this._connectedClientCount);
+			const counts = this._clientConnections.getConnectionCounts(params.clientId);
 			this._telemetryReporter.clientConnection({
 				action: 'connected',
 				context: client.telemetryContext,
@@ -788,8 +786,13 @@ export class ProtocolServerHandler extends Disposable {
 				clientImplementationName: client.clientInfo?.name,
 				clientImplementationVersion: client.clientInfo?.version,
 				protocolVersion: client.protocolVersion,
+				isReconnect: client.isReconnect,
 				...counts,
 			});
+			if (existingRecord.state === 'grace') {
+				existingRecord.disconnectTimeouts.dispose();
+			}
+			this._onDidChangeConnectionCount.fire(this._connectedClientCount);
 
 			return { client, responsePromise };
 		} catch (error) {
@@ -1087,6 +1090,7 @@ export class ProtocolServerHandler extends Disposable {
 	}
 
 	private _rollbackFailedInitialization(client: IConnectedClient, previousRecord: IClientRecord | undefined): void {
+		client.telemetryConnectionActive = false;
 		const record = this._clients.get(client.clientId);
 		if (record?.state === 'active') {
 			const connectionIndex = record.connections.indexOf(client);
@@ -1122,6 +1126,7 @@ export class ProtocolServerHandler extends Disposable {
 		}
 		const created: IGraceClientRecord = {
 			state: 'grace',
+			seenConnection: false,
 			clientInfo: undefined,
 			telemetryContext: undefined,
 			protocolVersion: undefined,
@@ -1169,6 +1174,34 @@ export class ProtocolServerHandler extends Disposable {
 		return false;
 	}
 
+	hasSeenClient(clientId: string): boolean {
+		const record = this._clients.get(clientId);
+		return record?.state === 'active'
+			? record.connections.some(connection => connection.telemetryConnectionActive)
+			: record?.seenConnection === true
+			&& record.lastSeenAt >= Date.now() - AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION;
+	}
+
+	isClientConnected(clientId: string): boolean {
+		const record = this._clients.get(clientId);
+		return record?.state === 'active'
+			&& record.connections.some(connection => connection.telemetryConnectionActive);
+	}
+
+	getConnectedClientTransportCounts(): ReadonlyMap<string, number> {
+		const result = new Map<string, number>();
+		for (const [clientId, record] of this._clients) {
+			if (record.state !== 'active') {
+				continue;
+			}
+			const count = record.connections.filter(connection => connection.telemetryConnectionActive).length;
+			if (count > 0) {
+				result.set(clientId, count);
+			}
+		}
+		return result;
+	}
+
 	/** Number of clients that currently have a live connection. */
 	private get _connectedClientCount(): number {
 		let count = 0;
@@ -1182,12 +1215,23 @@ export class ProtocolServerHandler extends Disposable {
 
 	private _createClientTelemetryContext(clientInfo: Implementation | undefined, meta: Record<string, unknown> | undefined, transport: IProtocolTransport, fallbackConnectionKind = AgentHostClientConnectionKind.Unknown): IAgentHostClientTelemetryContext {
 		const connectionKind = readClientConnectionKind(meta);
+		const machineId = readClientMachineId(meta);
+		const devDeviceId = readClientDevDeviceId(meta);
 		return {
 			clientType: getAgentHostClientType(clientInfo),
 			connectionKind: connectionKind === AgentHostClientConnectionKind.Unknown ? fallbackConnectionKind : connectionKind,
 			transportKind: transport.transportKind ?? AgentHostTransportKind.Unknown,
 			hostLaunchKind: this._config.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
+			...(machineId ? { machineId } : {}),
+			...(devDeviceId ? { devDeviceId } : {}),
 		};
+	}
+
+	private _applyClientTelemetryLevel(meta: Record<string, unknown> | undefined): void {
+		const telemetryLevel = readClientTelemetryLevel(meta);
+		if (telemetryLevel !== undefined && isAgentHostTelemetryService(this._telemetryService)) {
+			this._telemetryService.updateTelemetryLevel(telemetryLevel);
+		}
 	}
 
 	private _reportClientDisconnected(client: IConnectedClient, subscriptionCount: number): void {
@@ -1195,7 +1239,7 @@ export class ProtocolServerHandler extends Disposable {
 			return;
 		}
 		client.telemetryConnectionActive = false;
-		const counts = this._connectionTelemetryTracker.disconnect(client.clientId, client.telemetryTransportToken);
+		const counts = this._clientConnections.getConnectionCounts(client.clientId);
 		this._telemetryReporter.clientConnection({
 			action: 'disconnected',
 			context: client.telemetryContext,
@@ -1225,6 +1269,7 @@ export class ProtocolServerHandler extends Disposable {
 			if (record.state === 'grace'
 				&& record.disconnectTimeouts.size === 0
 				&& record.lastSeenAt < cutoff) {
+				record.disconnectTimeouts.dispose();
 				this._clients.delete(clientId);
 			}
 		}
@@ -1325,24 +1370,6 @@ export class ProtocolServerHandler extends Disposable {
 		},
 		createSession: async (_client, params) => {
 			let createdSession: URI;
-			// Resolve fork turnId to a 0-based index using the source session's
-			// turn list in the state manager.
-			let fork: { session: URI; chat: URI; turnIndex: number; turnId: string } | undefined;
-			if (params.fork) {
-				if (URI.parse(params.fork.session).toString() === URI.parse(params.channel).toString()) {
-					throw new ProtocolError(AhpErrorCodes.SessionAlreadyExists, `Fork target session must differ from source session: ${params.channel}`);
-				}
-				const sourceState = this._stateManager.getSessionState(params.fork.session);
-				if (!sourceState) {
-					throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Fork source session not found: ${params.fork.session}`);
-				}
-				const turnIndex = sourceState.turns.findIndex(t => t.id === params.fork!.turnId);
-				if (turnIndex < 0) {
-					throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Fork turn ID ${params.fork.turnId} not found in session ${params.fork.session}`);
-				}
-				const sourceSession = URI.parse(params.fork.session);
-				fork = { session: sourceSession, chat: URI.parse(buildDefaultChatUri(sourceSession)), turnIndex, turnId: params.fork.turnId };
-			}
 			// If the client eagerly claimed the active client role, validate
 			// the clientId matches the connection before forwarding.
 			if (params.activeClient && params.activeClient.clientId !== _client.clientId) {
@@ -1354,7 +1381,6 @@ export class ProtocolServerHandler extends Disposable {
 					_meta: params._meta,
 					workingDirectories: params.workingDirectories?.map(d => URI.parse(d)),
 					session: URI.parse(params.channel),
-					fork,
 					config: params.config,
 					activeClient: params.activeClient,
 					progressToken: params.progressToken,
@@ -1448,7 +1474,7 @@ export class ProtocolServerHandler extends Disposable {
 					...(s._meta !== undefined ? { _meta: s._meta } : {}),
 				} satisfies ListSessionsResult['items'][number];
 			});
-			return { items };
+			return { items: this._stateManager.prepareSessionSummariesForListing(items) };
 		},
 		resolveSessionConfig: async (_client, params) => {
 			return this._agentService.resolveSessionConfig({
@@ -1487,7 +1513,7 @@ export class ProtocolServerHandler extends Disposable {
 			return this._agentService.resourceList(URI.parse(params.uri));
 		},
 		resourceRead: async (_client, params) => {
-			return this._agentService.resourceRead(URI.parse(params.uri));
+			return this._agentService.resourceRead(URI.parse(params.uri), params.encoding);
 		},
 		resourceCopy: async (_client, params) => {
 			return this._agentService.resourceCopy(params);
@@ -1530,6 +1556,18 @@ export class ProtocolServerHandler extends Disposable {
 		},
 		invokeChangesetOperation: async (_client, params) => {
 			return this._agentService.invokeChangesetOperation(params);
+		},
+		// Automations are declared by the protocol but not implemented by this
+		// host: `initialize` never advertises the `automations` capability, so
+		// a conforming client does not reach these methods.
+		listAutomationTriggerDefinitions: async () => {
+			throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'Automations are not supported by this agent host');
+		},
+		runAutomation: async () => {
+			throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'Automations are not supported by this agent host');
+		},
+		fetchAutomationRuns: async () => {
+			throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'Automations are not supported by this agent host');
 		},
 	};
 
@@ -1654,6 +1692,89 @@ export class ProtocolServerHandler extends Disposable {
 				return this._agentService.getManagedSettingsDiagnostics();
 			case 'diagnosticsFetch':
 				return this._agentService.diagnosticsFetch((params as { url: string }).url);
+			case GetAgentHostSessionStateFileExtensionMethod: {
+				if (!this._agentService.getSessionStateFile) {
+					return undefined;
+				}
+				if (!isParamsObject(params)) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'params must be an object'));
+				}
+				const sessionParam = params['session'];
+				if (typeof sessionParam !== 'string') {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a URI string'));
+				}
+				let session: URI;
+				try {
+					session = URI.parse(sessionParam, true);
+				} catch {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a valid URI string'));
+				}
+				if (!AgentSession.provider(session)) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be an Agent Session URI'));
+				}
+				return this._agentService.getSessionStateFile(session).then(resource => ({ resource: resource?.toString() }));
+			}
+			case CollectAgentHostDebugLogsExtensionMethod: {
+				if (!this._agentService.collectDebugLogs) {
+					return undefined;
+				}
+				if (!isParamsObject(params)) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'params must be an object'));
+				}
+				const sessionParam = params['session'];
+				if (sessionParam !== undefined && typeof sessionParam !== 'string') {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a URI string'));
+				}
+				let session: URI | undefined;
+				if (sessionParam !== undefined) {
+					try {
+						session = URI.parse(sessionParam, true);
+					} catch {
+						return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a valid URI string'));
+					}
+					if (!AgentSession.provider(session)) {
+						return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be an Agent Session URI'));
+					}
+				}
+				const kind = params['kind'];
+				if (kind !== 'archive' && kind !== 'directory') {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'kind must be archive or directory'));
+				}
+				return this._agentService.collectDebugLogs(session, kind).then(result => ({
+					kind: result.kind,
+					resource: result.resource.toString(),
+					providerLogsIncluded: result.providerLogsIncluded,
+					size: result.size,
+					uncompressedSize: result.uncompressedSize,
+					entries: result.entries,
+				}));
+			}
+			case ReadAgentHostDebugLogsChunkExtensionMethod: {
+				if (!this._agentService.readDebugLogsChunk) {
+					return undefined;
+				}
+				if (!isParamsObject(params)) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'params must be an object'));
+				}
+				const resourceParam = params['resource'];
+				if (typeof resourceParam !== 'string') {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'resource must be a URI string'));
+				}
+				let resource: URI;
+				try {
+					resource = URI.parse(resourceParam, true);
+				} catch {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'resource must be a valid URI string'));
+				}
+				const position = params['position'];
+				if (typeof position !== 'number' || !Number.isSafeInteger(position) || position < 0) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'position must be a non-negative integer'));
+				}
+				return this._agentService.readDebugLogsChunk(resource, position).then(chunk => ({
+					data: encodeBase64(chunk.data),
+					eof: chunk.eof,
+				}));
+			}
 			default:
 				return undefined;
 		}

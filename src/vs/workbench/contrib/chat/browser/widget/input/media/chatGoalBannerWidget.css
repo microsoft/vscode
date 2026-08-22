@@ -11,8 +11,9 @@
 	box-sizing: border-box;
 	border: 1px solid var(--vscode-input-border, transparent);
 	border-bottom: none;
-	border-top-left-radius: var(--chat-input-stack-radius-top, var(--vscode-cornerRadius-small));
-	border-top-right-radius: var(--chat-input-stack-radius-top, var(--vscode-cornerRadius-small));
+	/* Follows the run it docks into; the fallback is its own tier outside one. */
+	border-top-left-radius: var(--chat-input-stack-radius-top, var(--vscode-cornerRadius-large));
+	border-top-right-radius: var(--chat-input-stack-radius-top, var(--vscode-cornerRadius-large));
 	background-color: color-mix(in srgb, var(--vscode-focusBorder) 6%, var(--vscode-editorWidget-background));
 	color: var(--vscode-foreground);
 	font-size: var(--vscode-agents-fontSize-label1);

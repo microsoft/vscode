@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { buildOpenSessionLinkForChatResource, buildOpenSessionLinkUri, isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
+import { buildOpenSessionLinkForChatResource, buildOpenSessionLinkUri, createAgentSessionLinkPresentation, isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
 
 suite('openSessionLink', () => {
@@ -56,6 +56,7 @@ suite('openSessionLink', () => {
 	test('parseOpenSessionLinkChatId treats chat=default as absent', () => {
 		assert.strictEqual(parseOpenSessionLinkChatId('agent-host-session://copilotcli/abc-123?chat=default'), undefined);
 		assert.strictEqual(parseOpenSessionLinkChatId('agent-host-session://copilotcli/abc-123?chat=peer1'), 'peer1');
+		assert.strictEqual(parseOpenSessionLinkChatId('agent-host-session://copilotcli/abc-123?chat=%ZZ'), undefined);
 	});
 
 	test('buildOpenSessionLinkForChatResource maps chat resources to session links', () => {
@@ -75,5 +76,29 @@ suite('openSessionLink', () => {
 		assert.strictEqual(parseOpenSessionLinkUri('https://example.com/x'), undefined);
 		assert.strictEqual(parseOpenSessionLinkUri('copilotcli:/abc'), undefined);
 		assert.strictEqual(parseOpenSessionLinkUri('agent-host-session://copilotcli/'), undefined);
+	});
+
+	test('creates generic link presentations for agent sessions', () => {
+		assert.deepStrictEqual({
+			session: createAgentSessionLinkPresentation('Implement rich links', 'Updating core', 'needsInput'),
+			chat: createAgentSessionLinkPresentation('Investigate tests', 'Updating core', 'completed', 'chat'),
+		}, {
+			session: {
+				kind: 'session',
+				title: 'Implement rich links',
+				detail: 'Updating core',
+				status: { kind: 'warning', label: 'Needs input' },
+				tooltip: 'Implement rich links · Needs input',
+				ariaLabel: 'Agent session Implement rich links, Needs input',
+			},
+			chat: {
+				kind: 'chat',
+				title: 'Investigate tests',
+				detail: 'Updating core',
+				status: { kind: 'success', label: 'Completed' },
+				tooltip: 'Investigate tests · Completed',
+				ariaLabel: 'Agent chat Investigate tests, Completed',
+			},
+		});
 	});
 });

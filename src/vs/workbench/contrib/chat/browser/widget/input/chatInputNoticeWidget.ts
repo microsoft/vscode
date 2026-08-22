@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, EventType, isAncestorOfActiveElement, setVisibility } from '../../../../../../base/browser/dom.js';
+import { $, addDisposableListener, EventType, isAncestorOfActiveElement, setVisibility } from '../../../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
-import { mainWindow } from '../../../../../../base/browser/window.js';
 import { alert, status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
 import { Action } from '../../../../../../base/common/actions.js';
@@ -102,9 +101,7 @@ export class ChatInputNoticeWidget extends Disposable implements IChatInputNotic
 		this._variant = options.variant;
 		this._ariaRoleDescription = options.ariaRoleDescription;
 
-		// Detached notices are created in the main window's document, the same as
-		// `dom.$` does, and adopted when their owner parents them.
-		this.domNode = (options.container?.ownerDocument ?? mainWindow.document).createElement('div');
+		this.domNode = $('div');
 		this.domNode.classList.add('chat-input-notice', `chat-input-notice-${options.variant}`);
 		if (options.className) {
 			this.domNode.classList.add(options.className);
@@ -216,7 +213,7 @@ export class ChatInputNoticeWidget extends Disposable implements IChatInputNotic
 	addAction(options: IChatInputNoticeActionOptions): HTMLElement {
 		const register = <T extends IDisposable>(disposable: T): T => options.store ? options.store.add(disposable) : this._register(disposable);
 
-		const container = this.domNode.ownerDocument.createElement('div');
+		const container = $('div');
 		container.classList.add('chat-input-notice-action');
 		(options.parent ?? this.domNode).appendChild(container);
 		register(toDisposable(() => container.remove()));

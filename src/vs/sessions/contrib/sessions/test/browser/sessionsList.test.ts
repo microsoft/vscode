@@ -10,7 +10,10 @@ import { constObservable, observableValue } from '../../../../../base/common/obs
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -21,9 +24,10 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
+import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionSectionRenderer, SessionsList, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionSectionRenderer, SessionsFlatList, SessionsList, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { createListHarness, createTestSession } from './sessionsListTestUtils.js';
 import '../../browser/views/sessionsViewActions.js';
 
@@ -101,6 +105,7 @@ suite('Sessions - SessionsList', () => {
 					override readonly extUri = new ExtUri(() => true);
 				},
 				new class extends mock<ICustomViewService>() { },
+				new class extends mock<IMenuService>() { },
 			);
 			const container = document.createElement('div');
 			const template = renderer.renderTemplate(container);
@@ -118,6 +123,64 @@ suite('Sessions - SessionsList', () => {
 			action.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, button: 2 }));
 
 			assert.deepStrictEqual(selectedSections, [section]);
+		});
+
+		test('renders in-progress automation status in the leading icon slot', () => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stubInstance(MenuWorkbenchToolBar, new class extends mock<MenuWorkbenchToolBar>() {
+				override set context(_context: unknown) { }
+				override dispose(): void { }
+			});
+			instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+				override isMotionReduced(): boolean { return false; }
+			}());
+			instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() { });
+			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+			const automationService = new class extends mock<IAutomationService>() {
+				override readonly runs = constObservable<readonly IAutomationRun[]>([{
+					id: 'pending',
+					automationId: 'automation',
+					status: 'pending',
+					trigger: 'schedule',
+					startedAt: '2026-08-14T00:00:00.000Z',
+					leaderWindowId: 1,
+				}]);
+			};
+			const renderer = new SessionSectionRenderer(
+				true,
+				() => { },
+				instantiationService,
+				contextKeyService,
+				automationService,
+				constObservable([]),
+				new class extends mock<IUriIdentityService>() {
+					override readonly extUri = new ExtUri(() => true);
+				},
+				new class extends mock<ICustomViewService>() {
+					override readonly activeCustomView = constObservable(undefined);
+				},
+				new class extends mock<IMenuService>() { },
+			);
+			const container = document.createElement('div');
+			const template = renderer.renderTemplate(container);
+			disposables.add(template.disposables);
+
+			renderer.renderElement(upcastPartial<Parameters<SessionSectionRenderer['renderElement']>[0]>({
+				element: { id: 'automations', label: 'Automations', sessions: [] },
+				collapsible: false,
+				collapsed: false,
+			}), 0, template);
+
+			const spinner = container.querySelector('.monaco-pixel-spinner');
+			assert.deepStrictEqual({
+				watchIcon: !!container.querySelector('.session-section-icon.codicon-watch'),
+				spinnerParent: spinner?.parentElement?.className,
+				trailingStatusIndicator: !!container.querySelector('.session-section-status-indicator'),
+			}, {
+				watchIcon: false,
+				spinnerParent: 'session-section-icon',
+				trailingStatusIndicator: false,
+			});
 		});
 
 		test('derives terminal automation status from the supplied session snapshot', () => {
@@ -155,6 +218,7 @@ suite('Sessions - SessionsList', () => {
 				automationSessions,
 				uriIdentityService,
 				new class extends mock<ICustomViewService>() { },
+				new class extends mock<IMenuService>() { },
 			);
 			const runResource = URI.parse('test-session:/workspace/automation');
 			const statuses: (SessionStatus | undefined)[] = [];
@@ -211,6 +275,7 @@ suite('Sessions - SessionsList', () => {
 				constObservable([runningSession, needsInputSession]),
 				uriIdentityService,
 				new class extends mock<ICustomViewService>() { },
+				new class extends mock<IMenuService>() { },
 			);
 			runs.set([
 				{
@@ -720,6 +785,64 @@ suite('Sessions - SessionsList', () => {
 				date: [
 					{ title: 'Ordinary', badge: 'monaco', ariaLabel: 'Ordinary, updated now, in monaco' },
 				],
+			});
+		});
+	});
+
+	suite('SessionsFlatList quick-chat presentation', () => {
+
+		function renderQuickChat(useCompactQuickChatRows: boolean) {
+			const quickChat = createTestSession('Investigate failure', { isQuickChat: true }).session;
+			const harness = createListHarness(disposables, [quickChat]);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, container, {
+				showSessionHover: false,
+				useCompactQuickChatRows,
+				onSessionOpen: () => { },
+			}));
+			list.setSessions([quickChat]);
+			const contentHeight = list.getContentHeight();
+			list.layout(contentHeight, 400);
+
+			const item = container.querySelector<HTMLElement>('.session-item');
+			assert.ok(item);
+			return {
+				usesStandardRowHeight: contentHeight === list.getRowHeight(),
+				isShorterThanStandardRow: contentHeight < list.getRowHeight(),
+				hasCompactClass: item.classList.contains('quick-chat'),
+				hasChatIcon: item.querySelector('.session-details-icon > .codicon')?.classList.contains('codicon-comment-discussion') ?? false,
+				badge: item.querySelector('.session-badge')?.textContent ?? undefined,
+				time: item.querySelector('.session-time')?.textContent ?? undefined,
+				hasDiff: !!item.querySelector('.session-diff'),
+				ariaLabel: item.closest('.monaco-list-row')?.getAttribute('aria-label') ?? null,
+			};
+		}
+
+		test('renders compact and regular quick-chat rows consistently', () => {
+			assert.deepStrictEqual({
+				compact: renderQuickChat(true),
+				regular: renderQuickChat(false),
+			}, {
+				compact: {
+					usesStandardRowHeight: false,
+					isShorterThanStandardRow: true,
+					hasCompactClass: true,
+					hasChatIcon: false,
+					badge: undefined,
+					time: undefined,
+					hasDiff: false,
+					ariaLabel: 'Investigate failure, updated now',
+				},
+				regular: {
+					usesStandardRowHeight: true,
+					isShorterThanStandardRow: false,
+					hasCompactClass: false,
+					hasChatIcon: true,
+					badge: 'No workspace',
+					time: 'now',
+					hasDiff: false,
+					ariaLabel: 'Investigate failure, chat, updated now',
+				},
 			});
 		});
 	});

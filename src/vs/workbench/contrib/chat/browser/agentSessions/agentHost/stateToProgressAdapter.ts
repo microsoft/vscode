@@ -21,12 +21,13 @@ import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentHostElementAttachmentDisplayKind, getElementAttachmentCorrelationId } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
+import { SessionServerToolName } from '../../../../../../platform/agentHost/common/serverToolNames.js';
 import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAnnotationsAttachment, isAgentFeedbackAttachment } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { getBrowserViewAttachmentMetadata, isBrowserViewAttachment } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { readAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, readAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { isViewUnreviewedCommentsTool, isAddCommentTool } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
-import { isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
+import { AGENT_HOST_SESSION_LINK_SCHEME, isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { parsePartialToolInputForDisplay } from '../../../../../../platform/agentHost/common/partialToolInput.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
@@ -69,6 +70,32 @@ function shouldHideCompletedAgentHostAskUserTool(toolCall: ToolCallState): boole
 		return toolCall.success;
 	}
 	return toolCall.status === ToolCallStatus.Cancelled && toolCall.reason === ToolCallCancellationReason.Skipped;
+}
+
+function isRenameChatTool(toolCall: ToolCallState): boolean {
+	return toolCall.toolName === SessionServerToolName.RenameChat || toolCall.toolName.endsWith(`__${SessionServerToolName.RenameChat}`);
+}
+
+function isAutomaticTitleRename(toolCall: ToolCallState): boolean {
+	if (!isRenameChatTool(toolCall) || toolCall.status === ToolCallStatus.Streaming) {
+		return false;
+	}
+	const toolInput = getInlineToolInput(toolCall.toolInput);
+	if (!toolInput) {
+		return false;
+	}
+	try {
+		const args = JSON.parse(toolInput) as { automatic?: unknown };
+		return args.automatic === true;
+	} catch {
+		return false;
+	}
+}
+
+function shouldHideAutomaticTitleRename(toolCall: ToolCallState): boolean {
+	return isAutomaticTitleRename(toolCall)
+		&& toolCall.status !== ToolCallStatus.Cancelled
+		&& (toolCall.status !== ToolCallStatus.Completed || toolCall.success);
 }
 
 export interface IAgentHostToolInvocationOptions {
@@ -1768,7 +1795,9 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 		pastTenseMessage: isTerminal ? undefined : pastTenseMsg,
 		isConfirmed: completedToolCallConfirmedReason(tc),
 		isComplete: true,
-		presentation: shouldHideCompletedAgentHostAskUserTool(tc) ? ToolInvocationPresentation.HiddenAfterComplete : undefined,
+		presentation: shouldHideAutomaticTitleRename(tc)
+			? ToolInvocationPresentation.Hidden
+			: shouldHideCompletedAgentHostAskUserTool(tc) ? ToolInvocationPresentation.HiddenAfterComplete : undefined,
 		subAgentInvocationId: subAgentInvocationId,
 		toolSpecificData,
 		resultDetails,
@@ -1859,6 +1888,7 @@ const EXTERNAL_LINK_SCHEMES: ReadonlySet<string> = new Set([
 	'copilot-skill',
 	product.urlProtocol,
 	AGENT_HOST_SCHEME,
+	AGENT_HOST_SESSION_LINK_SCHEME,
 ]);
 
 /**
@@ -2250,6 +2280,8 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 	if (isAgentHostAskUserTool(tc.toolName)) {
 		invocation.invocationMessage = localize('agentHost.askUser.waiting', "Waiting for answer...");
 		invocation.presentation = ToolInvocationPresentation.HiddenAfterComplete;
+	} else if (shouldHideAutomaticTitleRename(tc)) {
+		invocation.presentation = ToolInvocationPresentation.Hidden;
 	}
 	if (tc.status === ToolCallStatus.AuthRequired) {
 		invocation.setAuthenticationRequired(toolCallAuthenticationServer(tc, mcpServerAuthority));
@@ -2358,6 +2390,8 @@ export function toolCallStateToStreamingInvocation(tc: ToolCallState, subAgentIn
 	if (isAgentHostAskUserTool(tc.toolName)) {
 		invocation.invocationMessage = localize('agentHost.askUser.asking', "Asking a question...");
 		invocation.presentation = ToolInvocationPresentation.HiddenAfterComplete;
+	} else if (isRenameChatTool(tc)) {
+		invocation.presentation = ToolInvocationPresentation.Hidden;
 	}
 	if (sessionResource && isSubagentTool(tc)) {
 		invocation.toolSpecificData = toolCallStateToInvocation(tc, subAgentInvocationId, sessionResource, connectionAuthority ?? '', mcpServerAuthority).toolSpecificData;
@@ -2631,6 +2665,8 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 		invocation.presentation = shouldHideCompletedAgentHostAskUserTool(tc)
 			? ToolInvocationPresentation.HiddenAfterComplete
 			: undefined;
+	} else if (isAutomaticTitleRename(tc)) {
+		invocation.presentation = shouldHideAutomaticTitleRename(tc) ? ToolInvocationPresentation.Hidden : undefined;
 	}
 
 	// Hide the tool widget when file edits are shown separately via onFileEdits

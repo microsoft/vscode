@@ -213,8 +213,9 @@ export class ToolBar extends Disposable {
 		return this.element;
 	}
 
-	focus(): void {
-		this.actionBar.focus();
+	/** Focuses the item at `index`, or the first item when no index is given. */
+	focus(index?: number): void {
+		this.actionBar.focus(index);
 	}
 
 	getItemsWidth(): number {

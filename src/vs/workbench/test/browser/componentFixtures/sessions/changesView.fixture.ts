@@ -28,6 +28,7 @@ import { ILifecycleService, LifecyclePhase, StartupKind } from '../../../../serv
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { INotebookDocumentService } from '../../../../services/notebook/common/notebookDocumentService.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
+import { IWorkspaceFolderLabelService } from '../../../../services/workspaces/common/workspaceFolderLabelService.js';
 import { FixtureMenuService } from '../chat/chatFixtureUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
@@ -36,7 +37,7 @@ import { ActiveSessionState, ChangesViewSection, IChangesDetailsViewState, IChan
 // eslint-disable-next-line local/code-import-patterns
 import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesViewMode, IsolationMode } from '../../../../../sessions/contrib/changes/common/changes.js';
 // eslint-disable-next-line local/code-import-patterns
-import { ChangesViewPane } from '../../../../../sessions/contrib/changes/browser/changesView.js';
+import { SinglePaneChangesViewPane } from '../../../../../sessions/contrib/changes/browser/changesView.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionChangesService, SessionChangesService } from '../../../../../sessions/contrib/changes/browser/sessionChangesService.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -152,7 +153,7 @@ const changesViewContainer: ViewContainer = {
 const changesViewDescriptor: IViewDescriptor = {
 	id: CHANGES_VIEW_ID,
 	name: localize2('fixtureChangesView', 'Changes'),
-	ctorDescriptor: new SyncDescriptor(ChangesViewPane),
+	ctorDescriptor: new SyncDescriptor(SinglePaneChangesViewPane),
 	containerIcon: Codicon.gitCompare,
 };
 
@@ -385,6 +386,7 @@ function renderChangesView(ctx: ComponentFixtureContext, options: IChangesViewFi
 	container.style.width = `${VIEW_WIDTH}px`;
 	container.style.height = `${height}px`;
 	container.style.backgroundColor = 'var(--vscode-sideBar-background)';
+	container.classList.add('agent-sessions-workbench', 'dock-detail-panel');
 
 	const host = dom.append(container, dom.$('.part.auxiliarybar'));
 	host.style.width = '100%';
@@ -412,6 +414,11 @@ function renderChangesView(ctx: ComponentFixtureContext, options: IChangesViewFi
 			reg.defineInstance(IDecorationsService, new class extends mock<IDecorationsService>() { override onDidChangeDecorations = Event.None; }());
 			reg.defineInstance(ITextFileService, new class extends mock<ITextFileService>() { override readonly untitled = new class extends mock<ITextFileService['untitled']>() { override readonly onDidChangeLabel = Event.None; }(); }());
 			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return { id: 'fixture', folders: [], configuration: undefined }; } }());
+			reg.defineInstance(IWorkspaceFolderLabelService, new class extends mock<IWorkspaceFolderLabelService>() {
+				override getWorkspaceFolderLabel(): string {
+					return 'vscode (feature/changes-view-fixtures)';
+				}
+			}());
 			reg.defineInstance(INotebookDocumentService, new class extends mock<INotebookDocumentService>() { override getNotebook() { return undefined; } }());
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() {
 				override async readFile(resource: URI): Promise<IFileContent> {
@@ -444,7 +451,7 @@ function renderChangesView(ctx: ComponentFixtureContext, options: IChangesViewFi
 		},
 	});
 
-	const view = disposableStore.add(instantiationService.createInstance(ChangesViewPane, {
+	const view = disposableStore.add(instantiationService.createInstance(SinglePaneChangesViewPane, {
 		id: CHANGES_VIEW_ID,
 		title: 'Changes',
 		minimumBodySize: 0,

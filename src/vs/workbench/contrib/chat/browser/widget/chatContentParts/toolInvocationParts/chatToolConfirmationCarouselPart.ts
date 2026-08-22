@@ -15,6 +15,7 @@ import { autorun } from '../../../../../../../base/common/observable.js';
 import { generateUuid } from '../../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../../nls.js';
 import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
+import { CHAT_CARD_HEADER_ACTIONS_CLASS, CHAT_CARD_LARGE_CLASS, chatCardButtonStyles } from '../../chatCard.js';
 import { IChatToolInvocation, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { ChatToolInvocationPart } from './chatToolInvocationPart.js';
 import '../media/chatToolConfirmationCarousel.css';
@@ -79,13 +80,13 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 	) {
 		super();
 
-		const elements = dom.h('.chat-tool-confirmation-carousel@root', [
+		const elements = dom.h(`.chat-tool-confirmation-carousel.${CHAT_CARD_LARGE_CLASS}@root`, [
 			dom.h('.chat-tool-carousel-overlay@overlay', [
 				dom.h('.chat-tool-carousel-title-group@titleGroup', [
 					dom.h('span.chat-tool-carousel-collapsed-title@collapsedTitle'),
 					dom.h('button.chat-tool-carousel-agent-label@agentLabel'),
 				]),
-				dom.h('.chat-tool-carousel-overlay-actions@overlayActions', [
+				dom.h(`.chat-tool-carousel-overlay-actions.${CHAT_CARD_HEADER_ACTIONS_CLASS}@overlayActions`, [
 					dom.h('.chat-tool-carousel-step-indicator@stepIndicator'),
 					dom.h('.chat-tool-carousel-nav-arrows@navArrows'),
 				]),
@@ -112,16 +113,16 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		this.allowAllButton.label = localize('allowAll', "Allow All");
 		this._register(this.allowAllButton.onDidClick(() => this.allowAll()));
 
-		this.expandContentButton = this._register(new Button(elements.overlayActions, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
-		this.expandContentButton.element.classList.add('chat-tool-carousel-header-button', 'chat-tool-carousel-expand-content-button');
+		this.expandContentButton = this._register(new Button(elements.overlayActions, { ...chatCardButtonStyles, secondary: true, supportIcons: true }));
+		this.expandContentButton.element.classList.add('chat-card-icon-button', 'chat-tool-carousel-header-button', 'chat-tool-carousel-expand-content-button');
 		this.expandContentButton.element.setAttribute('aria-controls', this.contentContainer.id);
 		this.updateExpandContentButton();
 		dom.hide(this.expandContentButton.element);
 		this._register(this.expandContentButton.onDidClick(() => this.toggleContentExpanded()));
 
-		this.dismissButton = this._register(new Button(elements.overlayActions, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
-		this.dismissButton.element.classList.add('chat-tool-carousel-dismiss-button');
-		this.dismissButton.label = `$(${Codicon.close.id})`;
+		this.dismissButton = this._register(new Button(elements.overlayActions, { ...chatCardButtonStyles, secondary: true, supportIcons: true }));
+		this.dismissButton.element.classList.add('chat-card-icon-button', 'chat-tool-carousel-dismiss-button');
+		this.dismissButton.label = `$(${Codicon.closeSmall.id})`;
 		const dismissButtonLabel = this.items.length === 1
 			? localize('skip', "Skip")
 			: localize('skipAll', "Skip All");
@@ -130,21 +131,21 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		this._register(this.dismissButton.onDidClick(() => this.skipAll()));
 
 		this.prevButton = this._register(new Button(elements.navArrows, {
-			...defaultButtonStyles,
+			...chatCardButtonStyles,
 			secondary: true,
 			supportIcons: true,
 		}));
-		this.prevButton.element.classList.add('chat-tool-carousel-nav-arrow');
+		this.prevButton.element.classList.add('chat-card-icon-button', 'chat-card-icon-button-strong', 'chat-tool-carousel-nav-arrow');
 		this.prevButton.label = `$(${Codicon.chevronLeft.id})`;
 		this.prevButton.element.setAttribute('aria-label', localize('previous', "Previous"));
 		this._register(this.prevButton.onDidClick(() => this.navigateRelative(-1)));
 
 		this.nextButton = this._register(new Button(elements.navArrows, {
-			...defaultButtonStyles,
+			...chatCardButtonStyles,
 			secondary: true,
 			supportIcons: true,
 		}));
-		this.nextButton.element.classList.add('chat-tool-carousel-nav-arrow');
+		this.nextButton.element.classList.add('chat-card-icon-button', 'chat-card-icon-button-strong', 'chat-tool-carousel-nav-arrow');
 		this.nextButton.label = `$(${Codicon.chevronRight.id})`;
 		this.nextButton.element.setAttribute('aria-label', localize('next', "Next"));
 		this._register(this.nextButton.onDidClick(() => this.navigateRelative(1)));
