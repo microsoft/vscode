@@ -6559,10 +6559,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const restore = svc.restoreSession(session);
 			await timeout(0);
-			// Restore reads per-session metadata before waiting on the catalogue, so
-			// counting reads here would only track scheduling. What must hold is that a
-			// session the provider cannot describe yet does not restore until the
-			// catalogue migration completes.
+			// Metadata reads are now made before the catalog wait, so counting them here would only track scheduling.
 			const hydratedBeforeMigration = !!svc.stateManager.getSessionState(session.toString());
 			agent.migrationGate.complete();
 			await restore;
@@ -6603,6 +6600,8 @@ suite('AgentService (node dispatcher)', () => {
 			class BackfillRegistersAgent extends MockAgent {
 				override readonly onDidDiscoverChats = Event.None;
 				readonly migrationGate = new DeferredPromise<void>();
+				/** Settles once restore has read the registry and reached the adoption probe. */
+				readonly adoptionProbed = new DeferredPromise<void>();
 				constructor(readonly backfilled: URI) { super('copilot'); }
 
 				override async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | undefined> {
@@ -6612,14 +6611,14 @@ suite('AgentService (node dispatcher)', () => {
 
 				// Not a legacy Copilot CLI chat, e.g. an external chat the GitHub app created.
 				async ensureChatAdopted(): Promise<IAgentChatAdoptionResult> {
+					if (!this.adoptionProbed.isSettled) {
+						this.adoptionProbed.complete();
+					}
 					return { adopted: false, eligible: false };
 				}
 			}
 
 			test('a session the catalog migration will register is not reported missing while that migration is in flight', async () => {
-				// The registry read happens before the (deferred) catalog wait, so a
-				// session known only once the backfill lands looks unregistered here.
-				// Reporting that as not-found is the sticky false miss #331721 fixed.
 				const svc = makeService();
 				const session = AgentSession.uri('copilot', 'registered-by-backfill');
 				const agent = disposables.add(new BackfillRegistersAgent(session));
@@ -6628,6 +6627,9 @@ suite('AgentService (node dispatcher)', () => {
 				getConfigurationService(svc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
 
 				const restore = svc.restoreSession(session);
+				// Restore must reach the unregistered-session guard while the backfill that
+				// would register it is still gated.
+				await agent.adoptionProbed.p;
 				agent.migrationGate.complete();
 
 				await restore;

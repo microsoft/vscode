@@ -4687,9 +4687,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// created, hidden while `showExternalSessions` is `none`) would be
 		// materialized here and thereby claimed away from the extension host's list.
 		if (!registeredSession && migrateLegacyEnabled && agent.ensureChatAdopted && !adoption.eligible && !adoption.native) {
-			// The registry was read before the deferred catalog wait, so the backfill
-			// may still be about to register this session. Absence is only
-			// authoritative once that catalog is readable (#331721).
+			// The registry was read before the deferred catalog wait, so absence is only authoritative once that catalog is readable (#331721).
 			await awaitCatalogReadable();
 			registeredSession = (await this._listRegisteredSessions()).find(entry => entry.session.toString() === sessionStr);
 			external = registeredSession?.external ?? external;
