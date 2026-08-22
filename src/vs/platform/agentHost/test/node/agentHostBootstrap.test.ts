@@ -25,7 +25,7 @@ import { AgentHostProxyConfigKey } from '../../common/agentHostSchema.js';
 suite('agentHostBootstrap', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('constructs the renderer BYOK runtime with strict dependency injection', async () => {
+	test('constructs the renderer BYOK runtime', async () => {
 		const testDisposables = disposables.add(new DisposableStore());
 		const userDataPath = mkdtempSync(join(tmpdir(), 'agent-host-bootstrap-'));
 		mkdirSync(join(userDataPath, 'User', 'globalStorage'), { recursive: true });
@@ -46,6 +46,8 @@ suite('agentHostBootstrap', () => {
 		});
 		testDisposables.add(runtime);
 
+		// Whole-graph dependency completeness is checked statically in
+		// agentHostServices.test.ts without forcing every descriptor to construct.
 		assert.ok(runtime.instantiationService.invokeFunction(accessor => accessor.get(IAgentSdkDownloader)));
 	});
 

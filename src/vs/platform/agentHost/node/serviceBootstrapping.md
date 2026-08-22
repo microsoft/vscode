@@ -46,9 +46,10 @@ These are the intended extension points for new work:
 - one primary runtime graph, with explicitly scoped child graphs allowed;
 - foundation, core-service, host-service, composition, contribution, and
   entry-activation placement categories;
-- exact leading static arguments for descriptors;
-- eager startup resolution of every descriptor registered in the collection;
-- collection sealing after bootstrap registration;
+- registration-time static-argument validation for descriptors;
+- lazy descriptor construction on first resolution;
+- named resolution sites for descriptors whose constructors register behavior
+  required independently of their direct consumers;
 - one disposal owner per object and phase-ordered runtime teardown;
 - typed test overrides that reuse the production core registration list.
 
@@ -73,8 +74,6 @@ async function createAgentHostRuntime(options) {
 	registerAgentHostCoreServices(services, foundation);
 	registerAgentHostHostServices(services, foundation);
 	const instantiationService = new InstantiationService(services, true);
-	services.seal();
-	services.instantiateRegisteredDescriptors(instantiationService);
 
 	const composition = createAgentServiceComposition(instantiationService, foundation);
 	const contributions = activateAgentHostContributions(instantiationService, composition);
@@ -120,27 +119,30 @@ existing file first needs it.
 - Do not use `supportsDelayedInstantiation`. In Node it schedules construction
   on a later macrotask, which makes startup failures and disposal timing
   nondeterministic. An eager descriptor is already lazy until first resolved.
-- Production eagerly resolves every descriptor recorded by the collection before
-  composition. Concrete instances are already constructed and are not read again
-  during this pass. This preserves eager descriptor construction while removing
-  redundant reads of existing instances. A descriptor registered in this graph
-  is therefore always eager; use a concrete test override rather than a
-  descriptor when a test must avoid construction.
-- Descriptor constructors must not read `AgentServiceCallbackAdapter.value`:
-  eager resolution runs before `AgentService` binds the adapter.
+- Descriptors are lazy and resolve through normal DI demand. If a constructor
+  registers a listener or callback whose behavior is required independently of
+  direct service calls, resolve it at a named composition or activation site,
+  explain why there, and cover the behavior with a test. Prefer designs that arm
+  behavior on first use.
+- Descriptor constructors must not read `AgentServiceCallbackAdapter.value`.
+  Lazy resolution order is not fixed, so doing so would fail nondeterministically
+  depending on whether `AgentService` has bound the adapter.
 - Never call `createInstance()` for a class registered as a descriptor.
 - Migrate a service atomically: add its descriptor and remove its old
   imperative construction in the same commit.
 
-## Sealing
+## Registration window
 
-The collection is sealed only after every concrete instance and descriptor,
-including awaited telemetry, has been registered. After sealing:
+The service collection is created, populated, and dropped inside
+`createAgentHostRuntime` or `createTestAgentService`. It is never returned,
+stored, or handed to another component; `InstantiationService` keeps its
+reference private. This ownership boundary, rather than a runtime seal, makes
+post-bootstrap registration unavailable.
 
-- new service IDs are rejected;
-- replacements are rejected;
-- descriptor-to-instance replacement by `InstantiationService` is allowed only
-  during the collection-controlled eager-instantiation pass.
+A weaker seal that rejects new IDs while allowing descriptor-to-instance
+write-back is technically possible. It is intentionally omitted because the
+collection never escapes bootstrap, leaving little value in another lifecycle
+state machine.
 
 Dynamic feature registration belongs in a service-owned registry or the
 contribution phase, not in the service collection.
@@ -160,17 +162,25 @@ Never add a descriptor-created service to another `DisposableStore`.
 instantiation service, then foundation. Entry-point resources and logging are
 disposed outside the runtime.
 
+A descriptor that is never resolved is never constructed and therefore never
+disposed. `InstantiationService` disposes only the instances it creates.
+
 ## Test overrides
 
 `createTestAgentService` builds the shared foundation and core graph with typed
 overrides; defaults never overwrite an existing override. Its returned
 `AgentService` disposes the whole test graph.
 
+The test graph does not force construction of otherwise unused descriptors.
+Whole-graph dependency completeness and cycle freedom are checked statically in
+`agentHostServices.test.ts`; descriptor enumeration belongs in that test, not
+in a production collection accessor.
+
 The compatibility graph intentionally defaults to:
 
 - no worktree isolation, preserving the historical degraded path;
-- `NullAgentEditAttributionService`, avoiding background git polling in
-  unrelated fake-timer tests.
+- `NullAgentEditAttributionService`, keeping telemetry attribution out of the
+  default test graph;
 - the caller-supplied git service required by core git/changeset descriptors.
 
 Production and targeted graph tests still resolve the real implementations.
@@ -221,7 +231,9 @@ unrelated services.
 
 ## Anti-patterns
 
-- `services.set(...)` after the collection is sealed.
+- Handing the service collection to anything outside the bootstrap function.
+- A descriptor whose constructor registers required behavior without a named,
+  documented resolution site.
 - A parallel root graph that duplicates services owned by the primary runtime.
 - Public service getters on `AgentService`.
 - Adding another post-construction `setX(...)` to fix ordinary ordering.
@@ -234,7 +246,10 @@ unrelated services.
 
 - [ ] Classify it as foundation, core descriptor, host descriptor, composition, contribution, or entry activation.
 - [ ] Keep constructor service parameters trailing and static-argument arity exact.
-- [ ] Register and eagerly resolve its service ID in the appropriate graph.
+- [ ] Register its service ID in the appropriate graph.
+- [ ] If its constructor registers required behavior, add a documented
+  resolution site and a test proving that behavior is armed after runtime
+  creation.
 - [ ] If using a child graph, document its scope, parent, and disposal owner.
 - [ ] Give it exactly one disposal owner.
 - [ ] Add a typed test override only when default test behavior must differ.

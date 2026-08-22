@@ -155,8 +155,6 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 			byok: options.byok,
 		});
 		instantiationService = new InstantiationService(services, /*strict*/ true);
-		services.seal();
-		services.instantiateRegisteredDescriptors(instantiationService);
 		const agentServiceComposition = instantiationService.invokeFunction(accessor => createAgentServiceComposition(
 			agentServiceOptions,
 			accessor,

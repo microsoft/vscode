@@ -109,8 +109,12 @@ export function createAgentServiceComposition(
 			cancelTurn: (session, turnId) => callbackAdapter.value.cancelAgentMergeTurn(session, turnId),
 			getAutonomousSessionConfig: (session, config) => callbackAdapter.value.getAutonomousSessionConfig(session, config),
 		}));
+		// Resolve the checkpoint service even before first use so its session-data
+		// deletion listener always removes checkpoint refs before the database disappears.
 		const checkpointService = accessor.get(IAgentHostCheckpointService);
 		const changesetOperationService = accessor.get(IAgentHostChangesetOperationService);
+		// Resolve the review service even before first use so its session-data
+		// deletion listener always removes reviewed refs before the database disappears.
 		const reviewService = accessor.get(IAgentHostReviewService);
 		const changesets = accessor.get(IAgentHostChangesetService);
 		const changesetCoordinator = owned.add(instantiationService.createInstance(AgentHostChangesetCoordinator));

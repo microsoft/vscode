@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SyncDescriptor } from '../../instantiation/common/descriptors.js';
-import { IInstantiationService, ServiceIdentifier, _util } from '../../instantiation/common/instantiation.js';
+import { ServiceIdentifier, _util } from '../../instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { GitHubService, IGitHubService } from '../../github/common/githubService.js';
 import type { GitHubServiceOptions } from '../../github/common/githubTypes.js';
@@ -60,66 +60,9 @@ import { IAgentHostWorktreeIsolation, WorktreeIsolation } from './shared/worktre
  * existing imperative registrations migrate to descriptors.
  */
 export class AgentHostServiceCollection extends ServiceCollection {
-	private readonly descriptorIds = new Set<ServiceIdentifier<unknown>>();
-	private sealed = false;
-	private instantiated = false;
-	private instantiating = false;
-
-	constructor(...entries: ConstructorParameters<typeof ServiceCollection>) {
-		super();
-		for (const [id, service] of entries) {
-			this.set(id, service);
-		}
-	}
-
-	/**
-	 * IDs that have been registered as descriptors, in registration order.
-	 * Instances are excluded. The returned snapshot retains an ID after its
-	 * descriptor resolves, and registering the same ID again does not reorder it.
-	 */
-	get registeredDescriptorIds(): readonly ServiceIdentifier<unknown>[] {
-		return [...this.descriptorIds];
-	}
-
-	seal(): void {
-		this.sealed = true;
-	}
-
-	instantiateRegisteredDescriptors(instantiationService: IInstantiationService): void {
-		if (!this.sealed) {
-			throw new Error('Agent Host service collection must be sealed before instantiating registered descriptors');
-		}
-		if (this.instantiated) {
-			throw new Error('Agent Host registered descriptors have already been instantiated');
-		}
-		if (this.get(IInstantiationService) !== instantiationService) {
-			throw new Error('Agent Host registered descriptors must be instantiated by the collection instantiation service');
-		}
-		this.instantiated = true;
-		const ids = [...this.descriptorIds];
-		this.instantiating = true;
-		try {
-			instantiationService.invokeFunction(accessor => {
-				for (const id of ids) {
-					accessor.get(id);
-				}
-			});
-		} finally {
-			this.instantiating = false;
-		}
-	}
-
 	override set<T>(id: ServiceIdentifier<T>, instanceOrDescriptor: T | SyncDescriptor<T>): T | SyncDescriptor<T> {
-		if (this.sealed) {
-			const current = this.get(id);
-			const isDescriptorResolution = this.instantiating && current instanceof SyncDescriptor && instanceOrDescriptor instanceof current.ctor;
-			if (!isDescriptorResolution) {
-				throw new Error(`Agent Host service collection is sealed: ${id}`);
-			}
-		}
 		if (instanceOrDescriptor instanceof SyncDescriptor) {
 			assertExactStaticArguments(instanceOrDescriptor);
-			this.descriptorIds.add(id);
 		}
 		return super.set(id, instanceOrDescriptor);
 	}

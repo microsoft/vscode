@@ -108,8 +108,6 @@ export function createTestAgentService(
 		copilotApiService,
 	});
 	const instantiationService = new InstantiationService(services, /*strict*/ true);
-	services.seal();
-	services.instantiateRegisteredDescriptors(instantiationService);
 	const composition = instantiationService.invokeFunction(accessor => createAgentServiceComposition(
 		options,
 		accessor,
