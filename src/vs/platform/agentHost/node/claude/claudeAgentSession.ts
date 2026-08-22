@@ -16,6 +16,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
+import { toHostLocalUri } from '../../common/agentHostUri.js';
 import { ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { ClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { ClaudeRuntimeEffortLevel, toRuntimeEffortLevel, resolveClaudeEffort } from '../../common/claudeModelConfig.js';
@@ -220,6 +221,20 @@ export class ClaudeAgentSession extends Disposable {
 	get workingDirectories(): readonly URI[] | undefined {
 		const primary = this.workingDirectory;
 		return primary ? [primary, ...this._desiredAdditionalDirectories] : undefined;
+	}
+
+	/**
+	 * {@link workingDirectories} in this host's own namespace, for reads the host
+	 * performs itself. Anything sent to the client keeps the unconverted form.
+	 */
+	private get _hostLocalWorkingDirectories(): readonly URI[] | undefined {
+		return this.workingDirectories?.map(toHostLocalUri);
+	}
+
+	/** Host-local {@link workingDirectory}. See {@link _hostLocalWorkingDirectories}. */
+	private get _hostLocalWorkingDirectory(): URI | undefined {
+		const primary = this.workingDirectory;
+		return primary ? toHostLocalUri(primary) : undefined;
 	}
 	private readonly _customizationWatcher = this._register(new MutableDisposable<DisposableStore>());
 	private _mcpDiscovery: SessionMcpDiscovery | undefined;
@@ -1465,10 +1480,10 @@ export class ClaudeAgentSession extends Disposable {
 		const { synced } = this.clientCustomizationsDiff.model.state.get();
 		const userHome = this._environmentService.userHome;
 		const [multiRoot, rules, mcpServers, hooks] = await Promise.all([
-			discoverClaudeMultiRootCustomizations(this.workingDirectories, userHome, this._fileService, this._logService),
-			scanClaudeRules(this.workingDirectory, userHome, this._fileService),
-			scanClaudeMcpServers(this.workingDirectory, userHome, this._fileService),
-			scanClaudeHooks(this.workingDirectory, userHome, this._fileService),
+			discoverClaudeMultiRootCustomizations(this._hostLocalWorkingDirectories, userHome, this._fileService, this._logService),
+			scanClaudeRules(this._hostLocalWorkingDirectory, userHome, this._fileService),
+			scanClaudeMcpServers(this._hostLocalWorkingDirectory, userHome, this._fileService),
+			scanClaudeHooks(this._hostLocalWorkingDirectory, userHome, this._fileService),
 		]);
 
 		// Post-materialize, the live SDK snapshot filters the disk set down to

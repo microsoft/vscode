@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { FileChangeType, FileSystemProviderErrorCode, FileType, IFileChange, toFileSystemProviderErrorCode } from '../../../files/common/files.js';
 import { AgentHostFileSystemProvider, agentHostRemotePath, agentHostUri, type IRemoteFilesystemConnection } from '../../common/agentHostFileSystemProvider.js';
 import { remoteAgentHostSessionTypeId } from '../../common/agentHostSessionType.js';
-import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../../common/agentHostUri.js';
+import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri, toAgentHostUri, toHostLocalUri } from '../../common/agentHostUri.js';
 import { ContentEncoding, ResourceType, type CreateResourceWatchParams, type ResourceCopyParams, type ResourceListResult, type ResourceMkdirParams, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult } from '../../common/state/protocol/commands.js';
 import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
 import { ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -954,5 +954,48 @@ suite('AgentHostFileSystemProvider - resolve / mkdir / copy / watch', () => {
 		assert.strictEqual(connection.watchCalls.length, 1, 'watch attached after late registration');
 		assert.strictEqual(received.length, 1);
 		assert.strictEqual(received[0][0].resource.toString(), agentHostUri('never-registered', '/path/late.txt').toString());
+	});
+});
+
+suite('toHostLocalUri', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('a remote window\'s working directory is reinterpreted as a local path', () => {
+		// What a dev-container window hands the session.
+		const fromClient = URI.parse('vscode-remote://dev-container%2Babc/workspace/printstream');
+
+		assert.strictEqual(toHostLocalUri(fromClient).toString(), URI.file('/workspace/printstream').toString());
+	});
+
+	test('query and fragment survive the conversion', () => {
+		const withParts = URI.parse('vscode-remote://dev-container%2Babc/workspace/repo/x.ts?a=1#L4');
+
+		const local = toHostLocalUri(withParts);
+		assert.deepStrictEqual(
+			{ scheme: local.scheme, path: local.path, query: local.query, fragment: local.fragment },
+			{ scheme: 'file', path: '/workspace/repo/x.ts', query: 'a=1', fragment: 'L4' },
+		);
+	});
+	test('a scheme that is not the remote namespace is left alone', () => {
+		// Stripping the authority here would name a local file that is not there.
+		const wrapped = URI.parse('vscode-agent-host://b64-abc/workspace/repo');
+		const untitled = URI.parse('untitled:Untitled-1');
+
+		assert.strictEqual(toHostLocalUri(wrapped), wrapped);
+		assert.strictEqual(toHostLocalUri(untitled), untitled);
+	});
+	test('a local file: URI is returned unchanged', () => {
+		const local = URI.file('/home/me/project');
+
+		assert.strictEqual(toHostLocalUri(local), local, 'a local window must not be rewritten');
+	});
+
+	test('the path survives, which is what both namespaces agree on', () => {
+		// materialize already relies on this by passing `fsPath` to the SDK as cwd.
+		const nested = URI.parse('vscode-remote://dev-container%2Babc/workspace/repo/.claude/commands');
+
+		assert.strictEqual(toHostLocalUri(nested).path, '/workspace/repo/.claude/commands');
+		assert.strictEqual(toHostLocalUri(nested).authority, '', 'the client authority must not leak into a host read');
 	});
 });
