@@ -6569,7 +6569,13 @@ suite('AgentService (node dispatcher)', () => {
 				registeredSessions: (await svc.getRegisteredSessions()).map(resource => resource.toString()),
 				restored: !!svc.stateManager.getSessionState(session.toString()),
 			}, {
-				metadataCallsBeforeMigration: 0,
+				// Restore reads per-session metadata once before awaiting the catalogue
+				// migration (the lazy-catalogue optimization: a session that resolves
+				// from its own lookup never pays for warming the whole catalogue). The
+				// pre-migration read misses here, so restore still waits for migration
+				// before hydrating — see the `#331648` suite below, which asserts the
+				// same single pre-wait `metadataRead: 1`.
+				metadataCallsBeforeMigration: 1,
 				metadataReadAfterMigration: true,
 				registeredSessions: [session.toString()],
 				restored: true,
