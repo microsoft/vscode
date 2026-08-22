@@ -136,6 +136,12 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			}
 		}));
 
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatAIDisabledSettingId)) {
+				this._onEnablementChanged.fire(this.extensionsManager.extensions.filter(ext => ext.identifier.id.toLowerCase() === this._chatExtensionId));
+			}
+		}));
+
 		// delay notification for extensions disabled until workbench restored
 		if (this.allUserExtensionsDisabled) {
 			this.lifecycleService.when(LifecyclePhase.Eventually).then(() => {
@@ -150,6 +156,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		}
 
 		this.ensureChatExtensionInitialDisabledState();
+		this.reconcileChatExtensionGlobalDisablement();
 	}
 
 	private ensureChatExtensionInitialDisabledState(): void {
@@ -188,6 +195,24 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 				}
 			}
 		}
+	}
+
+	private reconcileChatExtensionGlobalDisablement(): void {
+		if (!this._chatExtensionId) {
+			return;
+		}
+
+		// A globally disabled chat extension applies to every window on this machine, whereas
+		// `chat.disableAIFeatures` applies only where its configuration resolves. Releases that
+		// implemented the setting as a global disable leak into windows the setting does not cover,
+		// so drop the entry that the derived enablement state already accounts for.
+		if (this.configurationService.getValue(ChatAIDisabledSettingId) !== true || !this._isDisabledGlobally({ id: this._chatExtensionId })) {
+			return;
+		}
+
+		this.logService.debug('Removing global disablement of builtin chat extension in favor of chat.disableAIFeatures');
+		this.globalExtensionEnablementService.enableExtension({ id: this._chatExtensionId }, SOURCE)
+			.catch(err => this.logService.error('Failed to remove global disablement of builtin chat extension', err));
 	}
 
 	private get hasWorkspace(): boolean {
@@ -278,6 +303,8 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 				throw new Error(localize('cannot change enablement virtual workspace', "Cannot change enablement of {0} extension because it does not support virtual workspaces", extension.manifest.displayName || extension.identifier.id));
 			case EnablementState.DisabledByExtensionKind:
 				throw new Error(localize('cannot change enablement extension kind', "Cannot change enablement of {0} extension because of its extension kind", extension.manifest.displayName || extension.identifier.id));
+			case EnablementState.DisabledByAIFeaturesSetting:
+				throw new Error(localize('cannot change enablement ai features', "Cannot change enablement of {0} extension because AI features are disabled in settings", extension.manifest.displayName || extension.identifier.id));
 			case EnablementState.DisabledByAllowlist:
 				throw new Error(localize('cannot change disallowed extension enablement', "Cannot change enablement of {0} extension because it is disallowed", extension.manifest.displayName || extension.identifier.id));
 			case EnablementState.DisabledByInvalidExtension:
@@ -497,6 +524,10 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			enablementState = EnablementState.DisabledByEnvironment;
 		}
 
+		else if (this._isDisabledByAIFeaturesSetting(extension)) {
+			enablementState = EnablementState.DisabledByAIFeaturesSetting;
+		}
+
 		else if (isEnabled && this._isDisabledByExtensionDependency(extension, extensions, workspaceType, computedEnablementStates)) {
 			enablementState = EnablementState.DisabledByExtensionDependency;
 		}
@@ -689,6 +720,12 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		}
 
 		return !this.extensionManifestPropertiesService.canExecuteOnSessionsWindow(extension.manifest);
+	}
+
+	private _isDisabledByAIFeaturesSetting(extension: IExtension): boolean {
+		return !!this._chatExtensionId
+			&& extension.identifier.id.toLowerCase() === this._chatExtensionId
+			&& this.configurationService.getValue(ChatAIDisabledSettingId) === true;
 	}
 
 	private _enableExtension(identifier: IExtensionIdentifier): Promise<boolean> {
