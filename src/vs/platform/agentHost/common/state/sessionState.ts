@@ -157,17 +157,9 @@ export interface UsageInfoMeta {
 	 * what a completed turn consumed in aggregate.
 	 */
 	turnTokenTotals?: readonly ITurnTokenTotal[];
-	/**
-	 * Per-model token totals attributed directly to the routed Agent Host turn.
-	 * Unlike {@link turnTokenTotals}, these exclude descendant sub-agent calls so
-	 * telemetry can sum a recursive turn tree without double-counting.
-	 */
+	/** Per-model token totals for this turn only, excluding descendant sub-agents (sum a tree without double-counting). */
 	directTurnTokenTotals?: readonly ITurnTokenTotal[];
-	/**
-	 * Copilot usage attributed directly to the routed Agent Host turn. The root
-	 * turn's ordinary {@link copilotUsage} remains inclusive of descendant work
-	 * for existing UI and billing semantics.
-	 */
+	/** Copilot usage for this turn only. The root's {@link copilotUsage} stays inclusive of descendants. */
 	directCopilotUsage?: {
 		readonly totalNanoAiu?: number;
 	};

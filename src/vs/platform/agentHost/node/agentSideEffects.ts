@@ -162,11 +162,7 @@ interface ISubagentSessionRef {
 interface ISubagentParentTurnTelemetryContext {
 	readonly parentTurnId: string | undefined;
 	readonly parentClientContext: IAgentHostClientTelemetryContext | undefined;
-	/**
-	 * The parent turn to report as the telemetry hierarchy edge. Set only when the
-	 * immediate parent chat is known and has an active turn; the edge is omitted
-	 * rather than guessed from the top-level chat.
-	 */
+	/** Hierarchy edge; set only when the immediate parent chat has an active turn, else omitted. */
 	readonly correlatedParentTurnId: string | undefined;
 	readonly initiatorClientId: string | undefined;
 }
@@ -1276,7 +1272,6 @@ export class AgentSideEffects extends Disposable {
 	): void {
 		const parentSessionUri = parseRequiredSessionUriFromChatUri(chatURI);
 		const subagentChatUri = buildSubagentChatUri(parentSessionUri, toolCallId);
-		// The spawning tool call lives in the immediate parent chat (top-level, or the parent subagent chat when nested).
 		const immediateParentChatUri = spawningToolParentId
 			? this._subagentChats.get(chatURI, spawningToolParentId)?.chatUri
 			: chatURI;

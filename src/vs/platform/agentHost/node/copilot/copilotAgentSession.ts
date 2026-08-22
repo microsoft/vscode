@@ -741,8 +741,6 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private readonly _parentToolCallIdsByAgentId = new Map<string, string>();
 	private readonly _rootTurnIdBySubagentToolCallId = new Map<string, string>();
-	// Completed children are removed immediately; unfinished background children
-	// retain their direct totals until the owning session is disposed.
 	private readonly _subagentDirectUsageByToolCallId = new Map<string, DirectUsageAccumulator>();
 	private readonly _lastSubagentUsageByToolCallId = new Map<string, UsageInfo>();
 	private readonly _activeSubagentAgentIds = new Set<string>();
@@ -4827,11 +4825,7 @@ export class CopilotAgentSession extends Disposable {
 			const mappedParentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 			const parentToolCallId = mappedParentToolCallId ?? e.data.parentToolCallId;
 			const isUnmappedSubagent = !!e.agentId && !parentToolCallId;
-			// Associate a genuinely mapping-less legacy `parentToolCallId` event with
-			// the current root. Never overwrite an existing mapping: a retained
-			// background child from an older root keeps its original owner, so its
-			// usage is not folded into whatever root happens to be active now.
-			// Spawn/resume already refresh ownership for real (re)associations.
+			// Never re-own an already-mapped child; that would fold an old child into a new root.
 			if (!mappedParentToolCallId && e.data.parentToolCallId && this._currentTurn.value
 				&& !this._rootTurnIdBySubagentToolCallId.has(e.data.parentToolCallId)) {
 				this._rootTurnIdBySubagentToolCallId.set(e.data.parentToolCallId, this._currentTurn.value.id);

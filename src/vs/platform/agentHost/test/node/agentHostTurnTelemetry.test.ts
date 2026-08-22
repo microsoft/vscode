@@ -663,8 +663,6 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 				},
 			},
 		}, subagentChatUri);
-		// Re-emitted usage replaces the prior cumulative snapshot rather than
-		// being added again.
 		fire({
 			type: ActionType.ChatUsage,
 			turnId: 'turn-subagent',

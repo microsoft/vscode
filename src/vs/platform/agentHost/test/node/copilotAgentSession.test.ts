@@ -3546,7 +3546,6 @@ suite('CopilotAgentSession', () => {
 	test('does not fold an old background child legacy usage into a newly active root', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 
-		// Spawn a background child under the first root so it owns `tc-legacy-bg`.
 		session.resetTurnState('turn-old-root');
 		mockSession.fire('subagent.started', {
 			toolCallId: 'tc-legacy-bg',
@@ -3556,7 +3555,6 @@ suite('CopilotAgentSession', () => {
 		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-legacy-bg' });
 		mockSession.fire('session.idle', { aborted: false } as SessionEventPayload<'session.idle'>['data']);
 
-		// A new root becomes active while the old child is still alive.
 		session.resetTurnState('turn-new-root');
 		mockSession.fire('assistant.usage', {
 			model: 'claude-opus-4.8',
@@ -3564,8 +3562,6 @@ suite('CopilotAgentSession', () => {
 			outputTokens: 2,
 		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
 
-		// The old child emits a legacy (agentId-less) usage event: it must stay
-		// attributed to its original root, not fold into the new root.
 		mockSession.fire('assistant.usage', {
 			model: 'gpt-5.5',
 			inputTokens: 100,
@@ -3574,7 +3570,6 @@ suite('CopilotAgentSession', () => {
 			copilotUsage: { totalNanoAiu: 400_000_000, tokenDetails: [] },
 		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
 
-		// No new-root inclusive usage may carry the child's model/tokens.
 		const newRootUsages = signals.filter((signal): signal is IAgentActionSignal =>
 			signal.kind === 'action'
 			&& signal.parentToolCallId === undefined
@@ -3589,7 +3584,6 @@ suite('CopilotAgentSession', () => {
 			]);
 		}
 
-		// The child's own direct usage is still reported on its child session.
 		const childUsage = signals.filter((signal): signal is IAgentActionSignal =>
 			signal.kind === 'action'
 			&& signal.parentToolCallId === 'tc-legacy-bg'
