@@ -20,12 +20,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import type { IAgent } from '../common/agent.js';
-import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
-import { createAgentHostTelemetryService, IAgentHostTelemetryService } from './agentHostTelemetryService.js';
-import { IAgentConfigurationService } from './agentConfigurationService.js';
-import { IAgentHostCompletions } from './agentHostCompletions.js';
-import { IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
-import { AgentHostStateManager } from './agentHostStateManager.js';
+import { createAgentHostTelemetryService } from './agentHostTelemetryService.js';
 import { AgentService, IAgentServiceOptions } from './agentService.js';
 import { createAgentServiceComposition } from './agentServiceComposition.js';
 import { activateAgentHostContributions } from './agentHostContributions.js';
@@ -58,34 +53,16 @@ export interface ICreateAgentHostRuntimeOptions {
 export interface IAgentHostRuntime extends IDisposable {
 	readonly instantiationService: IInstantiationService;
 	readonly agentService: AgentService;
-	readonly configurationService: IAgentConfigurationService;
-	readonly stateManager: AgentHostStateManager;
-	readonly customizationEnablementService: IAgentHostCustomizationEnablementService;
-	readonly completions: IAgentHostCompletions;
 	readonly agents: IObservable<readonly IAgent[]>;
 	readonly onDidStartTurn: Event<string>;
-	readonly fileService: IFileService;
-	readonly sessionDataService: ISessionDataService;
-	readonly proxyResolver: IAgentHostProxyResolver;
-	readonly telemetryService: IAgentHostTelemetryService;
-	readonly agentSdkDownloader: IAgentSdkDownloader;
 	readonly sdkDownloadProgress: Event<IAgentSdkDownloadProgress>;
 }
 
 class AgentHostRuntime extends Disposable implements IAgentHostRuntime {
 	readonly instantiationService: IInstantiationService;
 	readonly agentService: AgentService;
-	readonly configurationService: IAgentConfigurationService;
-	readonly stateManager: AgentHostStateManager;
-	readonly customizationEnablementService: IAgentHostCustomizationEnablementService;
-	readonly completions: IAgentHostCompletions;
 	readonly agents: IObservable<readonly IAgent[]>;
 	readonly onDidStartTurn: Event<string>;
-	readonly fileService: IFileService;
-	readonly sessionDataService: ISessionDataService;
-	readonly proxyResolver: IAgentHostProxyResolver;
-	readonly telemetryService: IAgentHostTelemetryService;
-	readonly agentSdkDownloader: IAgentSdkDownloader;
 	readonly sdkDownloadProgress: Event<IAgentSdkDownloadProgress>;
 
 	constructor(
@@ -95,17 +72,8 @@ class AgentHostRuntime extends Disposable implements IAgentHostRuntime {
 		super();
 		this.instantiationService = runtime.instantiationService;
 		this.agentService = runtime.agentService;
-		this.configurationService = runtime.configurationService;
-		this.stateManager = runtime.stateManager;
-		this.customizationEnablementService = runtime.customizationEnablementService;
-		this.completions = runtime.completions;
 		this.agents = runtime.agents;
 		this.onDidStartTurn = runtime.onDidStartTurn;
-		this.fileService = runtime.fileService;
-		this.sessionDataService = runtime.sessionDataService;
-		this.proxyResolver = runtime.proxyResolver;
-		this.telemetryService = runtime.telemetryService;
-		this.agentSdkDownloader = runtime.agentSdkDownloader;
 		this.sdkDownloadProgress = runtime.sdkDownloadProgress;
 		this._register(runtime.agentService);
 		this._register(runtime.instantiationService);
@@ -118,10 +86,10 @@ class AgentHostRuntime extends Disposable implements IAgentHostRuntime {
  *
  * Add services directly to this bootstrap only when they require runtime or
  * environment values, asynchronous construction, an entry-point-selected
- * implementation, or must exist before the instantiation service. Shared,
- * synchronous session-orchestration services belong in
- * {@link createAgentServiceComposition}; process listeners, transports,
- * providers, and schedulers belong in the entry point that activates them.
+ * implementation, or must exist before the instantiation service. Shared
+ * synchronous services belong in `agentHostServices.ts`; callback-bound roots
+ * belong in {@link createAgentServiceComposition}; process listeners,
+ * transports, providers, and schedulers belong in the activating entry point.
  */
 export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOptions): Promise<IAgentHostRuntime> {
 	const { environmentService, productService, logService, loggerService } = options;
@@ -159,7 +127,7 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 			providerConfigurations: agentServiceOptions.providerConfigurations,
 			transientProxyConfiguration: options.transientProxyConfiguration,
 		});
-		const { proxyResolver, fetchFn } = foundation;
+		const { fetchFn } = foundation;
 		const telemetryService = await createAgentHostTelemetryService({
 			environmentService,
 			productService,
@@ -197,7 +165,6 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		));
 		agentServiceComposition.setContributions(instantiationService.invokeFunction(accessor => activateAgentHostContributions(accessor, instantiationService!)));
 		agentService = agentServiceComposition.agentService;
-		const { configurationService } = agentServiceComposition;
 		const worktreeIsolation = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostWorktreeIsolation));
 		if (!(worktreeIsolation instanceof WorktreeIsolation)) {
 			throw new Error('The production Agent Host requires the concrete WorktreeIsolation service');
@@ -209,23 +176,14 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		return new AgentHostRuntime({
 			instantiationService,
 			agentService,
-			configurationService,
-			stateManager: agentServiceComposition.stateManager,
-			customizationEnablementService: agentServiceComposition.customizationEnablementService,
-			completions: agentServiceComposition.completions,
 			agents: agentServiceComposition.agents,
 			onDidStartTurn: agentServiceComposition.onDidStartTurn,
-			fileService,
-			sessionDataService,
-			proxyResolver,
-			telemetryService,
-			agentSdkDownloader,
 			sdkDownloadProgress: agentSdkDownloader.onDidDownloadProgress,
 		}, infrastructure);
 	} catch (error) {
 		agentService?.dispose();
-		infrastructure.dispose();
 		instantiationService?.dispose();
+		infrastructure.dispose();
 		throw error;
 	}
 }

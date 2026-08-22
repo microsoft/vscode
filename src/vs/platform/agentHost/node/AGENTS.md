@@ -6,11 +6,7 @@
 
 # Agent Host service construction
 
-> **Status: IN PROGRESS** (2026-08-21)
->
-> The runtime is migrating from imperative service registration to the model
-> described here. Until this status is `CURRENT`, follow the target rules for
-> new code and preserve each intermediate commit's working construction path.
+> **Status: CURRENT** (2026-08-21)
 
 ## One graph
 
@@ -30,9 +26,9 @@ graphs.
 ```ts
 async function createAgentHostRuntime(options) {
 	const services = new AgentHostServiceCollection();
-	const foundation = createPreTelemetryFoundation(options, services);
-	const telemetry = await createTelemetry(foundation);
-	completeFoundation(foundation, telemetry, services);
+	const foundation = createAgentServiceFoundation(options, services);
+	const telemetry = await createAgentHostTelemetryService(foundation);
+	services.set(ITelemetryService, telemetry);
 
 	const coreIds = registerAgentHostCoreServices(services, foundation);
 	const hostIds = registerAgentHostHostServices(services, foundation);
@@ -42,7 +38,8 @@ async function createAgentHostRuntime(options) {
 
 	const composition = createAgentServiceComposition(instantiationService, foundation);
 	const contributions = activateAgentHostContributions(instantiationService, composition);
-	wireProductionWorktree(instantiationService, composition);
+	composition.setContributions(contributions);
+	wireProductionWorktree(instantiationService, composition.agentService);
 
 	return new AgentHostRuntime(foundation, instantiationService, composition, contributions);
 }
@@ -50,14 +47,14 @@ async function createAgentHostRuntime(options) {
 
 Tests use the same synchronous foundation, core registrations, and composition,
 but supply telemetry and typed overrides directly, skip production host
-services, and opt into worktree wiring explicitly.
+services, and preserve the historical no-worktree path.
 
 ## Where does a new object go?
 
 | If the object... | Put it in | Construction |
 |---|---|---|
 | must exist before DI, performs bootstrap I/O, or needs entry-point inputs | `agentHostBootstrap.ts` foundation | concrete instance registered before sealing |
-| is shared by production and AgentService tests and depends only on shared services | `registerAgentHostCoreServices` | local `SyncDescriptor` |
+| is shared by production and AgentService tests | `registerAgentHostCoreServices` | local `SyncDescriptor`; tests must supply any required host-facing dependency override |
 | needs production environment, sandbox, SDK, plugin, or provider-host inputs | `registerAgentHostHostServices` | local descriptor or selected concrete null implementation |
 | needs a back-reference to `AgentService` | `agentServiceComposition.ts` | explicit callback seam |
 | registers providers, handlers, listeners, or other disposable behavior after construction | `agentHostContributions.ts` | create and immediately register in its returned store |
@@ -110,15 +107,16 @@ disposed outside the runtime.
 
 ## Test overrides
 
-Tests pass typed overrides into `createTestAgentHostGraph`; defaults never
-overwrite an existing override. `createTestAgentService` remains a compatibility
-wrapper whose returned `AgentService` disposes the whole test graph.
+`createTestAgentService` builds the shared foundation and core graph with typed
+overrides; defaults never overwrite an existing override. Its returned
+`AgentService` disposes the whole test graph.
 
 The compatibility graph intentionally defaults to:
 
 - no worktree isolation, preserving the historical degraded path;
 - `NullAgentEditAttributionService`, avoiding background git polling in
   unrelated fake-timer tests.
+- the caller-supplied git service required by core git/changeset descriptors.
 
 Production and targeted graph tests still resolve the real implementations.
 
@@ -127,8 +125,8 @@ Production and targeted graph tests still resolve the real implementations.
 - `AgentServiceCallbackAdapter` is the explicit late-binding seam for
   responsibilities still owned by `AgentService`.
 - `AgentService.setWorktreeIsolation` is the sole post-composition
-  back-reference bridge. Production wires it after composition; tests only when
-  given a concrete `WorktreeIsolation`.
+  back-reference bridge. Production wires the host descriptor after
+  composition; the default test graph intentionally omits it.
 - State manager, configuration, authentication, and GitHub endpoint remain
   concrete foundations because their constructor shapes or pre-telemetry
   ordering are not descriptor-safe.

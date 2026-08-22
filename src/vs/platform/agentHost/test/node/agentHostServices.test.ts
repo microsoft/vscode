@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { URI } from '../../../../base/common/uri.js';
 import { SyncDescriptor } from '../../../instantiation/common/descriptors.js';
@@ -13,6 +14,7 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
 import { NullByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { AgentHostServiceCollection, registerAgentHostCoreServices, registerAgentHostHostServices } from '../../node/agentHostServices.js';
+import { IAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 
 const ITestService = createDecorator<ITestService>('agentHostTestService');
 const IReplacementService = createDecorator<ITestService>('agentHostReplacementService');
@@ -25,6 +27,20 @@ interface ITestService {
 class TestService implements ITestService {
 	declare readonly _serviceBrand: undefined;
 	readonly value = 1;
+}
+
+class DisposableTestService extends Disposable implements ITestService {
+	declare readonly _serviceBrand: undefined;
+	readonly value = 1;
+
+	constructor(private readonly onDispose: () => void) {
+		super();
+	}
+
+	override dispose(): void {
+		this.onDispose();
+		super.dispose();
+	}
 }
 
 suite('AgentHostServiceCollection', () => {
@@ -99,7 +115,7 @@ suite('AgentHostServiceCollection', () => {
 			return {
 				name: descriptor.ctor.name,
 				staticArguments: descriptor.staticArguments.length,
-				firstServiceArgument: dependencies[0]?.index ?? descriptor.staticArguments.length,
+				firstServiceArgument: dependencies[0]?.index ?? 0,
 			};
 		});
 
@@ -136,5 +152,49 @@ suite('AgentHostServiceCollection', () => {
 			preserved: true,
 			returned: false,
 		});
+	});
+
+	test('keeps worktree isolation production-only', () => {
+		const services = new AgentHostServiceCollection();
+		const coreIds = registerAgentHostCoreServices(services, {
+			storageResource: undefined,
+			fetchFn: globalThis.fetch,
+			gitHubServiceOptions: {
+				endpoint: {
+					onDidChange: Event.None,
+					getApiBaseUri: () => 'https://api.github.com',
+					getGraphQlUri: () => 'https://api.github.com/graphql',
+				},
+				tokenProvider: { getToken: () => undefined },
+				fetch: globalThis.fetch,
+			},
+		});
+		const hostIds = registerAgentHostHostServices(services, {
+			userDataPath: URI.file('/user-data'),
+			fetchFn: globalThis.fetch,
+			byok: { kind: 'renderer', bridgeRegistry: new NullByokLmBridgeRegistry() },
+		});
+
+		assert.deepStrictEqual({
+			core: coreIds.includes(IAgentHostWorktreeIsolation),
+			host: hostIds.includes(IAgentHostWorktreeIsolation),
+		}, {
+			core: false,
+			host: true,
+		});
+	});
+
+	test('descriptor-created services have one disposal owner', () => {
+		const services = new AgentHostServiceCollection();
+		let disposeCount = 0;
+		services.set(ITestService, new SyncDescriptor(DisposableTestService, [() => disposeCount++]));
+		const instantiationService = disposables.add(new InstantiationService(services, true));
+		services.seal();
+		instantiationService.invokeFunction(accessor => accessor.get(ITestService));
+
+		instantiationService.dispose();
+		instantiationService.dispose();
+
+		assert.strictEqual(disposeCount, 1);
 	});
 });

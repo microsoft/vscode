@@ -19,7 +19,9 @@ import { AgentHostClaudeAgentEnabledEnvVar, AgentHostCodexAgentEnabledEnvVar, Ag
 import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AgentModelRefreshScheduler, MODEL_REFRESH_INTERVAL_MS } from './agentModelRefreshScheduler.js';
 import { AgentService } from './agentService.js';
-import { AgentHostStateManager } from './agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
+import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { IAgentHostCompletions } from './agentHostCompletions.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
 import { ClaudeAgent } from './claude/claudeAgent.js';
 import { ClaudeSdkPackage } from './claude/claudeAgentSdkService.js';
@@ -27,7 +29,7 @@ import { CodexAgent, CodexSdkPackage } from './codex/codexAgent.js';
 import { createCodexProviderConfiguration } from './codex/codexProviderConfiguration.js';
 import { ByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
 import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
-import { type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
+import { IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
 import { AgentHostClientConnectionTelemetryTracker } from './agentHostClientConnectionTelemetry.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
@@ -55,6 +57,7 @@ import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, createAgentHostClientByokLmConnectio
 import { AGENT_HOST_CLIENT_PROXY_CHANNEL, createAgentHostClientProxyConnection } from '../common/agentHostClientProxyChannel.js';
 import { join } from '../../../base/common/path.js';
 import ErrorTelemetry from '../../telemetry/node/errorTelemetry.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentHostLaunchKindEnvVar, readAgentHostLaunchKind, type AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
 
 // Entry point for the agent host utility process.
@@ -106,6 +109,8 @@ async function startAgentHost(): Promise<void> {
 	let agentService: AgentService;
 	let instantiationService!: IInstantiationService;
 	let fileService!: IFileService;
+	let stateManager!: AgentHostStateManager;
+	let completionTriggerCharacters!: readonly string[];
 	// Hoisted out of the `try` below so the protocol handlers (constructed
 	// after the block) can forward agent-SDK download progress to clients.
 	let sdkDownloadProgress: Event<IAgentSdkDownloadProgress> | undefined;
@@ -127,12 +132,23 @@ async function startAgentHost(): Promise<void> {
 		});
 		disposables.add(runtime);
 		agentService = runtime.agentService;
-		const agentConfigurationService = runtime.configurationService;
 		instantiationService = runtime.instantiationService;
-		fileService = runtime.fileService;
-		proxyResolver = runtime.proxyResolver;
-		errorTelemetry.value = new ErrorTelemetry(runtime.telemetryService);
-		const agentSdkDownloader = runtime.agentSdkDownloader;
+		const runtimeServices = instantiationService.invokeFunction(accessor => ({
+			configurationService: accessor.get(IAgentConfigurationService),
+			fileService: accessor.get(IFileService),
+			proxyResolver: accessor.get(IAgentHostProxyResolver),
+			telemetryService: accessor.get(ITelemetryService),
+			agentSdkDownloader: accessor.get(IAgentSdkDownloader),
+			stateManager: accessor.get(IAgentHostStateManager),
+			completions: accessor.get(IAgentHostCompletions),
+		}));
+		const agentConfigurationService = runtimeServices.configurationService;
+		fileService = runtimeServices.fileService;
+		proxyResolver = runtimeServices.proxyResolver;
+		stateManager = runtimeServices.stateManager;
+		completionTriggerCharacters = runtimeServices.completions.triggerCharacters;
+		errorTelemetry.value = new ErrorTelemetry(runtimeServices.telemetryService);
+		const agentSdkDownloader = runtimeServices.agentSdkDownloader;
 		sdkDownloadProgress = runtime.sdkDownloadProgress;
 		agentService.registerProvider(instantiationService.createInstance(CopilotAgent));
 		// Claude and Codex providers are gated on two things:
@@ -224,7 +240,7 @@ async function startAgentHost(): Promise<void> {
 			hostLaunchKind,
 			connectionTelemetryTracker,
 			defaultDirectory: URI.file(os.homedir()).toString(),
-			completionTriggerCharacters: runtime.completions.triggerCharacters,
+			completionTriggerCharacters,
 			terminalCommandPrefix: BANG_COMMAND_PREFIX,
 			otlpLogEmitter,
 			allowExtensionMethods: false,
@@ -234,7 +250,7 @@ async function startAgentHost(): Promise<void> {
 			const messagePortProtocolHandler = localDataPlaneDisposables.add(instantiationService.createInstance(
 				ProtocolServerHandler,
 				agentService,
-				runtime.stateManager,
+				stateManager,
 				messagePortProtocolServer,
 				localProtocolHandlerConfig,
 				clientFileSystemProvider,
@@ -307,7 +323,7 @@ async function startAgentHost(): Promise<void> {
 				const localEndpointProtocolHandler = localDataPlaneDisposables.add(instantiationService.createInstance(
 					ProtocolServerHandler,
 					agentService,
-					runtime.stateManager,
+					stateManager,
 					localEndpoint.server,
 					localProtocolHandlerConfig,
 					clientFileSystemProvider,
@@ -364,13 +380,13 @@ async function startAgentHost(): Promise<void> {
 			const protocolHandler = protocolIngressDisposables.add(instantiationService.createInstance(
 				ProtocolServerHandler,
 				agentService,
-				runtime.stateManager,
+				stateManager,
 				wsServer,
 				{
 					hostLaunchKind,
 					connectionTelemetryTracker,
 					defaultDirectory: URI.file(os.homedir()).toString(),
-					completionTriggerCharacters: runtime.completions.triggerCharacters,
+					completionTriggerCharacters,
 					terminalCommandPrefix: BANG_COMMAND_PREFIX,
 					otlpLogEmitter,
 				},
@@ -447,8 +463,8 @@ async function startAgentHost(): Promise<void> {
 	// raw WebSocket streams and cannot carry the local endpoint's bearer token.
 	const configuredWebSocketServerStart = startWebSocketServer(
 		agentService,
-		runtime.stateManager,
-		runtime.completions.triggerCharacters,
+		stateManager,
+		completionTriggerCharacters,
 		clientFileSystemProvider,
 		instantiationService,
 		environmentService.logsHome,
