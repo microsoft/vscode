@@ -9468,6 +9468,41 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		});
 	});
 
+	test('disposeChat deletes a materialized chat\'s SDK transcript, leaves a provisional chat alone, and survives a failed delete', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		const kept = URI.parse(buildChatUri(created.session.toString(), 'chat-1'));
+		const stranded = URI.parse(buildChatUri(created.session.toString(), 'chat-2'));
+		const provisional = URI.parse(buildChatUri(created.session.toString(), 'chat-3'));
+		const keptResult = await agent.chats.createChat(kept, created.session, { ...resolvedChatOptions() });
+		const strandedResult = await agent.chats.createChat(stranded, created.session, { ...resolvedChatOptions() });
+		await agent.chats.createChat(provisional, created.session, { ...resolvedChatOptions() });
+
+		// Only a chat that reached the SDK has a transcript, so leave the third provisional.
+		for (const [chat, result] of [[kept, keptResult], [stranded, strandedResult]] as const) {
+			const sdkSessionId = AgentSession.id(result!.backingSession!);
+			sdk.nextQueryMessages = [makeSystemInitMessage(sdkSessionId), makeResultSuccess(sdkSessionId)];
+			await agent.chats.sendMessage(chat, 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(chat));
+		}
+
+		await agent.chats.disposeChat(kept, chatContext(kept));
+		await agent.chats.disposeChat(provisional, chatContext(provisional));
+
+		// A transcript that cannot be removed must not fail the dispose.
+		sdk.deleteSessionRejection = new Error('sdk unavailable');
+		await agent.chats.disposeChat(stranded, chatContext(stranded));
+
+		assert.deepStrictEqual({
+			deleted: sdk.deleteSessionCalls,
+			remaining: listAdditionalChats(agent, created.session),
+		}, {
+			deleted: [AgentSession.id(keptResult!.backingSession!), AgentSession.id(strandedResult!.backingSession!)],
+			remaining: [],
+		});
+	});
+
 	test('createChat resolves every chat the same way, whatever role the host gives it', async () => {
 		// One creation algorithm: the chat a session starts with and an
 		// additional chat are created by the same call with the same resolved
