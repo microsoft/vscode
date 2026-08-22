@@ -1790,7 +1790,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * Build a provisional {@link ClaudeAgentSession} from an exact chat backing
 	 * and its provider-owned overlay.
 	 */
-	private async _createProvisionalChatSession(configurationResource: URI, chat: URI, resource: URI, fallbackWorkingDirectories?: readonly URI[]): Promise<ClaudeAgentSession> {
+	private async _buildProvisionalChatSession(configurationResource: URI, chat: URI, resource: URI, fallbackWorkingDirectories?: readonly URI[]): Promise<ClaudeAgentSession> {
 		const info = this._chatBackings.get(chat.toString());
 		if (!info) {
 			throw new Error(`[Claude] no backing chat for chat ${chat.toString()}`);
@@ -1839,12 +1839,17 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			this._instantiationService,
 			additionalDirectories,
 		);
+		return chatSession;
+	}
+
+	/**
+	 * Registers a provisional runtime for `chat` and re-applies the tools and
+	 * customizations its clients assigned before that runtime existed.
+	 */
+	private async _createProvisionalChatSession(configurationResource: URI, chat: URI, resource: URI, fallbackWorkingDirectories?: readonly URI[]): Promise<ClaudeAgentSession> {
+		const chatSession = await this._buildProvisionalChatSession(configurationResource, chat, resource, fallbackWorkingDirectories);
 		this._registerLiveChat(chat, chatSession);
 		this._recordChatScope(chat, configurationResource, resource);
-		// The chat now has a live runtime, so re-apply the contributions of
-		// every client addressed to this exact chat. This replaces nothing —
-		// it only pushes each handle's already-assigned tools/customizations
-		// into the conversation that just came up.
 		this._forEachActiveClientHandleForChat(chat, handle => handle.refresh());
 		return chatSession;
 	}
@@ -2632,15 +2637,40 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * never falls back to guessing the SDK conversation id from the
 	 * configuration scope, since a fresh chat's SDK id is independent of it.
 	 */
-	async getChatCustomizations(chat: URI, _context: URI | IAgentChatContext, hostCustomizations?: readonly Customization[]): Promise<readonly Customization[]> {
+	async getChatCustomizations(chat: URI, context: URI | IAgentChatContext, hostCustomizations?: readonly Customization[]): Promise<readonly Customization[]> {
 		const sess = this._findChatByUri(chat);
 		if (!sess) {
-			return [];
+			return this._readNonResidentChatCustomizations(chat, context, hostCustomizations);
 		}
 		if (hostCustomizations) {
 			sess.setHostCustomizations(hostCustomizations);
 		}
 		return sess.getSessionCustomizations();
+	}
+
+	/**
+	 * Reads customizations for a chat with no resident runtime through a
+	 * throwaway one, which is never registered so the read cannot change how
+	 * the next send resolves the chat.
+	 */
+	private async _readNonResidentChatCustomizations(chat: URI, operationContext: URI | IAgentChatContext, hostCustomizations: readonly Customization[] | undefined): Promise<readonly Customization[]> {
+		if (!this._chatBackings.has(chat.toString())) {
+			return [];
+		}
+		const { configurationResource, resource } = resolveAgentChatContext(operationContext, chat);
+		let transient: ClaudeAgentSession | undefined;
+		try {
+			transient = await this._buildProvisionalChatSession(configurationResource, chat, resource);
+			if (hostCustomizations) {
+				transient.setHostCustomizations(hostCustomizations);
+			}
+			return await transient.getSessionCustomizations();
+		} catch (err) {
+			this._logService.warn(`[Claude] customization read could not resolve chat ${chat.toString()}`, err);
+			return [];
+		} finally {
+			transient?.dispose();
+		}
 	}
 
 	/**

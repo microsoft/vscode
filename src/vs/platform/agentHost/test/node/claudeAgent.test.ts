@@ -9077,6 +9077,48 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		assert.deepStrictEqual(customizations.map(c => c.uri), ['https://a', 'file:///mock-home/.claude/agents', 'agent-builtin:/skills']);
 	});
 
+	test('getChatCustomizations resolves a chat whose runtime is no longer resident', async () => {
+		const { agent, sdk } = buildCtxWith(new FakeAgentPluginManager());
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		const sessionId = created.sdkSessionId;
+		const chat = defaultChatUri(created.session);
+
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.chats.sendMessage(chat, 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(chat));
+
+		// Drops the live runtime and keeps the backing, as a restore into a fresh window does.
+		await releaseDefaultChat(agent, created.session);
+		sdk.sessionList = [{ sessionId, cwd: URI.file('/work').fsPath, summary: '', lastModified: 1 }];
+
+		// The host has published no snapshot for a session it has only just restored.
+		const customizations = await agent.getChatCustomizations(chat, chatContext(chat), undefined);
+		assert.deepStrictEqual(customizations.map(c => c.uri), ['file:///mock-home/.claude/agents', 'agent-builtin:/skills']);
+	});
+
+	test('a customization read leaves a non-resident chat non-resident, so the next send still resumes', async () => {
+		const { agent, sdk } = buildCtxWith(new FakeAgentPluginManager());
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		const sessionId = created.sdkSessionId;
+		const chat = defaultChatUri(created.session);
+
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.chats.sendMessage(chat, 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(chat));
+
+		await releaseDefaultChat(agent, created.session);
+		sdk.sessionList = [{ sessionId, cwd: URI.file('/work').fsPath, summary: '', lastModified: 1 }];
+
+		await agent.getChatCustomizations(chat, chatContext(chat), undefined);
+
+		// A resident runtime would make the next send materialize fresh instead of resuming.
+		assert.deepStrictEqual(listLiveChats(agent), []);
+
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.chats.sendMessage(chat, 'turn 2', undefined, undefined, 'turn-2', undefined, undefined, chatContext(chat));
+		assert.strictEqual(sdk.capturedStartupOptions.at(-1)?.resume, sessionId, 'the send after a customization read must resume the existing conversation');
+	});
+
 	test('getChatCustomizations overlays the enablement state onto client-pushed entries', async () => {
 		const pm = new FakeAgentPluginManager();
 		pm.syncResult = [makeSyncedRef('https://a', '/p/a')];
