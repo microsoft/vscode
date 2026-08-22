@@ -5,14 +5,22 @@
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { localChatSessionType } from '../common/chatSessionsService.js';
+import { ChatConfiguration, ChatSaleNotification } from '../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
+import { CHAT_OPEN_ACTION_ID } from './actions/chatActions.js';
+import { IChatWidgetService } from './chat.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationService } from './widget/input/chatInputNotificationService.js';
 
 const PROMO_NOTIFICATION_ID = 'copilot.promoNotification';
 const DISMISSED_PROMOS_STORAGE_KEY = 'chat.dismissedPromoIds';
+
+export const CHAT_PROMO_TRY_MODEL_COMMAND_ID = '_chat.tryPromoModel';
+export const CHAT_PROMO_DISMISS_COMMAND_ID = '_chat.dismissPromo';
 
 /**
  * Surfaces a model's promo as a chat input notification, scoped to the harness
@@ -29,10 +37,30 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IChatInputNotificationService private readonly _chatInputNotificationService: IChatInputNotificationService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@ICommandService private readonly _commandService: ICommandService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
+		this._register(CommandsRegistry.registerCommand(CHAT_PROMO_DISMISS_COMMAND_ID, (_accessor, promoId?: string) => {
+			if (typeof promoId === 'string') {
+				this._persistDismissedPromo(promoId);
+			}
+		}));
+		this._register(CommandsRegistry.registerCommand(CHAT_PROMO_TRY_MODEL_COMMAND_ID, async (_accessor, promoId?: string, modelIdentifier?: string) => {
+			if (typeof promoId === 'string') {
+				this._persistDismissedPromo(promoId);
+			}
+			await this._openChatAndSwitchModel(typeof modelIdentifier === 'string' ? modelIdentifier : undefined);
+		}));
+
 		this._register(this._languageModelsService.onDidChangeLanguageModels(() => this._update()));
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.SaleNotification)) {
+				this._update();
+			}
+		}));
 		this._register(this._chatInputNotificationService.onDidDismiss(id => {
 			const promoId = this._shownNotifications.get(id)?.promoId;
 			if (promoId) {
@@ -49,7 +77,8 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 		this._update();
 	}
 
-	private readonly _shownNotifications = new Map<string, { promoId: string; modelIdentifier: string }>();
+	private readonly _shownNotifications = new Map<string, { promoId: string; modelIdentifier: string; kind: ChatSaleNotification }>();
+	private readonly _shownSaleCards = new Set<string>();
 
 	private _update(): void {
 		const dismissed = this._getDismissedPromoIds();
@@ -80,11 +109,20 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 
 			// Don't re-push an unchanged notification: re-setting it would clear a
 			// pending user dismissal in the notification service.
+			const usePopup = ILanguageModelChatMetadata.hasPromoDiscount(model.metadata)
+				&& this._configurationService.getValue(ChatConfiguration.SaleNotification) === ChatSaleNotification.Popup;
+			const kind = usePopup ? ChatSaleNotification.Popup : ChatSaleNotification.Banner;
 			const shownNotification = this._shownNotifications.get(notificationId);
-			if (shownNotification?.modelIdentifier === model.identifier && shownNotification.promoId === promo.id) {
+			if (shownNotification?.modelIdentifier === model.identifier && shownNotification.promoId === promo.id && shownNotification.kind === kind) {
 				continue;
 			}
-			this._shownNotifications.set(notificationId, { promoId: promo.id, modelIdentifier: model.identifier });
+			this._shownNotifications.set(notificationId, { promoId: promo.id, modelIdentifier: model.identifier, kind });
+
+			if (usePopup) {
+				this._chatInputNotificationService.deleteNotification(notificationId);
+				this._showSaleCard(model);
+				continue;
+			}
 
 			this._chatInputNotificationService.setNotification({
 				id: notificationId,
@@ -113,6 +151,61 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 				this._chatInputNotificationService.deleteNotification(notificationId);
 				this._shownNotifications.delete(notificationId);
 			}
+		}
+	}
+
+	private _showSaleCard(model: ILanguageModelChatMetadataAndIdentifier): void {
+		const promo = model.metadata.promo;
+		if (!promo || this._shownSaleCards.has(promo.id)) {
+			return;
+		}
+		this._shownSaleCards.add(promo.id);
+
+		const endsAtLabel = ILanguageModelChatMetadata.getPromoEndsAtLabel(promo.endsAt);
+		const features = [
+			{
+				icon: '$(sparkle)',
+				title: localize('chat.promo.sale.discountTitle', "{0}% off {1}", promo.discountPercent, model.metadata.name),
+				description: promo.message,
+			},
+		];
+		if (endsAtLabel) {
+			features.push({
+				icon: '$(calendar)',
+				title: localize('chat.promo.sale.endsTitle', "Limited time"),
+				description: endsAtLabel,
+			});
+		}
+		features.push({
+			icon: '$(comment-discussion)',
+			title: localize('chat.promo.sale.chatTitle', "Try it in Chat"),
+			description: localize('chat.promo.sale.chatDescription', "Open Chat and switch to {0} to use this offer.", model.metadata.name),
+		});
+
+		void this._commandService.executeCommand('_update.showUpdateInfo', JSON.stringify({
+			markdown: promo.message,
+			badge: localize('chat.promo.sale.badge', "SALE"),
+			title: localize('chat.promo.sale.title', "Limited-time model offer"),
+			features,
+			dismissCommandId: CHAT_PROMO_DISMISS_COMMAND_ID,
+			dismissArgs: [promo.id],
+			buttons: [
+				{
+					label: localize('chat.promo.tryModel', "Try {0}", model.metadata.name),
+					commandId: CHAT_PROMO_TRY_MODEL_COMMAND_ID,
+					args: [promo.id, model.identifier],
+					style: 'primary',
+				},
+			],
+		}));
+	}
+
+	private async _openChatAndSwitchModel(modelIdentifier: string | undefined): Promise<void> {
+		await this._commandService.executeCommand(CHAT_OPEN_ACTION_ID);
+		const widget = await this._chatWidgetService.revealWidget();
+		widget?.focusInput();
+		if (modelIdentifier) {
+			widget?.input.switchModelByIdentifier(modelIdentifier, true, true);
 		}
 	}
 

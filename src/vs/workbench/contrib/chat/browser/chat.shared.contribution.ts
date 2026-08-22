@@ -62,7 +62,7 @@ import { ChatRequestOriginService, IChatRequestOriginService } from '../common/c
 import { ChatService } from '../common/chatService/chatServiceImpl.js';
 import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSideChatService, IChatSideChatService } from '../common/chatSideChatService.js';
-import { BYOKUtilityModelDefault, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatDefaultPermissionLevel, ChatNotificationMode, ChatPermissionLevel } from '../common/constants.js';
+import { BYOKUtilityModelDefault, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatDefaultPermissionLevel, ChatNotificationMode, ChatPermissionLevel, ChatSaleNotification } from '../common/constants.js';
 import { CodeMapperService, ICodeMapperService } from '../common/editing/chatCodeMapperService.js';
 import { IChatEditingService } from '../common/editing/chatEditingService.js';
 import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } from '../common/ignoredFiles.js';
@@ -2274,6 +2274,24 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.growthNotification', "Controls whether to show a growth notification in the agent sessions view to encourage new users to try Copilot."),
 			default: false,
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			}
+		},
+		[ChatConfiguration.SaleNotification]: {
+			type: 'string',
+			enum: [ChatSaleNotification.Banner, ChatSaleNotification.Popup],
+			enumItemLabels: [
+				nls.localize('chat.promo.saleNotification.banner.label', "Banner"),
+				nls.localize('chat.promo.saleNotification.popup.label', "Popup"),
+			],
+			enumDescriptions: [
+				nls.localize('chat.promo.saleNotification.banner.description', "Show a live model sale as a banner in the chat input."),
+				nls.localize('chat.promo.saleNotification.popup.description', "Show a live model sale as a New in VS Code popup card."),
+			],
+			description: nls.localize('chat.promo.saleNotification', "Controls how a live model sale is shown. The experiment service can override the default."),
+			default: ChatSaleNotification.Banner,
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'
