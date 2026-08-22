@@ -12,6 +12,21 @@
 	padding-left: 4px;
 	padding-right: 2px;
 	background-color: var(--vscode-agentsPanel-background);
+	overflow-x: auto;
+	overflow-y: hidden;
+	scrollbar-width: none;
+}
+
+.agent-sessions-workbench .part.panel > .title::-webkit-scrollbar {
+	display: none;
+}
+
+.agent-sessions-workbench .part.panel > .title > .global-actions {
+	position: sticky;
+	right: 0;
+	z-index: 1;
+	flex-shrink: 0;
+	background-color: var(--vscode-agentsPanel-background);
 }
 
 /* Override base workbench panel content background for terminal */
