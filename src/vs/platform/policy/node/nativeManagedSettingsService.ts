@@ -133,14 +133,30 @@ export class NativeManagedSettingsService extends Disposable implements INativeM
 				this.logService.trace(`Creating native managed-settings watcher for productName ${this.productName}`);
 				let ready = false;
 				const pendingUpdates: Array<Record<string, PolicyValue | undefined>> = [];
-				const watcher = createWatcher(this.productName, managedSettingDefinitions, update => {
+				const onDidChange = (update: Record<string, PolicyValue | undefined>) => {
 					if (!ready) {
-						pendingUpdates.push(update as Record<string, PolicyValue | undefined>);
+						pendingUpdates.push(update);
 					} else if (this.activeWatcherVersion === version) {
-						this._onDidManagedSettingsChange(update as Record<string, PolicyValue | undefined>);
+						this._onDidManagedSettingsChange(update);
 					}
 					c();
-				}, this.watcherOptions);
+				};
+				let watcher;
+				try {
+					watcher = createWatcher(this.productName, managedSettingDefinitions, onDidChange, this.watcherOptions);
+				} catch (error) {
+					const hasScalarUnion = Object.values(managedSettingDefinitions).some(definition => Array.isArray(definition.type));
+					if (!hasScalarUnion || !(error instanceof TypeError) || error.message !== 'Expected policy type to be string') {
+						throw error;
+					}
+					this.logService.warn('Native managed-settings watcher does not support scalar unions; using the first declared type until the native module is updated');
+					const legacyDefinitions: Record<string, IManagedSettingPolicyDefinition> = {};
+					for (const key in managedSettingDefinitions) {
+						const type = managedSettingDefinitions[key].type;
+						legacyDefinitions[key] = { type: Array.isArray(type) ? type[0] : type };
+					}
+					watcher = createWatcher(this.productName, legacyDefinitions, onDidChange, this.watcherOptions);
+				}
 				this.activeWatcherVersion = version;
 				this.watcher.value = watcher;
 				ready = true;
