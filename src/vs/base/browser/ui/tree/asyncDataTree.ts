@@ -1075,7 +1075,14 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		const node: IAsyncDataTreeNode<TInput, T> | undefined = this.nodes.get((element === this.root.element ? null : element) as T);
 
 		if (!node) {
-			const nodeIdentity = this.identityProvider?.getId(element as T).toString();
+			let nodeIdentity: string | undefined;
+			if (element !== this.root.element && this.identityProvider) {
+				try {
+					nodeIdentity = this.identityProvider.getId(element as T)?.toString();
+				} catch {
+					// ignore
+				}
+			}
 			throw new TreeError(this.user, `Data tree node not found${nodeIdentity ? `: ${nodeIdentity}` : ''}`);
 		}
 
