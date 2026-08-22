@@ -6559,17 +6559,21 @@ suite('AgentService (node dispatcher)', () => {
 
 			const restore = svc.restoreSession(session);
 			await timeout(0);
-			const metadataCallsBeforeMigration = agent.metadataCalls;
+			// Restore reads per-session metadata before waiting on the catalogue, so
+			// counting reads here would only track scheduling. What must hold is that a
+			// session the provider cannot describe yet does not restore until the
+			// catalogue migration completes.
+			const hydratedBeforeMigration = !!svc.stateManager.getSessionState(session.toString());
 			agent.migrationGate.complete();
 			await restore;
 
 			assert.deepStrictEqual({
-				metadataCallsBeforeMigration,
+				hydratedBeforeMigration,
 				metadataReadAfterMigration: agent.metadataCalls > 0,
 				registeredSessions: (await svc.getRegisteredSessions()).map(resource => resource.toString()),
 				restored: !!svc.stateManager.getSessionState(session.toString()),
 			}, {
-				metadataCallsBeforeMigration: 0,
+				hydratedBeforeMigration: false,
 				metadataReadAfterMigration: true,
 				registeredSessions: [session.toString()],
 				restored: true,
@@ -6595,6 +6599,41 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		suite('initial provider migration race (#331648)', () => {
+			/** Provider whose catalog migration registers the session, and which is describable throughout. */
+			class BackfillRegistersAgent extends MockAgent {
+				override readonly onDidDiscoverChats = Event.None;
+				readonly migrationGate = new DeferredPromise<void>();
+				constructor(readonly backfilled: URI) { super('copilot'); }
+
+				override async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | undefined> {
+					await this.migrationGate.p;
+					return [{ chat: URI.parse(buildDefaultChatUri(this.backfilled)), startTime: Date.now(), modifiedTime: Date.now() }];
+				}
+
+				// Not a legacy Copilot CLI chat, e.g. an external chat the GitHub app created.
+				async ensureChatAdopted(): Promise<IAgentChatAdoptionResult> {
+					return { adopted: false, eligible: false };
+				}
+			}
+
+			test('a session the catalog migration will register is not reported missing while that migration is in flight', async () => {
+				// The registry read happens before the (deferred) catalog wait, so a
+				// session known only once the backfill lands looks unregistered here.
+				// Reporting that as not-found is the sticky false miss #331721 fixed.
+				const svc = makeService();
+				const session = AgentSession.uri('copilot', 'registered-by-backfill');
+				const agent = disposables.add(new BackfillRegistersAgent(session));
+				seedSession(agent, session);
+				svc.registerProvider(agent);
+				getConfigurationService(svc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+
+				const restore = svc.restoreSession(session);
+				agent.migrationGate.complete();
+
+				await restore;
+				assert.strictEqual(!!svc.stateManager.getSessionState(session.toString()), true);
+			});
+
 			/** Provider whose catalog migration is gated; per-session metadata is unavailable until it completes. */
 			class StartupRaceAgent extends MockAgent {
 				override readonly onDidDiscoverChats = Event.None;
