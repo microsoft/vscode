@@ -32,6 +32,7 @@ import { Range } from '../../../util/vs/editor/common/core/range';
 import { StringText } from '../../../util/vs/editor/common/core/text/abstractText';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { IExtensionContribution } from '../../common/contributions';
+import { getByokCompletionModels, onDidChangeByokCompletionModels } from '../../byok/common/byokCompletionModels';
 import { registerUnificationCommands } from '../../completions-core/vscode-node/completionsServiceBridges';
 import { GhostTextCompletionItem, GhostTextCompletionList } from '../../completions-core/vscode-node/extension/src/ghostText/ghostTextProvider';
 import { CopilotInlineCompletionItemProvider } from '../../completions-core/vscode-node/extension/src/vscodeInlineCompletionItemProvider';
@@ -65,6 +66,13 @@ export class JointCompletionsProviderContribution extends Disposable implements 
 	// private readonly _yieldToCopilot = this._configurationService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsYieldToCopilot, this._expService);
 	private readonly _excludedProviders = this._configurationService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsExcludedProviders, this._expService).map(v => v ? v.split(',').map(v => v.trim()).filter(v => v !== '') : []);
 	private readonly _copilotToken = observableFromEvent(this, this._authenticationService.onDidCopilotTokenChange, () => this._authenticationService.copilotToken);
+
+	/** Whether custom BYOK (OpenAI-compatible) completion models are configured — these work fully offline. */
+	private readonly _hasCustomCompletionModels = observableFromEvent(
+		this,
+		listener => onDidChangeByokCompletionModels(listener),
+		() => getByokCompletionModels().length > 0
+	);
 
 	public readonly inlineEditsEnabled = derived(this, (reader) => {
 		const copilotToken = this._copilotToken.read(reader);
@@ -212,19 +220,24 @@ export class JointCompletionsProviderContribution extends Disposable implements 
 
 					// @ulugbekna: note that we don't want it if modelUnification is on
 					const modelUnification = unificationStateValue?.modelUnification ?? false;
-					if (
-						(!modelUnification || unificationStateValue?.codeUnification || extensionUnification || configEnabled || this._copilotToken.read(reader)?.isNoAuthUser) &&
-						!isExcluded
-					) {
-						completionsProvider = this._copilotInlineCompletionItemProviderService.getOrCreateProvider() as CopilotInlineCompletionItemProvider;
-					}
+				// Custom BYOK (OpenAI-compatible) completion models work fully offline:
+				// register the completions provider without a Copilot token when any
+				// are configured (same semantics as CompletionsCoreContribution).
+				const hasCustomModels = this._hasCustomCompletionModels.read(reader);
+				if (
+					(!modelUnification || unificationStateValue?.codeUnification || extensionUnification || configEnabled || this._copilotToken.read(reader)?.isNoAuthUser || hasCustomModels) &&
+					(this._copilotToken.read(reader) || hasCustomModels) &&
+					!isExcluded
+				) {
+					completionsProvider = this._copilotInlineCompletionItemProviderService.getOrCreateProvider() as CopilotInlineCompletionItemProvider;
+				}
 
-					void vscode.commands.executeCommand('setContext', 'github.copilot.extensionUnification.activated', extensionUnification);
+				void vscode.commands.executeCommand('setContext', 'github.copilot.extensionUnification.activated', extensionUnification);
 
-					if (extensionUnification && completionsProvider) {
-						const completionsInstaService = this._copilotInlineCompletionItemProviderService.getOrCreateInstantiationService();
-						reader.store.add(completionsInstaService.invokeFunction(registerUnificationCommands));
-					}
+				if (extensionUnification && completionsProvider) {
+					const completionsInstaService = this._copilotInlineCompletionItemProviderService.getOrCreateInstantiationService();
+					reader.store.add(completionsInstaService.invokeFunction(registerUnificationCommands));
+				}
 				}
 
 				const singularProvider = reader.store.add(this._instantiationService.createInstance(JointCompletionsProvider, completionsProvider, inlineEditProvider));

@@ -159,6 +159,165 @@ suite('"Fetch" unit tests', function () {
 		assert.ok(resetSpy.calledOnce, 'resetToken should have been called once');
 	});
 
+	test('sends BYOK completions to the custom endpoint with standard FIM fields only', async function () {
+		const recordingFetchService = new MockCompletionsFetchService();
+		const serviceCollectionClone = serviceCollection.clone();
+		serviceCollectionClone.define(ICompletionsFetchService, recordingFetchService);
+		const accessor = serviceCollectionClone.createTestingAccessor();
+
+		const openAIFetcher = accessor.get(IInstantiationService).createInstance(LiveOpenAIFetcher);
+		const params: CompletionParams = {
+			prompt: {
+				context: ['# Language: Python'],
+				prefix: 'prefix',
+				suffix: '\n    return a + b',
+				isFimEnabled: true,
+			},
+			languageId: 'python',
+			repoInfo: undefined,
+			engineModelId: 'custom-model',
+			count: 3,
+			uiKind: CopilotUiKind.GhostText,
+			postOptions: { n: 3, stop: ['\n\n\n'], code_annotations: false },
+			ourRequestId: generateUuid(),
+			extra: { language: 'python' },
+			customModel: {
+				id: 'custom-model',
+				label: 'Custom Model',
+				vendor: 'customendpoint',
+				groupName: 'Custom',
+				completionsUrl: 'https://custom.example.com/v1/completions',
+				apiKey: 'sk-test',
+				model: 'custom-model',
+			},
+		};
+
+		await openAIFetcher.fetchAndStreamCompletions(params, TelemetryWithExp.createEmptyConfigForTesting(), () => undefined);
+
+		// The URL is used verbatim and the user's API key is passed as the secret key.
+		assert.strictEqual(recordingFetchService.lastUrl, 'https://custom.example.com/v1/completions');
+		assert.strictEqual(recordingFetchService.lastSecretKey, 'sk-test');
+		assert.strictEqual(recordingFetchService.lastIsCustomEndpoint, true);
+		// No Copilot-specific headers.
+		assert.deepStrictEqual(recordingFetchService.lastHeaders, {});
+
+		const lastParams = recordingFetchService.lastParams;
+		assert.ok(lastParams);
+		assert.strictEqual(lastParams.prompt, 'prefix');
+		assert.strictEqual(lastParams.suffix, '\n    return a + b');
+		assert.strictEqual(lastParams.model, 'custom-model');
+		// `n` is forced to 1 for custom endpoints (most OpenAI-compatible FIM servers
+		// reject n > 1); `stop` (single-/multi-line mode) is kept verbatim.
+		assert.strictEqual(lastParams.n, 1);
+		assert.deepStrictEqual(lastParams.stop, ['\n\n\n']);
+		// Copilot-specific fields are stripped. (`nwo` is not part of ModelParams but
+		// would be serialized if present, so check it at runtime.)
+		assert.strictEqual(lastParams.extra, undefined);
+		assert.strictEqual((lastParams as unknown as { nwo?: unknown }).nwo, undefined);
+		assert.strictEqual(lastParams.code_annotations, undefined);
+	});
+
+	test('BYOK completions work without a Copilot token or an API key (offline)', async function () {
+		const recordingFetchService = new MockCompletionsFetchService();
+		const serviceCollectionClone = serviceCollection.clone();
+		serviceCollectionClone.define(ICompletionsFetchService, recordingFetchService);
+		const accessor = serviceCollectionClone.createTestingAccessor();
+
+		const openAIFetcher = accessor.get(IInstantiationService).createInstance(LiveOpenAIFetcher);
+		const params: CompletionParams = {
+			prompt: { prefix: 'prefix', suffix: '', isFimEnabled: false },
+			languageId: '',
+			repoInfo: undefined,
+			engineModelId: 'local-model',
+			count: 1,
+			uiKind: CopilotUiKind.GhostText,
+			ourRequestId: generateUuid(),
+			extra: {},
+			customModel: {
+				id: 'local-model',
+				label: 'Local Model',
+				vendor: 'customendpoint',
+				groupName: 'Local',
+				completionsUrl: 'http://localhost:11434/v1/completions',
+				model: 'local-model',
+			},
+		};
+
+		await openAIFetcher.fetchAndStreamCompletions(params, TelemetryWithExp.createEmptyConfigForTesting(), () => undefined);
+
+		assert.strictEqual(recordingFetchService.lastIsCustomEndpoint, true);
+		assert.strictEqual(recordingFetchService.lastSecretKey, '');
+		assert.strictEqual(recordingFetchService.lastHeaders?.['Authorization'], undefined);
+	});
+
+	test('BYOK forwards sanitized custom requestHeaders', async function () {
+		const recordingFetchService = new MockCompletionsFetchService();
+		const serviceCollectionClone = serviceCollection.clone();
+		serviceCollectionClone.define(ICompletionsFetchService, recordingFetchService);
+		const accessor = serviceCollectionClone.createTestingAccessor();
+
+		const openAIFetcher = accessor.get(IInstantiationService).createInstance(LiveOpenAIFetcher);
+		const params: CompletionParams = {
+			prompt: { prefix: 'prefix', suffix: '', isFimEnabled: false },
+			languageId: '',
+			repoInfo: undefined,
+			engineModelId: 'custom-model',
+			count: 1,
+			uiKind: CopilotUiKind.GhostText,
+			ourRequestId: generateUuid(),
+			extra: {},
+			customModel: {
+				id: 'custom-model',
+				label: 'Custom Model',
+				vendor: 'customendpoint',
+				groupName: 'Custom',
+				completionsUrl: 'https://custom.example.com/v1/completions',
+				model: 'custom-model',
+				requestHeaders: {
+					// Explicitly configured custom auth headers are forwarded.
+					'x-api-key': 'apim-subscription-key',
+					'x-custom-tenant': 'tenant-1',
+					// Auth/content headers managed by the fetch service are stripped.
+					Authorization: 'Bearer user-managed',
+					'Content-Type': 'text/plain',
+					'X-Request-Id': 'user-set',
+					'X-GitHub-Api-Version': '2099-01-01',
+				},
+			},
+		};
+
+		await openAIFetcher.fetchAndStreamCompletions(params, TelemetryWithExp.createEmptyConfigForTesting(), () => undefined);
+
+		assert.deepStrictEqual(recordingFetchService.lastHeaders, {
+			'x-api-key': 'apim-subscription-key',
+			'x-custom-tenant': 'tenant-1',
+		});
+	});
+
+	test('BYOK 401 does not reset the Copilot token and points at the apiKey', async function () {
+		const result = await assertResponseWithContext(accessor, 401, undefined, fakeCustomModel());
+
+		assert.ok(result.type === 'failed' && result.reason.includes('API key'));
+		assert.ok(resetSpy.notCalled, 'resetToken should not be called for custom endpoints');
+	});
+
+	test('BYOK 404 points at the configured completionsUrl', async function () {
+		const result = await assertResponseWithContext(accessor, 404, undefined, fakeCustomModel());
+
+		assert.ok(result.type === 'failed' && result.reason.includes('https://custom.example.com/v1/completions'));
+	});
+
+	test('BYOK 402 points at the provider billing instead of the Copilot quota', async function () {
+		const result = await assertResponseWithContext(accessor, 402, undefined, fakeCustomModel());
+
+		// 402 from a custom endpoint is a provider billing/quota problem, not the
+		// Copilot free-tier quota: no quota-exhausted state, no quota command and
+		// no token reset.
+		assert.ok(result.type === 'failed' && result.reason.includes('402'));
+		assert.ok(result.type === 'failed' && result.reason.includes('billing/quota'));
+		assert.ok(resetSpy.notCalled, 'resetToken should not be called for custom endpoints');
+	});
+
 	test('HTTP `Too many requests` enforces rate limiting locally', async function () {
 		const mockFetch = new MockCompletionsFetchService();
 		const serviceCollection = createLibTestingContext();
@@ -368,7 +527,7 @@ async function assertResponseWithStatus(
 	return assertResponseWithContext(accessor, statusCode, headers);
 }
 
-async function assertResponseWithContext(accessor: ServicesAccessor, statusCode: number, headers?: Record<string, string>) {
+async function assertResponseWithContext(accessor: ServicesAccessor, statusCode: number, headers?: Record<string, string>, customModel?: CompletionParams['customModel']) {
 	const fakeHeaders = new HeadersImpl({
 		'x-github-request-id': '1',
 		...headers,
@@ -394,7 +553,7 @@ async function assertResponseWithContext(accessor: ServicesAccessor, statusCode:
 			return accessor.get(IInstantiationService).createInstance(LiveOpenAIFetcher);
 		}
 	})();
-	const completionParams: CompletionParams = fakeCompletionParams();
+	const completionParams: CompletionParams = fakeCompletionParams(customModel);
 	const result = await fetcher.fetchAndStreamCompletions(
 		completionParams,
 		TelemetryWithExp.createEmptyConfigForTesting(),
@@ -404,7 +563,19 @@ async function assertResponseWithContext(accessor: ServicesAccessor, statusCode:
 	return result;
 }
 
-function fakeCompletionParams(): CompletionParams {
+function fakeCustomModel(): CompletionParams['customModel'] {
+	return {
+		id: 'custom-model',
+		label: 'Custom Model',
+		vendor: 'customendpoint',
+		groupName: 'Custom',
+		completionsUrl: 'https://custom.example.com/v1/completions',
+		apiKey: 'sk-test',
+		model: 'custom-model',
+	};
+}
+
+function fakeCompletionParams(customModel?: CompletionParams['customModel']): CompletionParams {
 	return {
 		prompt: {
 			prefix: 'xxx',
@@ -419,6 +590,7 @@ function fakeCompletionParams(): CompletionParams {
 		uiKind: CopilotUiKind.GhostText,
 		postOptions: {},
 		extra: {},
+		...(customModel ? { customModel } : {}),
 	};
 }
 
@@ -428,15 +600,22 @@ class MockCompletionsFetchService implements ICompletionsFetchService {
 	nextResult: Result<ResponseStream, Completions.CompletionsFetchFailure> | undefined;
 	lastParams: Completions.ModelParams | undefined;
 	lastHeaders: Record<string, string> | undefined;
+	lastUrl: string | undefined;
+	lastSecretKey: string | undefined;
+	lastIsCustomEndpoint: boolean | undefined;
 
 	async fetch(
-		_url: string,
-		_secretKey: string,
+		url: string,
+		secretKey: string,
 		params: Completions.ModelParams,
 		_requestId: string,
 		_ct: CancellationToken,
-		headerOverrides?: Record<string, string>
+		headerOverrides?: Record<string, string>,
+		isCustomEndpoint?: boolean
 	): Promise<Result<ResponseStream, Completions.CompletionsFetchFailure>> {
+		this.lastUrl = url;
+		this.lastSecretKey = secretKey;
+		this.lastIsCustomEndpoint = isCustomEndpoint;
 		this.lastParams = params;
 		this.lastHeaders = headerOverrides;
 		if (this.nextResult) {

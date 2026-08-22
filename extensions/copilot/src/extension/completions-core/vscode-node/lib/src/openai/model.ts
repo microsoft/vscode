@@ -6,6 +6,7 @@
 import { IAuthenticationService } from '../../../../../../platform/authentication/common/authentication';
 import { ICompletionModelInformation, IEndpointProvider } from '../../../../../../platform/endpoint/common/endpointProvider';
 import { createServiceIdentifier } from '../../../../../../util/common/services';
+import { ByokCompletionModel, getByokCompletionModels, getByokCompletionModelById, onDidChangeByokCompletionModels } from '../../../../../byok/common/byokCompletionModels';
 import { Disposable } from '../../../../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../../../../util/vs/platform/instantiation/common/instantiation';
 import { getUserSelectedModelConfiguration } from '../../../extension/src/modelPickerUserSelection';
@@ -23,9 +24,12 @@ export interface ICompletionsModelManagerService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeModels: Event<void>;
 	getGenericCompletionModels(): ModelItem[];
+	getCustomCompletionModels(): ModelItem[];
 	getDefaultModelId(): string;
 	getTokenizerForModel(modelId: string): TokenizerName;
 	getCurrentModelRequestInfo(featureSettings?: TelemetryWithExp): ModelRequestInfo;
+	/** Refreshes the custom BYOK (OpenAI-compatible) completion models from the shared store. */
+	refreshByokModels(): void;
 }
 
 const FallbackModelId = 'gpt-41-copilot';
@@ -33,6 +37,8 @@ export class AvailableModelsManager extends Disposable implements ICompletionsMo
 	declare _serviceBrand: undefined;
 	fetchedModelData: ICompletionModelInformation[] = [];
 	customModels: string[] = [];
+	/** Custom BYOK (OpenAI-compatible) completion models from chatLanguageModels.json. */
+	byokModels: ByokCompletionModel[] = [];
 	editorPreviewFeaturesDisabled: boolean = false;
 	private readonly _onDidChangeModels = this._register(new Emitter<void>());
 	readonly onDidChangeModels = this._onDidChangeModels.event;
@@ -50,6 +56,9 @@ export class AvailableModelsManager extends Disposable implements ICompletionsMo
 		if (shouldFetch) {
 			this._register(onCopilotToken(authenticationService, () => this.refreshAvailableModels()));
 		}
+		// BYOK completion models come from the language models service (chatLanguageModels.json)
+		// and can be used fully offline, without a Copilot token.
+		this._register(onDidChangeByokCompletionModels(() => this.refreshByokModels()));
 	}
 
 	// This will get its initial call after the initial token got fetched
@@ -97,6 +106,39 @@ export class AvailableModelsManager extends Disposable implements ICompletionsMo
 		return AvailableModelsManager.mapCompletionModels(filteredResult);
 	}
 
+	/** Refreshes the custom BYOK completion models from the shared store. */
+	refreshByokModels(): void {
+		const models = getByokCompletionModels();
+		if (JSON.stringify(models) !== JSON.stringify(this.byokModels)) {
+			this.byokModels = [...models];
+			this._onDidChangeModels.fire();
+		}
+	}
+
+	/**
+	 * Returns the custom BYOK (OpenAI-compatible) completion models configured via
+	 * chatLanguageModels.json. These work fully offline and are identified by the
+	 * model id (or `${group}/${id}` when ambiguous) in `github.copilot.selectedCompletionModel`.
+	 */
+	getCustomCompletionModels(): ModelItem[] {
+		// A custom model whose id collides with a CAPI cloud completion model gets a
+		// `group/id` qualified id in the picker: the cloud entry keeps the bare id
+		// (resolved first in getCurrentModelRequestInfo) and the custom entry stays
+		// selectable without ambiguity.
+		const genericIds = new Set(this.getGenericCompletionModels().map(model => model.modelId));
+		return this.byokModels.map(model => {
+			const collidesWithGeneric = !model.id.includes('/') && genericIds.has(model.id);
+			return {
+				modelId: collidesWithGeneric ? `${model.groupName}/${model.id}` : model.id,
+				label: model.label,
+				preview: false,
+				tokenizer: TokenizerName.o200k,
+				custom: true,
+				customGroup: model.groupName,
+			};
+		});
+	}
+
 	getTokenizerForModel(modelId: string): TokenizerName {
 		const modelItems = this.getGenericCompletionModels();
 		const modelItem = modelItems.find(item => item.modelId === modelId);
@@ -136,7 +178,16 @@ export class AvailableModelsManager extends Disposable implements ICompletionsMo
 		let userSelectedCompletionModel = this._instantiationService.invokeFunction(getUserSelectedModelConfiguration);
 		if (userSelectedCompletionModel) {
 			const genericModels = this.getGenericCompletionModels().map(model => model.modelId);
+			// Resolve against the CAPI cloud model list FIRST: a custom model whose id
+			// collides with a cloud completion model must never hijack the request or
+			// leak its API key to the custom endpoint.
 			if (!genericModels.includes(userSelectedCompletionModel)) {
+				// A custom BYOK (OpenAI-compatible) completion model is valid even when
+				// the CAPI model list is empty (e.g. signed out / fully offline).
+				const customModel = getByokCompletionModelById(userSelectedCompletionModel);
+				if (customModel) {
+					return new ModelRequestInfo(userSelectedCompletionModel, 'modelpicker', customModel);
+				}
 				if (genericModels.length > 0) {
 					this._logService.logIt(
 						LogLevel.INFO,
@@ -187,6 +238,10 @@ export interface ModelItem {
 	label: string;
 	preview: boolean;
 	tokenizer: string;
+	/** Whether this is a custom BYOK (OpenAI-compatible) completion model. */
+	custom?: boolean;
+	/** The chatLanguageModels.json group name for custom BYOK models. */
+	customGroup?: string;
 }
 
 export type ModelChoiceSourceTelemetryValue =
@@ -200,7 +255,9 @@ export type ModelChoiceSourceTelemetryValue =
 class ModelRequestInfo {
 	constructor(
 		readonly modelId: string,
-		readonly modelChoiceSource: ModelChoiceSourceTelemetryValue
+		readonly modelChoiceSource: ModelChoiceSourceTelemetryValue,
+		/** Set when the selected model is a custom BYOK (OpenAI-compatible) completion model. */
+		readonly customModel?: ByokCompletionModel
 	) { }
 
 	get headers(): CompletionHeaders {

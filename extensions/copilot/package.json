@@ -1869,6 +1869,12 @@
               "title": "API Key",
               "markdownDeprecationMessage": "**Deprecated.** Use the `customendpoint` provider (\"Custom Endpoint\") instead. It supports the Chat Completions API, the Responses API, and the Messages API — selectable per model via the `apiType` property."
             },
+            "completionsUrl": {
+              "type": "string",
+              "pattern": "^https?://.+",
+              "patternErrorMessage": "URL must start with http:// or https://",
+              "markdownDescription": "Default full URL used **verbatim** for inline code completions (FIM) requests for models in this group, e.g. `https://api.deepseek.com/beta/completions` or `https://api.siliconflow.cn/v1/completions`. Individual models can override this with their own `completionsUrl` property. When neither is set, the group's models are only available for chat."
+            },
             "models": {
               "type": "array",
               "markdownDeprecationMessage": "**Deprecated.** Use the `customendpoint` provider (\"Custom Endpoint\") instead. It supports the Chat Completions API, the Responses API, and the Messages API — selectable per model via the `apiType` property.",
@@ -1903,6 +1909,12 @@
                   "url": {
                     "type": "string",
                     "markdownDescription": "URL endpoint for the custom OpenAI-compatible model.\n\n**Important:** Base URLs default to Chat Completions API. Explicit API paths including `/responses` or `/chat/completions` are respected."
+                  },
+                  "completionsUrl": {
+                    "type": "string",
+                    "pattern": "^https?://.+",
+                    "patternErrorMessage": "URL must start with http:// or https://",
+                    "markdownDescription": "Full URL used **verbatim** for inline code completions (FIM) requests, e.g. `https://api.deepseek.com/beta/completions` or `https://api.siliconflow.cn/v1/completions`. When omitted, the group-level `completionsUrl` is used; if neither is set, this model is only available for chat, not for inline code completions."
                   },
                   "toolCalling": {
                     "type": "boolean",
@@ -2035,6 +2047,12 @@
               "title": "API Type",
               "markdownDescription": "Default request/response format for models in this group. Individual models can override this with their own `apiType` property; when both are unset the type is inferred from the URL path."
             },
+            "completionsUrl": {
+              "type": "string",
+              "pattern": "^https?://.+",
+              "patternErrorMessage": "URL must start with http:// or https://",
+              "markdownDescription": "Default full URL used **verbatim** for inline code completions (FIM) requests for models in this group, e.g. `https://api.deepseek.com/beta/completions` or `https://api.siliconflow.cn/v1/completions`. Individual models can override this with their own `completionsUrl` property. When neither is set, the group's models are only available for chat."
+            },
             "models": {
               "type": "array",
               "defaultSnippets": [
@@ -2070,6 +2088,12 @@
                     "pattern": "^https?://.+",
                     "patternErrorMessage": "URL must start with http:// or https://",
                     "markdownDescription": "URL endpoint for the model.\n\n**Important:** Base URLs default to Chat Completions API. Explicit API paths are respected: `/chat/completions`, `/responses`, and `/v1/messages` (Anthropic-compatible). Use the `apiType` property to override the request/response format independently of the URL."
+                  },
+                  "completionsUrl": {
+                    "type": "string",
+                    "pattern": "^https?://.+",
+                    "patternErrorMessage": "URL must start with http:// or https://",
+                    "markdownDescription": "Full URL used **verbatim** for inline code completions (FIM) requests, e.g. `https://api.deepseek.com/beta/completions` or `https://api.siliconflow.cn/v1/completions`. When omitted, the group-level `completionsUrl` is used; if neither is set, this model is only available for chat, not for inline code completions."
                   },
                   "apiType": {
                     "type": "string",
