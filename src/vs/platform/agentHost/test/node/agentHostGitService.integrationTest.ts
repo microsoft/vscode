@@ -1095,6 +1095,55 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			try { cp.execFileSync('git', ['branch', '-D', 'agents/include-files'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
 		}
 	});
+
+	// `git ls-files --directory` stops descending at the wholly ignored `build/`,
+	// so the matched `node_modules` subtree underneath it is only visible as
+	// individual files. It must still be copied as a single recursive unit.
+	(hasGit ? test : test.skip)('copyWorktreeIncludeFiles collapses a matched subtree below a partially matched ignored folder', async () => {
+		const dir = initRepo();
+		const fs = await import('fs/promises');
+
+		await fs.writeFile(join(dir, '.gitignore'), 'build/\n');
+		await fs.mkdir(join(dir, 'build', 'deps', 'node_modules', 'y'), { recursive: true });
+		// Unmatched sibling: `build/` itself cannot be copied wholesale.
+		await fs.writeFile(join(dir, 'build', 'other.txt'), 'artifact');
+		await fs.writeFile(join(dir, 'build', 'deps', 'node_modules', 'x.js'), 'x');
+		await fs.writeFile(join(dir, 'build', 'deps', 'node_modules', 'y', 'z.js'), 'z');
+
+		const wtPath = join(dir, '..', `wt-nested-${Date.now()}`);
+		try {
+			await svc!.addWorktree(URI.file(dir), {
+				path: URI.file(wtPath),
+				commitish: 'main',
+				newBranchName: 'agents/include-nested',
+				track: false,
+			});
+			const progress: { filesDone: number; filesTotal: number }[] = [];
+			await svc!.copyWorktreeIncludeFiles(URI.file(dir), URI.file(wtPath), ['**/node_modules/**'], sample => progress.push(sample));
+
+			const read = async (relativePath: string) => {
+				try { return await fs.readFile(join(wtPath, relativePath), 'utf8'); } catch { return undefined; }
+			};
+
+			assert.deepStrictEqual({
+				nested: await read(join('build', 'deps', 'node_modules', 'x.js')),
+				deep: await read(join('build', 'deps', 'node_modules', 'y', 'z.js')),
+				unmatched: await read(join('build', 'other.txt')),
+				// A single sample covering both files proves the subtree was
+				// copied as one entry rather than file-by-file.
+				progress,
+			}, {
+				nested: 'x',
+				deep: 'z',
+				unmatched: undefined,
+				progress: [{ filesDone: 2, filesTotal: 2 }],
+			});
+		} finally {
+			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
+			rmDirWithRetry(wtPath);
+			try { cp.execFileSync('git', ['branch', '-D', 'agents/include-nested'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
+		}
+	});
 });
 
 suite('AgentHostGitService - restore (real git)', () => {
