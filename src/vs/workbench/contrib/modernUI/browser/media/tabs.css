@@ -529,17 +529,16 @@
 	opacity: 1;
 }
 
-/* When the reserved action column is always present, keep the action visible and clickable so
- * the column never reads as a blank gap (https://github.com/microsoft/vscode/issues/329605). */
-.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tab-actions-reserve-space .tabs-container > .tab:not(.sticky-compact):not(.close-action-off) > .tab-actions {
+/* Keep the reserved action visible and clickable on the active tab. */
+.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tab-actions-reserve-space .tabs-container > .tab.active:not(.sticky-compact):not(.close-action-off) > .tab-actions {
 	pointer-events: auto;
 }
 
-.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container.active > .title.tab-actions-reserve-space .tabs-container > .tab:not(.sticky-compact):not(.close-action-off) > .tab-actions .action-label {
+.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container.active > .title.tab-actions-reserve-space .tabs-container > .tab.active:not(.sticky-compact):not(.close-action-off) > .tab-actions .action-label {
 	opacity: 1;
 }
 
-.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container:not(.active) > .title.tab-actions-reserve-space .tabs-container > .tab:not(.sticky-compact):not(.close-action-off):not(:hover) > .tab-actions .action-label:not(:focus) {
+.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container:not(.active) > .title.tab-actions-reserve-space .tabs-container > .tab.active:not(.sticky-compact):not(.close-action-off):not(:hover) > .tab-actions .action-label:not(:focus) {
 	opacity: 0.5;
 }
 
