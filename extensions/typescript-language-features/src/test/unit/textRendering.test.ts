@@ -58,6 +58,20 @@ suite('typescript.previewer', () => {
 			'x [`http://www.example.com/foo`](http://www.example.com/foo) y <http://www.example.com/bar> z');
 	});
 
+	test('Should escape markdown syntax in non-url @link text', () => {
+		assert.strictEqual(
+			documentationToMarkdown(
+				[
+					{ 'text': '{@link ', 'kind': 'link' },
+					{ 'text': '*bold* _italic_ [link](x) #tag ~tilde!', 'kind': 'linkText' },
+					{ 'text': '}', 'kind': 'link' }
+				],
+				[],
+				noopToResource, undefined
+			).value,
+			'\\*bold\\* \\_italic\\_ \\[link\\]\\(x\\) \\#tag \\~tilde\\!');
+	});
+
 	test('Should parse url jsdoc @link in param tag', () => {
 		assert.strictEqual(
 			tagsToMarkdown([
