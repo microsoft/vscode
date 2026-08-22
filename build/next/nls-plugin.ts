@@ -59,6 +59,13 @@ export function createNLSCollector(): NLSCollector {
 	};
 }
 
+export interface FinalizeNLSOptions {
+	/** If true, skip writing nls.messages.js (the browser-facing NLS file). */
+	skipNlsJs?: boolean;
+	/** If true, skip writing nls.messages.json, nls.keys.json, and nls.metadata.json. */
+	skipNlsJsonFiles?: boolean;
+}
+
 /**
  * Finalizes NLS collection and writes output files.
  * Call this after all esbuild builds have completed.
@@ -66,7 +73,8 @@ export function createNLSCollector(): NLSCollector {
 export async function finalizeNLS(
 	collector: NLSCollector,
 	outDir: string,
-	alsoWriteTo?: string[]
+	alsoWriteTo?: string[],
+	options?: FinalizeNLSOptions
 ): Promise<{ indexMap: Map<string, number>; messageCount: number }> {
 	if (collector.entries.size === 0) {
 		return { indexMap: new Map(), messageCount: 0 };
@@ -123,24 +131,34 @@ export async function finalizeNLS(
 		await fs.promises.mkdir(dir, { recursive: true });
 	}
 
-	await Promise.all(allOutDirs.flatMap(dir => [
-		fs.promises.writeFile(
-			path.join(dir, 'nls.messages.json'),
-			JSON.stringify(allMessages)
-		),
-		fs.promises.writeFile(
-			path.join(dir, 'nls.keys.json'),
-			JSON.stringify(nlsKeysJson)
-		),
-		fs.promises.writeFile(
-			path.join(dir, 'nls.metadata.json'),
-			JSON.stringify(nlsMetadataJson, null, '\t')
-		),
-		fs.promises.writeFile(
-			path.join(dir, 'nls.messages.js'),
-			`/*---------------------------------------------------------\n * Copyright (C) Microsoft Corporation. All rights reserved.\n *--------------------------------------------------------*/\nglobalThis._VSCODE_NLS_MESSAGES=${JSON.stringify(allMessages)};`
-		),
-	]));
+	await Promise.all(allOutDirs.flatMap(dir => {
+		const writes: Promise<void>[] = [];
+		if (!options?.skipNlsJsonFiles) {
+			writes.push(
+				fs.promises.writeFile(
+					path.join(dir, 'nls.messages.json'),
+					JSON.stringify(allMessages)
+				),
+				fs.promises.writeFile(
+					path.join(dir, 'nls.keys.json'),
+					JSON.stringify(nlsKeysJson)
+				),
+				fs.promises.writeFile(
+					path.join(dir, 'nls.metadata.json'),
+					JSON.stringify(nlsMetadataJson, null, '\t')
+				)
+			);
+		}
+		if (!options?.skipNlsJs) {
+			writes.push(
+				fs.promises.writeFile(
+					path.join(dir, 'nls.messages.js'),
+					`/*---------------------------------------------------------\n * Copyright (C) Microsoft Corporation. All rights reserved.\n *--------------------------------------------------------*/\nglobalThis._VSCODE_NLS_MESSAGES=${JSON.stringify(allMessages)};`
+				)
+			);
+		}
+		return writes;
+	}));
 
 	console.log(`[nls] Extracted ${allMessages.length} messages from ${moduleToKeys.size} modules`);
 
