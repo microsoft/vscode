@@ -475,6 +475,30 @@ suite('ChatHistoryNavigator', () => {
 		});
 	});
 
+	test('should isolate history when switching chat sessions', () => {
+		const instantiationService = testDisposables.add(new TestInstantiationService());
+		const storageService = testDisposables.add(new TestStorageService());
+		instantiationService.stub(IStorageService, storageService);
+
+		const historyService = testDisposables.add(instantiationService.createInstance(ChatWidgetHistoryService));
+		instantiationService.stub(IChatWidgetHistoryService, historyService);
+
+		const navigator = testDisposables.add(instantiationService.createInstance(ChatHistoryNavigator, ChatAgentLocation.Chat));
+		navigator.setHistoryKey('session-a');
+		navigator.append(createInputState('SESSION_A_ONLY calculate alpha'));
+
+		navigator.setHistoryKey('session-b');
+		assert.deepStrictEqual(navigator.values, []);
+		navigator.append(createInputState('SESSION_B_ONLY summarize beta'));
+		navigator.previous();
+		navigator.previous();
+		assert.strictEqual(navigator.current()?.inputText, 'SESSION_B_ONLY summarize beta');
+
+		navigator.setHistoryKey('session-a');
+		navigator.previous();
+		assert.strictEqual(navigator.current()?.inputText, 'SESSION_A_ONLY calculate alpha');
+	});
+
 	test('should update navigator when scoped history moves', () => {
 		const instantiationService = testDisposables.add(new TestInstantiationService());
 		const storageService = testDisposables.add(new TestStorageService());
