@@ -7635,6 +7635,61 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(localService.stateManager.getSurfacedSessionSummary(sessionStr), undefined);
 		});
 
+		test('a queued toggle still publishes when the session was evicted while it waited', async () => {
+			// Mirror of the restored-while-queued case: the session was live at dispatch
+			// entry, so the entry-time snapshot says "no passive handling needed", but it
+			// was evicted before the callback ran. Persistence rides the envelope either
+			// way; the catalogue delta is what goes missing.
+			let onWrite: (() => void) | undefined;
+			class HookedDb extends TestSessionDatabase {
+				override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
+					await super.setMetadataValues(values);
+					onWrite?.();
+				}
+			}
+			const db = new HookedDb();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.registerProvider(disposables.add(new MockAgent('copilot')));
+
+			const liveSession = (await localService.createSession({ provider: 'copilot' })).toString();
+			localService.stateManager.prepareSessionSummariesForListing([localService.stateManager.getSessionSummary(liveSession)!]);
+
+			// An un-restored session whose toggle holds the per-client queue with a real
+			// async write, giving the second toggle a window to be evicted in.
+			const surfaced = AgentSession.uri('copilot', 'queue-holder').toString();
+			const surfacedSummary = {
+				resource: surfaced,
+				provider: 'copilot',
+				title: 'Holder',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			};
+			localService.stateManager.announceSurfacedSession(surfacedSummary);
+			localService.stateManager.prepareSessionSummariesForListing([surfacedSummary]);
+			onWrite = () => { localService.stateManager.removeSession(liveSession); onWrite = undefined; };
+
+			const notifications: INotification[] = [];
+			const listener = localService.onDidNotification(n => notifications.push(n));
+			localService.dispatchAction(surfaced, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'c', 1, AgentHostClientType.EditorWindow);
+			localService.dispatchAction(liveSession, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'c', 2, AgentHostClientType.EditorWindow);
+			for (let i = 0; i < 30; i++) {
+				await timeout(0);
+			}
+			listener.dispose();
+
+			const published = notifications.find(n => n.type === 'root/sessionSummaryChanged' && n.session === liveSession);
+			assert.deepStrictEqual({
+				evicted: !localService.stateManager.getSessionState(liveSession),
+				publishedArchived: published?.type === 'root/sessionSummaryChanged'
+					? !!((published.changes.status ?? 0) & SessionStatus.IsArchived)
+					: undefined,
+			}, {
+				evicted: true,
+				publishedArchived: true,
+			});
+		});
+
 		test('turning the migrate setting off un-surfaces adoptable legacy sessions that were never opened', async () => {
 			class AdoptOnOpenAgent extends MockAgent {
 				constructor() { super('copilot'); }

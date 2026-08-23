@@ -4202,28 +4202,28 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		const next = (pending ?? Promise.resolve()).then(async () => {
-			if (requiresSessionRestore) {
-				const sessionUri = URI.parse(sessionChannel);
-				const subagent = parseSubagentSessionUri(sessionUri);
+			const sessionUri = URI.parse(sessionChannel);
+			const subagent = parseSubagentSessionUri(sessionUri);
+			// Evaluated here rather than from the entry-time `requiresSessionRestore`:
+			// this callback is queued behind earlier dispatches, so the session may
+			// since have been restored or evicted. Joining an in-flight restore also
+			// stops this write racing the metadata read that builds the restored summary.
+			if (isPassiveSessionMetadataAction(action) && !subagent) {
+				await this._restoreSessionInFlight.get(sessionChannel)?.catch(() => undefined);
+				if (!this._stateManager.getSessionState(sessionChannel)) {
+					if (readSessionEhcliAdoptable(this._stateManager.getSurfacedSessionSummary(sessionChannel)?._meta)) {
+						// Dropped so listing / scrolling can't adopt an un-opened legacy session; only an explicit open (subscribe) adopts.
+						return;
+					}
+					// Falls through so the envelope and its side effects (worktree
+					// cleanup, `onArchivedChanged`, Agent Merge sync) still run.
+					if (!await this._applyPassiveSessionMetadata(sessionChannel, action)) {
+						return;
+					}
+				}
+			} else if (requiresSessionRestore) {
 				if (subagent) {
 					await this._restoreSubagentSession(sessionChannel, subagent.parentSession);
-				} else if (isPassiveSessionMetadataAction(action) && readSessionEhcliAdoptable(this._stateManager.getSurfacedSessionSummary(sessionChannel)?._meta)) {
-					// Dropped so listing / scrolling can't adopt an un-opened legacy session; only an explicit open (subscribe) adopts.
-					return;
-				} else if (isPassiveSessionMetadataAction(action)) {
-					// Re-checked rather than trusting the entry-time
-					// `requiresSessionRestore`: this callback is queued behind earlier
-					// dispatches, so the session may since have been restored. Joining
-					// an in-flight restore also stops this write racing the metadata
-					// read that builds the restored summary.
-					await this._restoreSessionInFlight.get(sessionChannel)?.catch(() => undefined);
-					if (!this._stateManager.getSessionState(sessionChannel)) {
-						// Falls through so the envelope and its side effects (worktree
-						// cleanup, `onArchivedChanged`, Agent Merge sync) still run.
-						if (!await this._applyPassiveSessionMetadata(sessionChannel, action)) {
-							return;
-						}
-					}
 				} else {
 					await this.restoreSession(sessionUri);
 				}
