@@ -56,7 +56,7 @@
 	min-width: 0;
 }
 
-.monaco-workbench .chat-pill-icon.codicon {
+.monaco-workbench .chat-pill-icon.codicon[class*=codicon-] {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
