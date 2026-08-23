@@ -1,0 +1,64 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.sessions-github-reference-list {
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	min-width: 260px;
+	max-width: 420px;
+	padding: 0;
+}
+
+.sessions-github-reference-list-item {
+	display: flex;
+}
+
+.sessions-github-reference-list-entry {
+	display: flex;
+	flex: 1;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size120);
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: none;
+	color: var(--vscode-editorHoverWidget-foreground);
+	font-family: inherit;
+	font-size: var(--vscode-agents-fontSize-body1);
+	line-height: 1.4;
+	text-align: left;
+	cursor: pointer;
+}
+
+.sessions-github-reference-list-entry:hover,
+.sessions-github-reference-list-entry:focus {
+	background-color: var(--vscode-list-hoverBackground);
+	outline: none;
+}
+
+.sessions-github-reference-list-entry:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.sessions-github-reference-list-entry-icon {
+	flex-shrink: 0;
+}
+
+.sessions-github-reference-list-entry-number {
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+	font-variant-numeric: tabular-nums;
+	text-align: right;
+}
+
+.sessions-github-reference-list-entry-title {
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}

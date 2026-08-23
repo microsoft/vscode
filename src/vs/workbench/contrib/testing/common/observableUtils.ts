@@ -14,7 +14,7 @@ export function onObservableChange<T>(observable: IObservableWithChange<unknown,
 			observable.reportChanges();
 		},
 		handleChange<T2, TChange>(_observable: IObservableWithChange<T2, TChange>, change: TChange) {
-			callback(change as any as T);
+			callback(change as unknown as T);
 		}
 	};
 

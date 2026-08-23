@@ -26,15 +26,15 @@ suite('FindController', () => {
 			editor.trigger('test', Handler.Type, { text: 'hello' });
 
 			// press left
-			CoreNavigationCommands.CursorLeft.runEditorCommand(null, editor, {});
+			editor.runCommand(CoreNavigationCommands.CursorLeft, {});
 
 			// press Delete
-			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, {});
+			editor.runCommand(CoreEditingCommands.DeleteRight, {});
 			assert.deepStrictEqual(editor.getValue(), 'hell');
 			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 5, 1, 5)]);
 
 			// press left
-			CoreNavigationCommands.CursorLeft.runEditorCommand(null, editor, {});
+			editor.runCommand(CoreNavigationCommands.CursorLeft, {});
 			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 4, 1, 4)]);
 
 			// press Ctrl+U

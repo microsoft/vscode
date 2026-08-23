@@ -10,8 +10,8 @@
  */
 export namespace WebFileSystemAccess {
 
-	export function supported(obj: any & Window): boolean {
-		if (typeof obj?.showDirectoryPicker === 'function') {
+	export function supported(obj: typeof globalThis): boolean {
+		if (typeof (obj as typeof globalThis & { showDirectoryPicker?: unknown })?.showDirectoryPicker === 'function') {
 			return true;
 		}
 
@@ -36,11 +36,10 @@ export namespace WebFileSystemAccess {
 	}
 }
 
-// TODO@bpasero adopt official types of FileSystemObserver
 export namespace WebFileSystemObserver {
 
-	export function supported(obj: any & Window): boolean {
-		return typeof obj?.FileSystemObserver === 'function';
+	export function supported(obj: typeof globalThis): boolean {
+		return typeof (obj as typeof globalThis & { FileSystemObserver?: unknown })?.FileSystemObserver === 'function';
 	}
 }
 
@@ -85,4 +84,11 @@ export interface FileSystemObserverRecord {
 	 * The former location of a moved handle. Available only when the type is "moved".
 	 */
 	readonly relativePathMovedFrom?: string[];
+}
+
+export declare class FileSystemObserver {
+
+	constructor(callback: (records: FileSystemObserverRecord[], observer: FileSystemObserver) => void);
+
+	observe(handle: FileSystemHandle, options?: { recursive: boolean }): Promise<void>;
 }

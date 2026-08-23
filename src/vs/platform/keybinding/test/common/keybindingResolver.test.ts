@@ -260,6 +260,30 @@ suite('KeybindingResolver', () => {
 			assert.deepStrictEqual(actual, []);
 		});
 
+		test('issue #293802: removal still matches when default when clause becomes more specific', () => {
+			const defaults = [
+				kbItem(KeyCode.KeyA, 'command1', null, ContextKeyExpr.and(ContextKeyExpr.has('inChatInput'), ContextKeyExpr.not('withinEditSessionDiff')), true),
+			];
+			const overrides = [
+				kbItem(KeyCode.KeyA, '-command1', null, ContextKeyExpr.has('inChatInput'), false),
+			];
+			const actual = KeybindingResolver.handleRemovals([...defaults, ...overrides]);
+			assert.deepStrictEqual(actual, []);
+		});
+
+		test('removal with more specific when clause does not match broader default', () => {
+			const defaults = [
+				kbItem(KeyCode.KeyA, 'command1', null, ContextKeyExpr.has('inChatInput'), true),
+			];
+			const overrides = [
+				kbItem(KeyCode.KeyA, '-command1', null, ContextKeyExpr.and(ContextKeyExpr.has('inChatInput'), ContextKeyExpr.not('withinEditSessionDiff')), false),
+			];
+			const actual = KeybindingResolver.handleRemovals([...defaults, ...overrides]);
+			assert.deepStrictEqual(actual, [
+				kbItem(KeyCode.KeyA, 'command1', null, ContextKeyExpr.has('inChatInput'), true),
+			]);
+		});
+
 		test('issue #160604: Remove keybindings with when clause does not work', () => {
 			const defaults = [
 				kbItem(KeyCode.KeyA, 'command1', null, undefined, true),

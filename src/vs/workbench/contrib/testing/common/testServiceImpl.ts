@@ -41,9 +41,9 @@ export class TestService extends Disposable implements ITestService {
 	private testControllers = observableValue<ReadonlyMap<string, IMainThreadTestController>>('testControllers', new Map<string, IMainThreadTestController>());
 	private testExtHosts = new Set<IMainThreadTestHostProxy>();
 
-	private readonly cancelExtensionTestRunEmitter = new Emitter<{ runId: string | undefined; taskId: string | undefined }>();
-	private readonly willProcessDiffEmitter = new Emitter<TestsDiff>();
-	private readonly didProcessDiffEmitter = new Emitter<TestsDiff>();
+	private readonly cancelExtensionTestRunEmitter = this._register(new Emitter<{ runId: string | undefined; taskId: string | undefined }>());
+	private readonly willProcessDiffEmitter = this._register(new Emitter<TestsDiff>());
+	private readonly didProcessDiffEmitter = this._register(new Emitter<TestsDiff>());
 	private readonly testRefreshCancellations = new Set<CancellationTokenSource>();
 	private readonly isRefreshingTests: IContextKey<boolean>;
 	private readonly activeEditorHasTests: IContextKey<boolean>;
@@ -179,6 +179,7 @@ export class TestService extends Disposable implements ITestService {
 			group: req.group,
 			exclude: req.exclude?.map(t => t.item.extId),
 			continuous: req.continuous,
+			preserveFocus: req.preserveFocus,
 		};
 
 		// If no tests are covered by the defaults, just use whatever the defaults

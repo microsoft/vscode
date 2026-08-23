@@ -83,7 +83,7 @@ class CodeLensContentWidget implements IContentWidget {
 		this._domNode.className = `codelens-decoration`;
 	}
 
-	withCommands(lenses: Array<CodeLens | undefined | null>, animate: boolean): void {
+	withCommands(lenses: ReadonlyArray<CodeLens | undefined | null>, animate: boolean): void {
 		this._commands.clear();
 
 		const children: HTMLElement[] = [];
@@ -196,11 +196,11 @@ export class CodeLensWidget {
 
 	private _contentWidget?: CodeLensContentWidget;
 	private _decorationIds: string[];
-	private _data: CodeLensItem[];
+	private _data: readonly CodeLensItem[];
 	private _isDisposed: boolean = false;
 
 	constructor(
-		data: CodeLensItem[],
+		data: readonly CodeLensItem[],
 		editor: IActiveCodeEditor,
 		helper: CodeLensHelper,
 		viewZoneChangeAccessor: IViewZoneChangeAccessor,
@@ -276,7 +276,7 @@ export class CodeLensWidget {
 		});
 	}
 
-	updateCodeLensSymbols(data: CodeLensItem[], helper: CodeLensHelper): void {
+	updateCodeLensSymbols(data: readonly CodeLensItem[], helper: CodeLensHelper): void {
 		this._decorationIds.forEach(helper.removeDecoration, helper);
 		this._decorationIds = [];
 		this._data = data;
@@ -296,7 +296,7 @@ export class CodeLensWidget {
 		}
 	}
 
-	computeIfNecessary(model: ITextModel): CodeLensItem[] | null {
+	computeIfNecessary(model: ITextModel): readonly CodeLensItem[] | null {
 		if (!this._viewZone.isVisible()) {
 			return null;
 		}
@@ -311,8 +311,7 @@ export class CodeLensWidget {
 		return this._data;
 	}
 
-	updateCommands(symbols: Array<CodeLens | undefined | null>): void {
-
+	updateCommands(symbols: ReadonlyArray<CodeLens | undefined | null>): void {
 		this._createContentWidgetIfNecessary();
 		this._contentWidget!.withCommands(symbols, true);
 
@@ -352,7 +351,7 @@ export class CodeLensWidget {
 		}
 	}
 
-	getItems(): CodeLensItem[] {
+	getItems(): readonly CodeLensItem[] {
 		return this._data;
 	}
 }

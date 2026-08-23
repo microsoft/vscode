@@ -57,7 +57,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 interface IViewModel {
-	onDidChangeHelpInformation: Event<void>;
+	readonly onDidChangeHelpInformation: Event<void>;
 	helpInformation: HelpInformation[];
 }
 
@@ -248,7 +248,7 @@ class HelpItemValue {
 				if (url.authority) {
 					this._url = this.urlOrCommandOrId;
 				} else {
-					const urlCommand: Promise<string | undefined> = this.commandService.executeCommand(this.urlOrCommandOrId).then((result) => {
+					const urlCommand = this.commandService.executeCommand<string>(this.urlOrCommandOrId).then((result) => {
 						// if executing this command times out, cache its value whenever it eventually resolves
 						this._url = result;
 						return this._url;
@@ -525,7 +525,7 @@ class HelpPanelDescriptor implements IViewDescriptor {
 class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewModel {
 	private helpPanelDescriptor = new HelpPanelDescriptor(this);
 	helpInformation: HelpInformation[] = [];
-	private _onDidChangeHelpInformation = new Emitter<void>();
+	private _onDidChangeHelpInformation = this._register(new Emitter<void>());
 	public onDidChangeHelpInformation: Event<void> = this._onDidChangeHelpInformation.event;
 	private hasRegisteredHelpView: boolean = false;
 	private remoteSwitcher: SwitchRemoteViewItem | undefined;
@@ -1003,7 +1003,6 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 
 						if (e.handled) {
 							logService.info(`Error handled: Not showing a notification for the error.`);
-							console.log(`Error handled: Not showing a notification for the error.`);
 						} else if (!this._reloadWindowShown) {
 							this._reloadWindowShown = true;
 							dialogService.confirm({

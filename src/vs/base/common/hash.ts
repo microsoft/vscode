@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { encodeHex, VSBuffer } from './buffer.js';
+import { assert } from './assert.js';
 import * as strings from './strings.js';
 
 type NotSyncHashable = ArrayBufferLike | ArrayBufferView;
@@ -56,16 +57,24 @@ export function stringHash(s: string, hashVal: number) {
 	return hashVal;
 }
 
-function arrayHash(arr: any[], initialHashVal: number): number {
-	initialHashVal = numberHash(104579, initialHashVal);
-	return arr.reduce((hashVal, item) => doHash(item, hashVal), initialHashVal);
+/**
+ * Returns whether a string belongs to a stable percentage sample.
+ */
+export function isStringInSample(value: string, samplePercentage: number): boolean {
+	assert(Number.isInteger(samplePercentage) && samplePercentage >= 0 && samplePercentage <= 100, 'samplePercentage must be an integer between 0 and 100');
+	return (stringHash(value, 0) >>> 0) % 100 < samplePercentage;
 }
 
-function objectHash(obj: any, initialHashVal: number): number {
+function arrayHash(arr: unknown[], initialHashVal: number): number {
+	initialHashVal = numberHash(104579, initialHashVal);
+	return arr.reduce<number>((hashVal, item) => doHash(item, hashVal), initialHashVal);
+}
+
+function objectHash(obj: object, initialHashVal: number): number {
 	initialHashVal = numberHash(181387, initialHashVal);
 	return Object.keys(obj).sort().reduce((hashVal, key) => {
 		hashVal = stringHash(key, hashVal);
-		return doHash(obj[key], hashVal);
+		return doHash((obj as Record<string, unknown>)[key], hashVal);
 	}, initialHashVal);
 }
 
@@ -93,7 +102,7 @@ export const hashAsync = (input: string | ArrayBufferView | VSBuffer) => {
 		buff = input;
 	}
 
-	return crypto.subtle.digest('sha-1', buff as ArrayBufferView<ArrayBuffer>).then(toHexString);
+	return crypto.subtle.digest('sha-1', buff as ArrayBufferView<ArrayBuffer>).then(toHexString); // CodeQL [SM04514] we use sha1 here for validating old stored client state, not for security
 };
 
 const enum SHA1Constant {

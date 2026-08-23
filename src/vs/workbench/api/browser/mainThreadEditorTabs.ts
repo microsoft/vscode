@@ -16,7 +16,7 @@ import { isGroupEditorMoveEvent } from '../../common/editor/editorGroupModel.js'
 import { EditorInput } from '../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../common/editor/sideBySideEditorInput.js';
 import { AbstractTextResourceEditorInput } from '../../common/editor/textResourceEditorInput.js';
-import { ChatEditorInput } from '../../contrib/chat/browser/chatEditorInput.js';
+import { ChatEditorInput } from '../../contrib/chat/browser/widgetHosts/editor/chatEditorInput.js';
 import { CustomEditorInput } from '../../contrib/customEditor/browser/customEditorInput.js';
 import { InteractiveEditorInput } from '../../contrib/interactive/browser/interactiveEditorInput.js';
 import { MergeEditorInput } from '../../contrib/mergeEditor/browser/mergeEditorInput.js';
@@ -274,6 +274,9 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 				kind: TabModelOperationKind.TAB_UPDATE
 			});
 		} else {
+			if (this._editorGroupsService.activeModalEditorPart?.groups.some(group => group.id === groupId)) {
+				return;
+			}
 			this._logService.error('Invalid model for label change, rebuilding');
 			this._createTabsModel();
 		}
@@ -311,7 +314,10 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 				if (!tabInfo) {
 					return;
 				}
-				tabInfo.tab = this._buildTabObject(group, editorInput, editorIndex);
+				// Refresh the DTO in place. The group's `tabs` array holds this very object,
+				// so swapping in a new one would leave that copy behind and let the two
+				// caches drift apart, e.g. a later update could re-send a stale `isActive`.
+				Object.assign(tabInfo.tab, this._buildTabObject(group, editorInput, editorIndex));
 				this._proxy.$acceptTabOperation({
 					groupId,
 					index: editorIndex,
@@ -377,8 +383,15 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 			return;
 		}
 		const activeTab = tabs[editorIndex];
-		// No need to loop over as the exthost uses the most recently marked active tab
 		activeTab.isActive = true;
+		// Clear the flag on the other tabs of the group. Otherwise a later `TAB_UPDATE`
+		// re-sending one of those still-cached DTOs (label, dirty, pin or preview change)
+		// would repoint the exthost at a tab that is no longer active.
+		for (const tab of tabs) {
+			if (tab !== activeTab) {
+				tab.isActive = false;
+			}
+		}
 		// Send DTO update to the exthost
 		this._proxy.$acceptTabOperation({
 			groupId,
@@ -531,26 +544,6 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		this._proxy.$acceptEditorTabModel(this._tabGroupModel);
 	}
 
-	// TODOD @lramos15 Remove this after done finishing the tab model code
-	// private _eventToString(event: IEditorsChangeEvent | IEditorsMoveEvent): string {
-	// 	let eventString = '';
-	// 	switch (event.kind) {
-	// 		case GroupModelChangeKind.GROUP_INDEX: eventString += 'GROUP_INDEX'; break;
-	// 		case GroupModelChangeKind.EDITOR_ACTIVE: eventString += 'EDITOR_ACTIVE'; break;
-	// 		case GroupModelChangeKind.EDITOR_PIN: eventString += 'EDITOR_PIN'; break;
-	// 		case GroupModelChangeKind.EDITOR_OPEN: eventString += 'EDITOR_OPEN'; break;
-	// 		case GroupModelChangeKind.EDITOR_CLOSE: eventString += 'EDITOR_CLOSE'; break;
-	// 		case GroupModelChangeKind.EDITOR_MOVE: eventString += 'EDITOR_MOVE'; break;
-	// 		case GroupModelChangeKind.EDITOR_LABEL: eventString += 'EDITOR_LABEL'; break;
-	// 		case GroupModelChangeKind.GROUP_ACTIVE: eventString += 'GROUP_ACTIVE'; break;
-	// 		case GroupModelChangeKind.GROUP_LOCKED: eventString += 'GROUP_LOCKED'; break;
-	// 		case GroupModelChangeKind.EDITOR_DIRTY: eventString += 'EDITOR_DIRTY'; break;
-	// 		case GroupModelChangeKind.EDITOR_STICKY: eventString += 'EDITOR_STICKY'; break;
-	// 		default: eventString += `UNKNOWN: ${event.kind}`; break;
-	// 	}
-	// 	return eventString;
-	// }
-
 	/**
 	 * The main handler for the tab events
 	 * @param events The list of events to process
@@ -603,6 +596,11 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 				}
 			case GroupModelChangeKind.EDITOR_TRANSIENT:
 				// Currently not exposed in the API
+				break;
+			case GroupModelChangeKind.EDITORS_SELECTION:
+				// Multi-select state of editors is workbench-internal and not exposed in the tabs API.
+				// Treat as no-op so we do not rebuild the entire model (which would invalidate
+				// any `vscode.Tab` references the extension is currently holding).
 				break;
 			case GroupModelChangeKind.EDITOR_MOVE:
 				if (isGroupEditorMoveEvent(event) && event.editor && event.editorIndex !== undefined && event.oldEditorIndex !== undefined) {

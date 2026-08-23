@@ -12,8 +12,8 @@ export const IInteractiveDocumentService = createDecorator<IInteractiveDocumentS
 
 export interface IInteractiveDocumentService {
 	readonly _serviceBrand: undefined;
-	onWillAddInteractiveDocument: Event<{ notebookUri: URI; inputUri: URI; languageId: string }>;
-	onWillRemoveInteractiveDocument: Event<{ notebookUri: URI; inputUri: URI }>;
+	readonly onWillAddInteractiveDocument: Event<{ notebookUri: URI; inputUri: URI; languageId: string }>;
+	readonly onWillRemoveInteractiveDocument: Event<{ notebookUri: URI; inputUri: URI }>;
 	willCreateInteractiveDocument(notebookUri: URI, inputUri: URI, languageId: string): void;
 	willRemoveInteractiveDocument(notebookUri: URI, inputUri: URI): void;
 }

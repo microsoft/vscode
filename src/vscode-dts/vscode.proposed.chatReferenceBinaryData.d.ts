@@ -30,6 +30,17 @@ declare module 'vscode' {
 		readonly reference?: Uri;
 
 		/**
+		 * Whether this image was pasted from the clipboard.
+		 */
+		readonly isPasted?: boolean;
+
+		/**
+		 * Whether this image originated from a URL. `true` when it was attached from a URL,
+		 * `false` when it came from a local file, and `undefined` when the origin is unknown.
+		 */
+		readonly isURL?: boolean;
+
+		/**
 		 * @param mimeType The MIME type of the binary data.
 		 * @param data The binary data of the reference.
 		 */

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IHTMLDataProvider, newHTMLDataProvider } from 'vscode-html-languageservice';
-import { CustomDataRequestService } from './htmlServer';
+import { newHTMLDataProvider, IHTMLDataProvider } from 'vscode-html-languageservice';
+import { CustomDataRequestService } from './htmlServer.js';
 
 export function fetchHTMLDataProviders(dataPaths: string[], requestService: CustomDataRequestService): Promise<IHTMLDataProvider[]> {
 	const providers = dataPaths.map(async p => {

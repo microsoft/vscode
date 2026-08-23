@@ -46,11 +46,13 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	properties: {
 		'mergeEditor.diffAlgorithm': {
 			type: 'string',
-			enum: ['legacy', 'advanced'],
+			enum: ['legacy', 'advanced', 'advanced-external', 'advanced-wasm'],
 			default: 'advanced',
 			markdownEnumDescriptions: [
 				localize('diffAlgorithm.legacy', "Uses the legacy diffing algorithm."),
 				localize('diffAlgorithm.advanced', "Uses the advanced diffing algorithm."),
+				localize('diffAlgorithm.advancedExternal', "Uses the advanced diffing algorithm from the external `@vscode/diff` package (pure JavaScript)."),
+				localize('diffAlgorithm.advancedWasm', "Uses the advanced diffing algorithm from the external `@vscode/diff` package (WebAssembly)."),
 			]
 		},
 		'mergeEditor.showDeletionMarkers': {

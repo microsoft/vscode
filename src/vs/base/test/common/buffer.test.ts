@@ -19,6 +19,20 @@ suite('Buffer', () => {
 		assert.deepStrictEqual(buffer.toString(), 'hi');
 	});
 
+	test('issue #251527 - VSBuffer#toString preserves BOM character in filenames', () => {
+		// BOM character (U+FEFF) is a zero-width character that was being stripped
+		// when deserializing messages in the IPC layer. This test verifies that
+		// the BOM character is preserved when using VSBuffer.toString().
+		const bomChar = '\uFEFF';
+		const filename = `${bomChar}c.txt`;
+		const buffer = VSBuffer.fromString(filename);
+		const result = buffer.toString();
+
+		// Verify the BOM character is preserved
+		assert.strictEqual(result, filename);
+		assert.strictEqual(result.charCodeAt(0), 0xFEFF);
+	});
+
 	test('bufferToReadable / readableToBuffer', () => {
 		const content = 'Hello World';
 		const readable = bufferToReadable(VSBuffer.fromString(content));
@@ -423,10 +437,12 @@ suite('Buffer', () => {
 
 		assert.strictEqual(haystack.indexOf(VSBuffer.fromString('a')), 0);
 		assert.strictEqual(haystack.indexOf(VSBuffer.fromString('c')), 2);
+		assert.strictEqual(haystack.indexOf(VSBuffer.fromString('c'), 4), 7);
 
 		assert.strictEqual(haystack.indexOf(VSBuffer.fromString('abcaa')), 0);
 		assert.strictEqual(haystack.indexOf(VSBuffer.fromString('caaab')), 8);
 		assert.strictEqual(haystack.indexOf(VSBuffer.fromString('ccc')), 15);
+		assert.strictEqual(haystack.indexOf(VSBuffer.fromString('cc'), 9), 15);
 
 		assert.strictEqual(haystack.indexOf(VSBuffer.fromString('cccb')), -1);
 	});
@@ -498,6 +514,7 @@ suite('Buffer', () => {
 
 		// Test invalid input
 		assert.throws(() => {
+			// eslint-disable-next-line local/code-no-any-casts
 			buff.set({} as any);
 		});
 	});

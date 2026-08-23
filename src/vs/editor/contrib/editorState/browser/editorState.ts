@@ -57,12 +57,12 @@ export class EditorState {
 		}
 	}
 
-	private _equals(other: any): boolean {
+	private _equals(other: unknown): boolean {
 
 		if (!(other instanceof EditorState)) {
 			return false;
 		}
-		const state = <EditorState>other;
+		const state = other;
 
 		if (this.modelVersionId !== state.modelVersionId) {
 			return false;

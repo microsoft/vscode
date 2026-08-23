@@ -26,7 +26,8 @@ import { CellContentPart } from '../cellPart.js';
 import { CodeCellRenderTemplate } from '../notebookRenderingCommon.js';
 import { CodeCellViewModel } from '../../viewModel/codeCellViewModel.js';
 import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
-import { CellUri, IOrderedMimeType, NotebookCellExecutionState, NotebookCellOutputsSplice, RENDERER_NOT_AVAILABLE, isTextStreamMime } from '../../../common/notebookCommon.js';
+import { CellUri, IOrderedMimeType, NotebookCellExecutionState, NotebookCellOutputsSplice, RENDERER_NOT_AVAILABLE } from '../../../common/notebookCommon.js';
+import { isTextStreamMime } from '../../../../../../base/common/mime.js';
 import { INotebookExecutionStateService } from '../../../common/notebookExecutionStateService.js';
 import { INotebookKernel } from '../../../common/notebookKernelService.js';
 import { INotebookService } from '../../../common/notebookService.js';
@@ -768,19 +769,13 @@ export class CellOutputContainer extends CellContentPart {
 			supportThemeIcons: true
 		};
 
-		const rendered = renderMarkdown(md, {
-			actionHandler: {
-				callback: (content) => {
-					if (content === 'command:workbench.action.openLargeOutput') {
-						this.openerService.open(CellUri.generateCellOutputUriWithId(this.notebookEditor.textModel!.uri));
-					}
-
-					return;
-				},
-				disposables
-			}
-		});
-		disposables.add(rendered);
+		const rendered = disposables.add(renderMarkdown(md, {
+			actionHandler: (content) => {
+				if (content === 'command:workbench.action.openLargeOutput') {
+					this.openerService.open(CellUri.generateCellOutputUriWithId(this.notebookEditor.textModel!.uri));
+				}
+			},
+		}));
 
 		rendered.element.classList.add('output-show-more');
 		return rendered.element;

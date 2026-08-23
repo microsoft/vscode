@@ -30,7 +30,7 @@ export interface ILabelService {
 	getSeparator(scheme: string, authority?: string): '/' | '\\';
 
 	registerFormatter(formatter: ResourceLabelFormatter): IDisposable;
-	onDidChangeFormatters: Event<IFormatterChangeEvent>;
+	readonly onDidChangeFormatters: Event<IFormatterChangeEvent>;
 
 	/**
 	 * Registers a formatter that's cached for the machine beyond the lifecycle
@@ -66,4 +66,10 @@ export interface ResourceLabelFormatting {
 	workspaceTooltip?: string;
 	authorityPrefix?: string;
 	stripPathStartingSeparator?: boolean;
+	/**
+	 * Number of leading path segments to strip from `${path}` before
+	 * substitution. For example, a value of `2` turns
+	 * `/scheme/authority/rest/of/path` into `/rest/of/path`.
+	 */
+	stripPathSegments?: number;
 }

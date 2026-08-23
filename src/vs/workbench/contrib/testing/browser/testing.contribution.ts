@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from '../../../../base/common/uri.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -17,17 +18,10 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProgressService } from '../../../../platform/progress/common/progress.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IViewContainersRegistry, IViewsRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation } from '../../../common/views.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { REVEAL_IN_EXPLORER_COMMAND_ID } from '../../files/browser/fileConstants.js';
-import { CodeCoverageDecorations } from './codeCoverageDecorations.js';
-import { testingResultsIcon, testingViewIcon } from './icons.js';
-import { TestCoverageView } from './testCoverageView.js';
-import { TestingDecorationService, TestingDecorations } from './testingDecorations.js';
-import { TestingExplorerView } from './testingExplorerView.js';
-import { CloseTestPeek, CollapsePeekStack, GoToNextMessageAction, GoToPreviousMessageAction, OpenMessageInEditorAction, TestResultsView, TestingOutputPeekController, TestingPeekOpener, ToggleTestingPeekHistory } from './testingOutputPeek.js';
-import { TestingProgressTrigger } from './testingProgressUiService.js';
-import { TestingViewPaneContainer } from './testingViewPaneContainer.js';
 import { testingConfiguration } from '../common/configuration.js';
 import { TestCommandId, Testing } from '../common/constants.js';
 import { ITestCoverageService, TestCoverageService } from '../common/testCoverageService.js';
@@ -39,16 +33,22 @@ import { ITestResultStorage, TestResultStorage } from '../common/testResultStora
 import { ITestService } from '../common/testService.js';
 import { TestService } from '../common/testServiceImpl.js';
 import { ITestItem, ITestRunProfileReference, TestRunProfileBitset } from '../common/testTypes.js';
+import { TestingChatAgentToolContribution } from '../common/testingChatAgentTool.js';
 import { TestingContentProvider } from '../common/testingContentProvider.js';
 import { TestingContextKeys } from '../common/testingContextKeys.js';
 import { ITestingContinuousRunService, TestingContinuousRunService } from '../common/testingContinuousRunService.js';
 import { ITestingDecorationsService } from '../common/testingDecorations.js';
 import { ITestingPeekOpener } from '../common/testingPeekOpener.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { CodeCoverageDecorations } from './codeCoverageDecorations.js';
+import { testingResultsIcon, testingViewIcon } from './icons.js';
+import { TestCoverageView } from './testCoverageView.js';
 import { allTestActions, discoverAndRunTests } from './testExplorerActions.js';
 import './testingConfigurationUi.js';
-import { URI } from '../../../../base/common/uri.js';
+import { TestingDecorations, TestingDecorationService } from './testingDecorations.js';
+import { TestingExplorerView } from './testingExplorerView.js';
+import { CloseTestPeek, CollapsePeekStack, GoToNextMessageAction, GoToPreviousMessageAction, OpenMessageInEditorAction, TestingOutputPeekController, TestingPeekOpener, TestResultsView, ToggleTestingPeekHistory } from './testingOutputPeek.js';
+import { TestingProgressTrigger } from './testingProgressUiService.js';
+import { TestingViewPaneContainer } from './testingViewPaneContainer.js';
 
 registerSingleton(ITestService, TestService, InstantiationType.Delayed);
 registerSingleton(ITestResultStorage, TestResultStorage, InstantiationType.Delayed);
@@ -139,9 +139,10 @@ registerAction2(CloseTestPeek);
 registerAction2(ToggleTestingPeekHistory);
 registerAction2(CollapsePeekStack);
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingContentProvider, LifecyclePhase.Restored);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingPeekOpener, LifecyclePhase.Eventually);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingProgressTrigger, LifecyclePhase.Eventually);
+registerWorkbenchContribution2(TestingContentProvider.ID, TestingContentProvider, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(TestingPeekOpener.ID, TestingPeekOpener, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(TestingProgressTrigger.ID, TestingProgressTrigger, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(TestingChatAgentToolContribution.ID, TestingChatAgentToolContribution, WorkbenchPhase.Eventually);
 
 registerEditorContribution(Testing.OutputPeekContributionId, TestingOutputPeekController, EditorContributionInstantiation.AfterFirstRender);
 registerEditorContribution(Testing.DecorationsContributionId, TestingDecorations, EditorContributionInstantiation.AfterFirstRender);

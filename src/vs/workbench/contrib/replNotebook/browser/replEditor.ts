@@ -288,7 +288,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 					bottom: INPUT_EDITOR_PADDING
 				},
 				hover: {
-					enabled: true
+					enabled: 'on' as const
 				},
 				rulers: []
 			}
@@ -485,11 +485,11 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 			}
 		}));
 
-		this._codeEditorWidget.onDidChangeModelDecorations(() => {
+		this._widgetDisposableStore.add(this._codeEditorWidget.onDidChangeModelDecorations(() => {
 			if (this.isVisible()) {
 				this._updateInputHint();
 			}
-		});
+		}));
 
 		const cursorAtBoundaryContext = INTERACTIVE_INPUT_CURSOR_BOUNDARY.bindTo(this._contextKeyService);
 		if (input.resource && input.historyService.has(input.resource)) {

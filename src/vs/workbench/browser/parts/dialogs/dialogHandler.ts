@@ -4,46 +4,44 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IConfirmation, IConfirmationResult, IInputResult, ICheckbox, IInputElement, ICustomDialogOptions, IInput, AbstractDialogHandler, DialogType, IPrompt, IAsyncPromptResult } from '../../../../platform/dialogs/common/dialogs.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import Severity from '../../../../base/common/severity.js';
-import { Dialog, IDialogResult } from '../../../../base/browser/ui/dialog/dialog.js';
+import { Dialog, DialogContentsAlignment, IDialogResult } from '../../../../base/browser/ui/dialog/dialog.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
-import { fromNow } from '../../../../base/common/date.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { MarkdownRenderer, openLinkFromMarkdown } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService, openLinkFromMarkdown } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { createWorkbenchDialogOptions } from '../../../../platform/dialogs/browser/dialog.js';
+import { createWorkbenchDialogOptions } from './dialog.js';
+import { IHostService } from '../../../services/host/browser/host.js';
 
 export class BrowserDialogHandler extends AbstractDialogHandler {
 
-	private static readonly ALLOWABLE_COMMANDS = [
+	private static readonly ALLOWABLE_COMMANDS = new Set([
 		'copy',
 		'cut',
 		'editor.action.selectAll',
 		'editor.action.clipboardCopyAction',
 		'editor.action.clipboardCutAction',
 		'editor.action.clipboardPasteAction'
-	];
-
-	private readonly markdownRenderer: MarkdownRenderer;
+	]);
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IProductService private readonly productService: IProductService,
 		@IClipboardService private readonly clipboardService: IClipboardService,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+		@IHostService private readonly hostService: IHostService,
 	) {
 		super();
-
-		this.markdownRenderer = instantiationService.createInstance(MarkdownRenderer, {});
 	}
 
 	async prompt<T>(prompt: IPrompt<T>): Promise<IAsyncPromptResult<T>> {
@@ -51,7 +49,7 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 
 		const buttons = this.getPromptButtons(prompt);
 
-		const { button, checkboxChecked } = await this.doShow(prompt.type, prompt.message, buttons, prompt.detail, prompt.cancelButton ? buttons.length - 1 : -1 /* Disabled */, prompt.checkbox, undefined, typeof prompt?.custom === 'object' ? prompt.custom : undefined);
+		const { button, checkboxChecked } = await this.doShow(prompt.type, prompt.message, buttons, prompt.detail, prompt.cancelButton ? buttons.length - 1 : -1 /* Disabled */, prompt.checkbox, undefined, typeof prompt?.custom === 'object' ? prompt.custom : undefined, prompt.token);
 
 		return this.getPromptResult(prompt, button, checkboxChecked);
 	}
@@ -61,7 +59,7 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 
 		const buttons = this.getConfirmationButtons(confirmation);
 
-		const { button, checkboxChecked } = await this.doShow(confirmation.type ?? 'question', confirmation.message, buttons, confirmation.detail, buttons.length - 1, confirmation.checkbox, undefined, typeof confirmation?.custom === 'object' ? confirmation.custom : undefined);
+		const { button, checkboxChecked } = await this.doShow(confirmation.type ?? 'question', confirmation.message, buttons, confirmation.detail, buttons.length - 1, confirmation.checkbox, undefined, typeof confirmation?.custom === 'object' ? confirmation.custom : undefined, confirmation.token);
 
 		return { confirmed: button === 0, checkboxChecked };
 	}
@@ -71,58 +69,53 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 
 		const buttons = this.getInputButtons(input);
 
-		const { button, checkboxChecked, values } = await this.doShow(input.type ?? 'question', input.message, buttons, input.detail, buttons.length - 1, input?.checkbox, input.inputs, typeof input.custom === 'object' ? input.custom : undefined);
+		const { button, checkboxChecked, values } = await this.doShow(input.type ?? 'question', input.message, buttons, input.detail, buttons.length - 1, input?.checkbox, input.inputs, typeof input.custom === 'object' ? input.custom : undefined, input.token);
 
 		return { confirmed: button === 0, checkboxChecked, values };
 	}
 
-	async about(): Promise<void> {
-		const detailString = (useAgo: boolean): string => {
-			return localize('aboutDetail',
-				"Version: {0}\nCommit: {1}\nDate: {2}\nBrowser: {3}",
-				this.productService.version || 'Unknown',
-				this.productService.commit || 'Unknown',
-				this.productService.date ? `${this.productService.date}${useAgo ? ' (' + fromNow(new Date(this.productService.date), true) + ')' : ''}` : 'Unknown',
-				navigator.userAgent
-			);
-		};
-
-		const detail = detailString(true);
-		const detailToCopy = detailString(false);
+	async about(title: string, details: string, detailsToCopy: string): Promise<void> {
 
 		const { button } = await this.doShow(
 			Severity.Info,
-			this.productService.nameLong,
+			title,
 			[
 				localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"),
 				localize('ok', "OK")
 			],
-			detail,
+			details,
 			1
 		);
 
 		if (button === 0) {
-			this.clipboardService.writeText(detailToCopy);
+			this.clipboardService.writeText(detailsToCopy);
 		}
 	}
 
-	private async doShow(type: Severity | DialogType | undefined, message: string, buttons?: string[], detail?: string, cancelId?: number, checkbox?: ICheckbox, inputs?: IInputElement[], customOptions?: ICustomDialogOptions): Promise<IDialogResult> {
+	/** Default link handler for Markdown rendered within a dialog, see {@link openLinkFromMarkdown}. */
+	private defaultMarkdownActionHandler(link: string, mdStr: IMarkdownString): Promise<boolean> {
+		return openLinkFromMarkdown(this.openerService, link, mdStr.isTrusted, true /* skip URL validation to prevent another dialog from showing which is unsupported */);
+	}
+
+	private async doShow(type: Severity | DialogType | undefined, message: string, buttons?: string[], detail?: string | IMarkdownString, cancelId?: number, checkbox?: ICheckbox, inputs?: IInputElement[], customOptions?: ICustomDialogOptions, token?: CancellationToken): Promise<IDialogResult> {
 		const dialogDisposables = new DisposableStore();
+
+		// A Markdown `detail` is rendered ahead of time into a plain element:
+		// the base `Dialog` widget has no Markdown rendering capability of its
+		// own (it lives below the platform layer), so it is handed the result
+		// via `detailElement` instead of the raw `IMarkdownString`.
+		const detailElement = typeof detail === 'object' ? dialogDisposables.add(this.markdownRendererService.render(detail, {
+			actionHandler: (link, mdStr) => this.defaultMarkdownActionHandler(link, mdStr),
+		})).element : undefined;
 
 		const renderBody = customOptions ? (parent: HTMLElement) => {
 			parent.classList.add(...(customOptions.classes || []));
 			customOptions.markdownDetails?.forEach(markdownDetail => {
-				const result = this.markdownRenderer.render(markdownDetail.markdown, {
-					actionHandler: {
-						callback: markdownDetail.actionHandler || (link => {
-							return openLinkFromMarkdown(this.openerService, link, markdownDetail.markdown.isTrusted, true /* skip URL validation to prevent another dialog from showing which is unsupported */);
-						}),
-						disposables: dialogDisposables
-					}
-				});
+				const result = dialogDisposables.add(this.markdownRendererService.render(markdownDetail.markdown, {
+					actionHandler: markdownDetail.actionHandler || ((link, mdStr) => this.defaultMarkdownActionHandler(link, mdStr)),
+				}));
 				parent.appendChild(result.element);
 				result.element.classList.add(...(markdownDetail.classes || []));
-				dialogDisposables.add(result);
 			});
 		} : undefined;
 
@@ -131,20 +124,26 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 			message,
 			buttons,
 			createWorkbenchDialogOptions({
-				detail,
+				detail: typeof detail === 'string' ? detail : undefined,
+				detailElement,
 				cancelId,
 				type: this.getDialogType(type),
 				renderBody,
 				icon: customOptions?.icon,
+				alignment: customOptions?.alignment === 'vertical' ? DialogContentsAlignment.Vertical : DialogContentsAlignment.Horizontal,
 				disableCloseAction: customOptions?.disableCloseAction,
 				buttonOptions: customOptions?.buttonDetails?.map(detail => ({ sublabel: detail })),
 				checkboxLabel: checkbox?.label,
 				checkboxChecked: checkbox?.checked,
 				inputs
-			}, this.keybindingService, this.layoutService, BrowserDialogHandler.ALLOWABLE_COMMANDS)
+			}, this.keybindingService, this.layoutService, this.hostService, BrowserDialogHandler.ALLOWABLE_COMMANDS)
 		);
 
 		dialogDisposables.add(dialog);
+
+		if (token) {
+			dialogDisposables.add(token.onCancellationRequested(() => dialogDisposables.dispose()));
+		}
 
 		const result = await dialog.show();
 		dialogDisposables.dispose();

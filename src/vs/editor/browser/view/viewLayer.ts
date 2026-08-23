@@ -546,7 +546,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 			if (wasInvalid[i]) {
 				const source = <HTMLElement>hugeDomNode.firstChild;
 				const lineDomNode = line.getDomNode()!;
-				lineDomNode.parentNode!.replaceChild(source, lineDomNode);
+				lineDomNode.replaceWith(source);
 				line.setDomNode(source);
 			}
 		}

@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { observableValueOpts, IObservable, ITransaction } from '../observable.js';
+import { IObservable, ITransaction } from '../observable.js';
+import { observableValueOpts } from './observables/observableValueOpts.js';
+
 
 export class ObservableMap<K, V> implements Map<K, V> {
 	private readonly _data = new Map<K, V>();
@@ -49,25 +51,25 @@ export class ObservableMap<K, V> implements Map<K, V> {
 		}
 	}
 
-	forEach(callbackfn: (value: V, key: K, map: Map<K, V>) => void, thisArg?: any): void {
+	forEach(callbackfn: (value: V, key: K, map: Map<K, V>) => void, thisArg?: unknown): void {
 		this._data.forEach((value, key, _map) => {
 			callbackfn.call(thisArg, value, key, this);
 		});
 	}
 
-	*entries(): IterableIterator<[K, V]> {
+	*entries(): MapIterator<[K, V]> {
 		yield* this._data.entries();
 	}
 
-	*keys(): IterableIterator<K> {
+	*keys(): MapIterator<K> {
 		yield* this._data.keys();
 	}
 
-	*values(): IterableIterator<V> {
+	*values(): MapIterator<V> {
 		yield* this._data.values();
 	}
 
-	[Symbol.iterator](): IterableIterator<[K, V]> {
+	[Symbol.iterator](): MapIterator<[K, V]> {
 		return this.entries();
 	}
 

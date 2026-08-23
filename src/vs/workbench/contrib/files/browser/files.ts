@@ -45,11 +45,19 @@ export interface IExplorerService {
 	select(resource: URI, reveal?: boolean | string): Promise<void>;
 
 	registerView(contextAndRefreshProvider: IExplorerView): void;
+
+	/**
+	 * The id of the currently registered explorer view, if any. This differs between
+	 * the default workbench window and the agents (sessions) window, where the explorer
+	 * view is re-registered under a different id.
+	 */
+	getViewId(): string | undefined;
 }
 
 export const IExplorerService = createDecorator<IExplorerService>('explorerService');
 
 export interface IExplorerView {
+	readonly id: string;
 	autoReveal: boolean | 'force' | 'focusNoScroll';
 	getContext(respectMultiSelection: boolean): ExplorerItem[];
 	refresh(recursive: boolean, item?: ExplorerItem, cancelEditing?: boolean): Promise<void>;
@@ -159,7 +167,7 @@ export function getMultiSelectedResources(commandArg: unknown, listService: ILis
 	}
 
 	const result = getResourceForCommand(commandArg, editorSerice, listService);
-	return !!result ? [result] : [];
+	return result ? [result] : [];
 }
 
 export function getOpenEditorsViewMultiSelection(accessor: ServicesAccessor): Array<IEditorIdentifier> | undefined {

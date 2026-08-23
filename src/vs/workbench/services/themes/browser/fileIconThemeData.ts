@@ -119,6 +119,7 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 					case 'hidesExplorerArrows':
 					case 'hasFolderIcons':
 					case 'watch':
+						// eslint-disable-next-line local/code-no-any-casts
 						(theme as any)[key] = data[key];
 						break;
 					case 'location':
@@ -188,6 +189,7 @@ interface IconThemeDocument extends IconsAssociation {
 	fonts: FontDefinition[];
 	light?: IconsAssociation;
 	highContrast?: IconsAssociation;
+	usesCurrentColor?: boolean;
 	hidesExplorerArrows?: boolean;
 	showLanguageModeIcons?: boolean;
 }
@@ -413,12 +415,18 @@ export class FileIconThemeLoader {
 		// Use emQuads to prevent the icon from collapsing to zero height for image icons
 		const emQuad = css.stringValue('\\2001');
 
+		// When usesCurrentColor is set, image icons are rendered as masks filled with the current text color
+		const imageIconStyle = (iconPath: css.CssFragment): css.CssFragment => iconThemeDocument.usesCurrentColor
+			? css.inline`background-color: currentColor; background-image: none; mask: ${iconPath} no-repeat var(--file-icon-mask-position, left center); mask-size: var(--file-icon-mask-size, 16px); -webkit-mask: ${iconPath} no-repeat var(--file-icon-mask-position, left center); -webkit-mask-size: var(--file-icon-mask-size, 16px);`
+			: css.inline`background-image: ${iconPath};`;
+
 		for (const defId in selectorByDefinitionId) {
 			const selectors = selectorByDefinitionId[defId];
 			const definition = iconThemeDocument.iconDefinitions[defId];
 			if (definition) {
 				if (definition.iconPath) {
-					cssRules.push(css.inline`${selectors.join(', ')} { content: ${emQuad}; background-image: ${css.asCSSUrl(resolvePath(definition.iconPath))}; }`);
+					const iconPath = css.asCSSUrl(resolvePath(definition.iconPath));
+					cssRules.push(css.inline`${selectors.join(', ')} { content: ${emQuad}; ${imageIconStyle(iconPath)} }`);
 				} else if (definition.fontCharacter || definition.fontColor) {
 					const body = new css.Builder();
 					if (definition.fontColor && definition.fontColor.match(fontColorRegex)) {
@@ -448,8 +456,8 @@ export class FileIconThemeLoader {
 					const icon = this.languageService.getIcon(languageId);
 					if (icon) {
 						const selector = css.inline`.show-file-icons .${classSelectorPart(languageId)}-lang-file-icon.file-icon::before`;
-						cssRules.push(css.inline`${selector} { content: ${emQuad}; background-image: ${css.asCSSUrl(icon.dark)}; }`);
-						cssRules.push(css.inline`.vs ${selector} { content: ${emQuad}; background-image: ${css.asCSSUrl(icon.light)}; }`);
+						cssRules.push(css.inline`${selector} { content: ${emQuad}; ${imageIconStyle(css.asCSSUrl(icon.dark))} }`);
+						cssRules.push(css.inline`.vs ${selector} { content: ${emQuad}; ${imageIconStyle(css.asCSSUrl(icon.light))} }`);
 					}
 				}
 			}
