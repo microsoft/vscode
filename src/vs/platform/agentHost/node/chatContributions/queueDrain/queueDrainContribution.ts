@@ -45,7 +45,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 	}
 
 	onTurnEnd(turn: ITurnEnd): void {
-		if (turn.reason.kind === 'success') {
+		if (turn.reason.kind === 'success' || turn.reason.kind === 'localCommand') {
 			this._tryConsumeNextQueuedMessage(turn.channel);
 		}
 	}
@@ -79,10 +79,6 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 				this._syncPendingMessages(observed.channel);
 				break;
 		}
-	}
-
-	onTurnConsumable(channel: ProtocolURI): void {
-		this._tryConsumeNextQueuedMessage(channel);
 	}
 
 	private _syncPendingMessages(channel: ProtocolURI): void {

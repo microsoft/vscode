@@ -194,7 +194,8 @@ export class AgentHostLocalCommands extends Disposable {
 			if (command.recordsLocalTurn) {
 				this._recordLocalTurn(request.turnChannel, request.turnId);
 			}
-			this._chatContributions.turnConsumable(request.turnChannel);
+			const session = isAhpChatChannel(request.turnChannel) ? parseRequiredSessionUriFromChatUri(request.turnChannel) : request.turnChannel;
+			this._chatContributions.turnEnd({ session, channel: request.turnChannel, turnId: request.turnId, reason: { kind: 'localCommand' } });
 		}
 	}
 

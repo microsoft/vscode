@@ -25,8 +25,12 @@ export class MarkUnreadContribution extends Disposable implements IAgentHostChat
 	}
 
 	onTurnEnd(turn: ITurnEnd): void {
-		// Deliberately ignore `reason`: success, cancellation, and error all
-		// retain the current behavior of marking a read session unread.
+		// Deliberately ignore agent turn outcomes: success, cancellation, and
+		// error all retain the current behavior of marking a read session unread.
+		// Local commands deliberately preserve the existing read state.
+		if (turn.reason.kind === 'localCommand') {
+			return;
+		}
 		// Route subagent turns to their owning session too (a background subagent
 		// can complete after the parent turn). Each client keeps its active session
 		// read; marking it unread is idempotent.

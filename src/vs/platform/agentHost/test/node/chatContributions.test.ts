@@ -744,7 +744,7 @@ suite('AgentHostChatContributions', () => {
 			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text: 'running', origin: { kind: MessageKind.User } },
 		});
-		active.service.turnConsumable(active.chat);
+		active.service.turnEnd({ session: active.session, channel: active.chat, turnId: 'active-turn', reason: { kind: 'localCommand' } });
 
 		const steering = createQueueDrainContributions(disposables);
 		steering.stateManager.dispatchServerAction(steering.chat, queuedMessage('queued', 'queued'));
@@ -754,10 +754,10 @@ suite('AgentHostChatContributions', () => {
 			id: 'steering',
 			message: { text: 'steering', origin: { kind: MessageKind.User } },
 		});
-		steering.service.turnConsumable(steering.chat);
+		steering.service.turnEnd({ session: steering.session, channel: steering.chat, turnId: 'steering-turn', reason: { kind: 'localCommand' } });
 
 		const empty = createQueueDrainContributions(disposables);
-		empty.service.turnConsumable(empty.chat);
+		empty.service.turnEnd({ session: empty.session, channel: empty.chat, turnId: 'empty-turn', reason: { kind: 'localCommand' } });
 
 		assert.deepStrictEqual([active.admitted, steering.admitted, empty.admitted], [[], [], []]);
 	});
@@ -783,7 +783,7 @@ suite('AgentHostChatContributions', () => {
 		queue.stateManager.dispatchServerAction(queue.chat, removed);
 		queue.service.action(observedAction(queue.chat, queue.session, removed, 'remove-client'));
 		queue.stateManager.dispatchServerAction(queue.chat, { type: ActionType.ChatTurnComplete, turnId: 'active-turn', duration: 1 });
-		queue.service.turnConsumable(queue.chat);
+		queue.service.turnEnd({ session: queue.session, channel: queue.chat, turnId: 'active-turn', reason: { kind: 'localCommand' } });
 
 		assert.deepStrictEqual({
 			pendingMessages: queue.pendingMessages.map(message => message?.message.text),
@@ -807,7 +807,7 @@ suite('AgentHostChatContributions', () => {
 		queue.service.action(observedAction(queue.chat, queue.session, action, 'original-client'));
 		queue.service.disposeChatState(queue.chat);
 		queue.stateManager.dispatchServerAction(queue.chat, { type: ActionType.ChatTurnComplete, turnId: 'active-turn', duration: 1 });
-		queue.service.turnConsumable(queue.chat);
+		queue.service.turnEnd({ session: queue.session, channel: queue.chat, turnId: 'active-turn', reason: { kind: 'localCommand' } });
 
 		assert.deepStrictEqual(queue.admitted, [{
 			channel: queue.chat,
@@ -889,6 +889,26 @@ suite('AgentHostChatContributions', () => {
 		contributions.turnEnd(turnEnd('built-in-order'));
 
 		assert.deepStrictEqual(observed, ['checkpointAndChangeset', 'queueDrain', 'githubReferences', 'sessionTitle', 'markUnread']);
+	});
+
+	test('drains the queue but skips other turn-end contributions for local commands', () => {
+		const observed: string[] = [];
+		const contributions = createBuiltInContributions(disposables, observed);
+		contributions.turnEnd(turnEnd('local-command', { kind: 'localCommand' }));
+
+		assert.deepStrictEqual({
+			queueDrain: observed.includes('queueDrain'),
+			checkpointAndChangeset: observed.includes('checkpointAndChangeset'),
+			githubReferences: observed.includes('githubReferences'),
+			sessionTitle: observed.includes('sessionTitle'),
+			markUnread: observed.includes('markUnread'),
+		}, {
+			queueDrain: true,
+			checkpointAndChangeset: false,
+			githubReferences: false,
+			sessionTitle: false,
+			markUnread: false,
+		});
 	});
 
 	test('runs built-in send contributions in the original sequence', async () => {

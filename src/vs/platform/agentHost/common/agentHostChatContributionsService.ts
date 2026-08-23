@@ -16,16 +16,17 @@ export const IAgentHostChatContributions = createDecorator<IAgentHostChatContrib
 
 /**
  * Why a turn ended. Contributions must discriminate on `kind`: successful,
- * cancelled, and failed turns deliberately run different side effects.
- * `success` and `cancelled` carry no payload on purpose; add fields only when
- * a contribution actually needs them.
+ * cancelled, failed, and host-handled local-command turns deliberately run
+ * different side effects. `success`, `cancelled`, and `localCommand` carry no
+ * payload on purpose; add fields only when a contribution actually needs them.
  */
 export type TurnEndReason =
 	| { readonly kind: 'success' }
 	| { readonly kind: 'cancelled' }
-	| { readonly kind: 'error'; readonly error: ErrorInfo };
+	| { readonly kind: 'error'; readonly error: ErrorInfo }
+	| { readonly kind: 'localCommand' };
 
-/** A terminal turn outcome offered to contributions after the agent ended it. */
+/** A terminal turn outcome offered to contributions after a turn ended. */
 export interface ITurnEnd {
 	/** The owning session URI (already normalized from a chat channel). */
 	readonly session: ProtocolURI;
@@ -132,14 +133,12 @@ export interface IAgentHostChatContribution extends IDisposable {
 	 * must declare an explicit order; registration order only breaks ties.
 	 */
 	readonly order?: number;
-	/** Fires on every terminal outcome - success, cancellation, and error. Must not throw; the dispatcher isolates failures. */
+	/** Fires on every terminal outcome. Must not throw; the dispatcher isolates failures. */
 	onTurnEnd?(turn: ITurnEnd): void;
 	/** Observes a direct user message after local-command handling. */
 	onUserMessage?(session: ProtocolURI, text: string): void;
 	/** Observes actions submitted through the client dispatch path after state reduction. */
 	onAction?(action: IObservedAction): void;
-	/** Fires only after a host-handled local command made a chat available for queue admission. */
-	onTurnConsumable?(channel: ProtocolURI): void;
 	/** Awaited before the turn is sent. Results are concatenated in `order`; failures are isolated and do not block the send. */
 	contributeSend?(turn: IOutgoingTurn): ISendContribution | undefined | Promise<ISendContribution | undefined>;
 	/**
@@ -170,7 +169,6 @@ export interface IAgentHostChatContributions extends IDisposable {
 	turnEnd(turn: ITurnEnd): void;
 	userMessage(session: ProtocolURI, text: string): void;
 	action(action: IObservedAction): void;
-	turnConsumable(channel: ProtocolURI): void;
 	contributeSend(turn: IOutgoingTurn): Promise<readonly string[]>;
 	hydrateTurns(context: IHydrationContext, turns: readonly Turn[]): Promise<readonly Turn[]>;
 	disposeChatState(chat: ProtocolURI): void;

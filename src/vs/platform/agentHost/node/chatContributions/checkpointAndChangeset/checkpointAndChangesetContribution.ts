@@ -28,7 +28,7 @@ export class CheckpointAndChangesetContribution extends Disposable implements IA
 	}
 
 	onTurnEnd(turn: ITurnEnd): void {
-		if (turn.reason.kind === 'cancelled') {
+		if (turn.reason.kind !== 'success' && turn.reason.kind !== 'error') {
 			return;
 		}
 		if (turn.turnId === undefined) {

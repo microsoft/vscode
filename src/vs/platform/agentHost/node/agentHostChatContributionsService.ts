@@ -164,20 +164,6 @@ export class AgentHostChatContributions extends Disposable implements IAgentHost
 		}
 	}
 
-	turnConsumable(channel: ProtocolURI): void {
-		for (const registration of this._getOrderedContributions()) {
-			const { contribution } = registration;
-			if (!contribution.onTurnConsumable) {
-				continue;
-			}
-			try {
-				contribution.onTurnConsumable(channel);
-			} catch (err) {
-				this._logContributionFailure(registration, err);
-			}
-		}
-	}
-
 	async contributeSend(turn: IOutgoingTurn): Promise<readonly string[]> {
 		const instructions: string[] = [];
 		for (const registration of this._getOrderedContributions()) {
