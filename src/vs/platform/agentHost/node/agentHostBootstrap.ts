@@ -42,7 +42,6 @@ import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { AgentEditAttributionService } from './shared/agentEditAttributionService.js';
 import { EditArcReporterService, IEditArcReporterService } from './shared/editArcReporter.js';
 import { EditSurvivalReporterFactory, IEditSurvivalReporterFactory } from './shared/editSurvivalReporter.js';
-import { IAgentHostWorktreeIsolation, WorktreeIsolation } from './shared/worktreeIsolation.js';
 import { AgentSdkDownloader, IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
 import { IClaudeAgentSdkService, ClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';
 import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';
@@ -169,10 +168,6 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		agentService.setEditAttributionService(editAttributionService);
 		services.set(IEditSurvivalReporterFactory, instantiationService.createInstance(EditSurvivalReporterFactory));
 		services.set(IEditArcReporterService, disposables.add(instantiationService.createInstance(EditArcReporterService, undefined)));
-
-		const worktreeIsolation = disposables.add(instantiationService.createInstance(WorktreeIsolation, undefined));
-		services.set(IAgentHostWorktreeIsolation, worktreeIsolation);
-		agentService.setWorktreeIsolation(worktreeIsolation);
 
 		const agentSdkDownloader = disposables.add(instantiationService.createInstance(AgentSdkDownloader));
 		services.set(IAgentSdkDownloader, agentSdkDownloader);

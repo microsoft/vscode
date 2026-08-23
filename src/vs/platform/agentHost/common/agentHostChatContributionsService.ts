@@ -5,9 +5,12 @@
 
 import type { IDisposable } from '../../../base/common/lifecycle.js';
 import type { ISettableObservable } from '../../../base/common/observable.js';
+import type { StopWatch } from '../../../base/common/stopwatch.js';
 import { createDecorator, type BrandedService } from '../../instantiation/common/instantiation.js';
-import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
-import type { ErrorInfo, Turn, URI as ProtocolURI } from './state/sessionState.js';
+import type { IAgent } from './agent.js';
+import type { AgentHostLaunchKind, IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
+import type { StateAction } from './state/sessionActions.js';
+import type { ErrorInfo, Message, Turn, URI as ProtocolURI } from './state/sessionState.js';
 
 export const IAgentHostChatContributions = createDecorator<IAgentHostChatContributions>('agentHostChatContributions');
 
@@ -55,13 +58,36 @@ export interface IHydrationContext {
 	readonly chat: ProtocolURI;
 }
 
+/** A client action after it has been reduced into host state. */
+export interface IObservedAction {
+	readonly channel: ProtocolURI;
+	readonly session: ProtocolURI;
+	readonly action: StateAction;
+	readonly clientId: string | undefined;
+	readonly clientContext: IAgentHostClientTelemetryContext;
+}
+
+export interface IQueuedMessageSender {
+	readonly clientId: string | undefined;
+	readonly clientContext: IAgentHostClientTelemetryContext;
+}
+
+export interface ISendTurnMessageOptions {
+	readonly agent: IAgent;
+	readonly sessionChannel: ProtocolURI;
+	readonly turnChannel: ProtocolURI;
+	readonly chat: ProtocolURI;
+	readonly message: Message;
+	readonly turnId: string;
+	readonly senderClientId: string | undefined;
+	readonly clientContext: IAgentHostClientTelemetryContext;
+	readonly turnStopWatch: StopWatch;
+}
+
 /** The host operations that remain owned by {@link AgentSideEffects}. */
 export interface IAgentHostChatContributionHost {
-	drainQueuedMessages(channel: ProtocolURI): void;
-	notifyTurnComplete(session: ProtocolURI): void;
-	refineTitleFromFirstTurn(session: ProtocolURI, chat?: ProtocolURI): void;
-	prepareRenameInstruction(session: ProtocolURI, chat: ProtocolURI): Promise<string | undefined>;
-	applyWorktreeRestoreAnnouncement(session: ProtocolURI, turns: readonly Turn[]): Promise<readonly Turn[]>;
+	readonly hostLaunchKind: AgentHostLaunchKind;
+	sendTurnMessage(options: ISendTurnMessageOptions): void;
 }
 
 type MementoKeySegment = string | boolean | number;
@@ -108,6 +134,12 @@ export interface IAgentHostChatContribution extends IDisposable {
 	readonly order?: number;
 	/** Fires on every terminal outcome - success, cancellation, and error. Must not throw; the dispatcher isolates failures. */
 	onTurnEnd?(turn: ITurnEnd): void;
+	/** Observes a direct user message after local-command handling. */
+	onUserMessage?(session: ProtocolURI, text: string): void;
+	/** Observes actions submitted through the client dispatch path after state reduction. */
+	onAction?(action: IObservedAction): void;
+	/** Fires only after a host-handled local command made a chat available for queue admission. */
+	onTurnConsumable?(channel: ProtocolURI): void;
 	/** Awaited before the turn is sent. Results are concatenated in `order`; failures are isolated and do not block the send. */
 	contributeSend?(turn: IOutgoingTurn): ISendContribution | undefined | Promise<ISendContribution | undefined>;
 	/**
@@ -136,6 +168,9 @@ export interface IAgentHostChatContributions extends IDisposable {
 	/** Returns the currently registered host, if AgentSideEffects has been constructed. */
 	getHost(): IAgentHostChatContributionHost | undefined;
 	turnEnd(turn: ITurnEnd): void;
+	userMessage(session: ProtocolURI, text: string): void;
+	action(action: IObservedAction): void;
+	turnConsumable(channel: ProtocolURI): void;
 	contributeSend(turn: IOutgoingTurn): Promise<readonly string[]>;
 	hydrateTurns(context: IHydrationContext, turns: readonly Turn[]): Promise<readonly Turn[]>;
 	disposeChatState(chat: ProtocolURI): void;

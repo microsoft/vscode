@@ -19,6 +19,7 @@ import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js
 import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { IAgentService } from '../common/agentService.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { AgentHostChangesetCoordinator } from './agentHostChangesetCoordinator.js';
@@ -41,14 +42,18 @@ import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { AgentHostMergeOperationContribution } from './agentHostMergeOperationProvider.js';
 import { AgentHostPromptCache, IAgentHostPromptCache } from './agentHostPromptCache.js';
+import { AgentHostProviderLocator, IAgentHostProviderLocator } from './agentHostProviderLocator.js';
 import { AgentHostPullRequestOperationContribution } from './agentHostPullRequestOperationProvider.js';
 import { AgentHostRenameCompletionProvider } from './agentHostRenameCommand.js';
 import { AgentHostReviewService } from './agentHostReviewService.js';
 import { AgentHostSessionTitleSignal, IAgentHostSessionTitleSignal } from './agentHostSessionTitleSignal.js';
+import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { AgentHostStorageService, IAgentHostStorageService } from './agentHostStorageService.js';
 import { AgentHostSyncOperationContribution } from './agentHostSyncOperationProvider.js';
 import { AgentHostTerminalManager, IAgentHostTerminalManager } from './agentHostTerminalManager.js';
+import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
+import { AgentHostTurnTracker, IAgentHostTurnTracker } from './agentHostTurnTracker.js';
 import { AgentHostWorkspaceFiles } from './agentHostWorkspaceFiles.js';
 import { AgentMergeController } from './agentMergeController.js';
 import { AgentMergeTools } from './agentMergeTools.js';
@@ -58,10 +63,12 @@ import { AgentSideEffects } from './agentSideEffects.js';
 import { registerBuiltInChatContributions } from './chatContributions/builtInChatContributions.js';
 import { CodexCompactCompletionProvider } from './codexCompactCommand.js';
 import { SessionCoordinationService } from './sessionCoordination.js';
+import { AgentHostLocalCommands, IAgentHostLocalCommands } from './localCommands/localChatCommand.js';
 import { AgentServerToolHost } from './shared/agentServerToolHost.js';
 import { buildServerToolGroups } from './shared/serverToolGroups.js';
 import { AgentHostOctoKitService, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
+import { IAgentHostWorktreeIsolation, WorktreeIsolation } from './shared/worktreeIsolation.js';
 import { hostBuildInfoFromProduct } from '../common/state/sessionState.js';
 
 /** Constructs, registers, and initializes the complete {@link AgentService} collaborator graph. */
@@ -73,6 +80,7 @@ export function createAgentService(
 	logService: ILogService,
 	productService: IProductService,
 	additionalDisposables: readonly IDisposable[] = [],
+	bindWorktreeIsolation = true,
 ): AgentService {
 	const owned = new DisposableStore();
 	let agentService: AgentService | undefined;
@@ -143,6 +151,29 @@ export function createAgentService(
 		services.set(IGitHubService, gitHubService);
 		const copilotApiService = context.copilotApiServiceOverride ?? instantiationService.createInstance(CopilotApiService, fetchFn);
 		services.set(ICopilotApiService, copilotApiService);
+		const worktreeIsolation = owned.add(instantiationService.createInstance(WorktreeIsolation, undefined));
+		services.set(IAgentHostWorktreeIsolation, worktreeIsolation);
+		const sessionTitleController = owned.add(instantiationService.createInstance(AgentHostSessionTitleController, context.stateManager, {
+			sessionDataService: context.sessionDataService,
+			getGitHubCopilotToken: () => {
+				const resource = gitHubEndpointService.getCopilotResource();
+				return context.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
+			},
+			getGitHubToken: () => {
+				const resource = gitHubEndpointService.getRepoResource();
+				return context.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
+			},
+			getGitHubHost: () => gitHubEndpointService.getEnterpriseHost() ?? 'github.com',
+			octoKitService,
+			copilotApiService,
+			isActiveAgentTitleGenerationEnabled: () => context.configurationService.getRootValue(platformRootSchema, AgentHostActiveAgentTitleGenerationConfigKey) === true,
+		}));
+		services.set(IAgentHostSessionTitleController, sessionTitleController);
+		services.set(IAgentHostProviderLocator, new AgentHostProviderLocator(context.getAgentForSession));
+		const telemetryReporter = instantiationService.createInstance(AgentHostTelemetryReporter);
+		services.set(IAgentHostTelemetryReporter, telemetryReporter);
+		const turnTracker = owned.add(instantiationService.createInstance(AgentHostTurnTracker));
+		services.set(IAgentHostTurnTracker, turnTracker);
 		const customizationEnablementService = owned.add(instantiationService.createInstance(AgentHostCustomizationEnablementService));
 		services.set(IAgentHostCustomizationEnablementService, customizationEnablementService);
 		const gitStateService = owned.add(instantiationService.createInstance(AgentHostGitStateService));
@@ -164,6 +195,11 @@ export function createAgentService(
 		services.set(IAgentHostChangesetService, changesets);
 		const changesetCoordinator = owned.add(instantiationService.createInstance(AgentHostChangesetCoordinator));
 		owned.add(context.stateManager.onDidChangeSessionActiveTurn(event => changesetCoordinator.onSessionTurnActiveChanged(event.session, event.active)));
+		const terminalManager = owned.add(instantiationService.createInstance(AgentHostTerminalManager));
+		services.set(IAgentHostTerminalManager, terminalManager);
+		const localTurns = new AgentHostLocalTurns(context.sessionDataService, logService);
+		const localCommands = owned.add(instantiationService.createInstance(AgentHostLocalCommands, localTurns));
+		services.set(IAgentHostLocalCommands, localCommands);
 		owned.add(registerBuiltInChatContributions(chatContributions));
 		owned.add(changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostCommitOperationContribution)));
 		owned.add(changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostPullRequestOperationContribution)));
@@ -183,14 +219,11 @@ export function createAgentService(
 			session => (context.stateManager.getSessionState(session)?.turns.length ?? 0) > 0,
 		)));
 
-		const terminalManager = owned.add(instantiationService.createInstance(AgentHostTerminalManager));
-		services.set(IAgentHostTerminalManager, terminalManager);
-		const localTurns = new AgentHostLocalTurns(context.sessionDataService, logService);
 		const sideEffects = owned.add(instantiationService.createInstance(
 			AgentSideEffects,
 			context.stateManager,
 			customizationEnablementService,
-			context.createSideEffectsOptions({ localTurns, copilotApiService, octoKitService, gitStateService }),
+			context.createSideEffectsOptions({ localTurns }),
 		));
 		const sessionCoordination = owned.add(new SessionCoordinationService(
 			context.stateManager,
@@ -231,6 +264,9 @@ export function createAgentService(
 			sessionCoordination,
 			serverToolHost,
 		});
+		if (bindWorktreeIsolation) {
+			agentService.setWorktreeIsolation(worktreeIsolation);
+		}
 		return agentService;
 	} catch (error) {
 		if (agentService) {

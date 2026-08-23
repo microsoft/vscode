@@ -8,13 +8,12 @@ import { IAgentHostChatContributions } from '../../common/agentHostChatContribut
 import { ArtifactToolsContribution } from './artifactTools/artifactToolsContribution.js';
 import { ChatSurfaceContribution } from './chatSurface/chatSurfaceContribution.js';
 import { CheckpointAndChangesetContribution } from './checkpointAndChangeset/checkpointAndChangesetContribution.js';
-import { GitRefreshContribution } from './gitRefresh/gitRefreshContribution.js';
+import { GitHubReferencesContribution } from './githubReferences/githubReferencesContribution.js';
 import { MarkdownPlanRichLinksContribution } from './markdownPlanRichLinks/markdownPlanRichLinksContribution.js';
 import { MarkUnreadContribution } from './markUnread/markUnreadContribution.js';
 import { PersistedTurnUsageContribution } from './persistedTurnUsage/persistedTurnUsageContribution.js';
 import { QueueDrainContribution } from './queueDrain/queueDrainContribution.js';
-import { RenameInstructionContribution } from './renameInstruction/renameInstructionContribution.js';
-import { TitleRefinementContribution } from './titleRefinement/titleRefinementContribution.js';
+import { SessionTitleContribution } from './sessionTitle/sessionTitleContribution.js';
 import { WorktreeAnnouncementContribution } from './worktreeAnnouncement/worktreeAnnouncementContribution.js';
 
 /** Registers all built-in chat contribution constructors. */
@@ -26,12 +25,11 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(WorktreeAnnouncementContribution));
 	registrations.add(contributions.registerContribution(CheckpointAndChangesetContribution));
 	registrations.add(contributions.registerContribution(QueueDrainContribution));
-	registrations.add(contributions.registerContribution(GitRefreshContribution));
-	registrations.add(contributions.registerContribution(TitleRefinementContribution));
+	registrations.add(contributions.registerContribution(GitHubReferencesContribution));
+	registrations.add(contributions.registerContribution(SessionTitleContribution));
 	registrations.add(contributions.registerContribution(MarkUnreadContribution));
 	registrations.add(contributions.registerContribution(MarkdownPlanRichLinksContribution));
 	registrations.add(contributions.registerContribution(ArtifactToolsContribution));
 	registrations.add(contributions.registerContribution(ChatSurfaceContribution));
-	registrations.add(contributions.registerContribution(RenameInstructionContribution));
 	return registrations;
 }

@@ -8,7 +8,7 @@ import { NKeyMap } from '../../../base/common/map.js';
 import { observableValue, type ISettableObservable } from '../../../base/common/observable.js';
 import { IInstantiationService, type IConstructorSignature } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IAgentHostChatContributionHost, IAgentHostChatContributions, IChatMementoKey, IHydrationContext, IOutgoingTurn, ISessionMementoKey, ITurnEnd } from '../common/agentHostChatContributionsService.js';
+import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IAgentHostChatContributionHost, IAgentHostChatContributions, IChatMementoKey, IHydrationContext, IObservedAction, IOutgoingTurn, ISessionMementoKey, ITurnEnd } from '../common/agentHostChatContributionsService.js';
 import { isAhpChatChannel, parseRequiredSessionUriFromChatUri, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
 
 type MementoKeySegment = string | boolean | number;
@@ -130,6 +130,48 @@ export class AgentHostChatContributions extends Disposable implements IAgentHost
 			}
 			try {
 				contribution.onTurnEnd(turn);
+			} catch (err) {
+				this._logContributionFailure(registration, err);
+			}
+		}
+	}
+
+	userMessage(session: ProtocolURI, text: string): void {
+		for (const registration of this._getOrderedContributions()) {
+			const { contribution } = registration;
+			if (!contribution.onUserMessage) {
+				continue;
+			}
+			try {
+				contribution.onUserMessage(session, text);
+			} catch (err) {
+				this._logContributionFailure(registration, err);
+			}
+		}
+	}
+
+	action(action: IObservedAction): void {
+		for (const registration of this._getOrderedContributions()) {
+			const { contribution } = registration;
+			if (!contribution.onAction) {
+				continue;
+			}
+			try {
+				contribution.onAction(action);
+			} catch (err) {
+				this._logContributionFailure(registration, err);
+			}
+		}
+	}
+
+	turnConsumable(channel: ProtocolURI): void {
+		for (const registration of this._getOrderedContributions()) {
+			const { contribution } = registration;
+			if (!contribution.onTurnConsumable) {
+				continue;
+			}
+			try {
+				contribution.onTurnConsumable(channel);
 			} catch (err) {
 				this._logContributionFailure(registration, err);
 			}

@@ -87,7 +87,6 @@ import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostArtifactToolsCon
 import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
 import { AgentHostStorageService, IAgentHostStorageService } from './agentHostStorageService.js';
 import { SessionCoordinationService } from './sessionCoordination.js';
-import { IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
@@ -324,12 +323,10 @@ export interface IAgentServiceCompositionContext {
 	readonly hostLaunchKind: AgentHostLaunchKind;
 	readonly copilotApiServiceOverride: ICopilotApiService | undefined;
 	readonly getAuthToken: (request: IAgentHostAuthTokenRequest) => string | undefined;
+	readonly getAgentForSession: (session: URI | string) => IAgent | undefined;
 	readonly createAgentMergeControllerOptions: () => IAgentMergeControllerOptions;
 	readonly createSideEffectsOptions: (services: {
 		readonly localTurns: AgentHostLocalTurns;
-		readonly copilotApiService: ICopilotApiService;
-		readonly octoKitService: IAgentHostOctoKitService;
-		readonly gitStateService: IAgentHostGitStateService;
 	}) => IAgentSideEffectsOptions;
 	readonly getSessionMetadata: (session: URI) => Promise<IAgentSessionMetadata | undefined>;
 	readonly restoreSession: (session: URI) => Promise<void>;
@@ -669,6 +666,7 @@ export class AgentService extends Disposable implements IAgentService {
 			hostLaunchKind: this._hostLaunchKind,
 			copilotApiServiceOverride: this._copilotApiServiceOverride,
 			getAuthToken: request => this._authService.getAuthToken(request),
+			getAgentForSession: session => this._findProviderForSession(session),
 			createAgentMergeControllerOptions: () => ({
 				startTurn: (session, turnId, prompt) => this._startAgentMergePrompt(session, turnId, prompt),
 				cancelTurn: (session, turnId) => this._cancelAgentMergePrompt(session, turnId),
@@ -680,26 +678,8 @@ export class AgentService extends Disposable implements IAgentService {
 				localTurns: services.localTurns,
 				agents: this._agents,
 				hostLaunchKind: this._hostLaunchKind,
-				copilotApiService: services.copilotApiService,
-				getGitHubCopilotToken: () => {
-					const resource = this._gitHubEndpointService.getCopilotResource();
-					return this._authService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
-				},
-				getGitHubToken: () => {
-					const resource = this._gitHubEndpointService.getRepoResource();
-					return this._authService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
-				},
-				getGitHubHost: () => this._gitHubEndpointService.getEnterpriseHost() ?? 'github.com',
-				octoKitService: services.octoKitService,
 				resolveWorkingDirectoryBeforeSend: params => this._resolveWorkingDirectoryBeforeSend(params),
 				resolveChatAttachmentTurns: resource => this._resolveChatAttachmentTurns(resource),
-				onTurnComplete: session => {
-					const workingDirStr = this._stateManager.getSessionState(session)?.workingDirectories?.[0];
-					void services.gitStateService.attachSessionGitHubPullRequest(session, workingDirStr ? URI.parse(workingDirStr) : undefined);
-				},
-				onUserMessage: (session, text) => {
-					void services.gitStateService.attachSessionGitHubReferences(session.toString(), text);
-				},
 			}),
 			getSessionMetadata: session => this._getSessionMetadata(session),
 			restoreSession: session => this.restoreSession(session),
@@ -2931,7 +2911,6 @@ export class AgentService extends Disposable implements IAgentService {
 				await this._disposeChat(provider, chat);
 			}
 			await this._removePersistedPeerChat(session, chat);
-			this._sideEffects.clearQueuedMessageSenders(chatKey);
 			this._sideEffects.cancelSubagentSessions(chatKey);
 			this._sideEffects.clearChannelTelemetry(chatKey);
 			this._chatContributions.disposeChatState(chatKey);
@@ -3703,9 +3682,6 @@ export class AgentService extends Disposable implements IAgentService {
 		await this._sessionDataService.deleteSessionData(session, workingDirectories);
 		await this._worktree?.removeSessionWorktree(sessionId, worktree);
 		this._changesetCoordinator.onSessionDisposed(session.toString());
-		for (const chat of this._stateManager.getSessionState(session.toString())?.chats ?? []) {
-			this._sideEffects.clearQueuedMessageSenders(chat.resource);
-		}
 		this._sideEffects.clearInputRequestsForSession(session.toString());
 		// Remove all subagent sessions for this parent
 		this._sideEffects.removeSubagentSessions(session.toString());

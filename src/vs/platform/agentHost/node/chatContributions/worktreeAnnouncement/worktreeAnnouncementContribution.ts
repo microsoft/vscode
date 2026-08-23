@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { IAgentHostChatContributions, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IHydrationContext } from '../../../common/agentHostChatContributionsService.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IHydrationContext } from '../../../common/agentHostChatContributionsService.js';
 import { isDefaultChatUri, type Turn } from '../../../common/state/sessionState.js';
+import { IAgentHostWorktreeIsolation } from '../../shared/worktreeIsolation.js';
 
 /** Restores the worktree notice on the default chat when isolation is configured. */
 export class WorktreeAnnouncementContribution extends Disposable implements IAgentHostChatContribution {
@@ -15,7 +17,7 @@ export class WorktreeAnnouncementContribution extends Disposable implements IAge
 
 	constructor(
 		protected readonly _context: IAgentHostChatContributionContext,
-		@IAgentHostChatContributions private readonly _chatContributions: IAgentHostChatContributions,
+		@IAgentHostWorktreeIsolation private readonly _worktreeIsolation: IAgentHostWorktreeIsolation,
 	) {
 		super();
 	}
@@ -24,6 +26,6 @@ export class WorktreeAnnouncementContribution extends Disposable implements IAge
 		if (!isDefaultChatUri(context.chat)) {
 			return turns;
 		}
-		return this._chatContributions.getHost()?.applyWorktreeRestoreAnnouncement(context.session, turns) ?? turns;
+		return this._worktreeIsolation.applyRestoreAnnouncement(URI.parse(context.session), turns);
 	}
 }

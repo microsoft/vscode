@@ -32,6 +32,7 @@ export interface IAgentHostWorktreeIsolation {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeWorkingDirectoryPending: Event<string>;
 	isWorkingDirectoryPending(sessionId: string): boolean;
+	applyRestoreAnnouncement(sessionUri: URI, turns: readonly Turn[]): Promise<readonly Turn[]>;
 }
 
 /**

@@ -78,6 +78,7 @@ export function createTestAgentService(
 		logService,
 		productService,
 		fileMonitorService ? [instantiationService] : [effectiveFileMonitorService, instantiationService],
+		false,
 	);
 	return service;
 }
