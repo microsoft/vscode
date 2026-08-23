@@ -165,7 +165,7 @@ export class Scanner {
 		}
 	}
 
-	private static _regexFlags = new Set(['i', 'g', 's', 'm', 'y', 'u'].map(ch => ch.charCodeAt(0)));
+	private static _regexFlags = new Set(['d', 'i', 'g', 's', 'm', 'y', 'u', 'v'].map(ch => ch.charCodeAt(0)));
 
 	private static _keywords = new Map<string, KeywordTokenType>([
 		['not', TokenType.Not],
@@ -333,7 +333,7 @@ export class Scanner {
 	}
 
 	/*
-	 * Lexing a regex expression: /.../[igsmyu]*
+	 * Lexing a regex expression: /.../[digsmyuv]*
 	 * Based on https://github.com/microsoft/TypeScript/blob/9247ef115e617805983740ba795d7a8164babf89/src/compiler/scanner.ts#L2129-L2181
 	 *
 	 * Note that we want slashes within a regex to be escaped, e.g., /file:\\/\\/\\// should match `file:///`
