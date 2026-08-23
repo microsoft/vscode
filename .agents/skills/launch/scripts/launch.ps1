@@ -199,18 +199,21 @@ function Copy-ProfileDirectory([string]$source, [string]$destination, [bool]$use
 	}
 }
 
-function Assert-AuthCriticalProfileFiles([string]$destination) {
+function Assert-AuthCriticalProfileFiles([string]$source, [string]$destination) {
 	$requiredPaths = @(
 		'Local State',
 		'machineid',
 		'User\globalStorage\state.vscdb',
 		'Network'
 	)
+	
+	# Only assert paths that actually existed in the source profile
 	$missingPaths = @($requiredPaths | Where-Object {
-		-not (Test-Path -LiteralPath (Join-Path $destination $_))
+		(Test-Path -LiteralPath (Join-Path $source $_)) -and (-not (Test-Path -LiteralPath (Join-Path $destination $_)))
 	})
+
 	if ($missingPaths.Count -gt 0) {
-		throw "Profile copy is missing auth-critical path(s): $($missingPaths -join ', '). Refusing to launch a profile that cannot preserve Windows authentication."
+		throw "Profile copy failed to preserve auth-critical path(s): $($missingPaths -join ', ')."
 	}
 }
 
@@ -224,7 +227,13 @@ function Test-DbHasGitHubAuthenticationSecret([string]$node, [string]$db, [strin
 		$script = @'
 import { DatabaseSync } from 'node:sqlite';
 
-const db = new DatabaseSync(process.argv[1], { readOnly: true });
+// FIX: process.argv[2] is the first user argument passed after -e script in node
+const dbPath = process.argv[2];
+if (!dbPath) {
+	process.exit(1);
+}
+
+const db = new DatabaseSync(dbPath, { readOnly: true });
 try {
 	const row = db.prepare('SELECT 1 FROM ItemTable WHERE key LIKE ? LIMIT 1').get('secret://%github-authentication%');
 	process.stdout.write(row ? 'present' : 'absent');
@@ -232,7 +241,7 @@ try {
 	db.close();
 }
 '@
-		$result = @(& $node '--input-type=module' '-e' $script $temporaryDb 2>$null)
+		$result = @(& $node '--experimental-sqlite' '--input-type=module' '-e' $script $temporaryDb 2>$null)
 		if ($LASTEXITCODE -ne 0) {
 			return $null
 		}
@@ -551,7 +560,7 @@ try {
 		Write-LaunchError "[launch.ps1] slim copy: $sourceUserDataDir -> $destinationUdd"
 		Copy-ProfileDirectory $sourceUserDataDir $destinationUdd $true
 	}
-	Assert-AuthCriticalProfileFiles $destinationUdd
+	Assert-AuthCriticalProfileFiles $sourceUserDataDir $destinationUdd
 
 	New-Item -ItemType Directory -Force -Path $extensionsDir | Out-Null
 	if (-not $full -and $cloneExtensions) {
@@ -606,10 +615,8 @@ try {
 		}
 
 		try {
-			$request = [Net.WebRequest]::Create("http://127.0.0.1:$cdpPort/json/version")
-			$request.Timeout = 1000
-			$response = $request.GetResponse()
-			$response.Close()
+			# FIX: Using Invoke-RestMethod for clean cross-version PowerShell support without obsolete warnings
+			$null = Invoke-RestMethod -Uri "http://127.0.0.1:$cdpPort/json/version" -TimeoutSec 1 -ErrorAction Stop
 			$ready = $true
 			Write-LaunchError "[launch.ps1] CDP ready after ${second}s"
 			break
