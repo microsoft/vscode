@@ -920,8 +920,10 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				// Dev override: a custom command bypasses the shared endpoint
 				// registry entirely — there is no resolved CLI binary to run
 				// `agent endpoints` with, and the override command need not
-				// even be our CLI — so there is nothing to discover or offer a
-				// picker over. Always start a fresh process (requirement 6).
+				// even be our CLI. The command is executed verbatim with no
+				// arguments appended; launch restrictions such as telemetry
+				// level are supplied through its environment. Always start a
+				// fresh process (requirement 6).
 				this._logService.info(`${LOG_PREFIX} Using custom agent host command: ${config.remoteAgentHostCommand}; skipping endpoint discovery/selection`);
 				reportProgress(localize('sshProgressStartingAgent', "Starting remote agent host..."));
 				const result = await this._startRemoteAgentHost(sshClient, undefined, undefined, config.remoteAgentHostCommand, this._effectiveTelemetryLevel);

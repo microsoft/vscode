@@ -13,7 +13,7 @@ import type { IChannel, IServerChannel } from '../../../../../base/parts/ipc/com
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
-import { AgentHostClientState, RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
+import { AgentHostClientState, AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { editorWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -123,7 +123,7 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 				ensureSyncedCustomizationProvider: () => { },
 			}],
 		)));
-		instantiationService.stubInstance(RemoteAgentHostProtocolClient, protocolClient);
+		instantiationService.stubInstance(AgentHostProtocolClient, protocolClient);
 		instantiationService.set(IInstantiationService, instantiationService);
 		const createInstanceSpy = sinon.spy(instantiationService, 'createInstance');
 
@@ -139,7 +139,7 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		onDidChangeConnectionState.fire(AgentHostClientState.Connected);
 		await started;
 
-		const protocolClientCall = createInstanceSpy.getCalls().find(call => call.args[0] === RemoteAgentHostProtocolClient);
+		const protocolClientCall = createInstanceSpy.getCalls().find(call => call.args[0] === AgentHostProtocolClient);
 		assert.deepStrictEqual({
 			beforeReady,
 			afterReady: connectCalls,
