@@ -4878,6 +4878,35 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(changes[0].changed.length, 1);
 	});
 
+	test('a rejected SessionIsArchivedChanged leaves the session unarchived', () => {
+		// The host refused the mutation, so applying it anyway would leave this
+		// window claiming a session is archived when nothing was ever recorded.
+		const provider = createProvider(disposables, agentHost);
+		fireSessionAdded(agentHost, 'rejected-archive', { title: 'Rejected' });
+
+		const target = provider.getSessions().find(s => s.title.get() === 'Rejected');
+		assert.ok(target);
+
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
+
+		agentHost.fireAction({
+			channel: AgentSession.uri('copilotcli', 'rejected-archive').toString(),
+			action: { type: ActionType.SessionIsArchivedChanged, isArchived: true },
+			serverSeq: 1,
+			origin: { clientId: 'test-client', clientSeq: 1 },
+			rejectionReason: 'Session is not ready',
+		} as ActionEnvelope);
+
+		assert.deepStrictEqual({
+			isArchived: target!.isArchived.get(),
+			changeEvents: changes.length,
+		}, {
+			isArchived: false,
+			changeEvents: 0,
+		});
+	});
+
 	test('server-echoed ChatTurnStarted model does not update cached session model', () => {
 		const provider = createProvider(disposables, agentHost);
 		fireSessionAdded(agentHost, 'model-change', { title: 'Model Change' });
