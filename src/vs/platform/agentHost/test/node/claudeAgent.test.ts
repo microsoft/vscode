@@ -20,6 +20,7 @@ import {
 	makeContentBlockStop,
 	makeMessageStart,
 	makeMessageStop,
+	makeResultError,
 	makeResultSuccess,
 	makeStreamEvent,
 	makeSystemInitMessage,
@@ -7937,7 +7938,7 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 		advance.complete();
 	});
 
-	test('steering_consumed fires when the iterable hands the steering message to the SDK', async () => {
+	test('steering stays pending after iterable yield and is promoted at the preemption result', async () => {
 		const { ctx, sessionUri, advance } = await materialize();
 		const sid = AgentSession.id(sessionUri);
 
@@ -7948,24 +7949,31 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 		await tick();
 
 		ctx.agent.setPendingMessages!(defaultChatUri(sessionUri), { id: 'pending-9', message: { text: 'steer', origin: { kind: MessageKind.User } } }, []);
-		// Microtask cycles let the FakeQuery's background drain pull the
-		// steering entry off `_toYield`; that drain is when our session
-		// fires `steering_consumed` (SDK ack semantics — mirrors Copilot's
-		// `sendSteering` firing right after `send({mode:'immediate'})`).
-		// Firing later (on the steering's result) would let the user
-		// reorder/delete the still-pending entry; the SDK has no hook for
-		// that, so we ack as soon as the SDK takes ownership.
+		// Let the FakeQuery pull the priority-now prompt. Yielding only means
+		// the SDK owns the prompt; it is too early to remove the pending UI
+		// because output from the interrupted request may still arrive.
 		await tick();
 		await tick();
 
-		const consumed = signals.find(s => s.kind === 'steering_consumed');
-		assert.ok(consumed, `expected steering_consumed after iterable yield, got kinds: ${signals.map(s => s.kind).join(', ')}`);
-		assert.deepStrictEqual({ kind: consumed.kind, id: (consumed as { id: string }).id }, { kind: 'steering_consumed', id: 'pending-9' });
+		assert.strictEqual(signals.some(s => s.kind === 'steering_consumed'), false);
 
-		// Cleanup so longSend resolves.
+		// The staged result is the preemption boundary; add the steering
+		// turn's terminal result so longSend resolves after both entries.
 		ctx.sdk.nextQueryMessages.push(makeResultSuccess(sid));
 		advance.complete();
 		await longSend;
+
+		const started = signals.find(s => s.kind === 'action' && s.action.type === ActionType.ChatTurnStarted);
+		assert.ok(started?.kind === 'action' && started.action.type === ActionType.ChatTurnStarted);
+		assert.deepStrictEqual({
+			turnId: started.action.turnId,
+			message: started.action.message.text,
+			queuedMessageId: started.action.queuedMessageId,
+		}, {
+			turnId: 'pending-9',
+			message: 'steer',
+			queuedMessageId: 'pending-9',
+		});
 	});
 
 
@@ -8083,14 +8091,14 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 		}, { models: ['claude-sonnet-4-6'], efforts: ['high'] });
 	});
 
-	test('intermediate result during steering does NOT complete the in-flight sendMessage or fire ChatTurnComplete', async () => {
-		// CONTEXT.md M10: when the SDK preempts via `'now'`-priority, it
-		// emits one `result` message per turn it ran (the aborted
-		// original + the steering reply). Protocol-wise this is ONE Turn,
-		// so the agent must suppress the intermediate result: do not
-		// settle the original sendMessage's deferred, do not fire
-		// ChatTurnComplete. The FINAL result (when no steering is
-		// outstanding) closes the protocol Turn.
+	test('steering promotes the pending message to a visible turn and routes its response there', async () => {
+		// The SDK internally preempts via a `'now'`-priority prompt and emits
+		// one `result` for the interrupted request plus one for the steering
+		// response. Protocol consumers still need two visible user turns: the
+		// pending message stays visible after iterable yield, then the SDK's
+		// intermediate-result boundary closes the old turn and atomically
+		// promotes it into a fresh turn. Subsequent response parts and the
+		// terminal result belong to that fresh turn.
 		const ctx = createTestContext(disposables);
 		await ctx.agent.authenticate('https://api.github.com', 'tok');
 		await tick();
@@ -8108,9 +8116,8 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 		const inFlight = ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'long task', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
 		await tick();
 
-		// Subscribe BEFORE injecting steering so we capture the
-		// `steering_consumed` signal that fires the moment the iterable
-		// hands the message to the SDK.
+		// Subscribe before injecting steering so we capture the full
+		// pending-to-visible-turn transition.
 		const signals: AgentSignal[] = [];
 		disposables.add(ctx.agent.onDidChatProgress(s => signals.push(s)));
 
@@ -8122,30 +8129,49 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 		const steeringPrompt = query.drainedPrompts.find(p => p.priority === 'now');
 		assert.ok(steeringPrompt && steeringPrompt.uuid, 'steering uuid captured');
 
-		// Stage the rest: result#1 (intermediate; for the aborted turn),
-		// then result#2 (final). The SDK's user-echo for steering is no
-		// longer used to fire `steering_consumed` (we fire on iterable
-		// yield); staging it would still work but isn't required.
+		// Stage the rest without an SDK user echo. The yield itself is the
+		// ownership boundary, so the user message must stay visible even when
+		// a particular SDK version omits or delays that echo.
 		ctx.sdk.nextQueryMessages.push(
-			makeResultSuccess(sid),
+			makeResultError(sid, ['[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=null']),
+			makeStreamEvent(sid, makeMessageStart()),
+			makeStreamEvent(sid, makeContentBlockStartText(0)),
+			makeStreamEvent(sid, makeTextDelta(0, 'steered response')),
+			makeStreamEvent(sid, makeContentBlockStop(0)),
+			makeStreamEvent(sid, makeMessageStop()),
 			makeResultSuccess(sid),
 		);
 
 		advance.complete();
 		await inFlight;
 
-		// Exactly one ChatTurnComplete fires (the final result), and
-		// steering_consumed fires for the echo.
-		const turnCompletes = signals.filter(s => s.kind === 'action' && s.action.type === ActionType.ChatTurnComplete);
+		const actions = signals.map(s => s.kind === 'action' ? s.action : undefined);
+		const turnStarted = actions.find(action => action?.type === ActionType.ChatTurnStarted);
+		assert.ok(turnStarted?.type === ActionType.ChatTurnStarted, 'steering message was promoted to a protocol turn');
+		const turnCompletes = actions.filter(action => action?.type === ActionType.ChatTurnComplete);
+		const chatErrors = signals.filter(s => s.kind === 'action' && s.action.type === ActionType.ChatError);
 		const consumed = signals.filter(s => s.kind === 'steering_consumed');
+		const responseTurnIds = actions
+			.filter(action => action?.type === ActionType.ChatResponsePart || action?.type === ActionType.ChatDelta)
+			.map(action => action?.turnId);
 		assert.deepStrictEqual({
-			turnCompleteCount: turnCompletes.length,
+			turnStarted: {
+				message: turnStarted.message.text,
+				queuedMessageId: turnStarted.queuedMessageId,
+			},
+			turnCompleteIds: turnCompletes.map(action => action?.turnId),
+			chatErrorCount: chatErrors.length,
 			steeringConsumedCount: consumed.length,
-			steeringConsumedId: consumed[0] && (consumed[0] as { id: string }).id,
+			responseTurnIds,
 		}, {
-			turnCompleteCount: 1,
-			steeringConsumedCount: 1,
-			steeringConsumedId: 'pending-steer',
+			turnStarted: {
+				message: 'moo',
+				queuedMessageId: 'pending-steer',
+			},
+			turnCompleteIds: ['turn-1', turnStarted.turnId],
+			chatErrorCount: 0,
+			steeringConsumedCount: 0,
+			responseTurnIds: [turnStarted.turnId, turnStarted.turnId],
 		});
 	});
 

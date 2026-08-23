@@ -9,6 +9,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { ILogService } from '../../../log/common/log.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
+import type { PendingMessage } from '../../common/state/sessionState.js';
 
 /**
  * One {@link SDKUserMessage} the queue has handed to (or is about to
@@ -27,7 +28,8 @@ export interface IPendingSdkMessage {
 	readonly clientContext?: IAgentHostClientTelemetryContext;
 	readonly stopWatch: StopWatch;
 	readonly deferred: DeferredPromise<void>;
-	readonly steeringPendingId?: string;
+	/** Present when this entry must be promoted from pending UI into its own protocol turn. */
+	readonly steeringMessage?: PendingMessage;
 }
 
 /**
@@ -71,10 +73,7 @@ export class ClaudePromptQueue extends Disposable {
 					if (this._toYield.length > 0) {
 						const entry = this._toYield.shift()!;
 						this._yielded.push(entry);
-						this._logService.info(`[Claude:${this._sessionId}] queue yielded sdkUuid=${entry.sdkUuid} turnId=${entry.turnId}${entry.steeringPendingId ? ` steeringPendingId=${entry.steeringPendingId}` : ''}`);
-						if (entry.steeringPendingId) {
-							this._onSteeringYielded(entry.steeringPendingId);
-						}
+						this._logService.info(`[Claude:${this._sessionId}] queue yielded sdkUuid=${entry.sdkUuid} turnId=${entry.turnId}${entry.steeringMessage ? ` steeringPendingId=${entry.steeringMessage.id}` : ''}`);
 						return { done: false, value: entry.sdkMessage };
 					}
 					await this._pendingPromptDeferred.p;
@@ -87,7 +86,6 @@ export class ClaudePromptQueue extends Disposable {
 	constructor(
 		private readonly _sessionId: string,
 		private readonly _getAbortSignal: () => AbortSignal,
-		private readonly _onSteeringYielded: (pendingId: string) => void,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -96,6 +94,11 @@ export class ClaudePromptQueue extends Disposable {
 	/** True iff no entries are queued or in-flight. */
 	get isEmpty(): boolean {
 		return this._toYield.length === 0 && this._yielded.length === 0;
+	}
+
+	/** True when settling the current yielded head would fully drain the live queue. */
+	get willDrainOnSettle(): boolean {
+		return this._toYield.length === 0 && this._yielded.length === 1;
 	}
 	/**
 	 * Push an entry. Resolves with the entry's deferred (which the
@@ -108,10 +111,10 @@ export class ClaudePromptQueue extends Disposable {
 	}
 
 	/**
-	 * Most-recent in-flight or queued entry, used by steering to inherit
-	 * its parent's `turnId`. Prefers the in-flight head over the latest
-	 * queued entry (matches CONTEXT.md M10: steering folds into the
-	 * in-progress protocol Turn).
+	 * Current in-flight entry, falling back to the latest queued entry before
+	 * the SDK starts pulling prompts. After an intermediate `result` settles
+	 * the old head, this becomes the steering entry whose pending message is
+	 * promoted into a fresh protocol turn.
 	 */
 	peekParent(): IPendingSdkMessage | undefined {
 		return this._yielded[0] ?? this._toYield[this._toYield.length - 1];

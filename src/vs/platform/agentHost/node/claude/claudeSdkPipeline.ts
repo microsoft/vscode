@@ -16,6 +16,7 @@ import { AgentSignal } from '../../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import type { PendingMessage } from '../../common/state/sessionState.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { ClaudePromptQueue, IPendingSdkMessage } from './claudePromptQueue.js';
 import { ClaudeSdkMessageRouter } from './claudeSdkMessageRouter.js';
@@ -55,9 +56,10 @@ export interface IRematerializer {
  *     Re-applied to a fresh Query on rebind.
  *   • Drain the SDK message stream, dispatch each message to the
  *     {@link ClaudeSdkMessageRouter}, settle the matching entry's
- *     deferred on `result`, and emit `ChatTurnComplete` only when
- *     the queue fully drains (intermediate results during steering
- *     preemption do NOT fire turn-complete — CONTEXT.md M10).
+ *     deferred on `result`. An intermediate result during steering
+ *     preemption closes the interrupted protocol turn and promotes the
+ *     pending steering message into a fresh visible turn; the terminal
+ *     result closes that new turn (CONTEXT.md M10).
  *
  * Disposing the pipeline aborts the controller (terminating the SDK
  * subprocess per `sdk.d.ts:982`) and async-disposes the WarmQuery.
@@ -235,11 +237,9 @@ export class ClaudeSdkPipeline extends Disposable {
 	 * Single fan-out for every {@link AgentSignal} this session produces:
 	 *   • Router-mapped per-message signals (response parts, tool calls,
 	 *     pending confirmations, etc.).
-	 *   • `ChatTurnComplete` action, fired when the LAST entry in the
-	 *     queue drains via `result` (intermediate results during steering
-	 *     preempt do NOT fire — CONTEXT.md M10).
-	 *   • `steering_consumed` signal, fired the moment the iterable yields
-	 *     a steering entry to the SDK.
+	 *   • `ChatTurnComplete` / `ChatTurnStarted` actions at the steering
+	 *     preemption boundary, followed by `ChatTurnComplete` when the new
+	 *     turn drains.
 	 */
 	readonly onDidProduceSignal: Event<AgentSignal> = this._onDidProduceSignal.event;
 
@@ -265,11 +265,6 @@ export class ClaudeSdkPipeline extends Disposable {
 			ClaudePromptQueue,
 			sessionId,
 			() => this._abortController.signal,
-			(pendingId: string) => this._onDidProduceSignal.fire({
-				kind: 'steering_consumed',
-				chat: this.chatChannelUri,
-				id: pendingId,
-			}),
 		));
 		this._router = this._register(instantiationService.createInstance(
 			ClaudeSdkMessageRouter, chatChannelUri, resource, dbRef, subagents, clientToolOwner,
@@ -450,26 +445,24 @@ export class ClaudeSdkPipeline extends Disposable {
 
 	/**
 	 * Push a `priority: 'now'` steering message into the iterable. The
-	 * caller pre-builds the {@link SDKUserMessage} (the pipeline is SDK
-	 * messaging-shaped, not protocol-shaped). `pendingMessageId` is the
-	 * protocol `PendingMessage.id` that {@link onSteeringConsumed} will
-	 * carry when the SDK accepts the message.
+	 * caller pre-builds the {@link SDKUserMessage}. The complete protocol
+	 * {@link PendingMessage} is retained until the SDK emits the intermediate
+	 * result that proves the interrupted request has ended; at that boundary
+	 * the pending bubble is atomically promoted into a permanent user turn.
 	 *
-	 * No-op if the pipeline is aborted or no in-flight / queued request
-	 * exists to inherit a `turnId` from (CONTEXT.md M10: steering folds
-	 * into the in-progress protocol Turn).
+	 * No-op if the pipeline is aborted or no in-flight / queued request exists.
 	 */
-	injectSteering(prompt: SDKUserMessage, pendingMessageId: string): void {
+	injectSteering(prompt: SDKUserMessage, steeringMessage: PendingMessage): void {
 		if (this._abortController.signal.aborted) {
-			this._logService.warn(`[Claude:${this.sessionId}] injectSteering: dropped (controller aborted) id=${pendingMessageId}`);
+			this._logService.warn(`[Claude:${this.sessionId}] injectSteering: dropped (controller aborted) id=${steeringMessage.id}`);
 			return;
 		}
 		const parent = this._queue.peekParent();
 		if (!parent) {
-			this._logService.warn(`[Claude:${this.sessionId}] injectSteering: dropped (no in-flight turn) id=${pendingMessageId}`);
+			this._logService.warn(`[Claude:${this.sessionId}] injectSteering: dropped (no in-flight turn) id=${steeringMessage.id}`);
 			return;
 		}
-		const sdkUuid = typeof prompt.uuid === 'string' ? prompt.uuid : pendingMessageId;
+		const sdkUuid = typeof prompt.uuid === 'string' ? prompt.uuid : steeringMessage.id;
 		// Steering deferreds aren't observed by anyone (the agent's send
 		// promise is the original entry's deferred); attach a no-op catch
 		// so a `failAll` rejection on abort/crash doesn't surface as an
@@ -477,13 +470,16 @@ export class ClaudeSdkPipeline extends Disposable {
 		this._queue.push({
 			sdkMessage: prompt,
 			sdkUuid,
-			turnId: parent.turnId,
+			// The SDK transcript keys this top-level user message by the same
+			// uuid. Reusing it as the live turn id keeps live and replayed
+			// transcript identities stable.
+			turnId: steeringMessage.id,
 			clientContext: parent.clientContext,
-			stopWatch: parent.stopWatch,
+			stopWatch: StopWatch.create(false),
 			deferred: new DeferredPromise<void>(),
-			steeringPendingId: pendingMessageId,
+			steeringMessage,
 		}).catch(() => { /* expected on abort/crash */ });
-		this._logService.info(`[Claude:${this.sessionId}] injectSteering: enqueued id=${pendingMessageId} sdkUuid=${sdkUuid}`);
+		this._logService.info(`[Claude:${this.sessionId}] injectSteering: enqueued id=${steeringMessage.id} sdkUuid=${sdkUuid} parentTurnId=${parent.turnId}`);
 	}
 
 	/**
@@ -647,9 +643,13 @@ export class ClaudeSdkPipeline extends Disposable {
 	/**
 	 * Consumer loop. Drains the SDK iterator, dispatches each message
 	 * to the {@link ClaudeSdkMessageRouter} (awaited so async file-edit
-	 * observation completes before the next message), settles the head
-	 * entry's deferred on `result`, and fires `ChatTurnComplete` only
-	 * when the queue fully drains.
+	 * observation completes before the next message). A terminal `result`
+	 * maps normally and closes the active protocol turn. An intermediate
+	 * steering-preempt result suppresses its SDK diagnostic, finalizes the
+	 * old mapper state, closes the interrupted turn, and atomically promotes
+	 * the retained pending message into a fresh protocol turn. Subsequent SDK
+	 * output is therefore routed to the new user message rather than folded
+	 * into the original turn.
 	 *
 	 * On any uncaught error (cancellation, transport failure, or the
 	 * post-loop "stream ended without result" guard) the catch block
@@ -676,35 +676,50 @@ export class ClaudeSdkPipeline extends Disposable {
 						this._isResumed = true;
 					}
 				}
-				const parent = this._queue.peekParent();
-				const turnId = parent?.turnId;
-				const clientContext = parent?.clientContext;
-				const turnDuration = parent?.stopWatch.elapsed();
+				const activeEntry = this._queue.peekParent();
+				const isIntermediateResult = message.type === 'result' && !this._queue.willDrainOnSettle;
 				try {
-					await this._router.handle(message, turnId, {
-						turnDuration,
-						mode: this._currentPermissionMode,
-						clientContext,
-					});
+					if (isIntermediateResult) {
+						// Claude reports the interrupted request as an execution error.
+						// Do not render that implementation detail, but do clear mapper
+						// state before opening the steering turn.
+						await this._router.finalizeTurn();
+					} else {
+						await this._router.handle(message, activeEntry?.turnId, {
+							turnDuration: activeEntry?.stopWatch.elapsed(),
+							mode: this._currentPermissionMode,
+							clientContext: activeEntry?.clientContext,
+						});
+					}
 				} catch (handlerErr) {
 					this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] router threw, skipping: ${handlerErr}`);
 				}
 				if (message.type === 'result') {
 					const completed = this._queue.settleHead();
 					this._logService.info(`[Claude:${this.sessionId}] result for sdkUuid=${completed?.sdkUuid}`);
-					// Final result: queue fully drained → protocol turn done.
-					// Intermediate result (still pending entries from a
-					// steering preempt) does NOT fire ChatTurnComplete.
-					if (completed && this._queue.isEmpty) {
-						this._onDidProduceSignal.fire({
-							kind: 'action',
-							resource: this.chatChannelUri,
-							action: {
-								type: ActionType.ChatTurnComplete,
-								turnId: completed.turnId,
-								duration: Math.max(0, completed.stopWatch.elapsed()),
-							},
-						});
+					if (completed && !this._queue.isEmpty) {
+						const next = this._queue.peekParent();
+						if (next?.steeringMessage) {
+							// The intermediate result is the first authoritative SDK
+							// boundary where no more output belongs to the old request.
+							// Close it before replacing the pending bubble with the new
+							// persistent user turn.
+							this._fireTurnComplete(completed);
+							next.stopWatch.reset();
+							this._onDidProduceSignal.fire({
+								kind: 'action',
+								resource: this.chatChannelUri,
+								action: {
+									type: ActionType.ChatTurnStarted,
+									turnId: next.turnId,
+									startedAt: new Date().toISOString(),
+									message: next.steeringMessage.message,
+									queuedMessageId: next.steeringMessage.id,
+								},
+							});
+						}
+					} else if (completed) {
+						this._fireTurnComplete(completed);
 					}
 				}
 			}
@@ -735,5 +750,17 @@ export class ClaudeSdkPipeline extends Disposable {
 				throw fatal;
 			}
 		}
+	}
+
+	private _fireTurnComplete(entry: IPendingSdkMessage): void {
+		this._onDidProduceSignal.fire({
+			kind: 'action',
+			resource: this.chatChannelUri,
+			action: {
+				type: ActionType.ChatTurnComplete,
+				turnId: entry.turnId,
+				duration: Math.max(0, entry.stopWatch.elapsed()),
+			},
+		});
 	}
 }

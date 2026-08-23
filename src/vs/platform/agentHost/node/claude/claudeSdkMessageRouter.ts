@@ -13,7 +13,7 @@ import { AgentSignal } from '../../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { ClaudeFileEditObserver } from './claudeFileEditObserver.js';
-import { ClaudeMapperState, mapSDKMessageToAgentSignals } from './claudeMapSessionEvents.js';
+import { ClaudeMapperState, finalizeClaudeMapperTurn, mapSDKMessageToAgentSignals } from './claudeMapSessionEvents.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
 
 interface IClaudeSdkMessageContext {
@@ -63,6 +63,19 @@ export class ClaudeSdkMessageRouter extends Disposable {
 
 	setClientToolOwner(clientToolOwner: ((toolName: string) => string | undefined) | undefined): void {
 		this._clientToolOwner = clientToolOwner;
+	}
+
+	/**
+	 * Finalize the current mapper turn without mapping an SDK `result` into
+	 * user-visible usage or error actions. Used for Claude's intermediate
+	 * steering-preemption result before a fresh protocol turn is opened.
+	 */
+	async finalizeTurn(): Promise<void> {
+		try {
+			finalizeClaudeMapperTurn(this._mapperState, this._logService, this._subagents);
+		} catch (mapperErr) {
+			this._logService.warn(`[ClaudeSdkMessageRouter] mapper finalization threw: ${mapperErr}`);
+		}
 	}
 
 	async handle(message: SDKMessage, turnId: string | undefined, context?: IClaudeSdkMessageContext): Promise<void> {

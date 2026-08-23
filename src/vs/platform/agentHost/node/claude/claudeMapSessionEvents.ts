@@ -183,6 +183,21 @@ export class ClaudeMapperState {
 	}
 }
 
+/**
+ * Clear cross-message mapper state at a protocol-turn boundary.
+ *
+ * Normally {@link mapResult} owns this cleanup. Steering preemption is the
+ * exception: its intermediate SDK result must not surface usage or an error,
+ * but the interrupted turn's tool/subagent state still must not leak into the
+ * fresh steering turn.
+ */
+export function finalizeClaudeMapperTurn(state: ClaudeMapperState, logService: ILogService, registry: SubagentRegistry): void {
+	state.clearPendingToolCalls(logService);
+	for (const orphan of registry.drainForegroundSpawns()) {
+		logService.warn(`[claudeMapSessionEvents] turn ended with pending subagent-spawning tool_use ${orphan.toolUseId} (agentId=${orphan.agentId ?? '<unresolved>'}); dropping cross-message state`);
+	}
+}
+
 function fileEditToolDelta(chat: URI, turnId: string, toolCallId: string, invocationMessage: StringOrMarkdown): AgentSignal {
 	return {
 		kind: 'action',
@@ -505,18 +520,10 @@ function mapResult(
 			},
 		});
 	}
-	// `ChatTurnComplete` is emitted by the session via
-	// `ClaudeSdkPipeline.onTurnComplete`, NOT here. The pipeline knows
-	// when the protocol Turn is truly done (queue fully drained vs an
-	// intermediate result during a steering preempt — CONTEXT.md M10);
-	// the mapper does not have that state.
-	state.clearPendingToolCalls(logService);
-	// Phase 12 — drain orphaned subagent-spawning entries (foreground
-	// only; background entries survive across turns by design). The
-	// registry owns this state; the mapper drives the drain at turn end.
-	for (const orphan of registry.drainForegroundSpawns()) {
-		logService.warn(`[claudeMapSessionEvents] turn ended with pending subagent-spawning tool_use ${orphan.toolUseId} (agentId=${orphan.agentId ?? '<unresolved>'}); dropping cross-message state`);
-	}
+	// `ChatTurnComplete` is emitted by `ClaudeSdkPipeline`, NOT here. The
+	// pipeline knows whether a result closes the final queued entry or the
+	// request interrupted by steering (CONTEXT.md M10); the mapper does not.
+	finalizeClaudeMapperTurn(state, logService, registry);
 	return signals;
 }
 

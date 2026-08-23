@@ -1415,12 +1415,12 @@ They are deliberately small surfaces because the host owns the
 messy parts (queueing, timing, ack semantics) and the agent only
 sees the deltas it can act on.
 
-#### Steering: `setPendingMessages` + `IAgentSteeringConsumedSignal`
+#### Steering: `setPendingMessages` + visible turn promotion
 
 | IAgent surface | SDK primitive(s) | What it does |
 |---|---|---|
 | `setPendingMessages?(chat, steeringMessage, queuedMessages)` (optional) | Yield an `SDKUserMessage` with `priority: 'now'` into the prompt iterable that was passed to `query()` ([sdk.d.ts:3067-3086](../../../../../../extensions/copilot/node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts#L3067-L3086)) | Notifies the agent that the chat's pending-message state changed. The agent reacts by yielding the steering content as an `SDKUserMessage` whose `priority` is `'now'`, which the SDK treats as "preempt the current turn and run me first." |
-| (outbound signal) `AgentSignal { kind: 'steering_consumed', session, id }` | n/a (host-emitted on SDK ack) | Agent fires this signal when the SDK confirms the steering message was delivered to the model. Host then dispatches `SessionPendingMessageRemoved` so the client clears the pending pill. |
+| (outbound actions) `ChatTurnComplete` then `ChatTurnStarted` | The SDK's intermediate `result` for the preempted request | Closes the interrupted turn and promotes the retained pending message into a permanent user turn. `ChatTurnStarted.queuedMessageId` atomically removes the pending bubble; subsequent SDK output is routed to the new turn. |
 
 ##### Pending-message taxonomy (locked at the protocol layer)
 
@@ -1430,7 +1430,7 @@ The protocol distinguishes two kinds of pending messages
 
 | Kind | Semantics | Lifecycle |
 |---|---|---|
-| `Steering` | Inject *into the running turn* as additional context. The model sees it before its current generation completes. | Set while turn is in flight; consumed when the SDK acks the inject; removed via `IAgentSteeringConsumedSignal`. |
+| `Steering` | Preempt the running SDK request and continue from a new visible user turn. | Set while a turn is in flight; remains pending through iterable yield; promoted and removed via `ChatTurnStarted.queuedMessageId` when the preempted request emits its intermediate result. |
 | `Queued` | Hold until the current turn finishes, then send as a normal `sendMessage`. | Set while turn is in flight; **server consumes server-side** by issuing `sendMessage` when the turn completes; never forwarded to the agent. |
 
 This taxonomy is the reason the `setPendingMessages` signature has
@@ -1548,45 +1548,40 @@ So the IAgent Claude provider doesn't mirror the reference impl's
 already gives it. The reference impl isn't wrong; it's just
 operating without the distinction the protocol exposes.
 
-##### Steering ack semantics
+##### Pending-to-turn promotion semantics
 
-The signal `IAgentSteeringConsumedSignal { kind: 'steering_consumed', session, id }`
-([agentService.ts:359-362](../../common/agentService.ts#L359-L362))
-is **not** emitted when the iterable's `yield` resolves — yielding
-only means the SDK accepted the message into its command queue.
-The agent emits the signal when the SDK actually surfaces the
-message to the model (the next `SDKUserMessage` echo on the event
-stream after the SDK's `'now'`-watcher has aborted the previous
-turn and dequeued this message). This matches the client's
-expectation: the pending-message pill should clear when the model
-has *seen* the steering, not when the queue accepted it.
+Iterable `yield` is **not** an acknowledgement boundary. It only means
+the SDK has accepted the prompt into its command queue; the interrupted
+request can still emit output before preemption finishes. Removing the
+pending bubble there creates a visible gap and can make the user's message
+disappear entirely if no separate protocol turn is opened.
 
-The host's reaction to the signal is to dispatch
-`SessionPendingMessageRemoved { kind: PendingMessageKind.Steering, id }`
-through the state machine
-([reducers.ts](../../common/state/protocol/reducers.ts) line 743).
-This is the second of the three steering touchpoints on the host:
+Claude's authoritative boundary is the intermediate SDK `result` for the
+preempted request. The pipeline suppresses that result's internal execution
+diagnostic, finalizes the old mapper state, then emits two ordered actions:
 
-1. Client writes `SessionPendingMessageSet { kind: Steering, ... }`.
-2. Host forwards the new state to `IAgent.setPendingMessages`.
-3. Agent emits `steering_consumed` after SDK ack.
-4. Host dispatches `SessionPendingMessageRemoved { kind: Steering, id }`.
+1. `ChatTurnComplete` for the interrupted turn.
+2. `ChatTurnStarted` for the steering message, using the pending id as the
+   new `turnId` and `queuedMessageId`.
+
+The second action atomically replaces the pending bubble with a permanent
+user turn. No `steering_consumed` signal is emitted on Claude's iterable
+yield. The transition does not depend on an SDK user-message echo, because
+SDK versions may omit or delay that echo.
 
 ##### Steering vs `sendMessage` boundary
 
-A steering message is **not** a turn boundary. It does not get a
-`Turn.id`, does not appear as a separate user `Turn` in
-`getSessionMessages`, and does not emit a `SessionTurnStart`. From
-the protocol Turn perspective it is invisible — its content shows
-up as part of the *next* assistant message in the current turn,
-because the model received it mid-generation and folded it into
-the response. The agent's transcript reconstruction
-(`getSessionMessages`, M7) collapses the SDK's intermediate
-`SDKUserMessage` for steering into the in-progress Turn rather
-than starting a new one. This is an asymmetry vs `sendMessage`
-that consumers must understand: a UI showing "turns" should not
-expect each pending-message-set + steering-consumed pair to add a
-row.
+Steering starts as pending UI rather than an immediate protocol turn, but it
+**does become its own turn** once SDK preemption completes. The live turn id
+is the pending message id, which is also written to the SDK user message's
+`uuid`. Replay already treats each top-level SDK user uuid as a separate
+turn, so this identity rule keeps the live transcript and a reopened
+transcript structurally identical.
+
+The original `sendMessage` promise remains pending across the intermediate
+result and resolves only after the steering turn's terminal result. That
+preserves the SDK query lifecycle while still exposing two protocol turns to
+the client.
 
 #### Truncation: `truncateSession`
 
@@ -1654,9 +1649,9 @@ otherwise compose with fork at the UI layer.
 | | CopilotAgent | ClaudeAgent |
 |---|---|---|
 | `truncateSession` | Implemented; serializes through `_sessionSequencer`; protocol→SDK eventId translation | Not implemented (deliberate; SDK has no in-place truncate) |
-| `setPendingMessages` (steering) | Implemented; injects via Copilot SDK's `send({ mode: 'immediate' })` | Implemented (planned Phase 9); yields `SDKUserMessage` with `priority: 'now'` into the existing prompt iterable |
+| `setPendingMessages` (steering) | Implemented; injects via Copilot SDK's `send({ mode: 'immediate' })` | Implemented; yields `SDKUserMessage` with `priority: 'now'`, retains pending UI until the intermediate result, then promotes it into a visible turn |
 | `setPendingMessages` (queued) | n/a — server consumes server-side | n/a — server consumes server-side |
-| `IAgentSteeringConsumedSignal` | Emitted on SDK ack | Emitted when the SDK echoes the `'now'`-priority message on the event stream after preempting the in-flight turn |
+| Pending-message removal | Provider acknowledgement | `ChatTurnStarted.queuedMessageId` at the preemption-result boundary; no yield-time `steering_consumed` |
 
 The two SDKs land on the **same conceptual primitive** — a
 per-message hint that means "preempt the current turn and serve
@@ -1669,29 +1664,24 @@ me first" — via different transports:
 
 #### Invariants
 
-- **Steering preserves the in-flight Turn at the protocol level
-  even though the SDK preempts internally.** On the Claude SDK,
-  `priority: 'now'` causes the SDK to abort the current
-  generation and run the steering message next. The protocol Turn
-  reconstruction (M7) folds the resulting messages back into the
-  same Turn so consumers see steering as "additional context for
-  the current generation," not a new turn. Provider implementations
-  must yield via `priority: 'now'` (or the SDK's equivalent
-  preempt hint), **not** via `Query.interrupt()` followed by a new
-  send — that path produces explicit Turn boundaries.
+- **Steering produces two protocol turns around one SDK preemption.**
+  `priority: 'now'` makes the SDK interrupt the current request, but
+  the host retains the pending message until the intermediate `result`,
+  then completes the old turn and opens the steering turn. Output before
+  that boundary stays on the old turn; output after it routes to the new
+  turn.
 - **`queuedMessages` is always empty at the agent boundary.** Any
   agent treating non-empty `queuedMessages` is implementing
   behavior the host explicitly excludes from this surface; the
   parameter exists only as a future-proofing slot.
-- **Steering doesn't create a new `Turn.id`.** A steering message
-  is folded into the current Turn's user-side history at
-  reconstruction time. UIs that key off Turn boundaries will not
-  see steering as a separate row.
-- **`steering_consumed` waits for model visibility, not queue
-  acceptance.** The signal must fire after the SDK has actually
-  surfaced the message to the model, not when the agent's `yield`
-  resolves. Premature signals would clear the pill before the
-  user's intent has reached the model.
+- **Steering creates a stable `Turn.id`.** The pending id, SDK user
+  `uuid`, and live protocol turn id are the same. Replay therefore
+  reconstructs the same user row instead of changing transcript shape
+  after reload.
+- **Iterable yield never removes pending UI.** Claude clears pending
+  state only through the promoted `ChatTurnStarted.queuedMessageId`.
+  This prevents the message from disappearing while the old request is
+  still winding down and does not depend on a user-message echo.
 - **`truncateSession?` being undefined is a valid protocol
   state.** Clients must check for the optional-ness and degrade
   gracefully (e.g., offer fork instead). Agents must not throw

@@ -142,8 +142,8 @@ function toClaudeDeniedMcpServer(definition: IMcpServerDefinition): ClaudeDenied
  *   • SDK identity, exact chat channel, workspace, and working directories.
  *   • The {@link ClaudeSdkPipeline} that drives the SDK Query lifecycle
  *     and emits every {@link AgentSignal} for this session (router-
- *     mapped per-message signals plus `ChatTurnComplete` and
- *     `steering_consumed`).
+ *     mapped per-message signals plus turn-boundary actions, including
+ *     pending-to-turn steering promotion).
  *   • Pending-permission and pending-user-input registries (Phase 7),
  *     surfaced via `requestPermission` / `requestUserInput`.
  */
@@ -1212,10 +1212,10 @@ export class ClaudeAgentSession extends Disposable {
 
 	/**
 	 * Inject a steering message. Builds the `priority: 'now'`
-	 * {@link SDKUserMessage} and hands it to the pipeline; the pipeline
-	 * inherits the parent's turnId (CONTEXT.md M10) and fires
-	 * `steering_consumed` when the SDK accepts it. No-op if the pipeline
-	 * is aborted.
+	 * {@link SDKUserMessage} and hands it to the pipeline together with the
+	 * pending protocol message. The pipeline retains that message until the
+	 * SDK's preemption result, then promotes it into a fresh visible turn.
+	 * No-op if the pipeline is aborted.
 	 */
 	injectSteering(steeringMessage: PendingMessage): void {
 		const pipeline = this._requirePipeline();
@@ -1238,7 +1238,7 @@ export class ClaudeAgentSession extends Disposable {
 			// boundary is the convention for both code paths.
 			uuid: steeringMessage.id as `${string}-${string}-${string}-${string}-${string}`,
 		};
-		pipeline.injectSteering(sdkMessage, steeringMessage.id);
+		pipeline.injectSteering(sdkMessage, steeringMessage);
 	}
 
 	/** Live permission-mode change. Forwards to the pipeline; the pipeline remembers it for re-application after a rebind. */

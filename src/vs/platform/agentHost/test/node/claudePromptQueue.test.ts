@@ -13,26 +13,24 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { MessageKind } from '../../common/state/sessionState.js';
 import { ClaudePromptQueue, IPendingSdkMessage } from '../../node/claude/claudePromptQueue.js';
 
 interface IQueueHarness {
 	readonly queue: ClaudePromptQueue;
 	readonly controller: AbortController;
-	readonly steeringYielded: string[];
 }
 
 function createQueue(disposables: Pick<DisposableStore, 'add'>): IQueueHarness {
 	const controller = new AbortController();
-	const steeringYielded: string[] = [];
 	const services = new ServiceCollection([ILogService, new NullLogService()]);
 	const instantiationService = disposables.add(new InstantiationService(services));
 	const queue = disposables.add(instantiationService.createInstance(
 		ClaudePromptQueue,
 		'sess-1',
 		() => controller.signal,
-		(id: string) => steeringYielded.push(id),
 	));
-	return { queue, controller, steeringYielded };
+	return { queue, controller };
 }
 
 function makeEntry(id: string, opts?: { steeringPendingId?: string; turnId?: string }): IPendingSdkMessage {
@@ -48,7 +46,10 @@ function makeEntry(id: string, opts?: { steeringPendingId?: string; turnId?: str
 		turnId: opts?.turnId ?? 'turn-1',
 		stopWatch: StopWatch.create(false),
 		deferred: new DeferredPromise<void>(),
-		steeringPendingId: opts?.steeringPendingId,
+		steeringMessage: opts?.steeringPendingId ? {
+			id: opts.steeringPendingId,
+			message: { text: id, origin: { kind: MessageKind.User } },
+		} : undefined,
 	};
 }
 
@@ -153,7 +154,7 @@ suite('ClaudePromptQueue', () => {
 		assert.strictEqual(r.done, true);
 	});
 
-	test('peekParent prefers the in-flight head over the latest queued entry (CONTEXT M10: steering inherits in-flight turnId)', async () => {
+	test('peekParent prefers the in-flight head over the latest queued entry', async () => {
 		const { queue } = createQueue(disposables);
 		const iter = queue.iterable[Symbol.asyncIterator]();
 
@@ -176,22 +177,21 @@ suite('ClaudePromptQueue', () => {
 		assert.strictEqual(queue.peekParent(), undefined);
 	});
 
-	test('steering callback fires when an entry with steeringPendingId is YIELDED, not when it is pushed', async () => {
-		const { queue, steeringYielded } = createQueue(disposables);
+	test('steering metadata remains attached after iterable yield for later promotion', async () => {
+		const { queue } = createQueue(disposables);
 		const iter = queue.iterable[Symbol.asyncIterator]();
 		const e = makeEntry('s1', { steeringPendingId: 'pending-42' });
 		void queue.push(e);
-		assert.deepStrictEqual(steeringYielded, [], 'no fire on push');
 		await drainOne(iter);
-		assert.deepStrictEqual(steeringYielded, ['pending-42'], 'fires on yield');
+		assert.strictEqual(queue.peekParent()?.steeringMessage?.id, 'pending-42');
 	});
 
-	test('non-steering entries do not fire the steering callback', async () => {
-		const { queue, steeringYielded } = createQueue(disposables);
+	test('non-steering entries carry no promotion metadata', async () => {
+		const { queue } = createQueue(disposables);
 		const iter = queue.iterable[Symbol.asyncIterator]();
 		void queue.push(makeEntry('plain'));
 		await drainOne(iter);
-		assert.deepStrictEqual(steeringYielded, []);
+		assert.strictEqual(queue.peekParent()?.steeringMessage, undefined);
 	});
 
 	test('settleHead on an empty yielded list returns undefined and is a no-op', () => {
@@ -206,7 +206,7 @@ suite('ClaudePromptQueue', () => {
 		const services = new ServiceCollection([ILogService, new NullLogService()]);
 		const inst = disposables.add(new InstantiationService(services));
 		const q = disposables.add(inst.createInstance(
-			ClaudePromptQueue, 'sess-reset', () => liveController.signal, () => { /* no steering */ },
+			ClaudePromptQueue, 'sess-reset', () => liveController.signal,
 		));
 
 		// Park next() on the original deferred.
