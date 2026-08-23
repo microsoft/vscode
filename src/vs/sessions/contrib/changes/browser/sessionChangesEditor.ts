@@ -468,14 +468,14 @@ class ChangesetReviewActionViewItem extends CheckboxActionViewItem {
 		container.classList.add('changeset-review-action');
 	}
 
-	override updateChecked(): void {
+	protected override updateChecked(): void {
 		super.updateChecked();
 
 		this.updateAriaLabel();
 		this.updateTooltip();
 	}
 
-	override getTooltip(): string {
+	protected override getTooltip(): string {
 		return this.action.checked
 			? localize('changeset.viewed.tooltip', "Mark as Not Viewed")
 			: localize('changeset.notViewed.tooltip', "Mark as Viewed");
