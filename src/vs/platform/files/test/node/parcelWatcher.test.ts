@@ -767,22 +767,16 @@ suite.skip('File Watcher (parcel)', function () {
 		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
 		const changeFuture = awaitEvent(watcher, folderPath, FileChangeType.DELETED, undefined, 1);
 
-		try {
-			await promises.rename(folderPath, renamedFolderPath);
+		await promises.rename(folderPath, renamedFolderPath);
 
-			await onDidWatchFail;
-			await changeFuture;
-			assert.strictEqual(failed, true);
-			assert.strictEqual(instance.failed, true);
-		} finally {
-			// restore original state for other tests / teardown
-			try {
-				await promises.rm(renamedFolderPath, { recursive: true, force: true });
-				await promises.mkdir(folderPath, { recursive: true });
-			} catch (error) {
-				console.error(error);
-			}
-		}
+		await onDidWatchFail;
+		await changeFuture;
+		assert.strictEqual(failed, true);
+		assert.strictEqual(instance.failed, true);
+
+		// Do not restore the renamed folder here: the suspended watch request is
+		// being monitored and would resume watching (and emit events) while this
+		// test is still running. The suite teardown removes `testDir` entirely.
 	});
 
 	(!isMacintosh /* Linux/Windows: times out for some reason */ ? test.skip : test)('watch requests support suspend/resume (folder, does not exist in beginning, not reusing watcher)', async () => {

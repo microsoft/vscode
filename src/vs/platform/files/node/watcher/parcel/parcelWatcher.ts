@@ -185,7 +185,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 	// so that all of the existing handling applies as if the path
 	// had been deleted, enabling clients to recover.
 	// (https://github.com/microsoft/vscode/issues/309241)
-	private static readonly ROOT_EXISTENCE_CHECK_DELAY = 5000;
+	private static readonly ROOT_EXISTENCE_CHECK_DELAY = 5007;
 
 	// Reduce likelyhood of spam from file events via throttling.
 	// (https://github.com/microsoft/vscode/issues/124723)
@@ -409,6 +409,11 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		// handle alive (Windows, macOS) and watching silently stops working. As
 		// soon as we detect the path is gone, simulate the deletion so that all
 		// of the existing deletion handling applies as usual.
+		//
+		// The event is added to the same worker queue as real events to preserve
+		// ordering and coalescing with any changes still buffered. On Linux,
+		// renames are already reported as real events and mark the watcher as
+		// failed, so this check stops before it could report a duplicate.
 		// (https://github.com/microsoft/vscode/issues/309241)
 		const rootExistenceScheduler = new RunOnceScheduler(async () => {
 			if (watcher.token.isCancellationRequested || watcher.failed || watcher.stopped) {
@@ -418,14 +423,16 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 			try {
 				await promises.access(request.path);
 			} catch (error) {
-				if (!watcher.token.isCancellationRequested && !watcher.failed && !watcher.stopped) {
-					this.trace(`watched root path no longer exists without an event being reported: ${request.path}`);
+				if (!watcher.token.isCancellationRequested && !watcher.failed && !watcher.stopped && (error as NodeJS.ErrnoException).code === 'ENOENT') {
 
-					// Simulate the root deletion event and run through the same
-					// handling as if the event had been reported by the watcher.
-					this.handleParcelEvents([{ type: FileChangeType.DELETED, resource: URI.file(request.path), cId: request.correlationId }], watcher);
+					this.trace(`Watched root path no longer exists without an event being reported: ${request.path}`);
+
+					// Simulate the root deletion event through the regular event
+					// worker so that all of the existing deletion handling applies
+					// as if the event had been reported by the watcher.
+					watcher.worker.work({ type: FileChangeType.DELETED, resource: URI.file(request.path), cId: request.correlationId });
 				}
-				return; // stop checking once the root is gone
+				return; // stop checking once the root is gone or unreadable
 			}
 
 			rootExistenceScheduler.schedule();
