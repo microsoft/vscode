@@ -982,6 +982,8 @@ class ElementPicker {
 			this._cursorStylesheet.textContent = this._restingCursor;
 		}
 		if (this._showTouchCursor) {
+			this._touchCursor.style.left = `${e.clientX}px`;
+			this._touchCursor.style.top = `${e.clientY}px`;
 			this._touchCursor.style.display = 'block';
 		}
 
