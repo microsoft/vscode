@@ -363,7 +363,7 @@ export function isNewChatSessionTypeUsable(
 export type SessionTypeSelectionReason =
 	/** A caller explicitly chose the session type. */
 	| 'explicitOverride'
-	/** A virtual workspace forced the local session type. */
+	/** The session type was automatically set to Local in a virtual workspace. */
 	| 'virtualWorkspace'
 	/** The user's last usable session type was restored. */
 	| 'rememberedSelection'
