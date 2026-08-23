@@ -70,26 +70,15 @@ const fail = error => {
 	console.error('[launch.sh] failed to allocate debug ports:', error);
 	process.exit(1);
 };
-const servers = Array.from({ length: 4 }, () => net.createServer().once('error', fail));
-let listening = servers.length;
-let closing = servers.length;
-for (const server of servers) {
-	server.listen(0, '127.0.0.1', () => {
-		if (--listening) {
-			return;
-		}
-		const ports = servers.map(server => server.address().port);
-		for (const server of servers) {
-			server.close(error => {
-				if (error) {
-					fail(error);
-				} else if (!--closing) {
-					console.log(ports.join(' '));
-				}
-			});
-		}
-	});
-}
+const servers = Array.from({ length: 4 }, () => net.createServer().on('error', fail));
+(async () => {
+	await Promise.all(servers.map(server => new Promise(resolve => server.listen(0, '127.0.0.1', resolve))));
+	const ports = servers.map(server => server.address().port);
+	await Promise.all(servers.map(server => new Promise((resolve, reject) => {
+		server.close(error => error ? reject(error) : resolve());
+	})));
+	console.log(ports.join(' '));
+})().catch(fail);
 NODE
 )
 read -r CDP_PORT EXTHOST_PORT MAIN_PORT AGENTHOST_PORT <<< "$PORTS"
