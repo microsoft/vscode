@@ -45,6 +45,7 @@ import { ChatToolInvocationPart } from './toolInvocationParts/chatToolInvocation
 import './media/chatSubagentContent.css';
 
 const MAX_TITLE_LENGTH = 100;
+const GENERIC_SUBAGENT_TYPES: ReadonlySet<string> = new Set(['default', 'general-purpose', 'task']);
 
 const subagentWorkingMessages = [
 	localize('chat.subagent.working.1', 'Processing'),
@@ -371,10 +372,12 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 				: this.subagentActivity !== 'markdown'
 					? this.mostRecentToolPresentation
 					: undefined;
+			const agentType = this.getAgentTypeLabel();
 			this._openChatToolbar.context = {
 				chatResource,
 				parentSessionResource: this.context.element.sessionResource.toString(),
 				title: this.description,
+				...(agentType ? { agentType } : {}),
 				confirmationCount: this.toolsWaitingForCarouselConfirmation,
 				confirmationActive: this._confirmationActive,
 				startedAt: data?.kind === 'subagent' ? data.startedAt : undefined,
@@ -395,6 +398,22 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 	private _shouldReserveOpenChatPresentation(): boolean {
 		return this._shouldUseOpenChatPresentation() && isAgentHostTarget(getChatSessionType(this.context.element.sessionResource));
+	}
+
+	private _shouldKeepCollapsedForCarouselConfirmation(): boolean {
+		return this._shouldUseOpenChatPresentation() && !!this._getChatResource();
+	}
+
+	private getAgentTypeLabel(): string | undefined {
+		const agentName = this.agentName?.trim();
+		if (!agentName) {
+			return undefined;
+		}
+		const normalizedAgentName = agentName.toLowerCase();
+		if (GENERIC_SUBAGENT_TYPES.has(normalizedAgentName) || normalizedAgentName === this._subagentToolInvocation.toolId.toLowerCase()) {
+			return undefined;
+		}
+		return agentName.charAt(0).toUpperCase() + agentName.slice(1);
 	}
 
 	constructor(
@@ -749,14 +768,8 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		}
 	}
 
-	public getAgentLabel(): string {
-		if (this.agentName) {
-			return this.agentName;
-		}
-		if (!this._isDefaultDescription && this.description) {
-			return this.description;
-		}
-		return localize('chat.subagent.prefix', 'Subagent');
+	public getSubagentTitle(): string {
+		return this.description;
 	}
 
 	public markAsInactive(force: boolean = false): void {
@@ -1039,7 +1052,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 			if (isWaitingForConfirmation && !wasWaitingForConfirmation) {
 				this.toolsWaitingForConfirmation++;
-				if (!this.isExpanded()) {
+				if (!this.isExpanded() && !(isWaitingForCarouselConfirmation && this._shouldKeepCollapsedForCarouselConfirmation())) {
 					this.autoExpandedForConfirmation = true;
 					this.setExpanded(true);
 				}
@@ -1140,7 +1153,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			}
 		}
 
-		if (!this.isExpanded()) {
+		if (!this.isExpanded() && !this._shouldKeepCollapsedForCarouselConfirmation()) {
 			this.autoExpandedForConfirmation = true;
 			this.setExpanded(true);
 		}
