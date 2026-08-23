@@ -8,45 +8,50 @@ import type * as http from 'http';
 import * as net from 'net';
 
 const WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
+const TOKEN_TTL_MS = 60_000;
+const MAX_FRAME_PAYLOAD = 16 * 1024 * 1024;
 
 /**
- * Minimal, dependency-free WebSocket (RFC 6455) to TCP bridge used to expose a
- * QEMU VNC server to the noVNC client running inside a workbench webview.
+ * Dependency-free WebSocket (RFC 6455) to Unix-socket bridge for noVNC.
  *
- * Security properties:
- * - Listens on 127.0.0.1 only.
- * - Every connection must present a single-use token as a WebSocket
- *   subprotocol; the token is consumed on first use.
- * - Only binary frames are forwarded to the VNC server; ping/pong/close are
- *   handled per spec.
+ * QEMU only listens on the private Unix socket. The browser can reach this
+ * loopback HTTP server, but the VNC protocol is forwarded only after a
+ * single-use token has been presented as a WebSocket subprotocol.
  */
 export class VncWebSocketProxy {
+
+	private disposed = false;
 
 	private constructor(
 		private readonly server: http.Server,
 		readonly port: number,
-		private readonly pendingTokens: Set<string>,
+		private readonly pendingTokens: Map<string, ReturnType<typeof setTimeout>>,
+		private readonly connections: Set<net.Socket>,
 	) { }
 
-	static async create(vncPort: number, onError: (error: Error) => void): Promise<VncWebSocketProxy> {
-		// Lazy import to avoid paying the startup cost of the http module until
-		// the first virtual machine display is actually opened.
+	static async create(vncSocketPath: string, onError: (error: Error) => void): Promise<VncWebSocketProxy> {
 		const http = await import('http');
 		return new Promise((resolve, reject) => {
-			const pendingTokens = new Set<string>();
+			const pendingTokens = new Map<string, ReturnType<typeof setTimeout>>();
+			const connections = new Set<net.Socket>();
 			const server = http.createServer((_req, res) => {
 				res.writeHead(426, { 'Content-Type': 'text/plain' });
 				res.end('WebSocket endpoint');
 			});
+			server.on('connection', socket => {
+				connections.add(socket);
+				socket.once('close', () => connections.delete(socket));
+			});
 			server.on('error', reject);
 
 			const late = (port: number): VncWebSocketProxy =>
-				new VncWebSocketProxy(server, port, pendingTokens);
+				new VncWebSocketProxy(server, port, pendingTokens, connections);
 
 			server.on('upgrade', (req, socket: net.Socket, head: Buffer) => {
 				try {
-					upgradeToVnc(req, socket, head, pendingTokens, vncPort, onError);
-				} catch {
+					upgradeToVnc(req, socket, head, pendingTokens, vncSocketPath, onError);
+				} catch (error) {
+					onError(error instanceof Error ? error : new Error(String(error)));
 					socket.destroy();
 				}
 			});
@@ -64,11 +69,24 @@ export class VncWebSocketProxy {
 
 	issueToken(): string {
 		const token = crypto.randomBytes(24).toString('base64url');
-		this.pendingTokens.add(token);
+		const timer = setTimeout(() => this.pendingTokens.delete(token), TOKEN_TTL_MS);
+		this.pendingTokens.set(token, timer);
 		return token;
 	}
 
 	dispose(): void {
+		if (this.disposed) {
+			return;
+		}
+		this.disposed = true;
+		for (const timer of this.pendingTokens.values()) {
+			clearTimeout(timer);
+		}
+		this.pendingTokens.clear();
+		for (const socket of this.connections) {
+			socket.destroy();
+		}
+		this.connections.clear();
 		this.server.close();
 	}
 }
@@ -77,25 +95,28 @@ function upgradeToVnc(
 	req: http.IncomingMessage,
 	socket: net.Socket,
 	head: Buffer,
-	pendingTokens: Set<string>,
-	vncPort: number,
+	pendingTokens: Map<string, ReturnType<typeof setTimeout>>,
+	vncSocketPath: string,
 	onError: (error: Error) => void,
 ): void {
 	const key = req.headers['sec-websocket-key'];
-	if (typeof key !== 'string') {
+	if (typeof key !== 'string' || req.headers.upgrade?.toLowerCase() !== 'websocket') {
 		socket.destroy();
 		return;
 	}
 	const protocolsHeader = req.headers['sec-websocket-protocol'];
 	const protocols = typeof protocolsHeader === 'string' ? protocolsHeader.split(',').map(p => p.trim()) : [];
-	// noVNC sends the session token as an extra subprotocol value.
 	const token = protocols.find(p => pendingTokens.has(p));
 	if (!token) {
-		socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+		socket.write('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
 		socket.destroy();
 		return;
 	}
+	const timer = pendingTokens.get(token);
 	pendingTokens.delete(token);
+	if (timer) {
+		clearTimeout(timer);
+	}
 
 	const accept = crypto.createHash('sha1').update(key + WS_GUID).digest('base64');
 	socket.write(
@@ -108,7 +129,7 @@ function upgradeToVnc(
 	);
 	socket.setNoDelay(true);
 
-	const upstream = net.connect(vncPort, '127.0.0.1');
+	const upstream = net.createConnection({ path: vncSocketPath });
 	upstream.setNoDelay(true);
 	upstream.on('error', err => {
 		onError(err);
@@ -117,7 +138,8 @@ function upgradeToVnc(
 	upstream.on('data', chunk => {
 		try {
 			socket.write(encodeFrame(chunk));
-		} catch {
+		} catch (error) {
+			onError(error instanceof Error ? error : new Error(String(error)));
 			upstream.destroy();
 		}
 	});
@@ -128,16 +150,20 @@ function upgradeToVnc(
 		buffer = buffer.length ? Buffer.concat([buffer, chunk]) : chunk;
 		buffer = consumeFrames(buffer, upstream, socket);
 	});
+	if (buffer.length) {
+		buffer = consumeFrames(buffer, upstream, socket);
+	}
 	socket.on('error', () => upstream.destroy());
 	socket.once('close', () => upstream.destroy());
 }
 
 function consumeFrames(buffer: Buffer, upstream: net.Socket, socket: net.Socket): Buffer {
-	for (; ;) {
+	for (;;) {
 		if (buffer.length < 2) {
 			return buffer;
 		}
-		const opcode = buffer[0] & 0x0f;
+		const firstByte = buffer[0];
+		const opcode = firstByte & 0x0f;
 		const masked = (buffer[1] & 0x80) !== 0;
 		let length = buffer[1] & 0x7f;
 		let offset = 2;
@@ -152,15 +178,14 @@ function consumeFrames(buffer: Buffer, upstream: net.Socket, socket: net.Socket)
 				return buffer;
 			}
 			const big = buffer.readBigUInt64BE(2);
-			if (big > BigInt(16 * 1024 * 1024)) {
+			if (big > BigInt(MAX_FRAME_PAYLOAD)) {
 				socket.destroy();
 				return Buffer.alloc(0);
 			}
 			length = Number(big);
 			offset = 10;
 		}
-		// Client-to-server frames must be masked (RFC 6455 §5.3).
-		if (!masked) {
+		if (!masked || ((opcode & 0x08) !== 0 && (length > 125 || (firstByte & 0x80) === 0))) {
 			socket.destroy();
 			return Buffer.alloc(0);
 		}

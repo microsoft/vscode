@@ -25,7 +25,6 @@ const VirtualMachinesLoggerChannelName = 'virtualMachinesLogger';
 startVirtualMachinesDaemon();
 
 async function startVirtualMachinesDaemon() {
-	// Setup RPC
 	let server: ChildProcessServer<string> | UtilityProcessServer;
 	if (isUtilityProcess(process)) {
 		server = new UtilityProcessServer();
@@ -34,32 +33,44 @@ async function startVirtualMachinesDaemon() {
 	}
 
 	const disposables = new DisposableStore();
-
-	// Services
 	const productService: IProductService = { _serviceBrand: undefined, ...product };
 	const environmentService = new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService);
 	const loggerService = new LoggerService(getLogLevel(environmentService), environmentService.logsHome);
 	server.registerChannel(VirtualMachinesLoggerChannelName, new LoggerChannel(loggerService, () => DefaultURITransformer));
 	const logger = loggerService.createLogger('virtualmachines', { name: 'Virtual Machines Daemon' });
 	const logService = new LogService(logger);
-
-	// The initial settings snapshot and data root are provided by the main
-	// process through the environment; updates flow through the channel.
 	const settings: IVirtualMachinesSettings = parseJsonEnv('GITCORTEX_VM_SETTINGS', {
 		acceleration: 'auto',
 		networkMode: 'user',
-		agentControl: false,
 		resources: {},
 	});
 	const defaultDataRoot = process.env.GITCORTEX_VM_DATA_ROOT || environmentService.userDataPath;
-
 	const manager = new VirtualMachineManager(settings, defaultDataRoot, undefined, message => logService.trace(message));
 	server.registerChannel(VirtualMachinesServiceChannelName, ProxyChannel.fromService(manager, disposables));
 
-	// Clean up: disposing the manager stops every running virtual machine.
+	let shutdownPromise: Promise<void> | undefined;
+	const shutdown = async () => {
+		if (!shutdownPromise) {
+			shutdownPromise = (async () => {
+				logService.trace('Virtual machines daemon graceful shutdown started');
+				await manager.shutdown();
+				disposables.dispose();
+				manager.dispose();
+				logService.trace('Virtual machines daemon graceful shutdown completed');
+				logService.dispose();
+				process.exit(0);
+			})();
+		}
+		return shutdownPromise;
+	};
+
+	process.once('SIGTERM', () => { void shutdown(); });
+	process.once('SIGINT', () => { void shutdown(); });
 	process.once('exit', () => {
-		logService.trace('Virtual machines daemon exiting');
+		// `exit` is synchronous: this is the last-resort path after a forced
+		// termination and therefore must not wait on promises.
 		manager.dispose();
+		disposables.dispose();
 		logService.dispose();
 	});
 }

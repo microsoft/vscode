@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { FileAccess } from '../../../../base/common/network.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -23,14 +24,9 @@ export interface IVirtualDesktopOpener {
 
 const NOVNC_ROOT = 'vs/workbench/contrib/virtualMachines/browser/media/novnc';
 
-/**
- * Opens a live graphical console of a virtual machine in an editor webview,
- * using the vendored noVNC client connected to the loopback VNC proxy.
- */
 export class VirtualDesktopOpener extends Disposable implements IVirtualDesktopOpener {
 
 	declare readonly _serviceBrand: undefined;
-
 	private readonly panels = new Map<string, WebviewInput>();
 
 	constructor(
@@ -49,11 +45,9 @@ export class VirtualDesktopOpener extends Disposable implements IVirtualDesktopO
 		}
 
 		const display = await this.virtualMachinesService.openDisplay(vm.id);
-
-		const title = vm.name;
 		const panel = this.webviewWorkbenchService.openWebview(
 			{
-				title,
+				title: vm.name,
 				options: {},
 				contentOptions: {
 					allowScripts: true,
@@ -62,13 +56,12 @@ export class VirtualDesktopOpener extends Disposable implements IVirtualDesktopO
 				extension: undefined,
 			},
 			'gitcortex.virtualDesktop',
-			title,
+			vm.name,
 			Codicon.vm,
 			{ group: this.editorGroup(), preserveFocus: false },
 		);
 		this.panels.set(vm.id, panel);
 		panel.onWillDispose(() => this.panels.delete(vm.id));
-
 		panel.webview.setHtml(this.renderHtml(panel, vm, display.webSocketUrl, display.token));
 	}
 
@@ -78,30 +71,85 @@ export class VirtualDesktopOpener extends Disposable implements IVirtualDesktopO
 
 	private renderHtml(panel: WebviewInput, vm: IVirtualMachineInfo, webSocketUrl: string, token: string): string {
 		const rfbUri = asWebviewUri(FileAccess.asFileUri(`${NOVNC_ROOT}/core/rfb.js`));
-		// 'unsafe-inline' is required for the small bootstrap module script and
-		// styles below; the noVNC library itself loads from the app origin.
-		const cspSource = `${webviewGenericCspSource} 'unsafe-inline'`;
+		const cspSource = webviewGenericCspSource;
+		const nonce = generateUuid().replace(/-/g, '');
+		const connectUrl = JSON.stringify(webSocketUrl);
+		const tokenValue = JSON.stringify(token);
+		const focusLabel = localize('vm.desktop.focusTarget', "Bureau de la machine virtuelle. Appuyez sur Entrée ou Espace pour interagir.");
+		const leaveLabel = localize('vm.desktop.leaveInteraction', "Interaction avec le bureau terminée. Appuyez sur Tab pour continuer.");
 
 		return `<!DOCTYPE html>
 <html>
 <head>
 	<meta charset="UTF-8">
-	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; connect-src ${cspSource} ws://127.0.0.1:*; script-src ${cspSource}; style-src ${cspSource} 'unsafe-inline'; img-src ${cspSource} data:; font-src ${cspSource};">
-	<style>
-		html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; background: #1e1e1e; }
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; connect-src ${cspSource} ws://127.0.0.1:*; script-src ${cspSource} 'nonce-${nonce}'; style-src ${cspSource} 'nonce-${nonce}'; img-src ${cspSource} data:; font-src ${cspSource};">
+	<style nonce="${nonce}">
+		html, body {
+			height: 100%;
+			margin: 0;
+			padding: 0;
+			overflow: hidden;
+			background: var(--vscode-editor-background, var(--vscode-background, transparent));
+			color: var(--vscode-editor-foreground, var(--vscode-foreground, inherit));
+		}
 		#screen { width: 100%; height: 100%; }
-		#status { position: absolute; top: 8px; left: 8px; padding: 4px 10px; font-family: sans-serif; font-size: 12px; color: #fff; background: rgba(0,0,0,0.6); border-radius: 4px; z-index: 10; }
+		#status {
+			position: absolute;
+			top: 8px;
+			left: 8px;
+			padding: 4px 10px;
+			font-family: sans-serif;
+			font-size: 12px;
+			color: var(--vscode-widget-foreground, var(--vscode-editor-foreground, inherit));
+			background: var(--vscode-widget-background, var(--vscode-editorWidget-background, transparent));
+			border: 1px solid var(--vscode-widget-border, var(--vscode-editorWidget-border, transparent));
+			border-radius: 4px;
+			z-index: 10;
+		}
+		#desktop-focus-target {
+			position: absolute;
+			top: 8px;
+			right: 8px;
+			z-index: 20;
+			padding: 4px 8px;
+			font: inherit;
+			color: var(--vscode-button-foreground, var(--vscode-editor-foreground, inherit));
+			background: var(--vscode-button-background, var(--vscode-editorWidget-background, transparent));
+			border: 1px solid var(--vscode-button-border, var(--vscode-widget-border, transparent));
+			cursor: pointer;
+		}
+		#desktop-focus-target:hover { background: var(--vscode-button-hoverBackground, var(--vscode-button-background, transparent)); }
+		#desktop-focus-target:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 2px; }
 	</style>
 </head>
 <body>
-	<div id="status">${escapeHtml(localize('vm.desktop.connecting', "Connexion à {0}…", vm.name))}</div>
-	<div id="screen"></div>
-	<script type="module">
-		import RFB from '${rfbUri.toString(true)}';
+	<div id="status" role="status" aria-live="polite">${escapeHtml(localize('vm.desktop.connecting', "Connexion à {0}…", vm.name))}</div>
+	<button id="desktop-focus-target" type="button" aria-label="${escapeHtml(focusLabel)}" title="${escapeHtml(focusLabel)}">${escapeHtml(localize('vm.desktop.interact', "Interagir avec le bureau"))}</button>
+	<div id="screen" role="application" aria-label="${escapeHtml(localize('vm.desktop.screenLabel', "Bureau distant de {0}", vm.name))}"></div>
+	<script type="module" nonce="${nonce}">
+		import RFB from ${JSON.stringify(rfbUri.toString(true))};
 		const status = document.getElementById('status');
-		const rfb = new RFB(document.getElementById('screen'), ${JSON.stringify(webSocketUrl)}, { wsProtocols: ['binary', ${JSON.stringify(token)}] });
+		const focusTarget = document.getElementById('desktop-focus-target');
+		const screen = document.getElementById('screen');
+		const rfb = new RFB(screen, ${connectUrl}, { wsProtocols: ['binary', ${tokenValue}] });
 		rfb.scaleViewport = true;
 		rfb.resizeSession = true;
+		focusTarget.addEventListener('click', () => { rfb.focus({ preventScroll: true }); focusTarget.blur(); });
+		focusTarget.addEventListener('keydown', event => {
+			if (event.key === 'Enter' || event.key === ' ') {
+				event.preventDefault();
+				rfb.focus({ preventScroll: true });
+				focusTarget.blur();
+			}
+		});
+		document.addEventListener('keydown', event => {
+			if (event.key === 'Escape') {
+				rfb.blur();
+				focusTarget.focus({ preventScroll: true });
+				status.style.display = '';
+				status.textContent = ${JSON.stringify(leaveLabel)};
+			}
+		});
 		rfb.addEventListener('connect', () => { status.style.display = 'none'; });
 		rfb.addEventListener('disconnect', e => {
 			status.style.display = '';
@@ -120,5 +168,5 @@ export class VirtualDesktopOpener extends Disposable implements IVirtualDesktopO
 }
 
 function escapeHtml(text: string): string {
-	return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+	return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }

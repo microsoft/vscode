@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { session } from 'electron';
-import { readFile } from 'fs/promises';
+import { createReadStream } from 'fs';
+import { stat } from 'fs/promises';
+import { Readable } from 'stream';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { COI, FileAccess, Schemas, CacheControlheaders, DocumentPolicyheaders } from '../../../base/common/network.js';
 import { basename, extname, normalize } from '../../../base/common/path.js';
@@ -20,7 +22,6 @@ import { IUserDataProfilesService } from '../../userDataProfile/common/userDataP
 
 type ProtocolCallback = { (result: string | Electron.FilePathWithHeaders | { error: number }): void };
 
-// Content type lookup for the resources the vscode-file:// protocol serves.
 const mimeTypes = new Map<string, string>([
 	['.js', 'text/javascript'],
 	['.mjs', 'text/javascript'],
@@ -41,6 +42,11 @@ const mimeTypes = new Map<string, string>([
 	['.map', 'application/json']
 ]);
 
+interface IByteRange {
+	readonly start: number;
+	readonly end: number;
+}
+
 export class ProtocolMainService extends Disposable implements IProtocolMainService {
 
 	declare readonly _serviceBrand: undefined;
@@ -55,33 +61,18 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 	) {
 		super();
 
-		// Define an initial set of roots we allow loading from
-		// - appRoot	: all files installed as part of the app
-		// - extensions : all files shipped from extensions
-		// - storage    : all files in global and workspace storage (https://github.com/microsoft/vscode/issues/116735)
 		this.addValidFileRoot(environmentService.appRoot);
 		this.addValidFileRoot(environmentService.extensionsPath);
 		this.addValidFileRoot(userDataProfilesService.defaultProfile.globalStorageHome.with({ scheme: Schemas.file }).fsPath);
 		this.addValidFileRoot(environmentService.workspaceStorageHome.with({ scheme: Schemas.file }).fsPath);
-
-		// Handle protocols
 		this.handleProtocols();
 	}
 
 	private handleProtocols(): void {
 		const { defaultSession } = session;
 
-		// Register vscode-file:// handler. The legacy callback-based
-		// `registerFileProtocol` API fails with `net::ERR_FAILED` for module
-		// script requests on Electron 42 in some environments (observed with
-		// many concurrent large file loads), so the modern `protocol.handle`
-		// API is used instead.
 		defaultSession.protocol.handle(Schemas.vscodeFileResource, request => this.handleResourceRequest(request));
-
-		// Block any file:// access
 		defaultSession.protocol.interceptFileProtocol(Schemas.file, (request, callback) => this.handleFileRequest(request, callback));
-
-		// Cleanup
 		this._register(toDisposable(() => {
 			defaultSession.protocol.unhandle(Schemas.vscodeFileResource);
 			defaultSession.protocol.uninterceptProtocol(Schemas.file);
@@ -89,17 +80,11 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 	}
 
 	addValidFileRoot(root: string): IDisposable {
-
-		// Pass to `normalize` because we later also do the
-		// same for all paths to check against.
 		const normalizedRoot = normalize(root);
-
 		if (!this.validRoots.get(normalizedRoot)) {
 			this.validRoots.set(normalizedRoot, true);
-
 			return toDisposable(() => this.validRoots.delete(normalizedRoot));
 		}
-
 		return Disposable.None;
 	}
 
@@ -107,9 +92,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 
 	private handleFileRequest(request: Electron.ProtocolRequest, callback: ProtocolCallback) {
 		const uri = URI.parse(request.url);
-
 		this.logService.error(`Refused to load resource ${uri.fsPath} from ${Schemas.file}: protocol (original URL: ${request.url})`);
-
 		return callback({ error: -3 /* ABORTED */ });
 	}
 
@@ -120,74 +103,77 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 	private async handleResourceRequest(request: Request): Promise<Response> {
 		const path = this.requestToNormalizedFilePath(request);
 		const pathBasename = basename(path);
+		const headers = this.getResponseHeaders(request, pathBasename);
 
-		let headers: Record<string, string> | undefined;
-		if (this.environmentService.crossOriginIsolated) {
-			if (pathBasename === 'workbench.html' || pathBasename === 'workbench-dev.html') {
-				headers = COI.CoopAndCoep;
-			} else {
-				headers = COI.getHeadersFromQuery(request.url);
+		if (!this.validRoots.findSubstr(path) && !this.validExtensions.has(extname(path).toLowerCase())) {
+			this.logService.error(`${Schemas.vscodeFileResource}: Refused to load resource ${path} from ${Schemas.vscodeFileResource}: protocol (original URL: ${request.url})`);
+			return new Response(null, { status: 403, headers });
+		}
+
+		let fileSize: number;
+		try {
+			const fileStat = await stat(path);
+			if (!fileStat.isFile()) {
+				return new Response(null, { status: 404, headers });
 			}
+			fileSize = fileStat.size;
+		} catch (error) {
+			const code = (error as NodeJS.ErrnoException).code;
+			const status = code === 'EACCES' || code === 'EPERM' ? 403 : 404;
+			this.logService.error(`${Schemas.vscodeFileResource}: Failed to stat resource ${path} from ${Schemas.vscodeFileResource}: protocol (original URL: ${request.url})`, error);
+			return new Response(null, { status, headers });
 		}
 
-		// In OSS, evict resources from the memory cache in the renderer process
-		// Refs https://github.com/microsoft/vscode/issues/148541#issuecomment-2670891511
-		if (!this.environmentService.isBuilt) {
-			headers = {
-				...headers,
-				...CacheControlheaders
-			};
+		const rangeHeader = request.headers.get('range');
+		const range = rangeHeader ? parseByteRange(rangeHeader, fileSize) : undefined;
+		if (rangeHeader && !range) {
+			headers.set('accept-ranges', 'bytes');
+			headers.set('content-range', `bytes */${fileSize}`);
+			return new Response(null, { status: 416, headers });
 		}
 
-		// Document-policy header is needed for collecting
-		// JavaScript callstacks via https://www.electronjs.org/docs/latest/api/web-frame-main#framecollectjavascriptcallstack-experimental
-		// until https://github.com/electron/electron/issues/45356 is resolved.
-		if (pathBasename === 'workbench.html' || pathBasename === 'workbench-dev.html') {
-			headers = {
-				...headers,
-				...DocumentPolicyheaders
-			};
+		const start = range?.start ?? 0;
+		const end = range?.end ?? Math.max(0, fileSize - 1);
+		const contentLength = fileSize === 0 ? 0 : end - start + 1;
+		headers.set('content-length', String(contentLength));
+		headers.set('accept-ranges', 'bytes');
+		if (range) {
+			headers.set('content-range', `bytes ${start}-${end}/${fileSize}`);
 		}
 
-		// first check by validRoots
-		if (!this.validRoots.findSubstr(path)) {
-			// then check by validExtensions
-			if (!this.validExtensions.has(extname(path).toLowerCase())) {
-				// finally block to load the resource
-				this.logService.error(`${Schemas.vscodeFileResource}: Refused to load resource ${path} from ${Schemas.vscodeFileResource}: protocol (original URL: ${request.url})`);
-
-				return new Response(null, { status: 403 });
-			}
+		if (request.method === 'HEAD' || fileSize === 0) {
+			return new Response(null, { status: range ? 206 : 200, headers });
 		}
 
 		try {
-			const data = await readFile(path);
-
-			return new Response(new Uint8Array(data), {
-				headers: {
-					'content-type': mimeTypes.get(extname(path).toLowerCase()) || 'application/octet-stream',
-					...headers
-				}
-			});
+			const stream = Readable.toWeb(createReadStream(path, { start, end }));
+			return new Response(stream as unknown as BodyInit, { status: range ? 206 : 200, headers });
 		} catch (error) {
-			this.logService.error(`${Schemas.vscodeFileResource}: Failed to load resource ${path} from ${Schemas.vscodeFileResource}: protocol (original URL: ${request.url})`, error);
-
-			return new Response(null, { status: 404 });
+			this.logService.error(`${Schemas.vscodeFileResource}: Failed to stream resource ${path} from ${Schemas.vscodeFileResource}: protocol (original URL: ${request.url})`, error);
+			return new Response(null, { status: 404, headers });
 		}
 	}
 
+	private getResponseHeaders(request: Request, pathBasename: string): Headers {
+		const headers = new Headers({ 'content-type': mimeTypes.get(extname(this.requestToNormalizedFilePath(request)).toLowerCase()) || 'application/octet-stream' });
+		if (this.environmentService.crossOriginIsolated) {
+			const coiHeaders = pathBasename === 'workbench.html' || pathBasename === 'workbench-dev.html' ? COI.CoopAndCoep : COI.getHeadersFromQuery(request.url);
+			if (coiHeaders) {
+				Object.entries(coiHeaders).forEach(([key, value]) => headers.set(key, String(value)));
+			}
+		}
+		if (!this.environmentService.isBuilt) {
+			Object.entries(CacheControlheaders).forEach(([key, value]) => headers.set(key, String(value)));
+		}
+		if (pathBasename === 'workbench.html' || pathBasename === 'workbench-dev.html') {
+			Object.entries(DocumentPolicyheaders).forEach(([key, value]) => headers.set(key, String(value)));
+		}
+		return headers;
+	}
+
 	private requestToNormalizedFilePath(request: Request): string {
-
-		// 1.) Use `URI.parse()` util from us to convert the raw
-		//     URL into our URI.
 		const requestUri = URI.parse(request.url);
-
-		// 2.) Use `FileAccess.asFileUri` to convert back from a
-		//     `vscode-file:` URI to a `file:` URI.
 		const unnormalizedFileUri = FileAccess.uriToFileUri(requestUri);
-
-		// 3.) Strip anything from the URI that could result in
-		//     relative paths (such as "..") by using `normalize`
 		return normalize(unnormalizedFileUri.fsPath);
 	}
 
@@ -197,30 +183,45 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 
 	createIPCObjectUrl<T>(): IIPCObjectUrl<T> {
 		let obj: T | undefined = undefined;
-
-		// Create unique URI
-		const resource = URI.from({
-			scheme: 'vscode', // used for all our IPC communication (vscode:<channel>)
-			path: generateUuid()
-		});
-
-		// Install IPC handler
+		const resource = URI.from({ scheme: 'vscode', path: generateUuid() });
 		const channel = resource.toString();
 		const handler = async (): Promise<T | undefined> => obj;
 		validatedIpcMain.handle(channel, handler);
-
 		this.logService.trace(`IPC Object URL: Registered new channel ${channel}.`);
-
 		return {
 			resource,
 			update: updatedObj => obj = updatedObj,
 			dispose: () => {
 				this.logService.trace(`IPC Object URL: Removed channel ${channel}.`);
-
 				validatedIpcMain.removeHandler(channel);
 			}
 		};
 	}
 
 	//#endregion
+}
+
+function parseByteRange(value: string, size: number): IByteRange | undefined {
+	if (size === 0 || !/^bytes=\d*-\d*$/.test(value)) {
+		return undefined;
+	}
+	const [startText, endText] = value.slice('bytes='.length).split('-');
+	let start: number;
+	let end: number;
+	if (!startText) {
+		const suffixLength = Number(endText);
+		if (!Number.isSafeInteger(suffixLength) || suffixLength <= 0) {
+			return undefined;
+		}
+		start = Math.max(0, size - suffixLength);
+		end = size - 1;
+	} else {
+		start = Number(startText);
+		end = endText ? Number(endText) : size - 1;
+		if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start || start >= size) {
+			return undefined;
+		}
+		end = Math.min(end, size - 1);
+	}
+	return { start, end };
 }

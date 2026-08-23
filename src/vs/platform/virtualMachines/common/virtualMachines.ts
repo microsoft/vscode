@@ -104,6 +104,7 @@ export interface IVirtualMachinesService {
  */
 export interface IVirtualMachinesDaemonService extends IVirtualMachinesService {
 	updateSettings(settings: IVirtualMachinesSettings): void;
+	shutdown(): Promise<void>;
 }
 
 export const enum VirtualMachinesConfig {
@@ -111,7 +112,6 @@ export const enum VirtualMachinesConfig {
 	QemuBinary = 'virtualMachines.qemuBinary',
 	DataRoot = 'virtualMachines.dataRoot',
 	NetworkMode = 'virtualMachines.networkMode',
-	AgentControl = 'virtualMachines.agentControl',
 	DeveloperCpus = 'virtualMachines.ubuntuDeveloper.cpus',
 	DeveloperMemoryMB = 'virtualMachines.ubuntuDeveloper.memoryMB',
 	DeveloperDiskGB = 'virtualMachines.ubuntuDeveloper.diskGB',
@@ -127,7 +127,6 @@ export interface IVirtualMachinesSettings {
 	readonly qemuBinary?: string;
 	readonly dataRoot?: string;
 	readonly networkMode: 'user' | 'restricted' | 'none';
-	readonly agentControl: boolean;
 	readonly resources: { readonly [vmId: string]: IVirtualMachineResources | undefined };
 	/**
 	 * Optional bootable installer ISO per machine, used when the virtual disk
