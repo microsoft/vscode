@@ -148,7 +148,13 @@ export class SessionChatInputToolbar extends Disposable {
 			return chat ? computeTurnStats(chat, reader) : EMPTY_DIFF_STATS;
 		});
 
-		const sessionArtifacts = this._register(instantiationService.createInstance(SessionArtifacts, this._session));
+		const turnStatusPillsEnabled = observeTurnStatusPillsEnabled(this._configurationService);
+		const visibility = this._register(instantiationService.createInstance(SessionChatPillVisibility));
+		this._browsers = this._register(instantiationService.createInstance(SessionBrowsersControl, this._session, this._chat, turnStatusPillsEnabled, derived(reader => visibility.isVisible(SessionChatPillKind.Browsers, reader))));
+
+		// The browsers pill already offers the pages it lists, so the artifacts pill
+		// leaves those websites out.
+		const sessionArtifacts = this._register(instantiationService.createInstance(SessionArtifacts, this._session, this._browsers.urls));
 		this._artifactSections = derived(this, reader => {
 			const debugData = this._debugData.read(reader);
 			return debugData ? buildDebugArtifactSections(debugData) : sessionArtifacts.sections.read(reader);
@@ -156,7 +162,6 @@ export class SessionChatInputToolbar extends Disposable {
 		const sessionCustomizations = this._register(instantiationService.createInstance(SessionCustomizations, this._chat, this._session));
 		this._customizationSections = sessionCustomizations.sections;
 
-		const turnStatusPillsEnabled = observeTurnStatusPillsEnabled(this._configurationService);
 		const pillsEnabled = derived(reader => this._debugData.read(reader) !== undefined || turnStatusPillsEnabled.read(reader));
 		const model: IChatTurnPillsModel = {
 			stats: this._diffStats,
@@ -168,7 +173,6 @@ export class SessionChatInputToolbar extends Disposable {
 
 		const turnPills = this._register(instantiationService.createInstance(ChatTurnPillsProvider, model));
 		const metadataPills = this._register(instantiationService.createInstance(SessionMetadataPills, this.element, this._session));
-		const visibility = this._register(instantiationService.createInstance(SessionChatPillVisibility));
 
 		// Every pill the session currently has data for, before the user's
 		// per-kind visibility choices are applied.
@@ -179,7 +183,6 @@ export class SessionChatInputToolbar extends Disposable {
 				...turn.filter(pill => pill.action.id !== CHAT_TURN_CHANGES_PILL_ID),
 			];
 		});
-		this._browsers = this._register(instantiationService.createInstance(SessionBrowsersControl, this._session, this._chat, turnStatusPillsEnabled, derived(reader => visibility.isVisible(SessionChatPillKind.Browsers, reader))));
 		this._backgroundActivities = this._register(instantiationService.createInstance(SessionBackgroundActivitiesControl, this._session, this._chat, turnStatusPillsEnabled, derived(reader => visibility.isVisible(SessionChatPillKind.Subagents, reader))));
 
 		// `show-file-icons` lets a resource pill paint its themed file icon.
