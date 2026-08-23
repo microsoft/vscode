@@ -38,9 +38,7 @@
 	cursor: grabbing;
 }
 
-.chat-pet-button.dragging,
-.chat-pet-button.falling,
-.chat-pet-button.throwing,
+.chat-pet-button,
 .chat-pet-respawn-effect {
 	z-index: 1;
 }

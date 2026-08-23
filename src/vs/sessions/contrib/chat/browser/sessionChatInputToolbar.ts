@@ -7,6 +7,7 @@ import { $, addDisposableListener, DisposableResizeObserver, EventType, getWindo
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { toAction, Action, Separator, type IAction } from '../../../../base/common/actions.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedOpts, IObservable, IReader, observableValue } from '../../../../base/common/observable.js';
@@ -110,6 +111,9 @@ export class SessionChatInputToolbar extends Disposable {
 	readonly element: HTMLElement;
 	private readonly _content: HTMLElement;
 	private readonly _scrollable: DomScrollableElement;
+	private readonly _onDidChangeChatPetPlatform = this._register(new Emitter<void>());
+	readonly onDidChangeChatPetPlatform: Event<void> = this._onDidChangeChatPetPlatform.event;
+	private readonly _pills: ChatPillsWidget;
 
 	/** Sentinel distinguishing "no override" from an explicit `undefined` session. */
 	private readonly _sessionOverride = observableValue<IActiveSession | undefined | 'unset'>(this, 'unset');
@@ -259,7 +263,7 @@ export class SessionChatInputToolbar extends Disposable {
 			context: this._session,
 		};
 		const actionRunner = this._register(new SessionActivatingActionRunner(() => this._session.get(), this._sessionsService));
-		const pills = this._register(instantiationService.createInstance(ChatPillsWidget, pillsModel, {
+		const pills = this._pills = this._register(instantiationService.createInstance(ChatPillsWidget, pillsModel, {
 			actionRunner,
 			// The row's visibility menu must be reachable by right-clicking a pill,
 			// not just the empty space beside it.
@@ -267,6 +271,7 @@ export class SessionChatInputToolbar extends Disposable {
 		}));
 		pills.element.classList.add('show-file-icons');
 		this._content.appendChild(pills.element);
+		this._register(pills.onDidChangePills(() => this._onDidChangeChatPetPlatform.fire()));
 
 		// Kinds the session reports data for; the others cannot be toggled.
 		const kindsWithData = derived(reader => {
@@ -328,7 +333,10 @@ export class SessionChatInputToolbar extends Disposable {
 			});
 		}));
 
-		const resizeObserver = this._register(new DisposableResizeObserver('SessionChatInputToolbar.content', () => this._scrollable.scanDomNode()));
+		const resizeObserver = this._register(new DisposableResizeObserver('SessionChatInputToolbar.content', () => {
+			this._scrollable.scanDomNode();
+			this._onDidChangeChatPetPlatform.fire();
+		}));
 		this._register(resizeObserver.observe(this._content));
 		this._register(resizeObserver.observe(pills.element));
 		this._register(addDisposableListener(this._content, EventType.FOCUS_IN, () => this._scrollable.scanDomNode()));
@@ -342,6 +350,10 @@ export class SessionChatInputToolbar extends Disposable {
 			this.element.classList.toggle('empty', !anyVisible);
 			this._scrollable.scanDomNode();
 		}));
+	}
+
+	getChatPetPlatformElements(): readonly HTMLElement[] {
+		return this._pills.getPillElements();
 	}
 
 	/**
