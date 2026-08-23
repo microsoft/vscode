@@ -11,8 +11,9 @@ import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AgentHostProxyConfigKey, createSchema, schemaProperty } from '../../common/agentHostSchema.js';
+import { AgentHostExternalSessionsMode, AgentHostProxyConfigKey, AgentHostShowExternalSessionsConfigKey, createSchema, platformRootSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { AGENT_CUSTOMIZATION_SETTINGS_META_KEY, getAgentCustomizationSettingsEntries } from '../../common/agentCustomizationSettings.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigState } from '../../common/state/protocol/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildSubagentSessionUri, SessionStatus, type SessionSummary } from '../../common/state/sessionState.js';
@@ -280,6 +281,30 @@ suite('AgentConfigurationService', () => {
 		}, {
 			proxy: 'http://proxy.example:8080',
 			noProxy: ['localhost'],
+		});
+		fs.rmSync(directory, { recursive: true, force: true });
+	});
+
+	test('restores persisted platform root settings when the host restarts', async () => {
+		const directory = fs.mkdtempSync(join(os.tmpdir(), 'agent-config-'));
+		const resource = URI.file(join(directory, 'agent-host-config.json'));
+		const firstManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const firstService = disposables.add(new AgentConfigurationService(firstManager, new NullLogService(), resource));
+		firstService.updateRootConfig({
+			[AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days,
+			[SessionConfigKey.Permissions]: { allow: ['revoked-rule'], deny: [] },
+		});
+		await firstService.whenIdle();
+
+		const restartedManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const restartedService = disposables.add(new AgentConfigurationService(restartedManager, new NullLogService(), resource));
+
+		assert.deepStrictEqual({
+			showExternalSessions: restartedService.getRootValue(platformRootSchema, AgentHostShowExternalSessionsConfigKey),
+			permissions: restartedService.getRootConfigValues()[SessionConfigKey.Permissions],
+		}, {
+			showExternalSessions: AgentHostExternalSessionsMode.Last30Days,
+			permissions: { allow: [], deny: [] },
 		});
 		fs.rmSync(directory, { recursive: true, force: true });
 	});
