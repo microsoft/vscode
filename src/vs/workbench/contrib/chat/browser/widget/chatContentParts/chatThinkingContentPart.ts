@@ -1098,6 +1098,9 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		const trimmed = value.trim();
 		if (splitReasoningSummaryRows(trimmed, true)) {
 			this.droppedSummaryHeader = extractTitleFromThinkingContent(trimmed);
+			if (this.fixedScrollingMode && this.droppedSummaryHeader && this.currentTitle !== this.droppedSummaryHeader) {
+				this.setTitle(this.droppedSummaryHeader);
+			}
 		}
 	}
 

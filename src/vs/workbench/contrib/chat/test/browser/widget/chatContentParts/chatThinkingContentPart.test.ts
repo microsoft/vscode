@@ -516,7 +516,7 @@ suite('ChatThinkingContentPart', () => {
 				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
 			};
 			const firstSummary = '**Evaluating issue and PR status**';
-			const content = createThinkingPart(firstSummary);
+			const content = createThinkingPart('**Evaluating issue and PR sta');
 			const part = store.add(instantiationService.createInstance(
 				ChatThinkingContentPart,
 				content,
@@ -529,6 +529,8 @@ suite('ChatThinkingContentPart', () => {
 			disposables.add(toDisposable(() => part.domNode.remove()));
 			const scrollable = part.domNode.querySelector('.monaco-scrollable-element');
 			const firstRow = part.domNode.querySelector('.chat-thinking-item.markdown-content');
+			const button = part.domNode.querySelector<HTMLElement>('.monaco-button');
+			const initialTitle = button?.textContent?.trim();
 
 			part.updateThinking(createThinkingPart(
 				`${firstSummary}\n\n**Analyzing code fix and lifecycle nuances**`,
@@ -545,11 +547,17 @@ suite('ChatThinkingContentPart', () => {
 				firstRowPreserved: rows[0] === firstRow,
 				rowTexts: rows.map(row => row.textContent?.trim()),
 				hasLiteralMarkers: part.domNode.textContent?.includes('**') ?? false,
+				initialTitle,
+				streamingTitle: button?.textContent?.trim(),
+				streamingAriaLabel: button?.ariaLabel,
 			}, {
 				scrollContainerPreserved: true,
 				firstRowPreserved: true,
 				rowTexts: ['Analyzing code fix and lifecycle nuances', 'Evaluating PR merge status'],
 				hasLiteralMarkers: false,
+				initialTitle: 'Thinking',
+				streamingTitle: 'Thinking: Evaluating issue and PR status',
+				streamingAriaLabel: 'Thinking: Evaluating issue and PR status',
 			});
 		});
 
