@@ -21,6 +21,7 @@ import { ICDPConnection } from '../common/cdp/types.js';
 export class BrowserViewEmulator extends Disposable {
 
 	private _device: IBrowserDeviceProfile | undefined;
+	private _elementSelectionActive = false;
 	private readonly _defaultUserAgent: string;
 	private _lastLayout = { containerWidth: 1024, containerHeight: 768, scale: 1, hostZoom: 1 };
 	private _lastApplied: { viewportWidth: number; viewportHeight: number; scale: number; hostZoom: number; mobile: boolean } | undefined;
@@ -77,6 +78,18 @@ export class BrowserViewEmulator extends Disposable {
 		}
 
 		this._onDidChange.fire(device);
+	}
+
+	setElementSelectionActive(active: boolean): void {
+		if (this._elementSelectionActive === active) {
+			return;
+		}
+		this._elementSelectionActive = active;
+		void this._applyTouchAndMedia();
+	}
+
+	private get _shouldEmitTouchEventsForMouse(): boolean {
+		return !!this._device?.mobile && !this._elementSelectionActive;
 	}
 
 	/**
@@ -145,14 +158,15 @@ export class BrowserViewEmulator extends Disposable {
 		}
 		const device = this._device;
 		const mobile = !!this._device?.mobile;
+		const emitTouchEventsForMouse = this._shouldEmitTouchEventsForMouse;
 		try {
 			await this.browser.debugger.sendCommandRaw('Emulation.setTouchEmulationEnabled', { enabled: mobile, maxTouchPoints: mobile ? 5 : 1 });
-			if (this.device !== device) { return; } // Bail if device changed while we were awaiting
+			if (this.device !== device || emitTouchEventsForMouse !== this._shouldEmitTouchEventsForMouse) { return; } // Bail if emulation changed while we were awaiting
 
 			await this.browser.debugger.sendCommandRaw('Emulation.setEmulatedMedia', { features: this._device ? [{ name: 'pointer', value: mobile ? 'coarse' : 'fine' }] : [] });
-			if (this.device !== device) { return; } // Bail if device changed while we were awaiting
+			if (this.device !== device || emitTouchEventsForMouse !== this._shouldEmitTouchEventsForMouse) { return; } // Bail if emulation changed while we were awaiting
 
-			await this.browser.debugger.sendCommandRaw('Emulation.setEmitTouchEventsForMouse', { enabled: mobile });
+			await this.browser.debugger.sendCommandRaw('Emulation.setEmitTouchEventsForMouse', { enabled: emitTouchEventsForMouse });
 		} catch (err) {
 			this.logService.error('[BrowserViewEmulator] _applyTouchAndMedia failed', err);
 		}

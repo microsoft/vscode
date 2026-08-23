@@ -379,6 +379,7 @@ class ElementPicker {
 	private static readonly _COMMENT_SURFACE_ANIMATION_DURATION = 140;
 	private static readonly _COMMENT_SUPPORTING_FADE_DURATION = 120;
 	private static readonly _CURSOR_DEFAULT = '/* VS Code injected style */ * { cursor: default !important; }';
+	private static readonly _CURSOR_NONE = '/* VS Code injected style */ * { cursor: none !important; }';
 	private static readonly _CURSOR_CROSSHAIR = '/* VS Code injected style */ * { cursor: crosshair !important; }';
 
 	private _selectionActive = false;
@@ -393,6 +394,7 @@ class ElementPicker {
 	private readonly _highlight: HTMLDivElement;
 	private readonly _commentPreviewRemoveButton: HTMLButtonElement;
 	private readonly _overlay: HTMLDivElement;
+	private readonly _touchCursor: HTMLDivElement;
 	private readonly _label: HTMLDivElement;
 	private readonly _labelSelector: HTMLSpanElement;
 	private readonly _labelClasses: HTMLSpanElement;
@@ -416,6 +418,8 @@ class ElementPicker {
 	private _externalHighlightTarget: Element | undefined;
 	private _focusedTarget: Element | undefined;
 	private _cursorStylesheet: HTMLStyleElement | undefined;
+	private _restingCursor = ElementPicker._CURSOR_DEFAULT;
+	private _showTouchCursor = false;
 	private _dismissedCommentOnPointerDown = false;
 	private _commentTarget: Element | undefined;
 	private _commentAnchor: { x: number; y: number } | undefined;
@@ -507,6 +511,12 @@ class ElementPicker {
 		overlay.className = 'overlay';
 		root.appendChild(overlay);
 		this._overlay = overlay;
+
+		const touchCursor = document.createElement('div');
+		touchCursor.className = 'touch-cursor';
+		touchCursor.setAttribute('aria-hidden', 'true');
+		root.appendChild(touchCursor);
+		this._touchCursor = touchCursor;
 
 		const label = document.createElement('div');
 		label.className = 'label';
@@ -643,7 +653,9 @@ class ElementPicker {
 		// so the cursor always appears as a normal pointer even when over e.g. links.
 		// Updated to crosshair in _onPointerDown, reset in _onPointerUp.
 		const cursorStyle = document.createElement('style');
-		cursorStyle.textContent = ElementPicker._CURSOR_DEFAULT;
+		this._showTouchCursor = window.matchMedia('(pointer: coarse)').matches;
+		this._restingCursor = this._showTouchCursor ? ElementPicker._CURSOR_NONE : ElementPicker._CURSOR_DEFAULT;
+		cursorStyle.textContent = this._restingCursor;
 		document.head.appendChild(cursorStyle);
 		this._cursorStylesheet = cursorStyle;
 
@@ -671,6 +683,14 @@ class ElementPicker {
 		const wasCommentMode = this._commentMode;
 		this._commentMode = options.mode === commentElementSelectionMode;
 		this._continuous = options.continuous ?? false;
+		this._showTouchCursor = window.matchMedia('(pointer: coarse)').matches;
+		this._restingCursor = this._showTouchCursor ? ElementPicker._CURSOR_NONE : ElementPicker._CURSOR_DEFAULT;
+		if (this._cursorStylesheet && !this._dragStart) {
+			this._cursorStylesheet.textContent = this._restingCursor;
+		}
+		if (!this._showTouchCursor) {
+			this._touchCursor.style.display = 'none';
+		}
 		if (wasCommentMode && !this._commentMode && this._commentTarget) {
 			this._closeCommentComposer();
 		}
@@ -691,6 +711,9 @@ class ElementPicker {
 
 		this._cursorStylesheet?.remove();
 		this._cursorStylesheet = undefined;
+		this._restingCursor = ElementPicker._CURSOR_DEFAULT;
+		this._showTouchCursor = false;
+		this._touchCursor.style.display = 'none';
 
 		// Remove high-frequency listeners.
 		window.removeEventListener('pointermove', this._onPointerMove, true);
@@ -825,6 +848,11 @@ class ElementPicker {
 		if (!this._selectionActive) {
 			return;
 		}
+		if (this._showTouchCursor) {
+			this._touchCursor.style.display = 'block';
+			this._touchCursor.style.left = `${e.clientX}px`;
+			this._touchCursor.style.top = `${e.clientY}px`;
+		}
 		const isOverPicker = e.composedPath().includes(this._shadowHost);
 		if (this._commentTarget) {
 			if (!isOverPicker) {
@@ -870,6 +898,7 @@ class ElementPicker {
 		if (!this._selectionActive) {
 			return;
 		}
+		this._touchCursor.style.display = 'none';
 		if (this._commentTarget) {
 			this._commentPointerInteraction = true;
 			return;
@@ -911,6 +940,7 @@ class ElementPicker {
 		if (this._cursorStylesheet) {
 			this._cursorStylesheet.textContent = ElementPicker._CURSOR_CROSSHAIR;
 		}
+		this._touchCursor.style.display = 'none';
 		e.preventDefault();
 		e.stopPropagation();
 	};
@@ -943,7 +973,10 @@ class ElementPicker {
 		const start = this._dragStart;
 		this._dragStart = undefined;
 		if (this._cursorStylesheet) {
-			this._cursorStylesheet.textContent = ElementPicker._CURSOR_DEFAULT;
+			this._cursorStylesheet.textContent = this._restingCursor;
+		}
+		if (this._showTouchCursor) {
+			this._touchCursor.style.display = 'block';
 		}
 
 		if (dx < ElementPicker._DRAG_THRESHOLD_PX && dy < ElementPicker._DRAG_THRESHOLD_PX) {
@@ -1821,6 +1854,19 @@ class ElementPicker {
 				position: fixed; inset: 0;
 				background: transparent; box-sizing: border-box;
 				z-index: 2;
+			}
+			.touch-cursor {
+				display: none;
+				position: fixed;
+				width: 20px;
+				height: 20px;
+				box-sizing: border-box;
+				border: var(--vscode-strokeThickness, 1px) solid var(--vscode-contrastBorder, var(--vscode-editorWidget-foreground, currentColor));
+				border-radius: var(--vscode-cornerRadius-circle, 50%);
+				background: color-mix(in srgb, var(--vscode-editorWidget-foreground, currentColor) 35%, transparent);
+				transform: translate(-50%, -50%);
+				pointer-events: none;
+				z-index: 5;
 			}
 			.comment-layer {
 				position: absolute; inset: 0; pointer-events: none;
