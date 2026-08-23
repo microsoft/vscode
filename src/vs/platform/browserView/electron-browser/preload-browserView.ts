@@ -854,12 +854,12 @@ class ElementPicker {
 		if (!this._selectionActive) {
 			return;
 		}
+		const isOverPicker = e.composedPath().includes(this._shadowHost);
 		if (this._showTouchCursor) {
-			this._touchCursor.style.display = 'block';
 			this._touchCursor.style.left = `${e.clientX}px`;
 			this._touchCursor.style.top = `${e.clientY}px`;
+			this._touchCursor.style.display = !this._dragStart && !isOverPicker ? 'block' : 'none';
 		}
-		const isOverPicker = e.composedPath().includes(this._shadowHost);
 		if (this._commentTarget) {
 			if (!isOverPicker) {
 				this._commentPointerInteraction = true;
@@ -1349,6 +1349,7 @@ class ElementPicker {
 	private _showCommentComposer(target: Element, anchor: { x: number; y: number }, pointerInteraction = false): void {
 		this._externalHighlightTarget = undefined;
 		this._hideActiveCommentPreview();
+		this._touchCursor.style.display = 'none';
 		this._commentTarget = target;
 		this._commentPointerInteraction = pointerInteraction;
 		this._commentAnchor = {
