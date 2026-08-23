@@ -6,7 +6,7 @@
 import { VSBuffer, decodeBase64 } from '../../../base/common/buffer.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { IBulkEditService, ResourceFileEdit, ResourceTextEdit } from '../../../editor/browser/services/bulkEditService.js';
-import { WorkspaceEdit } from '../../../editor/common/languages.js';
+import { ProviderId, WorkspaceEdit } from '../../../editor/common/languages.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceCellEditDto, IWorkspaceEditDto, IWorkspaceFileEditDto, MainContext, MainThreadBulkEditsShape } from '../common/extHost.protocol.js';
@@ -14,6 +14,7 @@ import { ResourceNotebookCellEdit } from '../../contrib/bulkEdit/browser/bulkCel
 import { CellEditType } from '../../contrib/notebook/common/notebookCommon.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
+import { EditSources } from '../../../editor/common/textModelEditSource.js';
 
 
 @extHostNamedCustomer(MainContext.MainThreadBulkEdits)
@@ -28,9 +29,10 @@ export class MainThreadBulkEdits implements MainThreadBulkEditsShape {
 
 	dispose(): void { }
 
-	$tryApplyWorkspaceEdit(dto: SerializableObjectWithBuffers<IWorkspaceEditDto>, undoRedoGroupId?: number, isRefactoring?: boolean): Promise<boolean> {
+	$tryApplyWorkspaceEdit(dto: SerializableObjectWithBuffers<IWorkspaceEditDto>, extensionId: string, undoRedoGroupId?: number, isRefactoring?: boolean): Promise<boolean> {
 		const edits = reviveWorkspaceEditDto(dto.value, this._uriIdentService);
-		return this._bulkEditService.apply(edits, { undoRedoGroupId, respectAutoSaveConfig: isRefactoring }).then((res) => res.isApplied, err => {
+		const reason = EditSources.bulkEdit({ isRefactoring, providerId: ProviderId.fromExtensionId(extensionId) });
+		return this._bulkEditService.apply(edits, { undoRedoGroupId, respectAutoSaveConfig: isRefactoring, reason }).then((res) => res.isApplied, err => {
 			this._logService.warn(`IGNORING workspace edit: ${err}`);
 			return false;
 		});
