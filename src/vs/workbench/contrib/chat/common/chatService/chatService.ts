@@ -2077,6 +2077,11 @@ export interface IChatService {
 	readonly requestInProgressObs: IObservable<boolean>;
 
 	/**
+	 * Returns the contributed session types with a request that is materializing or in progress.
+	 */
+	getPendingRequestSessionTypes(): readonly string[];
+
+	/**
 	 * For tests only!
 	 */
 	setSaveModelsEnabled(enabled: boolean): void;

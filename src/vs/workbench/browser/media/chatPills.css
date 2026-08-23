@@ -27,11 +27,6 @@
 	flex-shrink: 0;
 }
 
-.chat-pill-item.chat-pill-workspace-item {
-	flex: 1 1 auto;
-	min-width: 0;
-}
-
 .chat-pill-item .monaco-button.chat-pill-button {
 	display: inline-flex;
 	align-items: center;
@@ -40,19 +35,6 @@
 	font-variant-numeric: tabular-nums;
 	white-space: nowrap;
 	touch-action: manipulation;
-}
-
-.chat-pill-item .monaco-button.chat-pill-workspace-button {
-	min-width: 0;
-	max-width: 100%;
-	overflow: hidden;
-}
-
-.chat-pill-workspace-button .chat-pill-label {
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
 }
 
 /* Inset the focus ring so it sits on the pill's own border rather than the
@@ -74,7 +56,7 @@
 	min-width: 0;
 }
 
-.monaco-workbench .chat-pill-icon.codicon {
+.monaco-workbench .chat-pill-icon.codicon[class*=codicon-] {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;

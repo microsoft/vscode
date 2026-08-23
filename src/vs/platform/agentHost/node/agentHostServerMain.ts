@@ -337,6 +337,7 @@ async function main(): Promise<void> {
 	function reportReady(addr: string): void {
 		const listeningPort = Number(addr.split(':').pop());
 		process.stdout.write(`READY:${listeningPort}\n`);
+		agentService.markStartupComplete();
 
 		const urls = resolveServerUrls(options.host, listeningPort);
 		for (const url of urls.local) {

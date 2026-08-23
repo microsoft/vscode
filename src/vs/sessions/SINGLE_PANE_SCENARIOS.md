@@ -19,6 +19,10 @@ bar spanning the editor content and a docked detail panel).
   single-pane layout described here. Phone viewports always use the classic
   layout. When the setting is **OFF**, all Agents windows use the classic layout
   and nothing else in this document applies.
+- The main Editor supports exactly one editor group. Editor split/grid commands,
+  keybindings, menus, open-to-side requests, and split drop targets are disabled;
+  programmatic group creation and multi-group layout requests are rejected. This
+  restriction does not apply to the separate chat grid.
 - Companion specs: [Editor presentation](LAYOUT.md#editor-presentation),
   [LAYOUT_CONTROLLER.md](LAYOUT_CONTROLLER.md), and
   [contrib/layout/browser/desktopSessionLayoutController.md](contrib/layout/browser/desktopSessionLayoutController.md).

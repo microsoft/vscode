@@ -155,10 +155,19 @@ interface IPendingSubagentSignal {
 
 interface ISubagentSessionRef {
 	readonly parentChatUri: ProtocolURI;
+	readonly immediateParentChatUri: ProtocolURI | undefined;
 	readonly toolCallId: string;
 	readonly sessionUri: ProtocolURI;
 	readonly chatUri: ProtocolURI;
 	readonly turnStopWatch: StopWatch;
+}
+
+interface ISubagentParentTurnTelemetryContext {
+	readonly parentTurnId: string | undefined;
+	readonly parentClientContext: IAgentHostClientTelemetryContext | undefined;
+	/** Hierarchy edge; set only when the immediate parent chat has an active turn, else omitted. */
+	readonly correlatedParentTurnId: string | undefined;
+	readonly initiatorClientId: string | undefined;
 }
 
 interface ICustomizationEnablementCandidate {
@@ -1012,9 +1021,16 @@ export class AgentSideEffects extends Disposable {
 			}
 		}
 		if (action.type === ActionType.ChatUsage) {
+			const usageMeta = readUsageInfoMeta(action.usage);
+			this._turnTracker.updateDirectUsage(
+				sessionKey,
+				action.turnId,
+				usageMeta.directTurnTokenTotals,
+				usageMeta.directCopilotUsage?.totalNanoAiu,
+			);
 			// Subagent charges are already folded into the parent turn's aggregate.
 			if (!isSubagentChatUri(sessionKey)) {
-				this._turnTracker.updateBilledNanoAiu(sessionKey, action.turnId, readUsageInfoMeta(action.usage).copilotUsage?.totalNanoAiu);
+				this._turnTracker.updateBilledNanoAiu(sessionKey, action.turnId, usageMeta.copilotUsage?.totalNanoAiu);
 			}
 			if (action.usage.model && agent) {
 				const modelContext = this._getModelTelemetryContext(agent, action.usage.model);
@@ -1281,26 +1297,24 @@ export class AgentSideEffects extends Disposable {
 	): void {
 		const parentSessionUri = parseRequiredSessionUriFromChatUri(chatURI);
 		const subagentChatUri = buildSubagentChatUri(parentSessionUri, toolCallId);
+		const immediateParentChatUri = spawningToolParentId
+			? this._subagentChats.get(chatURI, spawningToolParentId)?.chatUri
+			: chatURI;
+		const contentChatUri = immediateParentChatUri ?? chatURI;
 
 		const existing = this._subagentChats.get(chatURI, toolCallId);
 		if (existing) {
-			this._resumeSubagentSession(chatURI, toolCallId, taskPrompt ? { text: taskPrompt, origin: { kind: MessageKind.User } } : undefined);
+			this._resumeSubagentSession(chatURI, toolCallId, taskPrompt ? { text: taskPrompt, origin: { kind: MessageKind.User } } : undefined, immediateParentChatUri);
 			return;
 		}
 
 		this._logService.info(`[AgentSideEffects] Starting subagent turn: ${subagentChatUri} (parent=${chatURI}, toolCallId=${toolCallId})`);
 
-		// The spawning tool call lives in the immediate parent chat (top-level, or the parent subagent chat when nested).
-		const contentChatUri = spawningToolParentId
-			? this._subagentChats.get(chatURI, spawningToolParentId)?.chatUri ?? chatURI
-			: chatURI;
-
 		// Seed the subagent's opening request with the delegated task prompt,
 		// supplied by the provider on the `subagent_started` signal.
 		const turnId = generateUuid();
 		const parentTurnId = this._stateManager.getActiveTurnId(contentChatUri);
-		const parentClientContext = parentTurnId ? this._turnTracker.getClientTelemetryContext(contentChatUri, parentTurnId) : undefined;
-		const parentClientId = parentTurnId ? this._turnTracker.getInitiatorClientId(contentChatUri, parentTurnId) : undefined;
+		const { parentClientContext, correlatedParentTurnId, initiatorClientId } = this._getSubagentParentTurnTelemetryContext(immediateParentChatUri, contentChatUri);
 		this._stateManager.dispatchServerAction(subagentChatUri, {
 			type: ActionType.ChatTurnStarted,
 			turnId,
@@ -1309,11 +1323,11 @@ export class AgentSideEffects extends Disposable {
 		});
 		const agent = this._options.getAgent(parentSessionUri);
 		if (agent) {
-			this._turnTracker.turnStarted(agent, subagentChatUri, turnId, undefined, undefined, 'default', undefined, undefined, parentClientContext, parentClientId);
+			this._turnTracker.turnStarted(agent, subagentChatUri, turnId, undefined, undefined, 'default', undefined, undefined, parentClientContext, initiatorClientId, correlatedParentTurnId, toolCallId);
 			this._turnTracker.setCurrentStage(subagentChatUri, turnId, 'provider');
 		}
 
-		this._subagentChats.set({ parentChatUri: chatURI, toolCallId, sessionUri: parentSessionUri, chatUri: subagentChatUri, turnStopWatch: StopWatch.create(false) }, chatURI, toolCallId);
+		this._subagentChats.set({ parentChatUri: chatURI, immediateParentChatUri, toolCallId, sessionUri: parentSessionUri, chatUri: subagentChatUri, turnStopWatch: StopWatch.create(false) }, chatURI, toolCallId);
 
 		// Dispatch the discovery content on the spawning tool call's own chat; the top-level chat is a no-op when nested.
 		if (parentTurnId) {
@@ -1361,7 +1375,7 @@ export class AgentSideEffects extends Disposable {
 		return typeof elapsed === 'number' && Number.isFinite(elapsed) ? Math.max(0, elapsed) : 0;
 	}
 
-	private _resumeSubagentSession(parentChatURI: ProtocolURI, toolCallId: string, message: Message | undefined): void {
+	private _resumeSubagentSession(parentChatURI: ProtocolURI, toolCallId: string, message: Message | undefined, immediateParentChatURI?: ProtocolURI): void {
 		const subagent = this._subagentChats.get(parentChatURI, toolCallId);
 		if (!subagent) {
 			this._logService.error(`[AgentSideEffects] Cannot resume unknown subagent ${parentChatURI}/${toolCallId}`);
@@ -1372,9 +1386,9 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		const turnId = generateUuid();
-		const parentTurnId = this._stateManager.getActiveTurnId(parentChatURI);
-		const parentClientContext = parentTurnId ? this._turnTracker.getClientTelemetryContext(parentChatURI, parentTurnId) : undefined;
-		const parentClientId = parentTurnId ? this._turnTracker.getInitiatorClientId(parentChatURI, parentTurnId) : undefined;
+		const correlatedParentChatUri = immediateParentChatURI ?? subagent.immediateParentChatUri;
+		const parentChatUri = correlatedParentChatUri ?? parentChatURI;
+		const { parentClientContext, correlatedParentTurnId, initiatorClientId } = this._getSubagentParentTurnTelemetryContext(correlatedParentChatUri, parentChatUri);
 		this._logService.info(`[AgentSideEffects] Resuming subagent turn: ${subagent.chatUri} (parent=${parentChatURI}, toolCallId=${toolCallId})`);
 		this._stateManager.dispatchServerAction(subagent.chatUri, {
 			type: ActionType.ChatTurnStarted,
@@ -1384,10 +1398,21 @@ export class AgentSideEffects extends Disposable {
 		});
 		const agent = this._options.getAgent(subagent.sessionUri);
 		if (agent) {
-			this._turnTracker.turnStarted(agent, subagent.chatUri, turnId, undefined, undefined, 'default', undefined, undefined, parentClientContext, parentClientId);
+			this._turnTracker.turnStarted(agent, subagent.chatUri, turnId, undefined, undefined, 'default', undefined, undefined, parentClientContext, initiatorClientId, correlatedParentTurnId, toolCallId);
 			this._turnTracker.setCurrentStage(subagent.chatUri, turnId, 'provider');
 		}
-		this._subagentChats.set({ ...subagent, turnStopWatch: StopWatch.create(false) }, parentChatURI, toolCallId);
+		this._subagentChats.set({ ...subagent, immediateParentChatUri: correlatedParentChatUri, turnStopWatch: StopWatch.create(false) }, parentChatURI, toolCallId);
+	}
+
+	private _getSubagentParentTurnTelemetryContext(immediateParentChatUri: ProtocolURI | undefined, fallbackParentChatUri: ProtocolURI): ISubagentParentTurnTelemetryContext {
+		const parentChatUri = immediateParentChatUri ?? fallbackParentChatUri;
+		const parentTurnId = this._stateManager.getActiveTurnId(parentChatUri);
+		return {
+			parentTurnId,
+			parentClientContext: parentTurnId ? this._turnTracker.getClientTelemetryContext(parentChatUri, parentTurnId) : undefined,
+			correlatedParentTurnId: immediateParentChatUri ? parentTurnId : undefined,
+			initiatorClientId: parentTurnId ? this._turnTracker.getInitiatorClientId(parentChatUri, parentTurnId) : undefined,
+		};
 	}
 
 	/**
@@ -1997,6 +2022,11 @@ export class AgentSideEffects extends Disposable {
 
 	markTitleAuto(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, title: string): void {
 		this._titleController.markTitleAuto(channel, chatChannel, title);
+	}
+
+	/** Generates a title for an external session the provider surfaced without one. */
+	generateExternalSessionTitle(session: ProtocolURI, userPrompt: string): Promise<void> {
+		return this._titleController.generateExternalSessionTitle(session, userPrompt);
 	}
 
 	markTitleRenamed(channel: ProtocolURI, chatChannel?: ProtocolURI): void {
