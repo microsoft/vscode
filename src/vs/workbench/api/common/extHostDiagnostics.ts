@@ -3,22 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-no-native-private */
-
-import { localize } from 'vs/nls';
-import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { localize } from '../../../nls.js';
+import { IMarkerData, MarkerSeverity } from '../../../platform/markers/common/markers.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
 import type * as vscode from 'vscode';
-import { MainContext, MainThreadDiagnosticsShape, ExtHostDiagnosticsShape, IMainContext } from './extHost.protocol';
-import { DiagnosticSeverity } from './extHostTypes';
-import * as converter from './extHostTypeConverters';
-import { Event, Emitter, DebounceEmitter } from 'vs/base/common/event';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ResourceMap } from 'vs/base/common/map';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
-import { IExtUri } from 'vs/base/common/resources';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
+import { MainContext, MainThreadDiagnosticsShape, ExtHostDiagnosticsShape, IMainContext } from './extHost.protocol.js';
+import { DiagnosticSeverity } from './extHostTypes.js';
+import * as converter from './extHostTypeConverters.js';
+import { Event, Emitter, DebounceEmitter } from '../../../base/common/event.js';
+import { coalesce } from '../../../base/common/arrays.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { ResourceMap } from '../../../base/common/map.js';
+import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
+import { IExtHostFileSystemInfo } from './extHostFileSystemInfo.js';
+import { IExtUri } from '../../../base/common/resources.js';
+import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
 
 export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
@@ -82,7 +81,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 			}
 
 			// update single row
-			this.#data.set(first, diagnostics.slice());
+			this.#data.set(first, coalesce(diagnostics));
 			toSync = [first];
 
 		} else if (Array.isArray(first)) {
@@ -112,7 +111,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 					}
 				} else {
 					const currentDiagnostics = this.#data.get(uri);
-					currentDiagnostics?.push(...diagnostics);
+					currentDiagnostics?.push(...coalesce(diagnostics));
 				}
 			}
 		}
@@ -185,7 +184,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		this.#proxy?.$clear(this._owner);
 	}
 
-	forEach(callback: (uri: URI, diagnostics: ReadonlyArray<vscode.Diagnostic>, collection: DiagnosticCollection) => any, thisArg?: any): void {
+	forEach(callback: (uri: URI, diagnostics: ReadonlyArray<vscode.Diagnostic>, collection: DiagnosticCollection) => unknown, thisArg?: unknown): void {
 		this._checkDisposed();
 		for (const [uri, values] of this) {
 			callback.call(thisArg, uri, values, this);
@@ -234,7 +233,7 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 
 	private static _idPool: number = 0;
 	private static readonly _maxDiagnosticsPerFile: number = 1000;
-	private static readonly _maxDiagnosticsTotal: number = 1.1 * ExtHostDiagnostics._maxDiagnosticsPerFile;
+	private static readonly _maxDiagnosticsTotal: number = 1.1 * this._maxDiagnosticsPerFile;
 
 	private readonly _proxy: MainThreadDiagnosticsShape;
 	private readonly _collections = new Map<string, DiagnosticCollection>();
@@ -328,7 +327,7 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 						index.set(uri.toString(), idx);
 						res.push([uri, []]);
 					}
-					res[idx][1] = res[idx][1].concat(...diagnostics);
+					res[idx][1] = res[idx][1].concat(diagnostics);
 				});
 			}
 			return res;
@@ -362,7 +361,11 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 		}
 
 		for (const [uri, markers] of data) {
-			this._mirrorCollection.set(URI.revive(uri), markers.map(converter.Diagnostic.to));
+			if (markers.length === 0) {
+				this._mirrorCollection.delete(URI.revive(uri));
+			} else {
+				this._mirrorCollection.set(URI.revive(uri), markers.map(converter.Diagnostic.to));
+			}
 		}
 	}
 }

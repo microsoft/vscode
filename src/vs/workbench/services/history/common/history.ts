@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { GroupIdentifier } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { URI } from 'vs/base/common/uri';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IResourceEditorInput } from '../../../../platform/editor/common/editor.js';
+import { GroupIdentifier } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { URI } from '../../../../base/common/uri.js';
 
 export const IHistoryService = createDecorator<IHistoryService>('historyService');
+
+export const MOUSE_BACK_FORWARD_NAVIGATION_SETTING = 'workbench.editor.mouseBackForwardToNavigate';
 
 /**
  * Limit editor navigation to certain kinds.

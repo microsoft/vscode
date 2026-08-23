@@ -3,12 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import { CompressibleObjectTree, ICompressibleTreeRenderer, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
-import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { IIdentityProvider, IListVirtualDelegate } from '../../../../browser/ui/list/list.js';
+import { TreeRenderer } from '../../../../browser/ui/tree/abstractTree.js';
+import { ICompressedTreeNode } from '../../../../browser/ui/tree/compressedObjectTreeModel.js';
+import { CompressibleObjectTree, ICompressibleTreeRenderer, ObjectTree } from '../../../../browser/ui/tree/objectTree.js';
+import { ObjectTreeModel } from '../../../../browser/ui/tree/objectTreeModel.js';
+import { ITreeNode, ITreeRenderer } from '../../../../browser/ui/tree/tree.js';
+import { mainWindow } from '../../../../browser/window.js';
+import { Emitter, Event } from '../../../../common/event.js';
+import { SetMap } from '../../../../common/map.js';
+import { runWithFakedTimers } from '../../../common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
+
+function getRowsTextContent(container: HTMLElement): string[] {
+	const rows = [...container.querySelectorAll('.monaco-list-row')];
+	rows.sort((a, b) => parseInt(a.getAttribute('data-index')!) - parseInt(b.getAttribute('data-index')!));
+	return rows.map(row => row.querySelector('.monaco-tl-contents')!.textContent!);
+}
+
+function clickElement(element: HTMLElement, ctrlKey = false): void {
+	element.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, ctrlKey, button: 0 }));
+	element.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey, button: 0 }));
+}
+
+function dispatchKeydown(element: HTMLElement, key: string, code: string, keyCode: number): void {
+	const keyboardEvent = new KeyboardEvent('keydown', { bubbles: true, key, code });
+	Object.defineProperty(keyboardEvent, 'keyCode', { get: () => keyCode });
+	element.dispatchEvent(keyboardEvent);
+}
 
 suite('ObjectTree', function () {
 
@@ -118,6 +141,45 @@ suite('ObjectTree', function () {
 			assert.strictEqual(navigator.last(), 2);
 		});
 
+		test('reports the flattened visible render count', () => {
+			tree.setChildren(null, [
+				{
+					element: 0,
+					collapsible: true,
+					collapsed: false,
+					children: [
+						{ element: 10 },
+						{ element: 11 },
+					]
+				},
+				{
+					element: 1,
+					collapsible: true,
+					collapsed: true,
+					children: [
+						{ element: 20 },
+					]
+				},
+				{ element: 2 }
+			]);
+
+			const expandedRoot = tree.getListRenderCount(null);
+			const expandedSubtree = tree.getListRenderCount(0);
+			tree.collapse(0);
+
+			assert.deepStrictEqual({
+				expandedRoot,
+				expandedSubtree,
+				collapsedRoot: tree.getListRenderCount(null),
+				collapsedSubtree: tree.getListRenderCount(0),
+			}, {
+				expandedRoot: 5,
+				expandedSubtree: 3,
+				collapsedRoot: 3,
+				collapsedSubtree: 1,
+			});
+		});
+
 		test('should skip filtered elements', () => {
 			filter = el => el % 2 === 0;
 
@@ -184,32 +246,233 @@ suite('ObjectTree', function () {
 		});
 	});
 
+	class Delegate implements IListVirtualDelegate<number> {
+		getHeight() { return 20; }
+		getTemplateId(): string { return 'default'; }
+	}
+
+	class Renderer implements ITreeRenderer<number, void, HTMLElement> {
+		readonly templateId = 'default';
+		renderTemplate(container: HTMLElement): HTMLElement {
+			return container;
+		}
+		renderElement(element: ITreeNode<number, void>, index: number, templateData: HTMLElement): void {
+			templateData.textContent = `${element.element}`;
+		}
+		disposeTemplate(): void { }
+	}
+
+	test('applies renderer row class names', function () {
+		const container = document.createElement('div');
+		container.style.width = '200px';
+		container.style.height = '200px';
+
+		const renderer = new class extends Renderer {
+			readonly rowClassName = 'test-tree-row';
+		};
+		const tree = new ObjectTree<number>('test', container, new Delegate(), [renderer]);
+		try {
+			tree.layout(200);
+			tree.setChildren(null, [{ element: 0 }, { element: 1 }]);
+
+			assert.strictEqual(container.querySelectorAll('.monaco-list-row.test-tree-row').length, 2);
+		} finally {
+			tree.dispose();
+		}
+	});
+
+	test('shows the default sticky node after its source row starts scrolling out', function () {
+		const container = document.createElement('div');
+		container.style.width = '200px';
+		container.style.height = '100px';
+
+		const tree = new ObjectTree<number>('test', container, new Delegate(), [new Renderer()], {
+			enableStickyScroll: true,
+			stickyScrollMaxItemCount: 1,
+		});
+		try {
+			tree.layout(100);
+			tree.setChildren(null, [{
+				element: 0,
+				children: [
+					{ element: 1 },
+					{ element: 2 },
+					{ element: 3 },
+					{ element: 4 },
+					{ element: 5 },
+					{ element: 6 },
+				]
+			}]);
+
+			const stickyText = () => container.querySelector<HTMLElement>('.monaco-tree-sticky-row')?.textContent;
+			const states = [stickyText()];
+			tree.scrollTop = 1;
+			states.push(stickyText());
+
+			assert.deepStrictEqual(states, [undefined, '0']);
+		} finally {
+			tree.dispose();
+		}
+	});
+
+	test('evaluates a custom sticky source range once per scroll update', function () {
+		const container = document.createElement('div');
+		container.style.width = '200px';
+		container.style.height = '100px';
+		const providerCalls: { element: number; defaultRange: { start: number; end: number } }[] = [];
+
+		const tree = new ObjectTree<number>('test', container, new Delegate(), [new Renderer()], {
+			enableStickyScroll: true,
+			stickyScrollMaxItemCount: 1,
+			stickyScrollNodeSourceRangeProvider: (element, defaultRange) => {
+				providerCalls.push({ element, defaultRange });
+				return { start: 5, end: 15 };
+			},
+		});
+		try {
+			tree.layout(100);
+			tree.setChildren(null, [{
+				element: 0,
+				children: [
+					{ element: 1 },
+					{ element: 2 },
+					{ element: 3 },
+					{ element: 4 },
+					{ element: 5 },
+					{ element: 6 },
+				]
+			}]);
+
+			tree.scrollTop = 5;
+			const stickyAtRangeStart = container.querySelector('.monaco-tree-sticky-row')?.textContent;
+			tree.scrollTop = 6;
+			const stickyAfterRangeStart = container.querySelector('.monaco-tree-sticky-row')?.textContent;
+
+			assert.deepStrictEqual({
+				stickyAtRangeStart,
+				stickyAfterRangeStart,
+				providerCalls,
+			}, {
+				stickyAtRangeStart: undefined,
+				stickyAfterRangeStart: '0',
+				providerCalls: [
+					{ element: 0, defaultRange: { start: 0, end: 20 } },
+					{ element: 0, defaultRange: { start: 0, end: 20 } },
+				],
+			});
+		} finally {
+			tree.dispose();
+		}
+	});
+
+	test('shrinks a sticky node to its final pixel before the next root', async function () {
+		const container = document.createElement('div');
+		container.style.width = '200px';
+		container.style.height = '100px';
+
+		const tree = new ObjectTree<number>('test', container, new Delegate(), [new Renderer()], {
+			enableStickyScroll: true,
+			stickyScrollMaxItemCount: 1,
+		});
+		try {
+			tree.layout(100);
+			tree.setChildren(null, [
+				{ element: 100, children: [{ element: 1 }, { element: 10 }] },
+				{ element: 2 },
+				{ element: 3 },
+				{ element: 4 },
+				{ element: 5 },
+				{ element: 6 },
+			]);
+
+			tree.scrollTop = 1;
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			tree.scrollTop = 59;
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			const stickyBeforeBoundary = container.querySelector<HTMLElement>('.monaco-tree-sticky-row');
+			const positionBeforeBoundary = stickyBeforeBoundary?.style.top;
+			const visibleHeightBeforeBoundary = stickyBeforeBoundary ? Number.parseFloat(stickyBeforeBoundary.style.top) + Number.parseFloat(stickyBeforeBoundary.style.height) : undefined;
+			tree.scrollTop = 60;
+			const positionAtBoundary = container.querySelector<HTMLElement>('.monaco-tree-sticky-row')?.style.top;
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			const stickyAfterBoundary = container.querySelector('.monaco-tree-sticky-row');
+
+			assert.deepStrictEqual({
+				positionBeforeBoundary,
+				visibleHeightBeforeBoundary,
+				positionAtBoundary,
+				stickyAfterBoundary: !!stickyAfterBoundary,
+			}, {
+				positionBeforeBoundary: '-19px',
+				visibleHeightBeforeBoundary: 1,
+				positionAtBoundary: undefined,
+				stickyAfterBoundary: false,
+			});
+		} finally {
+			tree.dispose();
+		}
+	});
+
+	test('disposing an older render preserves the current node mapping', function () {
+		const onDidChangeTwistieState = new Emitter<number>();
+		const renderer: ITreeRenderer<number, void, void> = {
+			templateId: 'default',
+			onDidChangeTwistieState: onDidChangeTwistieState.event,
+			renderTemplate() { },
+			renderElement() { },
+			renderTwistie(_element, twistieElement) {
+				twistieElement.dataset.renderCount = String(Number(twistieElement.dataset.renderCount ?? 0) + 1);
+				return true;
+			},
+			disposeTemplate() { }
+		};
+		const model = new ObjectTreeModel<number>('test');
+		model.setChildren(null, [{ element: 1 }]);
+		const treeRenderer = new TreeRenderer(
+			renderer,
+			model,
+			model.onDidChangeCollapseState,
+			{ elements: [], onDidChange: Event.None },
+			new SetMap<ITreeNode<number, void>, HTMLDivElement>()
+		);
+
+		try {
+			const node = model.getNode(1);
+			const firstTemplate = treeRenderer.renderTemplate(document.createElement('div'));
+			const secondTemplate = treeRenderer.renderTemplate(document.createElement('div'));
+			treeRenderer.renderElement(node, 0, firstTemplate, { height: 100 });
+			treeRenderer.renderElement(node, 0, secondTemplate, { height: 100 });
+
+			treeRenderer.disposeElement(node, 0, firstTemplate, { height: 100 });
+			onDidChangeTwistieState.fire(1);
+
+			assert.deepStrictEqual({
+				firstRenderCount: firstTemplate.twistie.dataset.renderCount,
+				secondRenderCount: secondTemplate.twistie.dataset.renderCount
+			}, {
+				firstRenderCount: '1',
+				secondRenderCount: '2'
+			});
+		} finally {
+			treeRenderer.dispose();
+			onDidChangeTwistieState.dispose();
+		}
+	});
+
+	class IdentityProvider implements IIdentityProvider<number> {
+		getId(element: number): { toString(): string } {
+			return `${element % 100}`;
+		}
+	}
+
 	test('traits are preserved according to string identity', function () {
 		const container = document.createElement('div');
 		container.style.width = '200px';
 		container.style.height = '200px';
 
-		const delegate = new class implements IListVirtualDelegate<number> {
-			getHeight() { return 20; }
-			getTemplateId(): string { return 'default'; }
-		};
-
-		const renderer = new class implements ITreeRenderer<number, void, HTMLElement> {
-			readonly templateId = 'default';
-			renderTemplate(container: HTMLElement): HTMLElement {
-				return container;
-			}
-			renderElement(element: ITreeNode<number, void>, index: number, templateData: HTMLElement): void {
-				templateData.textContent = `${element.element}`;
-			}
-			disposeTemplate(): void { }
-		};
-
-		const identityProvider = new class implements IIdentityProvider<number> {
-			getId(element: number): { toString(): string } {
-				return `${element % 100}`;
-			}
-		};
+		const delegate = new Delegate();
+		const renderer = new Renderer();
+		const identityProvider = new IdentityProvider();
 
 		const tree = new ObjectTree<number>('test', container, delegate, [renderer], { identityProvider });
 		tree.layout(200);
@@ -221,13 +484,85 @@ suite('ObjectTree', function () {
 		tree.setChildren(null, [{ element: 100 }, { element: 101 }, { element: 102 }, { element: 103 }]);
 		assert.deepStrictEqual(tree.getFocus(), [101]);
 	});
-});
 
-function getRowsTextContent(container: HTMLElement): string[] {
-	const rows = [...container.querySelectorAll('.monaco-list-row')];
-	rows.sort((a, b) => parseInt(a.getAttribute('data-index')!) - parseInt(b.getAttribute('data-index')!));
-	return rows.map(row => row.querySelector('.monaco-tl-contents')!.textContent!);
-}
+	test('updateOptions preserves wrapped identity provider in view options', function () {
+		const container = document.createElement('div');
+		container.style.width = '200px';
+		container.style.height = '200px';
+
+		const delegate = new Delegate();
+		const renderer = new Renderer();
+		const identityProvider = {
+			getId(element: number): { toString(): string } {
+				return `${element}`;
+			},
+			getGroupId(element: number): number {
+				return element % 2;
+			}
+		};
+
+		const tree = new ObjectTree<number>('test', container, delegate, [renderer], { identityProvider });
+
+		try {
+			tree.layout(200);
+			tree.setChildren(null, [{ element: 0 }, { element: 1 }, { element: 2 }, { element: 3 }]);
+
+			const firstRow = container.querySelector('.monaco-list-row[data-index="0"]') as HTMLElement;
+			const secondRow = container.querySelector('.monaco-list-row[data-index="1"]') as HTMLElement;
+			clickElement(firstRow);
+			assert.deepStrictEqual(tree.getSelection(), [0]);
+
+			tree.updateOptions({ indent: 12 });
+
+			clickElement(secondRow, true);
+
+			assert.deepStrictEqual(tree.getSelection(), [1]);
+		} finally {
+			tree.dispose();
+		}
+	});
+
+	test('updateOptions preserves wrapped accessibility provider for type navigation re-announce', async function () {
+		const container = document.createElement('div');
+		container.style.width = '200px';
+		container.style.height = '200px';
+
+		const delegate = new Delegate();
+		const renderer = new Renderer();
+		const accessibilityProvider = {
+			getAriaLabel(element: number): string {
+				assert.strictEqual(typeof element, 'number');
+				return `aria ${element}`;
+			},
+			getWidgetAriaLabel(): string {
+				return 'tree';
+			}
+		};
+
+		const tree = new ObjectTree<number>('test', container, delegate, [renderer], {
+			accessibilityProvider,
+			keyboardNavigationLabelProvider: {
+				getKeyboardNavigationLabel: () => 'a'
+			}
+		});
+
+		try {
+			await runWithFakedTimers({ useFakeTimers: true }, async () => {
+				tree.layout(200);
+				tree.setChildren(null, [{ element: 0 }]);
+				tree.setFocus([0]);
+				tree.domFocus();
+
+				tree.updateOptions({ indent: 12 });
+
+				dispatchKeydown(tree.getHTMLElement(), 'a', 'KeyA', 65);
+				await Promise.resolve();
+			});
+		} finally {
+			tree.dispose();
+		}
+	});
+});
 
 suite('CompressibleObjectTree', function () {
 

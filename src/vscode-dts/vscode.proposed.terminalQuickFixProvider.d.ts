@@ -59,7 +59,7 @@ declare module 'vscode' {
 	/**
 	 * A matcher that runs on a sub-section of a terminal command's output
 	 */
-	interface TerminalOutputMatcher {
+	export interface TerminalOutputMatcher {
 		/**
 		 * A string or regex to match against the unwrapped line. If this is a regex with the multiline
 		 * flag, it will scan an amount of lines equal to `\n` instances in the regex + 1.
@@ -80,7 +80,7 @@ declare module 'vscode' {
 		length: number;
 	}
 
-	enum TerminalOutputAnchor {
+	export enum TerminalOutputAnchor {
 		Top = 0,
 		Bottom = 1
 	}

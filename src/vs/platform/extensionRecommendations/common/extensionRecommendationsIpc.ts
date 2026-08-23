@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionRecommendationNotificationService, IExtensionRecommendations, RecommendationsNotificationResult } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
+import { Event } from '../../../base/common/event.js';
+import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
+import { IExtensionRecommendationNotificationService, IExtensionRecommendations, RecommendationsNotificationResult } from './extensionRecommendations.js';
 
 export class ExtensionRecommendationNotificationServiceChannelClient implements IExtensionRecommendationNotificationService {
 
@@ -33,10 +33,12 @@ export class ExtensionRecommendationNotificationServiceChannel implements IServe
 
 	constructor(private service: IExtensionRecommendationNotificationService) { }
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	listen(_: unknown, event: string): Event<any> {
 		throw new Error(`Event not found: ${event}`);
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	call(_: unknown, command: string, args?: any): Promise<any> {
 		switch (command) {
 			case 'promptImportantExtensionsInstallNotification': return this.service.promptImportantExtensionsInstallNotification(args[0]);

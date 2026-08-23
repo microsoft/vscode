@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { ScanCode, ScanCodeUtils } from 'vs/base/common/keyCodes';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
+import { Event } from '../../../base/common/event.js';
+import { ScanCode, ScanCodeUtils } from '../../../base/common/keyCodes.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IKeyboardEvent } from '../../keybinding/common/keybinding.js';
+import { IKeyboardMapper } from './keyboardMapper.js';
 
 export const IKeyboardLayoutService = createDecorator<IKeyboardLayoutService>('keyboardLayoutService');
 
@@ -132,13 +132,13 @@ export function parseKeyboardLayoutDescription(layout: IKeyboardLayoutInfo | nul
 
 		if (/^com\.apple\.keylayout\./.test(macLayout.id)) {
 			return {
-				label: macLayout.id.replace(/^com\.apple\.keylayout\./, '').replace(/-/, ' '),
+				label: macLayout.id.replace(/^com\.apple\.keylayout\./, '').replace(/-/g, ' '),
 				description: ''
 			};
 		}
 		if (/^.*inputmethod\./.test(macLayout.id)) {
 			return {
-				label: macLayout.id.replace(/^.*inputmethod\./, '').replace(/[-\.]/, ' '),
+				label: macLayout.id.replace(/^.*inputmethod\./, '').replace(/[-\.]/g, ' '),
 				description: `Input Method (${macLayout.lang})`
 			};
 		}

@@ -3,53 +3,72 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from 'vs/nls';
-import { IKeyMods, IQuickPickSeparator, IQuickInputService, IQuickPick, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IRange } from 'vs/editor/common/core/range';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IQuickAccessRegistry, Extensions as QuickaccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
-import { AbstractGotoSymbolQuickAccessProvider, IGotoSymbolQuickPickItem } from 'vs/editor/contrib/quickAccess/browser/gotoSymbolQuickAccess';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
-import { ITextModel } from 'vs/editor/common/model';
-import { DisposableStore, IDisposable, toDisposable, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { timeout } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { prepareQuery } from 'vs/base/common/fuzzyScorer';
-import { SymbolKind } from 'vs/editor/common/languages';
-import { fuzzyScore } from 'vs/base/common/filters';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IQuickAccessTextEditorContext } from 'vs/editor/contrib/quickAccess/browser/editorNavigationQuickAccess';
-import { IOutlineService, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
-import { isCompositeEditor } from 'vs/editor/browser/editorBrowser';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IOutlineModelService } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { accessibilityHelpIsShown, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { matchesFuzzyIconAware, parseLabelWithIcons } from 'vs/base/common/iconLabels';
+import { Event } from '../../../../../base/common/event.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { IKeyMods, IQuickPickSeparator, IQuickInputService, IQuickPick, IQuickPickItem, ItemActivation } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
+import { IRange } from '../../../../../editor/common/core/range.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { IQuickAccessRegistry, Extensions as QuickaccessExtensions, IQuickAccessProviderRunOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
+import { AbstractGotoSymbolQuickAccessProvider, IGotoSymbolQuickPickItem } from '../../../../../editor/contrib/quickAccess/browser/gotoSymbolQuickAccess.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IWorkbenchEditorConfiguration } from '../../../../common/editor.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { DisposableStore, IDisposable, toDisposable, Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { timeout } from '../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { registerAction2, Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { KeyMod, KeyCode } from '../../../../../base/common/keyCodes.js';
+import { prepareQuery, IPreparedQuery } from '../../../../../base/common/fuzzyScorer.js';
+import { DocumentSymbol, SymbolKind } from '../../../../../editor/common/languages.js';
+import { fuzzyScore } from '../../../../../base/common/filters.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IQuickAccessTextEditorContext } from '../../../../../editor/contrib/quickAccess/browser/editorNavigationQuickAccess.js';
+import { IOutline, IOutlineService, OutlineTarget } from '../../../../services/outline/browser/outline.js';
+import { isCompositeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { ITextEditorOptions } from '../../../../../platform/editor/common/editor.js';
+import { IOutlineModelService } from '../../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
+import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { accessibilityHelpIsShown, accessibleViewIsShown } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { matchesFuzzyIconAware, parseLabelWithIcons } from '../../../../../base/common/iconLabels.js';
+import { isAncestorOfActiveElement } from '../../../../../base/browser/dom.js';
+import { ChatOutline, IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
+import { ISymbolVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
+import { isRequestVM } from '../../../chat/common/model/chatViewModel.js';
+
+/**
+ * A single navigable entry backing the "no text editor" symbol picks (chat
+ * outline or editor-pane outline). Provides the label to render and how to
+ * reveal/preview the underlying element.
+ */
+interface INavigablePickEntry {
+	readonly label: string;
+	readonly description?: string;
+	readonly ariaLabel?: string;
+	readonly iconClasses?: string[];
+	reveal(): void;
+	preview(): IDisposable;
+}
 
 export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccessProvider {
 
-	protected readonly onDidActiveTextEditorControlChange = this.editorService.onDidActiveEditorChange;
+	protected readonly onDidActiveTextEditorControlChange: Event<void>;
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 		@IOutlineService private readonly outlineService: IOutlineService,
 		@IOutlineModelService outlineModelService: IOutlineModelService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super(languageFeaturesService, outlineModelService, {
 			openSideBySideDirection: () => this.configuration.openSideBySideDirection
 		});
+		this.onDidActiveTextEditorControlChange = this.editorService.onDidActiveEditorChange;
 	}
 
 	//#region DocumentSymbols (text editor required)
@@ -88,7 +107,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 				preserveFocus: options.preserveFocus
 			};
 
-			this.editorGroupService.sideGroup.openEditor(this.editorService.activeEditor, editorOptions);
+			this.editorService.openEditor(this.editorService.activeEditor, editorOptions, SIDE_GROUP);
 		}
 
 		// Otherwise let parent handle it
@@ -118,15 +137,56 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 			return [];
 		}
 
-		return this.doGetSymbolPicks(this.getDocumentSymbols(model, token), prepareQuery(filter), options, token);
+		return this.doGetSymbolPicks(this.getDocumentSymbols(model, token), prepareQuery(filter), options, token, model);
+	}
+
+	protected override async doGetSymbolPicks(symbolsPromise: Promise<DocumentSymbol[]>, query: IPreparedQuery, options: { extraContainerLabel?: string } | undefined, token: CancellationToken, model: ITextModel): Promise<Array<IGotoSymbolQuickPickItem | IQuickPickSeparator>> {
+		const picks = await super.doGetSymbolPicks(symbolsPromise, query, options, token, model);
+		const modelUri = model.uri;
+		for (const pick of picks) {
+			const symbolPick = pick as IGotoSymbolQuickPickItem;
+			if (symbolPick.range && !symbolPick.attach) {
+				symbolPick.attach = () => {
+					const widget = this.chatWidgetService.lastFocusedWidget;
+					if (!widget) {
+						return;
+					}
+					const entry: ISymbolVariableEntry = {
+						kind: 'symbol',
+						id: JSON.stringify({ uri: modelUri.toString(), range: symbolPick.range!.decoration }),
+						name: symbolPick.symbolName ?? symbolPick.label,
+						value: { uri: modelUri, range: symbolPick.range!.decoration },
+						symbolKind: symbolPick.kind,
+					};
+					widget.attachmentModel.addContext(entry);
+				};
+			}
+		}
+		return picks;
 	}
 
 	//#endregion
 
-	protected override provideWithoutTextEditor(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable {
+	override provide(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): IDisposable {
+		// A focused chat is the navigable resource, even when a regular file
+		// editor is also open side by side. The base `provide()` would otherwise
+		// route to the active text editor's symbols whenever one exists, so the
+		// chat case must be handled here before that decision is made.
+		const chatWidget = this.getActiveChatWidget();
+		if (chatWidget) {
+			picker.canAcceptInBackground = !!this.options?.canAcceptInBackground;
+			picker.matchOnLabel = picker.matchOnDescription = picker.matchOnDetail = picker.sortByLabel = false;
+			return this.doGetChatWidgetPicks(picker as IQuickPick<IGotoSymbolQuickPickItem, { useSeparators: true }>, chatWidget);
+		}
+
+		return super.provide(picker, token, runOptions);
+	}
+
+	protected override provideWithoutTextEditor(picker: IQuickPick<IGotoSymbolQuickPickItem, { useSeparators: true }>): IDisposable {
 		if (this.canPickWithOutlineService()) {
 			return this.doGetOutlinePicks(picker);
 		}
+
 		return super.provideWithoutTextEditor(picker);
 	}
 
@@ -134,7 +194,27 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 		return this.editorService.activeEditorPane ? this.outlineService.canCreateOutline(this.editorService.activeEditorPane) : false;
 	}
 
-	private doGetOutlinePicks(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable {
+	private getActiveChatWidget(): IChatWidget | undefined {
+		// Treat the chat as the navigable resource only when it actually has DOM
+		// focus. This is checked before the quick input steals focus (the picker
+		// is shown after `provide()` runs), works across windows via the focused
+		// document, and avoids hijacking Go to Symbol when a non-chat surface is
+		// focused. Only offer the chat when it has requests to navigate to.
+		const widget = this.chatWidgetService.lastFocusedWidget;
+		if (!widget || !isAncestorOfActiveElement(widget.domNode)) {
+			return undefined;
+		}
+		return widget.viewModel?.getItems().some(isRequestVM) ? widget : undefined;
+	}
+
+	private doGetChatWidgetPicks(picker: IQuickPick<IGotoSymbolQuickPickItem, { useSeparators: true }>, widget: IChatWidget): IDisposable {
+		const disposables = new DisposableStore();
+		const outline = disposables.add(new ChatOutline(widget, OutlineTarget.QuickPick));
+		this.installNavigablePicks(picker, disposables, this.outlineToNavigableEntries(outline));
+		return disposables;
+	}
+
+	private doGetOutlinePicks(picker: IQuickPick<IGotoSymbolQuickPickItem, { useSeparators: true }>): IDisposable {
 		const pane = this.editorService.activeEditorPane;
 		if (!pane) {
 			return Disposable.None;
@@ -165,74 +245,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 				}
 			}));
 
-			const entries = outline.config.quickPickDataSource.getQuickPickElements();
-
-			const items: IGotoSymbolQuickPickItem[] = entries.map((entry, idx) => {
-				return {
-					kind: SymbolKind.File,
-					index: idx,
-					score: 0,
-					label: entry.label,
-					description: entry.description,
-					ariaLabel: entry.ariaLabel,
-					iconClasses: entry.iconClasses
-				};
-			});
-
-			disposables.add(picker.onDidAccept(() => {
-				picker.hide();
-				const [entry] = picker.selectedItems;
-				if (entry && entries[entry.index]) {
-					outline.reveal(entries[entry.index].element, {}, false, false);
-				}
-			}));
-
-			const updatePickerItems = () => {
-				const filteredItems = items.filter(item => {
-					if (picker.value === '@') {
-						// default, no filtering, scoring...
-						item.score = 0;
-						item.highlights = undefined;
-						return true;
-					}
-
-					const trimmedQuery = picker.value.substring(AbstractGotoSymbolQuickAccessProvider.PREFIX.length).trim();
-					const parsedLabel = parseLabelWithIcons(item.label);
-					const score = fuzzyScore(trimmedQuery, trimmedQuery.toLowerCase(), 0,
-						parsedLabel.text, parsedLabel.text.toLowerCase(), 0,
-						{ firstMatchCanBeWeak: true, boostFullMatch: true });
-
-					if (!score) {
-						return false;
-					}
-
-					item.score = score[1];
-					item.highlights = { label: matchesFuzzyIconAware(trimmedQuery, parsedLabel) ?? undefined };
-					return true;
-				});
-
-				if (filteredItems.length === 0) {
-					const label = localize('empty', 'No matching entries');
-					picker.items = [{ label, index: -1, kind: SymbolKind.String }];
-					picker.ariaLabel = label;
-				} else {
-					picker.items = filteredItems;
-				}
-			};
-			updatePickerItems();
-			disposables.add(picker.onDidChangeValue(updatePickerItems));
-
-			const previewDisposable = new MutableDisposable();
-			disposables.add(previewDisposable);
-
-			disposables.add(picker.onDidChangeActive(() => {
-				const [entry] = picker.activeItems;
-				if (entry && entries[entry.index]) {
-					previewDisposable.value = outline.preview(entries[entry.index].element);
-				} else {
-					previewDisposable.clear();
-				}
-			}));
+			this.installNavigablePicks(picker, disposables, this.outlineToNavigableEntries(outline));
 
 		}).catch(err => {
 			onUnexpectedError(err);
@@ -242,6 +255,86 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 		});
 
 		return disposables;
+	}
+
+	private outlineToNavigableEntries<E>(outline: IOutline<E>): INavigablePickEntry[] {
+		return outline.config.quickPickDataSource.getQuickPickElements().map(element => ({
+			label: element.label,
+			description: element.description,
+			ariaLabel: element.ariaLabel,
+			iconClasses: element.iconClasses,
+			reveal: () => outline.reveal(element.element, {}, false, false),
+			preview: () => outline.preview(element.element)
+		}));
+	}
+
+	private installNavigablePicks(picker: IQuickPick<IGotoSymbolQuickPickItem, { useSeparators: true }>, disposables: DisposableStore, entries: readonly INavigablePickEntry[]): void {
+		const items: IGotoSymbolQuickPickItem[] = entries.map((entry, index) => {
+			return {
+				kind: SymbolKind.File,
+				index,
+				score: 0,
+				label: entry.label,
+				description: entry.description,
+				ariaLabel: entry.ariaLabel,
+				iconClasses: entry.iconClasses
+			};
+		});
+
+		disposables.add(picker.onDidAccept(() => {
+			picker.hide();
+			const [item] = picker.selectedItems;
+			if (item) {
+				entries[item.index]?.reveal();
+			}
+		}));
+
+		const updatePickerItems = () => {
+			const filteredItems = items.filter(item => {
+				if (picker.value === '@') {
+					// default, no filtering, scoring...
+					item.score = 0;
+					item.highlights = undefined;
+					return true;
+				}
+
+				const trimmedQuery = picker.value.substring(AbstractGotoSymbolQuickAccessProvider.PREFIX.length).trim();
+				const parsedLabel = parseLabelWithIcons(item.label);
+				const score = fuzzyScore(trimmedQuery, trimmedQuery.toLowerCase(), 0,
+					parsedLabel.text, parsedLabel.text.toLowerCase(), 0,
+					{ firstMatchCanBeWeak: true, boostFullMatch: true });
+
+				if (!score) {
+					return false;
+				}
+
+				item.score = score[1];
+				item.highlights = { label: matchesFuzzyIconAware(trimmedQuery, parsedLabel) ?? undefined };
+				return true;
+			});
+
+			if (filteredItems.length === 0) {
+				const label = localize('empty', 'No matching entries');
+				picker.items = [{ label, index: -1, kind: SymbolKind.String }];
+				picker.ariaLabel = label;
+			} else {
+				picker.items = filteredItems;
+			}
+		};
+		updatePickerItems();
+		disposables.add(picker.onDidChangeValue(updatePickerItems));
+
+		const previewDisposable = new MutableDisposable();
+		disposables.add(previewDisposable);
+
+		disposables.add(picker.onDidChangeActive(() => {
+			const [item] = picker.activeItems;
+			if (item) {
+				previewDisposable.value = entries[item.index]?.preview();
+			} else {
+				previewDisposable.clear();
+			}
+		}));
 	}
 }
 

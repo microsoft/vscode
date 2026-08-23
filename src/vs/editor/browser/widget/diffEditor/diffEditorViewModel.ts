@@ -3,26 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, IReader, ISettableObservable, ITransaction, autorun, autorunWithStore, derived, observableSignal, observableSignalFromEvent, observableValue, transaction, waitForState } from 'vs/base/common/observable';
-import { IDiffProviderFactoryService } from 'vs/editor/browser/widget/diffEditor/diffProviderFactoryService';
-import { filterWithPrevious, readHotReloadableExport } from 'vs/editor/browser/widget/diffEditor/utils';
-import { ISerializedLineRange, LineRange, LineRangeSet } from 'vs/editor/common/core/lineRange';
-import { DefaultLinesDiffComputer } from 'vs/editor/common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer';
-import { IDocumentDiff } from 'vs/editor/common/diff/documentDiffProvider';
-import { MovedText } from 'vs/editor/common/diff/linesDiffComputer';
-import { DetailedLineRangeMapping, LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/rangeMapping';
-import { IDiffEditorModel, IDiffEditorViewModel } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { TextEditInfo } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/beforeEditPositionMapper';
-import { combineTextEditInfos } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/combineTextEditInfos';
-import { DiffEditorOptions } from './diffEditorOptions';
-import { optimizeSequenceDiffs } from 'vs/editor/common/diff/defaultLinesDiffComputer/heuristicSequenceOptimizations';
-import { isDefined } from 'vs/base/common/types';
-import { groupAdjacentBy } from 'vs/base/common/arrays';
-import { softAssert } from 'vs/base/common/assert';
+import { rejectIfNotCanceled, RunOnceScheduler } from '../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable, IReader, ISettableObservable, ITransaction, autorun, derived, observableSignal, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
+import { IDiffProviderFactoryService } from './diffProviderFactoryService.js';
+import { filterWithPrevious } from './utils.js';
+import { readHotReloadableExport } from '../../../../base/common/hotReloadHelpers.js';
+import { ISerializedLineRange, LineRange, LineRangeSet } from '../../../common/core/ranges/lineRange.js';
+import { DefaultLinesDiffComputer } from '../../../common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer.js';
+import { IDocumentDiff } from '../../../common/diff/documentDiffProvider.js';
+import { MovedText } from '../../../common/diff/linesDiffComputer.js';
+import { DetailedLineRangeMapping, LineRangeMapping, RangeMapping } from '../../../common/diff/rangeMapping.js';
+import { IDiffEditorModel, IDiffEditorViewModel } from '../../../common/editorCommon.js';
+import { ITextModel } from '../../../common/model.js';
+import { TextEditInfo } from '../../../common/model/bracketPairsTextModelPart/bracketPairsTree/beforeEditPositionMapper.js';
+import { combineTextEditInfos } from '../../../common/model/bracketPairsTextModelPart/bracketPairsTree/combineTextEditInfos.js';
+import { DiffEditorOptions } from './diffEditorOptions.js';
+import { optimizeSequenceDiffs } from '../../../common/diff/defaultLinesDiffComputer/heuristicSequenceOptimizations.js';
+import { isDefined } from '../../../../base/common/types.js';
+import { groupAdjacentBy } from '../../../../base/common/arrays.js';
+import { softAssert } from '../../../../base/common/assert.js';
 
 export class DiffEditorViewModel extends Disposable implements IDiffEditorViewModel {
 	private readonly _isDiffUpToDate = observableValue<boolean>(this, false);
@@ -39,7 +40,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 		} else {
 			// Reset state
 			transaction(tx => {
-				for (const r of this._unchangedRegions.get()?.regions || []) {
+				for (const r of this._unchangedRegions.read(undefined)?.regions || []) {
 					r.collapseAll(tx);
 				}
 			});
@@ -106,9 +107,9 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 			const updatedLastUnchangedRegions = lastUnchangedRegions.regions.map((r, idx) =>
 				(!lastUnchangedRegionsOrigRanges[idx] || !lastUnchangedRegionsModRanges[idx]) ? undefined :
 					new UnchangedRegion(
-						lastUnchangedRegionsOrigRanges[idx]!.startLineNumber,
-						lastUnchangedRegionsModRanges[idx]!.startLineNumber,
-						lastUnchangedRegionsOrigRanges[idx]!.length,
+						lastUnchangedRegionsOrigRanges[idx].startLineNumber,
+						lastUnchangedRegionsModRanges[idx].startLineNumber,
+						lastUnchangedRegionsOrigRanges[idx].length,
 						r.visibleLineCountTop.read(reader),
 						r.visibleLineCountBottom.read(reader),
 					)).filter(isDefined);
@@ -120,7 +121,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 				if (touching.length > 1) {
 					didChange = true;
 					const sumLineCount = touching.reduce((sum, r) => sum + r.lineCount, 0);
-					const r = new UnchangedRegion(touching[0].originalLineNumber, touching[0].modifiedLineNumber, sumLineCount, touching[0].visibleLineCountTop.get(), touching[touching.length - 1].visibleLineCountBottom.get());
+					const r = new UnchangedRegion(touching[0].originalLineNumber, touching[0].modifiedLineNumber, sumLineCount, touching[0].visibleLineCountTop.read(undefined), touching[touching.length - 1].visibleLineCountBottom.read(undefined));
 					newRanges.push(r);
 				} else {
 					newRanges.push(touching[0]);
@@ -173,10 +174,10 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 					lastUnchangedRegions.regions
 						.map((r, idx) => {
 							if (!lastUnchangedRegionsOrigRanges[idx] || !lastUnchangedRegionsModRanges[idx]) { return undefined; }
-							const length = lastUnchangedRegionsOrigRanges[idx]!.length;
+							const length = lastUnchangedRegionsOrigRanges[idx].length;
 							return new UnchangedRegion(
-								lastUnchangedRegionsOrigRanges[idx]!.startLineNumber,
-								lastUnchangedRegionsModRanges[idx]!.startLineNumber,
+								lastUnchangedRegionsOrigRanges[idx].startLineNumber,
+								lastUnchangedRegionsModRanges[idx].startLineNumber,
 								length,
 								// The visible area can shrink by edits -> we have to account for this
 								Math.min(r.visibleLineCountTop.get(), length),
@@ -260,8 +261,9 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 			debouncer.schedule();
 		}));
 
-		this._register(autorunWithStore(async (reader, store) => {
+		this._register(autorun(async (reader) => {
 			/** @description compute diff */
+			const store = reader.store;
 
 			// So that they get recomputed when these settings change
 			this._options.hideUnchangedRegionsMinimumLineCount.read(reader);
@@ -293,9 +295,9 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 				ignoreTrimWhitespace: this._options.ignoreTrimWhitespace.read(reader),
 				maxComputationTimeMs: this._options.maxComputationTimeMs.read(reader),
 				computeMoves: this._options.showMoves.read(reader),
-			}, this._cancellationTokenSource.token);
+			}, this._cancellationTokenSource.token).catch(rejectIfNotCanceled);
 
-			if (this._cancellationTokenSource.token.isCancellationRequested) {
+			if (!result || this._cancellationTokenSource.token.isCancellationRequested) {
 				return;
 			}
 			if (model.original.isDisposed() || model.modified.isDisposed()) {
@@ -314,7 +316,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 				const state = DiffState.fromDiffResult(result);
 				this._diff.set(state, tx);
 				this._isDiffUpToDate.set(true, tx);
-				const currentSyncedMovedText = this.movedTextToCompare.get();
+				const currentSyncedMovedText = this.movedTextToCompare.read(undefined);
 				this.movedTextToCompare.set(currentSyncedMovedText ? this._lastDiff.moves.find(m => m.lineRangeMapping.modified.intersect(currentSyncedMovedText.lineRangeMapping.modified)) : undefined, tx);
 			});
 		}));
@@ -347,7 +349,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 	}
 
 	public async waitForDiff(): Promise<void> {
-		await waitForState(this.isDiffUpToDate, s => s);
+		await waitForState(this.isDiffUpToDate, s => s, undefined, this._cancellationTokenSource.token).catch(rejectIfNotCanceled);
 	}
 
 	public serializeState(): SerializedState {
@@ -393,6 +395,7 @@ function normalizeRangeMapping(rangeMapping: RangeMapping, original: ITextModel,
 	let originalRange = rangeMapping.originalRange;
 	let modifiedRange = rangeMapping.modifiedRange;
 	if (
+		originalRange.startColumn === 1 && modifiedRange.startColumn === 1 &&
 		(originalRange.endColumn !== 1 || modifiedRange.endColumn !== 1) &&
 		originalRange.endColumn === original.getLineMaxColumn(originalRange.endLineNumber)
 		&& modifiedRange.endColumn === modified.getLineMaxColumn(modifiedRange.endLineNumber)

@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IBoundarySashes, ISashEvent, Orientation, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, IReader, ISettableObservable, autorun, observableValue } from 'vs/base/common/observable';
-import { DiffEditorOptions } from '../diffEditorOptions';
-import { derivedWithSetter } from 'vs/base/common/observableInternal/derived';
+import { IBoundarySashes, ISashEvent, Orientation, Sash, SashState } from '../../../../../base/browser/ui/sash/sash.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { IObservable, IReader, ISettableObservable, autorun, derivedWithSetter, observableValue } from '../../../../../base/common/observable.js';
+import { DiffEditorOptions } from '../diffEditorOptions.js';
 
 export class SashLayout {
 	public readonly sashLeft = derivedWithSetter(this, reader => {
@@ -51,23 +50,25 @@ export class SashLayout {
 }
 
 export class DiffEditorSash extends Disposable {
-	private readonly _sash = this._register(new Sash(this._domNode, {
-		getVerticalSashTop: (_sash: Sash): number => 0,
-		getVerticalSashLeft: (_sash: Sash): number => this.sashLeft.get(),
-		getVerticalSashHeight: (_sash: Sash): number => this._dimensions.height.get(),
-	}, { orientation: Orientation.VERTICAL }));
+	private readonly _sash;
 
-	private _startSashPosition: number | undefined = undefined;
+	private _startSashPosition: number | undefined;
 
 	constructor(
 		private readonly _domNode: HTMLElement,
 		private readonly _dimensions: { height: IObservable<number>; width: IObservable<number> },
 		private readonly _enabled: IObservable<boolean>,
-		private readonly _boundarySashes: IObservable<IBoundarySashes | undefined, void>,
+		private readonly _boundarySashes: IObservable<IBoundarySashes | undefined>,
 		public readonly sashLeft: ISettableObservable<number>,
 		private readonly _resetSash: () => void,
 	) {
 		super();
+		this._sash = this._register(new Sash(this._domNode, {
+			getVerticalSashTop: (_sash: Sash): number => 0,
+			getVerticalSashLeft: (_sash: Sash): number => this.sashLeft.get(),
+			getVerticalSashHeight: (_sash: Sash): number => this._dimensions.height.get(),
+		}, { orientation: Orientation.VERTICAL }));
+		this._startSashPosition = undefined;
 
 		this._register(this._sash.onDidStart(() => {
 			this._startSashPosition = this.sashLeft.get();

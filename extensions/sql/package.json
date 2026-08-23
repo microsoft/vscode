@@ -2,7 +2,7 @@
   "name": "sql",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.0.0",
+  "version": "10.0.0",
   "publisher": "vscode",
   "license": "MIT",
   "engines": {
@@ -21,7 +21,8 @@
           ".dsql"
         ],
         "aliases": [
-          "SQL"
+          "MS SQL",
+          "T-SQL"
         ],
         "configuration": "./language-configuration.json"
       }

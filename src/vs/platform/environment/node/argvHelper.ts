@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IProcessEnvironment } from 'vs/base/common/platform';
-import { localize } from 'vs/nls';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { ErrorReporter, NATIVE_CLI_COMMANDS, OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
+import assert from 'assert';
+import { dirname, resolve } from '../../../base/common/path.js';
+import { IProcessEnvironment, isWindows } from '../../../base/common/platform.js';
+import { localize } from '../../../nls.js';
+import { NativeParsedArgs } from '../common/argv.js';
+import { ErrorReporter, NATIVE_CLI_COMMANDS, OPTIONS, parseArgs } from './argv.js';
 
 function parseAndValidate(cmdLineArgs: string[], reportWarnings: boolean): NativeParsedArgs {
 	const onMultipleValues = (id: string, val: string) => {
@@ -62,6 +63,17 @@ function stripAppPath(argv: string[]): string[] | undefined {
  */
 export function parseMainProcessArgv(processArgv: string[]): NativeParsedArgs {
 	let [, ...args] = processArgv;
+
+	// When code.exe is configured to 'Run as administrator' on Windows, the CLI launcher (code.cmd) sets ELECTRON_RUN_AS_NODE=1 and passes
+	// cli.js as the first argument. The elevated process does not inherit the environment variable so Electron starts as a GUI app with cli.js
+	// as a stray positional argument. Detect and strip it. The path may include a version subdirectory (e.g., 2ca3b2734b\resources\app\out\cli.js).
+	if (isWindows && args.length > 0) {
+		const resolvedArg = resolve(args[0]).toLowerCase();
+		const installDir = dirname(process.execPath).toLowerCase() + '\\';
+		if (resolvedArg.startsWith(installDir) && resolvedArg.endsWith('\\resources\\app\\out\\cli.js')) {
+			args.shift();
+		}
+	}
 
 	// If dev, remove the first non-option argument: it's the app location
 	if (process.env['VSCODE_DEV']) {

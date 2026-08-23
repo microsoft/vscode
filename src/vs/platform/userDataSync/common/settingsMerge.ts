@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct } from 'vs/base/common/arrays';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { JSONVisitor, parse, visit } from 'vs/base/common/json';
-import { applyEdits, setProperty, withFormatting } from 'vs/base/common/jsonEdit';
-import { Edit, FormattingOptions, getEOL } from 'vs/base/common/jsonFormatter';
-import * as objects from 'vs/base/common/objects';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import * as contentUtil from 'vs/platform/userDataSync/common/content';
-import { getDisallowedIgnoredSettings, IConflictSetting } from 'vs/platform/userDataSync/common/userDataSync';
+import { distinct } from '../../../base/common/arrays.js';
+import { IStringDictionary } from '../../../base/common/collections.js';
+import { JSONVisitor, parse, visit } from '../../../base/common/json.js';
+import { applyEdits, setProperty, withFormatting } from '../../../base/common/jsonEdit.js';
+import { Edit, FormattingOptions, getEOL } from '../../../base/common/jsonFormatter.js';
+import * as objects from '../../../base/common/objects.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import * as contentUtil from './content.js';
+import { getDisallowedIgnoredSettings, IConflictSetting } from './userDataSync.js';
 
 export interface IMergeResult {
 	localContent: string | null;

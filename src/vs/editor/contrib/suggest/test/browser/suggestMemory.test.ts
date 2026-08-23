@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IPosition } from 'vs/editor/common/core/position';
-import { ITextModel } from 'vs/editor/common/model';
-import { CompletionItem } from 'vs/editor/contrib/suggest/browser/suggest';
-import { LRUMemory, Memory, NoMemory, PrefixMemory } from 'vs/editor/contrib/suggest/browser/suggestMemory';
-import { createSuggestItem } from 'vs/editor/contrib/suggest/test/browser/completionModel.test';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IPosition } from '../../../../common/core/position.js';
+import { ITextModel } from '../../../../common/model.js';
+import { CompletionItem } from '../../browser/suggest.js';
+import { LRUMemory, Memory, NoMemory, PrefixMemory } from '../../browser/suggestMemory.js';
+import { createSuggestItem } from './completionModel.test.js';
+import { createTextModel } from '../../../../test/common/testTextModel.js';
 
 suite('SuggestMemories', function () {
 

@@ -2,8 +2,8 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"label": "yarn watch",
-			"command": "yarn",
+			"label": "npm run watch",
+			"command": "npm i",
 			"args": ["watch"],
 			"type": "shell",
 			"presentation": {

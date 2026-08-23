@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mainWindow } from 'vs/base/browser/window';
-import { getErrorMessage } from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { mainWindow } from './window.js';
+import { getErrorMessage } from '../common/errors.js';
+import { Emitter } from '../common/event.js';
+import { Disposable, toDisposable } from '../common/lifecycle.js';
 
 export class BroadcastDataChannel<T> extends Disposable {
 

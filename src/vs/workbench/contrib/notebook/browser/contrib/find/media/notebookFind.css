@@ -19,3 +19,7 @@
 	padding: 0 2px;
 	box-sizing: border-box;
 }
+
+.monaco-workbench .nb-findScope {
+	background-color: var(--vscode-editor-findRangeHighlightBackground);
+}

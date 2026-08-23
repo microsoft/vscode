@@ -3,23 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-no-native-private */
-
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { serializeWebviewOptions, ExtHostWebview, ExtHostWebviews, toExtensionData, shouldSerializeBuffersForPostMessage } from 'vs/workbench/api/common/extHostWebview';
-import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
+import { Emitter } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import * as typeConverters from './extHostTypeConverters.js';
+import { serializeWebviewOptions, ExtHostWebview, ExtHostWebviews, toExtensionData, shouldSerializeBuffersForPostMessage } from './extHostWebview.js';
+import { IExtHostWorkspace } from './extHostWorkspace.js';
+import { EditorGroupColumn } from '../../services/editor/common/editorGroupColumn.js';
 import type * as vscode from 'vscode';
-import * as extHostProtocol from './extHost.protocol';
-import * as extHostTypes from './extHostTypes';
-
-
-type IconPath = URI | { readonly light: URI; readonly dark: URI };
+import * as extHostProtocol from './extHost.protocol.js';
+import * as extHostTypes from './extHostTypes.js';
 
 class ExtHostWebviewPanel extends Disposable implements vscode.WebviewPanel {
 
@@ -31,7 +26,7 @@ class ExtHostWebviewPanel extends Disposable implements vscode.WebviewPanel {
 	readonly #options: vscode.WebviewPanelOptions;
 
 	#title: string;
-	#iconPath?: IconPath;
+	#iconPath?: vscode.IconPath;
 	#viewColumn: vscode.ViewColumn | undefined = undefined;
 	#visible: boolean = true;
 	#active: boolean;
@@ -103,17 +98,21 @@ class ExtHostWebviewPanel extends Disposable implements vscode.WebviewPanel {
 		}
 	}
 
-	get iconPath(): IconPath | undefined {
+	get iconPath(): vscode.IconPath | undefined {
 		this.assertNotDisposed();
 		return this.#iconPath;
 	}
 
-	set iconPath(value: IconPath | undefined) {
+	set iconPath(value: vscode.IconPath | undefined) {
 		this.assertNotDisposed();
 		if (this.#iconPath !== value) {
 			this.#iconPath = value;
 
-			this.#proxy.$setIconPath(this.#handle, URI.isUri(value) ? { light: value, dark: value } : value);
+			if (URI.isUri(value)) {
+				this.#proxy.$setIconPath(this.#handle, { light: value, dark: value });
+			} else {
+				this.#proxy.$setIconPath(this.#handle, value as { light: URI; dark: URI } | vscode.ThemeIcon);
+			}
 		}
 	}
 

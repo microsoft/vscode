@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assertNever } from 'vs/base/common/assert';
-import { clamp } from 'vs/base/common/numbers';
-import { localize } from 'vs/nls';
-import { chartsGreen, chartsRed, chartsYellow } from 'vs/platform/theme/common/colorRegistry';
-import { asCssVariableName } from 'vs/platform/theme/common/colorUtils';
-import { CoverageBarSource } from 'vs/workbench/contrib/testing/browser/testCoverageBars';
-import { ITestingCoverageBarThresholds, TestingDisplayedCoveragePercent } from 'vs/workbench/contrib/testing/common/configuration';
-import { getTotalCoveragePercent } from 'vs/workbench/contrib/testing/common/testCoverage';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
-import { ICoverageCount } from 'vs/workbench/contrib/testing/common/testTypes';
+import { assertNever } from '../../../../base/common/assert.js';
+import { clamp } from '../../../../base/common/numbers.js';
+import { localize } from '../../../../nls.js';
+import { chartsGreen, chartsRed, chartsYellow } from '../../../../platform/theme/common/colorRegistry.js';
+import { asCssVariableName } from '../../../../platform/theme/common/colorUtils.js';
+import { CoverageBarSource } from './testCoverageBars.js';
+import { ITestingCoverageBarThresholds, TestingDisplayedCoveragePercent } from '../common/configuration.js';
+import { getTotalCoveragePercent } from '../common/testCoverage.js';
+import { TestId } from '../common/testId.js';
+import { LiveTestResult } from '../common/testResult.js';
+import { ICoverageCount } from '../common/testTypes.js';
 
 export const percent = (cc: ICoverageCount) => clamp(cc.total === 0 ? 1 : cc.covered / cc.total, 0, 1);
 
@@ -67,7 +67,7 @@ export const calculateDisplayedStat = (coverage: CoverageBarSource, method: Test
 	}
 };
 
-export function getLabelForItem(result: LiveTestResult, testId: TestId, commonPrefixLen: number) {
+export function getLabelForItem(result: LiveTestResult, testId: TestId, commonPrefixLen: number): { label: string; description?: string } {
 	const parts: string[] = [];
 	for (const id of testId.idsFromRoot()) {
 		const item = result.getTestById(id.toString());
@@ -78,13 +78,21 @@ export function getLabelForItem(result: LiveTestResult, testId: TestId, commonPr
 		parts.push(item.label);
 	}
 
-	return parts.slice(commonPrefixLen).join(' \u203a ');
+	const relevant = parts.slice(commonPrefixLen);
+	if (relevant.length <= 1) {
+		return { label: relevant[0] ?? '' };
+	}
+
+	return {
+		label: relevant[relevant.length - 1],
+		description: relevant.slice(0, -1).join(' \u203A '),
+	};
 }
 
 export namespace labels {
 	export const showingFilterFor = (label: string) => localize('testing.coverageForTest', "Showing \"{0}\"", label);
 	export const clickToChangeFiltering = localize('changePerTestFilter', 'Click to view coverage for a single test');
 	export const percentCoverage = (percent: number, precision?: number) => localize('testing.percentCoverage', '{0} Coverage', displayPercent(percent, precision));
-	export const allTests = localize('testing.allTests', 'All tests');
+	export const allTests = localize('testing.allTests', 'Entire run');
 	export const pickShowCoverage = localize('testing.pickTest', 'Pick a test to show coverage for');
 }

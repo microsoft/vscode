@@ -3,19 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
-import * as rimraf from 'rimraf';
-import * as es from 'event-stream';
-import * as rename from 'gulp-rename';
-import * as vfs from 'vinyl-fs';
-import * as ext from './extensions';
-import * as fancyLog from 'fancy-log';
-import * as ansiColors from 'ansi-colors';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
+import rimraf from 'rimraf';
+import es from 'event-stream';
+import { rename } from './gulp/facade.ts';
+import vfs from 'vinyl-fs';
+import * as ext from './extensions.ts';
+import { getCurrentExtensionTarget, getPlatformSpecificAssetName } from './extensionTarget.ts';
+import fancyLog from 'fancy-log';
+import ansiColors from 'ansi-colors';
 import { Stream } from 'stream';
-
-const mkdirp = require('mkdirp');
 
 export interface IExtensionDefinition {
 	name: string;
@@ -23,6 +22,13 @@ export interface IExtensionDefinition {
 	sha256: string;
 	repo: string;
 	platforms?: string[];
+	vsix?: string;
+	/**
+	 * Per-target checksums for a platform-specific extension published to a GitHub release.
+	 * Keyed by marketplace target platform (e.g. `win32-x64`, `linux-armhf`, `alpine-x64`).
+	 * The matching release asset is resolved by convention as `<name>-<osAlias>-<arch>.vsix`.
+	 */
+	platformSpecific?: { [target: string]: string };
 	metadata: {
 		id: string;
 		publisherId: {
@@ -35,10 +41,10 @@ export interface IExtensionDefinition {
 	};
 }
 
-const root = path.dirname(path.dirname(__dirname));
-const productjson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8'));
-const builtInExtensions = <IExtensionDefinition[]>productjson.builtInExtensions || [];
-const webBuiltInExtensions = <IExtensionDefinition[]>productjson.webBuiltInExtensions || [];
+const root = path.dirname(path.dirname(import.meta.dirname));
+const productjson = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '../../product.json'), 'utf8'));
+const builtInExtensions = productjson.builtInExtensions as IExtensionDefinition[] || [];
+const webBuiltInExtensions = productjson.webBuiltInExtensions as IExtensionDefinition[] || [];
 const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
 const ENABLE_LOGGING = !process.env['VSCODE_BUILD_BUILTIN_EXTENSIONS_SILENCE_PLEASE'];
 
@@ -69,10 +75,50 @@ function isUpToDate(extension: IExtensionDefinition): boolean {
 	}
 }
 
+function isInsiders(): boolean {
+	return process.env['VSCODE_QUALITY'] === 'insider';
+}
+
 function getExtensionDownloadStream(extension: IExtensionDefinition) {
-	const galleryServiceUrl = productjson.extensionsGallery?.serviceUrl;
-	return (galleryServiceUrl ? ext.fromMarketplace(galleryServiceUrl, extension) : ext.fromGithub(extension))
-		.pipe(rename(p => p.dirname = `${extension.name}/${p.dirname}`));
+	let input: Stream;
+
+	if (extension.vsix) {
+		input = ext.fromVsix(path.join(root, extension.vsix), extension);
+	} else if (extension.platformSpecific) {
+		// A platform-specific extension publishes its VSIX assets on a GitHub release using a
+		// specific asset naming convention, so it is always downloaded from GitHub and never falls
+		// back to the Marketplace (which does not serve those assets) even when a gallery is configured.
+		const asset = resolvePlatformSpecificAsset(extension);
+		if (!asset) {
+			return es.readArray([]);
+		}
+		input = ext.fromGithub(extension, { asset, latest: isInsiders() });
+	} else if (productjson.extensionsGallery?.serviceUrl) {
+		input = ext.fromMarketplace(productjson.extensionsGallery.serviceUrl, extension);
+	} else {
+		input = ext.fromGithub(extension, { latest: isInsiders() });
+	}
+
+	return input.pipe(rename(p => p.dirname = `${extension.name}/${p.dirname}`));
+}
+
+function resolvePlatformSpecificAsset(extension: IExtensionDefinition): { assetName: string; sha256: string } | undefined {
+	const target = getCurrentExtensionTarget();
+	if (!target) {
+		// Unsupported build platform (e.g. FreeBSD): no platform-specific asset can apply, so skip
+		// this extension gracefully instead of failing the whole build.
+		log(ansiColors.yellow('[skip]'), `${extension.name}: no platform-specific asset for unsupported platform '${process.platform}-${process.env['VSCODE_ARCH'] ?? process.arch}'`);
+		return undefined;
+	}
+
+	const sha256 = extension.platformSpecific![target];
+	if (!sha256) {
+		// The extension declares platform-specific assets but is missing one for this known target.
+		// This is a configuration error, so fail loudly.
+		throw new Error(`Built-in extension '${extension.name}' is platform-specific but has no asset for target '${target}'. Available targets: [${Object.keys(extension.platformSpecific!)}]`);
+	}
+
+	return { assetName: getPlatformSpecificAssetName(extension.name, target), sha256 };
 }
 
 export function getExtensionStream(extension: IExtensionDefinition) {
@@ -147,7 +193,7 @@ function readControlFile(): IControlFile {
 }
 
 function writeControlFile(control: IControlFile): void {
-	mkdirp.sync(path.dirname(controlFilePath));
+	fs.mkdirSync(path.dirname(controlFilePath), { recursive: true });
 	fs.writeFileSync(controlFilePath, JSON.stringify(control, null, 2));
 }
 
@@ -174,7 +220,7 @@ export function getBuiltInExtensions(): Promise<void> {
 	});
 }
 
-if (require.main === module) {
+if (import.meta.main) {
 	getBuiltInExtensions().then(() => process.exit(0)).catch(err => {
 		console.error(err);
 		process.exit(1);

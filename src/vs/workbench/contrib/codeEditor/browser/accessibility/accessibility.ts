@@ -3,17 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./accessibility';
-import * as nls from 'vs/nls';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { accessibilityHelpIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { alert } from 'vs/base/browser/ui/aria/aria';
-import { AccessibilityHelpNLS } from 'vs/editor/common/standaloneStrings';
+import './accessibility.css';
+import * as nls from '../../../../../nls.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED, IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { accessibilityHelpIsShown } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { AccessibilityHelpNLS } from '../../../../../editor/common/standaloneStrings.js';
+import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
+import { alert } from '../../../../../base/browser/ui/aria/aria.js';
+import { CursorColumns } from '../../../../../editor/common/core/cursorColumns.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 
 class ToggleScreenReaderMode extends Action2 {
 
@@ -48,3 +52,41 @@ class ToggleScreenReaderMode extends Action2 {
 }
 
 registerAction2(ToggleScreenReaderMode);
+
+class AnnounceCursorPosition extends Action2 {
+	constructor() {
+		super({
+			id: 'editor.action.announceCursorPosition',
+			title: nls.localize2('announceCursorPosition', "Announce Cursor Position"),
+			f1: true,
+			metadata: {
+				description: nls.localize2('announceCursorPosition.description', "Announce the current cursor position (line and column) via screen reader.")
+			},
+			keybinding: {
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyG,
+				weight: KeybindingWeight.WorkbenchContrib + 10,
+				when: ContextKeyExpr.and(EditorContextKeys.editorTextFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED)
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const codeEditorService = accessor.get(ICodeEditorService);
+		const editor = codeEditorService.getFocusedCodeEditor();
+		if (!editor) {
+			return;
+		}
+		const position = editor.getPosition();
+		const model = editor.getModel();
+		if (!position || !model) {
+			return;
+		}
+		// Use visible column to match status bar display (accounts for tabs)
+		const tabSize = model.getOptions().tabSize;
+		const lineContent = model.getLineContent(position.lineNumber);
+		const visibleColumn = CursorColumns.visibleColumnFromColumn(lineContent, position.column, tabSize) + 1;
+		alert(nls.localize('screenReader.lineColPosition', "Line {0}, Column {1}", position.lineNumber, visibleColumn));
+	}
+}
+
+registerAction2(AnnounceCursorPosition);

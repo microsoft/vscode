@@ -3,17 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICellOutputViewModel, IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ICellOutput, IOrderedMimeType, RENDERER_NOT_AVAILABLE } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { Emitter } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../base/common/observable.js';
+import { ICellOutputViewModel, IGenericCellViewModel } from '../notebookBrowser.js';
+import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
+import { ICellOutput, IOrderedMimeType, RENDERER_NOT_AVAILABLE } from '../../common/notebookCommon.js';
+import { INotebookService } from '../../common/notebookService.js';
 
 let handle = 0;
 export class CellOutputViewModel extends Disposable implements ICellOutputViewModel {
 	private _onDidResetRendererEmitter = this._register(new Emitter<void>());
 	readonly onDidResetRenderer = this._onDidResetRendererEmitter.event;
+
+	private alwaysShow = false;
+	visible = observableValue<boolean>('outputVisible', false);
+	setVisible(visible = true, force: boolean = false) {
+		if (!visible && this.alwaysShow) {
+			// we are forced to show, so no-op
+			return;
+		}
+
+		if (force && visible) {
+			this.alwaysShow = true;
+		}
+
+		this.visible.set(visible, undefined);
+	}
+
 	outputHandle = handle++;
 	get model(): ICellOutput {
 		return this._outputRawData;

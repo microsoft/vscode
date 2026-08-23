@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
-import * as stringBuilder from 'vs/editor/common/core/stringBuilder';
-import { Range } from 'vs/editor/common/core/range';
-import { CharacterPair } from 'vs/editor/common/languages/languageConfiguration';
+import * as strings from '../../../../base/common/strings.js';
+import * as stringBuilder from '../../core/stringBuilder.js';
+import { Range } from '../../core/range.js';
+import { CharacterPair } from '../languageConfiguration.js';
 
 interface InternalBracket {
 	open: string[];
@@ -408,9 +408,9 @@ function prepareBracketForRegExp(str: string): string {
 	return (insertWordBoundaries ? `\\b${str}\\b` : str);
 }
 
-function createBracketOrRegExp(pieces: string[]): RegExp {
+export function createBracketOrRegExp(pieces: string[], options?: strings.RegExpOptions): RegExp {
 	const regexStr = `(${pieces.map(prepareBracketForRegExp).join(')|(')})`;
-	return strings.createRegExp(regexStr, true);
+	return strings.createRegExp(regexStr, true, options);
 }
 
 const toReversedString = (function () {

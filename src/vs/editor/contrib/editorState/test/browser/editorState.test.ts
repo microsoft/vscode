@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Position } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ITextModel } from 'vs/editor/common/model';
-import { CodeEditorStateFlag, EditorState } from 'vs/editor/contrib/editorState/browser/editorState';
+import assert from 'assert';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ICodeEditor } from '../../../../browser/editorBrowser.js';
+import { Position } from '../../../../common/core/position.js';
+import { Selection } from '../../../../common/core/selection.js';
+import { ITextModel } from '../../../../common/model.js';
+import { CodeEditorStateFlag, EditorState } from '../../browser/editorState.js';
 
 interface IStubEditorState {
 	model?: { uri?: URI; version?: number };
@@ -94,6 +94,7 @@ suite('Editor Core - Editor State', () => {
 		const mappedModel = model ? { uri: model.uri ? model.uri : URI.parse('http://dummy.org'), getVersionId: () => model.version } : null;
 
 		return {
+			// eslint-disable-next-line local/code-no-any-casts
 			getModel: (): ITextModel => <any>mappedModel,
 			getPosition: (): Position | undefined => position,
 			getSelection: (): Selection | undefined => selection,

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ILanguageIdCodec } from 'vs/editor/common/languages';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Event } from '../../../base/common/event.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
+import { ILanguageIdCodec } from '../languages.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 
 export const ILanguageService = createDecorator<ILanguageService>('languageService');
 
@@ -57,7 +57,7 @@ export interface ILanguageService {
 	 * **Note**: Basic language features refers to language configuration related features.
 	 * **Note**: This event is a superset of `onDidRequestRichLanguageFeatures`
 	 */
-	onDidRequestBasicLanguageFeatures: Event<string>;
+	readonly onDidRequestBasicLanguageFeatures: Event<string>;
 
 	/**
 	 * An event emitted when rich language features are requested for the first time.
@@ -66,12 +66,12 @@ export interface ILanguageService {
 	 * **Note**: Rich language features refers to tokenizers, language features based on providers, etc.
 	 * **Note**: This event is a subset of `onDidRequestRichLanguageFeatures`
 	 */
-	onDidRequestRichLanguageFeatures: Event<string>;
+	readonly onDidRequestRichLanguageFeatures: Event<string>;
 
 	/**
 	 * An event emitted when languages have changed.
 	 */
-	onDidChange: Event<void>;
+	readonly onDidChange: Event<void>;
 
 	/**
 	 * Register a language.

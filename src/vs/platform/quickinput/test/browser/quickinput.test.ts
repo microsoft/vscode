@@ -3,37 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { unthemedInboxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
-import { unthemedButtonStyles } from 'vs/base/browser/ui/button/button';
-import { unthemedListStyles } from 'vs/base/browser/ui/list/listWidget';
-import { unthemedToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
-import { Event } from 'vs/base/common/event';
-import { raceTimeout } from 'vs/base/common/async';
-import { unthemedCountStyles } from 'vs/base/browser/ui/countBadge/countBadge';
-import { unthemedKeybindingLabelOptions } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { unthemedProgressBarOptions } from 'vs/base/browser/ui/progressbar/progressbar';
-import { QuickInputController } from 'vs/platform/quickinput/browser/quickInputController';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { toDisposable } from 'vs/base/common/lifecycle';
-import { mainWindow } from 'vs/base/browser/window';
-import { QuickPick } from 'vs/platform/quickinput/browser/quickInput';
-import { IQuickPickItem, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IListService, ListService } from 'vs/platform/list/browser/listService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
-import { NoMatchingKb } from 'vs/platform/keybinding/common/keybindingResolver';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
+import assert from 'assert';
+import sinon from 'sinon';
+import { unthemedInboxStyles } from '../../../../base/browser/ui/inputbox/inputBox.js';
+import { unthemedButtonStyles } from '../../../../base/browser/ui/button/button.js';
+import { unthemedListStyles } from '../../../../base/browser/ui/list/listWidget.js';
+import { unthemedToggleStyles } from '../../../../base/browser/ui/toggle/toggle.js';
+import { Event } from '../../../../base/common/event.js';
+import { raceTimeout } from '../../../../base/common/async.js';
+import { unthemedCountStyles } from '../../../../base/browser/ui/countBadge/countBadge.js';
+import { unthemedKeybindingLabelOptions } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
+import { unthemedProgressBarOptions } from '../../../../base/browser/ui/progressbar/progressbar.js';
+import { QuickInputController } from '../../browser/quickInputController.js';
+import { TestThemeService } from '../../../theme/test/common/testThemeService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { QuickPick } from '../../browser/quickInput.js';
+import { IQuickPickItem, ItemActivation, isKeyModified, NO_KEY_MODS } from '../../common/quickInput.js';
+import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
+import { IThemeService } from '../../../theme/common/themeService.js';
+import { IConfigurationService } from '../../../configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import { ILayoutService } from '../../../layout/browser/layoutService.js';
+import { IContextViewService } from '../../../contextview/browser/contextView.js';
+import { IListService, ListService } from '../../../list/browser/listService.js';
+import { IContextKeyService } from '../../../contextkey/common/contextkey.js';
+import { ContextKeyService } from '../../../contextkey/browser/contextKeyService.js';
+import { NoMatchingKb } from '../../../keybinding/common/keybindingResolver.js';
+import { IKeybindingService } from '../../../keybinding/common/keybinding.js';
+import { ContextViewService } from '../../../contextview/browser/contextViewService.js';
+import { IAccessibilityService } from '../../../accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../accessibility/test/common/testAccessibilityService.js';
 
 // Sets up an `onShow` listener to allow us to wait until the quick pick is shown (useful when triggering an `accept()` right after launching a quick pick)
 // kick this off before you launch the picker and then await the promise returned after you launch the picker.
@@ -53,11 +54,12 @@ async function setupWaitTilShownListener(controller: QuickInputController): Prom
 suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let controller: QuickInputController;
+	let fixture: HTMLElement;
 
 	setup(() => {
-		const fixture = document.createElement('div');
+		fixture = document.createElement('div');
 		mainWindow.document.body.appendChild(fixture);
-		store.add(toDisposable(() => mainWindow.document.body.removeChild(fixture)));
+		store.add(toDisposable(() => fixture.remove()));
 
 		const instantiationService = new TestInstantiationService();
 
@@ -66,7 +68,12 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IAccessibilityService, new TestAccessibilityService());
 		instantiationService.stub(IListService, store.add(new ListService()));
-		instantiationService.stub(ILayoutService, { activeContainer: fixture, onDidLayoutContainer: Event.None } as any);
+		instantiationService.stub(ILayoutService, {
+			_serviceBrand: undefined,
+			activeContainer: fixture,
+			onDidLayoutContainer: Event.None,
+			getContainer: () => fixture,
+		});
 		instantiationService.stub(IContextViewService, store.add(instantiationService.createInstance(ContextViewService)));
 		instantiationService.stub(IContextKeyService, store.add(instantiationService.createInstance(ContextKeyService)));
 		instantiationService.stub(IKeybindingService, {
@@ -115,6 +122,104 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 
 		// initial layout
 		controller.layout({ height: 20, width: 40 }, 0);
+	});
+
+	teardown(() => {
+		sinon.restore();
+	});
+
+	test('close motion requires modern UI with motion enabled', () => {
+		const clock = sinon.useFakeTimers();
+		const quickpick = store.add(controller.createQuickPick());
+		const widget = fixture.querySelector<HTMLElement>('.quick-input-widget')!;
+		const states: { display: string; closing: boolean; inert: boolean; visible: boolean }[] = [];
+		const recordState = () => states.push({
+			display: widget.style.display,
+			closing: widget.classList.contains('quick-input-widget-closing'),
+			inert: widget.inert,
+			visible: controller.isVisible(),
+		});
+
+		fixture.classList.add('modern-ui', 'monaco-reduce-motion');
+		quickpick.show();
+		quickpick.hide();
+		recordState();
+
+		fixture.classList.replace('monaco-reduce-motion', 'monaco-enable-motion');
+		quickpick.show();
+		quickpick.hide();
+		recordState();
+
+		quickpick.show();
+		recordState();
+
+		quickpick.hide();
+		clock.tick(150);
+		recordState();
+
+		assert.deepStrictEqual(states, [
+			{ display: 'none', closing: false, inert: false, visible: false },
+			{ display: '', closing: true, inert: true, visible: false },
+			{ display: '', closing: false, inert: false, visible: true },
+			{ display: 'none', closing: false, inert: false, visible: false },
+		]);
+	});
+
+	test('overlay picker aligns its input with the anchor and bypasses motion', () => {
+		fixture.style.width = '600px';
+		fixture.style.height = '400px';
+		fixture.classList.add('modern-ui', 'monaco-enable-motion');
+		controller.layout({ width: 600, height: 400 }, 0);
+
+		const anchor = document.createElement('div');
+		anchor.style.position = 'absolute';
+		anchor.style.left = '80px';
+		anchor.style.top = '40px';
+		anchor.style.width = '300px';
+		anchor.style.height = '26px';
+		fixture.appendChild(anchor);
+
+		const quickpick = store.add(controller.createQuickPick());
+		quickpick.anchor = anchor;
+		quickpick.anchorPosition = 'overlay';
+		quickpick.show();
+
+		const widget = fixture.querySelector<HTMLElement>('.quick-input-widget')!;
+		const input = fixture.querySelector<HTMLElement>('.quick-input-filter .monaco-inputbox')!;
+		const anchorRect = anchor.getBoundingClientRect();
+		const inputRect = input.getBoundingClientRect();
+		const openState = {
+			alignmentDelta: {
+				left: inputRect.left - anchorRect.left,
+				top: inputRect.top - anchorRect.top,
+				width: inputRect.width - anchorRect.width,
+				height: inputRect.height - anchorRect.height,
+			},
+			animationName: mainWindow.getComputedStyle(widget).animationName,
+			overlay: widget.classList.contains('quick-input-widget-overlay'),
+		};
+
+		quickpick.hide();
+
+		assert.deepStrictEqual({
+			openState,
+			closeState: {
+				display: widget.style.display,
+				closing: widget.classList.contains('quick-input-widget-closing'),
+				inert: widget.inert,
+			},
+		}, {
+			openState: {
+				alignmentDelta: { left: 0, top: 0, width: 0, height: 0 },
+				animationName: 'none',
+				overlay: true,
+			},
+			closeState: {
+				display: 'none',
+				closing: false,
+				inert: false,
+			},
+		});
 	});
 
 	test('pick - basecase', async () => {
@@ -277,5 +382,17 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 
 		assert.strictEqual(activeItemsFromEvent.length, 0);
 		assert.strictEqual(quickpick.activeItems.length, 0);
+	});
+
+	test('isKeyModified - returns false when no modifiers are pressed', () => {
+		assert.strictEqual(isKeyModified(NO_KEY_MODS), false);
+		assert.strictEqual(isKeyModified({ ctrlCmd: false, alt: false, shift: false }), false);
+	});
+
+	test('isKeyModified - returns true when any modifier is pressed', () => {
+		assert.strictEqual(isKeyModified({ ctrlCmd: true, alt: false, shift: false }), true);
+		assert.strictEqual(isKeyModified({ ctrlCmd: false, alt: true, shift: false }), true);
+		assert.strictEqual(isKeyModified({ ctrlCmd: false, alt: false, shift: true }), true);
+		assert.strictEqual(isKeyModified({ ctrlCmd: true, alt: true, shift: true }), true);
 	});
 });

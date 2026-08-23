@@ -3,23 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { IFileMatch, IFileQuery, IRawFileMatch2, ISearchComplete, ISearchCompleteStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, ITextQuery, QueryType, SearchProviderType } from 'vs/workbench/services/search/common/search';
-import { ExtHostContext, ExtHostSearchShape, MainContext, MainThreadSearchShape } from '../common/extHost.protocol';
-import { revive } from 'vs/base/common/marshalling';
-import * as Constants from 'vs/workbench/contrib/search/common/constants';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { DisposableStore, dispose, IDisposable } from '../../../base/common/lifecycle.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { ITelemetryData, ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { IFileMatch, IFileQuery, IRawFileMatch2, ISearchComplete, ISearchCompleteStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, ITextQuery, QueryType, SearchProviderType } from '../../services/search/common/search.js';
+import { ExtHostContext, ExtHostSearchShape, MainContext, MainThreadSearchShape } from '../common/extHost.protocol.js';
+import { revive } from '../../../base/common/marshalling.js';
+import * as Constants from '../../contrib/search/common/constants.js';
+import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { AISearchKeyword } from '../../services/search/common/searchExtTypes.js';
 
 @extHostNamedCustomer(MainContext.MainThreadSearch)
 export class MainThreadSearch implements MainThreadSearchShape {
 
 	private readonly _proxy: ExtHostSearchShape;
 	private readonly _searchProvider = new Map<number, RemoteSearchProvider>();
+	private readonly _aiSearchProviderHandles = new Set<number>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -35,6 +37,8 @@ export class MainThreadSearch implements MainThreadSearchShape {
 	dispose(): void {
 		this._searchProvider.forEach(value => value.dispose());
 		this._searchProvider.clear();
+		this._aiSearchProviderHandles.clear();
+		Constants.SearchContext.hasAIResultProvider.bindTo(this.contextKeyService).set(false);
 	}
 
 	$registerTextSearchProvider(handle: number, scheme: string): void {
@@ -43,6 +47,8 @@ export class MainThreadSearch implements MainThreadSearchShape {
 
 	$registerAITextSearchProvider(handle: number, scheme: string): void {
 		Constants.SearchContext.hasAIResultProvider.bindTo(this.contextKeyService).set(true);
+
+		this._aiSearchProviderHandles.add(handle);
 		this._searchProvider.set(handle, new RemoteSearchProvider(this._searchService, SearchProviderType.aiText, scheme, handle, this._proxy));
 	}
 
@@ -53,6 +59,10 @@ export class MainThreadSearch implements MainThreadSearchShape {
 	$unregisterProvider(handle: number): void {
 		dispose(this._searchProvider.get(handle));
 		this._searchProvider.delete(handle);
+
+		if (this._aiSearchProviderHandles.delete(handle) && this._aiSearchProviderHandles.size === 0) {
+			Constants.SearchContext.hasAIResultProvider.bindTo(this.contextKeyService).set(false);
+		}
 	}
 
 	$handleFileMatch(handle: number, session: number, data: UriComponents[]): void {
@@ -72,7 +82,17 @@ export class MainThreadSearch implements MainThreadSearchShape {
 
 		provider.handleFindMatch(session, data);
 	}
-	$handleTelemetry(eventName: string, data: any): void {
+
+	$handleKeywordResult(handle: number, session: number, data: AISearchKeyword): void {
+		const provider = this._searchProvider.get(handle);
+		if (!provider) {
+			throw new Error('Got result for unknown provider');
+		}
+
+		provider.handleKeywordResult(session, data);
+	}
+
+	$handleTelemetry(eventName: string, data: ITelemetryData | undefined): void {
 		this._telemetryService.publicLog(eventName, data);
 	}
 }
@@ -82,9 +102,10 @@ class SearchOperation {
 	private static _idPool = 0;
 
 	constructor(
-		readonly progress?: (match: IFileMatch) => any,
+		readonly progress?: (match: IFileMatch | AISearchKeyword) => unknown,
 		readonly id: number = ++SearchOperation._idPool,
-		readonly matches = new Map<string, IFileMatch>()
+		readonly matches = new Map<string, IFileMatch>(),
+		readonly keywords: AISearchKeyword[] = []
 	) {
 		//
 	}
@@ -104,12 +125,18 @@ class SearchOperation {
 
 		this.progress?.(match);
 	}
+
+	addKeyword(result: AISearchKeyword): void {
+		this.keywords.push(result);
+		this.progress?.(result);
+	}
 }
 
 class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 
 	private readonly _registrations = new DisposableStore();
 	private readonly _searches = new Map<number, SearchOperation>();
+	private cachedAIName: string | undefined;
 
 	constructor(
 		searchService: ISearchService,
@@ -119,6 +146,13 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 		private readonly _proxy: ExtHostSearchShape
 	) {
 		this._registrations.add(searchService.registerSearchResultProvider(this._scheme, type, this));
+	}
+
+	async getAIName(): Promise<string | undefined> {
+		if (this.cachedAIName === undefined) {
+			this.cachedAIName = await this._proxy.$getAIName(this._handle);
+		}
+		return this.cachedAIName;
 	}
 
 	dispose(): void {
@@ -145,7 +179,7 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 
 		return Promise.resolve(searchP).then((result: ISearchCompleteStats) => {
 			this._searches.delete(search.id);
-			return { results: Array.from(search.matches.values()), stats: result.stats, limitHit: result.limitHit, messages: result.messages };
+			return { results: Array.from(search.matches.values()), aiKeywords: Array.from(search.keywords), stats: result.stats, limitHit: result.limitHit, messages: result.messages };
 		}, err => {
 			this._searches.delete(search.id);
 			return Promise.reject(err);
@@ -173,6 +207,16 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 				});
 			}
 		});
+	}
+
+	handleKeywordResult(session: number, data: AISearchKeyword): void {
+		const searchOp = this._searches.get(session);
+
+		if (!searchOp) {
+			// ignore...
+			return;
+		}
+		searchOp.addKeyword(data);
 	}
 
 	private _provideSearchResults(query: ISearchQuery, session: number, token: CancellationToken): Promise<ISearchCompleteStats> {

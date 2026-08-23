@@ -3,26 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { join } from 'vs/base/common/path';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
-import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { IUntitledTextEditorModel, UntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { EditorInputCapabilities } from 'vs/workbench/common/editor';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { isReadable, isReadableStream } from 'vs/base/common/stream';
-import { readableToBuffer, streamToBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { LanguageDetectionLanguageEventSource } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { timeout } from 'vs/base/common/async';
+import assert from 'assert';
+import { URI } from '../../../../../base/common/uri.js';
+import { join } from '../../../../../base/common/path.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IUntitledTextEditorService, UntitledTextEditorService } from '../../common/untitledTextEditorService.js';
+import { workbenchInstantiationService, TestServiceAccessor, TestEditorInput } from '../../../../test/browser/workbenchTestServices.js';
+import { snapshotToString } from '../../../textfile/common/textfiles.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../../editor/common/languages/modesRegistry.js';
+import { ISingleEditOperation } from '../../../../../editor/common/core/editOperation.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { UntitledTextEditorInput } from '../../common/untitledTextEditorInput.js';
+import { IUntitledTextEditorModel, UntitledTextEditorModel } from '../../common/untitledTextEditorModel.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { EditorInputCapabilities } from '../../../../common/editor.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { isReadable, isReadableStream } from '../../../../../base/common/stream.js';
+import { readableToBuffer, streamToBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../../../base/common/buffer.js';
+import { LanguageDetectionLanguageEventSource } from '../../../languageDetection/common/languageDetectionWorkerService.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { UntitledTextEditorWorkingCopyEditorHandler } from '../../common/untitledTextEditorHandler.js';
+import { NO_TYPE_ID } from '../../../workingCopy/common/workingCopy.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { timeout } from '../../../../../base/common/async.js';
 
 suite('Untitled text editors', () => {
 
@@ -618,6 +621,70 @@ suite('Untitled text editors', () => {
 
 		const canDispose2 = service.canDispose(model as UntitledTextEditorModel);
 		assert.strictEqual(canDispose2, true);
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+});
+
+suite('UntitledTextEditorWorkingCopyEditorHandler', () => {
+
+	const disposables = new DisposableStore();
+	let instantiationService: IInstantiationService;
+	let handler: UntitledTextEditorWorkingCopyEditorHandler;
+
+	setup(() => {
+		instantiationService = workbenchInstantiationService(undefined, disposables);
+		const accessor = instantiationService.createInstance(TestServiceAccessor);
+		disposables.add(accessor.untitledTextEditorService as UntitledTextEditorService);
+		handler = disposables.add(instantiationService.createInstance(UntitledTextEditorWorkingCopyEditorHandler));
+	});
+
+	teardown(() => {
+		disposables.clear();
+	});
+
+	test('handles only untitled working copies with no type id', () => {
+		const untitledResource = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
+
+		assert.strictEqual(handler.handles({ resource: untitledResource, typeId: NO_TYPE_ID }), true);
+		assert.strictEqual(handler.handles({ resource: untitledResource, typeId: 'someTypeId' }), false);
+		assert.strictEqual(handler.handles({ resource: URI.file('/test.txt'), typeId: NO_TYPE_ID }), false);
+	});
+
+	test('isOpen matches UntitledTextEditorInput with same resource', () => {
+		const untitledResource = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
+		const workingCopy = { resource: untitledResource, typeId: NO_TYPE_ID };
+
+		const untitledInput = disposables.add(instantiationService.createInstance(UntitledTextEditorInput, instantiationService.createInstance(TestServiceAccessor).untitledTextEditorService.create({ untitledResource })));
+		assert.strictEqual(handler.isOpen(workingCopy, untitledInput), true);
+	});
+
+	test('isOpen matches non-UntitledTextEditorInput editors with same untitled resource', () => {
+		const untitledResource = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
+		const workingCopy = { resource: untitledResource, typeId: NO_TYPE_ID };
+
+		// A custom editor (or any other editor type) sharing the same untitled resource
+		// should be recognized as representing this working copy to prevent duplicate
+		// tabs on backup restoration.
+		const customEditorInput = disposables.add(new TestEditorInput(untitledResource, 'customEditorType'));
+		assert.strictEqual(handler.isOpen(workingCopy, customEditorInput), true);
+	});
+
+	test('isOpen does not match editors with different resource', () => {
+		const untitledResource1 = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
+		const untitledResource2 = URI.from({ scheme: Schemas.untitled, path: 'Untitled-2' });
+		const workingCopy = { resource: untitledResource1, typeId: NO_TYPE_ID };
+
+		const otherInput = disposables.add(new TestEditorInput(untitledResource2, 'customEditorType'));
+		assert.strictEqual(handler.isOpen(workingCopy, otherInput), false);
+	});
+
+	test('isOpen returns false for non-untitled working copies', () => {
+		const fileResource = URI.file('/test.txt');
+		const workingCopy = { resource: fileResource, typeId: NO_TYPE_ID };
+
+		const editor = disposables.add(new TestEditorInput(fileResource, 'testType'));
+		assert.strictEqual(handler.isOpen(workingCopy, editor), false);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

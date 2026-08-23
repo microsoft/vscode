@@ -3,24 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/notificationsActions';
-import { INotificationViewItem } from 'vs/workbench/common/notifications';
-import { localize } from 'vs/nls';
-import { Action } from 'vs/base/common/actions';
-import { CLEAR_NOTIFICATION, EXPAND_NOTIFICATION, COLLAPSE_NOTIFICATION, CLEAR_ALL_NOTIFICATIONS, HIDE_NOTIFICATIONS_CENTER, TOGGLE_DO_NOT_DISTURB_MODE, TOGGLE_DO_NOT_DISTURB_MODE_BY_SOURCE } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { ThemeIcon } from 'vs/base/common/themables';
+import './media/notificationsActions.css';
+import { INotificationViewItem, NotificationsPosition } from '../../../common/notifications.js';
+import { localize } from '../../../../nls.js';
+import { Action } from '../../../../base/common/actions.js';
+import { CLEAR_NOTIFICATION, EXPAND_NOTIFICATION, COLLAPSE_NOTIFICATION, CLEAR_ALL_NOTIFICATIONS, HIDE_NOTIFICATIONS_CENTER, TOGGLE_DO_NOT_DISTURB_MODE, TOGGLE_DO_NOT_DISTURB_MODE_BY_SOURCE } from './notificationsCommands.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 
 const clearIcon = registerIcon('notifications-clear', Codicon.close, localize('clearIcon', 'Icon for the clear action in notifications.'));
 const clearAllIcon = registerIcon('notifications-clear-all', Codicon.clearAll, localize('clearAllIcon', 'Icon for the clear all action in notifications.'));
-const hideIcon = registerIcon('notifications-hide', Codicon.chevronDown, localize('hideIcon', 'Icon for the hide action in notifications.'));
+export const hideIcon = registerIcon('notifications-hide', Codicon.chevronDown, localize('hideIcon', 'Icon for the hide action in notifications.'));
+export const hideUpIcon = registerIcon('notifications-hide-up', Codicon.chevronUp, localize('hideUpIcon', 'Icon for the hide action in notifications when positioned at the top.'));
 const expandIcon = registerIcon('notifications-expand', Codicon.chevronUp, localize('expandIcon', 'Icon for the expand action in notifications.'));
+const expandDownIcon = registerIcon('notifications-expand-down', Codicon.chevronDown, localize('expandDownIcon', 'Icon for the expand action in notifications when the notification center is at the top.'));
 const collapseIcon = registerIcon('notifications-collapse', Codicon.chevronDown, localize('collapseIcon', 'Icon for the collapse action in notifications.'));
+const collapseUpIcon = registerIcon('notifications-collapse-up', Codicon.chevronUp, localize('collapseUpIcon', 'Icon for the collapse action in notifications when the notification center is at the top.'));
 const configureIcon = registerIcon('notifications-configure', Codicon.gear, localize('configureIcon', 'Icon for the configure action in notifications.'));
 const doNotDisturbIcon = registerIcon('notifications-do-not-disturb', Codicon.bellSlash, localize('doNotDisturbIcon', 'Icon for the mute all action in notifications.'));
+export const positionIcon = registerIcon('notifications-position', Codicon.arrowSwap, localize('positionIcon', 'Icon for the position action in notifications.'));
+
+export function getNotificationExpandIcon(position: NotificationsPosition): ThemeIcon {
+	return position === NotificationsPosition.TOP_RIGHT ? expandDownIcon : expandIcon;
+}
+
+export function getNotificationCollapseIcon(position: NotificationsPosition): ThemeIcon {
+	return position === NotificationsPosition.TOP_RIGHT ? collapseUpIcon : collapseIcon;
+}
 
 export class ClearNotificationAction extends Action {
 
@@ -104,6 +116,19 @@ export class ConfigureDoNotDisturbAction extends Action {
 		label: string
 	) {
 		super(id, label, ThemeIcon.asClassName(doNotDisturbIcon));
+	}
+}
+
+export class ConfigureNotificationsPositionAction extends Action {
+
+	static readonly ID = 'workbench.action.configureNotificationsPosition';
+	static readonly LABEL = localize('configureNotificationsPosition', "Configure Notifications Position...");
+
+	constructor(
+		id: string,
+		label: string
+	) {
+		super(id, label, ThemeIcon.asClassName(positionIcon));
 	}
 }
 

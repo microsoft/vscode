@@ -21,8 +21,10 @@
 	position: relative;
 	overflow: visible;
 	-webkit-text-size-adjust: 100%;
+	text-spacing-trim: space-all;
 	color: var(--vscode-editor-foreground);
 	background-color: var(--vscode-editor-background);
+	overflow-wrap: initial;
 }
 .monaco-editor-background {
 	background-color: var(--vscode-editor-background);
@@ -42,6 +44,14 @@
 }
 .monaco-editor.hc-black .symbolHighlight, .monaco-editor.hc-light .symbolHighlight {
 	border-style: dotted;
+}
+
+.monaco-editor .editorCanvas {
+	position: absolute;
+	width: 100%;
+	height: 100%;
+	z-index: 0;
+	pointer-events: none;
 }
 
 /* -------------------- Misc -------------------- */

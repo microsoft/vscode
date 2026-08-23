@@ -3,35 +3,44 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThreadDocumentsAndEditors';
-import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ModelService } from 'vs/editor/common/services/modelService';
-import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta } from 'vs/workbench/api/common/extHost.protocol';
-import { createTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { mock } from 'vs/base/test/common/mock';
-import { TestEditorService, TestEditorGroupsService, TestEnvironmentService, TestPathService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { Event } from 'vs/base/common/event';
-import { ITextModel } from 'vs/editor/common/model';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
-import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { TestTextResourcePropertiesService, TestWorkingCopyFileService } from 'vs/workbench/test/common/workbenchTestServices';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { LanguageService } from 'vs/editor/common/services/languageService';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { MainThreadDocumentsAndEditors } from '../../browser/mainThreadDocumentsAndEditors.js';
+import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
+import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ModelService } from '../../../../editor/common/services/modelService.js';
+import { TestCodeEditorService } from '../../../../editor/test/browser/editorTestServices.js';
+import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import { IDocumentsAndEditorsDelta } from '../../common/extHost.protocol.js';
+import { createTestCodeEditor, ITestCodeEditor } from '../../../../editor/test/browser/testCodeEditor.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import { TestEditorService, TestEditorGroupsService, TestEnvironmentService, TestPathService } from '../../../test/browser/workbenchTestServices.js';
+import { Event } from '../../../../base/common/event.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { TestThemeService } from '../../../../platform/theme/test/common/testThemeService.js';
+import { UndoRedoService } from '../../../../platform/undoRedo/common/undoRedoService.js';
+import { TestDialogService } from '../../../../platform/dialogs/test/common/testDialogService.js';
+import { TestNotificationService } from '../../../../platform/notification/test/common/testNotificationService.js';
+import { TestTextResourcePropertiesService, TestWorkingCopyFileService } from '../../../test/common/workbenchTestServices.js';
+import { UriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentityService.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
+import { TextModel } from '../../../../editor/common/model/textModel.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { LanguageService } from '../../../../editor/common/services/languageService.js';
+import { ILanguageConfigurationService } from '../../../../editor/common/languages/languageConfigurationRegistry.js';
+import { TestLanguageConfigurationService } from '../../../../editor/test/common/modes/testLanguageConfigurationService.js';
+import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.js';
+import { IQuickDiffModelService } from '../../../contrib/scm/browser/quickDiffModel.js';
+import { ITextEditorDiffInformation } from '../../../../platform/editor/common/editor.js';
+import { ITreeSitterLibraryService } from '../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
+import { TestTreeSitterLibraryService } from '../../../../editor/test/common/services/testTreeSitterLibraryService.js';
+import { URI } from '../../../../base/common/uri.js';
 
 suite('MainThreadDocumentsAndEditors', () => {
 
@@ -40,6 +49,8 @@ suite('MainThreadDocumentsAndEditors', () => {
 	let modelService: ModelService;
 	let codeEditorService: TestCodeEditorService;
 	let textFileService: ITextFileService;
+	let mainThreadDocumentsAndEditors: MainThreadDocumentsAndEditors;
+	let propertyChanges: number;
 	const deltas: IDocumentsAndEditorsDelta[] = [];
 
 	function myCreateTestCodeEditor(model: ITextModel | undefined): ITestCodeEditor {
@@ -55,27 +66,39 @@ suite('MainThreadDocumentsAndEditors', () => {
 		disposables = new DisposableStore();
 
 		deltas.length = 0;
+		propertyChanges = 0;
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('editor', { 'detectIndentation': false });
 		const dialogService = new TestDialogService();
 		const notificationService = new TestNotificationService();
 		const undoRedoService = new UndoRedoService(dialogService, notificationService);
 		const themeService = new TestThemeService();
+		const instantiationService = new TestInstantiationService();
+		instantiationService.set(ILanguageService, disposables.add(new LanguageService()));
+		instantiationService.set(ILanguageConfigurationService, new TestLanguageConfigurationService());
+		instantiationService.set(ITreeSitterLibraryService, new TestTreeSitterLibraryService());
+		instantiationService.set(IUndoRedoService, undoRedoService);
 		modelService = new ModelService(
 			configService,
 			new TestTextResourcePropertiesService(configService),
 			undoRedoService,
-			disposables.add(new LanguageService()),
-			new TestLanguageConfigurationService(),
+			instantiationService
 		);
 		codeEditorService = new TestCodeEditorService(themeService);
 		textFileService = new class extends mock<ITextFileService>() {
 			override isDirty() { return false; }
+			// eslint-disable-next-line local/code-no-any-casts
 			override files = <any>{
 				onDidSave: Event.None,
 				onDidRevert: Event.None,
-				onDidChangeDirty: Event.None
+				onDidChangeDirty: Event.None,
+				onDidChangeEncoding: Event.None
 			};
+			// eslint-disable-next-line local/code-no-any-casts
+			override untitled = <any>{
+				onDidChangeEncoding: Event.None
+			};
+			override getEncoding() { return 'utf8'; }
 		};
 		const workbenchEditorService = disposables.add(new TestEditorService());
 		const editorGroupService = new TestEditorGroupsService();
@@ -86,9 +109,11 @@ suite('MainThreadDocumentsAndEditors', () => {
 			override onDidChangeFileSystemProviderRegistrations = Event.None;
 		};
 
-		new MainThreadDocumentsAndEditors(
-			SingleProxyRPCProtocol(new class extends mock<ExtHostDocumentsAndEditorsShape>() {
-				override $acceptDocumentsAndEditorsDelta(delta: IDocumentsAndEditorsDelta) { deltas.push(delta); }
+		mainThreadDocumentsAndEditors = disposables.add(new MainThreadDocumentsAndEditors(
+			SingleProxyRPCProtocol({
+				$acceptDocumentsAndEditorsDelta: (delta: IDocumentsAndEditorsDelta) => { deltas.push(delta); },
+				$acceptEditorDiffInformation: (id: string, diffInformation: ITextEditorDiffInformation | undefined) => { },
+				$acceptEditorPropertiesChanged: () => { propertyChanges++; }
 			}),
 			modelService,
 			textFileService,
@@ -114,7 +139,12 @@ suite('MainThreadDocumentsAndEditors', () => {
 			},
 			new TestPathService(),
 			new TestConfigurationService(),
-		);
+			new class extends mock<IQuickDiffModelService>() {
+				override createQuickDiffModelReference() {
+					return undefined;
+				}
+			}
+		));
 	});
 
 	teardown(() => {
@@ -236,6 +266,58 @@ suite('MainThreadDocumentsAndEditors', () => {
 		model.dispose();
 	});
 
+	test('fires expected add/remove events on editor lifecycle', () => {
+		deltas.length = 0;
+
+		const removedEditorEventsFromService: string[] = [];
+		const removedViaEditorDispose: string[] = [];
+
+		const model = modelService.createModel('farboo', null);
+		const editor = myCreateTestCodeEditor(model);
+		const editorId = `${editor.getId()},${model.id}`;
+
+		disposables.add(codeEditorService.onCodeEditorRemove((editorToRemove) => {
+			removedEditorEventsFromService.push(editorToRemove.getId());
+		}));
+		disposables.add(editor.onDidDispose(() => {
+			removedViaEditorDispose.push(editor.getId());
+		}));
+
+		assert.strictEqual(deltas.length, 2);
+
+		const addedDocumentDelta = deltas.find((delta) => delta.addedDocuments?.length === 1);
+		assert.ok(addedDocumentDelta);
+		assert.strictEqual(URI.revive(addedDocumentDelta.addedDocuments![0].uri).toString(), model.uri.toString());
+		assert.strictEqual(addedDocumentDelta.addedEditors, undefined);
+		assert.strictEqual(addedDocumentDelta.removedEditors, undefined);
+		assert.strictEqual(addedDocumentDelta.removedDocuments, undefined);
+
+		const addedEditorDelta = deltas.find((delta) => delta.addedEditors?.some((editorDto) => editorDto.id === editorId));
+		assert.ok(addedEditorDelta);
+		assert.strictEqual(mainThreadDocumentsAndEditors.getIdOfCodeEditor(editor), editorId);
+		assert.strictEqual(addedEditorDelta.addedEditors?.length, 1);
+		assert.strictEqual(addedEditorDelta.addedEditors![0].id, editorId);
+		assert.strictEqual(URI.revive(addedEditorDelta.addedEditors![0].documentUri).toString(), model.uri.toString());
+
+		editor.dispose();
+
+		assert.deepStrictEqual(removedViaEditorDispose, [editor.getId()]);
+		assert.deepStrictEqual(removedEditorEventsFromService, [editor.getId()]);
+		const removedEditorDelta = deltas.find((delta) => delta.removedEditors?.includes(editorId));
+		assert.ok(removedEditorDelta);
+		assert.deepStrictEqual(removedEditorDelta.removedEditors, [editorId]);
+		assert.strictEqual(removedEditorDelta.removedDocuments, undefined);
+
+		assert.strictEqual(mainThreadDocumentsAndEditors.getIdOfCodeEditor(editor), undefined);
+		assert.strictEqual(mainThreadDocumentsAndEditors.getEditor(editorId), undefined);
+
+		model.dispose();
+
+		const removedDocumentDelta = deltas.find((delta) => delta.removedDocuments?.some((uri) => URI.revive(uri).toString() === model.uri.toString()));
+		assert.ok(removedDocumentDelta);
+		assert.deepStrictEqual(removedDocumentDelta.removedDocuments?.map((uri) => URI.revive(uri).toString()), [model.uri.toString()]);
+	});
+
 	test('editor with dispos-ed/-ing model', () => {
 		const model = modelService.createModel('farboo', null);
 		const editor = myCreateTestCodeEditor(model);
@@ -252,6 +334,31 @@ suite('MainThreadDocumentsAndEditors', () => {
 		assert.strictEqual(first.removedDocuments!.length, 1);
 		assert.strictEqual(first.addedDocuments, undefined);
 		assert.strictEqual(first.addedEditors, undefined);
+
+		editor.dispose();
+		model.dispose();
+	});
+
+	test('dispose removes editor listeners', () => {
+		const model = modelService.createModel('farboo', null);
+		const editor = myCreateTestCodeEditor(model);
+		const mainThreadTextEditor = mainThreadDocumentsAndEditors.getEditor(`${editor.getId()},${model.id}`);
+		assert.ok(mainThreadTextEditor);
+
+		let directPropertyChanges = 0;
+		disposables.add(mainThreadTextEditor.onPropertiesChanged(() => directPropertyChanges++));
+		const propertyChangesBeforeUpdate = propertyChanges;
+		const directPropertyChangesBeforeUpdate = directPropertyChanges;
+		editor.updateOptions({ lineNumbers: 'off' });
+		assert.ok(propertyChanges > propertyChangesBeforeUpdate);
+		assert.ok(directPropertyChanges > directPropertyChangesBeforeUpdate);
+		const propertyChangesAfterUpdate = propertyChanges;
+		const directPropertyChangesAfterUpdate = directPropertyChanges;
+
+		mainThreadDocumentsAndEditors.dispose();
+		editor.updateOptions({ lineNumbers: 'on' });
+		assert.strictEqual(propertyChanges, propertyChangesAfterUpdate);
+		assert.strictEqual(directPropertyChanges, directPropertyChangesAfterUpdate);
 
 		editor.dispose();
 		model.dispose();

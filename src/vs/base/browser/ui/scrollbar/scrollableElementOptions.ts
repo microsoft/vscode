@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { ScrollbarVisibility } from '../../../common/scrollable.js';
 
 export interface ScrollableElementCreationOptions {
 	/**
@@ -30,6 +30,10 @@ export interface ScrollableElementCreationOptions {
 	 * Defaults to true.
 	 */
 	mouseWheelSmoothScroll?: boolean;
+	/**
+	 * Make scrolling inertial - mostly useful with touchpad on linux.
+	 */
+	inertialScroll?: boolean;
 	/**
 	 * Flip axes. Treat vertical scrolling like horizontal and vice-versa.
 	 * Defaults to false.
@@ -151,6 +155,7 @@ export interface ScrollableElementResolvedOptions {
 	fastScrollSensitivity: number;
 	scrollPredominantAxis: boolean;
 	mouseWheelSmoothScroll: boolean;
+	inertialScroll: boolean;
 	arrowSize: number;
 	listenOnDomNode: HTMLElement | null;
 	horizontal: ScrollbarVisibility;

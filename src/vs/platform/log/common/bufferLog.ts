@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AbstractMessageLogger, DEFAULT_LOG_LEVEL, ILogger, log, LogLevel } from 'vs/platform/log/common/log';
+import { MutableDisposable } from '../../../base/common/lifecycle.js';
+import { AbstractMessageLogger, DEFAULT_LOG_LEVEL, ILogger, log, LogLevel } from './log.js';
 
 interface ILog {
 	level: LogLevel;
@@ -15,17 +16,17 @@ export class BufferLogger extends AbstractMessageLogger {
 	declare readonly _serviceBrand: undefined;
 	private buffer: ILog[] = [];
 	private _logger: ILogger | undefined = undefined;
+	private readonly _logLevelDisposable = this._register(new MutableDisposable());
 
 	constructor(logLevel: LogLevel = DEFAULT_LOG_LEVEL) {
 		super();
 		this.setLevel(logLevel);
-		this._register(this.onDidChangeLogLevel(level => {
-			this._logger?.setLevel(level);
-		}));
 	}
 
 	set logger(logger: ILogger) {
 		this._logger = logger;
+		this.setLevel(logger.getLevel());
+		this._logLevelDisposable.value = logger.onDidChangeLogLevel(this.setLevel, this);
 
 		for (const { level, message } of this.buffer) {
 			log(logger, level, message);

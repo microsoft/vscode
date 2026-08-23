@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareBy } from 'vs/base/common/arrays';
-import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
-import { isDefined } from 'vs/base/common/types';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { TextLength } from 'vs/editor/common/core/textLength';
-import { RangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
-import { ModifiedBaseRange } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
-import { addLength, lengthBetweenPositions, lengthOfRange } from 'vs/workbench/contrib/mergeEditor/browser/model/rangeUtils';
+import { compareBy } from '../../../../../base/common/arrays.js';
+import { assertFn, checkAdjacentItems } from '../../../../../base/common/assert.js';
+import { isDefined } from '../../../../../base/common/types.js';
+import { Position } from '../../../../../editor/common/core/position.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { TextLength } from '../../../../../editor/common/core/text/textLength.js';
+import { RangeMapping } from '../model/mapping.js';
+import { ModifiedBaseRange } from '../model/modifiedBaseRange.js';
+import { addLength, lengthBetweenPositions, lengthOfRange } from '../model/rangeUtils.js';
 
 export type LineAlignment = [input1LineNumber: number | undefined, baseLineNumber: number, input2LineNumber: number | undefined];
 
 export function getAlignments(m: ModifiedBaseRange): LineAlignment[] {
-	const equalRanges1 = toEqualRangeMappings(m.input1Diffs.flatMap(d => d.rangeMappings), m.baseRange.toRange(), m.input1Range.toRange());
-	const equalRanges2 = toEqualRangeMappings(m.input2Diffs.flatMap(d => d.rangeMappings), m.baseRange.toRange(), m.input2Range.toRange());
+	const equalRanges1 = toEqualRangeMappings(m.input1Diffs.flatMap(d => d.rangeMappings), m.baseRange.toExclusiveRange(), m.input1Range.toExclusiveRange());
+	const equalRanges2 = toEqualRangeMappings(m.input2Diffs.flatMap(d => d.rangeMappings), m.baseRange.toExclusiveRange(), m.input2Range.toExclusiveRange());
 
 	const commonRanges = splitUpCommonEqualRangeMappings(equalRanges1, equalRanges2);
 

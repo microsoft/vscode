@@ -2,11 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { DocumentDropEdit } from 'vs/editor/common/languages';
-import { sortEditsByYieldTo } from 'vs/editor/contrib/dropOrPasteInto/browser/edit';
+import assert from 'assert';
+import { HierarchicalKind } from '../../../../../base/common/hierarchicalKind.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { DocumentDropEdit } from '../../../../common/languages.js';
+import { sortEditsByYieldTo } from '../../browser/edit.js';
 
 
 function createTestEdit(kind: string, args?: Partial<DocumentDropEdit>): DocumentDropEdit {

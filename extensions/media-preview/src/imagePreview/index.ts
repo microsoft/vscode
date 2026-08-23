@@ -5,13 +5,14 @@
 
 import * as vscode from 'vscode';
 import { BinarySizeStatusBarEntry } from '../binarySizeStatusBarEntry';
-import { MediaPreview, PreviewState, reopenAsText } from '../mediaPreview';
-import { escapeAttribute, getNonce } from '../util/dom';
+import { MediaPreview, PreviewState, isGitLfsPointer, reopenAsText } from '../mediaPreview';
+import { escapeAttribute } from '../util/dom';
+import { generateUuid } from '../util/uuid';
 import { SizeStatusBarEntry } from './sizeStatusBarEntry';
 import { Scale, ZoomStatusBarEntry } from './zoomStatusBarEntry';
 
 
-export class PreviewManager implements vscode.CustomReadonlyEditorProvider {
+export class ImagePreviewManager implements vscode.CustomReadonlyEditorProvider {
 
 	public static readonly viewType = 'imagePreview.previewEditor';
 
@@ -48,7 +49,20 @@ export class PreviewManager implements vscode.CustomReadonlyEditorProvider {
 		});
 	}
 
-	public get activePreview() { return this._activePreview; }
+	public get activePreview() {
+		return this._activePreview;
+	}
+
+	public getPreviewFor(resource: vscode.Uri, viewColumn?: vscode.ViewColumn): ImagePreview | undefined {
+		for (const preview of this._previews) {
+			if (preview.resource.toString() === resource.toString()) {
+				if (!viewColumn || preview.viewColumn === viewColumn) {
+					return preview;
+				}
+			}
+		}
+		return undefined;
+	}
 
 	private setActivePreview(value: ImagePreview | undefined): void {
 		this._activePreview = value;
@@ -60,8 +74,6 @@ class ImagePreview extends MediaPreview {
 
 	private _imageSize: string | undefined;
 	private _imageZoom: Scale | undefined;
-
-	private readonly emptyPngDataUri = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAEElEQVR42gEFAPr/AP///wAI/AL+Sr4t6gAAAABJRU5ErkJggg==';
 
 	constructor(
 		private readonly extensionRoot: vscode.Uri,
@@ -94,12 +106,12 @@ class ImagePreview extends MediaPreview {
 
 		this._register(zoomStatusBarEntry.onDidChangeScale(e => {
 			if (this.previewState === PreviewState.Active) {
-				this.webviewEditor.webview.postMessage({ type: 'setScale', scale: e.scale });
+				this._webviewEditor.webview.postMessage({ type: 'setScale', scale: e.scale });
 			}
 		}));
 
 		this._register(webviewEditor.onDidChangeViewState(() => {
-			this.webviewEditor.webview.postMessage({ type: 'setActive', value: this.webviewEditor.active });
+			this._webviewEditor.webview.postMessage({ type: 'setActive', value: this._webviewEditor.active });
 		}));
 
 		this._register(webviewEditor.onDidDispose(() => {
@@ -113,8 +125,6 @@ class ImagePreview extends MediaPreview {
 		this.updateBinarySize();
 		this.render();
 		this.updateState();
-
-		this.webviewEditor.webview.postMessage({ type: 'setActive', value: this.webviewEditor.active });
 	}
 
 	public override dispose(): void {
@@ -123,22 +133,26 @@ class ImagePreview extends MediaPreview {
 		this.zoomStatusBarEntry.hide(this);
 	}
 
+	public get viewColumn() {
+		return this._webviewEditor.viewColumn;
+	}
+
 	public zoomIn() {
 		if (this.previewState === PreviewState.Active) {
-			this.webviewEditor.webview.postMessage({ type: 'zoomIn' });
+			this._webviewEditor.webview.postMessage({ type: 'zoomIn' });
 		}
 	}
 
 	public zoomOut() {
 		if (this.previewState === PreviewState.Active) {
-			this.webviewEditor.webview.postMessage({ type: 'zoomOut' });
+			this._webviewEditor.webview.postMessage({ type: 'zoomOut' });
 		}
 	}
 
 	public copyImage() {
 		if (this.previewState === PreviewState.Active) {
-			this.webviewEditor.reveal();
-			this.webviewEditor.webview.postMessage({ type: 'copyImage' });
+			this._webviewEditor.reveal();
+			this._webviewEditor.webview.postMessage({ type: 'copyImage' });
 		}
 	}
 
@@ -149,7 +163,7 @@ class ImagePreview extends MediaPreview {
 			return;
 		}
 
-		if (this.webviewEditor.active) {
+		if (this._webviewEditor.active) {
 			this.sizeStatusBarEntry.show(this, this._imageSize || '');
 			this.zoomStatusBarEntry.show(this, this._imageZoom || 'fit');
 		} else {
@@ -158,15 +172,22 @@ class ImagePreview extends MediaPreview {
 		}
 	}
 
+	protected override async render(): Promise<void> {
+		await super.render();
+		this._webviewEditor.webview.postMessage({ type: 'setActive', value: this._webviewEditor.active });
+	}
+
 	protected override async getWebviewContents(): Promise<string> {
 		const version = Date.now().toString();
+		const src = await this.getResourcePath(this._webviewEditor, this._resource, version);
 		const settings = {
-			src: await this.getResourcePath(this.webviewEditor, this.resource, version),
+			src,
+			isGitLfs: src === null,
 		};
 
-		const nonce = getNonce();
+		const nonce = generateUuid();
 
-		const cspSource = this.webviewEditor.webview.cspSource;
+		const cspSource = this._webviewEditor.webview.cspSource;
 		return /* html */`<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -189,17 +210,18 @@ class ImagePreview extends MediaPreview {
 		<p>${vscode.l10n.t("An error occurred while loading the image.")}</p>
 		<a href="#" class="open-file-link">${vscode.l10n.t("Open file using VS Code's standard text/binary editor?")}</a>
 	</div>
+	<div class="git-lfs-info">
+		<p>${vscode.l10n.t("The image is stored with Git LFS and is not available for preview.")}</p>
+		<a href="#" class="open-file-link">${vscode.l10n.t("Open file using VS Code's standard text/binary editor?")}</a>
+	</div>
 	<script src="${escapeAttribute(this.extensionResource('media', 'imagePreview.js'))}" nonce="${nonce}"></script>
 </body>
 </html>`;
 	}
 
-	private async getResourcePath(webviewEditor: vscode.WebviewPanel, resource: vscode.Uri, version: string): Promise<string> {
-		if (resource.scheme === 'git') {
-			const stat = await vscode.workspace.fs.stat(resource);
-			if (stat.size === 0) {
-				return this.emptyPngDataUri;
-			}
+	private async getResourcePath(webviewEditor: vscode.WebviewPanel, resource: vscode.Uri, version: string): Promise<string | null> {
+		if (await isGitLfsPointer(resource)) {
+			return null;
 		}
 
 		// Avoid adding cache busting if there is already a query string
@@ -210,7 +232,12 @@ class ImagePreview extends MediaPreview {
 	}
 
 	private extensionResource(...parts: string[]) {
-		return this.webviewEditor.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionRoot, ...parts));
+		return this._webviewEditor.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionRoot, ...parts));
+	}
+
+	public async reopenAsText() {
+		await vscode.commands.executeCommand('reopenActiveEditorWith', 'default');
+		this._webviewEditor.dispose();
 	}
 }
 
@@ -224,9 +251,9 @@ export function registerImagePreviewSupport(context: vscode.ExtensionContext, bi
 	const zoomStatusBarEntry = new ZoomStatusBarEntry();
 	disposables.push(zoomStatusBarEntry);
 
-	const previewManager = new PreviewManager(context.extensionUri, sizeStatusBarEntry, binarySizeStatusBarEntry, zoomStatusBarEntry);
+	const previewManager = new ImagePreviewManager(context.extensionUri, sizeStatusBarEntry, binarySizeStatusBarEntry, zoomStatusBarEntry);
 
-	disposables.push(vscode.window.registerCustomEditorProvider(PreviewManager.viewType, previewManager, {
+	disposables.push(vscode.window.registerCustomEditorProvider(ImagePreviewManager.viewType, previewManager, {
 		supportsMultipleEditorsPerDocument: true,
 	}));
 
@@ -240,6 +267,15 @@ export function registerImagePreviewSupport(context: vscode.ExtensionContext, bi
 
 	disposables.push(vscode.commands.registerCommand('imagePreview.copyImage', () => {
 		previewManager.activePreview?.copyImage();
+	}));
+
+	disposables.push(vscode.commands.registerCommand('imagePreview.reopenAsText', async () => {
+		return previewManager.activePreview?.reopenAsText();
+	}));
+
+	disposables.push(vscode.commands.registerCommand('imagePreview.reopenAsPreview', async () => {
+
+		await vscode.commands.executeCommand('reopenActiveEditorWith', ImagePreviewManager.viewType);
 	}));
 
 	return vscode.Disposable.from(...disposables);

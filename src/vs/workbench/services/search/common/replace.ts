@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
-import { IPatternInfo } from 'vs/workbench/services/search/common/search';
-import { CharCode } from 'vs/base/common/charCode';
-import { buildReplaceStringWithCasePreserved } from 'vs/base/common/search';
+import * as strings from '../../../../base/common/strings.js';
+import { IPatternInfo } from './search.js';
+import { CharCode } from '../../../../base/common/charCode.js';
+import { buildReplaceStringWithCasePreserved } from '../../../../base/common/search.js';
 
 export class ReplacePattern {
 

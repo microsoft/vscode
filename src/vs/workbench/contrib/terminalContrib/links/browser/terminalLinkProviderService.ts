@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITerminalExternalLinkProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ITerminalLinkProviderService } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { ITerminalExternalLinkProvider } from '../../../terminal/browser/terminal.js';
+import { ITerminalLinkProviderService } from './links.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
 
 export class TerminalLinkProviderService implements ITerminalLinkProviderService {
 	declare _serviceBrand: undefined;

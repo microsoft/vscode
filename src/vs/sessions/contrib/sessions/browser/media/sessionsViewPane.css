@@ -1,0 +1,232 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agent-sessions-viewpane {
+
+	.agent-sessions-container {
+		display: flex;
+		flex-direction: column;
+		height: 100%;
+		overflow: hidden;
+	}
+
+	.agent-sessions-sidebar-splitview-container {
+		flex: 1;
+		min-height: 0;
+		overflow: hidden;
+	}
+
+	.agent-sessions-sidebar-splitview-container .monaco-split-view2.separator-border.vertical > .monaco-scrollable-element > .split-view-container > .split-view-view:not(:first-child)::before {
+		left: var(--vscode-spacing-size40, 4px);
+		width: calc(100% - (2 * var(--vscode-spacing-size40, 4px)));
+	}
+
+	.agent-sessions-sidebar-splitview-container .monaco-split-view2.vertical > .sash-container > .monaco-sash.horizontal {
+		left: var(--vscode-spacing-size40, 4px) !important;
+		width: calc(100% - (2 * var(--vscode-spacing-size40, 4px))) !important;
+	}
+
+	/* Section headers - more prominent than time-based groupings */
+	.agent-sessions-header {
+		font-size: var(--vscode-agents-fontSize-body2);
+		font-weight: var(--vscode-agents-fontWeight-semiBold);
+		text-transform: uppercase;
+		color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground));
+		padding: 6px 20px 6px 12px;
+		letter-spacing: 0.05em;
+	}
+
+	.agent-sessions-chevron {
+		flex-shrink: 0;
+		opacity: 0;
+		transition: opacity 0.1s ease-in-out;
+	}
+
+	.agent-sessions-header:hover .agent-sessions-chevron,
+	.agent-sessions-header:focus .agent-sessions-chevron {
+		opacity: 0.7;
+	}
+
+	/* Sessions section - fills remaining space above customizations */
+	.agent-sessions-section {
+		display: flex;
+		flex-direction: column;
+		flex: 1;
+		overflow: hidden;
+		min-height: 0;
+	}
+
+	.agent-sessions-header {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		padding-top: 10px;
+		padding-right: 12px;
+		-webkit-user-select: none;
+		user-select: none;
+	}
+
+	.agent-sessions-header .agent-sessions-header-toolbar {
+		margin-left: auto;
+	}
+
+	.agent-sessions-header:focus {
+		outline: 1px solid var(--vscode-focusBorder);
+		outline-offset: -1px;
+	}
+
+	.agent-sessions-content {
+		display: flex;
+		flex-direction: column;
+		flex: 1;
+		overflow: hidden;
+	}
+
+	.agent-sessions-content.collapsed {
+		display: none;
+	}
+
+	/* Header row: label + action buttons */
+	.agent-sessions-header-row {
+		display: flex;
+		align-items: center;
+		padding: 8px 10px;
+		min-height: 40px;
+		box-sizing: border-box;
+		-webkit-user-select: none;
+		user-select: none;
+	}
+
+	.agent-sessions-header-label {
+		flex: 1;
+		min-width: 0;
+		font-size: var(--vscode-agents-fontSize-label1, 12px);
+		font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
+		color: var(--vscode-sideBar-foreground, var(--vscode-foreground));
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.agent-sessions-header-actions {
+		display: flex;
+		align-items: center;
+		margin-left: auto;
+		flex-shrink: 0;
+	}
+
+	.agent-sessions-header-actions .actions-container {
+		gap: 4px;
+	}
+
+	/* Inline search input — replaces label + actions when active */
+	.agent-sessions-find-widget-container {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.agent-sessions-find-widget-container > .monaco-tree-type-filter {
+		position: static;
+		display: flex;
+		width: 100%;
+		max-width: none;
+		margin: 0;
+		padding: 0;
+		border: none;
+		border-radius: 0;
+		box-shadow: none !important;
+		background: transparent;
+		background-color: transparent !important;
+	}
+
+	.agent-sessions-find-widget-container .monaco-tree-type-filter .monaco-tree-type-filter-input {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.agent-sessions-find-widget-container > .monaco-tree-type-filter .monaco-tree-type-filter-input > .monaco-findInput > .monaco-inputbox {
+		display: flex;
+		align-items: center;
+		min-height: 24px;
+		box-sizing: border-box;
+	}
+
+	.agent-sessions-find-widget-container > .monaco-tree-type-filter .monaco-tree-type-filter-input > .monaco-findInput > .controls {
+		top: 1.5px;
+	}
+
+	/* Match the find widget's close button size to the header toolbar action buttons (22x22) */
+	.agent-sessions-find-widget-container > .monaco-tree-type-filter > .monaco-tree-type-filter-actionbar .monaco-action-bar .action-label {
+		width: 22px;
+		height: 22px;
+		padding: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	/* Compact "New" button in header — styled in media/newSessionActionViewItem.css so the same widget can also render in the titlebar. */
+
+	.agent-sessions-control-container {
+		flex: 1;
+		overflow: hidden;
+	}
+
+	.agent-sessions-customizations-section {
+		overflow: hidden;
+		min-height: 0;
+	}
+}
+.agent-sessions-workbench.shell-gradient-background .agent-sessions-viewpane {
+	background: transparent !important;
+}
+
+.agent-sessions-workbench.shell-gradient-background .part.sidebar > .content .pane-body,
+.agent-sessions-workbench.shell-gradient-background .part.sidebar > .content .monaco-scrollable-element,
+.agent-sessions-workbench.shell-gradient-background .part.sidebar > .content .monaco-list,
+.agent-sessions-workbench.shell-gradient-background .part.sidebar > .content .monaco-list-rows {
+	background: transparent !important;
+}
+
+/* Sessions-app-specific overrides for the agent sessions viewer.
+ * These styles only apply within the agent-sessions-workbench context. */
+
+.agent-sessions-workbench {
+
+	/*
+	 * Show-more / show-less: content always rendered, list row height
+	 * controls visibility (1px = clipped, 26px = visible).
+	 * Height animation is driven by JS (requestAnimationFrame) since
+	 * the virtualized list uses absolute positioning.
+	 */
+	.agent-session-show-more {
+		justify-content: center;
+		align-items: center;
+		padding: 0 6px;
+		font-size: var(--vscode-agents-fontSize-label2, 11px);
+		color: var(--vscode-descriptionForeground);
+		min-height: 26px;
+
+		.agent-session-show-more-label {
+			padding: 0 6px;
+			flex-shrink: 0;
+			white-space: nowrap;
+		}
+
+		/* Lines on both sides of the text as flex items */
+		&::before,
+		&::after {
+			content: '';
+			flex: 1;
+			height: 1px;
+			background: var(--vscode-widget-border, var(--vscode-contrastBorder));
+		}
+	}
+
+	/* Brighter text on direct hover */
+	.monaco-list-row:hover .agent-session-show-more:hover {
+		color: var(--vscode-foreground);
+	}
+}

@@ -3,15 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { firstOrDefault } from 'vs/base/common/arrays';
-import { EditorInputCapabilities, Verbosity, GroupIdentifier, ISaveOptions, IRevertOptions, IMoveResult, IEditorDescriptor, IEditorPane, IUntypedEditorInput, EditorResourceAccessor, AbstractEditorInput, isEditorInput, IEditorIdentifier } from 'vs/workbench/common/editor';
-import { isEqual } from 'vs/base/common/resources';
-import { ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/base/common/themables';
+import { Emitter } from '../../../base/common/event.js';
+import { URI } from '../../../base/common/uri.js';
+import { EditorInputCapabilities, Verbosity, GroupIdentifier, ISaveOptions, IRevertOptions, IMoveResult, IEditorDescriptor, IEditorPane, IUntypedEditorInput, EditorResourceAccessor, AbstractEditorInput, isEditorInput, IEditorIdentifier } from '../editor.js';
+import { isEqual } from '../../../base/common/resources.js';
+import { ConfirmResult } from '../../../platform/dialogs/common/dialogs.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
 
 export interface IEditorCloseHandler {
 
@@ -184,7 +183,7 @@ export abstract class EditorInput extends AbstractEditorInput {
 	 * Returns the icon which represents this editor input.
 	 * If undefined, the default icon will be used.
 	 */
-	getIcon(): ThemeIcon | undefined {
+	getIcon(): ThemeIcon | URI | undefined {
 		return undefined;
 	}
 
@@ -302,6 +301,16 @@ export abstract class EditorInput extends AbstractEditorInput {
 	}
 
 	/**
+	 * Indicates if this editor can be reopened after being closed. By default
+	 * editors can be reopened. Subclasses can override to prevent this.
+	 *
+	 * @returns `true` if the editor can be reopened after being closed.
+	 */
+	canReopen(): boolean {
+		return true;
+	}
+
+	/**
 	 * Returns if the other object matches this input.
 	 */
 	matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
@@ -330,7 +339,7 @@ export abstract class EditorInput extends AbstractEditorInput {
 	 * for the editor to open in.
 	 */
 	prefersEditorPane<T extends IEditorDescriptor<IEditorPane>>(editorPanes: T[]): T | undefined {
-		return firstOrDefault(editorPanes);
+		return editorPanes.at(0);
 	}
 
 	/**

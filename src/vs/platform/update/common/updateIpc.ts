@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IUpdateService, State } from 'vs/platform/update/common/update';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
+import { IUpdateService, State } from './update.js';
 
 export class UpdateChannel implements IServerChannel {
 
@@ -22,12 +23,13 @@ export class UpdateChannel implements IServerChannel {
 	call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'checkForUpdates': return this.service.checkForUpdates(arg);
-			case 'downloadUpdate': return this.service.downloadUpdate();
+			case 'downloadUpdate': return this.service.downloadUpdate(arg);
 			case 'applyUpdate': return this.service.applyUpdate();
 			case 'quitAndInstall': return this.service.quitAndInstall();
 			case '_getInitialState': return Promise.resolve(this.service.state);
 			case 'isLatestVersion': return this.service.isLatestVersion();
 			case '_applySpecificUpdate': return this.service._applySpecificUpdate(arg);
+			case 'setInternalOrg': return this.service.setInternalOrg(arg);
 		}
 
 		throw new Error(`Call not found: ${command}`);
@@ -37,8 +39,9 @@ export class UpdateChannel implements IServerChannel {
 export class UpdateChannelClient implements IUpdateService {
 
 	declare readonly _serviceBrand: undefined;
+	private readonly disposables = new DisposableStore();
 
-	private readonly _onStateChange = new Emitter<State>();
+	private readonly _onStateChange = this.disposables.add(new Emitter<State>());
 	readonly onStateChange: Event<State> = this._onStateChange.event;
 
 	private _state: State = State.Uninitialized;
@@ -49,7 +52,7 @@ export class UpdateChannelClient implements IUpdateService {
 	}
 
 	constructor(private readonly channel: IChannel) {
-		this.channel.listen<State>('onStateChange')(state => this.state = state);
+		this.disposables.add(this.channel.listen<State>('onStateChange')(state => this.state = state));
 		this.channel.call<State>('_getInitialState').then(state => this.state = state);
 	}
 
@@ -57,8 +60,8 @@ export class UpdateChannelClient implements IUpdateService {
 		return this.channel.call('checkForUpdates', explicit);
 	}
 
-	downloadUpdate(): Promise<void> {
-		return this.channel.call('downloadUpdate');
+	downloadUpdate(explicit: boolean): Promise<void> {
+		return this.channel.call('downloadUpdate', explicit);
 	}
 
 	applyUpdate(): Promise<void> {
@@ -75,5 +78,13 @@ export class UpdateChannelClient implements IUpdateService {
 
 	_applySpecificUpdate(packagePath: string): Promise<void> {
 		return this.channel.call('_applySpecificUpdate', packagePath);
+	}
+
+	setInternalOrg(internalOrg: string | undefined): Promise<void> {
+		return this.channel.call('setInternalOrg', internalOrg);
+	}
+
+	dispose(): void {
+		this.disposables.dispose();
 	}
 }

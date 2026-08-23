@@ -3,42 +3,53 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IMatch } from 'vs/base/common/filters';
-import { IPreparedQuery, pieceToQuery, prepareQuery, scoreFuzzy2 } from 'vs/base/common/fuzzyScorer';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { format, trim } from 'vs/base/common/strings';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { DocumentSymbol, SymbolKind, SymbolKinds, SymbolTag, getAriaLabelForSymbol } from 'vs/editor/common/languages';
-import { IOutlineModelService } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
-import { AbstractEditorNavigationQuickAccessProvider, IEditorNavigationQuickAccessOptions, IQuickAccessTextEditorContext } from 'vs/editor/contrib/quickAccess/browser/editorNavigationQuickAccess';
-import { localize } from 'vs/nls';
-import { IQuickInputButton, IQuickPick, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { Position } from 'vs/editor/common/core/position';
-import { findLast } from 'vs/base/common/arraysFind';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IMatch } from '../../../../base/common/filters.js';
+import { IPreparedQuery, pieceToQuery, prepareQuery, scoreFuzzy2 } from '../../../../base/common/fuzzyScorer.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { format, trim } from '../../../../base/common/strings.js';
+import { IRange, Range } from '../../../common/core/range.js';
+import { ScrollType } from '../../../common/editorCommon.js';
+import { ITextModel } from '../../../common/model.js';
+import { DocumentSymbol, SymbolKind, SymbolKinds, SymbolTag, getAriaLabelForSymbol } from '../../../common/languages.js';
+import { IOutlineModelService } from '../../documentSymbols/browser/outlineModel.js';
+import { AbstractEditorNavigationQuickAccessProvider, IEditorNavigationQuickAccessOptions, IQuickAccessTextEditorContext } from './editorNavigationQuickAccess.js';
+import { localize } from '../../../../nls.js';
+import { IKeyMods, IQuickInputButton, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
+import { Position } from '../../../common/core/position.js';
+import { findLast } from '../../../../base/common/arraysFind.js';
+import { IQuickAccessProviderRunOptions } from '../../../../platform/quickinput/common/quickAccess.js';
+import { URI } from '../../../../base/common/uri.js';
 
 export interface IGotoSymbolQuickPickItem extends IQuickPickItem {
 	kind: SymbolKind;
 	index: number;
 	score?: number;
+	uri?: URI;
+	symbolName?: string;
 	range?: { decoration: IRange; selection: IRange };
+	attach?(keyMods: IKeyMods, event: IQuickPickDidAcceptEvent): void;
 }
 
 export interface IGotoSymbolQuickAccessProviderOptions extends IEditorNavigationQuickAccessOptions {
 	openSideBySideDirection?: () => undefined | 'right' | 'down';
+	/**
+	 * A handler to invoke when an item is accepted for
+	 * this particular showing of the quick access.
+	 * @param item The item that was accepted.
+	 */
+	readonly handleAccept?: (item: IQuickPickItem) => void;
 }
 
 export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEditorNavigationQuickAccessProvider {
 
 	static PREFIX = '@';
 	static SCOPE_PREFIX = ':';
-	static PREFIX_BY_CATEGORY = `${AbstractGotoSymbolQuickAccessProvider.PREFIX}${AbstractGotoSymbolQuickAccessProvider.SCOPE_PREFIX}`;
+	static PREFIX_BY_CATEGORY = `${this.PREFIX}${this.SCOPE_PREFIX}`;
 
 	protected override readonly options: IGotoSymbolQuickAccessProviderOptions;
 
@@ -53,13 +64,13 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		this.options.canAcceptInBackground = true;
 	}
 
-	protected provideWithoutTextEditor(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable {
+	protected provideWithoutTextEditor(picker: IQuickPick<IGotoSymbolQuickPickItem, { useSeparators: true }>): IDisposable {
 		this.provideLabelPick(picker, localize('cannotRunGotoSymbolWithoutEditor', "To go to a symbol, first open a text editor with symbol information."));
 
 		return Disposable.None;
 	}
 
-	protected provideWithTextEditor(context: IQuickAccessTextEditorContext, picker: IQuickPick<IGotoSymbolQuickPickItem>, token: CancellationToken): IDisposable {
+	protected provideWithTextEditor(context: IQuickAccessTextEditorContext, picker: IQuickPick<IGotoSymbolQuickPickItem, { useSeparators: true }>, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): IDisposable {
 		const editor = context.editor;
 		const model = this.getModel(editor);
 		if (!model) {
@@ -68,7 +79,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 
 		// Provide symbols from model if available in registry
 		if (this._languageFeaturesService.documentSymbolProvider.has(model)) {
-			return this.doProvideWithEditorSymbols(context, model, picker, token);
+			return this.doProvideWithEditorSymbols(context, model, picker, token, runOptions);
 		}
 
 		// Otherwise show an entry for a model without registry
@@ -77,7 +88,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		return this.doProvideWithoutEditorSymbols(context, model, picker, token);
 	}
 
-	private doProvideWithoutEditorSymbols(context: IQuickAccessTextEditorContext, model: ITextModel, picker: IQuickPick<IGotoSymbolQuickPickItem>, token: CancellationToken): IDisposable {
+	private doProvideWithoutEditorSymbols(context: IQuickAccessTextEditorContext, model: ITextModel, picker: IQuickPick<IGotoSymbolQuickPickItem, { useSeparators: true }>, token: CancellationToken): IDisposable {
 		const disposables = new DisposableStore();
 
 		// Generic pick for not having any symbol information
@@ -100,7 +111,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		return disposables;
 	}
 
-	private provideLabelPick(picker: IQuickPick<IGotoSymbolQuickPickItem>, label: string): void {
+	private provideLabelPick(picker: IQuickPick<IGotoSymbolQuickPickItem, { useSeparators: true }>, label: string): void {
 		picker.items = [{ label, index: 0, kind: SymbolKind.String }];
 		picker.ariaLabel = label;
 	}
@@ -127,7 +138,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		return symbolProviderRegistryPromise.p;
 	}
 
-	private doProvideWithEditorSymbols(context: IQuickAccessTextEditorContext, model: ITextModel, picker: IQuickPick<IGotoSymbolQuickPickItem>, token: CancellationToken): IDisposable {
+	private doProvideWithEditorSymbols(context: IQuickAccessTextEditorContext, model: ITextModel, picker: IQuickPick<IGotoSymbolQuickPickItem, { useSeparators: true }>, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): IDisposable {
 		const editor = context.editor;
 		const disposables = new DisposableStore();
 
@@ -135,7 +146,16 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		disposables.add(picker.onDidAccept(event => {
 			const [item] = picker.selectedItems;
 			if (item && item.range) {
+				// When shift is held and attach is available, delegate to attach
+				// (e.g. to add to chat context) instead of navigating
+				if (picker.keyMods.shift && item.attach) {
+					item.attach(picker.keyMods, event);
+					return;
+				}
+
 				this.gotoLocation(context, { range: item.range.selection, keyMods: picker.keyMods, preserveFocus: event.inBackground });
+
+				runOptions?.handleAccept?.(item, event.inBackground);
 
 				if (!event.inBackground) {
 					picker.hide();
@@ -157,21 +177,21 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		const symbolsPromise = this.getDocumentSymbols(model, token);
 
 		// Set initial picks and update on type
-		let picksCts: CancellationTokenSource | undefined = undefined;
+		const picksCts = disposables.add(new MutableDisposable<CancellationTokenSource>());
 		const updatePickerItems = async (positionToEnclose: Position | undefined) => {
 
 			// Cancel any previous ask for picks and busy
-			picksCts?.dispose(true);
+			picksCts?.value?.cancel();
 			picker.busy = false;
 
 			// Create new cancellation source for this run
-			picksCts = new CancellationTokenSource(token);
+			picksCts.value = new CancellationTokenSource();
 
 			// Collect symbol picks
 			picker.busy = true;
 			try {
 				const query = prepareQuery(picker.value.substr(AbstractGotoSymbolQuickAccessProvider.PREFIX.length).trim());
-				const items = await this.doGetSymbolPicks(symbolsPromise, query, undefined, picksCts.token);
+				const items = await this.doGetSymbolPicks(symbolsPromise, query, undefined, picksCts.value.token, model);
 				if (token.isCancellationRequested) {
 					return;
 				}
@@ -218,7 +238,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		return disposables;
 	}
 
-	protected async doGetSymbolPicks(symbolsPromise: Promise<DocumentSymbol[]>, query: IPreparedQuery, options: { extraContainerLabel?: string } | undefined, token: CancellationToken): Promise<Array<IGotoSymbolQuickPickItem | IQuickPickSeparator>> {
+	protected async doGetSymbolPicks(symbolsPromise: Promise<DocumentSymbol[]>, query: IPreparedQuery, options: { extraContainerLabel?: string } | undefined, token: CancellationToken, model: ITextModel): Promise<Array<IGotoSymbolQuickPickItem | IQuickPickSeparator>> {
 		const symbols = await symbolsPromise;
 		if (token.isCancellationRequested) {
 			return [];
@@ -326,6 +346,8 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 					selection: Range.collapseToStart(symbol.selectionRange),
 					decoration: symbol.range
 				},
+				uri: model.uri,
+				symbolName: symbolLabel,
 				strikethrough: deprecated,
 				buttons
 			});

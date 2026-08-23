@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Mimes } from 'vs/base/common/mime';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { CellKind, CellUri, diff, MimeTypeDisplayOrder, NotebookWorkingCopyTypeIdentifier } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { cellIndexesToRanges, cellRangesToIndexes, reduceCellRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { setupInstantiationService, TestCell } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
+import assert from 'assert';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Mimes } from '../../../../../base/common/mime.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { CellKind, CellUri, diff, MimeTypeDisplayOrder, NotebookWorkingCopyTypeIdentifier } from '../../common/notebookCommon.js';
+import { cellIndexesToRanges, cellRangesToIndexes, reduceCellRanges } from '../../common/notebookRange.js';
+import { setupInstantiationService, TestCell } from './testNotebookEditor.js';
 
 suite('NotebookCommon', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -202,6 +202,24 @@ suite('NotebookCommon', () => {
 		const m2 = new MimeTypeDisplayOrder(['a', 'b']);
 		m2.prioritize('b', ['a', 'b', 'a', 'q']);
 		assert.deepStrictEqual(m2.toArray(), ['b', 'a']);
+
+		disposables.dispose();
+	});
+
+	test('prioritizes mimetypes with 10+ entries (numeric index sort)', () => {
+		// Regression for the case where `Array.from(uniqueIndices).sort()` did a
+		// lexicographic sort on numeric indices, so `[2, 10]` became `[10, 2]`
+		// and the reverse-splice loop removed the wrong entries.
+		const mimes = Array.from({ length: 12 }, (_, i) => `type/${i}`);
+		const m = new MimeTypeDisplayOrder(mimes);
+		assert.deepStrictEqual(m.toArray(), mimes);
+
+		m.prioritize('type/11', ['type/2', 'type/10']);
+		assert.deepStrictEqual(m.toArray(), [
+			'type/0', 'type/1', 'type/3', 'type/4', 'type/5',
+			'type/6', 'type/7', 'type/8', 'type/9', 'type/11',
+			'type/2', 'type/10',
+		]);
 
 		disposables.dispose();
 	});
@@ -410,10 +428,17 @@ suite('CellRange', function () {
 suite('NotebookWorkingCopyTypeIdentifier', function () {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('works', function () {
+	test('supports notebook type only', function () {
 		const viewType = 'testViewType';
-		const type = NotebookWorkingCopyTypeIdentifier.create('testViewType');
-		assert.strictEqual(NotebookWorkingCopyTypeIdentifier.parse(type), viewType);
+		const type = NotebookWorkingCopyTypeIdentifier.create(viewType);
+		assert.deepEqual(NotebookWorkingCopyTypeIdentifier.parse(type), { notebookType: viewType, viewType });
+		assert.strictEqual(NotebookWorkingCopyTypeIdentifier.parse('something'), undefined);
+	});
+
+	test('supports different viewtype', function () {
+		const notebookType = { notebookType: 'testNotebookType', viewType: 'testViewType' };
+		const type = NotebookWorkingCopyTypeIdentifier.create(notebookType.notebookType, notebookType.viewType);
+		assert.deepEqual(NotebookWorkingCopyTypeIdentifier.parse(type), notebookType);
 		assert.strictEqual(NotebookWorkingCopyTypeIdentifier.parse('something'), undefined);
 	});
 });

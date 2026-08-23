@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { FileWorkingCopyManager, IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
-import { NO_TYPE_ID, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { TestStoredFileWorkingCopyModel, TestStoredFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/test/browser/storedFileWorkingCopy.test';
-import { TestUntitledFileWorkingCopyModel, TestUntitledFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/test/browser/untitledFileWorkingCopy.test';
-import { TestInMemoryFileSystemProvider, TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import assert from 'assert';
+import { bufferToStream, VSBuffer } from '../../../../../base/common/buffer.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { FileWorkingCopyManager, IFileWorkingCopyManager } from '../../common/fileWorkingCopyManager.js';
+import { NO_TYPE_ID, WorkingCopyCapabilities } from '../../common/workingCopy.js';
+import { TestStoredFileWorkingCopyModel, TestStoredFileWorkingCopyModelFactory } from './storedFileWorkingCopy.test.js';
+import { TestUntitledFileWorkingCopyModel, TestUntitledFileWorkingCopyModelFactory } from './untitledFileWorkingCopy.test.js';
+import { TestInMemoryFileSystemProvider, TestServiceAccessor, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 suite('UntitledFileWorkingCopyManager', () => {
 
@@ -39,7 +39,7 @@ suite('UntitledFileWorkingCopyManager', () => {
 			accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService, accessor.fileDialogService,
 			accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
 			accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService, accessor.pathService,
-			accessor.environmentService, accessor.dialogService, accessor.decorationsService
+			accessor.environmentService, accessor.dialogService, accessor.decorationsService, accessor.progressService
 		));
 	});
 
@@ -246,6 +246,11 @@ suite('UntitledFileWorkingCopyManager', () => {
 	});
 
 	test('save - without associated resource', async () => {
+		let savedEvent: { source: URI; target: URI } | undefined = undefined;
+		disposables.add(manager.untitled.onDidSave(e => {
+			savedEvent = e;
+		}));
+
 		const workingCopy = await manager.untitled.resolve();
 		workingCopy.model?.updateContents('Simple Save');
 
@@ -255,11 +260,18 @@ suite('UntitledFileWorkingCopyManager', () => {
 		assert.ok(result);
 
 		assert.strictEqual(manager.untitled.get(workingCopy.resource), undefined);
+		assert.strictEqual(savedEvent!.source.toString(), workingCopy.resource.toString());
+		assert.strictEqual(savedEvent!.target.toString(), URI.file('simple/file.txt').toString());
 
 		workingCopy.dispose();
 	});
 
 	test('save - with associated resource', async () => {
+		let savedEvent: { source: URI; target: URI } | undefined = undefined;
+		disposables.add(manager.untitled.onDidSave(e => {
+			savedEvent = e;
+		}));
+
 		const workingCopy = await manager.untitled.resolve({ associatedResource: { path: '/some/associated.txt' } });
 		workingCopy.model?.updateContents('Simple Save with associated resource');
 
@@ -269,6 +281,8 @@ suite('UntitledFileWorkingCopyManager', () => {
 		assert.ok(result);
 
 		assert.strictEqual(manager.untitled.get(workingCopy.resource), undefined);
+		assert.strictEqual(savedEvent!.source.toString(), workingCopy.resource.toString());
+		assert.strictEqual(savedEvent!.target.toString(), URI.file('/some/associated.txt').toString());
 
 		workingCopy.dispose();
 	});
@@ -318,7 +332,7 @@ suite('UntitledFileWorkingCopyManager', () => {
 				accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService, accessor.fileDialogService,
 				accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
 				accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService, accessor.pathService,
-				accessor.environmentService, accessor.dialogService, accessor.decorationsService
+				accessor.environmentService, accessor.dialogService, accessor.decorationsService, accessor.progressService
 			));
 
 			const untitled1OriginalType = disposables.add(await manager.untitled.resolve());
@@ -340,7 +354,7 @@ suite('UntitledFileWorkingCopyManager', () => {
 				accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService, accessor.fileDialogService,
 				accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
 				accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService, accessor.pathService,
-				accessor.environmentService, accessor.dialogService, accessor.decorationsService
+				accessor.environmentService, accessor.dialogService, accessor.decorationsService, accessor.progressService
 			));
 
 			const result = disposables.add(await manager.untitled.resolve());

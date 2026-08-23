@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
+import { URI } from './uri.js';
 
 export function getOrSet<K, V>(map: Map<K, V>, key: K, value: V): V {
 	let result = map.get(key);
@@ -116,34 +116,34 @@ export class ResourceMap<T> implements Map<URI, T> {
 		return this.map.delete(this.toKey(resource));
 	}
 
-	forEach(clb: (value: T, key: URI, map: Map<URI, T>) => void, thisArg?: any): void {
+	forEach(clb: (value: T, key: URI, map: Map<URI, T>) => void, thisArg?: object): void {
 		if (typeof thisArg !== 'undefined') {
 			clb = clb.bind(thisArg);
 		}
 		for (const [_, entry] of this.map) {
-			clb(entry.value, entry.uri, <any>this);
+			clb(entry.value, entry.uri, this);
 		}
 	}
 
-	*values(): IterableIterator<T> {
+	*values(): MapIterator<T> {
 		for (const entry of this.map.values()) {
 			yield entry.value;
 		}
 	}
 
-	*keys(): IterableIterator<URI> {
+	*keys(): MapIterator<URI> {
 		for (const entry of this.map.values()) {
 			yield entry.uri;
 		}
 	}
 
-	*entries(): IterableIterator<[URI, T]> {
+	*entries(): MapIterator<[URI, T]> {
 		for (const entry of this.map.values()) {
 			yield [entry.uri, entry.value];
 		}
 	}
 
-	*[Symbol.iterator](): IterableIterator<[URI, T]> {
+	*[Symbol.iterator](): MapIterator<[URI, T]> {
 		for (const [, entry] of this.map) {
 			yield [entry.uri, entry.value];
 		}
@@ -185,7 +185,7 @@ export class ResourceSet implements Set<URI> {
 		return this._map.delete(value);
 	}
 
-	forEach(callbackfn: (value: URI, value2: URI, set: Set<URI>) => void, thisArg?: any): void {
+	forEach(callbackfn: (value: URI, value2: URI, set: Set<URI>) => void, thisArg?: unknown): void {
 		this._map.forEach((_value, key) => callbackfn.call(thisArg, key, key, this));
 	}
 
@@ -193,19 +193,19 @@ export class ResourceSet implements Set<URI> {
 		return this._map.has(value);
 	}
 
-	entries(): IterableIterator<[URI, URI]> {
-		return this._map.entries();
+	entries(): SetIterator<[URI, URI]> {
+		return this._map.entries() as unknown as SetIterator<[URI, URI]>;
 	}
 
-	keys(): IterableIterator<URI> {
-		return this._map.keys();
+	keys(): SetIterator<URI> {
+		return this._map.keys() as unknown as SetIterator<URI>;
 	}
 
-	values(): IterableIterator<URI> {
-		return this._map.keys();
+	values(): SetIterator<URI> {
+		return this._map.keys() as unknown as SetIterator<URI>;
 	}
 
-	[Symbol.iterator](): IterableIterator<URI> {
+	[Symbol.iterator](): SetIterator<URI> {
 		return this.keys();
 	}
 }
@@ -340,7 +340,7 @@ export class LinkedMap<K, V> implements Map<K, V> {
 		return item.value;
 	}
 
-	forEach(callbackfn: (value: V, key: K, map: LinkedMap<K, V>) => void, thisArg?: any): void {
+	forEach(callbackfn: (value: V, key: K, map: Map<K, V>) => void, thisArg?: unknown): void {
 		const state = this._state;
 		let current = this._head;
 		while (current) {
@@ -356,14 +356,15 @@ export class LinkedMap<K, V> implements Map<K, V> {
 		}
 	}
 
-	keys(): IterableIterator<K> {
+	keys(): MapIterator<K> {
 		const map = this;
 		const state = this._state;
 		let current = this._head;
-		const iterator: IterableIterator<K> = {
+		const iterator: MapIterator<K> = {
 			[Symbol.iterator]() {
 				return iterator;
 			},
+			[Symbol.dispose]() { /* no-op */ },
 			next(): IteratorResult<K> {
 				if (map._state !== state) {
 					throw new Error(`LinkedMap got modified during iteration.`);
@@ -380,14 +381,15 @@ export class LinkedMap<K, V> implements Map<K, V> {
 		return iterator;
 	}
 
-	values(): IterableIterator<V> {
+	values(): MapIterator<V> {
 		const map = this;
 		const state = this._state;
 		let current = this._head;
-		const iterator: IterableIterator<V> = {
+		const iterator: MapIterator<V> = {
 			[Symbol.iterator]() {
 				return iterator;
 			},
+			[Symbol.dispose]() { /* no-op */ },
 			next(): IteratorResult<V> {
 				if (map._state !== state) {
 					throw new Error(`LinkedMap got modified during iteration.`);
@@ -404,14 +406,15 @@ export class LinkedMap<K, V> implements Map<K, V> {
 		return iterator;
 	}
 
-	entries(): IterableIterator<[K, V]> {
+	entries(): MapIterator<[K, V]> {
 		const map = this;
 		const state = this._state;
 		let current = this._head;
-		const iterator: IterableIterator<[K, V]> = {
+		const iterator: MapIterator<[K, V]> = {
 			[Symbol.iterator]() {
 				return iterator;
 			},
+			[Symbol.dispose]() { /* no-op */ },
 			next(): IteratorResult<[K, V]> {
 				if (map._state !== state) {
 					throw new Error(`LinkedMap got modified during iteration.`);
@@ -428,7 +431,7 @@ export class LinkedMap<K, V> implements Map<K, V> {
 		return iterator;
 	}
 
-	[Symbol.iterator](): IterableIterator<[K, V]> {
+	[Symbol.iterator](): MapIterator<[K, V]> {
 		return this.entries();
 	}
 
@@ -767,6 +770,10 @@ export class BidirectionalMap<K, V> {
 	}
 
 	set(key: K, value: V): void {
+		const previousValue = this._m1.get(key);
+		if (previousValue !== undefined) {
+			this._m2.delete(previousValue);
+		}
 		this._m1.set(key, value);
 		this._m2.set(value, key);
 	}
@@ -789,7 +796,7 @@ export class BidirectionalMap<K, V> {
 		return true;
 	}
 
-	forEach(callbackfn: (value: V, key: K, map: BidirectionalMap<K, V>) => void, thisArg?: any): void {
+	forEach(callbackfn: (value: V, key: K, map: BidirectionalMap<K, V>) => void, thisArg?: unknown): void {
 		this._m1.forEach((value, key) => {
 			callbackfn.call(thisArg, value, key, this);
 		});
@@ -874,4 +881,140 @@ export function mapsStrictEqualIgnoreOrder(a: Map<unknown, unknown>, b: Map<unkn
 	}
 
 	return true;
+}
+
+/**
+ * A map that is addressable with an arbitrary number of keys. This is useful in high performance
+ * scenarios where creating a composite key whenever the data is accessed is too expensive. For
+ * example for a very hot function, constructing a string like `first-second-third` for every call
+ * will cause a significant hit to performance.
+ */
+export class NKeyMap<TValue, TKeys extends (string | boolean | number)[]> {
+	private _data: Map<any, any> = new Map();
+
+	/**
+	 * Sets a value on the map. Note that unlike a standard `Map`, the first argument is the value.
+	 * This is because the spread operator is used for the keys and must be last..
+	 * @param value The value to set.
+	 * @param keys The keys for the value.
+	 */
+	public set(value: TValue, ...keys: [...TKeys]): void {
+		let currentMap = this._data;
+		for (let i = 0; i < keys.length - 1; i++) {
+			let nextMap = currentMap.get(keys[i]);
+			if (nextMap === undefined) {
+				nextMap = new Map();
+				currentMap.set(keys[i], nextMap);
+			}
+			currentMap = nextMap;
+		}
+		currentMap.set(keys[keys.length - 1], value);
+	}
+
+	public get(...keys: [...TKeys]): TValue | undefined {
+		let currentMap = this._data;
+		for (let i = 0; i < keys.length - 1; i++) {
+			const nextMap = currentMap.get(keys[i]);
+			if (nextMap === undefined) {
+				return undefined;
+			}
+			currentMap = nextMap;
+		}
+		return currentMap.get(keys[keys.length - 1]);
+	}
+
+	public delete(...keys: [...TKeys]): boolean {
+		const maps: Map<any, any>[] = [this._data];
+		let currentMap = this._data;
+		for (let i = 0; i < keys.length - 1; i++) {
+			const nextMap = currentMap.get(keys[i]);
+			if (nextMap === undefined) {
+				return false;
+			}
+			currentMap = nextMap;
+			maps.push(currentMap);
+		}
+		const deleted = currentMap.delete(keys[keys.length - 1]);
+		for (let i = keys.length - 2; deleted && i >= 0; i--) {
+			if (maps[i + 1].size === 0) {
+				maps[i].delete(keys[i]);
+			}
+		}
+		return deleted;
+	}
+
+	public deleteAll(...keys: Partial<TKeys>): boolean {
+		if (keys.length === 0) {
+			const hadData = this._data.size > 0;
+			this._data.clear();
+			return hadData;
+		}
+		const maps: Map<any, any>[] = [this._data];
+		let currentMap = this._data;
+		for (let i = 0; i < keys.length - 1; i++) {
+			const nextMap = currentMap.get(keys[i]);
+			if (nextMap === undefined) {
+				return false;
+			}
+			currentMap = nextMap;
+			maps.push(currentMap);
+		}
+		const deleted = currentMap.delete(keys[keys.length - 1]);
+		for (let i = keys.length - 2; deleted && i >= 0; i--) {
+			if (maps[i + 1].size === 0) {
+				maps[i].delete(keys[i]);
+			}
+		}
+		return deleted;
+	}
+
+	public clear(): void {
+		this._data.clear();
+	}
+
+	public *getAll(...keys: Partial<TKeys>): IterableIterator<TValue> {
+		let currentMap = this._data;
+		for (const key of keys) {
+			const nextMap = currentMap.get(key);
+			if (nextMap === undefined) {
+				return;
+			}
+			currentMap = nextMap;
+		}
+		yield* this._values(currentMap);
+	}
+
+	public *values(): IterableIterator<TValue> {
+		yield* this._values(this._data);
+	}
+
+	private *_values(map: Map<any, any>): IterableIterator<TValue> {
+		for (const value of map.values()) {
+			if (value instanceof Map) {
+				yield* this._values(value);
+			} else {
+				yield value;
+			}
+		}
+	}
+
+	/**
+	 * Get a textual representation of the map for debugging purposes.
+	 */
+	public toString(): string {
+		const printMap = (map: Map<any, any>, depth: number): string => {
+			let result = '';
+			for (const [key, value] of map) {
+				result += `${'  '.repeat(depth)}${key}: `;
+				if (value instanceof Map) {
+					result += '\n' + printMap(value, depth + 1);
+				} else {
+					result += `${value}\n`;
+				}
+			}
+			return result;
+		};
+
+		return printMap(this._data, 0);
+	}
 }

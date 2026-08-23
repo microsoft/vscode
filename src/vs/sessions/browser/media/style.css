@@ -1,0 +1,106 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* ---- Action Bar Items ---- */
+
+/* Default rounded hover/active background for all action bar items in the
+ * agents window. Components that need a different shape (e.g. circular avatars
+ * or the workspace profile icon) override this with higher-specificity rules. */
+.agent-sessions-workbench .monaco-action-bar .action-label {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.agent-sessions-workbench .monaco-action-bar .action-item .action-label.separator {
+	margin: 0px 4px !important;
+}
+
+.agent-sessions-workbench .monaco-dropdown-with-default {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+/* ---- Scrollbars ---- */
+
+/* Thinner, rounded scrollbar sliders scoped to the agents app.
+ * The scrollbar widget sets the slider's size inline to match the full
+ * track. We hide that default background and paint a narrower, rounded
+ * slider with an inset ::before pseudo-element so all four corners round
+ * consistently and the full hit area is preserved. */
+.agent-sessions-workbench .monaco-scrollable-element > .scrollbar > .slider {
+	background: transparent !important;
+}
+
+.agent-sessions-workbench .monaco-scrollable-element > .scrollbar.vertical > .slider::before,
+.agent-sessions-workbench .monaco-scrollable-element > .scrollbar.horizontal > .slider::before {
+	content: '';
+	position: absolute;
+	inset: 1px;
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: var(--vscode-scrollbarSlider-background);
+}
+
+.agent-sessions-workbench .monaco-scrollable-element > .scrollbar > .slider:hover::before {
+	background: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+.agent-sessions-workbench .monaco-scrollable-element > .scrollbar > .slider.active::before {
+	background: var(--vscode-scrollbarSlider-activeBackground);
+}
+
+/* ---- Sessions Action Widget Pickers ---- */
+
+.agent-sessions-workbench .action-widget {
+	background-color: var(--vscode-agentsPanel-background);
+}
+
+.agent-sessions-workbench .action-widget .action-widget-action-bar,
+.agent-sessions-workbench .action-widget .action-list-filter {
+	background-color: var(--vscode-agentsPanel-background);
+}
+
+.agent-sessions-workbench .action-widget .action-list-filter-row {
+	padding-right: 0;
+}
+
+.agent-sessions-workbench .action-widget .monaco-scrollable-element > .monaco-list-rows {
+	background-color: var(--vscode-agentsPanel-background) !important;
+}
+
+/* ---- Sessions Quick Picks ---- */
+
+.agent-sessions-workbench .quick-input-widget,
+.agent-sessions-workbench .quick-input-titlebar {
+	background-color: var(--vscode-agentsPanel-background) !important;
+}
+
+.agent-sessions-workbench .quick-input-header,
+.agent-sessions-workbench .quick-input-html-widget,
+.agent-sessions-workbench .quick-input-list .monaco-scrollable-element > .monaco-list-rows,
+.agent-sessions-workbench .quick-input-tree .monaco-scrollable-element > .monaco-list-rows {
+	background-color: var(--vscode-agentsPanel-background) !important;
+}
+
+.agent-sessions-workbench .quick-input-header {
+	border-radius: var(--vscode-cornerRadius-xLarge);
+}
+
+/* ---- Sessions Context Menus ---- */
+
+.agent-sessions-workbench .context-view.monaco-menu-container,
+.agent-sessions-workbench .context-view.monaco-menu-container .monaco-menu,
+.agent-sessions-workbench .context-view.monaco-menu-container .monaco-scrollable-element {
+	background-color: var(--vscode-agentsPanel-background) !important;
+}
+
+/* ---- Widget Customizations ---- */
+
+/* Action Widget */
+.agent-sessions-workbench .action-widget .monaco-list .monaco-list-row {
+	padding-right: 0;
+}
+
+/* Badge */
+.agent-sessions-workbench .badge > .badge-content {
+	border-radius: var(--vscode-cornerRadius-small) !important;
+}

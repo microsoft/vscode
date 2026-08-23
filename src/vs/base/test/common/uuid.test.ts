@@ -2,9 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import * as uuid from 'vs/base/common/uuid';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import * as uuid from '../../common/uuid.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('UUID', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -22,5 +22,18 @@ suite('UUID', () => {
 			const value = uuid.generateUuid();
 			assert.ok(uuid.isUUID(value));
 		}
+	});
+
+	test('prefixedUuid', () => {
+		const namespace = 'abc';
+		const result = uuid.prefixedUuid(namespace);
+
+		assert.ok(result.startsWith(`${namespace}-`), `Expected "${result}" to start with "${namespace}-"`);
+
+		const expectedLength = namespace.length + 1 + 36;
+		assert.strictEqual(result.length, expectedLength);
+
+		const uuidPart = result.slice(namespace.length + 1);
+		assert.ok(uuid.isUUID(uuidPart), `Expected "${uuidPart}" to be a valid UUID`);
 	});
 });

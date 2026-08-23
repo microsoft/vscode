@@ -3,21 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
-import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
-import { Event } from 'vs/base/common/event';
-import { INotebookRendererInfo, NotebookData, TransientOptions, IOrderedMimeType, IOutputDto, INotebookContributionData, NotebookExtensionDescription, INotebookStaticPreloadInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IFileStatWithMetadata, IWriteFileOptions } from 'vs/platform/files/common/files';
-import { ITextQuery } from 'vs/workbench/services/search/common/search';
-import { NotebookPriorityInfo } from 'vs/workbench/contrib/search/common/search';
-import { INotebookFileMatchNoModel } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { URI } from '../../../../base/common/uri.js';
+import { NotebookProviderInfo } from './notebookProvider.js';
+import { Event } from '../../../../base/common/event.js';
+import { INotebookRendererInfo, NotebookData, TransientOptions, IOrderedMimeType, IOutputDto, INotebookContributionData, NotebookExtensionDescription, INotebookStaticPreloadInfo } from './notebookCommon.js';
+import { NotebookTextModel } from './model/notebookTextModel.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { NotebookCellTextModel } from './model/notebookCellTextModel.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { VSBuffer, VSBufferReadableStream } from '../../../../base/common/buffer.js';
+import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
+import { IFileStatWithMetadata, IWriteFileOptions } from '../../../../platform/files/common/files.js';
+import { ITextQuery } from '../../../services/search/common/search.js';
+import { NotebookPriorityInfo } from '../../search/common/search.js';
+import { INotebookFileMatchNoModel } from '../../search/common/searchNotebookHelpers.js';
+import { SnapshotContext } from '../../../services/workingCopy/common/fileWorkingCopy.js';
 
 
 export const INotebookService = createDecorator<INotebookService>('notebookService');
@@ -65,6 +66,7 @@ export interface INotebookService {
 
 	registerNotebookSerializer(viewType: string, extensionData: NotebookExtensionDescription, serializer: INotebookSerializer): IDisposable;
 	withNotebookDataProvider(viewType: string): Promise<SimpleNotebookProviderInfo>;
+	tryGetDataProviderSync(viewType: string): SimpleNotebookProviderInfo | undefined;
 
 	getOutputMimeTypeInfo(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined, output: IOutputDto): readonly IOrderedMimeType[];
 
@@ -78,7 +80,9 @@ export interface INotebookService {
 	updateMimePreferredRenderer(viewType: string, mimeType: string, rendererId: string, otherMimetypes: readonly string[]): void;
 	saveMimeDisplayOrder(target: ConfigurationTarget): void;
 
-	createNotebookTextModel(viewType: string, uri: URI, data: NotebookData, transientOptions: TransientOptions): NotebookTextModel;
+	createNotebookTextModel(viewType: string, uri: URI, stream?: VSBufferReadableStream): Promise<NotebookTextModel>;
+	createNotebookTextDocumentSnapshot(uri: URI, context: SnapshotContext, token: CancellationToken): Promise<VSBufferReadableStream>;
+	restoreNotebookTextModelFromSnapshot(uri: URI, viewType: string, snapshot: VSBufferReadableStream): Promise<NotebookTextModel>;
 	getNotebookTextModel(uri: URI): NotebookTextModel | undefined;
 	getNotebookTextModels(): Iterable<NotebookTextModel>;
 	listNotebookDocuments(): readonly NotebookTextModel[];
@@ -87,6 +91,7 @@ export interface INotebookService {
 	registerContributedNotebookType(viewType: string, data: INotebookContributionData): IDisposable;
 	getContributedNotebookType(viewType: string): NotebookProviderInfo | undefined;
 	getContributedNotebookTypes(resource?: URI): readonly NotebookProviderInfo[];
+	hasSupportedNotebooks(resource: URI): boolean;
 	getNotebookProviderResourceRoots(): URI[];
 
 	setToCopy(items: NotebookCellTextModel[], isCopy: boolean): void;

@@ -3,21 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
-import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { resolveDefaultNewChatSessionType } from '../../common/constants.js';
+import { getChatSessionType, getNewChatSessionResource } from '../../common/model/chatUri.js';
+import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
+import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 
-export async function clearChatEditor(accessor: ServicesAccessor): Promise<void> {
+export async function clearChatEditor(accessor: ServicesAccessor, chatEditorInput?: ChatEditorInput, targetSessionType?: string): Promise<void> {
 	const editorService = accessor.get(IEditorService);
-	const editorGroupsService = accessor.get(IEditorGroupsService);
 
-	const chatEditorInput = editorService.activeEditor;
+	if (!chatEditorInput) {
+		const editorInput = editorService.activeEditor;
+		chatEditorInput = editorInput instanceof ChatEditorInput ? editorInput : undefined;
+	}
+
 	if (chatEditorInput instanceof ChatEditorInput) {
+		const currentResource = chatEditorInput.sessionResource;
+		const currentSessionType = currentResource ? getChatSessionType(currentResource) : undefined;
+		const resolved = resolveDefaultNewChatSessionType(accessor, {
+			explicitOverride: targetSessionType,
+			currentSessionType,
+		});
+		const resource = getNewChatSessionResource(resolved.sessionType);
+
+		// A chat editor can only be open in one group
+		const identifier = editorService.findEditors(chatEditorInput.resource)[0];
 		await editorService.replaceEditors([{
 			editor: chatEditorInput,
-			replacement: { resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true } satisfies IChatEditorOptions }
-		}], editorGroupsService.activeGroup);
+			replacement: { resource, options: { pinned: true } satisfies IChatEditorOptions }
+		}], identifier.groupId);
 	}
 }

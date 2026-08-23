@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Range } from 'vs/editor/common/core/range';
-import { MATCHES_LIMIT } from './findModel';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Range } from '../../../common/core/range.js';
+import { MATCHES_LIMIT } from './findModel.js';
 
 export interface FindReplaceStateChangedEvent {
 	moveCursor: boolean;

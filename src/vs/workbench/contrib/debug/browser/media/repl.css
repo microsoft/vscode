@@ -11,9 +11,13 @@
 	overflow: hidden;
 }
 
-.monaco-workbench .repl .repl-tree .monaco-tl-contents {
+.monaco-workbench .repl .repl-tree .monaco-tl-contents,
+.monaco-workbench .repl .repl-tree .monaco-tl-twistie {
 	user-select: text;
 	-webkit-user-select: text;
+}
+
+.monaco-workbench .repl .repl-tree .monaco-tl-contents {
 	white-space: pre;
 }
 
@@ -44,7 +48,7 @@
 }
 
 .monaco-workbench .repl .repl-tree .monaco-tl-twistie.collapsible + .monaco-tl-contents,
-.monaco-workbench .repl .repl-tree .monaco-tl-twistie {
+.monaco-workbench .repl .repl-tree .monaco-tl-twistie.collapsible {
 	cursor: pointer;
 }
 
@@ -52,7 +56,7 @@
 	display: flex;
 }
 
-.monaco-workbench .repl .repl-tree .output.expression.value-and-source .value {
+.monaco-workbench .repl .repl-tree .output.expression.value-and-source .label {
 	margin-right: 4px;
 }
 
@@ -69,9 +73,11 @@
 .monaco-workbench .repl .repl-tree .monaco-tl-contents .arrow {
 	position:absolute;
 	left: 2px;
+	pointer-events: none;
 }
 
-.monaco-workbench .repl .repl-tree .output.expression.value-and-source .source {
+.monaco-workbench .repl .repl-tree .output.expression.value-and-source .source,
+.monaco-workbench .repl .repl-tree .group .source {
 	margin-left: auto;
 	margin-right: 8px;
 	cursor: pointer;
@@ -83,6 +89,8 @@
 	/*Use direction so the source shows elipses on the left*/
 	direction: rtl;
 	max-width: 400px;
+	user-select: none;
+	-webkit-user-select: none;
 }
 
 .monaco-workbench .repl .repl-tree .output.expression > .value,

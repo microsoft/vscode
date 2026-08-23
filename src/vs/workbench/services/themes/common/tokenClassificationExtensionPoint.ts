@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { getTokenClassificationRegistry, ITokenClassificationRegistry, typeAndModifierIdPattern } from 'vs/platform/theme/common/tokenClassificationRegistry';
+import * as nls from '../../../../nls.js';
+import { ExtensionsRegistry, ExtensionMessageCollector } from '../../extensions/common/extensionsRegistry.js';
+import { getTokenClassificationRegistry, ITokenClassificationRegistry, typeAndModifierIdPattern } from '../../../../platform/theme/common/tokenClassificationRegistry.js';
 
 interface ITokenTypeExtensionPoint {
 	id: string;

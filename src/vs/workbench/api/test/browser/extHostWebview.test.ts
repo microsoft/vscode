@@ -3,23 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { MainThreadWebviewManager } from 'vs/workbench/api/browser/mainThreadWebviewManager';
-import { NullApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { ExtHostWebviews } from 'vs/workbench/api/common/extHostWebview';
-import { ExtHostWebviewPanels } from 'vs/workbench/api/common/extHostWebviewPanels';
-import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
-import { decodeAuthority, webviewResourceBaseHost } from 'vs/workbench/contrib/webview/common/webview';
-import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import assert from 'assert';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { URI } from '../../../../base/common/uri.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { NullLogService } from '../../../../platform/log/common/log.js';
+import { MainThreadWebviewManager } from '../../browser/mainThreadWebviewManager.js';
+import { NullApiDeprecationService } from '../../common/extHostApiDeprecationService.js';
+import { IExtHostRpcService } from '../../common/extHostRpcService.js';
+import { IWebviewContentOptions } from '../../common/extHost.protocol.js';
+import { ExtHostWebviews } from '../../common/extHostWebview.js';
+import { ExtHostWebviewPanels } from '../../common/extHostWebviewPanels.js';
+import { IExtHostWorkspace } from '../../common/extHostWorkspace.js';
+import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
+import { decodeAuthority, webviewResourceBaseHost } from '../../../contrib/webview/common/webview.js';
+import { EditorGroupColumn } from '../../../services/editor/common/editorGroupColumn.js';
+import { IExtHostContext } from '../../../services/extensions/common/extHostCustomers.js';
 import type * as vscode from 'vscode';
 
 suite('ExtHostWebview', () => {
@@ -194,6 +196,85 @@ suite('ExtHostWebview', () => {
 			`vscode-remote+${authority}.vscode-resource.vscode-cdn.net`,
 			'Check decoded authority'
 		);
+	});
+
+	suite('ensureDefaultContentOptions', () => {
+		function createExtHostWebviewsWithCapture(workspaceFolders: URI[] | undefined) {
+			const setOptionsCalls: { handle: string; options: IWebviewContentOptions }[] = [];
+
+			const shape = new class extends mock<MainThreadWebviewManager>() {
+				$setOptions(handle: string, options: IWebviewContentOptions) {
+					setOptionsCalls.push({ handle, options });
+				}
+			};
+
+			const captureRpc = SingleProxyRPCProtocol(shape);
+
+			const workspace: IExtHostWorkspace | undefined = workspaceFolders
+				? new class extends mock<IExtHostWorkspace>() {
+					override getWorkspaceFolders() {
+						return workspaceFolders.map((uri, index) => ({ uri, name: `f${index}`, index })) as unknown as vscode.WorkspaceFolder[];
+					}
+				}
+				: undefined;
+
+			const extHostWebviews = disposables.add(new ExtHostWebviews(
+				captureRpc,
+				{ authority: undefined, isRemote: false },
+				workspace,
+				new NullLogService(),
+				NullApiDeprecationService));
+
+			return { extHostWebviews, setOptionsCalls };
+		}
+
+		const extension = {
+			extensionLocation: URI.file('/ext/install/path'),
+		} as IExtensionDescription;
+
+		test('fills default localResourceRoots from workspace folders and extension location when caller did not supply them', () => {
+			const folderA = URI.file('/workspace/a');
+			const folderB = URI.file('/workspace/b');
+			const { extHostWebviews, setOptionsCalls } = createExtHostWebviewsWithCapture([folderA, folderB]);
+
+			disposables.add(extHostWebviews.createNewWebview('handle-1', { enableScripts: true }, extension));
+			extHostWebviews.ensureDefaultContentOptions('handle-1', { enableScripts: true }, extension);
+
+			assert.strictEqual(setOptionsCalls.length, 1, 'expected $setOptions to be called once');
+			const call = setOptionsCalls[0];
+			assert.strictEqual(call.handle, 'handle-1');
+			assert.strictEqual(call.options.enableScripts, true);
+			const roots = call.options.localResourceRoots;
+			assert.ok(roots, 'expected localResourceRoots to be set');
+			const rootStrings = roots!.map(r => URI.from(r).toString());
+			assert.deepStrictEqual(rootStrings, [
+				folderA.toString(),
+				folderB.toString(),
+				extension.extensionLocation.toString(),
+			]);
+		});
+
+		test('does nothing when caller already supplied localResourceRoots', () => {
+			const { extHostWebviews, setOptionsCalls } = createExtHostWebviewsWithCapture([URI.file('/workspace/a')]);
+			const explicit = [URI.file('/explicit/root')];
+
+			disposables.add(extHostWebviews.createNewWebview('handle-2', { localResourceRoots: explicit }, extension));
+			extHostWebviews.ensureDefaultContentOptions('handle-2', { localResourceRoots: explicit }, extension);
+
+			assert.strictEqual(setOptionsCalls.length, 0, 'expected $setOptions not to be called');
+		});
+
+		test('falls back to just the extension location when there are no workspace folders', () => {
+			const { extHostWebviews, setOptionsCalls } = createExtHostWebviewsWithCapture(undefined);
+
+			disposables.add(extHostWebviews.createNewWebview('handle-3', {}, extension));
+			extHostWebviews.ensureDefaultContentOptions('handle-3', {}, extension);
+
+			assert.strictEqual(setOptionsCalls.length, 1);
+			const roots = setOptionsCalls[0].options.localResourceRoots!;
+			const rootStrings = roots.map(r => URI.from(r).toString());
+			assert.deepStrictEqual(rootStrings, [extension.extensionLocation.toString()]);
+		});
 	});
 });
 

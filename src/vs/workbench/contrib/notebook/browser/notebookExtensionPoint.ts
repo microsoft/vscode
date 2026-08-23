@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import * as nls from 'vs/nls';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { NotebookEditorPriority, ContributedNotebookRendererEntrypoint, RendererMessagingSpec } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IExtensionFeatureTableRenderer, IRenderedData, ITableData, IRowData, IExtensionFeaturesRegistry, Extensions } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
-import { Registry } from 'vs/platform/registry/common/platform';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import * as nls from '../../../../nls.js';
+import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
+import { NotebookEditorPriority, ContributedNotebookRendererEntrypoint, RendererMessagingSpec } from '../common/notebookCommon.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { IExtensionFeatureTableRenderer, IRenderedData, ITableData, IRowData, IExtensionFeaturesRegistry, Extensions } from '../../../services/extensionManagement/common/extensionFeatures.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
 
 const NotebookEditorContribution = Object.freeze({
 	type: 'type',
@@ -158,7 +158,7 @@ const notebookRendererContribution: IJSONSchema = {
 						],
 						enumDescriptions: [
 							nls.localize('contributes.notebook.renderer.requiresMessaging.always', 'Messaging is required. The renderer will only be used when it\'s part of an extension that can be run in an extension host.'),
-							nls.localize('contributes.notebook.renderer.requiresMessaging.optional', 'The renderer is better with messaging available, but it\'s not requried.'),
+							nls.localize('contributes.notebook.renderer.requiresMessaging.optional', 'The renderer is better with messaging available, but it\'s not required.'),
 							nls.localize('contributes.notebook.renderer.requiresMessaging.never', 'The renderer does not require messaging.'),
 						],
 						description: nls.localize('contributes.notebook.renderer.requiresMessaging', 'Defines how and if the renderer needs to communicate with an extension host, via `createRendererMessaging`. Renderers with stronger messaging requirements may not work in all environments.'),
@@ -245,10 +245,10 @@ const notebookPreloadContribution: IJSONSchema = {
 export const notebooksExtensionPoint = ExtensionsRegistry.registerExtensionPoint<INotebookEditorContribution[]>({
 	extensionPoint: 'notebooks',
 	jsonSchema: notebookProviderContribution,
-	activationEventsGenerator: (contribs: INotebookEditorContribution[], result: { push(item: string): void }) => {
+	activationEventsGenerator: function* (contribs: readonly INotebookEditorContribution[]) {
 		for (const contrib of contribs) {
 			if (contrib.type) {
-				result.push(`onNotebookSerializer:${contrib.type}`);
+				yield `onNotebookSerializer:${contrib.type}`;
 			}
 		}
 	}
@@ -257,10 +257,10 @@ export const notebooksExtensionPoint = ExtensionsRegistry.registerExtensionPoint
 export const notebookRendererExtensionPoint = ExtensionsRegistry.registerExtensionPoint<INotebookRendererContribution[]>({
 	extensionPoint: 'notebookRenderer',
 	jsonSchema: notebookRendererContribution,
-	activationEventsGenerator: (contribs: INotebookRendererContribution[], result: { push(item: string): void }) => {
+	activationEventsGenerator: function* (contribs: readonly INotebookRendererContribution[]) {
 		for (const contrib of contribs) {
 			if (contrib.id) {
-				result.push(`onRenderer:${contrib.id}`);
+				yield `onRenderer:${contrib.id}`;
 			}
 		}
 	}

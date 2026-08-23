@@ -1,9 +1,9 @@
 {
 	"extends": "../../tsconfig.base.json",
 	"compilerOptions": {
+		"rootDir": "./src",
 		"outDir": "../../out",
 		"esModuleInterop": true,
-		"experimentalDecorators": true,
 		"types": [
 			"node"
 		]

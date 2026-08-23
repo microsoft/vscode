@@ -33,6 +33,8 @@ const TEXT_STATE_DESCRIPTION = {
 	[State.Smart]: vscode.l10n.t("Auto attach when running scripts that aren't in a node_modules folder"),
 	[State.OnlyWithFlag]: vscode.l10n.t('Only auto attach when the `--inspect` flag is given')
 };
+
+const TEXT_TOGGLE_TITLE = vscode.l10n.t('Toggle Auto Attach');
 const TEXT_TOGGLE_WORKSPACE = vscode.l10n.t('Toggle auto attach in this workspace');
 const TEXT_TOGGLE_GLOBAL = vscode.l10n.t('Toggle auto attach on this machine');
 const TEXT_TEMP_DISABLE = vscode.l10n.t('Temporarily disable auto attach in this session');
@@ -134,7 +136,8 @@ async function toggleAutoAttachSetting(context: vscode.ExtensionContext, scope?:
 	quickPick.activeItems = isTemporarilyDisabled
 		? [items[0]]
 		: quickPick.items.filter(i => 'state' in i && i.state === current);
-	quickPick.title = isGlobalScope ? TEXT_TOGGLE_GLOBAL : TEXT_TOGGLE_WORKSPACE;
+	quickPick.title = TEXT_TOGGLE_TITLE;
+	quickPick.placeholder = isGlobalScope ? TEXT_TOGGLE_GLOBAL : TEXT_TOGGLE_WORKSPACE;
 	quickPick.buttons = [
 		{
 			iconPath: new vscode.ThemeIcon(isGlobalScope ? 'folder' : 'globe'),
@@ -283,7 +286,7 @@ async function destroyAttachServer() {
 
 interface CachedIpcState {
 	ipcAddress: string;
-	jsDebugPath: string;
+	jsDebugPath: string | undefined;
 	settingsValue: string;
 }
 
@@ -388,7 +391,7 @@ async function getIpcAddress(context: vscode.ExtensionContext) {
 		ipcAddress,
 		jsDebugPath,
 		settingsValue,
-	} as CachedIpcState);
+	} satisfies CachedIpcState);
 
 	return ipcAddress;
 }

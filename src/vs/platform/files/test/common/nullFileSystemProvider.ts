@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ReadableStreamEvents } from 'vs/base/common/stream';
-import { URI } from 'vs/base/common/uri';
-import { IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, FileSystemProviderCapabilities, FileType, IFileWriteOptions, IFileChange, IFileSystemProvider, IStat, IWatchOptions, IFileReadStreamOptions } from 'vs/platform/files/common/files';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { ReadableStreamEvents } from '../../../../base/common/stream.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, FileSystemProviderCapabilities, FileType, IFileWriteOptions, IFileChange, IFileSystemProvider, IStat, IWatchOptions, IFileReadStreamOptions } from '../../common/files.js';
 
 export class NullFileSystemProvider implements IFileSystemProvider {
 

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isObject, isString } from 'vs/base/common/types';
-import { ILocalizedString } from 'vs/platform/action/common/action';
-import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { localize } from 'vs/nls';
-import { ILogger } from 'vs/platform/log/common/log';
+import { isObject, isString } from '../../../base/common/types.js';
+import { ILocalizedString } from '../../action/common/action.js';
+import { IExtensionManifest } from '../../extensions/common/extensions.js';
+import { localize } from '../../../nls.js';
+import { ILogger } from '../../log/common/log.js';
 
 export interface ITranslations {
 	[key: string]: string | { message: string; comment: string[] } | undefined;
@@ -28,10 +28,10 @@ export function localizeManifest(logger: ILogger, extensionManifest: IExtensionM
  * The root element is an object literal
  */
 function replaceNLStrings(logger: ILogger, extensionManifest: IExtensionManifest, messages: ITranslations, originalMessages?: ITranslations): void {
-	const processEntry = (obj: any, key: string | number, command?: boolean) => {
+	const processEntry = (obj: Record<string, unknown>, key: string | number, command?: boolean) => {
 		const value = obj[key];
 		if (isString(value)) {
-			const str = <string>value;
+			const str = value;
 			const length = str.length;
 			if (length > 1 && str[0] === '%' && str[length - 1] === '%') {
 				const messageKey = str.substr(1, length - 2);
@@ -72,11 +72,11 @@ function replaceNLStrings(logger: ILogger, extensionManifest: IExtensionManifest
 		} else if (isObject(value)) {
 			for (const k in value) {
 				if (value.hasOwnProperty(k)) {
-					k === 'commands' ? processEntry(value, k, true) : processEntry(value, k, command);
+					k === 'commands' ? processEntry(value as Record<string, unknown>, k, true) : processEntry(value as Record<string, unknown>, k, command);
 				}
 			}
 		} else if (Array.isArray(value)) {
-			for (let i = 0; i < value.length; i++) {
+			for (let i = 0; i < (value as Array<unknown>).length; i++) {
 				processEntry(value, i, command);
 			}
 		}

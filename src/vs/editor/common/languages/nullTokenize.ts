@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Token, TokenizationResult, EncodedTokenizationResult, IState } from 'vs/editor/common/languages';
-import { LanguageId, FontStyle, ColorId, StandardTokenType, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
+import { Token, TokenizationResult, EncodedTokenizationResult, IState } from '../languages.js';
+import { LanguageId, FontStyle, ColorId, StandardTokenType, MetadataConsts } from '../encodedTokenAttributes.js';
 
 export const NullState: IState = new class implements IState {
 	public clone(): IState {
@@ -30,5 +30,5 @@ export function nullTokenizeEncoded(languageId: LanguageId, state: IState | null
 		| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
 	) >>> 0;
 
-	return new EncodedTokenizationResult(tokens, state === null ? NullState : state);
+	return new EncodedTokenizationResult(tokens, [], state === null ? NullState : state);
 }

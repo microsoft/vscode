@@ -3,25 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { EditorResourceAccessor, SideBySideEditor, EditorInputWithPreferredResource, EditorInputCapabilities, isEditorIdentifier, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, isResourceEditorInput, isUntitledResourceEditorInput, isResourceDiffEditorInput, isEditorInputWithOptionsAndGroup, EditorInputWithOptions, isEditorInputWithOptions, isEditorInput, EditorInputWithOptionsAndGroup, isResourceSideBySideEditorInput, IResourceSideBySideEditorInput, isTextEditorViewState, isResourceMergeEditorInput, IResourceMergeEditorInput } from 'vs/workbench/common/editor';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { URI } from 'vs/base/common/uri';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { workbenchInstantiationService, TestServiceAccessor, TestEditorInput, registerTestEditor, registerTestFileEditor, registerTestResourceEditor, TestFileEditorInput, createEditorPart, registerTestSideBySideEditor } from 'vs/workbench/test/browser/workbenchTestServices';
-import { Schemas } from 'vs/base/common/network';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { whenEditorClosed } from 'vs/workbench/browser/editor';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { EditorResolution, IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { ICodeEditorViewState, IDiffEditorViewState } from 'vs/editor/common/editorCommon';
-import { Position } from 'vs/editor/common/core/position';
+import assert from 'assert';
+import { EditorResourceAccessor, SideBySideEditor, EditorInputWithPreferredResource, EditorInputCapabilities, isEditorIdentifier, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, isResourceEditorInput, isUntitledResourceEditorInput, isResourceDiffEditorInput, isEditorInputWithOptionsAndGroup, EditorInputWithOptions, isEditorInputWithOptions, isEditorInput, EditorInputWithOptionsAndGroup, isResourceSideBySideEditorInput, IResourceSideBySideEditorInput, isTextEditorViewState, isResourceMergeEditorInput, IResourceMergeEditorInput } from '../../../../common/editor.js';
+import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { workbenchInstantiationService, TestServiceAccessor, TestEditorInput, registerTestEditor, registerTestFileEditor, registerTestResourceEditor, TestFileEditorInput, createEditorPart, registerTestSideBySideEditor } from '../../workbenchTestServices.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { UntitledTextEditorInput } from '../../../../services/untitled/common/untitledTextEditorInput.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { whenEditorClosed } from '../../../../browser/editor.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { EditorService } from '../../../../services/editor/browser/editorService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
+import { EditorResolution, IResourceEditorInput } from '../../../../../platform/editor/common/editor.js';
+import { ICodeEditorViewState, IDiffEditorViewState } from '../../../../../editor/common/editorCommon.js';
+import { Position } from '../../../../../editor/common/core/position.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../../browser/parts/editor/editor.js';
 
 suite('Workbench editor utils', () => {
 
@@ -395,6 +397,34 @@ suite('Workbench editor utils', () => {
 		};
 
 		assert.strictEqual(isTextEditorViewState(diffEditorViewState), true);
+	});
+
+	test('editor tab action space reservation reserves by default and can be configured or enforced', async () => {
+		assert.strictEqual(DEFAULT_EDITOR_PART_OPTIONS.tabActionReserveSpace, true);
+
+		const configuredInstantiationService = workbenchInstantiationService({
+			configurationService: () => {
+				const configurationService = new TestConfigurationService({
+					workbench: { editor: { tabActionReserveSpace: false } }
+				});
+				disposables.add(configurationService.onDidChangeConfigurationEmitter);
+				return configurationService;
+			}
+		}, disposables);
+		const part = await createEditorPart(configuredInstantiationService, disposables);
+
+		const configured = part.partOptions.tabActionReserveSpace;
+		const enforcedOverride = part.enforcePartOptions({ tabActionReserveSpace: true });
+		assert.deepStrictEqual({
+			configured,
+			enforced: part.partOptions.tabActionReserveSpace,
+		}, {
+			configured: false,
+			enforced: true,
+		});
+
+		enforcedOverride.dispose();
+		assert.strictEqual(part.partOptions.tabActionReserveSpace, false);
 	});
 
 	test('whenEditorClosed (single editor)', async function () {

@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
+import { KeyboardLayoutContribution } from './_.contribution.js';
+import { IKeymapInfo } from '../../common/keymapInfo.js';
 
 
-KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout({
+export const EN_US_WIN_LAYOUT: IKeymapInfo = {
 	layout: { name: '00000409', id: '', text: 'US', isUSStandard: true },
 	secondaryLayouts: [
 		{ name: '00000804', id: '', text: 'Chinese (Simplified) - US Keyboard' },
@@ -171,4 +172,6 @@ KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout({
 		BrowserRefresh: [],
 		BrowserFavorites: []
 	}
-});
+};
+
+KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout(EN_US_WIN_LAYOUT);

@@ -3,34 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { combinedDisposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import * as resources from 'vs/base/common/resources';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { Position } from 'vs/editor/common/core/position';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/browser/suggest';
-import { localize } from 'vs/nls';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { FileChangeType, IFileService } from 'vs/platform/files/common/files';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ISnippetGetOptions, ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets';
-import { Snippet, SnippetFile, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
-import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { languagesExtPoint } from 'vs/workbench/services/language/common/languageService';
-import { SnippetCompletionProvider } from './snippetCompletionProvider';
-import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
-import { ResourceMap } from 'vs/base/common/map';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { isStringArray } from 'vs/base/common/types';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { insertInto } from 'vs/base/common/arrays';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { combinedDisposable, IDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import * as resources from '../../../../base/common/resources.js';
+import { isFalsyOrWhitespace } from '../../../../base/common/strings.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Position } from '../../../../editor/common/core/position.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { setSnippetSuggestSupport } from '../../../../editor/contrib/suggest/browser/suggest.js';
+import { localize } from '../../../../nls.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { FileChangeType, IFileService } from '../../../../platform/files/common/files.js';
+import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IWorkspace, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { ISnippetGetOptions, ISnippetsService } from './snippets.js';
+import { Snippet, SnippetFile, SnippetSource } from './snippetsFile.js';
+import { ExtensionsRegistry, IExtensionPointUser } from '../../../services/extensions/common/extensionsRegistry.js';
+import { languagesExtPoint } from '../../../services/language/common/languageService.js';
+import { SnippetCompletionProvider } from './snippetCompletionProvider.js';
+import { IExtensionResourceLoaderService } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { isStringArray } from '../../../../base/common/types.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import { ILanguageConfigurationService } from '../../../../editor/common/languages/languageConfigurationRegistry.js';
+import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
+import { insertInto } from '../../../../base/common/arrays.js';
 
 namespace snippetExt {
 
@@ -118,7 +118,7 @@ namespace snippetExt {
 	});
 }
 
-function watch(service: IFileService, resource: URI, callback: () => any): IDisposable {
+function watch(service: IFileService, resource: URI, callback: () => unknown): IDisposable {
 	return combinedDisposable(
 		service.watch(resource),
 		service.onDidFilesChange(e => {
@@ -208,7 +208,7 @@ export class SnippetsService implements ISnippetsService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _disposables = new DisposableStore();
-	private readonly _pendingWork: Promise<any>[] = [];
+	private readonly _pendingWork = new Set<Promise<void>>();
 	private readonly _files = new ResourceMap<SnippetFile>();
 	private readonly _enablement: SnippetEnablement;
 	private readonly _usageTimestamps: SnippetUsageTimestamps;
@@ -226,7 +226,7 @@ export class SnippetsService implements ISnippetsService {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
 	) {
-		this._pendingWork.push(Promise.resolve(lifecycleService.when(LifecyclePhase.Restored).then(() => {
+		this._trackPendingWork(Promise.resolve(lifecycleService.when(LifecyclePhase.Restored).then(() => {
 			this._initExtensionSnippets();
 			this._initUserSnippets();
 			this._initWorkspaceSnippets();
@@ -254,10 +254,20 @@ export class SnippetsService implements ISnippetsService {
 		this._usageTimestamps.updateUsageTimestamp(snippet.snippetIdentifier);
 	}
 
-	private _joinSnippets(): Promise<any> {
-		const promises = this._pendingWork.slice(0);
-		this._pendingWork.length = 0;
-		return Promise.all(promises);
+	private async _joinSnippets(): Promise<void> {
+		const promises = [...this._pendingWork];
+		await Promise.all(promises);
+	}
+
+	private _trackPendingWork(work: Promise<void>): void {
+		this._pendingWork.add(work);
+		work.then(
+			() => this._pendingWork.delete(work),
+			error => {
+				this._pendingWork.delete(work);
+				this._logService.error(error);
+			}
+		);
 	}
 
 	async getSnippetFiles(): Promise<Iterable<SnippetFile>> {
@@ -265,7 +275,7 @@ export class SnippetsService implements ISnippetsService {
 		return this._files.values();
 	}
 
-	async getSnippets(languageId: string | undefined, opts?: ISnippetGetOptions): Promise<Snippet[]> {
+	async getSnippets(languageId: string | undefined, resourceUri?: URI, opts?: ISnippetGetOptions): Promise<Snippet[]> {
 		await this._joinSnippets();
 
 		const result: Snippet[] = [];
@@ -289,10 +299,10 @@ export class SnippetsService implements ISnippetsService {
 			}
 		}
 		await Promise.all(promises);
-		return this._filterAndSortSnippets(result, opts);
+		return this._filterAndSortSnippets(result, resourceUri, opts);
 	}
 
-	getSnippetsSync(languageId: string, opts?: ISnippetGetOptions): Snippet[] {
+	getSnippetsSync(languageId: string, resourceUri?: URI, opts?: ISnippetGetOptions): Snippet[] {
 		const result: Snippet[] = [];
 		if (this._languageService.isRegisteredLanguageId(languageId)) {
 			for (const file of this._files.values()) {
@@ -302,10 +312,10 @@ export class SnippetsService implements ISnippetsService {
 				file.select(languageId, result);
 			}
 		}
-		return this._filterAndSortSnippets(result, opts);
+		return this._filterAndSortSnippets(result, resourceUri, opts);
 	}
 
-	private _filterAndSortSnippets(snippets: Snippet[], opts?: ISnippetGetOptions): Snippet[] {
+	private _filterAndSortSnippets(snippets: Snippet[], resourceUri?: URI, opts?: ISnippetGetOptions): Snippet[] {
 
 		const result: Snippet[] = [];
 
@@ -320,6 +330,10 @@ export class SnippetsService implements ISnippetsService {
 			}
 			if (typeof opts?.fileTemplateSnippets === 'boolean' && opts.fileTemplateSnippets !== snippet.isFileTemplate) {
 				// isTopLevel requested but mismatching
+				continue;
+			}
+			if (resourceUri && !snippet.isFileIncluded(resourceUri)) {
+				// include/exclude settings don't match
 				continue;
 			}
 			result.push(snippet);
@@ -418,7 +432,7 @@ export class SnippetsService implements ISnippetsService {
 		const disposables = new DisposableStore();
 		const updateWorkspaceSnippets = () => {
 			disposables.clear();
-			this._pendingWork.push(this._initWorkspaceFolderSnippets(this._contextService.getWorkspace(), disposables));
+			this._trackPendingWork(this._initWorkspaceFolderSnippets(this._contextService.getWorkspace(), disposables));
 		};
 		this._disposables.add(disposables);
 		this._disposables.add(this._contextService.onDidChangeWorkspaceFolders(updateWorkspaceSnippets));
@@ -426,7 +440,7 @@ export class SnippetsService implements ISnippetsService {
 		updateWorkspaceSnippets();
 	}
 
-	private async _initWorkspaceFolderSnippets(workspace: IWorkspace, bucket: DisposableStore): Promise<any> {
+	private async _initWorkspaceFolderSnippets(workspace: IWorkspace, bucket: DisposableStore): Promise<void> {
 		const promises = workspace.folders.map(async folder => {
 			const snippetFolder = folder.toResource('.vscode');
 			const value = await this._fileService.exists(snippetFolder);
@@ -454,7 +468,7 @@ export class SnippetsService implements ISnippetsService {
 		};
 		this._disposables.add(disposables);
 		this._disposables.add(this._userDataProfileService.onDidChangeCurrentProfile(e => e.join((async () => {
-			this._pendingWork.push(updateUserSnippets());
+			this._trackPendingWork(updateUserSnippets());
 		})())));
 		await updateUserSnippets();
 	}

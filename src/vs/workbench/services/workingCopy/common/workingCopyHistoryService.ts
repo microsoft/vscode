@@ -3,33 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Event, Emitter } from 'vs/base/common/event';
-import { assertIsDefined } from 'vs/base/common/types';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { ILifecycleService, LifecyclePhase, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { WorkingCopyHistoryTracker } from 'vs/workbench/services/workingCopy/common/workingCopyHistoryTracker';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryEntryDescriptor, IWorkingCopyHistoryEvent, IWorkingCopyHistoryService, MAX_PARALLEL_HISTORY_IO_OPS } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
-import { FileOperationError, FileOperationResult, IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { URI } from 'vs/base/common/uri';
-import { DeferredPromise, Limiter, RunOnceScheduler } from 'vs/base/common/async';
-import { dirname, extname, isEqual, joinPath } from 'vs/base/common/resources';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { hash } from 'vs/base/common/hash';
-import { indexOfPath, randomPath } from 'vs/base/common/extpath';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { ResourceMap } from 'vs/base/common/map';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { ILogService } from 'vs/platform/log/common/log';
-import { SaveSource, SaveSourceRegistry } from 'vs/workbench/common/editor';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { distinct, lastOrDefault } from 'vs/base/common/arrays';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
+import { localize } from '../../../../nls.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
+import { ILifecycleService, LifecyclePhase, WillShutdownEvent } from '../../lifecycle/common/lifecycle.js';
+import { WorkingCopyHistoryTracker } from './workingCopyHistoryTracker.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryEntryDescriptor, IWorkingCopyHistoryEvent, IWorkingCopyHistoryService, MAX_PARALLEL_HISTORY_IO_OPS } from './workingCopyHistory.js';
+import { FileOperationError, FileOperationResult, IFileService, IFileStatWithMetadata } from '../../../../platform/files/common/files.js';
+import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
+import { URI } from '../../../../base/common/uri.js';
+import { DeferredPromise, Limiter, RunOnceScheduler } from '../../../../base/common/async.js';
+import { dirname, extname, isEqual, joinPath } from '../../../../base/common/resources.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { hash } from '../../../../base/common/hash.js';
+import { indexOfPath, randomPath } from '../../../../base/common/extpath.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { SaveSource, SaveSourceRegistry } from '../../../common/editor.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { distinct } from '../../../../base/common/arrays.js';
+import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 
 interface ISerializedWorkingCopyHistoryModel {
 	readonly version: number;
@@ -126,7 +126,7 @@ export class WorkingCopyHistoryModel {
 		// on settings that can define a interval for when an
 		// entry is not added as new entry but should replace.
 		// However, when save source is different, never replace.
-		const lastEntry = lastOrDefault(this.entries);
+		const lastEntry = this.entries.at(-1);
 		if (lastEntry && lastEntry.source === source) {
 			const configuredReplaceInterval = this.configurationService.getValue<number>(WorkingCopyHistoryModel.SETTINGS.MERGE_PERIOD, { resource: this.workingCopyResource });
 			if (timestamp - lastEntry.timestamp <= (configuredReplaceInterval * 1000 /* convert to millies */)) {
@@ -155,9 +155,9 @@ export class WorkingCopyHistoryModel {
 	}
 
 	private async doAddEntry(source: SaveSource, sourceDescription: string | undefined = undefined, timestamp: number, token: CancellationToken): Promise<IWorkingCopyHistoryEntry> {
-		const workingCopyResource = assertIsDefined(this.workingCopyResource);
-		const workingCopyName = assertIsDefined(this.workingCopyName);
-		const historyEntriesFolder = assertIsDefined(this.historyEntriesFolder);
+		const workingCopyResource = assertReturnsDefined(this.workingCopyResource);
+		const workingCopyName = assertReturnsDefined(this.workingCopyName);
+		const historyEntriesFolder = assertReturnsDefined(this.historyEntriesFolder);
 
 		// Perform a fast clone operation with minimal overhead to a new random location
 		const id = `${randomPath(undefined, undefined, 4)}${extname(workingCopyResource)}`;
@@ -185,7 +185,7 @@ export class WorkingCopyHistoryModel {
 	}
 
 	private async doReplaceEntry(entry: IWorkingCopyHistoryEntry, source: SaveSource, sourceDescription: string | undefined = undefined, timestamp: number, token: CancellationToken): Promise<IWorkingCopyHistoryEntry> {
-		const workingCopyResource = assertIsDefined(this.workingCopyResource);
+		const workingCopyResource = assertReturnsDefined(this.workingCopyResource);
 
 		// Perform a fast clone operation with minimal overhead to the existing location
 		await this.fileService.cloneFile(workingCopyResource, entry.location);
@@ -317,8 +317,8 @@ export class WorkingCopyHistoryModel {
 	}
 
 	private async resolveEntriesFromDisk(): Promise<Map<string /* ID */, IWorkingCopyHistoryEntry>> {
-		const workingCopyResource = assertIsDefined(this.workingCopyResource);
-		const workingCopyName = assertIsDefined(this.workingCopyName);
+		const workingCopyResource = assertReturnsDefined(this.workingCopyResource);
+		const workingCopyName = assertReturnsDefined(this.workingCopyName);
 
 		const [entryListing, entryStats] = await Promise.all([
 
@@ -364,13 +364,13 @@ export class WorkingCopyHistoryModel {
 
 	async moveEntries(target: WorkingCopyHistoryModel, source: SaveSource, token: CancellationToken): Promise<void> {
 		const timestamp = Date.now();
-		const sourceDescription = this.labelService.getUriLabel(assertIsDefined(this.workingCopyResource));
+		const sourceDescription = this.labelService.getUriLabel(assertReturnsDefined(this.workingCopyResource));
 
 		// Move all entries into the target folder so that we preserve
 		// any existing history entries that might already be present
 
-		const sourceHistoryEntriesFolder = assertIsDefined(this.historyEntriesFolder);
-		const targetHistoryEntriesFolder = assertIsDefined(target.historyEntriesFolder);
+		const sourceHistoryEntriesFolder = assertReturnsDefined(this.historyEntriesFolder);
+		const targetHistoryEntriesFolder = assertReturnsDefined(target.historyEntriesFolder);
 		try {
 			for (const entry of this.entries) {
 				await this.fileService.move(entry.location, joinPath(targetHistoryEntriesFolder, entry.id), true);
@@ -393,11 +393,11 @@ export class WorkingCopyHistoryModel {
 		const allEntries = distinct([...this.entries, ...target.entries], entry => entry.id).sort((entryA, entryB) => entryA.timestamp - entryB.timestamp);
 
 		// Update our associated working copy
-		const targetWorkingCopyResource = assertIsDefined(target.workingCopyResource);
+		const targetWorkingCopyResource = assertReturnsDefined(target.workingCopyResource);
 		this.setWorkingCopy(targetWorkingCopyResource);
 
 		// Restore our entries and ensure correct metadata
-		const targetWorkingCopyName = assertIsDefined(target.workingCopyName);
+		const targetWorkingCopyName = assertReturnsDefined(target.workingCopyName);
 		for (const entry of allEntries) {
 			this.entries.push({
 				id: entry.id,
@@ -441,7 +441,7 @@ export class WorkingCopyHistoryModel {
 	}
 
 	private async doStore(token: CancellationToken): Promise<void> {
-		const historyEntriesFolder = assertIsDefined(this.historyEntriesFolder);
+		const historyEntriesFolder = assertReturnsDefined(this.historyEntriesFolder);
 
 		// Make sure to await resolving when persisting
 		await this.resolveEntriesOnce();
@@ -505,8 +505,8 @@ export class WorkingCopyHistoryModel {
 	}
 
 	private async writeEntriesFile(): Promise<void> {
-		const workingCopyResource = assertIsDefined(this.workingCopyResource);
-		const historyEntriesListingFile = assertIsDefined(this.historyEntriesListingFile);
+		const workingCopyResource = assertReturnsDefined(this.workingCopyResource);
+		const historyEntriesListingFile = assertReturnsDefined(this.historyEntriesListingFile);
 
 		const serializedModel: ISerializedWorkingCopyHistoryModel = {
 			version: 1,
@@ -525,7 +525,7 @@ export class WorkingCopyHistoryModel {
 	}
 
 	private async readEntriesFile(): Promise<ISerializedWorkingCopyHistoryModel | undefined> {
-		const historyEntriesListingFile = assertIsDefined(this.historyEntriesListingFile);
+		const historyEntriesListingFile = assertReturnsDefined(this.historyEntriesListingFile);
 
 		let serializedModel: ISerializedWorkingCopyHistoryModel | undefined = undefined;
 		try {
@@ -540,8 +540,8 @@ export class WorkingCopyHistoryModel {
 	}
 
 	private async readEntriesFolder(): Promise<IFileStatWithMetadata[] | undefined> {
-		const historyEntriesFolder = assertIsDefined(this.historyEntriesFolder);
-		const historyEntriesNameMatcher = assertIsDefined(this.historyEntriesNameMatcher);
+		const historyEntriesFolder = assertReturnsDefined(this.historyEntriesFolder);
+		const historyEntriesNameMatcher = assertReturnsDefined(this.historyEntriesNameMatcher);
 
 		let rawEntries: IFileStatWithMetadata[] | undefined = undefined;
 

@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { tmpdir } from 'os';
-import { join } from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IWindowState as IWindowUIState, WindowMode } from 'vs/platform/window/electron-main/window';
-import { getWindowsStateStoreData, IWindowsState, IWindowState, restoreWindowsState } from 'vs/platform/windows/electron-main/windowsStateHandler';
-import { IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { join } from '../../../../base/common/path.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IWindowState as IWindowUIState, WindowMode } from '../../../window/electron-main/window.js';
+import { getWindowsStateStoreData, IWindowsState, IWindowState, restoreWindowsState } from '../../electron-main/windowsStateHandler.js';
+import { IWorkspaceIdentifier } from '../../../workspace/common/workspace.js';
 
 suite('Windows State Storing', () => {
 
@@ -183,8 +183,8 @@ suite('Windows State Storing', () => {
 					"mode": 1,
 					"x": 768,
 					"y": 336,
-					"width": 1024,
-					"height": 768
+					"width": 1200,
+					"height": 800
 				}
 			}
 		}`;
@@ -194,7 +194,7 @@ suite('Windows State Storing', () => {
 			openedWindows: [],
 			lastActiveWindow: {
 				backupPath: '/home/user/.config/code-oss-dev/Backups/1549539668998',
-				uiState: { mode: WindowMode.Normal, x: 768, y: 336, width: 1024, height: 768 }
+				uiState: { mode: WindowMode.Normal, x: 768, y: 336, width: 1200, height: 800 }
 			}
 		};
 		assertEqualWindowsState(expected, windowsState, 'v1_32_empty_window');

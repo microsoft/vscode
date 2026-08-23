@@ -1,0 +1,127 @@
+{
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/dotenv-org/dotenv-vscode/blob/master/syntaxes/dotenv.tmLanguage.json",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
+	"version": "https://github.com/dotenv-org/dotenv-vscode/commit/e7e41baa5b23e01c1ff0567a4e596c24860e7def",
+	"scopeName": "source.dotenv",
+	"patterns": [
+		{
+			"comment": "Full Line Comment",
+			"match": "^\\s?(#.*$)\\n",
+			"captures": {
+				"1": {
+					"patterns": [
+						{
+							"include": "#line-comment"
+						}
+					]
+				}
+			}
+		},
+		{
+			"comment": "ENV entry",
+			"match": "^\\s?(.*?)\\s?(\\=)(.*)$",
+			"captures": {
+				"1": {
+					"patterns": [
+						{
+							"include": "#key"
+						}
+					]
+				},
+				"2": {
+					"name": "keyword.operator.assignment.dotenv"
+				},
+				"3": {
+					"name": "property.value.dotenv",
+					"patterns": [
+						{
+							"include": "#line-comment"
+						},
+						{
+							"include": "#double-quoted-string"
+						},
+						{
+							"include": "#single-quoted-string"
+						},
+						{
+							"include": "#interpolation"
+						}
+					]
+				}
+			}
+		}
+	],
+	"repository": {
+		"variable": {
+			"comment": "env variable",
+			"match": "[a-zA-Z_]+[a-zA-Z0-9_]*"
+		},
+		"line-comment": {
+			"comment": "Comment",
+			"match": "#.*$",
+			"name": "comment.line.dotenv"
+		},
+		"interpolation": {
+			"comment": "Interpolation (variable substitution)",
+			"match": "(\\$\\{)(.*)(\\})",
+			"captures": {
+				"1": {
+					"name": "keyword.interpolation.begin.dotenv"
+				},
+				"2": {
+					"name": "variable.interpolation.dotenv"
+				},
+				"3": {
+					"name": "keyword.interpolation.end.dotenv"
+				}
+			}
+		},
+		"escape-characters": {
+			"comment": "Escape characters",
+			"match": "\\\\[nrtfb\"'\\\\]|\\\\u[0123456789ABCDEF]{4}",
+			"name": "constant.character.escape.dotenv"
+		},
+		"double-quoted-string": {
+			"comment": "Double Quoted String",
+			"match": "\"(.*)\"",
+			"name": "string.quoted.double.dotenv",
+			"captures": {
+				"1": {
+					"patterns": [
+						{
+							"include": "#interpolation"
+						},
+						{
+							"include": "#escape-characters"
+						}
+					]
+				}
+			}
+		},
+		"single-quoted-string": {
+			"comment": "Single Quoted String",
+			"match": "'(.*)'",
+			"name": "string.quoted.single.dotenv"
+		},
+		"key": {
+			"comment": "Key",
+			"match": "(export\\s)?(.*)",
+			"captures": {
+				"1": {
+					"name": "keyword.key.export.dotenv"
+				},
+				"2": {
+					"name": "variable.key.dotenv",
+					"patterns": [
+						{
+							"include": "#variable"
+						}
+					]
+				}
+			}
+		}
+	}
+}

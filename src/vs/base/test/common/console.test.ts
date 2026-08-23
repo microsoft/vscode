@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { getFirstFrame } from 'vs/base/common/console';
-import { normalize } from 'vs/base/common/path';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { getFirstFrame } from '../../common/console.js';
+import { normalize } from '../../common/path.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Console', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

@@ -10,7 +10,6 @@ use std::{
 	process::Command,
 };
 
-use async_trait::async_trait;
 use zbus::{dbus_proxy, zvariant, Connection};
 
 use crate::{
@@ -62,11 +61,10 @@ impl SystemdService {
 	}
 
 	fn service_name_string() -> String {
-		format!("{}-tunnel.service", APPLICATION_NAME)
+		format!("{APPLICATION_NAME}-tunnel.service")
 	}
 }
 
-#[async_trait]
 impl ServiceManager for SystemdService {
 	async fn register(
 		&self,

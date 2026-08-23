@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
+import { KeyboardLayoutContribution } from './_.contribution.js';
+import { IKeymapInfo } from '../../common/keymapInfo.js';
 
 
-KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout({
+export const EN_US_DARWIN_LAYOUT: IKeymapInfo = {
 	layout: { id: 'com.apple.keylayout.US', lang: 'en', localizedName: 'U.S.', isUSStandard: true },
 	secondaryLayouts: [
 		{ id: 'com.apple.keylayout.ABC', lang: 'en', localizedName: 'ABC' },
@@ -137,4 +138,6 @@ KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout({
 		AltRight: [],
 		MetaRight: []
 	}
-});
+};
+
+KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout(EN_US_DARWIN_LAYOUT);

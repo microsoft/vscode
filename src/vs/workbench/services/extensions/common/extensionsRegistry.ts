@@ -3,19 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import Severity from 'vs/base/common/severity';
-import { EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IMessage } from 'vs/workbench/services/extensions/common/extensions';
-import { IExtensionDescription, EXTENSION_CATEGORIES, ExtensionIdentifierSet } from 'vs/platform/extensions/common/extensions';
-import { ExtensionKind } from 'vs/platform/environment/common/environment';
-import { allApiProposals } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
-import { productSchemaId } from 'vs/platform/product/common/productService';
-import { ImplicitActivationEvents, IActivationEventsGenerator } from 'vs/platform/extensionManagement/common/implicitActivationEvents';
+import * as nls from '../../../../nls.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import Severity from '../../../../base/common/severity.js';
+import { EXTENSION_IDENTIFIER_PATTERN } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { Extensions, IJSONContributionRegistry } from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IMessage } from './extensions.js';
+import { IExtensionDescription, EXTENSION_CATEGORIES, ExtensionIdentifierSet } from '../../../../platform/extensions/common/extensions.js';
+import { ExtensionKind } from '../../../../platform/environment/common/environment.js';
+import { productSchemaId } from '../../../../platform/product/common/productService.js';
+import { ImplicitActivationEvents, IActivationEventsGenerator } from '../../../../platform/extensionManagement/common/implicitActivationEvents.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { allApiProposals } from '../../../../platform/extensions/common/extensionsApiProposals.js';
 
 const schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
 
@@ -67,8 +68,9 @@ export type IExtensionPointHandler<T> = (extensions: readonly IExtensionPointUse
 
 export interface IExtensionPoint<T> {
 	readonly name: string;
-	setHandler(handler: IExtensionPointHandler<T>): void;
+	setHandler(handler: IExtensionPointHandler<T>): IDisposable;
 	readonly defaultExtensionKind: ExtensionKind[] | undefined;
+	readonly canHandleResolver?: boolean;
 }
 
 export class ExtensionPointUserDelta<T> {
@@ -108,25 +110,33 @@ export class ExtensionPoint<T> implements IExtensionPoint<T> {
 
 	public readonly name: string;
 	public readonly defaultExtensionKind: ExtensionKind[] | undefined;
+	public readonly canHandleResolver?: boolean;
 
 	private _handler: IExtensionPointHandler<T> | null;
 	private _users: IExtensionPointUser<T>[] | null;
 	private _delta: ExtensionPointUserDelta<T> | null;
 
-	constructor(name: string, defaultExtensionKind: ExtensionKind[] | undefined) {
+	constructor(name: string, defaultExtensionKind: ExtensionKind[] | undefined, canHandleResolver?: boolean) {
 		this.name = name;
 		this.defaultExtensionKind = defaultExtensionKind;
+		this.canHandleResolver = canHandleResolver;
 		this._handler = null;
 		this._users = null;
 		this._delta = null;
 	}
 
-	setHandler(handler: IExtensionPointHandler<T>): void {
+	setHandler(handler: IExtensionPointHandler<T>): IDisposable {
 		if (this._handler !== null) {
 			throw new Error('Handler already set!');
 		}
 		this._handler = handler;
 		this._handle();
+
+		return {
+			dispose: () => {
+				this._handler = null;
+			}
+		};
 	}
 
 	acceptUsers(users: IExtensionPointUser<T>[]): void {
@@ -169,8 +179,8 @@ export const schema: IJSONSchema = {
 			properties: {
 				'vscode': {
 					type: 'string',
-					description: nls.localize('vscode.extension.engines.vscode', 'For VS Code extensions, specifies the VS Code version that the extension is compatible with. Cannot be *. For example: ^0.10.5 indicates compatibility with a minimum VS Code version of 0.10.5.'),
-					default: '^1.22.0',
+					description: nls.localize('vscode.extension.engines.vscode', 'For VS Code extensions, specifies the VS Code version that the extension is compatible with. Cannot be *. For example: ^1.105.0 indicates compatibility with a minimum VS Code version of 1.105.0.'),
+					default: '^1.105.0',
 				}
 			}
 		},
@@ -216,9 +226,10 @@ export const schema: IJSONSchema = {
 		contributes: {
 			description: nls.localize('vscode.extension.contributes', 'All contributions of the VS Code extension represented by this package.'),
 			type: 'object',
+			// eslint-disable-next-line local/code-no-any-casts
 			properties: {
 				// extensions will fill in
-			} as { [key: string]: any },
+			} as any as { [key: string]: any },
 			default: {}
 		},
 		preview: {
@@ -235,8 +246,8 @@ export const schema: IJSONSchema = {
 			uniqueItems: true,
 			items: {
 				type: 'string',
-				enum: Object.keys(allApiProposals),
-				markdownEnumDescriptions: Object.values(allApiProposals)
+				enum: Object.keys(allApiProposals).map(proposalName => proposalName),
+				markdownEnumDescriptions: Object.values(allApiProposals).map(value => value.proposal)
 			}
 		},
 		api: {
@@ -255,7 +266,7 @@ export const schema: IJSONSchema = {
 				defaultSnippets: [
 					{
 						label: 'onWebviewPanel',
-						description: nls.localize('vscode.extension.activationEvents.onWebviewPanel', 'An activation event emmited when a webview is loaded of a certain viewType'),
+						description: nls.localize('vscode.extension.activationEvents.onWebviewPanel', 'An activation event emitted when a webview is loaded of a certain viewType'),
 						body: 'onWebviewPanel:viewType'
 					},
 					{
@@ -379,6 +390,41 @@ export const schema: IJSONSchema = {
 						description: nls.localize('vscode.extension.activationEvents.onIssueReporterOpened', 'An activation event emitted when the issue reporter is opened.'),
 					},
 					{
+						label: 'onChatParticipant',
+						body: 'onChatParticipant:${1:participantId}',
+						description: nls.localize('vscode.extension.activationEvents.onChatParticipant', 'An activation event emitted when the specified chat participant is invoked.'),
+					},
+					{
+						label: 'onChatContextProvider',
+						body: 'onChatContextProvider:${1:contextProviderId}',
+						description: nls.localize('vscode.extension.activationEvents.onChatContextProvider', 'An activation event emitted when the specified chat context provider is invoked.'),
+					},
+					{
+						label: 'onLanguageModelChatProvider',
+						body: 'onLanguageModelChatProvider:${1:vendor}',
+						description: nls.localize('vscode.extension.activationEvents.onLanguageModelChatProvider', 'An activation event emitted when a chat model provider for the given vendor is requested.'),
+					},
+					{
+						label: 'onLanguageModelTool',
+						body: 'onLanguageModelTool:${1:toolId}',
+						description: nls.localize('vscode.extension.activationEvents.onLanguageModelTool', 'An activation event emitted when the specified language model tool is invoked.'),
+					},
+					{
+						label: 'onTerminal',
+						body: 'onTerminal:{1:shellType}',
+						description: nls.localize('vscode.extension.activationEvents.onTerminal', 'An activation event emitted when a terminal of the given shell type is opened.'),
+					},
+					{
+						label: 'onTerminalShellIntegration',
+						body: 'onTerminalShellIntegration:${1:shellType}',
+						description: nls.localize('vscode.extension.activationEvents.onTerminalShellIntegration', 'An activation event emitted when terminal shell integration is activated for the given shell type.'),
+					},
+					{
+						label: 'onMcpCollection',
+						description: nls.localize('vscode.extension.activationEvents.onMcpCollection', 'An activation event emitted whenever a tool from the MCP server is requested.'),
+						body: 'onMcpCollection:${2:collectionId}',
+					},
+					{
 						label: '*',
 						description: nls.localize('vscode.extension.activationEvents.star', 'An activation event emitted on VS Code startup. To ensure a great end user experience, please use this activation event in your extension only when no other activation events combination works in your use-case.'),
 						body: '*'
@@ -429,6 +475,15 @@ export const schema: IJSONSchema = {
 		},
 		extensionDependencies: {
 			description: nls.localize('vscode.extension.extensionDependencies', 'Dependencies to other extensions. The identifier of an extension is always ${publisher}.${name}. For example: vscode.csharp.'),
+			type: 'array',
+			uniqueItems: true,
+			items: {
+				type: 'string',
+				pattern: EXTENSION_IDENTIFIER_PATTERN
+			}
+		},
+		extensionAffinity: {
+			description: nls.localize('vscode.extension.extensionAffinity', 'Extensions that this extension should be colocated with in the same extension host process if possible. The identifier of an extension is always ${publisher}.${name}. For example: vscode.git.'),
 			type: 'array',
 			uniqueItems: true,
 			items: {
@@ -588,9 +643,10 @@ export type removeArray<T> = T extends Array<infer X> ? X : T;
 
 export interface IExtensionPointDescriptor<T> {
 	extensionPoint: string;
-	deps?: IExtensionPoint<any>[];
+	deps?: IExtensionPoint<unknown>[];
 	jsonSchema: IJSONSchema;
 	defaultExtensionKind?: ExtensionKind[];
+	canHandleResolver?: boolean;
 	/**
 	 * A function which runs before the extension point has been validated and which
 	 * should collect automatic activation events from the contribution.
@@ -606,7 +662,7 @@ export class ExtensionsRegistryImpl {
 		if (this._extensionPoints.has(desc.extensionPoint)) {
 			throw new Error('Duplicate extension point: ' + desc.extensionPoint);
 		}
-		const result = new ExtensionPoint<T>(desc.extensionPoint, desc.defaultExtensionKind);
+		const result = new ExtensionPoint<T>(desc.extensionPoint, desc.defaultExtensionKind, desc.canHandleResolver);
 		this._extensionPoints.set(desc.extensionPoint, result);
 		if (desc.activationEventsGenerator) {
 			ImplicitActivationEvents.register(desc.extensionPoint, desc.activationEventsGenerator);
@@ -618,7 +674,7 @@ export class ExtensionsRegistryImpl {
 		return result;
 	}
 
-	public getExtensionPoints(): ExtensionPoint<any>[] {
+	public getExtensionPoints(): ExtensionPoint<unknown>[] {
 		return Array.from(this._extensionPoints.values());
 	}
 }
@@ -645,7 +701,7 @@ schemaRegistry.registerSchema(productSchemaId, {
 					items: {
 						type: 'string',
 						enum: Object.keys(allApiProposals),
-						markdownEnumDescriptions: Object.values(allApiProposals)
+						markdownEnumDescriptions: Object.values(allApiProposals).map(value => value.proposal)
 					}
 				}]
 			}

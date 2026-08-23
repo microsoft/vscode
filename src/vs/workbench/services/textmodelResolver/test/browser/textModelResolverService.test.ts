@@ -3,22 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ITextModel } from 'vs/editor/common/model';
-import { URI } from 'vs/base/common/uri';
-import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { TextResourceEditorModel } from 'vs/workbench/common/editor/textResourceEditorModel';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { workbenchInstantiationService, TestServiceAccessor, ITestTextFileEditorModelManager } from 'vs/workbench/test/browser/workbenchTestServices';
-import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
-import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
-import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { Event } from 'vs/base/common/event';
-import { timeout } from 'vs/base/common/async';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import assert from 'assert';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { TextResourceEditorInput } from '../../../../common/editor/textResourceEditorInput.js';
+import { TextResourceEditorModel } from '../../../../common/editor/textResourceEditorModel.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { workbenchInstantiationService, TestServiceAccessor, ITestTextFileEditorModelManager } from '../../../../test/browser/workbenchTestServices.js';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
+import { TextFileEditorModel } from '../../../textfile/common/textFileEditorModel.js';
+import { snapshotToString } from '../../../textfile/common/textfiles.js';
+import { TextFileEditorModelManager } from '../../../textfile/common/textFileEditorModelManager.js';
+import { Event } from '../../../../../base/common/event.js';
+import { timeout } from '../../../../../base/common/async.js';
+import { UntitledTextEditorInput } from '../../../untitled/common/untitledTextEditorInput.js';
+import { createTextBufferFactory } from '../../../../../editor/common/model/textModel.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 
 suite('Workbench - TextModelResolverService', () => {
 
@@ -204,6 +205,101 @@ suite('Workbench - TextModelResolverService', () => {
 
 		await p1;
 		assert(textModel.isDisposed(), 'the text model should finally be disposed');
+	});
+
+	test('resolve inMemory', async () => {
+		const resource = URI.from({ scheme: Schemas.inMemory, path: '/test/inMemoryDoc' });
+		const languageSelection = accessor.languageService.createById('json');
+		disposables.add(accessor.modelService.createModel('Hello InMemory', languageSelection, resource));
+
+		const ref = await accessor.textModelResolverService.createModelReference(resource);
+		const model = ref.object;
+		assert.ok(model);
+		const textModel = model.textEditorModel;
+		assert.ok(textModel);
+		assert.strictEqual(textModel.getValue(), 'Hello InMemory');
+		assert(!textModel.isDisposed(), 'the inMemory text model should not be disposed before releasing the reference');
+
+		const p = new Promise<void>(resolve => disposables.add(textModel.onWillDispose(resolve)));
+		ref.dispose();
+
+		await p;
+		assert(textModel.isDisposed(), 'the inMemory text model should be disposed after the reference is released');
+	});
+
+	test('resolve inMemory throws when model not found', async () => {
+		const resource = URI.from({ scheme: Schemas.inMemory, path: '/test/nonExistent' });
+
+		await assert.rejects(
+			() => accessor.textModelResolverService.createModelReference(resource),
+			/Unable to resolve text model content for resource/
+		);
+	});
+
+	test('resolve inMemory disposes when last reference released', async () => {
+		const resource = URI.from({ scheme: Schemas.inMemory, path: '/test/inMemoryDispose' });
+		const languageSelection = accessor.languageService.createById('json');
+		accessor.modelService.createModel('Hello InMemory', languageSelection, resource);
+
+		const ref = await accessor.textModelResolverService.createModelReference(resource);
+		const textModel = ref.object.textEditorModel;
+		assert.ok(textModel);
+		assert(!textModel.isDisposed());
+
+		const p = new Promise<void>(resolve => disposables.add(textModel.onWillDispose(resolve)));
+		ref.dispose();
+
+		await p;
+		assert(textModel.isDisposed(), 'the inMemory text model should be disposed after last reference is released');
+	});
+
+	test('resolve inMemory is refcounted', async () => {
+		const resource = URI.from({ scheme: Schemas.inMemory, path: '/test/inMemoryRefcount' });
+		const languageSelection = accessor.languageService.createById('json');
+		accessor.modelService.createModel('Hello InMemory', languageSelection, resource);
+
+		const ref1 = await accessor.textModelResolverService.createModelReference(resource);
+		const ref2 = await accessor.textModelResolverService.createModelReference(resource);
+		const textModel = ref1.object.textEditorModel;
+
+		assert.strictEqual(ref1.object, ref2.object, 'they are the same model');
+		assert(!textModel.isDisposed());
+
+		ref1.dispose();
+		assert(!textModel.isDisposed(), 'should not dispose while ref2 is still alive');
+
+		const p = new Promise<void>(resolve => disposables.add(textModel.onWillDispose(resolve)));
+		ref2.dispose();
+
+		await p;
+		assert(textModel.isDisposed(), 'should dispose after last reference released');
+	});
+
+	test('resolve inMemory reuses model when re-acquired during dispose', async () => {
+		const resource = URI.from({ scheme: Schemas.inMemory, path: '/test/inMemoryReuse' });
+		const languageSelection = accessor.languageService.createById('json');
+		accessor.modelService.createModel('Hello Reuse', languageSelection, resource);
+
+		const ref1 = await accessor.textModelResolverService.createModelReference(resource);
+		const model1 = ref1.object;
+
+		// Release last reference, starts async dispose
+		ref1.dispose();
+
+		// Immediately re-acquire before the async dispose completes
+		const ref2 = await accessor.textModelResolverService.createModelReference(resource);
+		const model2 = ref2.object;
+
+		assert.ok(model2);
+		const textModel = model2.textEditorModel;
+		assert.strictEqual(textModel.getValue(), 'Hello Reuse');
+		assert.strictEqual(model1, model2, 'should reuse the same model instance');
+
+		const p = new Promise<void>(resolve => disposables.add(textModel.onWillDispose(resolve)));
+		ref2.dispose();
+
+		await p;
+		assert(textModel.isDisposed());
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

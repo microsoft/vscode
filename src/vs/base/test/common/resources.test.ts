@@ -2,13 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { toSlashes } from 'vs/base/common/extpath';
-import { posix, win32 } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
-import { addTrailingPathSeparator, basename, dirname, distinctParents, extUri, extUriIgnorePathCase, hasTrailingPathSeparator, isAbsolutePath, joinPath, normalizePath, relativePath, removeTrailingPathSeparator, resolvePath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { toSlashes } from '../../common/extpath.js';
+import { posix, win32 } from '../../common/path.js';
+import { isWindows } from '../../common/platform.js';
+import { addTrailingPathSeparator, basename, dirname, distinctParents, extUri, extUriIgnorePathCase, hasTrailingPathSeparator, isAbsolutePath, joinPath, normalizePath, relativePath, removeTrailingPathSeparator, resolvePath } from '../../common/resources.js';
+import { URI } from '../../common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 
 suite('Resources', () => {
@@ -431,5 +431,11 @@ suite('Resources', () => {
 		assert.strictEqual(extUriIgnorePathCase.isEqualOrParent(fileURI6, fileURI6), true, '18');
 		assert.strictEqual(extUriIgnorePathCase.isEqualOrParent(fileURI7, fileURI6), true, '19');
 		assert.strictEqual(extUriIgnorePathCase.isEqualOrParent(fileURI7, fileURI5), false, '20');
+	});
+
+	test('isEqualOrParent handles ../', () => {
+		const fileURI = URI.file('/home/user/projects');
+		const fileURI2 = URI.file('/home/user/projects/../../../../tmp/folder');
+		assert.strictEqual(extUri.isEqualOrParent(fileURI2, fileURI), false);
 	});
 });

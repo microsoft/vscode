@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import * as sinon from 'sinon';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { AbstractExtensionsProfileScannerService, ProfileExtensionsEvent } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
-import { ExtensionType, IExtension, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { joinPath } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IEnvironmentService } from '../../../environment/common/environment.js';
+import { AbstractExtensionsProfileScannerService, ProfileExtensionsEvent } from '../../common/extensionsProfileScannerService.js';
+import { ExtensionType, IExtension, IExtensionManifest, TargetPlatform } from '../../../extensions/common/extensions.js';
+import { FileService } from '../../../files/common/fileService.js';
+import { IFileService } from '../../../files/common/files.js';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { IUriIdentityService } from '../../../uriIdentity/common/uriIdentity.js';
+import { UriIdentityService } from '../../../uriIdentity/common/uriIdentityService.js';
+import { IUserDataProfilesService, UserDataProfilesService } from '../../../userDataProfile/common/userDataProfile.js';
 
 class TestObject extends AbstractExtensionsProfileScannerService { }
 
@@ -356,7 +356,7 @@ suite('ExtensionsProfileScannerService', () => {
 		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).extensions[0].location.toString(), extension.location.toString());
 	});
 
-	test('remove extension trigger events', async () => {
+	test('remove extensions trigger events', async () => {
 		const testObject = disposables.add(instantiationService.createInstance(TestObject, extensionsLocation));
 		const target1 = sinon.stub();
 		const target2 = sinon.stub();
@@ -364,26 +364,33 @@ suite('ExtensionsProfileScannerService', () => {
 		disposables.add(testObject.onDidRemoveExtensions(target2));
 
 		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
-		const extension = aExtension('pub.a', joinPath(ROOT, 'foo', 'pub.a-1.0.0'));
-		await testObject.addExtensionsToProfile([[extension, undefined]], extensionsManifest);
-		await testObject.removeExtensionFromProfile(extension, extensionsManifest);
+		const extension1 = aExtension('pub.a', joinPath(ROOT, 'foo', 'pub.a-1.0.0'));
+		const extension2 = aExtension('pub.b', joinPath(ROOT, 'foo', 'pub.b-1.0.0'));
+		await testObject.addExtensionsToProfile([[extension1, undefined], [extension2, undefined]], extensionsManifest);
+		await testObject.removeExtensionsFromProfile([extension1.identifier, extension2.identifier], extensionsManifest);
 
 		const actual = await testObject.scanProfileExtensions(extensionsManifest);
 		assert.deepStrictEqual(actual.length, 0);
 
 		assert.ok(target1.calledOnce);
 		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).profileLocation.toString(), extensionsManifest.toString());
-		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).extensions.length, 1);
-		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).extensions[0].identifier, extension.identifier);
-		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).extensions[0].version, extension.manifest.version);
-		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).extensions[0].location.toString(), extension.location.toString());
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).extensions.length, 2);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).extensions[0].identifier, extension1.identifier);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).extensions[0].version, extension1.manifest.version);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).extensions[0].location.toString(), extension1.location.toString());
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).extensions[1].identifier, extension2.identifier);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).extensions[1].version, extension2.manifest.version);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).extensions[1].location.toString(), extension2.location.toString());
 
 		assert.ok(target2.calledOnce);
 		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).profileLocation.toString(), extensionsManifest.toString());
-		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).extensions.length, 1);
-		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).extensions[0].identifier, extension.identifier);
-		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).extensions[0].version, extension.manifest.version);
-		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).extensions[0].location.toString(), extension.location.toString());
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).extensions.length, 2);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).extensions[0].identifier, extension1.identifier);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).extensions[0].version, extension1.manifest.version);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).extensions[0].location.toString(), extension1.location.toString());
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).extensions[1].identifier, extension2.identifier);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).extensions[1].version, extension2.manifest.version);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).extensions[1].location.toString(), extension2.location.toString());
 	});
 
 	test('add extension with same id but different version', async () => {
@@ -567,6 +574,28 @@ suite('ExtensionsProfileScannerService', () => {
 		assert.ok(target4.notCalled);
 	});
 
+	test('read extension when uuid is different in identifier and manifest', async () => {
+		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
+		await instantiationService.get(IFileService).writeFile(extensionsManifest, VSBuffer.fromString(JSON.stringify([{
+			identifier: {
+				id: 'pub.a',
+				uuid: 'uuid1`'
+			},
+			version: '1.0.0',
+			location: joinPath(extensionsLocation, 'pub.a-1.0.0').toString(),
+			relativeLocation: 'pub.a-1.0.0',
+			metadata: {
+				id: 'uuid',
+			}
+		}])));
+
+		const testObject = disposables.add(instantiationService.createInstance(TestObject, extensionsLocation));
+		const actual = await testObject.scanProfileExtensions(extensionsManifest);
+		assert.deepStrictEqual(actual.length, 1);
+		assert.deepStrictEqual(actual[0].identifier.id, 'pub.a');
+		assert.deepStrictEqual(actual[0].identifier.uuid, 'uuid');
+	});
+
 	function aExtension(id: string, location: URI, e?: Partial<IExtension>, manifest?: Partial<IExtensionManifest>): IExtension {
 		return {
 			identifier: { id },
@@ -582,6 +611,7 @@ suite('ExtensionsProfileScannerService', () => {
 				...manifest,
 			},
 			isValid: true,
+			preRelease: false,
 			validations: [],
 			...e
 		};

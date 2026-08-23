@@ -68,7 +68,6 @@ where
 
 	Ok(bytes_so_far)
 }
-
 /// Helper used when converting Future interfaces to poll-based interfaces.
 /// Stores excess data that can be reused on future polls.
 #[derive(Default)]
@@ -235,6 +234,7 @@ mod tests {
 			.write(true)
 			.read(true)
 			.create(true)
+			.truncate(true)
 			.open(&file_path)
 			.unwrap();
 
@@ -271,6 +271,7 @@ mod tests {
 			.write(true)
 			.read(true)
 			.create(true)
+			.truncate(true)
 			.open(&file_path)
 			.unwrap();
 
@@ -305,6 +306,7 @@ mod tests {
 			.write(true)
 			.read(true)
 			.create(true)
+			.truncate(true)
 			.open(&file_path)
 			.unwrap();
 		let mut rng = rand::thread_rng();
@@ -312,8 +314,12 @@ mod tests {
 		let mut written = vec![];
 		let base_line = "Elit ipsum cillum ex cillum. Adipisicing consequat cupidatat do proident ut in sunt Lorem ipsum tempor. Eiusmod ipsum Lorem labore exercitation sunt pariatur excepteur fugiat cillum velit cillum enim. Nisi Lorem cupidatat ad enim velit officia eiusmod esse tempor aliquip. Deserunt pariatur tempor in duis culpa esse sit nulla irure ullamco ipsum voluptate non laboris. Occaecat officia nulla officia mollit do aliquip reprehenderit ad incididunt.";
 		for i in 0..100 {
-			let line = format!("{}: {}", i, &base_line[..rng.gen_range(0..base_line.len())]);
-			writeln!(&mut read_file, "{}", line).unwrap();
+			let line = format!(
+				"{}: {}",
+				i,
+				&base_line[..rng.gen_range(0..base_line.len())]
+			);
+			writeln!(&mut read_file, "{line}").unwrap();
 			written.push(line);
 		}
 		write!(&mut read_file, "partial line").unwrap();

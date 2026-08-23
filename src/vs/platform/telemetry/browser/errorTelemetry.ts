@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mainWindow } from 'vs/base/browser/window';
-import { ErrorNoTelemetry } from 'vs/base/common/errors';
-import { toDisposable } from 'vs/base/common/lifecycle';
-import BaseErrorTelemetry, { ErrorEvent } from 'vs/platform/telemetry/common/errorTelemetry';
+import { mainWindow } from '../../../base/browser/window.js';
+import { getRecentDisposableResizeObserverContextForLoopError } from '../../../base/browser/dom.js';
+import { ErrorNoTelemetry } from '../../../base/common/errors.js';
+import { toDisposable } from '../../../base/common/lifecycle.js';
+import BaseErrorTelemetry, { ErrorEvent } from '../common/errorTelemetry.js';
 
 export default class ErrorTelemetry extends BaseErrorTelemetry {
 	protected override installErrorListeners(): void {
@@ -51,6 +52,16 @@ export default class ErrorTelemetry extends BaseErrorTelemetry {
 					? err.stack = err.stack.join('\n')
 					: err.stack;
 			}
+		}
+
+		// The browser does not expose which observer or skipped target caused a
+		// ResizeObserver loop warning. Include the wrapped observers that ran
+		// recently as delivery context instead of falsely attributing the loop
+		// to whichever callback happened to run last.
+		const resizeObserverContext = getRecentDisposableResizeObserverContextForLoopError(msg);
+		if (resizeObserverContext) {
+			data.msg = resizeObserverContext;
+			data.callstack = resizeObserverContext;
 		}
 
 		this._enqueue(data);

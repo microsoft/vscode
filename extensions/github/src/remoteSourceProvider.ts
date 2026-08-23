@@ -4,13 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Uri, env, l10n, workspace } from 'vscode';
-import { RemoteSourceProvider, RemoteSource, RemoteSourceAction } from './typings/git-base';
-import { getOctokit } from './auth';
+import { RemoteSourceProvider, RemoteSource, RemoteSourceAction } from './typings/git-base.js';
+import { getOctokit } from './auth.js';
 import { Octokit } from '@octokit/rest';
-import { getRepositoryFromQuery, getRepositoryFromUrl } from './util';
-import { getBranchLink, getVscodeDevHost } from './links';
+import { getRepositoryFromQuery, getRepositoryFromUrl } from './util.js';
+import { getBranchLink, getVscodeDevHost } from './links.js';
 
-function asRemoteSource(raw: any): RemoteSource {
+type RemoteSourceResponse = {
+	readonly full_name: string;
+	readonly description: string | null;
+	readonly stargazers_count: number;
+	readonly clone_url: string;
+	readonly ssh_url: string;
+};
+
+function asRemoteSource(raw: RemoteSourceResponse): RemoteSource {
 	const protocol = workspace.getConfiguration('github').get<'https' | 'ssh'>('gitProtocol');
 	return {
 		name: `$(github) ${raw.full_name}`,

@@ -3,35 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { localize } from '../../../../../nls.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 
 export const enum TerminalChatCommandId {
 	Start = 'workbench.action.terminal.chat.start',
 	Close = 'workbench.action.terminal.chat.close',
-	FocusResponse = 'workbench.action.terminal.chat.focusResponse',
-	FocusInput = 'workbench.action.terminal.chat.focusInput',
-	Discard = 'workbench.action.terminal.chat.discard',
 	MakeRequest = 'workbench.action.terminal.chat.makeRequest',
 	Cancel = 'workbench.action.terminal.chat.cancel',
-	FeedbackHelpful = 'workbench.action.terminal.chat.feedbackHelpful',
-	FeedbackUnhelpful = 'workbench.action.terminal.chat.feedbackUnhelpful',
-	FeedbackReportIssue = 'workbench.action.terminal.chat.feedbackReportIssue',
 	RunCommand = 'workbench.action.terminal.chat.runCommand',
 	RunFirstCommand = 'workbench.action.terminal.chat.runFirstCommand',
 	InsertCommand = 'workbench.action.terminal.chat.insertCommand',
 	InsertFirstCommand = 'workbench.action.terminal.chat.insertFirstCommand',
 	ViewInChat = 'workbench.action.terminal.chat.viewInChat',
-	PreviousFromHistory = 'workbench.action.terminal.chat.previousFromHistory',
-	NextFromHistory = 'workbench.action.terminal.chat.nextFromHistory',
+	RerunRequest = 'workbench.action.terminal.chat.rerunRequest',
+	ViewHiddenChatTerminals = 'workbench.action.terminal.chat.viewHiddenChatTerminals',
+	OpenTerminalSettingsLink = 'workbench.action.terminal.chat.openTerminalSettingsLink',
+	DisableSessionAutoApproval = 'workbench.action.terminal.chat.disableSessionAutoApproval',
+	FocusMostRecentChatTerminalOutput = 'workbench.action.terminal.chat.focusMostRecentChatTerminalOutput',
+	FocusMostRecentChatTerminal = 'workbench.action.terminal.chat.focusMostRecentChatTerminal',
+	ToggleChatTerminalOutput = 'workbench.action.terminal.chat.toggleChatTerminalOutput',
+	FocusChatInstanceAction = 'workbench.action.terminal.chat.focusChatInstance',
+	ContinueInBackground = 'workbench.action.terminal.chat.continueInBackground',
 }
 
-export const MENU_TERMINAL_CHAT_INPUT = MenuId.for('terminalChatInput');
-export const MENU_TERMINAL_CHAT_WIDGET = MenuId.for('terminalChatWidget');
+export const MENU_TERMINAL_CHAT_WIDGET_INPUT_SIDE_TOOLBAR = MenuId.for('terminalChatWidget');
 export const MENU_TERMINAL_CHAT_WIDGET_STATUS = MenuId.for('terminalChatWidget.status');
-export const MENU_TERMINAL_CHAT_WIDGET_FEEDBACK = MenuId.for('terminalChatWidget.feedback');
 export const MENU_TERMINAL_CHAT_WIDGET_TOOLBAR = MenuId.for('terminalChatWidget.toolbar');
+export const MENU_CHAT_TERMINAL_TOOL_PROGRESS = MenuId.for('chatTerminalToolProgress');
 
 export const enum TerminalChatContextKeyStrings {
 	ChatFocus = 'terminalChatFocus',
@@ -44,6 +44,14 @@ export const enum TerminalChatContextKeyStrings {
 	ChatResponseContainsMultipleCodeBlocks = 'terminalChatResponseContainsMultipleCodeBlocks',
 	ChatResponseSupportsIssueReporting = 'terminalChatResponseSupportsIssueReporting',
 	ChatSessionResponseVote = 'terminalChatSessionResponseVote',
+	ChatHasTerminals = 'hasChatTerminals',
+	ChatHasHiddenTerminals = 'hasHiddenChatTerminals',
+	ChatToolHasInstance = 'chatTerminalToolHasInstance',
+	ChatToolCanContinueInBackground = 'chatTerminalToolCanContinueInBackground',
+	ChatToolHasOutput = 'chatTerminalToolHasOutput',
+	ChatToolUsesCollapsible = 'chatTerminalToolUsesCollapsible',
+	ChatToolIsHiddenTerminal = 'chatTerminalToolIsHiddenTerminal',
+	ChatToolOutputExpanded = 'chatTerminalToolOutputExpanded',
 }
 
 
@@ -61,18 +69,36 @@ export namespace TerminalChatContextKeys {
 	/** Whether the chat input has text */
 	export const inputHasText = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatInputHasText, false, localize('chatInputHasTextContextKey', "Whether the chat input has text."));
 
-	/** Whether the terminal chat agent has been registered */
-	export const agentRegistered = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatAgentRegistered, false, localize('chatAgentRegisteredContextKey', "Whether the terminal chat agent has been registered."));
-
 	/** The chat response contains at least one code block */
 	export const responseContainsCodeBlock = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatResponseContainsCodeBlock, false, localize('chatResponseContainsCodeBlockContextKey', "Whether the chat response contains a code block."));
 
 	/** The chat response contains multiple code blocks */
 	export const responseContainsMultipleCodeBlocks = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatResponseContainsMultipleCodeBlocks, false, localize('chatResponseContainsMultipleCodeBlocksContextKey', "Whether the chat response contains multiple code blocks."));
 
-	/** Whether the response supports issue reporting */
-	export const responseSupportsIssueReporting = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatResponseSupportsIssueReporting, false, localize('chatResponseSupportsIssueReportingContextKey', "Whether the response supports issue reporting"));
+	/** A chat agent exists for the terminal location */
+	export const hasChatAgent = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatAgentRegistered, false, localize('chatAgentRegisteredContextKey', "Whether a chat agent is registered for the terminal location."));
 
-	/** The chat vote, if any for the response, if any */
-	export const sessionResponseVote = new RawContextKey<string>(TerminalChatContextKeyStrings.ChatSessionResponseVote, undefined, { type: 'string', description: localize('interactiveSessionResponseVote', "When the response has been voted up, is set to 'up'. When voted down, is set to 'down'. Otherwise an empty string.") });
+	/** Has terminals created via chat */
+	export const hasChatTerminals = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatHasTerminals, false, localize('terminalHasChatTerminals', "Whether there are any chat terminals."));
+
+	/** Has hidden chat terminals */
+	export const hasHiddenChatTerminals = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatHasHiddenTerminals, false, localize('terminalHasHiddenChatTerminals', "Whether there are any hidden chat terminals."));
+
+	/** Whether the per-instance terminal tool progress part has a terminal instance attached */
+	export const chatToolHasInstance = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatToolHasInstance, false);
+
+	/** Whether the continue-in-background action is available */
+	export const chatToolCanContinueInBackground = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatToolCanContinueInBackground, false);
+
+	/** Whether terminal output is available for display */
+	export const chatToolHasOutput = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatToolHasOutput, false);
+
+	/** Whether the terminal tool uses a collapsible wrapper */
+	export const chatToolUsesCollapsible = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatToolUsesCollapsible, false);
+
+	/** Whether the associated terminal is hidden from the user */
+	export const chatToolIsHiddenTerminal = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatToolIsHiddenTerminal, false);
+
+	/** Whether the terminal output section is currently expanded */
+	export const chatToolOutputExpanded = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatToolOutputExpanded, false);
 }

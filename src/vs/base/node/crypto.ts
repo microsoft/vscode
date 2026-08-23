@@ -5,7 +5,7 @@
 
 import * as crypto from 'crypto';
 import * as fs from 'fs';
-import { createSingleCallFunction } from 'vs/base/common/functional';
+import { createSingleCallFunction } from '../common/functional.js';
 
 export async function checksum(path: string, sha256hash: string | undefined): Promise<void> {
 	const checksumPromise = new Promise<string | undefined>((resolve, reject) => {
@@ -16,6 +16,7 @@ export async function checksum(path: string, sha256hash: string | undefined): Pr
 		const done = createSingleCallFunction((err?: Error, result?: string) => {
 			input.removeAllListeners();
 			hash.removeAllListeners();
+			input.destroy();
 
 			if (err) {
 				reject(err);

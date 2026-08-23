@@ -3,51 +3,51 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { mock } from 'vs/base/test/common/mock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
-import { ExtensionKind, IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ExtensionIdentifier, IExtension, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TestInstantiationService, createServices } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import product from 'vs/platform/product/common/product';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remoteAuthorityResolverService';
-import { IRemoteAuthorityResolverService, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceTrustEnablementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { BrowserExtensionHostKindPicker } from 'vs/workbench/services/extensions/browser/extensionService';
-import { AbstractExtensionService, IExtensionHostFactory, ResolvedExtensions } from 'vs/workbench/services/extensions/common/abstractExtensionService';
-import { ExtensionHostKind, ExtensionRunningPreference } from 'vs/workbench/services/extensions/common/extensionHostKind';
-import { IExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManagers';
-import { ExtensionManifestPropertiesService, IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
-import { ExtensionRunningLocationTracker } from 'vs/workbench/services/extensions/common/extensionRunningLocationTracker';
-import { IExtensionHost, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionsProposedApi } from 'vs/workbench/services/extensions/common/extensionsProposedApi';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { WorkspaceTrustEnablementService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
-import { TestEnvironmentService, TestFileService, TestLifecycleService, TestRemoteAgentService, TestRemoteExtensionsScannerService, TestUserDataProfileService, TestWebExtensionsScannerService, TestWorkbenchExtensionEnablementService, TestWorkbenchExtensionManagementService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import assert from 'assert';
+import { Event } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
+import { ExtensionKind, IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
+import { ExtensionIdentifier, IExtension, IExtensionDescription } from '../../../../../platform/extensions/common/extensions.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { TestInstantiationService, createServices } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
+import product from '../../../../../platform/product/common/product.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { RemoteAuthorityResolverService } from '../../../../../platform/remote/browser/remoteAuthorityResolverService.js';
+import { IRemoteAuthorityResolverService, ResolverResult } from '../../../../../platform/remote/common/remoteAuthorityResolver.js';
+import { IRemoteExtensionsScannerService } from '../../../../../platform/remote/common/remoteExtensionsScanner.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
+import { IUserDataProfilesService, UserDataProfilesService } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustEnablementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
+import { IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../../extensionManagement/common/extensionManagement.js';
+import { BrowserExtensionHostKindPicker } from '../../browser/extensionService.js';
+import { AbstractExtensionService, IExtensionHostFactory, ResolvedExtensions } from '../../common/abstractExtensionService.js';
+import { ExtensionHostKind, ExtensionRunningPreference } from '../../common/extensionHostKind.js';
+import { IExtensionHostManager } from '../../common/extensionHostManagers.js';
+import { ExtensionManifestPropertiesService, IExtensionManifestPropertiesService } from '../../common/extensionManifestPropertiesService.js';
+import { ExtensionRunningLocation } from '../../common/extensionRunningLocation.js';
+import { ExtensionRunningLocationTracker } from '../../common/extensionRunningLocationTracker.js';
+import { ActivationKind, IExtensionHost, IExtensionService, IWillActivateEvent } from '../../common/extensions.js';
+import { ExtensionsProposedApi } from '../../common/extensionsProposedApi.js';
+import { ILifecycleService } from '../../../lifecycle/common/lifecycle.js';
+import { IRemoteAgentService } from '../../../remote/common/remoteAgentService.js';
+import { IUserDataProfileService } from '../../../userDataProfile/common/userDataProfile.js';
+import { WorkspaceTrustEnablementService } from '../../../workspaces/common/workspaceTrust.js';
+import { TestEnvironmentService, TestLifecycleService, TestRemoteAgentService, TestRemoteExtensionsScannerService, TestWebExtensionsScannerService, TestWorkbenchExtensionEnablementService, TestWorkbenchExtensionManagementService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestContextService, TestFileService, TestUserDataProfileService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('BrowserExtensionService', () => {
 
@@ -163,6 +163,7 @@ suite('ExtensionService', () => {
 				}
 			};
 			super(
+				{ allowRemoteExtensionsInLocalWebWorker: false, hasLocalProcess: true },
 				extensionsProposedApi,
 				extensionHostFactory,
 				null!,
@@ -184,35 +185,58 @@ suite('ExtensionService', () => {
 				remoteAuthorityResolverService,
 				new TestDialogService()
 			);
+
+			this._initializeIfNeeded();
 		}
 
 		private _extHostId = 0;
 		public readonly order: string[] = [];
+		public readonly activationEvents: { event: string; activationKind: ActivationKind; kind: ExtensionHostKind }[] = [];
+		public remoteExtHostIsReady = true;
+		public localExtHostIsReady = true;
 		protected _pickExtensionHostKind(extensionId: ExtensionIdentifier, extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference): ExtensionHostKind | null {
 			throw new Error('Method not implemented.');
 		}
 		protected override _doCreateExtensionHostManager(extensionHost: IExtensionHost, initialActivationEvents: string[]): IExtensionHostManager {
 			const order = this.order;
+			const activationEvents = this.activationEvents;
+			const extService = this;
 			const extensionHostId = ++this._extHostId;
+			const extHostKind = extensionHost.runningLocation.kind;
 			order.push(`create ${extensionHostId}`);
 			return new class extends mock<IExtensionHostManager>() {
 				override onDidExit = Event.None;
 				override onDidChangeResponsiveState = Event.None;
+				override kind = extHostKind;
+				override get isReady() { return extHostKind === ExtensionHostKind.Remote ? extService.remoteExtHostIsReady : extService.localExtHostIsReady; }
+				override disconnect() {
+					return Promise.resolve();
+				}
+				override start(): Promise<void> {
+					return Promise.resolve();
+				}
 				override dispose(): void {
 					order.push(`dispose ${extensionHostId}`);
 				}
 				override representsRunningLocation(runningLocation: ExtensionRunningLocation): boolean {
 					return extensionHost.runningLocation.equals(runningLocation);
 				}
+				override activateByEvent(event: string, activationKind: ActivationKind): Promise<void> {
+					activationEvents.push({ event, activationKind, kind: extHostKind });
+					return Promise.resolve();
+				}
+				override ready(): Promise<void> {
+					return Promise.resolve();
+				}
 			};
 		}
-		protected _resolveExtensions(): Promise<ResolvedExtensions> {
+		protected async *_resolveExtensions(): AsyncIterable<ResolvedExtensions> {
+			// Return empty iterable - no extensions to resolve in tests
+		}
+		protected _scanSingleExtension(extension: IExtension): Promise<IExtensionDescription | null> {
 			throw new Error('Method not implemented.');
 		}
-		protected _scanSingleExtension(extension: IExtension): Promise<Readonly<IRelaxedExtensionDescription> | null> {
-			throw new Error('Method not implemented.');
-		}
-		protected _onExtensionHostExit(code: number): void {
+		protected _onExtensionHostExit(code: number): Promise<void> {
 			throw new Error('Method not implemented.');
 		}
 		protected _resolveAuthority(remoteAuthority: string): Promise<ResolverResult> {
@@ -255,26 +279,23 @@ suite('ExtensionService', () => {
 		extService = <MyTestExtensionService>instantiationService.get(IExtensionService);
 	});
 
-	teardown(() => {
+	teardown(async () => {
 		disposables.dispose();
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('issue #152204: Remote extension host not disposed after closing vscode client', async () => {
-		await extService.startExtensionHosts();
 		await extService.stopExtensionHosts('foo');
 		assert.deepStrictEqual(extService.order, (['create 1', 'create 2', 'create 3', 'dispose 3', 'dispose 2', 'dispose 1']));
 	});
 
 	test('Extension host disposed when awaited', async () => {
-		await extService.startExtensionHosts();
 		await extService.stopExtensionHosts('foo');
 		assert.deepStrictEqual(extService.order, (['create 1', 'create 2', 'create 3', 'dispose 3', 'dispose 2', 'dispose 1']));
 	});
 
 	test('Extension host not disposed when vetoed (sync)', async () => {
-		await extService.startExtensionHosts();
 
 		disposables.add(extService.onWillStop(e => e.veto(true, 'test 1')));
 		disposables.add(extService.onWillStop(e => e.veto(false, 'test 2')));
@@ -284,7 +305,6 @@ suite('ExtensionService', () => {
 	});
 
 	test('Extension host not disposed when vetoed (async)', async () => {
-		await extService.startExtensionHosts();
 
 		disposables.add(extService.onWillStop(e => e.veto(false, 'test 1')));
 		disposables.add(extService.onWillStop(e => e.veto(Promise.resolve(true), 'test 2')));
@@ -292,5 +312,78 @@ suite('ExtensionService', () => {
 
 		await extService.stopExtensionHosts('foo');
 		assert.deepStrictEqual(extService.order, (['create 1', 'create 2', 'create 3']));
+	});
+
+	test('onWillActivateByEvent includes activationKind for Normal activation', async () => {
+
+		const events: IWillActivateEvent[] = [];
+		disposables.add(extService.onWillActivateByEvent(e => events.push(e)));
+
+		await extService.activateByEvent('onTest', ActivationKind.Normal);
+
+		assert.strictEqual(events.length, 1);
+		assert.strictEqual(events[0].event, 'onTest');
+		assert.strictEqual(events[0].activationKind, ActivationKind.Normal);
+	});
+
+	test('onWillActivateByEvent includes activationKind for Immediate activation', async () => {
+
+		const events: IWillActivateEvent[] = [];
+		disposables.add(extService.onWillActivateByEvent(e => events.push(e)));
+
+		await extService.activateByEvent('onTest', ActivationKind.Immediate);
+
+		assert.strictEqual(events.length, 1);
+		assert.strictEqual(events[0].event, 'onTest');
+		assert.strictEqual(events[0].activationKind, ActivationKind.Immediate);
+	});
+
+	test('Immediate activation includes ready remote extension hosts (issue #297019)', async () => {
+		extService.activationEvents.length = 0; // Clear any initial activations
+
+		await extService.activateByEvent('onTest', ActivationKind.Immediate);
+
+		// When remote host is ready, Immediate activation should include it
+		const activatedKinds = extService.activationEvents.map(e => e.kind);
+		assert.ok(activatedKinds.includes(ExtensionHostKind.LocalProcess), 'Should activate on LocalProcess');
+		assert.ok(activatedKinds.includes(ExtensionHostKind.LocalWebWorker), 'Should activate on LocalWebWorker');
+		assert.ok(activatedKinds.includes(ExtensionHostKind.Remote), 'Should activate on ready Remote host');
+	});
+
+	test('Immediate activation excludes not-ready remote extension hosts', async () => {
+		extService.remoteExtHostIsReady = false;
+		extService.activationEvents.length = 0; // Clear any initial activations
+
+		await extService.activateByEvent('onTest', ActivationKind.Immediate);
+
+		// When remote host is not ready, Immediate activation should skip it
+		const activatedKinds = extService.activationEvents.map(e => e.kind);
+		assert.ok(activatedKinds.includes(ExtensionHostKind.LocalProcess), 'Should activate on LocalProcess');
+		assert.ok(activatedKinds.includes(ExtensionHostKind.LocalWebWorker), 'Should activate on LocalWebWorker');
+		assert.ok(!activatedKinds.includes(ExtensionHostKind.Remote), 'Should NOT activate on not-ready Remote host');
+	});
+
+	test('Immediate activation still activates local extension hosts even when not ready', async () => {
+		extService.localExtHostIsReady = false;
+		extService.activationEvents.length = 0; // Clear any initial activations
+
+		await extService.activateByEvent('onTest', ActivationKind.Immediate);
+
+		// Local hosts should always be activated for Immediate, regardless of isReady
+		const activatedKinds = extService.activationEvents.map(e => e.kind);
+		assert.ok(activatedKinds.includes(ExtensionHostKind.LocalProcess), 'Should activate on LocalProcess even when not ready');
+		assert.ok(activatedKinds.includes(ExtensionHostKind.LocalWebWorker), 'Should activate on LocalWebWorker even when not ready');
+	});
+
+	test('Normal activation activates all extension hosts', async () => {
+		extService.activationEvents.length = 0; // Clear any initial activations
+
+		await extService.activateByEvent('onTest', ActivationKind.Normal);
+
+		// Should activate on all hosts
+		const activatedKinds = extService.activationEvents.map(e => e.kind);
+		assert.ok(activatedKinds.includes(ExtensionHostKind.LocalProcess), 'Should activate on LocalProcess');
+		assert.ok(activatedKinds.includes(ExtensionHostKind.LocalWebWorker), 'Should activate on LocalWebWorker');
+		assert.ok(activatedKinds.includes(ExtensionHostKind.Remote), 'Should activate on Remote');
 	});
 });

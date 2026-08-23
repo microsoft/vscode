@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, strictEqual } from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { getInstanceFromResource, getTerminalResourcesFromDragEvent, getTerminalUri, IPartialDragEvent } from 'vs/workbench/contrib/terminal/browser/terminalUri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { getInstanceFromResource, getTerminalResourcesFromDragEvent, getTerminalUri, IPartialDragEvent } from '../../browser/terminalUri.js';
 
 function fakeDragEvent(data: string): IPartialDragEvent {
 	return {
@@ -51,7 +51,7 @@ suite('terminalUri', () => {
 			strictEqual(
 				getInstanceFromResource([
 					{ resource: getTerminalUri('workspace', 2, 'title') }
-				], getTerminalUri('workspace', 1)),
+				], getTerminalUri('workspace', 1, 'title')),
 				undefined
 			);
 		});
@@ -62,7 +62,7 @@ suite('terminalUri', () => {
 					{ resource: getTerminalUri('workspace', 1, 'title') },
 					instance,
 					{ resource: getTerminalUri('workspace', 3, 'title') }
-				], getTerminalUri('workspace', 2)),
+				], getTerminalUri('workspace', 2, 'title')),
 				instance
 			);
 		});

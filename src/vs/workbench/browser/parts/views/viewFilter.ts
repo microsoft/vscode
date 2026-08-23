@@ -3,29 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Delayer } from 'vs/base/common/async';
-import * as DOM from 'vs/base/browser/dom';
-import { IAction } from 'vs/base/common/actions';
-import { HistoryInputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { toDisposable } from 'vs/base/common/lifecycle';
-import { badgeBackground, badgeForeground, contrastBorder, asCssVariable } from 'vs/platform/theme/common/colorRegistry';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ContextScopedHistoryInputBox } from 'vs/platform/history/browser/contextScopedHistoryWidget';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Codicon } from 'vs/base/common/codicons';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { showHistoryKeybindingHint } from 'vs/platform/history/browser/historyWidgetKeybindingHint';
-import { MenuId, MenuRegistry, SubmenuItemAction } from 'vs/platform/actions/common/actions';
-import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { Emitter } from 'vs/base/common/event';
-import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { Delayer, disposableTimeout } from '../../../../base/common/async.js';
+import * as DOM from '../../../../base/browser/dom.js';
+import { IAction } from '../../../../base/common/actions.js';
+import { HistoryInputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { toDisposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { badgeBackground, badgeForeground, contrastBorder, asCssVariable } from '../../../../platform/theme/common/colorRegistry.js';
+import { localize } from '../../../../nls.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ContextScopedHistoryInputBox } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { showHistoryKeybindingHint } from '../../../../platform/history/browser/historyWidgetKeybindingHint.js';
+import { MenuId, MenuRegistry, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { SubmenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { Widget } from '../../../../base/browser/ui/widget.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 
 const viewFilterMenu = new MenuId('menu.view.filter');
 export const viewFilterSubmenu = new MenuId('submenu.view.filter');
@@ -56,7 +58,6 @@ class MoreFiltersActionViewItem extends SubmenuEntryActionViewItem {
 		super.render(container);
 		this.updateChecked();
 	}
-
 }
 
 export interface IFilterWidgetOptions {
@@ -79,23 +80,36 @@ export class FilterWidget extends Widget {
 	private readonly _onDidChangeFilterText = this._register(new Emitter<string>());
 	readonly onDidChangeFilterText = this._onDidChangeFilterText.event;
 
+	private readonly _onDidAcceptFilterText = this._register(new Emitter<void>());
+	readonly onDidAcceptFilterText = this._onDidAcceptFilterText.event;
+
 	private moreFiltersActionViewItem: MoreFiltersActionViewItem | undefined;
 	private isMoreFiltersChecked: boolean = false;
 	private lastWidth?: number;
 
-	private focusTracker: DOM.IFocusTracker;
-	public get onDidFocus() { return this.focusTracker.onDidFocus; }
-	public get onDidBlur() { return this.focusTracker.onDidBlur; }
+	/**
+	 * Tracks whether the accessibility help hint has been announced in the ARIA label.
+	 * Reset when the widget loses focus, allowing the hint to be announced again
+	 * on the next focus.
+	 */
+	private _accessibilityHelpHintAnnounced: boolean = false;
+	private _labelResetTimeout: IDisposable | undefined;
+
+	private readonly focusTracker: DOM.IFocusTracker;
+	get onDidFocus() { return this.focusTracker.onDidFocus; }
+	get onDidBlur() { return this.focusTracker.onDidBlur; }
 
 	constructor(
 		private readonly options: IFilterWidgetOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super();
-		this.delayedFilterUpdate = new Delayer<void>(400);
+		this.delayedFilterUpdate = new Delayer<void>(300);
 		this._register(toDisposable(() => this.delayedFilterUpdate.cancel()));
 
 		if (options.focusContextKey) {
@@ -119,7 +133,36 @@ export class FilterWidget extends Widget {
 	}
 
 	focus(): void {
+		this._updateFilterInputAriaLabel();
 		this.filterInputBox.focus();
+	}
+
+	/**
+	 * Updates the ARIA label of the filter input box.
+	 * When a screen reader is active and the accessibility verbosity setting is enabled,
+	 * includes a hint about pressing Alt+F1 for accessibility help on first focus.
+	 * The hint is only announced once per focus cycle to prevent double-speak.
+	 */
+	private _updateFilterInputAriaLabel(): void {
+		let ariaLabel = this.options.ariaLabel || localize('viewFilter', "Filter");
+
+		// Include accessibility help hint when screen reader is active and setting is enabled
+		// Note: Using string literal for setting ID to avoid layering violation (viewFilter.ts cannot import from contrib modules)
+		if (!this._accessibilityHelpHintAnnounced && this.configurationService.getValue<boolean>('accessibility.verbosity.find') && this.accessibilityService.isScreenReaderOptimized()) {
+			const keybinding = this.keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getAriaLabel();
+			if (keybinding) {
+				ariaLabel += ', ' + localize('accessibilityHelpHintInLabel', "Press {0} for accessibility help", keybinding);
+				this._accessibilityHelpHintAnnounced = true;
+
+				// Reset to plain label after delay to avoid repeated announcement on focus changes
+				this._labelResetTimeout?.dispose();
+				this._labelResetTimeout = disposableTimeout(() => {
+					this.filterInputBox.setAriaLabel(this.options.ariaLabel || localize('viewFilter', "Filter"));
+				}, 1000);
+			}
+		}
+
+		this.filterInputBox.setAriaLabel(ariaLabel);
 	}
 
 	blur(): void {
@@ -165,10 +208,11 @@ export class FilterWidget extends Widget {
 	}
 
 	private createInput(container: HTMLElement): [ContextScopedHistoryInputBox, DOM.IFocusTracker] {
+		const history = this.options.history || [];
 		const inputBox = this._register(this.instantiationService.createInstance(ContextScopedHistoryInputBox, container, this.contextViewService, {
 			placeholder: this.options.placeholder,
 			ariaLabel: this.options.ariaLabel,
-			history: this.options.history || [],
+			history: new Set(history),
 			showHistoryHint: () => showHistoryKeybindingHint(this.keybindingService),
 			inputBoxStyles: defaultInputBoxStyles
 		}));
@@ -176,9 +220,9 @@ export class FilterWidget extends Widget {
 			inputBox.value = this.options.text;
 		}
 		this._register(inputBox.onDidChange(filter => this.delayedFilterUpdate.trigger(() => this.onDidInputChange(inputBox))));
-		this._register(DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: any) => this.onInputKeyDown(e, inputBox)));
-		this._register(DOM.addStandardDisposableListener(container, DOM.EventType.KEY_DOWN, this.handleKeyboardEvent));
-		this._register(DOM.addStandardDisposableListener(container, DOM.EventType.KEY_UP, this.handleKeyboardEvent));
+		this._register(DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: StandardKeyboardEvent) => this.onInputKeyDown(e)));
+		this._register(DOM.addStandardDisposableListener(container, DOM.EventType.KEY_DOWN, (e: StandardKeyboardEvent) => this.handleKeyboardEvent(e)));
+		this._register(DOM.addStandardDisposableListener(container, DOM.EventType.KEY_UP, (e: StandardKeyboardEvent) => this.handleKeyboardEvent(e)));
 		this._register(DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.CLICK, (e) => {
 			e.stopPropagation();
 			e.preventDefault();
@@ -230,15 +274,21 @@ export class FilterWidget extends Widget {
 		if (event.equals(KeyCode.Space)
 			|| event.equals(KeyCode.LeftArrow)
 			|| event.equals(KeyCode.RightArrow)
+			|| event.equals(KeyCode.Home)
+			|| event.equals(KeyCode.End)
 		) {
 			event.stopPropagation();
 		}
 	}
 
-	private onInputKeyDown(event: StandardKeyboardEvent, filterInputBox: HistoryInputBox) {
+	private onInputKeyDown(event: StandardKeyboardEvent) {
 		let handled = false;
 		if (event.equals(KeyCode.Tab) && !this.toolbar.isEmpty()) {
 			this.toolbar.focus();
+			handled = true;
+		}
+		if (event.equals(KeyCode.Enter)) {
+			this._onDidAcceptFilterText.fire();
 			handled = true;
 		}
 		if (handled) {
@@ -246,5 +296,4 @@ export class FilterWidget extends Widget {
 			event.preventDefault();
 		}
 	}
-
 }

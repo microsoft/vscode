@@ -2,10 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import * as arrays from 'vs/base/common/arrays';
-import * as arraysFind from 'vs/base/common/arraysFind';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import * as arrays from '../../common/arrays.js';
+import * as arraysFind from '../../common/arraysFind.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Arrays', () => {
 
@@ -399,6 +399,8 @@ suite('Arrays', () => {
 		);
 	});
 
+
+
 	suite('ArrayQueue', () => {
 		suite('takeWhile/takeFromEndWhile', () => {
 			test('TakeWhile 1', () => {
@@ -413,6 +415,16 @@ suite('Arrays', () => {
 				assert.deepStrictEqual(queue1.takeFromEndWhile(x => x > 5), [7, 6]);
 				assert.deepStrictEqual(queue1.takeFromEndWhile(x => x < 2), [1]);
 				assert.deepStrictEqual(queue1.takeFromEndWhile(x => true), [9, 8]);
+			});
+
+			test('takeWhile and takeFromEndWhile mixed', () => {
+				const queue1 = new arrays.ArrayQueue([1, 2, 3, 4, 5]);
+				assert.deepStrictEqual(queue1.takeFromEndWhile(x => x > 3), [4, 5]);
+				assert.deepStrictEqual(queue1.takeWhile(x => x > 0), [1, 2, 3]);
+
+				const queue2 = new arrays.ArrayQueue([1, 2, 3, 4, 5]);
+				assert.deepStrictEqual(queue2.takeWhile(x => x < 3), [1, 2]);
+				assert.deepStrictEqual(queue2.takeFromEndWhile(x => x > 0), [3, 4, 5]);
 			});
 		});
 
