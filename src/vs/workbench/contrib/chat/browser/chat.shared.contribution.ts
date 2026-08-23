@@ -405,7 +405,7 @@ configurationRegistry.registerConfiguration({
 			enum: [AgentHostExternalSessionsMode.None, AgentHostExternalSessionsMode.Recent, AgentHostExternalSessionsMode.Last24Hours, AgentHostExternalSessionsMode.Last7Days, AgentHostExternalSessionsMode.Last30Days],
 			enumDescriptions: [
 				nls.localize('chat.agentSessions.showExternal.none', "Only shows sessions created by the Agent Host."),
-				nls.localize('chat.agentSessions.showExternal.recent', "Shows the 2 most recently updated external sessions from the last 7 days."),
+				nls.localize('chat.agentSessions.showExternal.recent', "Shows up to the 2 most recently updated external sessions from the last 7 days, hiding any that you have started 2 newer sessions after."),
 				nls.localize('chat.agentSessions.showExternal.last24Hours', "Shows external sessions updated in the last 24 hours."),
 				nls.localize('chat.agentSessions.showExternal.last7Days', "Shows external sessions updated in the last 7 days."),
 				nls.localize('chat.agentSessions.showExternal.last30Days', "Shows external sessions updated in the last 30 days."),
