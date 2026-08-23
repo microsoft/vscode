@@ -26,6 +26,10 @@ import { IChatAgentResult } from '../participants/chatAgents.js';
 
 export const IChatEditingService = createDecorator<IChatEditingService>('chatEditingService');
 
+export interface IChatEditingSessionProvider {
+	createEditingSession(chatSessionResource: URI): IChatEditingSession;
+}
+
 export interface IChatEditingService {
 
 	_serviceBrand: undefined;
@@ -37,7 +41,7 @@ export interface IChatEditingService {
 	/**
 	 * All editing sessions, sorted by recency, e.g the last created session comes first.
 	 */
-	readonly editingSessionsObs: IObservable<readonly IChatEditingSession[]>;
+	readonly editingSessionsObs: IObservable<readonly IChatEditReviewSession[]>;
 
 	/**
 	 * Creates a new short lived editing session
@@ -45,9 +49,23 @@ export interface IChatEditingService {
 	createEditingSession(chatModel: ChatModel): IChatEditingSession;
 
 	/**
+	 * Registers a review session that was not created via {@link createEditingSession},
+	 * so editor-level review UI can discover its entries. Disposing the result removes it.
+	 */
+	registerEditReviewSession(session: IChatEditReviewSession): IDisposable;
+
+	/**
 	 * Creates an editing session with state transferred from the provided session.
 	 */
 	transferEditingSession(chatModel: ChatModel, session: IChatEditingSession): IChatEditingSession;
+
+	/**
+	 * Registers a provider that creates editing sessions for chat sessions
+	 * with the given URI scheme. When {@link createEditingSession} is called
+	 * for a chat model whose sessionResource matches the scheme, the provider
+	 * is used instead of the default implementation.
+	 */
+	registerEditingSessionProvider(scheme: string, provider: IChatEditingSessionProvider): IDisposable;
 }
 
 export interface WorkingSetDisplayMetadata {
@@ -87,21 +105,31 @@ export interface ISnapshotEntry {
 	readonly isDeleted?: boolean;
 }
 
-export interface IChatEditingSession extends IDisposable {
+/**
+ * A reviewable set of file changes: entries with editor decorations that can
+ * be kept or undone. This is the minimal surface that editor-level review UI
+ * (decorations, hunk navigation, keep/undo actions) depends on. Full chat
+ * editing sessions additionally support checkpoints, streaming edits, storage
+ * and multi-diff via {@link IChatEditingSession}.
+ */
+export interface IChatEditReviewSession extends IDisposable {
 	readonly isGlobalEditingSession: boolean;
 	readonly chatSessionResource: URI;
 	readonly onDidDispose: Event<void>;
-	readonly state: IObservable<ChatEditingSessionState>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
+	getEntry(uri: URI): IModifiedFileEntry | undefined;
+	readEntry(uri: URI, reader: IReader): IModifiedFileEntry | undefined;
+	accept(...uris: URI[]): Promise<void>;
+	reject(...uris: URI[]): Promise<void>;
+}
+
+export interface IChatEditingSession extends IChatEditReviewSession {
+	readonly supportsKeepUndo: boolean;
+	readonly state: IObservable<ChatEditingSessionState>;
 	/** Requests disabled by undo/redo in the session */
 	readonly requestDisablement: IObservable<IChatRequestDisablement[]>;
 
 	show(previousChanges?: boolean): Promise<void>;
-	accept(...uris: URI[]): Promise<void>;
-	reject(...uris: URI[]): Promise<void>;
-	getEntry(uri: URI): IModifiedFileEntry | undefined;
-	readEntry(uri: URI, reader: IReader): IModifiedFileEntry | undefined;
-
 	restoreSnapshot(requestId: string, stopId: string | undefined): Promise<void>;
 
 	/**
@@ -110,8 +138,8 @@ export interface IChatEditingSession extends IDisposable {
 	 * agents that make changes on-disk rather than streaming edits through the
 	 * chat session.
 	 */
-	startExternalEdits(responseModel: IChatResponseModel, operationId: number, resources: URI[], undoStopId: string): Promise<IChatProgress[]>;
-	stopExternalEdits(responseModel: IChatResponseModel, operationId: number): Promise<IChatProgress[]>;
+	startExternalEdits(responseModel: IChatResponseModel, operationId: number, resources: URI[], undoStopId: string, contentFor?: URI[]): Promise<IChatProgress[]>;
+	stopExternalEdits(responseModel: IChatResponseModel, operationId: number, contentFor?: URI[]): Promise<IChatProgress[]>;
 
 	/**
 	 * Gets the snapshot URI of a file at the request and _after_ changes made in the undo stop.
@@ -277,6 +305,23 @@ export interface IEditSessionEntryDiff extends IEditSessionDiffStats {
 	/** LHS and RHS of a diff editor, if opened: */
 	originalURI: URI;
 	modifiedURI: URI;
+
+	/**
+	 * Optional frozen "after" content for the RHS. When set, this is the exact
+	 * modified-side snapshot the diff represents (e.g. an agent-host per-turn
+	 * checkpoint), as opposed to {@link modifiedURI} which may be the live
+	 * working file and therefore include later changes. Consumers that want the
+	 * changeset's own diff should prefer this when present; {@link modifiedURI}
+	 * remains the file's identity for labels and go-to-file.
+	 *
+	 * Note: distinct from the agent-host checkpoint-ref readability fix (#323932).
+	 * That made the frozen snapshot blobs *readable*; this field carries *which*
+	 * snapshot to diff against so a per-turn review shows only that turn's changes.
+	 */
+	modifiedSnapshotURI?: URI;
+
+	/** Whether the modified resource was deleted by this edit. */
+	isDeleted?: boolean;
 
 	/** Diff state information: */
 	quitEarly: boolean;

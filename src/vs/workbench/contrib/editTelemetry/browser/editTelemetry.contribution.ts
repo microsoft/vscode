@@ -14,6 +14,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IAiEditTelemetryService } from './telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { AiEditTelemetryServiceImpl } from './telemetry/aiEditTelemetry/aiEditTelemetryServiceImpl.js';
 import { IRandomService, RandomService } from './randomService.js';
+import { AgentHostEditTelemetryEnabledConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
 
 registerWorkbenchContribution2('EditTelemetryContribution', EditTelemetryContribution, WorkbenchPhase.AfterRestored);
 
@@ -29,6 +30,10 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true,
 			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			},
+			agentHost: { key: AgentHostEditTelemetryEnabledConfigKey },
 		},
 		[AI_STATS_SETTING_ID]: {
 			markdownDescription: localize('editor.aiStats.enabled', "Controls whether to enable AI statistics in the editor. The gauge shows the average AI rate across 5-minute sessions, where each session's rate is calculated as AI-inserted characters divided by total inserted characters."),

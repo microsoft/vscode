@@ -98,10 +98,11 @@ suite('vscode API - tree', () => {
 		await provider.resolveNextRequest();
 
 		const [firstResult, secondResult] = await Promise.all([revealFirst, revealSecond]);
-		const error = firstResult.error ?? secondResult.error;
-		if (error && /Element with id .+ is already registered/.test(error.message)) {
-			assert.fail(error.message);
-		}
+		// Two concurrent root fetches race: the stale one gets invalidated and
+		// its reveal fails with "Cannot resolve". The other succeeds.
+		const errors = [firstResult.error, secondResult.error].filter((e): e is Error => !!e);
+		assert.strictEqual(errors.length, 1, 'Exactly one reveal should fail from the stale fetch');
+		assert.ok(/Cannot resolve tree item/.test(errors[0].message), `Expected "Cannot resolve" error but got: ${errors[0].message}`);
 	});
 
 	test('TreeView - element already registered after rapid root refresh', async function () {
@@ -206,10 +207,113 @@ suite('vscode API - tree', () => {
 		provider.resolveRequestWithElement(1, provider.getElement2());
 
 		const [firstResult, secondResult] = await Promise.all([firstReveal, secondReveal]);
-		const error = firstResult.error ?? secondResult.error;
-		if (error && /Element with id .+ is already registered/.test(error.message)) {
-			assert.fail(error.message);
+		const errors = [firstResult.error, secondResult.error].filter((e): e is Error => !!e);
+		assert.strictEqual(errors.length, 1, 'Exactly one reveal should fail from the stale fetch');
+		assert.ok(/Cannot resolve tree item/.test(errors[0].message), `Expected "Cannot resolve" error but got: ${errors[0].message}`);
+	});
+
+	test('TreeView - element already registered during switch and update', async function () {
+		this.timeout(60_000);
+
+		// This test reproduces a race condition where the tree is being "switched to"
+		// (via reveal, which triggers getChildren) while simultaneously the tree data
+		// is being updated with a new element being added. Both operations trigger
+		// concurrent getChildren calls. The first resolves with the old set of elements,
+		// the second resolves with a new set that includes a new element. If both try
+		// to register elements with the same ID, the error is thrown.
+
+		type TreeElement = { readonly kind: 'leaf'; readonly instance: number };
+
+		class SwitchAndUpdateTreeDataProvider implements vscode.TreeDataProvider<TreeElement> {
+			private readonly changeEmitter = new vscode.EventEmitter<TreeElement | undefined>();
+			private readonly requestEmitter = new vscode.EventEmitter<number>();
+			private readonly pendingRequests: DeferredPromise<TreeElement[]>[] = [];
+			private readonly existingOld: TreeElement = { kind: 'leaf', instance: 1 };
+			private readonly existingNew: TreeElement = { kind: 'leaf', instance: 2 };
+			private readonly addedElement: TreeElement = { kind: 'leaf', instance: 3 };
+
+			readonly onDidChangeTreeData = this.changeEmitter.event;
+
+			getChildren(element?: TreeElement): Thenable<TreeElement[]> {
+				if (!element) {
+					const deferred = new DeferredPromise<TreeElement[]>();
+					this.pendingRequests.push(deferred);
+					this.requestEmitter.fire(this.pendingRequests.length);
+					return deferred.p;
+				}
+				return Promise.resolve([]);
+			}
+
+			getTreeItem(element: TreeElement): vscode.TreeItem {
+				if (element === this.addedElement) {
+					const item = new vscode.TreeItem('added', vscode.TreeItemCollapsibleState.None);
+					item.id = 'added-elem';
+					return item;
+				}
+				const item = new vscode.TreeItem('existing', vscode.TreeItemCollapsibleState.None);
+				item.id = 'existing-elem';
+				return item;
+			}
+
+			getParent(): TreeElement | undefined {
+				return undefined;
+			}
+
+			async waitForRequestCount(count: number): Promise<void> {
+				while (this.pendingRequests.length < count) {
+					await asPromise(this.requestEmitter.event);
+				}
+			}
+
+			resolveRequestAt(index: number, elements: TreeElement[]): void {
+				const request = this.pendingRequests[index];
+				if (request) {
+					request.complete(elements);
+				}
+			}
+
+			getExistingOld(): TreeElement { return this.existingOld; }
+			getExistingNew(): TreeElement { return this.existingNew; }
+			getAddedElement(): TreeElement { return this.addedElement; }
+
+			dispose(): void {
+				this.changeEmitter.dispose();
+				this.requestEmitter.dispose();
+				while (this.pendingRequests.length) {
+					this.pendingRequests.shift()!.complete([]);
+				}
+			}
 		}
+
+		const provider = new SwitchAndUpdateTreeDataProvider();
+		disposables.push(provider);
+
+		const treeView = vscode.window.createTreeView('test.treeSwitchUpdate', { treeDataProvider: provider });
+		disposables.push(treeView);
+
+		// Two concurrent reveals simulate the tree being "switched to" while also
+		// being updated: both trigger getChildren calls on the ext host directly.
+		const revealFirst = (treeView.reveal(provider.getExistingOld(), { expand: true })
+			.then(() => ({ error: undefined as Error | undefined })) as Promise<{ error: Error | undefined }>)
+			.catch(error => ({ error }));
+		const revealSecond = (treeView.reveal(provider.getExistingNew(), { expand: true })
+			.then(() => ({ error: undefined as Error | undefined })) as Promise<{ error: Error | undefined }>)
+			.catch(error => ({ error }));
+
+		// Wait for both getChildren calls to be pending
+		await provider.waitForRequestCount(2);
+
+		// Resolve first request with old data (just the existing element, old instance)
+		provider.resolveRequestAt(0, [provider.getExistingOld()]);
+		await delay(0);
+
+		// Resolve second request with new data: different instance of existing + added element
+		provider.resolveRequestAt(1, [provider.getExistingNew(), provider.getAddedElement()]);
+
+		const [firstResult, secondResult] = await Promise.all([revealFirst, revealSecond]);
+		const errors = [firstResult.error, secondResult.error].filter((e): e is Error => !!e);
+		assert.strictEqual(errors.length, 1, 'Exactly one reveal should fail from the stale fetch');
+		assert.ok(/Cannot resolve tree item/.test(errors[0].message), `Expected "Cannot resolve" error but got: ${errors[0].message}`);
 	});
 
 	test('TreeView - element already registered after refresh', async function () {
@@ -345,9 +449,7 @@ suite('vscode API - tree', () => {
 		await provider.resolveChildRequestAt(0, [staleChild]);
 
 		const [firstResult, secondResult] = await Promise.all([firstReveal, secondReveal]);
-		const error = firstResult.error ?? secondResult.error;
-		if (error && /Element with id .+ is already registered/.test(error.message)) {
-			assert.fail(error.message);
-		}
+		assert.strictEqual(firstResult.error, undefined, `First reveal should not fail: ${firstResult.error?.message}`);
+		assert.strictEqual(secondResult.error, undefined, `Second reveal should not fail: ${secondResult.error?.message}`);
 	});
 });

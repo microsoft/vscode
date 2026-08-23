@@ -7,14 +7,18 @@ import assert from 'assert';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
+import { IFileService } from '../../../../../../../platform/files/common/files.js';
+import { TestFileService, workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
+import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../../../browser/labels.js';
+import { getEffectiveImageOmittedState, ImageAttachmentWidget } from '../../../../browser/attachments/chatAttachmentWidgets.js';
 import { ChatAttachmentsContentPart } from '../../../../browser/widget/chatContentParts/chatAttachmentsContentPart.js';
-import { IChatRequestVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
+import { AgentHostCompletionReferenceKind, IChatRequestVariableEntry, OmittedState, toAgentHostCompletionVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../common/languageModels.js';
 
 suite('ChatAttachmentsContentPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-
 	let disposables: DisposableStore;
 	let instantiationService: ReturnType<typeof workbenchInstantiationService>;
 
@@ -48,6 +52,27 @@ suite('ChatAttachmentsContentPart', () => {
 			isURL: false,
 			references: [{ kind: 'reference', reference: URI.file(`/test/${name}`) }]
 		};
+	}
+
+	function setModels(models: ReadonlyArray<{ identifier: string; id: string; vendor: string; vision: boolean }>): void {
+		instantiationService.stub(ILanguageModelsService, {
+			getLanguageModelIds: () => models.map(model => model.identifier),
+			lookupLanguageModel: identifier => {
+				const model = models.find(model => model.identifier === identifier);
+				return model ? {
+					extension: new ExtensionIdentifier('test.extension'),
+					id: model.id,
+					vendor: model.vendor,
+					name: model.id,
+					version: '1',
+					family: model.id,
+					maxInputTokens: 1000,
+					maxOutputTokens: 1000,
+					isDefaultForLocation: {},
+					capabilities: { vision: model.vision },
+				} satisfies ILanguageModelChatMetadata : undefined;
+			},
+		} as ILanguageModelsService);
 	}
 
 	suite('updateVariables', () => {
@@ -110,6 +135,7 @@ suite('ChatAttachmentsContentPart', () => {
 			// Should still have 1 attachment (now as image)
 			const updatedAttachments = part.domNode!.querySelectorAll('.chat-attached-context-attachment');
 			assert.strictEqual(updatedAttachments.length, 1, 'Should have 1 attachment after update');
+			assert.ok(updatedAttachments[0].classList.contains('image-attachment'), 'Image attachment should have styling class');
 		});
 
 		test('should preserve contextMenuHandler after update', () => {
@@ -205,6 +231,45 @@ suite('ChatAttachmentsContentPart', () => {
 			assert.strictEqual(attachments.length, 2, 'Should render 2 file attachments');
 		});
 
+		test('should not render agent host completion references as attachments', () => {
+			const variables: IChatRequestVariableEntry[] = [
+				createFileEntry('file1.ts'),
+				toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Command, '/rename', 'rename', undefined),
+				toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Skill, '/agent-host-docs', 'file:///skills/agent-host-docs/SKILL.md', undefined),
+			];
+
+			const part = store.add(instantiationService.createInstance(
+				ChatAttachmentsContentPart,
+				{ variables }
+			));
+
+			mainWindow.document.body.appendChild(part.domNode!);
+			disposables.add(toDisposable(() => part.domNode?.remove()));
+
+			const attachments = part.domNode!.querySelectorAll('.chat-attached-context-attachment');
+			assert.strictEqual(attachments.length, 1, 'Should only render the file attachment');
+		});
+
+		test('should not count agent host completion references in show more label', () => {
+			const variables: IChatRequestVariableEntry[] = [
+				createFileEntry('file1.ts'),
+				toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Command, '/rename', 'rename', undefined),
+				toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Skill, '/agent-host-docs', 'file:///skills/agent-host-docs/SKILL.md', undefined),
+				createFileEntry('file2.ts'),
+			];
+
+			const part = store.add(instantiationService.createInstance(
+				ChatAttachmentsContentPart,
+				{ variables, limit: 1 }
+			));
+
+			mainWindow.document.body.appendChild(part.domNode!);
+			disposables.add(toDisposable(() => part.domNode?.remove()));
+
+			const showMoreLabel = part.domNode!.querySelector('.chat-attachments-show-more-button .chat-attached-context-custom-text')?.textContent;
+			assert.strictEqual(showMoreLabel, '1 more');
+		});
+
 		test('should have chat-attached-context class on domNode', () => {
 			const variables: IChatRequestVariableEntry[] = [createFileEntry('file.ts')];
 
@@ -214,6 +279,158 @@ suite('ChatAttachmentsContentPart', () => {
 			));
 
 			assert.ok(part.domNode!.classList.contains('chat-attached-context'), 'Should have chat-attached-context class');
+		});
+
+		test('should mark images omitted when the routed model does not support vision', () => {
+			setModels([
+				{ identifier: 'copilot/auto', id: 'auto', vendor: 'copilot', vision: false },
+				{ identifier: 'other/test-non-vision', id: 'test-non-vision', vendor: 'other', vision: true },
+				{ identifier: 'copilot/test-non-vision', id: 'test-non-vision', vendor: 'copilot', vision: false },
+			]);
+			const image = createImageEntry('image.png', new Uint8Array([1, 2, 3]));
+
+			const part = store.add(instantiationService.createInstance(
+				ChatAttachmentsContentPart,
+				{ variables: [image], modelId: 'copilot/auto', resolvedModelId: 'test-non-vision' }
+			));
+
+			const attachment = part.domNode!.querySelector<HTMLElement>('.image-attachment');
+			assert.deepStrictEqual({
+				omittedState: image.omittedState,
+				ariaLabel: attachment?.ariaLabel,
+				isWarning: attachment?.classList.contains('warning'),
+			}, {
+				omittedState: undefined,
+				ariaLabel: 'Image not sent because test-non-vision does not support images: image.png',
+				isWarning: true,
+			});
+		});
+
+		test('should not mark images omitted for Auto before routing', () => {
+			setModels([{ identifier: 'copilot/auto', id: 'copilot/auto', vendor: 'copilot', vision: false }]);
+			const image = createImageEntry('image.png', new Uint8Array([1, 2, 3]));
+
+			const part = store.add(instantiationService.createInstance(
+				ChatAttachmentsContentPart,
+				{ variables: [image], modelId: 'copilot/auto' }
+			));
+
+			const attachment = part.domNode!.querySelector<HTMLElement>('.image-attachment');
+			assert.deepStrictEqual({
+				omittedState: image.omittedState,
+				ariaLabel: attachment?.ariaLabel,
+				isWarning: attachment?.classList.contains('warning'),
+				isAutoWarning: attachment?.classList.contains('auto-image-warning'),
+				hasWarningIcon: !!attachment?.querySelector('.codicon-warning'),
+			}, {
+				omittedState: undefined,
+				ariaLabel: 'Attached image, image.png. Image support depends on the model selected by Auto.',
+				isWarning: false,
+				isAutoWarning: true,
+				hasWarningIcon: false,
+			});
+		});
+
+		test('should ignore a stale omitted state when editing with Auto', () => {
+			const autoModel = {
+				identifier: 'copilot/auto',
+				metadata: {
+					extension: new ExtensionIdentifier('test.extension'),
+					id: 'copilot/auto',
+					vendor: 'copilot',
+					name: 'Auto',
+					version: '1',
+					family: 'auto',
+					maxInputTokens: 1000,
+					maxOutputTokens: 1000,
+					isDefaultForLocation: {},
+				}
+			} satisfies { identifier: string; metadata: ILanguageModelChatMetadata };
+
+			assert.strictEqual(getEffectiveImageOmittedState(OmittedState.Full, autoModel, true), OmittedState.NotOmitted);
+		});
+
+		suite('hydrated image attachments', () => {
+			async function renderImageAndCollectReads(image: IChatRequestVariableEntry): Promise<string[]> {
+				const fileService = instantiationService.get(IFileService) as TestFileService;
+				const part = store.add(instantiationService.createInstance(
+					ChatAttachmentsContentPart,
+					{ variables: [image] }
+				));
+
+				mainWindow.document.body.appendChild(part.domNode!);
+				disposables.add(toDisposable(() => part.domNode?.remove()));
+
+				// Let the widget's lazy byte load (a microtask) settle before inspecting reads.
+				await new Promise<void>(resolve => setTimeout(resolve, 0));
+
+				return fileService.readOperations.map(read => read.resource.toString());
+			}
+
+			test('should load bytes from the resource for a hydrated (uri-only) image', async () => {
+				const resource = URI.file('/test/pasted-image.png');
+				const reads = await renderImageAndCollectReads({
+					kind: 'image',
+					id: 'hydrated-image',
+					name: 'pasted-image.png',
+					value: resource,
+					mimeType: 'image/png',
+					isURL: true,
+					references: [{ kind: 'reference', reference: resource }]
+				});
+
+				assert.deepStrictEqual(reads, [resource.toString()]);
+			});
+
+			test('should not read the resource for an image with inline bytes', async () => {
+				const resource = URI.file('/test/inline-image.png');
+				const reads = await renderImageAndCollectReads({
+					kind: 'image',
+					id: 'inline-image',
+					name: 'inline-image.png',
+					value: new Uint8Array([0x89, 0x50, 0x4E, 0x47]),
+					mimeType: 'image/png',
+					isURL: false,
+					references: [{ kind: 'reference', reference: resource }]
+				});
+
+				assert.deepStrictEqual(reads, []);
+			});
+
+			test('should keep delete hint after loading hydrated image bytes', async () => {
+				const resource = URI.file('/test/pasted-image.png');
+				const container = mainWindow.document.createElement('div');
+				mainWindow.document.body.appendChild(container);
+				disposables.add(toDisposable(() => container.remove()));
+				const contextResourceLabels = disposables.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
+				const widget = disposables.add(instantiationService.createInstance(
+					ImageAttachmentWidget,
+					resource,
+					{
+						kind: 'image',
+						id: 'hydrated-image-with-delete',
+						name: 'pasted-image.png',
+						value: resource,
+						mimeType: 'image/png',
+						isURL: true,
+						references: [{ kind: 'reference', reference: resource }]
+					},
+					undefined,
+					{ shouldFocusClearButton: false, supportsDeletion: true },
+					container,
+					contextResourceLabels
+				));
+
+				await new Promise<void>(resolve => setTimeout(resolve, 0));
+
+				assert.deepStrictEqual({
+					ariaLabel: widget.element.ariaLabel,
+					clearButtonClass: widget.element.querySelector('.monaco-button')?.className,
+				}, {
+					ariaLabel: 'Attached image, pasted-image.png (Delete)',
+					clearButtonClass: 'monaco-button codicon codicon-close-compact',
+				});
+			});
 		});
 	});
 });

@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { ITypeScriptServiceClient } from '../typescriptService';
+import { readUnifiedConfig } from '../utils/configuration';
 import { Disposable } from '../utils/dispose';
 
 
@@ -95,21 +96,19 @@ export class AtaProgressReporter extends Disposable {
 	}
 
 	private async onTypesInstallerInitializationFailed() {
-		const config = vscode.workspace.getConfiguration('typescript');
-
-		if (config.get<boolean>('check.npmIsInstalled', true)) {
+		if (readUnifiedConfig<boolean>('tsserver.checkNpmIsInstalled', true, { fallbackSection: 'typescript', fallbackSubSectionNameOverride: 'check.npmIsInstalled' })) {
 			const dontShowAgain: vscode.MessageItem = {
 				title: vscode.l10n.t("Don't Show Again"),
 			};
 			const selected = await vscode.window.showWarningMessage(
 				vscode.l10n.t(
-					"Could not install typings files for JavaScript language features. Please ensure that NPM is installed, or configure 'typescript.npm' in your user settings. Alternatively, check the [documentation]({0}) to learn more.",
+					"Could not install typings files for JavaScript language features. Please ensure that NPM is installed, or configure 'js/ts.tsserver.npm.path' in your user settings. Alternatively, check the [documentation]({0}) to learn more.",
 					'https://go.microsoft.com/fwlink/?linkid=847635'
 				),
 				dontShowAgain);
 
 			if (selected === dontShowAgain) {
-				config.update('check.npmIsInstalled', false, true);
+				vscode.workspace.getConfiguration('js/ts').update('tsserver.checkNpmIsInstalled', false, true);
 			}
 		}
 	}

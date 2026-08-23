@@ -29,13 +29,15 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { accessibleViewInCodeBlock } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { IAiEditTelemetryService } from '../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { EditDeltaInfo } from '../../../../../editor/common/textModelEditSource.js';
-import { reviewEdits } from '../../../inlineChat/browser/inlineChatController.js';
+import { reviewEdits } from './reviewEdits.js';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatCopyKind, IChatService } from '../../common/chatService/chatService.js';
+import { isAgentHostSessionResource } from '../../common/chatSessionsService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatCodeBlockContextProviderService, IChatWidgetService } from '../chat.js';
+import { ChatCopyActionViewItem } from './chatCopyActions.js';
 import { DefaultChatTextEditor, ICodeBlockActionContext, ICodeCompareBlockActionContext } from '../widget/chatContentParts/codeBlockPart.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { ApplyCodeBlockOperation, InsertCodeBlockOperation } from './codeBlockOperations.js';
@@ -102,6 +104,14 @@ export class CodeBlockActionRendering extends Disposable implements IWorkbenchCo
 	) {
 		super();
 
+		const copyCodeBlockActionRendering = this._register(actionViewItemService.register(MenuId.ChatCodeBlock, 'workbench.action.chat.copyCodeBlock', (action, options) => {
+			if (!(action instanceof MenuItemAction)) {
+				return undefined;
+			}
+
+			return instantiationService.createInstance(ChatCopyActionViewItem, action, options);
+		}));
+
 		const disposable = actionViewItemService.register(MenuId.ChatCodeBlock, APPLY_IN_EDITOR_ID, (action, options) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
@@ -123,6 +133,7 @@ export class CodeBlockActionRendering extends Disposable implements IWorkbenchCo
 		});
 
 		// Reduces flicker a bit on reload/restart
+		markAsSingleton(copyCodeBlockActionRendering);
 		markAsSingleton(disposable);
 	}
 }
@@ -185,11 +196,13 @@ export function registerChatCodeBlockActions() {
 					editDeltaInfo: EditDeltaInfo.fromText(context.code),
 					feature: 'sideBarChat',
 					languageId: context.languageId,
-					modeId: context.element.model.request?.modeInfo?.modeId,
+					modeId: context.element.model.request?.modeInfo?.telemetryModeId,
 					modelId: request?.modelId,
 					presentation: 'codeBlock',
 					applyCodeBlockSuggestionId: undefined,
 					source: undefined,
+					sourceRequestId: undefined,
+					isAgentHostSession: isAgentHostSessionResource(context.element.sessionResource),
 				});
 			}
 		}
@@ -252,11 +265,13 @@ export function registerChatCodeBlockActions() {
 				editDeltaInfo: EditDeltaInfo.fromText(copiedText),
 				feature: 'sideBarChat',
 				languageId: context.languageId,
-				modeId: element.model.request?.modeInfo?.modeId,
+				modeId: element.model.request?.modeInfo?.telemetryModeId,
 				modelId: request?.modelId,
 				presentation: 'codeBlock',
 				applyCodeBlockSuggestionId: undefined,
 				source: undefined,
+				sourceRequestId: undefined,
+				isAgentHostSession: isAgentHostSessionResource(element.sessionResource),
 			});
 		}
 
@@ -409,11 +424,13 @@ export function registerChatCodeBlockActions() {
 					editDeltaInfo: EditDeltaInfo.fromText(context.code),
 					feature: 'sideBarChat',
 					languageId: context.languageId,
-					modeId: context.element.model.request?.modeInfo?.modeId,
+					modeId: context.element.model.request?.modeInfo?.telemetryModeId,
 					modelId: request?.modelId,
 					presentation: 'codeBlock',
 					applyCodeBlockSuggestionId: undefined,
 					source: undefined,
+					sourceRequestId: undefined,
+					isAgentHostSession: isAgentHostSessionResource(context.element.sessionResource),
 				});
 			}
 		}

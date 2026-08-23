@@ -487,7 +487,8 @@ export class CommentController extends Disposable implements IEditorContribution
 		@IEditorService private readonly editorService: IEditorService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@INotificationService private readonly notificationService: INotificationService
+		@INotificationService private readonly notificationService: INotificationService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super();
 		this._commentInfos = [];
@@ -971,10 +972,10 @@ export class CommentController extends Disposable implements IEditorContribution
 				return;
 			}
 
-			const added = e.added.filter(thread => thread.resource && thread.resource === editorURI.toString());
-			const removed = e.removed.filter(thread => thread.resource && thread.resource === editorURI.toString());
-			const changed = e.changed.filter(thread => thread.resource && thread.resource === editorURI.toString());
-			const pending = e.pending.filter(pending => pending.uri.toString() === editorURI.toString());
+			const added = e.added.filter(thread => thread.resource && this.uriIdentityService.extUri.isEqual(URI.parse(thread.resource), editorURI));
+			const removed = e.removed.filter(thread => thread.resource && this.uriIdentityService.extUri.isEqual(URI.parse(thread.resource), editorURI));
+			const changed = e.changed.filter(thread => thread.resource && this.uriIdentityService.extUri.isEqual(URI.parse(thread.resource), editorURI));
+			const pending = e.pending.filter(pending => this.uriIdentityService.extUri.isEqual(pending.uri, editorURI));
 
 			removed.forEach(thread => {
 				const matchedZones = this._commentWidgets.filter(zoneWidget => zoneWidget.uniqueOwner === e.uniqueOwner && zoneWidget.commentThread.threadId === thread.threadId && zoneWidget.commentThread.threadId !== '');

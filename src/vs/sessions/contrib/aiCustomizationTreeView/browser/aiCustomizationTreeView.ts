@@ -24,7 +24,7 @@ export const AI_CUSTOMIZATION_STORAGE_ID = 'workbench.aiCustomization.views.stat
 /**
  * Category for AI Customization commands.
  */
-export const AI_CUSTOMIZATION_CATEGORY = localize2('aiCustomization', "AI Customization");
+export const AI_CUSTOMIZATION_CATEGORY = localize2('aiCustomization', "Chat Customization");
 
 //#region Menu IDs
 
@@ -33,3 +33,8 @@ export const AICustomizationItemMenuId = new MenuId('aiCustomization.item');
 // Submenu for creating new items
 export const AICustomizationNewMenuId = new MenuId('aiCustomization.new');
 //#endregion
+
+/**
+ * Command ID for the Focus Chat Customizations action.
+ */
+export const FOCUS_AI_CUSTOMIZATION_VIEW_ID = 'aiCustomization.focusView';

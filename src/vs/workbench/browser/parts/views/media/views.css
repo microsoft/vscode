@@ -346,8 +346,7 @@
 	margin-right: 10px;
 }
 
-.panel > .title .monaco-action-bar .action-item.viewpane-filter-container:active,
-.panel > .title .monaco-action-bar .action-item.viewpane-filter-container:focus-within {
+.panel > .title .monaco-action-bar .action-item.viewpane-filter-container:has(.monaco-inputbox .input:focus, .viewpane-filter-controls :focus) {
 	max-width: 400px;
 }
 

@@ -9,10 +9,12 @@ import { ICommonProperties, firstSessionDateStorageKey, lastSessionDateStorageKe
 import { cleanRemoteAuthority } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { INodeProcess } from '../../../../base/common/platform.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 
 export function resolveWorkbenchCommonProperties(
 	storageService: IStorageService,
 	productService: IProductService,
+	environmentService: IWorkbenchEnvironmentService,
 	release: string,
 	hostname: string,
 	machineId: string,
@@ -20,7 +22,6 @@ export function resolveWorkbenchCommonProperties(
 	devDeviceId: string,
 	isInternalTelemetry: boolean,
 	process: INodeProcess,
-	remoteAuthority?: string,
 ): ICommonProperties {
 	const { commit, version, date: releaseDate } = productService ?? {};
 	const result = resolveCommonProperties(release, hostname, process.arch, commit, version, machineId, sqmId, devDeviceId, isInternalTelemetry, releaseDate);
@@ -38,9 +39,14 @@ export function resolveWorkbenchCommonProperties(
 	// __GDPR__COMMON__ "common.isNewSession" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['common.isNewSession'] = !lastSessionDate ? '1' : '0';
 	// __GDPR__COMMON__ "common.remoteAuthority" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-	result['common.remoteAuthority'] = cleanRemoteAuthority(remoteAuthority, productService);
+	result['common.remoteAuthority'] = cleanRemoteAuthority(environmentService.remoteAuthority, productService);
 	// __GDPR__COMMON__ "common.cli" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['common.cli'] = !!process.env['VSCODE_CLI'];
+
+	if (environmentService.isSessionsWindow) {
+		// __GDPR__COMMON__ "common.isAgentsWindow" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		result['common.isAgentsWindow'] = true;
+	}
 
 	return result;
 }

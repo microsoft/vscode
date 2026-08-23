@@ -514,11 +514,11 @@ export class McpServerRequestHandler extends Disposable {
 	/**
 	 * Call a specific tool. Supports tasks automatically if `task` is set on the request.
 	 */
-	async callTool(params: MCP.CallToolRequest['params'] & MCP.Request['params'], token?: CancellationToken): Promise<MCP.CallToolResult> {
+	async callTool(params: MCP.CallToolRequest['params'] & MCP.Request['params'], token?: CancellationToken, onStatusMessage?: (message: string) => void): Promise<MCP.CallToolResult> {
 		const response = await this.sendRequest<MCP.CallToolRequest, MCP.CallToolResult | MCP.CreateTaskResult>({ method: 'tools/call', params }, token);
 
 		if (isTaskResult(response)) {
-			const task = new McpTask<MCP.CallToolResult>(response.task, token);
+			const task = new McpTask<MCP.CallToolResult>(response.task, token, onStatusMessage);
 			this._taskManager.adoptClientTask(task);
 			task.setHandler(this);
 			return task.result.finally(() => {
@@ -603,7 +603,8 @@ export class McpTask<T extends MCP.Result> extends Disposable implements IMcpTas
 
 	constructor(
 		private readonly _task: MCP.Task,
-		_token: CancellationToken = CancellationToken.None
+		_token: CancellationToken = CancellationToken.None,
+		private readonly _onStatusMessage?: (message: string) => void,
 	) {
 		super();
 
@@ -735,6 +736,9 @@ export class McpTask<T extends MCP.Result> extends Disposable implements IMcpTas
 
 	onDidUpdateState(task: MCP.Task) {
 		this._lastTaskState.set(task, undefined);
+		if (task.statusMessage && this._onStatusMessage) {
+			this._onStatusMessage(task.statusMessage);
+		}
 	}
 
 	setHandler(handler: McpServerRequestHandler | undefined): void {

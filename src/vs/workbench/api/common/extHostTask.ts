@@ -332,6 +332,9 @@ export namespace TaskDTO {
 		if (value.presentationOptions) {
 			result.presentationOptions = TaskPresentationOptionsDTO.to(value.presentationOptions)!;
 		}
+		if (value.runOptions) {
+			result.runOptions = value.runOptions;
+		}
 		if (value._id) {
 			result._id = value._id;
 		}

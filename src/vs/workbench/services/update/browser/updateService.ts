@@ -98,7 +98,7 @@ export class BrowserUpdateService extends Disposable implements IUpdateService {
 		// noop
 	}
 
-	async disableProgressiveReleases(): Promise<void> {
+	async setInternalOrg(_internalOrg: string | undefined): Promise<void> {
 		// noop - not applicable in browser
 	}
 }
