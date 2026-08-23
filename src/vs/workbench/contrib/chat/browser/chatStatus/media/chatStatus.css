@@ -210,9 +210,27 @@
 	margin-bottom: 4px;
 }
 
-.chat-status-bar-entry-tooltip .quota-indicator.included.compact {
+.chat-status-bar-entry-tooltip .quota-indicator.included.compact:not(.credits-used) {
 	display: flex;
 	flex-direction: column;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.included.credits-used:not(.compact) {
+	padding: 6px 0;
+	margin-bottom: 0;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.included.credits-used:not(.compact) .quota-details {
+	align-items: center;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.included.credits-used:not(.compact) .quota-percentage .quota-value {
+	font-size: 16px;
+	line-height: 20px;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.included.credits-used .quota-details {
+	margin-bottom: 0;
 }
 
 .chat-status-bar-entry-tooltip .quota-indicator .quota-title {

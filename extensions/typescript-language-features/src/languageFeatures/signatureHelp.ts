@@ -8,6 +8,7 @@ import { DocumentSelector } from '../configuration/documentSelector';
 import type * as Proto from '../tsServer/protocol/protocol';
 import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
+import { SignatureHelpState } from './signatureHelpState';
 import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
 import * as Previewer from './util/textRendering';
 
@@ -15,6 +16,8 @@ class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 
 	public static readonly triggerCharacters = ['(', ',', '<'];
 	public static readonly retriggerCharacters = [')'];
+
+	private readonly state = new SignatureHelpState();
 
 	public constructor(
 		private readonly client: ITypeScriptServiceClient
@@ -30,6 +33,7 @@ class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 		if (!filepath) {
 			return undefined;
 		}
+		const requestId = this.state.startRequest(document);
 
 		const args: Proto.SignatureHelpRequestArgs = {
 			...typeConverters.Position.toFileLocationRequestArgs(filepath, position),
@@ -43,27 +47,14 @@ class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 		const info = response.body;
 		const result = new vscode.SignatureHelp();
 		result.signatures = info.items.map(signature => this.convertSignature(signature, document.uri));
-		result.activeSignature = this.getActiveSignature(context, info, result.signatures);
-		result.activeParameter = this.getActiveParameter(info);
+		result.activeSignature = this.state.getActiveSignature(document, requestId, context, info.selectedItemIndex, result.signatures);
+		result.activeParameter = this.getActiveParameter(info, result.activeSignature);
 
 		return result;
 	}
 
-	private getActiveSignature(context: vscode.SignatureHelpContext, info: Proto.SignatureHelpItems, signatures: readonly vscode.SignatureInformation[]): number {
-		// Try matching the previous active signature's label to keep it selected
-		const previouslyActiveSignature = context.activeSignatureHelp?.signatures[context.activeSignatureHelp.activeSignature];
-		if (previouslyActiveSignature && context.isRetrigger) {
-			const existingIndex = signatures.findIndex(other => other.label === previouslyActiveSignature?.label);
-			if (existingIndex >= 0) {
-				return existingIndex;
-			}
-		}
-
-		return info.selectedItemIndex;
-	}
-
-	private getActiveParameter(info: Proto.SignatureHelpItems): number {
-		const activeSignature = info.items[info.selectedItemIndex];
+	private getActiveParameter(info: Proto.SignatureHelpItems, activeSignatureIndex: number): number {
+		const activeSignature = info.items[activeSignatureIndex];
 		if (activeSignature?.isVariadic) {
 			return Math.min(info.argumentIndex, activeSignature.parameters.length - 1);
 		}

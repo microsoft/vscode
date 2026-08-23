@@ -16,12 +16,12 @@ import { ICAPIClientService } from '../../../endpoint/common/capiClient';
 import { IDomainService } from '../../../endpoint/common/domainService';
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../endpoint/common/endpointProvider';
 import { IEnvService } from '../../../env/common/envService';
-import { ILogService } from '../../../log/common/logService';
 import { IFetcherService } from '../../../networking/common/fetcherService';
-import { ICreateEndpointBodyOptions } from '../../../networking/common/networking';
+import { ICreateEndpointBodyOptions, IEndpointBody } from '../../../networking/common/networking';
 import { CAPIChatMessage } from '../../../networking/common/openai';
 import { IChatWebSocketManager } from '../../../networking/node/chatWebSocketManager';
 import { NullExperimentationService } from '../../../telemetry/common/nullExperimentationService';
+import { TestLogService } from '../../../testing/common/testLogService';
 import { ITelemetryService } from '../../../telemetry/common/telemetry';
 import { ITokenizerProvider } from '../../../tokenizer/node/tokenizer';
 import { ChatEndpoint } from '../chatEndpoint';
@@ -67,7 +67,7 @@ const createMockServices = () => ({
 	configurationService: new InMemoryConfigurationService(new DefaultsOnlyConfigurationService()),
 	expService: new NullExperimentationService(),
 	chatWebSocketService: {} as IChatWebSocketManager,
-	logService: {} as ILogService
+	logService: new TestLogService()
 });
 
 
@@ -237,6 +237,145 @@ describe('CopilotChatEndpoint - Reasoning Properties', () => {
 			expect(messages).toHaveLength(1);
 			expect(messages[0].reasoning_opaque).toBeUndefined();
 			expect(messages[0].reasoning_text).toBeUndefined();
+		});
+	});
+});
+
+describe('CopilotChatEndpoint - Chat Completions token parameter (#328418)', () => {
+	let mockServices: ReturnType<typeof createMockServices>;
+
+	beforeEach(() => {
+		mockServices = createMockServices();
+	});
+
+	const createEndpoint = (modelId: string, family: string, displayName: string, customModel = true, thinking = true, supportedEndpoints = [ModelSupportedEndpoint.ChatCompletions]) => {
+		const baseMetadata = createNonAnthropicModelMetadata(family);
+		const modelMetadata: IChatModelInformation = {
+			...baseMetadata,
+			id: modelId,
+			name: displayName,
+			supported_endpoints: supportedEndpoints,
+			custom_model: customModel ? {
+				key_name: modelId,
+				owner_name: 'organization'
+			} : undefined,
+			capabilities: {
+				...baseMetadata.capabilities,
+				supports: {
+					...baseMetadata.capabilities.supports,
+					thinking
+				},
+				limits: {
+					max_prompt_tokens: 256000,
+					max_output_tokens: 256000,
+					max_context_window_tokens: 256000
+				}
+			}
+		};
+
+		return new CopilotChatEndpoint(
+			modelMetadata,
+			mockServices.domainService,
+			mockServices.capiClientService,
+			mockServices.fetcherService,
+			mockServices.envService,
+			mockServices.telemetryService,
+			mockServices.authService,
+			mockServices.chatMLFetcher,
+			mockServices.tokenizerProvider,
+			mockServices.instantiationService,
+			mockServices.configurationService,
+			mockServices.expService,
+			mockServices.chatWebSocketService,
+			mockServices.logService
+		);
+	};
+
+	it.each([
+		{ modelId: 'mbe_agent_gpt5_4_oai', family: 'gpt-5.4', displayName: 'custom GPT-5 model', customModel: true },
+		{ modelId: 'custom-claude', family: 'claude-sonnet-4', displayName: 'custom non-GPT model', customModel: true }
+	])('preserves max_tokens by default for $displayName', ({ modelId, family, displayName, customModel }) => {
+		const endpoint = createEndpoint(modelId, family, displayName, customModel);
+		const body = endpoint.createRequestBody({
+			...createTestOptions([{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hi' }]
+			}]),
+			postOptions: { max_tokens: 256000 }
+		});
+
+		endpoint.interceptBody(body);
+
+		expect({
+			max_tokens: body.max_tokens,
+			max_completion_tokens: body.max_completion_tokens
+		}).toEqual({
+			max_tokens: 256000,
+			max_completion_tokens: undefined
+		});
+	});
+
+	it('preserves max_tokens for built-in Chat Completions models', () => {
+		const endpoint = createEndpoint('gpt-5.4', 'gpt-5.4', 'Built-in GPT-5 Model', false);
+		const body: IEndpointBody = {
+			max_tokens: 4096
+		};
+
+		endpoint.interceptBody(body);
+
+		expect(body).toEqual({
+			max_tokens: 4096
+		});
+	});
+
+	it('sends max_completion_tokens when enabled', () => {
+		mockServices.configurationService.setConfig(ConfigKey.Advanced.ChatCompletionsTokenParameter, 'max_completion_tokens');
+		const endpoint = createEndpoint('custom-model', 'custom-family', 'Custom Model');
+		const body = endpoint.createRequestBody({
+			...createTestOptions([{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hi' }]
+			}]),
+			postOptions: { max_tokens: 4096 }
+		});
+
+		endpoint.interceptBody(body);
+
+		expect({
+			max_tokens: body.max_tokens,
+			max_completion_tokens: body.max_completion_tokens
+		}).toEqual({
+			max_tokens: undefined,
+			max_completion_tokens: 4096
+		});
+	});
+
+	it('replaces an explicitly provided max_completion_tokens with max_tokens by default', () => {
+		const endpoint = createEndpoint('custom-model', 'custom-family', 'Custom Model');
+		const body: IEndpointBody = {
+			max_completion_tokens: 4096
+		};
+
+		endpoint.interceptBody(body);
+
+		expect(body).toEqual({
+			max_tokens: 4096
+		});
+	});
+
+	it.each([
+		{ apiType: 'responses', supportedEndpoints: [ModelSupportedEndpoint.Responses] },
+		{ apiType: 'messages', supportedEndpoints: [ModelSupportedEndpoint.Messages] }
+	])('does not change max_tokens for the $apiType API', ({ supportedEndpoints }) => {
+		const endpoint = createEndpoint('custom-model', 'custom-family', 'Custom Model', true, true, supportedEndpoints);
+		const body: IEndpointBody = {
+			max_tokens: 4096
+		};
+
+		endpoint.interceptBody(body);
+
+		expect(body).toEqual({
+			max_tokens: 4096
 		});
 	});
 });
@@ -529,14 +668,18 @@ describe('ChatEndpoint - Kimi CAPI customization', () => {
 		postOptions: { temperature: 0, top_p: 1 }
 	});
 
-	it.each(['kimi-k2.6', 'kimi-k2.7-code'])('should force temperature=1 and top_p=0.95 for %s', (family) => {
+	it.each(['kimi-k2.6', 'kimi-k2.7-code', 'kimi-k3'])('should force temperature=1 and top_p=0.95 for %s', (family) => {
 		const endpoint = createEndpoint(createNonAnthropicModelMetadata(family));
 		const body = endpoint.createRequestBody(createOptionsWithPostOptions());
 		expect(body.temperature).toBe(1);
 		expect(body.top_p).toBe(0.95);
 	});
 
-	it.each(['kimi-k2.6', 'kimi-k2.7-code'])('should normalize tool call IDs for %s', family => {
+	it.each([
+		{ family: 'kimi-k2.6', prefix: 'functions.' },
+		{ family: 'kimi-k2.7-code', prefix: 'functions.' },
+		{ family: 'kimi-k3', prefix: '' },
+	])('should normalize tool call IDs for $family', ({ family, prefix }) => {
 		const history = createToolHistory();
 		const endpoint = createEndpoint(createNonAnthropicModelMetadata(family));
 		const body = endpoint.createRequestBody(createTestOptions(history));
@@ -548,11 +691,11 @@ describe('ChatEndpoint - Kimi CAPI customization', () => {
 				: message.role === Raw.ChatRole.Tool ? message.toolCallId : undefined)
 		}).toEqual({
 			body: [
-				{ role: OpenAI.ChatRole.Assistant, toolCallIds: ['functions.read_file:0', 'functions.replace_string_in_file:1'] },
-				{ role: OpenAI.ChatRole.Tool, toolCallId: 'functions.read_file:0' },
-				{ role: OpenAI.ChatRole.Tool, toolCallId: 'functions.replace_string_in_file:1' },
-				{ role: OpenAI.ChatRole.Assistant, toolCallIds: ['functions.run_in_terminal:2'] },
-				{ role: OpenAI.ChatRole.Tool, toolCallId: 'functions.run_in_terminal:2' },
+				{ role: OpenAI.ChatRole.Assistant, toolCallIds: [`${prefix}read_file:0`, `${prefix}replace_string_in_file:1`] },
+				{ role: OpenAI.ChatRole.Tool, toolCallId: `${prefix}read_file:0` },
+				{ role: OpenAI.ChatRole.Tool, toolCallId: `${prefix}replace_string_in_file:1` },
+				{ role: OpenAI.ChatRole.Assistant, toolCallIds: [`${prefix}run_in_terminal:2`] },
+				{ role: OpenAI.ChatRole.Tool, toolCallId: `${prefix}run_in_terminal:2` },
 				{ role: OpenAI.ChatRole.Tool, toolCallId: 'unmatched_tool_call' }
 			],
 			history: [
@@ -658,5 +801,52 @@ describe('ChatEndpoint - CAPI reasoning effort', () => {
 		const endpoint = createEndpoint(createReasoningModelMetadata('gemini-2.5-pro'));
 		const body = endpoint.createRequestBody(createOptions('high'));
 		expect(body.reasoning_effort).toBeUndefined();
+	});
+});
+
+describe('ChatEndpoint - model picker notices', () => {
+	let mockServices: ReturnType<typeof createMockServices>;
+
+	beforeEach(() => {
+		mockServices = createMockServices();
+	});
+
+	const createEndpoint = (metadata: IChatModelInformation) =>
+		new ChatEndpoint(
+			metadata,
+			mockServices.domainService,
+			mockServices.chatMLFetcher,
+			mockServices.tokenizerProvider,
+			mockServices.instantiationService,
+			mockServices.configurationService,
+			mockServices.expService,
+			mockServices.chatWebSocketService,
+			mockServices.logService
+		);
+
+	it('shows a pending deprecation as a warning and other info messages as info', () => {
+		const endpoint = createEndpoint({
+			...createNonAnthropicModelMetadata('gpt-4.1'),
+			warning_text: { data_retention: 'Prompts are retained for 30 days.' },
+			warning_messages: [{ code: 'model_degraded', message: 'GPT-4.1 is currently degraded.' }],
+			info_messages: [
+				{ code: 'model_pending_deprecation', message: 'GPT-4.1 has a planned deprecation date of 2026-06-01.' },
+				{ code: 'model_relocated', message: 'GPT-4.1 now serves from a new region.' },
+			],
+		});
+
+		expect({ warningText: endpoint.warningText, infoText: endpoint.infoText, degradationReason: endpoint.degradationReason }).toEqual({
+			warningText: {
+				data_retention: 'Prompts are retained for 30 days.',
+				model_pending_deprecation: 'GPT-4.1 has a planned deprecation date of 2026-06-01.',
+			},
+			infoText: { model_relocated: 'GPT-4.1 now serves from a new region.' },
+			degradationReason: 'GPT-4.1 is currently degraded.',
+		});
+	});
+
+	it('has no notices when CAPI sends none', () => {
+		const endpoint = createEndpoint({ ...createNonAnthropicModelMetadata('gpt-4.1'), info_messages: [] });
+		expect({ warningText: endpoint.warningText, infoText: endpoint.infoText }).toEqual({ warningText: undefined, infoText: undefined });
 	});
 });

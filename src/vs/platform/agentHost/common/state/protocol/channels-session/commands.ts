@@ -44,20 +44,6 @@ import type { MessageAttachment } from '../channels-chat/state.js';
  * { "jsonrpc": "2.0", "id": 2, "error": { "code": -32003, "message": "Session already exists" } }
  * ```
  */
-/**
- * Identifies a source session and turn to fork from.
- *
- * When provided in `createSession`, the server populates the new session with
- * content from the source session up to and including the response of the
- * specified turn.
- */
-export interface SessionForkSource {
-	/** URI of the existing session to fork from */
-	session: URI;
-	/** Turn ID in the source session; content up to and including this turn's response is copied */
-	turnId: string;
-}
-
 export interface CreateSessionParams extends BaseParams {
 	/** Session URI (client-chosen, e.g. `ahp-session:/<uuid>`) */
 	channel: URI;
@@ -66,39 +52,20 @@ export interface CreateSessionParams extends BaseParams {
 	/**
 	 * The working directories the session's agent is granted tool access to.
 	 * A session may span multiple directories; they are equal peers except when
-	 * the agent advertises
-	 * {@link MultipleWorkingDirectoriesCapability.requiresPrimary}, in which case
-	 * one of them should be designated the primary via
-	 * {@link primaryWorkingDirectory}.
+	 * the agent advertises a protected-primary capability. An
+	 * {@link MultipleWorkingDirectoriesCapability.immutablePrimary | immutable
+	 * primary} is fixed, while a
+	 * {@link MultipleWorkingDirectoriesCapability.primaryReplacement | replaceable
+	 * primary} is changed only with `session/workingDirectoryReplaced`.
 	 *
 	 * A client MUST NOT supply more than one entry unless the agent advertises
 	 * {@link AgentCapabilities.multipleWorkingDirectories}; a server without that
 	 * capability treats only the first entry as the session's working directory
-	 * and ignores the rest. Dispatch `session/workingDirectorySet` /
-	 * `session/workingDirectoryRemoved` to change the set after the session has
-	 * started.
+	 * and ignores the rest. Dispatch working-directory actions to change the set
+	 * after the session has started.
 	 *
-	 * Ignored for forked sessions — a fork inherits its working directories
-	 * from the source session identified by `fork`.
 	 */
 	workingDirectories?: URI[];
-	/**
-	 * The primary working directory for the session's **default chat** — the
-	 * distinguished root that chat is centered on (see
-	 * {@link ChatState.primaryWorkingDirectory}). A session has no primary of its
-	 * own; this seeds the default chat's primary. When set, it MUST be one of
-	 * {@link workingDirectories}. A client SHOULD supply this when the agent
-	 * advertises {@link MultipleWorkingDirectoriesCapability.requiresPrimary}; a
-	 * host MAY reject creation that omits it, or fall back to the first entry of
-	 * `workingDirectories`. Ignored for forked sessions (a fork inherits the
-	 * source session's chats and their primaries).
-	 */
-	primaryWorkingDirectory?: URI;
-	/**
-	 * Fork from an existing session. The new session is populated with content
-	 * from the source session up to and including the specified turn's response.
-	 */
-	fork?: SessionForkSource;
 	/**
 	 * Agent-specific configuration values collected via `resolveSessionConfig`.
 	 * Keys and values correspond to the schema returned by the server.
@@ -278,15 +245,6 @@ export interface CompletionItem {
 	 * The text inserted into the input when this item is accepted.
 	 */
 	insertText: string;
-
-	/**
-	 * Optional display label for the completion item. When omitted, the client
-	 * SHOULD display {@link insertText}. Provide an explicit label when the
-	 * inserted text differs from the label shown in the picker — e.g. a pure
-	 * action item that inserts nothing (`insertText: ''`) but should still be
-	 * shown to the user.
-	 */
-	label?: string;
 
 	/**
 	 * If defined, the start of the range in the input's `text` that is replaced

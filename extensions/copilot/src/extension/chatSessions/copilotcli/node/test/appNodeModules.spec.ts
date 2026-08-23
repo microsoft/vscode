@@ -20,11 +20,18 @@ describe('appNodeModules', () => {
 		await rm(appRoot, { recursive: true, force: true });
 	});
 
-	it('prefers plain node_modules when present (sync)', async () => {
+	it('prefers node_modules.asar.unpacked when both roots are present (sync)', async () => {
 		const plain = join(appRoot, 'node_modules', '@vscode', 'ripgrep-universal', 'bin');
 		const unpacked = join(appRoot, 'node_modules.asar.unpacked', '@vscode', 'ripgrep-universal', 'bin');
 		await mkdir(plain, { recursive: true });
 		await mkdir(unpacked, { recursive: true });
+
+		expect(resolveAppModulePathSync(appRoot, '@vscode', 'ripgrep-universal', 'bin')).toBe(unpacked);
+	});
+
+	it('uses plain node_modules when the unpacked root is absent (sync)', async () => {
+		const plain = join(appRoot, 'node_modules', '@vscode', 'ripgrep-universal', 'bin');
+		await mkdir(plain, { recursive: true });
 
 		expect(resolveAppModulePathSync(appRoot, '@vscode', 'ripgrep-universal', 'bin')).toBe(plain);
 	});
@@ -42,8 +49,10 @@ describe('appNodeModules', () => {
 		);
 	});
 
-	it('resolves across both roots (async)', async () => {
+	it('prefers node_modules.asar.unpacked when both roots are present (async)', async () => {
+		const plain = join(appRoot, 'node_modules', 'node-pty');
 		const unpacked = join(appRoot, 'node_modules.asar.unpacked', 'node-pty');
+		await mkdir(plain, { recursive: true });
 		await mkdir(unpacked, { recursive: true });
 
 		await expect(resolveAppModulePath(appRoot, 'node-pty')).resolves.toBe(unpacked);

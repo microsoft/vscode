@@ -386,10 +386,9 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 		item.timing = session.timing;
 		item.status = session.status ?? vscode.ChatSessionStatus.Completed;
 
-		// `buildChanges` runs `git diff` and is the slow leg of populating an item. Skip it on the
-		// eager pass and let `resolveChatSessionItem` fill it in lazily for visible items.
-		// But if computing changes is easy (cached or the like), then include them right away to avoid a second update pass.
-		if (options?.includeChanges || ((await this.hasCachedChanges(session.id, worktreeProperties)))) {
+		// Building changes is expensive, so defer it to explicit resolve and refresh paths
+		// when lazy loading is enabled. Preserve eager loading when it is disabled.
+		if (options?.includeChanges || !this.configurationService.getConfig(ConfigKey.Advanced.CLIChatLazyLoadSessionItem)) {
 			const changes = await this.buildChanges(session.id, worktreeProperties, workingDirectory, token);
 			if (token.isCancellationRequested) {
 				return item;
@@ -441,17 +440,6 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 		const badge = new vscode.MarkdownString(`${icon} ${basename(badgeUri)}`);
 		badge.supportThemeIcons = true;
 		return badge;
-	}
-
-	private async hasCachedChanges(sessionId: string, worktreeProperties: Awaited<ReturnType<IChatSessionWorktreeService['getWorktreeProperties']>>): Promise<boolean> {
-		if (!this.configurationService.getConfig(ConfigKey.Advanced.CLIChatLazyLoadSessionItem)) {
-			return true;
-		}
-		const [hasCachedWorktreeChanges, hasCachedWorkspaceChanges] = await Promise.all([
-			this.copilotCLIWorktreeManagerService.hasCachedChanges(sessionId),
-			this._workspaceFolderService.hasCachedChanges(sessionId)
-		]);
-		return hasCachedWorktreeChanges || hasCachedWorkspaceChanges;
 	}
 
 	private async buildChanges(

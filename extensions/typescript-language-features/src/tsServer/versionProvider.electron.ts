@@ -43,7 +43,7 @@ export class DiskTypeScriptVersionProvider implements ITypeScriptVersionProvider
 		}
 
 		const nodeVersions = this.localNodeModulesVersions;
-		if (nodeVersions && nodeVersions.length === 1) {
+		if (nodeVersions?.length === 1) {
 			return nodeVersions[0];
 		}
 		return undefined;

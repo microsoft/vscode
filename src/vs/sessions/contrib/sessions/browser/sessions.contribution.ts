@@ -13,12 +13,16 @@ import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/vie
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { SessionsTitleBarContribution } from './sessionsTitleBarWidget.js';
 import { SessionsTelemetryContribution } from './sessionsTelemetry.contribution.js';
-import { NewSessionActionViewItemContribution, SessionConversationsMenuContribution, SessionNewChatActionViewItemContribution } from './sessionsActions.js';
+import { NewSessionActionViewItemContribution, SessionConversationActionsContribution } from './sessionsActions.js';
 import { SessionsView, SessionsViewId } from './views/sessionsView.js';
+import { AutomationsCustomViewContribution } from './views/automationsView.js';
 import './views/sessionsViewActions.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING } from './views/sessionsList.js';
+import { SessionsMouseNavigationContribution } from './sessionsMouseNavigation.js';
+import './sessionDetailsAction.js';
+import { SessionsWindowNotifier } from './sessionsWindowNotifier.js';
 
 const agentSessionsViewIcon = registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, localize('agentSessionsViewIcon', 'Icon for Agent Sessions View'));
 const AGENT_SESSIONS_VIEW_TITLE = localize2('agentSessions.view.label', "Sessions");
@@ -68,8 +72,10 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	},
 });
 
+registerWorkbenchContribution2(AutomationsCustomViewContribution.ID, AutomationsCustomViewContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(SessionsTitleBarContribution.ID, SessionsTitleBarContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(NewSessionActionViewItemContribution.ID, NewSessionActionViewItemContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(SessionsMouseNavigationContribution.ID, SessionsMouseNavigationContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(SessionsTelemetryContribution.ID, SessionsTelemetryContribution, WorkbenchPhase.AfterRestored);
-registerWorkbenchContribution2(SessionConversationsMenuContribution.ID, SessionConversationsMenuContribution, WorkbenchPhase.AfterRestored);
-registerWorkbenchContribution2(SessionNewChatActionViewItemContribution.ID, SessionNewChatActionViewItemContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(SessionsWindowNotifier.ID, SessionsWindowNotifier, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(SessionConversationActionsContribution.ID, SessionConversationActionsContribution, WorkbenchPhase.AfterRestored);

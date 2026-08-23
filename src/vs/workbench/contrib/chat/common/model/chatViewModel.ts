@@ -113,6 +113,7 @@ export interface IChatRequestViewModel {
 	readonly contentReferences?: ReadonlyArray<IChatContentReference>;
 	readonly confirmation?: string;
 	readonly shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
+	readonly isHiddenFromTranscript: boolean;
 	readonly isComplete: boolean;
 	readonly isCompleteAddedRequest: boolean;
 	readonly isTerminalCommand: boolean;
@@ -128,6 +129,7 @@ export interface IChatRequestViewModel {
 	readonly pendingKind?: ChatRequestQueueKind;
 	readonly isSystemInitiated?: boolean;
 	readonly systemInitiatedLabel?: string;
+	readonly origin?: IChatRequestModel['origin'];
 }
 
 export interface IChatResponseMarkdownRenderData {
@@ -215,6 +217,7 @@ export interface IChatTurnPillsPart {
 	readonly kind: 'turnPills';
 	readonly requestId: string;
 	readonly sessionResource: URI;
+	readonly isLastTurn: boolean;
 }
 
 /**
@@ -243,6 +246,8 @@ export interface IChatResponseViewModel {
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
 	readonly isStale: boolean;
+	/** Whether this is the last row in the transcript. */
+	readonly isLast: boolean;
 	readonly vote: ChatAgentVoteDirection | undefined;
 	readonly replyFollowups?: IChatFollowup[];
 	readonly errorDetails?: IChatResponseErrorDetails;
@@ -252,6 +257,7 @@ export interface IChatResponseViewModel {
 	readonly usageObs: IObservable<IChatUsage | undefined>;
 	readonly completionTokenCountObs: IObservable<number | undefined>;
 	readonly shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
+	readonly isHiddenFromTranscript: boolean;
 	readonly isCompleteAddedRequest: boolean;
 	readonly isTerminalCommand: boolean;
 	renderData?: IChatResponseRenderData;
@@ -377,7 +383,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 
 	getItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] {
 		let items: (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] = this._items.filter((item) => {
-			if (item.shouldBeRemovedOnSend && !item.shouldBeRemovedOnSend.afterUndoStop) {
+			if (item.isHiddenFromTranscript || (item.shouldBeRemovedOnSend && !item.shouldBeRemovedOnSend.afterUndoStop)) {
 				return false;
 			}
 			return true;
@@ -386,7 +392,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 			items = items.slice(-this._options.maxVisibleItems);
 		}
 
-		const pendingRequests = this._model.getPendingRequests();
+		const pendingRequests = this._model.getPendingRequests().filter(pending => !pending.request.isHiddenFromTranscript);
 		if (pendingRequests.length > 0) {
 			// Separate steering and queued requests
 			const steeringRequests = pendingRequests.filter(p => p.kind === ChatRequestQueueKind.Steering);
@@ -500,6 +506,10 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 		return this._model.shouldBeRemovedOnSend;
 	}
 
+	get isHiddenFromTranscript() {
+		return this._model.isHiddenFromTranscript;
+	}
+
 	get shouldBeBlocked() {
 		return this._model.shouldBeBlocked;
 	}
@@ -533,6 +543,10 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 
 	get requestTimestamp() {
 		return this._model.requestTimestamp;
+	}
+
+	get origin() {
+		return this._model.origin;
 	}
 
 	get pendingKind() {
@@ -636,6 +650,10 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	get shouldBeRemovedOnSend() {
 		return this._model.shouldBeRemovedOnSend;
+	}
+
+	get isHiddenFromTranscript() {
+		return this._model.isHiddenFromTranscript;
 	}
 
 	get isCompleteAddedRequest() {

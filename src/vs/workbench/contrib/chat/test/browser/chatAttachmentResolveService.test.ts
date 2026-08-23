@@ -15,6 +15,10 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { BrowserViewSharingState, IBrowserViewWorkbenchService, IBrowserViewModel } from '../../../browserView/common/browserView.js';
 import { BrowserEditorInput } from '../../../browserView/common/browserEditorInput.js';
 import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { ChatAttachmentResolveService } from '../../browser/attachments/chatAttachmentResolveService.js';
 import { createFileStat } from '../../../../test/common/workbenchTestServices.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
@@ -36,14 +40,22 @@ suite('ChatAttachmentResolveService', () => {
 	 * by the mocked resolveImageEditorAttachContext.
 	 */
 	let imageFileUris: Set<string>;
+	let knownBrowserViews: Map<string, BrowserEditorInput>;
+	let fileStatCalls: number;
 
 	setup(() => {
 		instantiationService = testDisposables.add(new TestInstantiationService());
 		directoryTree = new Map();
 		imageFileUris = new Set();
+		knownBrowserViews = new Map();
+		fileStatCalls = 0;
 
 		// Stub IFileService with resolve() that uses the directoryTree map
 		instantiationService.stub(IFileService, {
+			stat: async (resource: URI): Promise<IFileStatWithMetadata> => {
+				fileStatCalls++;
+				return createFileStat(resource, false, true, false);
+			},
 			resolve: async (resource: URI): Promise<IFileStatWithMetadata> => {
 				const children = directoryTree.get(resource.toString());
 				if (children !== undefined) {
@@ -58,7 +70,9 @@ suite('ChatAttachmentResolveService', () => {
 		instantiationService.stub(ITextModelService, {});
 		instantiationService.stub(IExtensionService, {});
 		instantiationService.stub(IDialogService, {});
-		instantiationService.stub(IBrowserViewWorkbenchService, { getKnownBrowserViews: () => new Map() });
+		instantiationService.stub(IBrowserViewWorkbenchService, { getKnownBrowserViews: () => knownBrowserViews });
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(IThemeService, new TestThemeService());
 
 		service = instantiationService.createInstance(ChatAttachmentResolveService);
 
@@ -75,6 +89,51 @@ suite('ChatAttachmentResolveService', () => {
 			}
 			return undefined;
 		};
+	});
+
+	test('resolves associated browser editor inputs through the live browser', async () => {
+		const browserId = 'browser-id';
+		const associatedResource = URI.file('/workspace/index.html');
+		const browserEditor = testDisposables.add(instantiationService.createInstance(BrowserEditorInput, {
+			id: browserId,
+			associatedResource
+		}, async () => {
+			throw new Error('Unexpected browser editor resolution.');
+		}));
+		knownBrowserViews.set(browserId, browserEditor);
+		let resolvedBrowserId: string | undefined;
+		service.resolveBrowserViewAttachContext = async id => {
+			resolvedBrowserId = id;
+			return undefined;
+		};
+
+		await service.resolveEditorAttachContext({
+			resource: associatedResource,
+			options: { override: BrowserEditorInput.EDITOR_ID }
+		});
+
+		assert.deepStrictEqual({
+			resolvedBrowserId,
+			fileStatCalls
+		}, {
+			resolvedBrowserId: browserId,
+			fileStatCalls: 0
+		});
+	});
+
+	test('does not treat an unknown transferred browser editor as a file', async () => {
+		const result = await service.resolveEditorAttachContext({
+			resource: URI.file('/workspace/index.html'),
+			options: { override: BrowserEditorInput.EDITOR_ID }
+		});
+
+		assert.deepStrictEqual({
+			result,
+			fileStatCalls
+		}, {
+			result: undefined,
+			fileStatCalls: 0
+		});
 	});
 
 	test('returns empty array for empty directory', async () => {

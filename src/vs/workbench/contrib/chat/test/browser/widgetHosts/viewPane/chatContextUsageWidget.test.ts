@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
+import { IObservable } from '../../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
@@ -13,7 +14,7 @@ import { IInstantiationService } from '../../../../../../../platform/instantiati
 import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { InMemoryStorageService } from '../../../../../../../platform/storage/common/storage.js';
 import { ChatContextUsageWidget, isSameContextUsageData, resolveContextWindowInputTokens } from '../../../../browser/widgetHosts/viewPane/chatContextUsageWidget.js';
-import { IChatContextUsageData } from '../../../../browser/widgetHosts/viewPane/chatContextUsageDetails.js';
+import { ChatContextUsageDetails, IChatContextUsageData } from '../../../../browser/widgetHosts/viewPane/chatContextUsageDetails.js';
 import { IChatUsage } from '../../../../common/chatService/chatService.js';
 import { ILanguageModelChatMetadata, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../../common/languageModels.js';
 import { IChatRequestModel, IChatResponseModel } from '../../../../common/model/chatModel.js';
@@ -136,12 +137,11 @@ suite('ChatContextUsageWidget', () => {
 		} as unknown as ILanguageModelsService;
 	}
 
-	function createWidget(): ChatContextUsageWidget {
+	function createWidget(instantiationService: IInstantiationService = {} as IInstantiationService): ChatContextUsageWidget {
 		const hoverService = {
 			setupDelayedHover: () => Disposable.None,
 			showInstantHover: () => { },
 		} as unknown as IHoverService;
-		const instantiationService = {} as unknown as IInstantiationService;
 		return store.add(new ChatContextUsageWidget(
 			hoverService,
 			instantiationService,
@@ -152,9 +152,26 @@ suite('ChatContextUsageWidget', () => {
 		));
 	}
 
-	function createRequest(modelId: string, usage: IChatUsage | undefined): IChatRequestModel {
-		const response = { usage, onDidChange: Event.None } as unknown as IChatResponseModel;
-		return { modelId, response } as unknown as IChatRequestModel;
+	function createWidgetWithData(): { widget: ChatContextUsageWidget; getData: () => IChatContextUsageData | undefined } {
+		let currentData: IObservable<IChatContextUsageData | undefined> | undefined;
+		const details = {
+			domNode: document.createElement('div'),
+			setChatWidget: () => { },
+			dispose: () => { },
+		} as unknown as ChatContextUsageDetails;
+		const widget = createWidget({
+			createInstance: (_ctor: unknown, _chatWidget: unknown, data: IObservable<IChatContextUsageData | undefined>) => {
+				currentData = data;
+				return details;
+			},
+		} as unknown as IInstantiationService);
+		return { widget, getData: () => currentData?.get() };
+	}
+
+	function createRequest(modelId: string, usage: IChatUsage | undefined, onDidChange: Event<void> = Event.None, sessionCost: () => number = () => 0): IChatRequestModel {
+		const session = { get sessionCost() { return sessionCost(); } } as IChatRequestModel['session'];
+		const response = { usage, onDidChange, session } as unknown as IChatResponseModel;
+		return { modelId, response, session } as unknown as IChatRequestModel;
 	}
 
 	function usage(actualModelId?: string): IChatUsage {
@@ -190,4 +207,32 @@ suite('ChatContextUsageWidget', () => {
 		assert.strictEqual(widget.isVisible.get(), true);
 		assert.strictEqual(widget.domNode.querySelector('.percentage-label')?.textContent, '50%');
 	});
+
+	test('resolves session cost again when response data changes', () => {
+		const responseChange = store.add(new Emitter<void>());
+		const { widget, getData } = createWidgetWithData();
+		let sessionCost = 2;
+
+		widget.update(createRequest(CONCRETE_MODEL, usage(), responseChange.event, () => sessionCost));
+		assert.strictEqual(widget.showDetails(), true);
+		assert.strictEqual(getData()?.sessionCost, 2);
+
+		sessionCost = 7;
+		responseChange.fire();
+
+		assert.strictEqual(getData()?.sessionCost, 7);
+	});
+
+	test('refreshes session cost without changing displayed token usage', () => {
+		const { widget, getData } = createWidgetWithData();
+
+		widget.update(createRequest(CONCRETE_MODEL, usage(), Event.None, () => 2));
+		assert.strictEqual(widget.showDetails(), true);
+		const before = getData();
+
+		widget.updateSessionCost(7);
+
+		assert.deepStrictEqual(getData(), { ...before, sessionCost: 7 });
+	});
+
 });

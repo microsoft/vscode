@@ -2,7 +2,7 @@ version: 1
 dialect: anthropic
 exchanges:
   - request:
-      model: claude-opus-4.6
+      model: claude-sonnet-5
       system: ${system}
       messages:
         - role: user
@@ -11,71 +11,65 @@ exchanges:
       content:
         - type: tool_use
           id: toolcall_0
-          name: report_intent
-          input:
-            intent: Delegating directory listing
-        - type: tool_use
-          id: toolcall_1
           name: task
           input:
-            name: list-dir
-            prompt: List the files in the directory ${workdir}/ahp-subagent-test-uwYpoY using the view tool.
+            name: list-cwd-files
+            prompt: |-
+              List the files in the current working directory: ${workdir}
+
+              Call a single read-only tool (e.g. `view` on that path, or a shell `ls` command) to enumerate the directory contents, then report back the list of files/directories found. Do not make any other tool calls.
             agent_type: explore
-            description: List directory files
+            description: List files in cwd
             mode: sync
       stopReason: tool_use
-      usage:
-        inputTokens: 3
-        outputTokens: 218
   - request:
       model: claude-haiku-4.5
       system: ${system}
       messages:
         - role: user
-          content: List the files in the directory ${workdir}/ahp-subagent-test-uwYpoY using the view tool.
+          content: |-
+            List the files in the current working directory: ${workdir}
+
+            Call a single read-only tool (e.g. `view` on that path, or a shell `ls` command) to enumerate the directory contents, then report back the list of files/directories found. Do not make any other tool calls.
     response:
       content:
         - type: tool_use
-          id: toolcall_2
+          id: toolcall_1
           name: view
           input:
-            path: ${workdir}/ahp-subagent-test-uwYpoY
+            path: ${workdir}
       stopReason: tool_use
-      usage:
-        inputTokens: 4006
-        outputTokens: 173
   - request:
       model: claude-haiku-4.5
       system: ${system}
       messages:
         - role: user
-          content: List the files in the directory ${workdir}/ahp-subagent-test-uwYpoY using the view tool.
+          content: |-
+            List the files in the current working directory: ${workdir}
+
+            Call a single read-only tool (e.g. `view` on that path, or a shell `ls` command) to enumerate the directory contents, then report back the list of files/directories found. Do not make any other tool calls.
         - role: assistant
           content:
             - type: thinking
             - type: tool_use
               name: view
               input:
-                path: ${workdir}/ahp-subagent-test-uwYpoY
+                path: ${workdir}
         - role: user
           content:
             - type: tool_result
-              tool_use_id: toolcall_2
+              tool_use_id: toolcall_1
               content: |-
                 file-a.txt
                 file-b.txt
     response:
       content: |-
-        The directory `${workdir}/ahp-subagent-test-uwYpoY` contains two files:
-
-        1. **file-a.txt**
-        2. **file-b.txt**
+        The directory contains the following files:
+        - **file-a.txt**
+        - **file-b.txt**
       stopReason: end_turn
-      usage:
-        inputTokens: 6
-        outputTokens: 73
   - request:
-      model: claude-opus-4.6
+      model: claude-sonnet-5
       system: ${system}
       messages:
         - role: user
@@ -83,36 +77,28 @@ exchanges:
         - role: assistant
           content:
             - type: tool_use
-              name: report_intent
-              input:
-                intent: Delegating directory listing
-            - type: tool_use
               name: task
               input:
-                name: list-dir
-                prompt: List the files in the directory ${workdir}/ahp-subagent-test-uwYpoY using the view tool.
+                name: list-cwd-files
+                prompt: |-
+                  List the files in the current working directory: ${workdir}
+
+                  Call a single read-only tool (e.g. `view` on that path, or a shell `ls` command) to enumerate the directory contents, then report back the list of files/directories found. Do not make any other tool calls.
                 agent_type: explore
-                description: List directory files
+                description: List files in cwd
                 mode: sync
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: Intent logged
-            - type: tool_result
-              tool_use_id: toolcall_1
               content: |-
-                The directory `${workdir}/ahp-subagent-test-uwYpoY` contains two files:
-
-                1. **file-a.txt**
-                2. **file-b.txt**
+                The directory contains the following files:
+                - **file-a.txt**
+                - **file-b.txt**
     response:
       content: |-
-        The subagent reports the current working directory contains two files:
+        The subagent listed the contents of the current working directory and found two files:
 
-        1. **file-a.txt**
-        2. **file-b.txt**
+        - **file-a.txt**
+        - **file-b.txt**
       stopReason: end_turn
-      usage:
-        inputTokens: 1
-        outputTokens: 36

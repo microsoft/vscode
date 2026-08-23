@@ -8,11 +8,8 @@ exchanges:
         - role: user
           content: What is your current working directory? Reply with just the absolute path and nothing else.
     response:
-      content: ${workdir}/ahp-wt-test-n1CXl6.worktrees/what-is-your-current-working-directory-reply-wit
+      content: ${workdir}.worktrees/what-is-your-current-working-directory-reply-wit
       stopReason: end_turn
-      usage:
-        inputTokens: 8566
-        outputTokens: 72
   - request:
       model: gpt-5.3-codex
       system: ${system}
@@ -20,23 +17,20 @@ exchanges:
         - role: user
           content: What is your current working directory? Reply with just the absolute path and nothing else.
         - role: assistant
-          content: ${workdir}/ahp-wt-test-n1CXl6.worktrees/what-is-your-current-working-directory-reply-wit
+          content: ${workdir}.worktrees/what-is-your-current-working-directory-reply-wit
         - role: user
-          content: Run the shell command `pwd` in the session current working directory. Do not specify a working-directory override.
+          content: 'Run exactly this shell command, with no modifications, in the session current working directory: `node -e "console.log(process.cwd())"`. Do not specify a working-directory override.'
     response:
       content:
         - type: text
-          text: I will run `pwd` in the current session without any working-directory override and report its output.
+          text: Running that exact command in the current session directory now, with no working-directory override.
         - type: tool_use
           id: toolcall_0
           name: exec_command
           input:
-            cmd: pwd
+            cmd: node -e "console.log(process.cwd())"
             login: true
       stopReason: tool_use
-      usage:
-        inputTokens: 8623
-        outputTokens: 73
   - request:
       model: gpt-5.3-codex
       system: ${system}
@@ -44,32 +38,29 @@ exchanges:
         - role: user
           content: What is your current working directory? Reply with just the absolute path and nothing else.
         - role: assistant
-          content: ${workdir}/ahp-wt-test-n1CXl6.worktrees/what-is-your-current-working-directory-reply-wit
+          content: ${workdir}.worktrees/what-is-your-current-working-directory-reply-wit
         - role: user
-          content: Run the shell command `pwd` in the session current working directory. Do not specify a working-directory override.
+          content: 'Run exactly this shell command, with no modifications, in the session current working directory: `node -e "console.log(process.cwd())"`. Do not specify a working-directory override.'
         - role: assistant
-          content: I will run `pwd` in the current session without any working-directory override and report its output.
+          content: Running that exact command in the current session directory now, with no working-directory override.
         - role: assistant
           content:
             - type: tool_use
               name: exec_command
               input:
-                cmd: pwd
+                cmd: node -e "console.log(process.cwd())"
                 login: true
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
               content: |-
-                Chunk ID: e894eb
+                Chunk ID: 8027b1
                 Wall time: 0.0000 seconds
                 Process exited with code 0
-                Original token count: 21
+                Original token count: 34
                 Output:
-                ${workdir}/ahp-wt-test-n1CXl6.worktrees/what-is-your-current-working-directory-reply-wit
+                ${workdir}.worktrees/what-is-your-current-working-directory-reply-wit
     response:
-      content: ${workdir}/ahp-wt-test-n1CXl6.worktrees/what-is-your-current-working-directory-reply-wit
+      content: ${workdir}.worktrees/what-is-your-current-working-directory-reply-wit
       stopReason: end_turn
-      usage:
-        inputTokens: 8766
-        outputTokens: 30

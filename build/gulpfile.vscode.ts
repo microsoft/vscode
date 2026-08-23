@@ -31,6 +31,7 @@ import { copyCodiconsTask } from './lib/compilation.ts';
 import { ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotTgrepExcludeFilter, getMxcExcludeFilter, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
 import { ensureOSProxyResolverPlatformPackage, getOSProxyResolverExcludeFilter, getOSProxyResolverPlatformFiles } from './lib/osProxyResolver.ts';
 import { readAgentSdkResults } from './agent-sdk/common.ts';
+import { readDictationRuntimeResults } from './dictation-runtime/common.ts';
 import { useEsbuildTranspile } from './buildConfig.ts';
 import { promisify } from 'util';
 import globCallback from 'glob';
@@ -43,6 +44,18 @@ const glob = promisify(globCallback);
 const rcedit = promisify(rceditCallback);
 const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
+const packageLock = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8')) as {
+	readonly packages?: Readonly<Record<string, { readonly version?: string }>>;
+};
+
+function getLockedPackageVersion(packageName: string): string {
+	const version = packageLock.packages?.[`node_modules/${packageName}`]?.version;
+	if (!version) {
+		throw new Error(`Package ${packageName} is missing a version in package-lock.json.`);
+	}
+
+	return version;
+}
 
 // Build
 const vscodeEntryPoints = [
@@ -93,10 +106,14 @@ const vscodeResourceIncludes = [
 
 	// Accessibility Signals
 	'out-build/vs/platform/accessibilitySignal/browser/media/*.mp3',
+	'out-build/vs/workbench/contrib/agentsVoice/browser/media/*.mp3',
 
 	// Welcome
 	'out-build/vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.{svg,png}',
 	'out-build/vs/workbench/contrib/welcomeOnboarding/browser/media/*.svg',
+
+	// Chat Pet
+	'out-build/vs/workbench/contrib/chat/browser/widget/media/chatPet/**/*.{gif,png}',
 
 	// Sessions
 	'out-build/vs/sessions/contrib/chat/browser/media/*.svg',
@@ -322,12 +339,23 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				json.date = readISODate(out);
 				json.checksums = checksums;
 				json.version = version;
+				json.copilotVersions = {
+					runtime: getLockedPackageVersion('@github/copilot'),
+					sdk: getLockedPackageVersion('@github/copilot-sdk'),
+				};
 				// Stamp agentSdks from the per-platform results file produced
 				// by `build/agent-sdk/produce.ts` (an earlier pipeline step).
 				// Local dev: file absent → empty → not stamped.
 				const agentSdks = readAgentSdkResults();
 				if (Object.keys(agentSdks).length > 0) {
 					json.agentSdks = agentSdks;
+				}
+				// Stamp dictationRuntime from the per-platform results file
+				// produced by `build/dictation-runtime/produce.ts`. Local dev /
+				// unsupported target: file absent → undefined → not stamped.
+				const dictationRuntime = readDictationRuntimeResults();
+				if (dictationRuntime) {
+					json.dictationRuntime = dictationRuntime;
 				}
 				return json;
 			}))
@@ -616,8 +644,6 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 			glob('**/*.node', { cwd, ignore: 'extensions/node_modules/@parcel/watcher/**' }),
 			glob('**/rg.exe', { cwd }),
 			glob('**/tgrep.exe', { cwd }),
-			glob('**/node_modules.asar.unpacked/@github/copilot-win32-*/builtin-plugins/computer-use/*/win32-*/computer-use-mcp.exe', { cwd }),
-			glob('**/node_modules.asar.unpacked/@github/copilot-win32-*/builtin-plugins/computer-use/*/win32-*/CopilotComputerUse.exe', { cwd }),
 			glob('**/*explorer_command*.dll', { cwd }),
 		])).flatMap(o => o);
 		const packageJson = JSON.parse(await fs.promises.readFile(path.join(cwd, versionedResourcesFolder, 'resources', 'app', 'package.json'), 'utf8'));

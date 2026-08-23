@@ -8,7 +8,7 @@
 	height: 100%;
 	min-height: 0;
 
-	.monaco-list-row:has(.session-item) {
+	.monaco-list-row.session-list-inset-row {
 		border-radius: var(--vscode-cornerRadius-medium);
 		margin: 0 10px;
 		width: calc(100% - 20px);
@@ -66,6 +66,10 @@
 			position: relative;
 			right: 0;
 			top: 0;
+		}
+
+		.actions-container {
+			gap: var(--vscode-spacing-size40);
 		}
 	}
 
@@ -495,6 +499,11 @@
 	.session-section-icon {
 		flex-shrink: 0;
 		margin-right: 6px;
+		width: 16px;
+		height: 16px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
 		font-size: var(--vscode-codiconFontSize, 16px);
 	}
 
@@ -511,6 +520,10 @@
 		display: none;
 	}
 
+	.session-section-toolbar .actions-container {
+		gap: var(--vscode-spacing-size40);
+	}
+
 	.session-section-toolbar .monaco-action-bar .action-label {
 		border-radius: var(--vscode-cornerRadius-small);
 	}
@@ -520,25 +533,51 @@
 		display: none;
 		color: var(--vscode-descriptionForeground);
 		font-size: var(--vscode-codiconFontSize-compact, 12px);
-		width: 22px;
 		height: 22px;
+		margin-right: 6px;
 		border-radius: var(--vscode-cornerRadius-small);
 		justify-content: center;
 	}
 }
 
 .monaco-list-row:hover .session-section .session-section-toolbar,
-.monaco-list-row.focused .session-section .session-section-toolbar {
+.monaco-list-row.focused .session-section .session-section-toolbar,
+.monaco-list-row .session-section.dropdown-active .session-section-toolbar {
 	display: block;
 }
 
+/* Shortcut sections (Automations) only show toolbar on hover, not on focus */
+.monaco-list-row.focused .session-section.session-section-shortcut .session-section-toolbar {
+	visibility: hidden;
+}
+.session-section.session-section-shortcut .session-section-toolbar {
+	display: block;
+	visibility: hidden;
+}
+.monaco-list-row:hover .session-section.session-section-shortcut .session-section-toolbar {
+	visibility: visible;
+}
+
+/* Active background for shortcut sections when their editor is open */
+.session-section.session-section-shortcut.active {
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
 .monaco-list-row:hover .session-section .session-section-chevron.collapsible,
-.monaco-list-row.focused .session-section .session-section-chevron.collapsible {
+.sessions-list-control:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused .session-section .session-section-chevron.collapsible,
+.monaco-list-row .session-section.dropdown-active .session-section-chevron.collapsible {
 	display: flex;
 	align-items: center;
 }
 
-.monaco-list-row .session-section .session-section-chevron.collapsible:hover {
+.monaco-list-row:hover .session-section .session-section-chevron.collapsible + .session-section-icon,
+.sessions-list-control:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused .session-section .session-section-chevron.collapsible + .session-section-icon,
+.monaco-list-row .session-section.dropdown-active .session-section-chevron.collapsible + .session-section-icon {
+	display: none;
+}
+
+.session-section.dropdown-active .session-section-toolbar .monaco-dropdown-with-primary {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
@@ -559,6 +598,12 @@
 	.monaco-list-row:hover .session-show-more-folders .session-show-more-label,
 	.monaco-list-row.focused .session-show-more-folders .session-show-more-label {
 		color: var(--vscode-strongForeground);
+	}
+
+	/* Shortcut sections only change label and icon color on hover, unless active. */
+	.monaco-list-row.focused:not(:hover) .session-section.session-section-shortcut:not(.active) .session-section-label,
+	.monaco-list-row.focused:not(:hover) .session-section.session-section-shortcut:not(.active) .session-section-icon {
+		color: var(--vscode-descriptionForeground);
 	}
 
 	&.session-section-focus-from-pointer {
@@ -642,7 +687,7 @@
 			background-clip: text;
 			-webkit-background-clip: text;
 			-webkit-text-fill-color: transparent;
-			animation: session-title-shimmer 3s steps(180, jump-none) infinite;
+			animation: session-title-shimmer 6s steps(90, jump-none) infinite;
 		}
 
 		.monaco-list-row:not(.selected) .session-item.in-progress .session-title.session-title-shimmer-paused {
@@ -668,6 +713,7 @@
 		background-position: 120% 0;
 	}
 
+	50%,
 	100% {
 		background-position: -120% 0;
 	}
@@ -700,7 +746,7 @@
  * keep these rules in sync if paddings/font sizes change here.
  */
 .agent-sessions-workbench.phone-layout .sessions-list-control {
-	.monaco-list-row:has(.session-item) {
+	.monaco-list-row.session-list-inset-row {
 		/* Horizontal-only margin: virtual list rows are absolutely
 		 * positioned with JS-set `top`/`height`, so vertical margins
 		 * here would not produce reliable inter-row spacing. Any gap

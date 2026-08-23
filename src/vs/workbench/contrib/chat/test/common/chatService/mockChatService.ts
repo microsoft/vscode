@@ -8,7 +8,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { ChatRequestQueueKind, ChatSendResult, IChatDetail, IChatModelReference, IChatProgress, IChatSendRequestOptions, IChatService, IChatSessionStartOptions, IChatUserActionEvent } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatSendResult, IChatDetail, IChatModelReference, IChatProgress, IChatSendRequestOptions, IChatService, IChatSessionStartOptions, IChatUserActionEvent, IRemotePendingRequest } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
 import { IChatModel, IChatRequestModel, IExportableChatData, ISerializableChatData } from '../../../common/model/chatModel.js';
 import type { IChatModelReferenceDebugSnapshot } from '../../../common/model/chatModelStore.js';
@@ -142,6 +142,8 @@ export class MockChatService implements IChatService {
 	removePendingRequest(_sessionResource: URI, _requestId: string): void { }
 
 	setPendingRequests(_sessionResource: URI, _requests: readonly { requestId: string; kind: ChatRequestQueueKind }[]): void { }
+
+	syncPendingRequestsFromRemote(_sessionResource: URI, _requests: readonly IRemotePendingRequest[]): void { }
 
 	sendPendingRequestImmediately(_sessionResource: URI, _requestId: string): Promise<void> {
 		throw new Error('Method not implemented.');
