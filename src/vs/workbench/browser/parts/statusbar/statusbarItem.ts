@@ -165,8 +165,10 @@ export class StatusbarEntryItem extends Disposable {
 					}
 				});
 
+				this.container.classList.add('has-command');
 				this.labelContainer.classList.remove('disabled');
 			} else {
+				this.container.classList.remove('has-command');
 				this.labelContainer.classList.add('disabled');
 			}
 		}

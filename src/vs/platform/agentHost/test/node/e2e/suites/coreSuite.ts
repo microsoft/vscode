@@ -692,7 +692,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 			action: {
 				type: ActionType.ChatTurnStarted,
 				turnId,
-				startedAt: '2025-01-01T00:00:00.000Z',
+				startedAt: new Date().toISOString(),
 				message: {
 					text: 'This turn must fail before contacting a model.',
 					origin: { kind: MessageKind.User },

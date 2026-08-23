@@ -16,6 +16,7 @@ suite('Session Artifacts', () => {
 	const actions: ISessionArtifactActions = {
 		openExternal() { },
 		openResource() { },
+		openImages() { },
 		copy() { },
 	};
 
@@ -30,7 +31,7 @@ suite('Session Artifacts', () => {
 			{ id: 'resource', kind: SessionArtifactKind.Resource, label: 'Resource', uri: resourceUri },
 		];
 
-		const entries = buildSessionArtifactSections(artifacts, [{ uri: externalFileUri, operation: SessionFileOperation.Created }], actions).flatMap(section => section.entries);
+		const entries = buildSessionArtifactSections(artifacts, [{ uri: externalFileUri, operation: SessionFileOperation.Created }], actions, true).flatMap(section => section.entries);
 		assert.deepStrictEqual(entries.map(entry => {
 			const content = entry.hover?.content;
 			return {
@@ -47,4 +48,5 @@ suite('Session Artifacts', () => {
 			{ label: 'Resource', ariaLabel: 'Open Resource', ariaDescription: resourceUri.toString(true), hover: resourceUri.toString(true), tooltip: resourceUri.toString(true) },
 		]);
 	});
+
 });

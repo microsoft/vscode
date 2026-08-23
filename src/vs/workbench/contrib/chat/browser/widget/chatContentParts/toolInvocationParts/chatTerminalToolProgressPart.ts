@@ -1113,14 +1113,14 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			this._decoration.update();
 			this._updateToolbarContextKeys(undefined, this._terminalData.terminalToolSessionId);
 			void this._outputView.refresh();
-			if (source.exitCode !== undefined) {
+			if (source.hasExited) {
 				onCommandFinished.fire();
 				this.markCollapsibleWrapperComplete();
 			}
 		}));
 		this._outputSourceListener.value = store;
 		onCommandExecuted.fire();
-		if (source.exitCode !== undefined) {
+		if (source.hasExited) {
 			onCommandFinished.fire();
 		}
 		this._decoration.update();
@@ -1518,7 +1518,7 @@ export class ChatTerminalToolOutputSection extends Disposable {
 			this._disposeLiveMirror();
 			if (outputSource.output) {
 				await this._renderSnapshotOutput({ text: outputSource.output });
-			} else if (outputSource.exitCode === undefined) {
+			} else if (!outputSource.hasExited) {
 				this._hideEmptyMessage();
 				this._layoutOutput(0);
 			} else {

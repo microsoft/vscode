@@ -7,8 +7,9 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { sortCustomizationEnablement, withCustomizationEnablement } from '../../common/customizationEnablement.js';
 import { changesetReducer, chatReducer, sessionReducer } from '../../common/state/protocol/reducers.js';
+import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, ChangesetOperationStatus, CustomizationLoadStatus, MessageKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ResponsePartKind, ToolCallStatus, TurnState, type AgentCustomization, type ChangesetState, type Customization, type PluginCustomization, type ChatState, type SessionState } from '../../common/state/sessionState.js';
+import { ChangesetStatus, ChangesetOperationStatus, CustomizationLoadStatus, MessageKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ResponsePartKind, ToolCallStatus, TurnState, type AgentCustomization, type ChangesetState, type Customization, type PluginCustomization, type ChatState, type SessionState } from '../../common/state/sessionState.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, ToolCallContributorKind, type ToolCallContributor } from '../../common/state/protocol/state.js';
 
 function makeSession(): SessionState {
@@ -180,17 +181,16 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 
 		state = chatReducer(state, {
 			type: ActionType.ChatInputRequested,
-			request: {
+			request: withChatInputRequestPurpose({
 				id: 'req-1',
-				purpose: ChatInputRequestPurpose.AskUser,
 				message: 'What is your name?',
 				questions: [{
 					kind: ChatInputQuestionKind.Text,
 					id: 'q-1',
 					message: 'What is your name?',
 					required: true
-				}]
-			},
+				}],
+			}, ChatInputRequestPurpose.AskUser),
 		});
 
 		assert.deepStrictEqual({
@@ -200,9 +200,8 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 			status: SessionStatus.InputNeeded,
 			responsePart: {
 				kind: ResponsePartKind.InputRequest,
-				request: {
+				request: withChatInputRequestPurpose({
 					id: 'req-1',
-					purpose: ChatInputRequestPurpose.AskUser,
 					message: 'What is your name?',
 					questions: [{
 						kind: ChatInputQuestionKind.Text,
@@ -210,7 +209,7 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 						message: 'What is your name?',
 						required: true,
 					}],
-				},
+				}, ChatInputRequestPurpose.AskUser),
 			},
 		});
 	});
@@ -219,11 +218,10 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 		let state = withActiveTurnAndToolCall(makeChat());
 		state = chatReducer(state, {
 			type: ActionType.ChatInputRequested,
-			request: {
+			request: withChatInputRequestPurpose({
 				id: 'req-1',
-				purpose: ChatInputRequestPurpose.AskUser,
 				questions: [{ kind: ChatInputQuestionKind.Text, id: 'q-1', message: 'First?' }],
-			},
+			}, ChatInputRequestPurpose.AskUser),
 		});
 		state = chatReducer(state, {
 			type: ActionType.ChatInputAnswerChanged,
@@ -233,11 +231,10 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 		});
 		state = chatReducer(state, {
 			type: ActionType.ChatInputRequested,
-			request: {
+			request: withChatInputRequestPurpose({
 				id: 'req-1',
-				purpose: ChatInputRequestPurpose.AskUser,
 				questions: [{ kind: ChatInputQuestionKind.Text, id: 'q-1', message: 'Updated?' }],
-			},
+			}, ChatInputRequestPurpose.AskUser),
 		});
 		state = chatReducer(state, {
 			type: ActionType.ChatInputCompleted,
@@ -247,14 +244,13 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 
 		assert.deepStrictEqual(state.activeTurn?.responseParts.at(-1), {
 			kind: ResponsePartKind.InputRequest,
-			request: {
+			request: withChatInputRequestPurpose({
 				id: 'req-1',
-				purpose: ChatInputRequestPurpose.AskUser,
 				questions: [{ kind: ChatInputQuestionKind.Text, id: 'q-1', message: 'Updated?' }],
 				answers: {
 					'q-1': { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'answer' } },
 				},
-			},
+			}, ChatInputRequestPurpose.AskUser),
 			response: ChatInputResponseKind.Accept,
 		});
 	});
@@ -280,17 +276,16 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 		// Add an input request
 		state = chatReducer(state, {
 			type: ActionType.ChatInputRequested,
-			request: {
+			request: withChatInputRequestPurpose({
 				id: 'req-1',
-				purpose: ChatInputRequestPurpose.AskUser,
 				message: 'What is your name?',
 				questions: [{
 					kind: ChatInputQuestionKind.Text,
 					id: 'q-1',
 					message: 'What is your name?',
 					required: true
-				}]
-			},
+				}],
+			}, ChatInputRequestPurpose.AskUser),
 		});
 		assert.strictEqual(state.status, SessionStatus.InputNeeded);
 
@@ -309,9 +304,8 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 			status: SessionStatus.InProgress,
 			responsePart: {
 				kind: ResponsePartKind.InputRequest,
-				request: {
+				request: withChatInputRequestPurpose({
 					id: 'req-1',
-					purpose: ChatInputRequestPurpose.AskUser,
 					message: 'What is your name?',
 					questions: [{
 						kind: ChatInputQuestionKind.Text,
@@ -325,7 +319,7 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 							value: { kind: ChatInputAnswerValueKind.Text, value: 'Alice' },
 						},
 					},
-				},
+				}, ChatInputRequestPurpose.AskUser),
 				response: ChatInputResponseKind.Accept,
 			},
 		});

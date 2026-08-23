@@ -71,12 +71,47 @@ function fail(errorMessage): void {
 let quality: Quality;
 let version: string | undefined;
 
-function parseQuality(): Quality {
-	if (process.env.VSCODE_DEV === '1') {
+/**
+ * Read the `quality` a build was stamped with.
+ *
+ * `parseQuality` reads the environment, which only describes a build made from
+ * this checkout. An installed build carries its own quality in `product.json`,
+ * and without it every installed run is labelled `Dev` in the evidence, which
+ * misreports which product was actually validated.
+ */
+function readBuildQuality(root: string): string | undefined {
+	// Windows installs nest the app under a commit-stamped directory, so the
+	// manifest is not always directly under the application root.
+	const candidates = [path.join(root, 'resources', 'app', 'product.json')];
+	try {
+		for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+			if (entry.isDirectory()) {
+				candidates.push(path.join(root, entry.name, 'resources', 'app', 'product.json'));
+			}
+		}
+	} catch {
+		// an unreadable root is reported by the electron path check below
+	}
+	candidates.push(path.join(root, 'Contents', 'Resources', 'app', 'product.json')); // macOS bundle
+	for (const candidate of candidates) {
+		try {
+			const product = JSON.parse(fs.readFileSync(candidate, 'utf8')) as { quality?: string };
+			if (product.quality) {
+				return product.quality;
+			}
+		} catch {
+			// try the next location
+		}
+	}
+	return undefined;
+}
+
+function parseQuality(stamped?: string): Quality {
+	if (!stamped && process.env.VSCODE_DEV === '1') {
 		return Quality.Dev;
 	}
 
-	const quality = process.env.VSCODE_QUALITY ?? '';
+	const quality = stamped ?? process.env.VSCODE_QUALITY ?? '';
 
 	switch (quality) {
 		case 'stable':
@@ -95,9 +130,68 @@ function parseQuality(): Quality {
 //
 // #### Electron ####
 //
+/**
+ * Locate an installed VS Code Insiders, then Stable.
+ *
+ * Reproducing a reported issue is the common case, and that means running the
+ * shipped product rather than a build from this checkout, so an installed build
+ * is used when the caller did not choose a target.
+ */
+function findInstalledBuild(): string | undefined {
+	const candidates: string[] = [];
+	switch (process.platform) {
+		case 'win32': {
+			const roots = [process.env.LOCALAPPDATA, process.env.ProgramFiles, process.env['ProgramFiles(x86)']].filter((root): root is string => !!root);
+			for (const root of roots) {
+				candidates.push(path.join(root, 'Programs', 'Microsoft VS Code Insiders'), path.join(root, 'Microsoft VS Code Insiders'));
+			}
+			for (const root of roots) {
+				candidates.push(path.join(root, 'Programs', 'Microsoft VS Code'), path.join(root, 'Microsoft VS Code'));
+			}
+			break;
+		}
+		case 'darwin':
+			candidates.push(
+				'/Applications/Visual Studio Code - Insiders.app',
+				path.join(os.homedir(), 'Applications', 'Visual Studio Code - Insiders.app'),
+				'/Applications/Visual Studio Code.app',
+				path.join(os.homedir(), 'Applications', 'Visual Studio Code.app')
+			);
+			break;
+		default:
+			candidates.push(
+				'/usr/share/code-insiders',
+				'/opt/visual-studio-code-insiders',
+				// Snap keeps the app under a read-only revision root.
+				'/snap/code-insiders/current/usr/share/code-insiders',
+				'/usr/share/code',
+				'/opt/visual-studio-code',
+				'/snap/code/current/usr/share/code'
+			);
+			break;
+	}
+	return candidates.find(candidate => {
+		try {
+			return fs.existsSync(candidate) && fs.existsSync(getBuildElectronPath(candidate));
+		} catch {
+			return false; // an incomplete install is not a usable target
+		}
+	});
+}
+
 if (!opts.web) {
 	let testCodePath = opts.build;
 	let electronPath: string | undefined;
+
+	if (!testCodePath && !opts.dev) {
+		testCodePath = findInstalledBuild();
+		if (testCodePath) {
+			// `getApplication` launches whatever `opts.build` names, so record the
+			// choice there rather than only in this block.
+			opts.build = testCodePath;
+			logger.log(`No target given, using the installed build at ${testCodePath}. Pass --dev to run this checkout instead.`);
+		}
+	}
 
 	if (testCodePath) {
 		electronPath = getBuildElectronPath(testCodePath);
@@ -111,10 +205,18 @@ if (!opts.web) {
 	}
 
 	if (!fs.existsSync(electronPath || '')) {
-		fail(`Cannot find VSCode at ${electronPath}. Please run VSCode once first (scripts/code.sh, scripts\\code.bat) and try again.`);
+		fail(`Cannot find VS Code at ${electronPath}. Install VS Code Insiders, pass --build <app-root>, or build this checkout and pass --dev.`);
 	}
 
-	quality = parseQuality();
+	// Windows applies a downloaded update by swapping the executable during
+	// startup, so the launched process exits before it ever shows a window and
+	// the failure reads as a crash. Insiders updates daily, so say what is
+	// actually wrong instead of leaving a 60s timeout to be misread.
+	if (electronPath && fs.existsSync(path.join(path.dirname(electronPath), `new_${path.basename(electronPath)}`))) {
+		fail(`${electronPath} has a downloaded update waiting to be applied, and it exits during startup to install it instead of opening a window. Start and quit VS Code once to apply the update, then run this again.`);
+	}
+
+	quality = parseQuality(testCodePath ? readBuildQuality(testCodePath) : undefined);
 
 	if (opts.remote) {
 		logger.log(`Running desktop remote smoke tests against ${electronPath}`);

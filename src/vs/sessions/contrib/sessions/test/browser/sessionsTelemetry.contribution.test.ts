@@ -7,6 +7,8 @@ import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable } from '../../../../../base/common/observable.js';
+import { extUri } from '../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -18,7 +20,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { ISearchService } from '../../../../../workbench/services/search/common/search.js';
 import { IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { ISessionsTasksService } from '../../../chat/browser/sessionsTasksService.js';
-import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISendRequestSentEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -32,7 +34,18 @@ interface IRequestSentTelemetry {
 	readonly attachmentKinds: string;
 }
 
-function isRequestSentTelemetry(data: unknown): data is IRequestSentTelemetry {
+interface ISessionCountsTelemetry {
+	readonly currentWorkspaceInProgress: number;
+	readonly currentWorkspaceUnread: number;
+	readonly currentWorkspaceWaitingForInput: number;
+	readonly currentWorkspaceNotDone: number;
+	readonly allWorkspacesInProgress: number;
+	readonly allWorkspacesUnread: number;
+	readonly allWorkspacesWaitingForInput: number;
+	readonly allWorkspacesNotDone: number;
+}
+
+function isRequestSentTelemetry(data: unknown): data is IRequestSentTelemetry & ISessionCountsTelemetry {
 	return typeof data === 'object'
 		&& data !== null
 		&& typeof Reflect.get(data, 'isNewSession') === 'boolean'
@@ -43,6 +56,7 @@ function isRequestSentTelemetry(data: unknown): data is IRequestSentTelemetry {
 
 class TestTelemetryService extends NullTelemetryServiceShape {
 	readonly requestSentEvents: IRequestSentTelemetry[] = [];
+	readonly sessionCounts: ISessionCountsTelemetry[] = [];
 
 	override publicLog2(eventName?: string, data?: unknown): void {
 		if (eventName === 'agents/requestSent' && isRequestSentTelemetry(data)) {
@@ -51,6 +65,16 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 				isNewChat: data.isNewChat,
 				totalAttachementCount: data.totalAttachementCount,
 				attachmentKinds: data.attachmentKinds,
+			});
+			this.sessionCounts.push({
+				currentWorkspaceInProgress: data.currentWorkspaceInProgress,
+				currentWorkspaceUnread: data.currentWorkspaceUnread,
+				currentWorkspaceWaitingForInput: data.currentWorkspaceWaitingForInput,
+				currentWorkspaceNotDone: data.currentWorkspaceNotDone,
+				allWorkspacesInProgress: data.allWorkspacesInProgress,
+				allWorkspacesUnread: data.allWorkspacesUnread,
+				allWorkspacesWaitingForInput: data.allWorkspacesWaitingForInput,
+				allWorkspacesNotDone: data.allWorkspacesNotDone,
 			});
 		}
 	}
@@ -99,10 +123,23 @@ const session = {
 	capabilities: constObservable({ supportsMultipleChats: true }),
 } satisfies ISession;
 
+function createWorkspace(uri: URI): ISessionWorkspace {
+	return {
+		uri,
+		label: 'ws',
+		icon: ThemeIcon.fromId('folder'),
+		folders: [],
+		requiresWorkspaceTrust: false,
+		isVirtualWorkspace: false,
+	};
+}
+
+const workspace = createWorkspace(URI.parse('file:///repo'));
+
 suite('SessionsTelemetryContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('logs requestSent for new sessions, new chats, and follow-up messages', async () => {
+	function setup(sessions: readonly ISession[]): { telemetryService: TestTelemetryService; onDidSendRequest: Emitter<ISendRequestSentEvent> } {
 		const onDidSendRequest = disposables.add(new Emitter<ISendRequestSentEvent>());
 		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
 			override readonly onWillSendRequest = Event.None;
@@ -114,7 +151,7 @@ suite('SessionsTelemetryContribution', () => {
 			override readonly onDidRenameChat = Event.None;
 			override readonly onDidRenameSession = Event.None;
 			override readonly onDidChangeSessions = Event.None;
-			override getSessions(): ISession[] { return [session]; }
+			override getSessions(): ISession[] { return [...sessions]; }
 		}();
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly visibleSessions = constObservable([]);
@@ -147,7 +184,9 @@ suite('SessionsTelemetryContribution', () => {
 			sessionsManagementService,
 			sessionsService,
 			telemetryService,
-			new class extends mock<IUriIdentityService>() { }(),
+			new class extends mock<IUriIdentityService>() {
+				override readonly extUri = extUri;
+			}(),
 			storageService,
 			new class extends mock<ISearchService>() { }(),
 			new class extends mock<IConfigurationService>() { }(),
@@ -157,6 +196,12 @@ suite('SessionsTelemetryContribution', () => {
 			providersService,
 			tasksService,
 		));
+
+		return { telemetryService, onDidSendRequest };
+	}
+
+	test('logs requestSent for new sessions, new chats, and follow-up messages', async () => {
+		const { telemetryService, onDidSendRequest } = setup([session]);
 
 		onDidSendRequest.fire({ session, chat, isNewSession: true, isNewChat: true, options: { query: 'new session' } });
 		onDidSendRequest.fire({ session, chat, isNewSession: false, isNewChat: true, options: { query: 'new chat' } });
@@ -177,5 +222,29 @@ suite('SessionsTelemetryContribution', () => {
 			{ isNewSession: false, isNewChat: true, totalAttachementCount: 0, attachmentKinds: '{}' },
 			{ isNewSession: false, isNewChat: false, totalAttachementCount: 1, attachmentKinds: '{"generic":1}' },
 		]);
+	});
+
+	test('requestSent session counts exclude the session the request was sent to', async () => {
+		// The anchor is reported by a fresh session object with in-progress
+		// state, mirroring what a provider hands out right after a send.
+		const anchor = { ...session, status: constObservable(SessionStatus.InProgress), isRead: constObservable(false), workspace: constObservable(workspace) };
+		const listedAnchor = { ...anchor };
+		const otherInSameWorkspace = { ...anchor, sessionId: 'other', resource: URI.parse('test:///other') };
+		const otherWorkspaceSession = { ...anchor, sessionId: 'elsewhere', resource: URI.parse('test:///elsewhere'), workspace: constObservable(createWorkspace(URI.parse('file:///other-repo'))) };
+		const { telemetryService, onDidSendRequest } = setup([listedAnchor, otherInSameWorkspace, otherWorkspaceSession]);
+
+		onDidSendRequest.fire({ session: anchor, chat, isNewSession: false, isNewChat: false, options: { query: 'hi' } });
+		await Promise.resolve();
+
+		assert.deepStrictEqual(telemetryService.sessionCounts, [{
+			currentWorkspaceInProgress: 1,
+			currentWorkspaceUnread: 1,
+			currentWorkspaceWaitingForInput: 0,
+			currentWorkspaceNotDone: 1,
+			allWorkspacesInProgress: 2,
+			allWorkspacesUnread: 2,
+			allWorkspacesWaitingForInput: 0,
+			allWorkspacesNotDone: 2,
+		}]);
 	});
 });

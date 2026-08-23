@@ -521,7 +521,7 @@ export async function driveChatTurnToCompletion(c: TestProtocolClient, chat: str
 		action: {
 			type: ActionType.ChatTurnStarted,
 			turnId,
-			startedAt: '2025-01-01T00:00:00.000Z',
+			startedAt: new Date().toISOString(),
 			message: { text, origin: { kind: MessageKind.User } },
 		},
 	}));
@@ -538,7 +538,7 @@ export async function driveTurnWithModelToCompletion(c: TestProtocolClient, sess
 		action: {
 			type: ActionType.ChatTurnStarted,
 			turnId,
-			startedAt: '2025-01-01T00:00:00.000Z',
+			startedAt: new Date().toISOString(),
 			message: { text, origin: { kind: MessageKind.User }, model: { id: model } },
 		},
 	}));

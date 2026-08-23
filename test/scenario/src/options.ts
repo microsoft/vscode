@@ -20,7 +20,8 @@ export const opts = minimist(args, {
 		'web',
 		'headless',
 		'video',
-		'autostart'
+		'autostart',
+		'dev'
 	],
 	default: {
 		verbose: false
@@ -31,6 +32,7 @@ export const opts = minimist(args, {
 	headless?: boolean;
 	web?: boolean;
 	build?: string;
+	dev?: boolean;
 	browser?: 'chromium' | 'webkit' | 'firefox' | 'chromium-msedge' | 'chromium-chrome' | undefined;
 	electronArgs?: string;
 	video?: boolean;

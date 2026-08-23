@@ -12,7 +12,7 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { SessionConfigKey } from '../../../../common/sessionConfigKeys.js';
 import { ActionType, type StateAction } from '../../../../common/state/sessionActions.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
-import { TerminalClaimKind, type TerminalClaim } from '../../../../common/state/protocol/state.js';
+import { TerminalClaimKind, TerminalLifecycleStatus, type TerminalClaim } from '../../../../common/state/protocol/state.js';
 import {
 	buildDefaultChatUri,
 	MessageAttachmentKind,
@@ -492,7 +492,7 @@ export function defineStateOperationsTests(context: IAgentHostE2ETestContext): v
 		await withTerminal('terminal-claim-metadata', async ({ sessionUri, terminalUri, workspace }) => {
 			await dispatchAndWait(terminalUri, 1, {
 				type: ActionType.TerminalClaimed,
-				claim: { kind: TerminalClaimKind.Session, session: sessionUri },
+				claim: { kind: TerminalClaimKind.Session, session: sessionUri, chat: buildDefaultChatUri(sessionUri) },
 			});
 
 			const state = await terminalState(terminalUri);
@@ -527,7 +527,7 @@ export function defineStateOperationsTests(context: IAgentHostE2ETestContext): v
 
 	conformanceTest(context, 'terminal claim can transfer from the client to the session', async function () {
 		await withTerminal('terminal-claim', async ({ sessionUri, terminalUri }) => {
-			const claim: TerminalClaim = { kind: TerminalClaimKind.Session, session: sessionUri };
+			const claim: TerminalClaim = { kind: TerminalClaimKind.Session, session: sessionUri, chat: buildDefaultChatUri(sessionUri) };
 			await dispatchAndWait(terminalUri, 1, { type: ActionType.TerminalClaimed, claim });
 			assert.deepStrictEqual((await terminalState(terminalUri)).claim, claim);
 		});
@@ -537,7 +537,7 @@ export function defineStateOperationsTests(context: IAgentHostE2ETestContext): v
 		await withTerminal('terminal-claim-return', async ({ sessionUri, terminalUri, clientId }) => {
 			await dispatchAndWait(terminalUri, 1, {
 				type: ActionType.TerminalClaimed,
-				claim: { kind: TerminalClaimKind.Session, session: sessionUri },
+				claim: { kind: TerminalClaimKind.Session, session: sessionUri, chat: buildDefaultChatUri(sessionUri) },
 			});
 			const clientClaim: TerminalClaim = { kind: TerminalClaimKind.Client, clientId };
 
@@ -552,6 +552,7 @@ export function defineStateOperationsTests(context: IAgentHostE2ETestContext): v
 			const claim: TerminalClaim = {
 				kind: TerminalClaimKind.Session,
 				session: sessionUri,
+				chat: buildDefaultChatUri(sessionUri),
 				turnId: 'turn-claim',
 				toolCallId: 'tool-claim',
 			};
@@ -680,9 +681,10 @@ export function defineStateOperationsTests(context: IAgentHostE2ETestContext): v
 			// The exit code itself is the shell's, not the host's, so only its
 			// presence and its arrival in state are contractual.
 			const action = getActionEnvelope(exited).action as { exitCode?: number };
+			const lifecycle = (await terminalState(terminalUri)).lifecycle;
 			assert.deepStrictEqual({
 				reportedExitCode: typeof action.exitCode,
-				stateMatchesNotification: (await terminalState(terminalUri)).exitCode === action.exitCode,
+				stateMatchesNotification: lifecycle.status === TerminalLifecycleStatus.Exited && lifecycle.exitCode === action.exitCode,
 			}, {
 				reportedExitCode: 'number',
 				stateMatchesNotification: true,
@@ -761,7 +763,12 @@ export function defineStateOperationsTests(context: IAgentHostE2ETestContext): v
 	conformanceTest(context, 'root terminal metadata reflects claim transfers', async function () {
 		await withTerminal('terminal-root-claim', async ({ sessionUri, terminalUri }) => {
 			await context.client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
-			const claim: TerminalClaim = { kind: TerminalClaimKind.Session, session: sessionUri, turnId: 'turn-root-claim' };
+			const claim: TerminalClaim = {
+				kind: TerminalClaimKind.Session,
+				session: sessionUri,
+				chat: buildDefaultChatUri(sessionUri),
+				turnId: 'turn-root-claim',
+			};
 			context.client.clearReceived();
 			context.client.dispatch({
 				channel: terminalUri,
@@ -802,10 +809,11 @@ export function defineStateOperationsTests(context: IAgentHostE2ETestContext): v
 
 			const root = await context.client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
 			const terminal = (root.snapshot!.state as RootState).terminals?.find(terminal => terminal.resource === terminalUri);
+			const lifecycle = terminal?.lifecycle;
 			assert.deepStrictEqual({
 				listed: terminal !== undefined,
 				reportedExitCode: typeof exitCode,
-				stateMatchesNotification: terminal?.exitCode === exitCode,
+				stateMatchesNotification: lifecycle?.status === TerminalLifecycleStatus.Exited && lifecycle.exitCode === exitCode,
 			}, {
 				listed: true,
 				reportedExitCode: 'number',

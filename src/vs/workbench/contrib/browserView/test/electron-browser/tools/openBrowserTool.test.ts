@@ -15,8 +15,12 @@ import { AgentNetworkDomainSettingId } from '../../../../../../platform/networkF
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IRemoteExplorerService } from '../../../../../services/remote/common/remoteExplorerService.js';
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
-import { IBrowserViewWorkbenchService } from '../../../common/browserView.js';
+import { IBrowserViewWorkbenchCreateOptions, IBrowserViewWorkbenchService } from '../../../common/browserView.js';
 import { OpenBrowserTool } from '../../../electron-browser/tools/openBrowserTool.js';
+import { BrowserEditorInput } from '../../../common/browserEditorInput.js';
+import { BrowserViewStorageScope, IBrowserViewEditorOpenOptions } from '../../../../../../platform/browserView/common/browserView.js';
+import { IToolInvocation, ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
+import { URI } from '../../../../../../base/common/uri.js';
 
 suite('OpenBrowserTool', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -56,5 +60,59 @@ suite('OpenBrowserTool', () => {
 		}));
 
 		assert.deepStrictEqual(blocked, [true, true]);
+	});
+
+	test('creates agent-owned pages through the workbench before summarizing', async () => {
+		let createOptions: IBrowserViewWorkbenchCreateOptions | undefined;
+		let editorOpenOptions: IBrowserViewEditorOpenOptions | undefined;
+		let summaryArguments: readonly [string, string, string, number] | undefined;
+		const input = upcastPartial<BrowserEditorInput>({ id: 'page-id' });
+		const tool = new OpenBrowserTool(
+			upcastPartial<IPlaywrightService>({
+				waitForPageAndGetSummary: async (...args) => {
+					summaryArguments = args;
+					return 'Page summary';
+				}
+			}),
+			upcastPartial<IEditorService>({}),
+			upcastPartial<IBrowserViewWorkbenchService>({
+				willUseRemoteProxy: () => true,
+				createBrowserView: async (options, openOptions) => {
+					createOptions = options;
+					editorOpenOptions = openOptions;
+					return input;
+				}
+			}),
+			upcastPartial<IRemoteExplorerService>({}),
+			upcastPartial<AgentNetworkFilterService>({}),
+			upcastPartial<IChatService>({}),
+			new TestConfigurationService(),
+			upcastPartial<ILogService>({}),
+		);
+
+		await tool.invoke(
+			upcastPartial<IToolInvocation>({
+				parameters: { url: 'https://example.com', forceNew: true },
+				context: { sessionResource: URI.parse('chat:session') }
+			}),
+			async () => 0,
+			upcastPartial<ToolProgress>({ report: () => { } }),
+			CancellationToken.None
+		);
+
+		assert.deepStrictEqual({ createOptions, editorOpenOptions, summaryArguments }, {
+			createOptions: {
+				owner: { type: 'agent', sessionId: 'chat:session' },
+				initialAudiences: [{ type: 'agent' }],
+				session: {
+					scope: BrowserViewStorageScope.Ephemeral,
+					affinity: 'chat:session'
+				},
+				initialUrl: 'https://example.com',
+				openSource: 'cdpCreated'
+			},
+			editorOpenOptions: { preserveFocus: true },
+			summaryArguments: ['chat:session', 'page-id', 'https://example.com', 5000]
+		});
 	});
 });

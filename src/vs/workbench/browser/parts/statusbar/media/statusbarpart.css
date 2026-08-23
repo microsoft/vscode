@@ -183,6 +183,10 @@
 	background-color: var(--vscode-statusBarItem-warningBackground);
 }
 
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.warning-kind.has-command:hover {
+	background-color: var(--vscode-statusBarItem-warningHoverBackground);
+}
+
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.warning-kind a:hover:not(.disabled) {
 	color: var(--vscode-statusBarItem-warningHoverForeground);
 	background-color: var(--vscode-statusBarItem-warningHoverBackground) !important;

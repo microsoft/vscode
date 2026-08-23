@@ -8,6 +8,9 @@
 
 import type { URI, Snapshot } from './state.js';
 import type { ActionEnvelope, StateAction } from './actions.js';
+import type { AutomationRunCancelRequestedAction } from '../channels-automation-run/actions.js';
+import type { AutomationCreateRequestedAction } from '../channels-automation/actions.js';
+import type { AutomationSchedule, AutomationScheduleTrigger, AutomationCatalogState, AutomationState } from '../channels-automation/state.js';
 import type { TelemetryCapabilities } from '../channels-otlp/state.js';
 
 // ─── BaseParams ──────────────────────────────────────────────────────────────
@@ -265,7 +268,85 @@ export interface InitializeResult {
 	 * @see {@link /specification/telemetry-channel | Telemetry Channel}
 	 */
 	telemetry?: TelemetryCapabilities;
+	/**
+	 * Host-owned automation support. Presence means clients may subscribe to
+	 * `ahp-automations://` for {@link AutomationCatalogState}; absence means the
+	 * host does not expose an automation catalogue or automation commands.
+	 *
+	 * @see {@link /guide/automations | Automations Guide}
+	 */
+	automations?: AutomationCapabilities;
 }
+
+/**
+ * Automation features supported by this host authority.
+ *
+ * The presence of this object advertises the baseline `ahp-automations://`
+ * catalogue. Optional fields describe additional host features and
+ * restrictions.
+ *
+ * Capabilities describe implementation support.
+ * {@link AutomationState.operations} remains authoritative for which
+ * definition mutations are currently allowed on a particular automation.
+ *
+ * @category Commands
+ */
+export interface AutomationCapabilities {
+	/** Present when clients may dispatch {@link AutomationCreateRequestedAction}. */
+	create?: AutomationCreateCapability;
+	/** Present when definitions may contain {@link AutomationScheduleTrigger | schedule triggers}. */
+	schedules?: AutomationScheduleCapabilities;
+	/**
+	 * Present when clients may request cancellation of `pending` or `running`
+	 * automation runs.
+	 */
+	runCancellation?: AutomationRunCancellationCapability;
+	/**
+	 * Maximum terminal entries retained in {@link AutomationState.runs}. Active
+	 * runs are not counted toward the limit. Absence means the retention limit is
+	 * implementation-defined.
+	 */
+	runHistoryLimit?: number;
+}
+
+/**
+ * Presence capability for {@link AutomationCreateRequestedAction |
+ * `automation/createRequested`}.
+ *
+ * The empty object means "supported"; fields are reserved for future
+ * create-specific options.
+ *
+ * @category Commands
+ */
+export interface AutomationCreateCapability { }
+
+/**
+ * Host restrictions on portable {@link AutomationSchedule} triggers.
+ *
+ * The cron grammar itself is fixed by AHP. Hosts MUST accept every expression
+ * in that grammar unless it violates an advertised interval restriction.
+ *
+ * @category Commands
+ */
+export interface AutomationScheduleCapabilities {
+	/**
+	 * Smallest permitted interval between consecutive occurrences produced by
+	 * {@link AutomationSchedule.expression}. Omission means no restriction beyond
+	 * the cron format's one-minute resolution.
+	 */
+	minIntervalMinutes?: number;
+}
+
+/**
+ * Presence capability for {@link AutomationRunCancelRequestedAction |
+ * `automationRun/cancelRequested`}.
+ *
+ * The empty object means "supported." Clients may dispatch the action for
+ * `pending` or `running` runs; terminal runs cannot be cancelled.
+ *
+ * @category Commands
+ */
+export interface AutomationRunCancellationCapability { }
 
 // ─── ping ────────────────────────────────────────────────────────────────────
 

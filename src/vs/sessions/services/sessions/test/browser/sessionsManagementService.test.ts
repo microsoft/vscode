@@ -1628,6 +1628,7 @@ suite('SessionsManagementService', () => {
 			override async setIsolationMode(_sessionId: string, _mode: string): Promise<void> { calls.push(`setIsolationMode:${_mode}`); }
 			override async setBranch(_sessionId: string, _branch: string): Promise<void> { calls.push(`setBranch:${_branch}`); }
 			override async setWorktreeBranchTrack(_sessionId: string, _enabled: boolean): Promise<void> { calls.push(`setWorktreeBranchTrack:${_enabled}`); }
+			override async setWorktreeCreateNewBranch(_sessionId: string, _enabled: boolean): Promise<void> { calls.push(`setWorktreeCreateNewBranch:${_enabled}`); }
 			override async sendRequest(_sessionId: string, _chatResource: URI, options: ISendRequestOptions): Promise<ISession> {
 				sentOptions = options;
 				return session;
@@ -1641,6 +1642,7 @@ suite('SessionsManagementService', () => {
 			permissionLevel: 'allowedTools',
 			isolationMode: 'worktree',
 			worktreeBranchTrack: false,
+			worktreeCreateNewBranch: true,
 			branch: 'main',
 		};
 		const result = await service.createAndSendNewChatRequest(URI.parse('test:///folder'), { query: 'hi', title: 'Pull Request', hideFromTranscript: true }, createOptions);
@@ -1657,6 +1659,7 @@ suite('SessionsManagementService', () => {
 				'setPermissionLevel:allowedTools',
 				'setIsolationMode:worktree',
 				'setWorktreeBranchTrack:false',
+				'setWorktreeCreateNewBranch:true',
 				'setBranch:main',
 			],
 			sentOptions: { query: 'hi', title: 'Pull Request', hideFromTranscript: true },
@@ -1681,6 +1684,7 @@ suite('SessionsManagementService', () => {
 		await service.createAndSendNewChatRequest(URI.parse('test:///folder'), { query: 'hi' }, {
 			isolationMode: 'worktree',
 			worktreeBranchTrack: true,
+			worktreeCreateNewBranch: false,
 			branch: 'feature',
 			onSessionCreated: created => {
 				calls.push(`created:${created.sessionId}:${service.getSession(created.resource)?.sessionId}`);
@@ -1694,7 +1698,7 @@ suite('SessionsManagementService', () => {
 		}, {
 			calls: [
 				'created:s1:s1',
-				'setWorktreeConfiguration:{"isolationMode":"worktree","worktreeBranchTrack":true,"branch":"feature"}',
+				'setWorktreeConfiguration:{"isolationMode":"worktree","worktreeBranchTrack":true,"worktreeCreateNewBranch":false,"branch":"feature"}',
 			],
 			activeSession: 's1',
 		});

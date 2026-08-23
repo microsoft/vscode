@@ -33,13 +33,8 @@ export interface IInvokeFunctionResult {
 export interface IPlaywrightService {
 	readonly _serviceBrand: undefined;
 
-	/**
-	 * Opens a new page in the browser and returns its associated view ID.
-	 * @param sessionId Identifies the session making the request.
-	 * @param url The URL to open in the new page.
-	 * @returns An object containing the new page's view ID and a summary of its initial state.
-	 */
-	openPage(sessionId: string, url: string): Promise<{ pageId: string; summary: string }>;
+	/** Waits for a newly created browser view to become available and returns its initial summary. */
+	waitForPageAndGetSummary(sessionId: string, pageId: string, expectedUrl: string, discoveryTimeoutMs: number): Promise<string>;
 
 	/**
 	 * Gets a summary of the page's current state, including its DOM and visual representation.

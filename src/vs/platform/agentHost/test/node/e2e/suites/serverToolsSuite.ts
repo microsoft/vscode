@@ -179,7 +179,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			type: ActionType.AnnotationsSet,
 			annotation: {
 				id: options.id,
-				turnId: 'seed-feedback',
+				origin: { session: sessionUri, chat: buildDefaultChatUri(sessionUri), turnId: 'seed-feedback' },
 				resource: options.resource,
 				range: { start: { line: 1, character: 2 }, end: { line: 1, character: 8 } },
 				resolved: options.resolved ?? false,

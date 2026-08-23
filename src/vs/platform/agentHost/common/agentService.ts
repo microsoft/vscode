@@ -22,7 +22,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction, ClientChangesetAction } from './state/sessionActions.js';
 import type { ContentEncoding, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { ComponentToState, StateComponents, type RootState } from './state/sessionState.js';
-import { type AgentProvider, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type AuthenticateParams, type AuthenticateResult, type IAgentHostAuthTokenRequest, type IAgentCreateChatOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IMcpNotification, type IAgentHostNetworkEndpoint, type IAgentHostManagedSettingsSnapshot } from './agent.js';
+import { type AgentProvider, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type AuthenticateParams, type AuthenticateResult, type IAgentCreateChatOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IMcpNotification, type IAgentHostNetworkEndpoint, type IAgentHostManagedSettingsSnapshot } from './agent.js';
 
 // ---- Provider-model re-exports (compatibility) ------------------------------
 // New provider code imports these from agent.ts.
@@ -71,7 +71,6 @@ export const enum AgentHostIpcChannels {
 export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLoggingEnabled';
 
 export type AgentHostDebugLogsArtifactKind = 'archive' | 'directory';
-export const AGENT_HOST_DEBUG_LOGS_MAX_BYTES = 256 * 1024 * 1024;
 /** Maximum number of files in one Agent Host debug-log artifact. */
 export const AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES = 1000;
 /**
@@ -808,9 +807,6 @@ export interface IAgentService {
 	 * bearer token delivery.
 	 */
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
-
-	/** Return a bearer token previously supplied via {@link authenticate}. */
-	getAuthToken(request: IAgentHostAuthTokenRequest): string | undefined;
 
 	/** List all available sessions from the Copilot CLI. */
 	listSessions(): Promise<IAgentSessionMetadata[]>;

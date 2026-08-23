@@ -11,7 +11,7 @@ import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
+import { AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { type AgentProvider, type AuthenticateParams, type AuthenticateResult } from '../../../../../platform/agentHost/common/agent.js';
 import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, type IRemoteAgentHostSSHConnection, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, getEntryAddress } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -834,13 +834,13 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		// Bridge the host's OTLP logs channel into a dedicated workbench
 		// Output channel (`Agent Host (${name})`). Concrete clients
 		// returned by `IRemoteAgentHostService.getConnection` are always
-		// `RemoteAgentHostProtocolClient` instances — `IAgentConnection`
+		// `AgentHostProtocolClient` instances — `IAgentConnection`
 		// erases the concrete type, so cast here at the integration
 		// point rather than polluting that interface with OTLP-specific
 		// surface.
 		store.add(this._instantiationService.createInstance(
 			RemoteAgentHostLogForwarder,
-			connection as RemoteAgentHostProtocolClient,
+			connection as AgentHostProtocolClient,
 			address,
 			name || address,
 		));

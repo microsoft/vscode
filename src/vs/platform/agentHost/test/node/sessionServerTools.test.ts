@@ -95,6 +95,9 @@ suite('SessionServerTools', () => {
 		assert.deepStrictEqual(sessionServerToolDefinitions.slice(4, 5).map(def => def.inputSchema?.properties?.title), [
 			{ type: 'string', maxLength: 200, description: 'Short, descriptive chat title, ideally 1-4 words.' },
 		]);
+		const renameDescription = sessionServerToolDefinitions.find(def => def.name === SessionServerToolName.RenameChat)?.description;
+		assert.ok(renameDescription?.includes('Renaming the default chat also names its owning session'));
+		assert.ok(renameDescription?.includes('peer-chat titles remain independent'));
 	});
 
 	test('ephemeral sessions advertise no default session-management tools', () => {

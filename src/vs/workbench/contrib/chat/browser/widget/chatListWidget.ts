@@ -43,6 +43,8 @@ import { sanitizeChatClipboardFragment } from './chatClipboard.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
 
+const CHAT_STICKY_SCROLL_TOP_PADDING = 8;
+
 export interface IChatListWidgetStyles {
 	listForeground?: string;
 	listBackground?: string;
@@ -493,6 +495,9 @@ export class ChatListWidget extends Disposable {
 			onDidScroll: this.onDidScroll,
 			container: this._container,
 			currentChatMode: options.currentChatMode ?? (() => ChatModeKind.Ask),
+			isStickyScrollEnabled: () => this.isTreeStickyScrollEnabled(),
+			refreshStickyScroll: () => this._tree.refreshStickyScroll(),
+			stickyScrollTopPadding: CHAT_STICKY_SCROLL_TOP_PADDING,
 			getEditingValue: options.getEditingValue,
 		};
 
@@ -554,7 +559,7 @@ export class ChatListWidget extends Disposable {
 				enableStickyScroll: this.isTreeStickyScrollEnabled(),
 				stickyScrollMaxItemCount: 1,
 				stickyScrollMaxNodeHeight: 150,
-				stickyScrollShowOnlyWhenNodeFullyHidden: true,
+				stickyScrollNodeSourceRangeProvider: (element, defaultRange) => this._renderer.getStickyScrollSourceRange(element, defaultRange),
 				indent: 0,
 				expandOnDoubleClick: false,
 				expandOnlyOnTwistieClick: true,
@@ -682,6 +687,7 @@ export class ChatListWidget extends Disposable {
 
 		this._register(this.configurationService.onDidChangeConfiguration((e) => {
 			if (e.affectsConfiguration(ChatConfiguration.ExperimentalStickyScrollEnabled) || e.affectsConfiguration(PROMPT_TIMELINE_STICKY_SCROLL_SETTING)) {
+				this._renderer.refreshStickyScrollSourceRanges(true);
 				this._tree.updateOptions({ enableStickyScroll: this.isTreeStickyScrollEnabled() });
 			}
 			if (e.affectsConfiguration(ChatConfiguration.EditRequests)
@@ -936,6 +942,8 @@ export class ChatListWidget extends Disposable {
 	 */
 	rerender(): void {
 		this._tree.rerender();
+		this._renderer.refreshStickyScrollSourceRanges(true);
+		this._tree.rerenderStickyScroll();
 	}
 
 	private getItems(): ChatTreeItem[] {
@@ -1221,9 +1229,7 @@ export class ChatListWidget extends Disposable {
 	}
 
 	/**
-	 * Update the list/tree color overrides. Re-applies the same fan-out from
-	 * `listBackground`/`listForeground` to all interaction states that was
-	 * originally configured at construction time.
+	 * Update the list/tree color overrides, including the sticky-scroll surface.
 	 */
 	setStyles(styles: IChatListWidgetStyles): void {
 		this._tree.updateOptions({
@@ -1243,6 +1249,9 @@ export class ChatListWidget extends Disposable {
 				listFocusAndSelectionForeground: styles.listForeground,
 				listActiveSelectionIconForeground: undefined,
 				listInactiveSelectionIconForeground: undefined,
+				treeStickyScrollBackground: styles.listBackground,
+				treeStickyScrollBorder: undefined,
+				treeStickyScrollShadow: styles.listShadow,
 			}
 		});
 	}
@@ -1261,6 +1270,7 @@ export class ChatListWidget extends Disposable {
 	layout(height: number, width: number): void {
 		this._tree.layout(height, width);
 		this._renderer.layout(width ?? this._container.clientWidth);
+		this._tree.refreshStickyScroll();
 	}
 
 	//#endregion

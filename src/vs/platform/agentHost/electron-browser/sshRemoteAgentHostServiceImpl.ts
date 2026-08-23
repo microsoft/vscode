@@ -27,7 +27,7 @@ import type { AgentHostServerType } from '../common/agentHostEndpointRegistry.js
 import { IRemoteAgentHostLocationPreferenceService } from '../common/remoteAgentHostLocationPreference.js';
 import { promptRemoteAgentHostLocationPreference } from '../common/remoteAgentHostLocationPreferenceDialog.js';
 import { SSHRelayTransport } from './sshRelayTransport.js';
-import { RemoteAgentHostProtocolClient } from '../browser/remoteAgentHostProtocolClient.js';
+import { AgentHostProtocolClient } from '../browser/agentHostProtocolClient.js';
 import { agentsWindowAgentHostClientInfo } from '../common/agentHostClientInfo.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import {
@@ -72,7 +72,7 @@ export const ISSHRelayClientFactory = createDecorator<ISSHRelayClientFactory>('s
 
 export interface ISSHRelayClientFactory {
 	readonly _serviceBrand: undefined;
-	createClient(mainService: ISSHRemoteAgentHostMainService, connectionId: string, address: string): RemoteAgentHostProtocolClient;
+	createClient(mainService: ISSHRemoteAgentHostMainService, connectionId: string, address: string): AgentHostProtocolClient;
 }
 
 export class SSHRelayClientFactory implements ISSHRelayClientFactory {
@@ -84,14 +84,14 @@ export class SSHRelayClientFactory implements ISSHRelayClientFactory {
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 	) { }
 
-	createClient(mainService: ISSHRemoteAgentHostMainService, connectionId: string, address: string): RemoteAgentHostProtocolClient {
+	createClient(mainService: ISSHRemoteAgentHostMainService, connectionId: string, address: string): AgentHostProtocolClient {
 		const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
 		const logger = ahpLoggingEnabled ? this._instantiationService.createInstance(
 			AhpJsonlLogger,
 			{ logsHome: this._environmentService.logsHome, connectionId, transport: 'ssh' },
 		) : undefined;
 		const transport = this._instantiationService.createInstance(SSHRelayTransport, connectionId, mainService, logger);
-		return this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address, transport, undefined, undefined, agentsWindowAgentHostClientInfo);
+		return this._instantiationService.createInstance(AgentHostProtocolClient, address, transport, undefined, undefined, agentsWindowAgentHostClientInfo);
 	}
 }
 
@@ -417,7 +417,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		});
 	}
 
-	private _createRelayClient(result: { connectionId: string; address: string }): RemoteAgentHostProtocolClient {
+	private _createRelayClient(result: { connectionId: string; address: string }): AgentHostProtocolClient {
 		return this._relayClientFactory.createClient(this._mainService, result.connectionId, result.address);
 	}
 

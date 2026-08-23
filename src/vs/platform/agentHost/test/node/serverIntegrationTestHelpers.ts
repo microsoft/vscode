@@ -1011,7 +1011,10 @@ export function dispatchTurnStarted(c: TestProtocolClient, session: string, turn
 		action: {
 			type: ActionType.ChatTurnStarted,
 			turnId,
-			startedAt: '2025-01-01T00:00:00.000Z',
+			// A real timestamp, because the chat reducer derives `modifiedAt`
+			// from the turn: a fixed past `startedAt` would make a completed
+			// turn look older than the session it belongs to.
+			startedAt: new Date().toISOString(),
 			message: { text, origin: { kind: MessageKind.User } },
 		},
 	});

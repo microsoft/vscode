@@ -1424,6 +1424,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async createZipFile(windowId: number | undefined, zipPath: URI, files: INativeZipFile[], options?: INativeZipOptions): Promise<void> {
 		const zipFiles: IFile[] = [];
 		const temporaryDirectories: string[] = [];
+		const maxSize = options?.maxSize;
 		try {
 			for (const file of files) {
 				if (hasKey(file, { contents: true })) {
@@ -1438,13 +1439,13 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 					const temporaryDirectory = join(this.environmentMainService.tmpDir.fsPath, `vscode-zip-merge-${randomPath()}`);
 					temporaryDirectories.push(temporaryDirectory);
 					const archiveSize = (await fs.promises.stat(sourceArchive.fsPath)).size;
-					if (options && archiveSize > options.maxSize) {
-						throw new Error(`ZIP is too large to merge (${archiveSize} bytes; limit ${options.maxSize} bytes)`);
+					if (maxSize !== undefined && archiveSize > maxSize) {
+						throw new Error(`ZIP is too large to merge (${archiveSize} bytes; limit ${maxSize} bytes)`);
 					}
 					if (options) {
 						await validateZip(sourceArchive.fsPath, {
 							maxEntries: options.maxEntries,
-							maxUncompressedSize: options.maxSize,
+							maxUncompressedSize: maxSize,
 						});
 					}
 					await extract(sourceArchive.fsPath, temporaryDirectory, {}, CancellationToken.None);
@@ -1455,34 +1456,48 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				if (source.scheme !== Schemas.file) {
 					throw new Error(`Cannot add non-local resource '${source.toString()}' to a zip file`);
 				}
-				zipFiles.push({ path: file.path, localPath: source.fsPath, localPathSize: file.size });
+				zipFiles.push({ path: file.path, localPath: source.fsPath, localPathSize: file.size, skipSourceErrors: file.skipSourceErrors });
 			}
 
 			const paths = new Set<string>();
 			let uncompressedSize = 0;
+			const availableZipFiles: IFile[] = [];
 			for (const file of zipFiles) {
+				let fileSize = 0;
+				if (file.contents !== undefined) {
+					fileSize = typeof file.contents === 'string' ? Buffer.byteLength(file.contents) : file.contents.byteLength;
+				} else if (file.localPath) {
+					try {
+						const size = (await fs.promises.stat(file.localPath)).size;
+						fileSize = file.localPathSize === undefined ? size : Math.min(size, file.localPathSize);
+					} catch (error) {
+						if (file.skipSourceErrors) {
+							this.logService.warn(`[NativeHostMainService] Skipping ZIP entry '${file.path}' because its source could not be read: ${error instanceof Error ? error.message : String(error)}`);
+							continue;
+						}
+						throw error;
+					}
+				}
 				if (paths.has(file.path)) {
 					throw new Error(`Duplicate ZIP entry '${file.path}'`);
 				}
 				paths.add(file.path);
-				if (file.contents !== undefined) {
-					uncompressedSize += typeof file.contents === 'string' ? Buffer.byteLength(file.contents) : file.contents.byteLength;
-				} else if (file.localPath) {
-					const size = (await fs.promises.stat(file.localPath)).size;
-					uncompressedSize += file.localPathSize === undefined ? size : Math.min(size, file.localPathSize);
-				}
-				if (options && uncompressedSize > options.maxSize) {
-					throw new Error(`ZIP expands beyond the allowed size (${uncompressedSize} bytes; limit ${options.maxSize} bytes)`);
+				availableZipFiles.push(file);
+				uncompressedSize += fileSize;
+				if (maxSize !== undefined && uncompressedSize > maxSize) {
+					throw new Error(`ZIP expands beyond the allowed size (${uncompressedSize} bytes; limit ${maxSize} bytes)`);
 				}
 			}
-			if (options && zipFiles.length > options.maxEntries) {
-				throw new Error(`ZIP contains too many entries (${zipFiles.length}; limit ${options.maxEntries})`);
+			if (options && availableZipFiles.length > options.maxEntries) {
+				throw new Error(`ZIP contains too many entries (${availableZipFiles.length}; limit ${options.maxEntries})`);
 			}
-			await zip(zipPath.fsPath, zipFiles);
-			const zipSize = (await fs.promises.stat(zipPath.fsPath)).size;
-			if (options && zipSize > options.maxSize) {
-				await fs.promises.rm(zipPath.fsPath, { force: true });
-				throw new Error(`ZIP is too large (${zipSize} bytes; limit ${options.maxSize} bytes)`);
+			await zip(zipPath.fsPath, availableZipFiles);
+			if (maxSize !== undefined) {
+				const zipSize = (await fs.promises.stat(zipPath.fsPath)).size;
+				if (zipSize > maxSize) {
+					await fs.promises.rm(zipPath.fsPath, { force: true });
+					throw new Error(`ZIP is too large (${zipSize} bytes; limit ${maxSize} bytes)`);
+				}
 			}
 		} finally {
 			await Promise.all(temporaryDirectories.map(directory => Promises.rm(directory)));

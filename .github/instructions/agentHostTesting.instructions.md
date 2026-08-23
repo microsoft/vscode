@@ -20,6 +20,13 @@ The sessions process is a portable, standalone server that multiple clients can 
 
 See the agent host protocol documentation for more details.
 
+## Service Construction
+
+Read `src/vs/platform/agentHost/node/serviceBootstrapping.md` before adding or
+moving a node Agent Host service. It is the canonical guide for service
+placement, static constructor arguments, activation, test overrides, and
+disposal ownership.
+
 ## End to End Testing
 
 You can run `node ./scripts/code-agent-host.js` to start an agent host. If you pass `--enable-mock-agent`, then the `ScriptedMockAgent` will be used.

@@ -258,7 +258,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 
 		// Create Editor Toolbar
-		this.createEditorActionsToolBar(this.tabsAndActionsContainer, ['editor-actions'], !!this.menuIds?.tabsBarAddTab);
+		this.createEditorActionsToolBar(this.tabsAndActionsContainer, ['editor-actions']);
 
 		// Set tabs control visibility
 		this.updateTabsControlVisibility();

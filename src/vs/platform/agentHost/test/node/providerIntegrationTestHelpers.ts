@@ -54,7 +54,7 @@ export function dispatchTurn(client: TestProtocolClient, session: string, turnId
 		action: {
 			type: ActionType.ChatTurnStarted,
 			turnId,
-			startedAt: '2025-01-01T00:00:00.000Z',
+			startedAt: new Date().toISOString(),
 			message: { text, origin: { kind: MessageKind.User } },
 		},
 	});
@@ -67,7 +67,7 @@ export function dispatchTurnWithAttachments(client: TestProtocolClient, session:
 		action: {
 			type: ActionType.ChatTurnStarted,
 			turnId,
-			startedAt: '2025-01-01T00:00:00.000Z',
+			startedAt: new Date().toISOString(),
 			message: { text, origin: { kind: MessageKind.User }, attachments: [...attachments] },
 		},
 	});

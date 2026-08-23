@@ -16,6 +16,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { scrollbarShadow } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -338,6 +339,7 @@ export class ChatView extends AbstractChatView {
 		return {
 			listForeground: active ? activeSessionViewForeground : inactiveSessionViewForeground,
 			listBackground: active ? activeSessionViewBackground : inactiveSessionViewBackground,
+			listShadow: scrollbarShadow,
 			overlayBackground: EDITOR_DRAG_AND_DROP_BACKGROUND,
 			inputEditorBackground: inactiveSessionViewBackground,
 			resultEditorBackground: agentsPanelBackground,
@@ -382,6 +384,7 @@ export class ChatView extends AbstractChatView {
 
 		this._currentChatResource = resource;
 		this._currentChatResourceObs.set(resource, undefined);
+		this.logService.trace(`[ChatView] setChat start uri=${resource.toString()} session=${session?.resource.toString()}`);
 
 		// Cancel any in-flight load for the previous chat and start a fresh one.
 		this._loadCts.value?.cancel();
@@ -403,8 +406,10 @@ export class ChatView extends AbstractChatView {
 				if (isEqual(this._currentChatResource, resource)) {
 					this._widget.setLoading(false);
 				}
+				this.logService.trace(`[ChatView] setChat abandoned uri=${resource.toString()}`);
 				return;
 			}
+			this.logService.trace(`[ChatView] setChat model loaded uri=${resource.toString()}`);
 			this._modelRef.value = ref;
 			this._updateWidgetLockState(getChatSessionType(ref.object.sessionResource));
 			setModelPreservingInputTypedWhileLoading(this._widget, inputBeforeLoad, () => this._widget.setModel(ref.object));
@@ -418,9 +423,12 @@ export class ChatView extends AbstractChatView {
 			// Set AFTER `setModel` so observers see the attribute only once the
 			// inner widget is fully attached to the loaded model.
 			this.element.dataset.boundChatResource = resource.toString();
+			this.logService.trace(`[ChatView] setChat done uri=${resource.toString()}`);
 		}, err => {
 			if (!token.isCancellationRequested) {
-				this.logService.error('[ChatView] Failed to load chat model for chat', err);
+				this.logService.error(`[ChatView] Failed to load chat model for chat uri=${resource.toString()}`, err);
+			} else {
+				this.logService.trace(`[ChatView] setChat cancelled uri=${resource.toString()}`);
 			}
 			if (isEqual(this._currentChatResource, resource)) { // might have changed while we were waiting, only reset if it is still the same
 				this._currentChatResource = undefined;

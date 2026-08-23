@@ -3621,6 +3621,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (configuration.worktreeBranchTrack !== undefined) {
 			values[SessionConfigKey.WorktreeBranchTrack] = configuration.worktreeBranchTrack;
 		}
+		if (configuration.worktreeCreateNewBranch !== undefined) {
+			values[SessionConfigKey.WorktreeCreateNewBranch] = configuration.worktreeCreateNewBranch;
+		}
 		if (configuration.branch) {
 			values[SessionConfigKey.Branch] = normalizeSessionConfigValue(SessionConfigKey.Branch, configuration.branch, policyRestricted);
 		}
@@ -3629,6 +3632,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	async setWorktreeBranchTrack(sessionId: string, enabled: boolean): Promise<void> {
 		await this._setTransientNewSessionConfigValue(sessionId, SessionConfigKey.WorktreeBranchTrack, enabled);
+	}
+
+	async setWorktreeCreateNewBranch(sessionId: string, enabled: boolean): Promise<void> {
+		await this._setTransientNewSessionConfigValue(sessionId, SessionConfigKey.WorktreeCreateNewBranch, enabled);
 	}
 
 	async setBranch(sessionId: string, branch: string): Promise<void> {

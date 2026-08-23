@@ -10,6 +10,7 @@ import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ITunnelProxyInfo } from '../../tunnel/common/tunnelProxy.js';
 import { IPermissionCategoryState, ISerializedBrowserPermissionsSnapshot, IBrowserDeviceCandidate, BrowserDeviceType, PermissionCategory } from './browserPermissions.js';
+import type { IntegratedBrowserOpenSource } from './browserViewTelemetry.js';
 
 const commandPrefix = 'workbench.action.browser';
 export enum BrowserViewCommandId {
@@ -226,16 +227,10 @@ export interface IBrowserViewCaptureScreenshotOptions {
 	awaitNextPaint?: boolean;
 }
 
-/**
- * Identifies who owns a browser view's lifecycle.
- * The owner is set at creation time and never changes.
- */
-export interface IBrowserViewOwner {
-	/** The main code window ID that owns this view's lifecycle. */
-	readonly mainWindowId: number;
-	/** Optional session ID identifying the agent session that created this view. */
-	readonly sessionId?: string;
-}
+/** Identifies who controls a browser view. */
+export type IBrowserViewOwner =
+	| { readonly type: 'user' }
+	| { readonly type: 'agent'; readonly sessionId: string };
 
 /**
  * Grants matching agents access to a browser view. Omitted identifiers match all values.
@@ -266,15 +261,14 @@ export function matchesBrowserViewAudience(candidate: IBrowserViewAudience, patt
  */
 export interface IBrowserViewInfo {
 	readonly id: string;
+	readonly hostWindowId: number;
 	readonly owner: IBrowserViewOwner;
 	readonly associatedResource?: UriComponents;
 	readonly state: IBrowserViewState;
 }
 
-/**
- * Editor opening hints passed from the main process to the workbench.
- */
-export interface IBrowserViewOpenOptions {
+/** Controls how the workbench presents a newly created browser view as an editor. */
+export interface IBrowserViewEditorOpenOptions {
 	readonly preserveFocus?: boolean;
 	readonly background?: boolean;
 	readonly pinned?: boolean;
@@ -286,16 +280,25 @@ export interface IBrowserViewOpenOptions {
 
 export interface IBrowserViewCreatedEvent {
 	readonly info: IBrowserViewInfo;
-
-	// May be omitted to create the view without opening an editor.
-	readonly openOptions?: IBrowserViewOpenOptions;
+	readonly initialUrl?: string;
+	/** Omitted when the creator does not request an editor. */
+	readonly editorOpenRequest?: IBrowserViewEditorOpenOptions;
 }
 
-export interface IBrowserViewCreateOptions {
+/** Host, ownership, storage, and initial access for a newly created browser view. */
+export interface IBrowserViewCreationContext {
+	readonly hostWindowId: number;
 	readonly owner: IBrowserViewOwner;
-	readonly sessionOptions: IBrowserSessionOptions;
+	readonly session: BrowserViewSessionSelector;
+	/** Grants automation clients access before the view is announced to other processes. */
+	readonly initialAudiences?: readonly IBrowserViewAudience[];
+}
+
+/** Complete main-process creation contract for a browser view. */
+export interface IBrowserViewCreateOptions extends IBrowserViewCreationContext {
 	readonly associatedResource?: UriComponents;
-	readonly initialState?: Partial<IBrowserViewState>;
+	readonly initialUrl?: string;
+	readonly openSource?: IntegratedBrowserOpenSource;
 }
 
 export function isBrowserViewAssociatedResourceNavigation(associatedResource: URI, target: string): boolean {
@@ -431,9 +434,27 @@ export enum BrowserViewStorageScope {
 	Ephemeral = 'ephemeral'
 }
 
-export interface IBrowserSessionOptions {
-	/** Storage / data-isolation scope for the session. */
-	scope: BrowserViewStorageScope;
+export type IBrowserViewSessionOptions =
+	| { readonly scope: BrowserViewStorageScope.Global }
+	| { readonly scope: BrowserViewStorageScope.Workspace }
+	| {
+		readonly scope: BrowserViewStorageScope.Ephemeral;
+		/** Views with the same affinity share one in-memory browser session. */
+		readonly affinity?: string;
+	};
+
+/** Selects an existing browser context by ID or resolves one from storage options. */
+export type BrowserViewSessionSelector = string | IBrowserViewSessionOptions;
+
+export function getAgentBrowserViewCreationDefaults(sessionId: string) {
+	return {
+		owner: { type: 'agent', sessionId } as const,
+		initialAudiences: [{ type: 'agent' }] as const,
+		session: {
+			scope: BrowserViewStorageScope.Ephemeral,
+			affinity: sessionId
+		} as const
+	};
 }
 
 export const ipcBrowserViewChannelName = 'browserView';

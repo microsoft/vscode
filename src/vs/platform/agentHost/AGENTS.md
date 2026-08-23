@@ -10,6 +10,9 @@
 
 # Multi-Chat Architecture
 
+> Node runtime service construction is documented separately in
+> [`node/serviceBootstrapping.md`](node/serviceBootstrapping.md).
+
 > **Status: COMPLETE** (2026-07-01)
 > All waves A–D and gates G-B1, G-C1, G-C2, G-D1 are done. Codex, Claude, and
 > Copilot all use the unified orchestrator path.
@@ -700,9 +703,9 @@ resource. `AgentSideEffects` does not enumerate chats or fan config values
 through provider hooks.
 
 Both `IAgentHostPromptCache` and `IAgentHostSessionTitleSignal` are constructed
-by `AgentService`, exposed as `agentService.promptCache` /
-`agentService.sessionTitleSignal`, and registered in the `agentHostMain` /
-`agentHostServerMain` DI containers next to `IAgentHostStateManager`.
+and registered by `createAgentServiceComposition`. Consumers resolve their
+service identifiers through constructor injection; `AgentService` neither owns
+nor exposes them.
 
 ### 8g. Seam → provider read it replaces
 

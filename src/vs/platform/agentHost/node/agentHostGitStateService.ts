@@ -16,13 +16,13 @@ import { IAgentHostGitService, META_DIFF_BASE_BRANCH, parseUpstreamBranchName, r
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { CreatedPullRequest, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
-import { IAgentService } from '../common/agentService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { ThrottlerByKey, SequencerByKey, timeout } from '../../../base/common/async.js';
 import { isCancellationError } from '../../../base/common/errors.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 
 const PULL_REQUEST_CREATION_CLOCK_SKEW_MS = 5 * 60_000;
 
@@ -50,7 +50,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentHostOctoKitService private readonly _octoKitService: IAgentHostOctoKitService,
-		@IAgentService private readonly _agentService: IAgentService,
+		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
 		@ILogService private readonly _logService: ILogService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
@@ -110,7 +110,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 		try {
 			const repoResource = this._gitHubEndpointService.getRepoResource();
-			const authToken = this._agentService.getAuthToken({
+			const authToken = this._authenticationService.getAuthToken({
 				resource: repoResource.resource,
 				scopes: repoResource.scopes_supported,
 			});
@@ -237,7 +237,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 	async refreshSessionGitState(sessionKey: string, workingDirectory: URI | undefined): Promise<void> {
 		const sessionState = this._stateManager.getSessionState(sessionKey);
-		if (sessionState?.lifecycle === SessionLifecycle.CreationFailed) {
+		if (sessionState?.lifecycle === SessionLifecycle.Failed) {
 			return;
 		}
 
@@ -338,8 +338,10 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 	async resolveSessionBaseBranchName(sessionKey: string): Promise<string | undefined> {
 		const state = this._stateManager.getSessionState(sessionKey);
-		const configuredBranch = state?.config?.values[SessionConfigKey.Isolation] === 'worktree'
-			? state.config.values[SessionConfigKey.Branch]
+		const configValues = state?.config?.values;
+		const configuredBranch = configValues?.[SessionConfigKey.Isolation] === 'worktree'
+			&& configValues[SessionConfigKey.WorktreeCreateNewBranch] !== false
+			? configValues[SessionConfigKey.Branch]
 			: undefined;
 		if (typeof configuredBranch === 'string' && configuredBranch.trim()) {
 			return resolveDiffBaseBranchName(configuredBranch.trim(), undefined);

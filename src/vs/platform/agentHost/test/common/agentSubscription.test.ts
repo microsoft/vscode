@@ -9,7 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ActionType, type ActionEnvelope, type ClientChangesetAction } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, MessageKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TurnState, type AnnotationsState, type ChangesetState, type RootState, type SessionState, type SessionSummary, type TerminalState } from '../../common/state/protocol/state.js';
+import { ChangesetStatus, MessageKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TerminalLifecycleStatus, TurnState, type AnnotationsState, type ChangesetState, type RootState, type SessionState, type SessionSummary, type TerminalState } from '../../common/state/protocol/state.js';
 import { buildDefaultChatUri, createChatState, createDefaultChatSummary, ROOT_STATE_URI, StateComponents, type ChatState } from '../../common/state/sessionState.js';
 import { AgentSubscriptionManager, ChangesetStateSubscription, ChatStateSubscription, isActionEnvelopeRelevantToSubscriptionUris, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
 
@@ -61,6 +61,7 @@ function makeTerminalState(overrides?: Partial<TerminalState>): TerminalState {
 		title: 'bash',
 		content: [],
 		claim: { kind: TerminalClaimKind.Client, clientId: 'c1' },
+		lifecycle: { status: TerminalLifecycleStatus.Running },
 		...overrides,
 	};
 }
@@ -1059,7 +1060,7 @@ suite('AgentSubscriptionManager', () => {
 			await new Promise(r => setTimeout(r, 0));
 			const annotation = {
 				id: 'feedback-1',
-				turnId: 'turn-1',
+				origin: { session: sessionUri, chat: chatUri, turnId: 'turn-1' },
 				resource: 'file:///reviewed.ts',
 				resolved: false,
 				entries: [{ id: 'feedback-1:0', text: 'Please revisit this.' }],

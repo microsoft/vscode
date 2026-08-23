@@ -1413,7 +1413,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 					action: {
 						type: ActionType.ChatTurnStarted,
 						turnId: 'turn-provider-peer-edit',
-						startedAt: '2025-01-01T00:00:00.000Z',
+						startedAt: new Date().toISOString(),
 						message: {
 							text: 'Create peer-provider.txt containing exactly PEER_PROVIDER using your file creation tool; do not run a shell command. Then reply exactly "created".',
 							origin: { kind: MessageKind.User },

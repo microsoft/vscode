@@ -7,7 +7,7 @@ import { basename } from '../../../base/common/resources.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
-import { IAgentService } from '../common/agentService.js';
+import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
@@ -27,7 +27,7 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 	constructor(
 		private readonly _getSessionState: (sessionKey: string) => SessionState | undefined,
 		private readonly _onCommitted: (sessionKey: string) => Promise<void>,
-		@IAgentService private readonly _agentService: IAgentService,
+		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
@@ -78,7 +78,7 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 		this._throwIfCancelled(token);
 
 		const copilotResource = this._gitHubEndpointService.getCopilotResource();
-		const authToken = this._agentService.getAuthToken({
+		const authToken = this._authenticationService.getAuthToken({
 			resource: copilotResource.resource,
 			scopes: copilotResource.scopes_supported,
 		});
@@ -205,7 +205,7 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 		}
 		const message = err instanceof Error ? err.message : String(err);
 		return /\b(401|403)\b/.test(message)
-			&& /\b(auth|authorization|unauthorized|forbidden|token|copilot endpoint discovery|copilot session token mint)\b/i.test(message);
+			&& /\b(auth|authorization|unauthorized|forbidden|token|copilot endpoint discovery)\b/i.test(message);
 	}
 
 	private _throwIfCancelled(token: CancellationToken): void {

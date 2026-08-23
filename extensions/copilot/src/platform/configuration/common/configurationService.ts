@@ -1038,6 +1038,7 @@ export namespace ConfigKey {
 	export const TypeScriptLanguageContextCacheTimeout = defineSetting<number>('chat.languageContext.typescript.cacheTimeout', ConfigType.ExperimentBased, 500);
 	export const TypeScriptLanguageContextFix = defineSetting<boolean>('chat.languageContext.fix.typescript.enabled', ConfigType.ExperimentBased, false);
 	export const TypeScriptLanguageContextInline = defineSetting<boolean>('chat.languageContext.inline.typescript.enabled', ConfigType.ExperimentBased, false);
+	export const TypeScript7LanguageContext = defineSetting<boolean>('chat.languageContext.typescript7.enabled', ConfigType.Simple, false);
 
 	export const UseInstructionFiles = defineSetting('chat.codeGeneration.useInstructionFiles', ConfigType.Simple, true);
 	export const ReviewAgent = defineSetting('chat.reviewAgent.enabled', ConfigType.Simple, true);

@@ -667,7 +667,7 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 			return;
 		}
 		if (error instanceof GitHubRequestError
-			&& (error.kind === 'authorization' || error.kind === 'notFound' || error.kind === 'validation' || error.kind === 'schema' || error.kind === 'rateLimit')) {
+			&& (error.kind === 'notFound' || error.kind === 'validation' || error.kind === 'schema' || error.kind === 'rateLimit')) {
 			this._scheduleNext(entry, fragment, interest);
 			return;
 		}
@@ -690,10 +690,13 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 			case 'inlineComments':
 			case 'reviewThreads':
 				return visible ? this._policy.conversationVisible : this._policy.conversationBackground;
-			case 'checks':
-				return checksPending(entry.snapshot.get().checks.value)
+			case 'checks': {
+				// An errored fragment carries no trustworthy pending signal.
+				const checks = entry.snapshot.get().checks;
+				return checks.status !== 'error' && checksPending(checks.value)
 					? visible ? this._policy.checksPendingVisible : this._policy.checksPendingBackground
 					: this._policy.checksBackstop;
+			}
 			case 'mergeability':
 				return visible ? this._policy.mergeabilityVisible : this._policy.mergeabilityBackground;
 			case 'participants':

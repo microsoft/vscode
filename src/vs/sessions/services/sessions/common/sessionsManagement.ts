@@ -111,6 +111,10 @@ export interface ICreateNewSessionOptions {
 	 */
 	readonly worktreeBranchTrack?: boolean;
 	/**
+	 * Whether to create a generated worktree branch from {@link branch}.
+	 */
+	readonly worktreeCreateNewBranch?: boolean;
+	/**
 	 * Invoked after the provider creates the provisional session, before its
 	 * configuration and first request are applied.
 	 */

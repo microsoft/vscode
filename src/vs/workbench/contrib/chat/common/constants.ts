@@ -50,6 +50,7 @@ export enum ChatConfiguration {
 	ExtensionToolsEnabled = 'chat.extensionTools.enabled',
 	RepoInfoEnabled = 'chat.repoInfo.enabled',
 	EditRequests = 'chat.editRequests',
+	PasteAsAttachmentThreshold = 'chat.pasteAsAttachmentThreshold',
 	InlineReferencesStyle = 'chat.inlineReferences.style',
 	AutoReply = 'chat.autoReply',
 	GlobalAutoApprove = 'chat.tools.global.autoApprove',

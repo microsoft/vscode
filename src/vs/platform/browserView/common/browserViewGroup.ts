@@ -5,7 +5,7 @@
 
 import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
-import { IBrowserViewAudience, IBrowserViewOwner, matchesBrowserViewAudience } from './browserView.js';
+import { IBrowserViewAudience, IBrowserViewCreationContext, matchesBrowserViewAudience } from './browserView.js';
 import { CDPEvent, CDPRequest, CDPResponse } from './cdp/types.js';
 
 export const ipcBrowserViewGroupChannelName = 'browserViewGroup';
@@ -25,7 +25,9 @@ export interface IBrowserViewGroup extends IDisposable {
 }
 
 export interface IBrowserViewGroupFilter {
+	/** Include views granted to this audience. */
 	readonly audience?: IBrowserViewAudience;
+	/** Include these views regardless of their audiences. */
 	readonly browserIds?: readonly string[];
 }
 
@@ -52,11 +54,11 @@ export interface IBrowserViewGroupService {
 
 	/**
 	 * Create a new browser view group.
-	 * @param owner The owner of the group's lifecycle.
 	 * @param filter The browser views to include in the group.
+	 * @param targetContext Context inherited by targets created through the group's CDP endpoint.
 	 * @returns The id of the newly created group.
 	 */
-	createGroup(owner: IBrowserViewOwner, filter?: IBrowserViewGroupFilter): Promise<string>;
+	createGroup(filter: IBrowserViewGroupFilter, targetContext: IBrowserViewCreationContext): Promise<string>;
 
 	/**
 	 * Destroy a browser view group.

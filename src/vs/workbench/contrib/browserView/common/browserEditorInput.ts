@@ -46,6 +46,8 @@ const MAX_TITLE_LENGTH = 30;
 export interface IBrowserEditorInputData extends IBrowserEditorViewState {
 	readonly id: string;
 	readonly associatedResource?: URI;
+	/** Whether the tab came from the default localhost link opener. Not serialized. */
+	readonly isDefaultLinkOpen?: boolean;
 }
 
 /**
@@ -57,23 +59,12 @@ export interface IBeforeDisposeBrowserEditorEvent {
 }
 
 /**
- * Slice the fragment off a raw URL. A literal `#` always starts the fragment,
- * so a plain substring keeps the rest of the URL byte-for-byte intact (no
- * re-encoding), matching what the navbar displays.
- */
-function stripUrlFragment(url: string): string {
-	const hash = url.indexOf('#');
-	return hash === -1 ? url : url.slice(0, hash);
-}
-
-/**
  * Slice both the query and fragment off a raw URL, preserving the exact
  * encoding of the remaining scheme/authority/path.
  */
 function stripUrlQueryAndFragment(url: string): string {
-	const stripped = stripUrlFragment(url);
-	const query = stripped.indexOf('?');
-	return query === -1 ? stripped : stripped.slice(0, query);
+	const suffix = url.search(/[?#]/);
+	return suffix === -1 ? url : url.slice(0, suffix);
 }
 
 export class BrowserEditorInput extends EditorInput {
@@ -136,7 +127,10 @@ export class BrowserEditorInput extends EditorInput {
 		this._modelStore.add(this._model.onDidChangeTitle(() => this._onDidChangeLabel.fire()));
 		this._modelStore.add(this._model.onDidChangeFavicon(() => this._onDidChangeLabel.fire()));
 		this._modelStore.add(this._model.onDidChangeLoadingState(() => this._onDidChangeLabel.fire()));
-		this._modelStore.add(this._model.onDidNavigate(() => this._onDidChangeLabel.fire()));
+		this._modelStore.add(this._model.onDidNavigate(() => {
+			this._initialData = { ...this._initialData, title: undefined, favicon: undefined };
+			this._onDidChangeLabel.fire();
+		}));
 
 		this._onDidChangeLabel.fire();
 		this._onDidResolveModel.fire(model);
@@ -160,18 +154,15 @@ export class BrowserEditorInput extends EditorInput {
 	}
 
 	get url(): string | undefined {
-		// Use model URL if available, otherwise fall back to initial data
-		return this._model ? this._model.url : this._initialData.url;
+		return this._model?.url || this._initialData.url;
 	}
 
 	get title(): string | undefined {
-		// Use model title if available, otherwise fall back to initial data
-		return this._model ? this._model.title : this._initialData.title;
+		return this._model?.title || this._initialData.title;
 	}
 
 	get favicon(): string | undefined {
-		// Use model favicon if available, otherwise fall back to initial data
-		return this._model ? this._model.favicon : this._initialData.favicon;
+		return this._model?.favicon ?? this._initialData.favicon;
 	}
 
 	/**
@@ -191,7 +182,6 @@ export class BrowserEditorInput extends EditorInput {
 		if (this._model) {
 			void this._model.loadURL(destination, options);
 		} else {
-			// If the model isn't created yet, update the initial data so that the URL is correct when the model is created
 			this._initialData = {
 				id: this._id,
 				url: destination
@@ -235,7 +225,6 @@ export class BrowserEditorInput extends EditorInput {
 	override getIcon(): ThemeIcon | URI | undefined {
 		const defaultIcon = this._associatedResource ? undefined : Codicon.globe;
 
-		// Use model data if available, otherwise fall back to initial data
 		if (this._model) {
 			if (this._model.loading) {
 				const color = this.themeService.getColorTheme().getColor(TAB_ACTIVE_FOREGROUND);
@@ -244,9 +233,7 @@ export class BrowserEditorInput extends EditorInput {
 			if (this._model.favicon) {
 				return URI.parse(this._model.favicon);
 			}
-			return defaultIcon;
 		}
-		// Model not created yet, use initial data if available
 		if (this._initialData.favicon) {
 			return URI.parse(this._initialData.favicon);
 		}
@@ -254,19 +241,17 @@ export class BrowserEditorInput extends EditorInput {
 	}
 
 	override getName(): string {
-		const hasTitle = this._model ? !!this._model.title : !!this._initialData.title;
-		if (hasTitle) {
+		if (this.title) {
 			return truncate(this.title!, MAX_TITLE_LENGTH);
 		}
 
-		const name = this._associatedResource ? basename(this._associatedResource) : this.getDescription(Verbosity.SHORT) || BrowserEditorInput.DEFAULT_LABEL;
+		const name = this._associatedResource ? basename(this._associatedResource) : this.url && this.getURLTitles.get(this.url)[Verbosity.SHORT] || BrowserEditorInput.DEFAULT_LABEL;
 		return truncate(name, MAX_TITLE_LENGTH);
 	}
 
 	override getTitle(verbosity = Verbosity.MEDIUM): string {
-		const hasTitle = this._model ? !!this._model.title : !!this._initialData.title;
-		const description = this.getDescription(verbosity);
-		const title = hasTitle ? `${this.title} (${description})` : description;
+		const description = this.url && this.getURLTitles.get(this.url)[verbosity];
+		const title = this.title ? `${this.title} (${description})` : description;
 		return title || BrowserEditorInput.DEFAULT_LABEL;
 	}
 
@@ -276,15 +261,19 @@ export class BrowserEditorInput extends EditorInput {
 
 	private readonly getURLTitles = new LRUCachedFunction((url: string) => {
 		let _short: string | undefined = undefined;
-		let _medium: string | undefined = undefined;
-		let _long: string | undefined = undefined;
+		let _mediumlong: string | undefined = undefined;
+		const mediumlong = () => {
+			if (_mediumlong === undefined) {
+				_mediumlong = stripUrlQueryAndFragment(url);
+			}
+			return _mediumlong;
+		};
 		return {
-			// Host only. Derived via the WHATWG URL parser so it matches the
-			// host shown by the navbar's raw URL (e.g. punycode for IDNs).
+			// Host only for network URLs, path only for file URLs.
 			get [Verbosity.SHORT]() {
 				if (_short === undefined) {
 					const parsed = URL.parse(url);
-					_short = parsed ? parsed.host : stripUrlQueryAndFragment(url);
+					_short = parsed ? parsed.protocol === 'file:' ? parsed.pathname : parsed.host : stripUrlQueryAndFragment(url);
 				}
 				return _short;
 			},
@@ -292,18 +281,11 @@ export class BrowserEditorInput extends EditorInput {
 			// (not a URI round-trip) so the displayed text stays byte-for-byte
 			// consistent with the canonical URL shown in the navbar.
 			get [Verbosity.MEDIUM]() {
-				if (_medium === undefined) {
-					_medium = stripUrlQueryAndFragment(url);
-				}
-				return _medium;
+				return mediumlong();
 			},
-			// Raw URL without the fragment, sliced from the canonical string for
-			// the same consistency reason as the medium form.
+			// Raw URL without the query/fragment.
 			get [Verbosity.LONG]() {
-				if (_long === undefined) {
-					_long = stripUrlFragment(url);
-				}
-				return _long;
+				return mediumlong();
 			}
 		};
 	});
@@ -345,11 +327,13 @@ export class BrowserEditorInput extends EditorInput {
 
 		return this.instantiationService.invokeFunction((accessor) => {
 			const browserViewWorkbenchService = accessor.get(IBrowserViewWorkbenchService);
-			return browserViewWorkbenchService.getOrCreateLazy(generateUuid(), {
+			return browserViewWorkbenchService.getOrCreateLazy({
+				id: generateUuid(),
 				url: this.url,
 				title: this.title,
-				favicon: this.favicon
-			}, this._associatedResource);
+				favicon: this.favicon,
+				associatedResource: this._associatedResource
+			});
 		});
 	}
 
@@ -446,11 +430,13 @@ export class BrowserEditorSerializer implements IEditorSerializer {
 			const data: IBrowserEditorInputData = JSON.parse(serializedEditor);
 			return instantiationService.invokeFunction((accessor) => {
 				const browserViewWorkbenchService = accessor.get(IBrowserViewWorkbenchService);
-				return browserViewWorkbenchService.getOrCreateLazy(data.id, {
+				return browserViewWorkbenchService.getOrCreateLazy({
+					id: data.id,
 					url: data.url,
 					title: data.title,
-					favicon: data.favicon
-				}, URI.revive(data.associatedResource));
+					favicon: data.favicon,
+					associatedResource: URI.revive(data.associatedResource)
+				});
 			});
 		} catch {
 			return undefined;

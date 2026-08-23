@@ -9,7 +9,7 @@ import { BrowserView } from './browserView.js';
 import { ICDPTarget, CDPBrowserVersion, CDPWindowBounds, CDPTargetInfo, ICDPConnection, ICDPBrowserTarget, CDPRequest, CDPResponse, CDPEvent } from '../common/cdp/types.js';
 import { CDPBrowserProxy } from '../common/cdp/proxy.js';
 import { IBrowserViewGroup, IBrowserViewGroupFilter, matchesBrowserViewGroupFilter } from '../common/browserViewGroup.js';
-import { IBrowserViewAudience, IBrowserViewOwner } from '../common/browserView.js';
+import { IBrowserViewCreationContext } from '../common/browserView.js';
 import { IBrowserViewMainService } from './browserViewMainService.js';
 import { IProductService } from '../../product/common/productService.js';
 import { BrowserSession } from './browserSession.js';
@@ -48,8 +48,8 @@ export class BrowserViewGroup extends Disposable implements ICDPBrowserTarget, I
 
 	constructor(
 		readonly id: string,
-		readonly owner: IBrowserViewOwner,
-		private readonly filter: IBrowserViewGroupFilter | undefined,
+		private readonly filter: IBrowserViewGroupFilter,
+		private readonly targetContext: IBrowserViewCreationContext,
 		@IBrowserViewMainService private readonly browserViewMainService: IBrowserViewMainService,
 		@IProductService private readonly productService: IProductService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -58,7 +58,7 @@ export class BrowserViewGroup extends Disposable implements ICDPBrowserTarget, I
 		super();
 
 		this._register(this.browserViewMainService.onDidCreateBrowserView(({ info }) => {
-			if (!this.filter || info.owner.mainWindowId !== this.owner.mainWindowId) {
+			if (info.hostWindowId !== this.targetContext.hostWindowId) {
 				return;
 			}
 
@@ -91,11 +91,7 @@ export class BrowserViewGroup extends Disposable implements ICDPBrowserTarget, I
 		}
 		this._isActive = true;
 
-		if (!this.filter) {
-			return;
-		}
-
-		const views = await this.browserViewMainService.getBrowserViews(this.owner.mainWindowId);
+		const views = await this.browserViewMainService.getBrowserViews(this.targetContext.hostWindowId);
 		await Promise.all(views.map(async info => {
 			const view = this.browserViewMainService.tryGetBrowserView(info.id);
 			if (view) {
@@ -123,7 +119,7 @@ export class BrowserViewGroup extends Disposable implements ICDPBrowserTarget, I
 	}
 
 	private async _reconcileView(view: BrowserView): Promise<void> {
-		const matches = this.filter !== undefined && matchesBrowserViewGroupFilter(view.id, view.audiences, this.filter);
+		const matches = matchesBrowserViewGroupFilter(view.id, view.audiences, this.filter);
 		if (matches) {
 			await this.addView(view.id);
 		} else {
@@ -245,7 +241,7 @@ export class BrowserViewGroup extends Disposable implements ICDPBrowserTarget, I
 		const view = target.view.getWebContentsView();
 		const viewBounds = view.getBounds();
 		return {
-			windowId: this.owner.mainWindowId,
+			windowId: this.targetContext.hostWindowId,
 			bounds: {
 				left: viewBounds.x,
 				top: viewBounds.y,
@@ -282,8 +278,10 @@ export class BrowserViewGroup extends Disposable implements ICDPBrowserTarget, I
 			throw new Error(`Unknown browser context ${browserContextId}`);
 		}
 
-		const audience: IBrowserViewAudience | undefined = this.filter?.audience ? { type: this.filter.audience.type } : undefined;
-		const target = await this.browserViewMainService.createTarget(url, this.owner, browserContextId, audience);
+		const target = await this.browserViewMainService.createTarget(url, {
+			...this.targetContext,
+			session: browserContextId ?? this.targetContext.session
+		});
 		if (target instanceof BrowserView) {
 			await this.addView(target.id);
 			return this.viewTargets.get(target.id)!;

@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
-import { IAgentService } from '../common/agentService.js';
+import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
@@ -73,7 +73,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		private readonly _getSessionState: (sessionKey: string) => ISessionWithDefaultChat | undefined,
 		private readonly _resolveBaseBranchName: (sessionKey: string) => Promise<string | undefined>,
 		private readonly _onPullRequestCreated: (event: PullRequestCreatedEvent) => void,
-		@IAgentService private readonly _agentService: IAgentService,
+		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentHostOctoKitService private readonly _octoKitService: IAgentHostOctoKitService,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
@@ -136,7 +136,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		const base = baseBranchName;
 
 		const repoResource = this._gitHubEndpointService.getRepoResource();
-		const authToken = this._agentService.getAuthToken({
+		const authToken = this._authenticationService.getAuthToken({
 			resource: repoResource.resource,
 			scopes: repoResource.scopes_supported,
 		});
@@ -347,7 +347,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 	 * markdown text of user requests and agent responses — tool calls,
 	 * subagents, and reasoning are excluded and the text is character-bounded)
 	 * along with a summary of the changed files. Returns `undefined` when no
-	 * Copilot token is available or generation fails, so the caller can fall
+	 * Copilot OAuth credential is available or generation fails, so the caller can fall
 	 * back to the branch-name based title/description. PR creation must never
 	 * fail just because the model is unavailable.
 	 */
@@ -360,11 +360,11 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		token: CancellationToken,
 	): Promise<{ title: string; description: string } | undefined> {
 		const copilotResource = this._gitHubEndpointService.getCopilotResource();
-		const copilotToken = this._agentService.getAuthToken({
+		const authToken = this._authenticationService.getAuthToken({
 			resource: copilotResource.resource,
 			scopes: copilotResource.scopes_supported,
 		});
-		if (!copilotToken) {
+		if (!authToken) {
 			return undefined;
 		}
 
@@ -375,7 +375,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		}
 
 		try {
-			const raw = await this._copilotApiService.utilityChatCompletion(copilotToken, {
+			const raw = await this._copilotApiService.utilityChatCompletion(authToken, {
 				messages: this._buildTitleAndDescriptionPrompt(branchName, base, conversation, changeSummary),
 			}, { signal });
 			this._throwIfCancelled(token);

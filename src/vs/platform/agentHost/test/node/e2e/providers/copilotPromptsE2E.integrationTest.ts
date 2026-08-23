@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Pins the prompt and tool schemas the bundled Copilot CLI assembles per model.
+ * Pins every field of the model request body the bundled Copilot CLI sends per
+ * model.
  *
  * The prompt is compiled into the `@github/copilot` binary and only becomes
  * observable when the CLI serializes it onto the wire, so it is read off a
@@ -163,7 +164,7 @@ async function driveTurnWithModel(c: TestProtocolClient, sessionUri: string, mod
 		action: {
 			type: ActionType.ChatTurnStarted,
 			turnId: `turn-${model}`,
-			startedAt: '2025-01-01T00:00:00.000Z',
+			startedAt: new Date().toISOString(),
 			message: {
 				text: 'Say exactly "ok"',
 				origin: { kind: MessageKind.User },
@@ -227,92 +228,58 @@ async function assertPromptSnapshot(test: Mocha.Runnable, content: string): Prom
 	await assertSnapshot(content, { name: 'prompt', extension: 'md' });
 }
 
-interface IWireTool {
-	readonly type?: string;
-	readonly name?: string;
-	readonly description?: string;
-	/** Anthropic Messages spells the schema `input_schema`; Responses uses `parameters`. */
-	readonly input_schema?: unknown;
-	readonly parameters?: unknown;
-	/** Responses custom tools describe free-form input with a grammar or text format. */
-	readonly format?: unknown;
-}
-
+/** A partial view for the shape guard; the cast strips nothing from the serialized body. */
 interface IWireRequest {
-	readonly model?: string;
 	/** Anthropic Messages spells the system prompt `system`; Responses uses `instructions`. */
 	readonly system?: unknown;
 	readonly instructions?: unknown;
 	/** Anthropic Messages carries the turn in `messages`; Responses uses `input`. */
 	readonly messages?: ReadonlyArray<{ readonly role?: string; readonly content?: unknown }>;
 	readonly input?: unknown;
-	readonly tools?: readonly IWireTool[];
+	readonly tools?: readonly unknown[];
 }
 
-/**
- * Renders everything the model is given as reviewable markdown. The turn
- * messages are included because the CLI wraps the user's text in injected
- * context (`<current_datetime>`, `<system_reminder>`) that reaches the model
- * exactly like the system prompt does.
- */
 function formatPromptSnapshot(rawBody: string): string {
 	const request = JSON.parse(rawBody) as IWireRequest;
 	const system = extractText(request.instructions ?? request.system);
-	const tools = request.tools ?? [];
+	const tools = request.tools;
 	const messages = readMessages(request);
-	const toolWithoutInputDefinition = tools.find(tool => tool.input_schema === undefined && tool.parameters === undefined && tool.format === undefined);
 	const emptyMessage = messages.find(message => message.text.length === 0);
 
-	// An unrecognized wire shape reads as empty rather than throwing, which once
-	// pinned a 12-character prompt and no tools for a whole family, green.
+	// A hollow capture would otherwise become a small, plausible-looking baseline.
 	assert.ok(system.length > 0, 'the model request carried no system prompt — the wire shape likely changed');
-	assert.ok(tools.length > 0, 'the model request carried no tool definitions — the wire shape likely changed');
-	assert.ok(!toolWithoutInputDefinition, `the '${toolWithoutInputDefinition?.name ?? '(unnamed)'}' tool carried no input definition — the wire shape likely changed`);
+	assert.ok(Array.isArray(tools) && tools.length > 0, 'the model request carried no tool definitions — the wire shape likely changed');
 	assert.ok(messages.length > 0, 'the model request carried no turn messages — the wire shape likely changed');
 	assert.ok(!emptyMessage, `the '${emptyMessage?.role ?? 'unknown'}' turn message was empty — the wire shape likely changed`);
 
-	const lines: string[] = [];
-
-	lines.push('### Model');
-	lines.push(request.model ?? '(unknown)');
+	const lines: string[] = ['```json'];
+	lines.push(JSON.stringify(normalizeVolatileValues(request), null, 2));
+	lines.push('```');
 	lines.push('');
 
-	lines.push('### System');
-	lines.push('~~~md');
-	lines.push(system);
-	lines.push('~~~');
-	lines.push('');
-
-	lines.push(`### Tools (${tools.length})`);
-	lines.push('');
-	for (const tool of tools) {
-		lines.push(`#### ${tool.name ?? '(unnamed)'}`);
-		if (tool.description) {
-			lines.push(tool.description);
-		}
-		const inputDefinition = tool.input_schema ?? tool.parameters ?? tool.format;
-		if (inputDefinition) {
-			lines.push('```json');
-			lines.push(JSON.stringify(inputDefinition, null, 2));
-			lines.push('```');
-		}
-		lines.push('');
-	}
-
-	lines.push(`### Messages (${messages.length})`);
-	lines.push('');
-	for (const message of messages) {
-		lines.push(`#### [${message.role}]`);
-		lines.push(message.text);
-		lines.push('');
-	}
-
-	return normalizeVolatile(lines.join('\n'));
+	return lines.join('\n');
 }
 
-/** Reads the turn's messages from whichever dialect the request uses. */
+/** Runs before serialization: the normalizers expect real newlines, not `\n` escapes. */
+function normalizeVolatileValues(value: unknown): unknown {
+	if (typeof value === 'string') {
+		return normalizeVolatile(value);
+	}
+	if (Array.isArray(value)) {
+		return value.map(normalizeVolatileValues);
+	}
+	if (value && typeof value === 'object') {
+		return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, normalizeVolatileValues(item)]));
+	}
+	return value;
+}
+
+/** Reads the turn's messages per dialect, for the shape guard only — never rendered. */
 function readMessages(request: IWireRequest): { role: string; text: string }[] {
-	if (request.messages) {
+	if (request.messages !== undefined) {
+		if (!Array.isArray(request.messages)) {
+			return [];
+		}
 		return request.messages.map(message => ({ role: message.role ?? 'unknown', text: extractMessageContent(message.content) }));
 	}
 	if (typeof request.input === 'string') {
@@ -321,10 +288,6 @@ function readMessages(request: IWireRequest): { role: string; text: string }[] {
 	if (!Array.isArray(request.input)) {
 		return [];
 	}
-	// Responses items are a flat list: `message` items carry the conversation,
-	// while `function_call` / `function_call_output` carry tool wiring. Unlike
-	// the fixture projection, `developer` / `system` roles are kept — they are
-	// part of the prompt this snapshot exists to show.
 	const messages: { role: string; text: string }[] = [];
 	for (const raw of request.input) {
 		const item = raw as { type?: string; role?: string; content?: unknown; name?: string; arguments?: string; output?: unknown };
@@ -339,14 +302,12 @@ function readMessages(request: IWireRequest): { role: string; text: string }[] {
 			case 'function_call_output':
 				messages.push({ role: 'user', text: `[tool_result] ${extractMessageContent(item.output)}` });
 				break;
-			default:
-				break;
 		}
 	}
 	return messages;
 }
 
-/** Formats text and structured tool blocks without retaining volatile tool-call ids. */
+/** Reduces a content block to text for the shape guard's emptiness check. */
 function extractMessageContent(content: unknown): string {
 	if (typeof content === 'string') {
 		return content;
@@ -403,22 +364,52 @@ function normalizeVolatile(text: string): string {
 		.replace(/^\* You can install (?:Linux, )?Python, JavaScript and Go packages with the (?:`apt`, )?`pip`, `npm` and `go` commands\.$/gm, '* You can install ${platform_packages}.')
 		.replace(/<custom_instruction>[\s\S]*?<\/custom_instruction>/g, '<custom_instruction>${repository_instructions}</custom_instruction>')
 		.replace(/\(\d+ models available\)/g, '(${model_count} models available)')
-		.replace(/(Available models:)(?:\\n {2}- '[^']*' \([^)]*\)[^\\"]*)+/g, '$1${model_catalog}');
+		.replace(/(Available models:)(?:\n {2}- '[^']*' \([^)]*\)[^\n]*)+/g, '$1${model_catalog}')
+		// Last, so the labelled ids above keep their own placeholders.
+		.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '${uuid}');
 }
 
 suite('Copilot prompt snapshot formatting', () => {
-	test('retains structured Anthropic message content', () => {
-		const snapshot = formatPromptSnapshot(JSON.stringify({
-			model: 'claude-opus-5',
+	test('rejects incomplete request body shapes', () => {
+		const validBody = {
 			system: 'System prompt',
 			tools: [{ name: 'example', input_schema: { type: 'object' } }],
+			messages: [{ role: 'user', content: 'Hello' }],
+		};
+		const cases: readonly [body: object, expected: RegExp][] = [
+			[{ ...validBody, system: '' }, /carried no system prompt/],
+			[{ ...validBody, tools: [] }, /carried no tool definitions/],
+			[{ ...validBody, tools: 'not-an-array' }, /carried no tool definitions/],
+			[{ ...validBody, messages: [] }, /carried no turn messages/],
+			[{ ...validBody, messages: 'not-an-array' }, /carried no turn messages/],
+			[{ ...validBody, messages: [{ role: 'user', content: '' }] }, /turn message was empty/],
+		];
+
+		for (const [body, expected] of cases) {
+			assert.throws(() => formatPromptSnapshot(JSON.stringify(body)), expected);
+		}
+	});
+
+	test('renders the request body whole, normalizing volatile values in place', () => {
+		const body = {
+			model: 'claude-opus-5',
+			system: 'System prompt\n* Operating System: Frobnitz 9\n<current_datetime>2026-01-01</current_datetime>',
+			tools: [{ name: 'example', input_schema: { type: 'object' } }, { type: 'web_search' }],
 			messages: [{
 				role: 'assistant',
-				content: [{ type: 'tool_use', id: 'volatile-id', name: 'example', input: { value: 1 } }],
+				content: [{ type: 'tool_use', id: 'call-1', name: 'example', input: { value: 1 } }],
 			}],
-		}));
+			parallel_tool_calls: true,
+			thinking: { type: 'enabled', budget_tokens: 4096 },
+			metadata: { session_id: '12345678-1234-1234-1234-123456789abc' },
+		};
+		const snapshot = formatPromptSnapshot(JSON.stringify(body));
 
-		assert.ok(snapshot.includes('[tool_use example] {"value":1}'));
-		assert.ok(!snapshot.includes('volatile-id'));
+		const lines = snapshot.split('\n');
+		assert.deepStrictEqual(JSON.parse(lines.slice(1, lines.indexOf('```', 1)).join('\n')), {
+			...body,
+			system: 'System prompt\n* Operating System: ${os}\n<current_datetime>${datetime}</current_datetime>',
+			metadata: { session_id: '${uuid}' },
+		});
 	});
 });

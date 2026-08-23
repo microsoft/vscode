@@ -700,6 +700,33 @@ export class SessionDatabase implements ISessionDatabase {
 		}));
 	}
 
+	setMetadataValuesIfAbsent(key: string, values: Readonly<Record<string, string>>, copies: Readonly<Record<string, string>> = {}): Promise<boolean> {
+		return this._track(() => this._metadataSequencer.queue(async () => {
+			const db = await this._ensureDb();
+			return this._transactionSequencer.queue(async () => {
+				await dbExec(db, 'BEGIN TRANSACTION');
+				try {
+					const existing = await dbGet(db, 'SELECT 1 FROM session_metadata WHERE key = ?', [key]);
+					if (existing) {
+						await dbExec(db, 'COMMIT');
+						return false;
+					}
+					for (const [targetKey, value] of Object.entries(values)) {
+						await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) VALUES (?, ?)', [targetKey, value]);
+					}
+					for (const [targetKey, sourceKey] of Object.entries(copies)) {
+						await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) SELECT ?, value FROM session_metadata WHERE key = ?', [targetKey, sourceKey]);
+					}
+					await dbExec(db, 'COMMIT');
+					return true;
+				} catch (err) {
+					await dbExec(db, 'ROLLBACK');
+					throw err;
+				}
+			});
+		}));
+	}
+
 	setChatDraft(chat: URI, draft: Message | undefined): Promise<void> {
 		const chatUri = chat.toString();
 		return this._track(async () => {

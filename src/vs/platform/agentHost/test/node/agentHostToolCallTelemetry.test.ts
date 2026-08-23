@@ -26,6 +26,7 @@ import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../comm
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { AgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
+import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { IAgentHostChangesetService } from '../../common/agentHostChangesetService.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
@@ -216,6 +217,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			[ITelemetryService, telemetryService],
 			[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
 			[ISessionDataService, sessionDataService],
+			[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
 		), /*strict*/ true));
 		sideEffects = disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, customizationEnablementService, {
 			getAgent: () => agent,

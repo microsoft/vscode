@@ -811,6 +811,7 @@ export class CopilotLanguageModelWrapper extends Disposable {
 			source: { extensionId },
 			requestOptions: options,
 			userInitiatedRequest: !!extensionId,
+			conversationId: internalModelOptions?._conversationId,
 			telemetryProperties,
 			modelCapabilities: {
 				enableThinking: internalModelOptions?._enableThinking,

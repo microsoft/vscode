@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { session } from 'electron';
+import { createHash } from 'crypto';
 import { normalize } from '../../../base/common/path.js';
 import { isLinux } from '../../../base/common/platform.js';
 import { joinPath } from '../../../base/common/resources.js';
 import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
 import { URI } from '../../../base/common/uri.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
-import { BrowserViewStorageScope, IBrowserSessionOptions } from '../common/browserView.js';
+import { BrowserViewStorageScope, IBrowserViewSessionOptions } from '../common/browserView.js';
 import { BrowserSessionTrust, IBrowserSessionTrust } from './browserSessionTrust.js';
 import { BrowserSessionHistory, IBrowserSessionHistory } from './browserSessionHistory.js';
 import { BrowserSessionPermissions, IBrowserSessionPermissions } from './browserSessionPermissions.js';
@@ -55,7 +56,9 @@ export class BrowserSession {
 	 * ID derivation rules (one-to-one with Electron sessions):
 	 *  - Global scope         -> `"global"`
 	 *  - Workspace scope      -> `"workspace:${workspaceId}"`
-	 *  - Ephemeral scope      -> `"ephemeral:${viewId}"` or `"${type}:${viewId}"` for custom types
+	 *  - Ephemeral per-view   -> `"ephemeral:${viewId}"`
+	 *  - Ephemeral affinity   -> `"ephemeral-affinity:${affinityHash}"`
+	 *  - Custom type          -> `"${type}:${viewId}"`
 	 */
 	private static readonly _byId = new Map<string, WeakRef<BrowserSession>>();
 
@@ -132,7 +135,7 @@ export class BrowserSession {
 	}
 
 	/**
-	 * Get or create an ephemeral session for the given view / target id.
+	 * Get or create an ephemeral session for the given view or target ID.
 	 */
 	static getOrCreateEphemeral(instantiationService: IInstantiationService, viewId: string, type?: string): BrowserSession {
 		if (type === 'workspace' || type === 'ephemeral') {
@@ -145,6 +148,13 @@ export class BrowserSession {
 			?? instantiationService.createInstance(BrowserSession, sessionId, electronSession, BrowserViewStorageScope.Ephemeral);
 	}
 
+	private static getOrCreateEphemeralForAffinity(instantiationService: IInstantiationService, affinity: string): BrowserSession {
+		const affinityHash = createHash('sha256').update(affinity).digest('hex');
+		const electronSession = session.fromPartition(`vscode-browser-affinity-${affinityHash}`);
+		return BrowserSession._bySession.get(electronSession)
+			?? instantiationService.createInstance(BrowserSession, `ephemeral-affinity:${affinityHash}`, electronSession, BrowserViewStorageScope.Ephemeral);
+	}
+
 	/**
 	 * Get or create a session for a workbench-originated browser view.
 	 * The session id is derived from the *scope* -- not the view id -- so
@@ -154,9 +164,8 @@ export class BrowserSession {
 	 * @param instantiationService Used to construct the session and inject
 	 *                             its service dependencies (tunnel proxy,
 	 *                             log) when a new session is needed.
-	 * @param viewId   Used only for ephemeral sessions where every view
-	 *                 needs its own Electron session.
-	 * @param sessionOptions  Determines the storage scope for the session.
+	 * @param viewId   Used for ephemeral sessions without an explicit affinity.
+	 * @param options  Determines the storage scope for the session.
 	 * @param workspaceStorageHome  Root folder under which per-workspace
 	 *                              browser storage is created
 	 *                              (`IEnvironmentMainService.workspaceStorageHome`).
@@ -165,21 +174,22 @@ export class BrowserSession {
 	static getOrCreate(
 		instantiationService: IInstantiationService,
 		viewId: string,
-		sessionOptions: IBrowserSessionOptions,
+		options: IBrowserViewSessionOptions,
 		workspaceStorageHome: URI,
 		workspaceId?: string,
 	): BrowserSession {
-		switch (sessionOptions.scope) {
+		switch (options.scope) {
 			case BrowserViewStorageScope.Global:
 				return BrowserSession.getOrCreateGlobal(instantiationService);
 			case BrowserViewStorageScope.Workspace:
 				if (workspaceId) {
 					return BrowserSession.getOrCreateWorkspace(instantiationService, workspaceId, workspaceStorageHome);
 				}
-			// fallthrough -- no workspace context -> ephemeral
-			case BrowserViewStorageScope.Ephemeral:
-			default:
 				return BrowserSession.getOrCreateEphemeral(instantiationService, viewId);
+			case BrowserViewStorageScope.Ephemeral:
+				return options.affinity !== undefined
+					? BrowserSession.getOrCreateEphemeralForAffinity(instantiationService, options.affinity)
+					: BrowserSession.getOrCreateEphemeral(instantiationService, viewId);
 		}
 	}
 

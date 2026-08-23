@@ -208,6 +208,17 @@ export interface IAgentMaterializeChatEvent {
 }
 
 export type AgentProvider = string;
+export type AgentTurnProviderCallState = 'notStarted' | 'pending' | 'resolved' | 'rejected';
+export type AgentTurnProviderSessionState = 'active' | 'disconnecting' | 'disconnected' | 'shutdown';
+
+export type IAgentTurnDiagnosticSnapshot = {
+	readonly state: 'available';
+	readonly providerCallState: AgentTurnProviderCallState;
+	readonly providerTurnStarted: boolean;
+	readonly providerSessionState: AgentTurnProviderSessionState;
+} | {
+	readonly state: 'missingChat' | 'missingTurn';
+};
 
 /** Well-known agent provider id for the Claude agent-host backend. */
 export const CLAUDE_AGENT_PROVIDER_ID = 'claude' as const;
@@ -362,21 +373,6 @@ export interface IAgentCreateSessionConfig {
 	 * connection's own `clientId`.
 	 */
 	readonly activeClient?: SessionActiveClient;
-	/** Fork from an existing session at a specific turn. */
-	readonly fork?: {
-		readonly session: URI;
-		/** Exact source chat supplied transiently by the orchestrator. */
-		readonly chat: URI;
-		readonly turnIndex: number;
-		readonly turnId: string;
-		/**
-		 * Maps old protocol turn IDs to new protocol turn IDs.
-		 * Populated by the service layer after generating fresh UUIDs
-		 * for the forked session's turns. Used by the agent to remap
-		 * per-turn data (e.g. SDK event ID mappings) in the session database.
-		 */
-		readonly turnIdMapping?: ReadonlyMap<string, string>;
-	};
 	/**
 	 * Import an existing (e.g. local) conversation into a brand-new session as
 	 * real, editable turns. The provider translates {@link turns} into a
@@ -1026,6 +1022,30 @@ export interface IActiveClient {
 	customizations: readonly ClientPluginCustomization[];
 }
 
+/** Worktree identity a predecessor recorded for a chat, so a missing checkout can be recreated on resume. */
+export interface IAgentAdoptedWorktree {
+	readonly branchName: string;
+	readonly baseBranch: string | undefined;
+	readonly worktreePath: URI;
+	readonly repositoryRoot: URI;
+}
+
+/**
+ * Why an adoption attempt ended the way it did. Reported in logs and telemetry so
+ * a session that did not migrate can be diagnosed without reproducing it.
+ */
+export type AgentChatAdoptionReason =
+	/** Already has Agent Host metadata — native or previously adopted. */
+	| 'alreadyNative'
+	/** Not a legacy extension-host Copilot CLI chat (e.g. standalone CLI, Local agent). */
+	| 'notLegacyChat'
+	/** A legacy chat whose recorded working directory no longer exists and could not be resolved. */
+	| 'workingDirectoryMissing'
+	/** A legacy chat whose extension-host marker could not be re-read, leaving its archived state unknown. */
+	| 'markerUnavailable'
+	/** Newly adopted. */
+	| 'adopted';
+
 /** Outcome of attempting to adopt a legacy provider-native chat. */
 export interface IAgentChatAdoptionResult {
 	/** Whether this call newly seeded Agent Host metadata. */
@@ -1034,6 +1054,10 @@ export interface IAgentChatAdoptionResult {
 	readonly eligible: boolean;
 	/** Whether the chat already has Agent Host metadata, i.e. it is ours regardless of adoption. */
 	readonly native?: boolean;
+	/** Set when the adopted chat ran in a worktree that no longer exists and can be recreated. */
+	readonly worktree?: IAgentAdoptedWorktree;
+	/** Diagnostic reason behind {@link adopted}. */
+	readonly reason?: AgentChatAdoptionReason;
 }
 
 /**
@@ -1081,6 +1105,9 @@ export interface IAgent {
 
 	/** Optional history mutation for providers with a native truncation operation. */
 	truncateChat?(chat: URI, turnId: string | undefined, context?: URI | IAgentChatContext): Promise<void>;
+
+	/** Return bounded diagnostics for an in-flight turn when supported. */
+	getTurnDiagnosticSnapshot?(chat: URI, turnId: string): IAgentTurnDiagnosticSnapshot | undefined;
 
 	// ---- Active clients and interaction ------------------------------------
 

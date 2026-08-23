@@ -22,7 +22,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { adoptLegacyCopilotCliResource } from './agentHost/agentHostLegacyMigration.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { adoptLegacyCopilotCliResource, reportLegacyMigrationOpen } from './agentHost/agentHostLegacyMigration.js';
 
 //#region Session Opener Registry
 
@@ -59,18 +60,46 @@ export const sessionOpenerRegistry = new SessionOpenerRegistry();
 
 //#endregion
 
+/**
+ * The agent-host session a legacy chat was just migrated into is not in the list
+ * until its provider is refreshed, so a lookup straight after adoption misses and
+ * the caller would fall back to opening the legacy session it just migrated away
+ * from. Refresh that one provider and look again.
+ */
+async function resolveMigratedSession(agentSessionsService: IAgentSessionsService, migrated: URI): Promise<IAgentSession | undefined> {
+	const existing = agentSessionsService.getSession(migrated);
+	if (existing) {
+		return existing;
+	}
+	await agentSessionsService.model.resolve(getChatSessionType(migrated));
+	return agentSessionsService.getSession(migrated);
+}
+
 export async function openSessionByResource(accessor: ServicesAccessor, resource: URI, openOptions?: ISessionOpenOptions): Promise<IChatWidget | undefined> {
 	const instantiationService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
+	const agentSessionsService = accessor.get(IAgentSessionsService);
+	const telemetryService = accessor.get(ITelemetryService);
 
 	// A superseded legacy resource is redirected (and adopted) before anything
 	// looks it up, so opening by URI migrates instead of reaching the old provider.
-	resource = await adoptLegacyCopilotCliResource(
+	const migrated = await adoptLegacyCopilotCliResource(
 		accessor.get(IAgentHostConnectionsService).ambientConnection,
 		resource,
 		logService,
 		accessor.get(IConfigurationService),
-	) ?? resource;
+		accessor.get(ITelemetryService),
+		'open',
+	);
+	if (migrated) {
+		const surfaced = await resolveMigratedSession(agentSessionsService, migrated);
+		reportLegacyMigrationOpen(telemetryService, 'open', !!surfaced);
+		if (surfaced) {
+			resource = migrated;
+		} else {
+			logService.warn(`[AgentHost] migrated ${resource.toString()} to ${migrated.toString()} but it is not in this window's list after refreshing provider '${getChatSessionType(migrated)}'; opening the legacy session instead.`);
+		}
+	}
 
 	for (const participant of sessionOpenerRegistry.getParticipants()) {
 		if (!participant.handleOpenSessionResource) {
@@ -98,6 +127,10 @@ export async function openSessionByResource(accessor: ServicesAccessor, resource
 export async function openSession(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions, alreadyResolved?: boolean): Promise<IChatWidget | undefined> {
 	const instantiationService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
+	const agentSessionsService = accessor.get(IAgentSessionsService);
+	const telemetryService = accessor.get(ITelemetryService);
+
+	logService.trace(`[AgentSessions] openSession start: ${session.resource.toString()}`);
 
 	// List and picker clicks arrive here with a resolved session, so the redirect
 	// has to happen on this path too or those opens never migrate. A no-op for
@@ -108,9 +141,17 @@ export async function openSession(accessor: ServicesAccessor, session: IAgentSes
 			session.resource,
 			logService,
 			accessor.get(IConfigurationService),
+			accessor.get(ITelemetryService),
+			'open',
 		);
 		if (migrated) {
-			session = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService).getSession(migrated)) ?? session;
+			const migratedSession = await resolveMigratedSession(agentSessionsService, migrated);
+			reportLegacyMigrationOpen(telemetryService, 'open', !!migratedSession);
+			if (migratedSession) {
+				session = migratedSession;
+			} else {
+				logService.warn(`[AgentHost] migrated ${session.resource.toString()} to ${migrated.toString()} but it is not in this window's list after refreshing provider '${getChatSessionType(migrated)}'; opening the legacy session instead.`);
+			}
 		}
 	}
 
@@ -119,6 +160,7 @@ export async function openSession(accessor: ServicesAccessor, session: IAgentSes
 		try {
 			const handled = await instantiationService.invokeFunction(accessor => participant.handleOpenSession(accessor, session, openOptions));
 			if (handled) {
+				logService.trace(`[AgentSessions] openSession handled by participant: ${session.resource.toString()}`);
 				return undefined; // Participant handled the session, skip default opening
 			}
 		} catch (error) {
@@ -134,6 +176,7 @@ async function openSessionDefault(accessor: ServicesAccessor, session: IAgentSes
 	const chatSessionsService = accessor.get(IChatSessionsService);
 	const chatWidgetService = accessor.get(IChatWidgetService);
 	const notificationService = accessor.get(INotificationService);
+	const logService = accessor.get(ILogService);
 
 	try {
 		session.setRead(true); // mark as read when opened
@@ -152,6 +195,7 @@ async function openSessionDefault(accessor: ServicesAccessor, session: IAgentSes
 		};
 
 		await chatSessionsService.activateChatSessionItemProvider(session.providerType); // ensure provider is activated before trying to open
+		logService.trace(`[AgentSessions] openSession: provider '${session.providerType}' activated for ${session.resource.toString()}`);
 
 		let target: typeof SIDE_GROUP | typeof ACTIVE_GROUP | typeof ChatViewPaneTarget | undefined;
 		if (openOptions?.sideBySide) {
@@ -168,6 +212,7 @@ async function openSessionDefault(accessor: ServicesAccessor, session: IAgentSes
 
 		return await chatWidgetService.openSession(session.resource, target, options);
 	} catch (error) {
+		logService.error(`[AgentSessions] openSession failed: ${session.resource.toString()}`, error);
 		notificationService.error(localize('chat.openSessionFailed', "Failed to open chat session: {0}", toErrorMessage(error)));
 		return undefined;
 	}

@@ -111,8 +111,12 @@ export function hasExistingPullRequest(pullRequest: IGitHubPullRequestSummary, e
 	return existingPullRequests.numbers.has(pullRequest.number) || existingPullRequests.headRefs.has(pullRequest.headRef);
 }
 
+export function isPullRequestAvailable(pullRequest: IGitHubPullRequestSummary, existingPullRequests: IExistingPullRequests): boolean {
+	return !pullRequest.isCrossRepository && !hasExistingPullRequest(pullRequest, existingPullRequests);
+}
+
 export function createPullRequestQuickPickItems(pullRequests: readonly IGitHubPullRequestSummary[], existingPullRequests: IExistingPullRequests): readonly (IPullRequestQuickPickItem | IQuickPickSeparator)[] {
-	const available = pullRequests.filter(pullRequest => !hasExistingPullRequest(pullRequest, existingPullRequests));
+	const available = pullRequests.filter(pullRequest => isPullRequestAvailable(pullRequest, existingPullRequests));
 	const waitingForReview = available.filter(pullRequest => pullRequest.reviewRequestedFromViewer);
 	const assigned = available.filter(pullRequest => !pullRequest.reviewRequestedFromViewer && pullRequest.assignedToViewer);
 	const other = available.filter(pullRequest => !pullRequest.reviewRequestedFromViewer && !pullRequest.assignedToViewer);

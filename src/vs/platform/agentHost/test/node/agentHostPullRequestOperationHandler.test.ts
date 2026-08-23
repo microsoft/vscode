@@ -5,12 +5,12 @@
 
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
 import type { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE } from '../../common/agent.js';
-import { type IAgentService } from '../../common/agentService.js';
 import { buildSessionChangesetUri } from '../../common/changesetUri.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { withSessionGitHubState, withSessionGitState, type ISessionFileDiff, type ISessionGitState, MessageKind, ResponsePartKind, SessionStatus, TurnState, type Turn } from '../../common/state/sessionState.js';
@@ -22,6 +22,7 @@ import type { AutoMergeMethod, CreatedPullRequest, GitHubIssueOrPullRequest, IAg
 import type { ICopilotApiService, ICopilotApiServiceRequestOptions, ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
+import type { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 
 class TestCopilotApiService implements ICopilotApiService {
 	declare readonly _serviceBrand: undefined;
@@ -167,8 +168,10 @@ class TestOctoKitService implements IAgentHostOctoKitService {
 	}
 }
 
-function createAgentService(withCopilotToken = false): IAgentService {
+function createAuthenticationService(withCopilotToken = false): IAgentHostAuthenticationService {
 	return {
+		_serviceBrand: undefined,
+		onDidChangeAuthToken: Event.None,
 		getAuthToken: resource => {
 			if (resource.resource === GITHUB_REPO_PROTECTED_RESOURCE.resource) {
 				return 'gh-token';
@@ -178,7 +181,7 @@ function createAgentService(withCopilotToken = false): IAgentService {
 			}
 			return undefined;
 		},
-	} as IAgentService;
+	};
 }
 
 function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitService, octoKitService: TestOctoKitService, options?: { copilotApiService?: TestCopilotApiService; withCopilotToken?: boolean; turns?: Turn[]; draft?: boolean; autoMergeMethod?: AutoMergeMethod; baseBranch?: string }): { handler: AgentHostPullRequestOperationHandler; session: URI; createdEvents: string[]; copilotApiService: TestCopilotApiService } {
@@ -229,7 +232,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 			},
 			async () => options?.baseBranch ?? 'main',
 			event => createdEvents.push(`${event.sessionKey}:${event.pullRequestUrl}`),
-			createAgentService(options?.withCopilotToken), gitService, octoKitService, createTestGitHubEndpointService(), copilotApiService, new NullLogService()),
+			createAuthenticationService(options?.withCopilotToken), gitService, octoKitService, createTestGitHubEndpointService(), copilotApiService, new NullLogService()),
 		session,
 		createdEvents,
 		copilotApiService,

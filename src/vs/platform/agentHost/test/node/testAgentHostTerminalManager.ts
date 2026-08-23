@@ -57,7 +57,6 @@ export class TestAgentHostTerminalManager extends Disposable implements IAgentHo
 	getContent(): string | undefined { return undefined; }
 	getClaim(): TerminalClaim | undefined { return undefined; }
 	hasTerminal(): boolean { return false; }
-	getExitCode(): number | undefined { return undefined; }
 	supportsCommandDetection(): boolean { return this.commandDetectionSupported; }
 	disposeTerminal(uri: string): void { this.disposedTerminals.push(uri); }
 	getTerminalInfos(): TerminalInfo[] { return []; }

@@ -62,7 +62,7 @@ suite('CopilotApiService.utilityChatCompletion (real CAPI)', () => {
 		assert.strictEqual(answer.trim().toLowerCase(), 'olleh');
 	});
 
-	(hasToken ? test : test.skip)('caches the Copilot session token across calls', async function () {
+	(hasToken ? test : test.skip)('reuses endpoint and model discovery across calls', async function () {
 		this.timeout(60_000);
 		const service = createService();
 
@@ -73,10 +73,8 @@ suite('CopilotApiService.utilityChatCompletion (real CAPI)', () => {
 			messages: [{ role: 'user', content: 'Say "ok" and nothing else.' }],
 		});
 
-		// Both calls succeed; the second is served from the cached
-		// Copilot token + resolved model id. Cache-hit assertions live in
-		// the unit-test suite (see copilotApiService.test.ts) where we can
-		// count `RequestType.CopilotToken` calls against a fake fetch.
+		// Both calls succeed; the second reuses endpoint and model discovery.
+		// Cache-hit assertions live in the unit-test suite.
 		assert.ok(first.toLowerCase().includes('ok'));
 		assert.ok(second.toLowerCase().includes('ok'));
 	});

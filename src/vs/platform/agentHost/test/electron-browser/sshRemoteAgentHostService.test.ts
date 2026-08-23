@@ -43,7 +43,7 @@ import type {
 import type { IRelayMessage } from '../../common/relayTransport.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { ISSHRelayClientFactory, SSHRemoteAgentHostService } from '../../electron-browser/sshRemoteAgentHostServiceImpl.js';
-import { RemoteAgentHostProtocolClient } from '../../browser/remoteAgentHostProtocolClient.js';
+import { AgentHostProtocolClient } from '../../browser/agentHostProtocolClient.js';
 
 /**
  * In-renderer mock of the shared-process SSH service. Exposes the same
@@ -411,7 +411,7 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 				const index = createdClients.length;
 				createdClients.push(c);
 				clientWaiters[index]?.complete(c);
-				return c as unknown as RemoteAgentHostProtocolClient;
+				return c as unknown as AgentHostProtocolClient;
 			},
 		});
 
@@ -806,7 +806,7 @@ suite('SSHRemoteAgentHostService endpoint selection preference (renderer)', () =
 		instantiationService.stub(IRemoteAgentHostService, disposables.add(new MockRemoteAgentHostService()) as Partial<IRemoteAgentHostService>);
 		instantiationService.stub(INotificationService, new CapturingNotificationService() as Partial<INotificationService>);
 		instantiationService.stub(ISSHRelayClientFactory, {
-			createClient: () => disposables.add(new MockProtocolClient()) as unknown as RemoteAgentHostProtocolClient,
+			createClient: () => disposables.add(new MockProtocolClient()) as unknown as AgentHostProtocolClient,
 		});
 
 		locationPreferenceService = disposables.add(new TestRemoteAgentHostLocationPreferenceService());
@@ -1078,7 +1078,7 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 		notificationService = new CapturingNotificationService();
 		instantiationService.stub(INotificationService, notificationService as Partial<INotificationService>);
 		instantiationService.stub(ISSHRelayClientFactory, {
-			createClient: () => disposables.add(new MockProtocolClient()) as unknown as RemoteAgentHostProtocolClient,
+			createClient: () => disposables.add(new MockProtocolClient()) as unknown as AgentHostProtocolClient,
 		});
 		instantiationService.stub(IRemoteAgentHostLocationPreferenceService, disposables.add(new TestRemoteAgentHostLocationPreferenceService()) as Partial<IRemoteAgentHostLocationPreferenceService>);
 		instantiationService.stub(IProductService, { _serviceBrand: undefined, nameShort: 'Test Product' } as IProductService);

@@ -32,7 +32,7 @@ import {
 	type IRemoteAgentHostConnectionInfo,
 	type IRemoteAgentHostEntry,
 } from '../common/remoteAgentHostService.js';
-import { RemoteAgentHostProtocolClient, AgentHostClientState } from './remoteAgentHostProtocolClient.js';
+import { AgentHostProtocolClient, AgentHostClientState } from './agentHostProtocolClient.js';
 import { WebSocketClientTransport } from './webSocketClientTransport.js';
 import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, normalizeRemoteAgentHostAddress } from '../common/agentHostUri.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
@@ -44,7 +44,7 @@ const SSH_REMOTE_AGENT_HOSTS_STORAGE_KEY = 'remoteAgentHost.sshConnections';
 /** Tracks a single remote connection through its lifecycle. */
 interface IConnectionEntry {
 	readonly store: DisposableStore;
-	readonly client: RemoteAgentHostProtocolClient;
+	readonly client: AgentHostProtocolClient;
 	/**
 	 * Optional teardown for the shared-process tunnel that this entry's
 	 * transport is using (SSH or dev-tunnels). Tracked separately from
@@ -340,7 +340,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		const store = new DisposableStore();
 
 		// Create a connection entry wrapping the pre-connected client
-		const protocolClient = connection as RemoteAgentHostProtocolClient;
+		const protocolClient = connection as AgentHostProtocolClient;
 		store.add(protocolClient);
 		const connEntry: IConnectionEntry = { store, client: protocolClient, transportDisposable, connected: RemoteAgentHostConnectionStatus.isConnected(status), status };
 		this._entries.set(address, connEntry);
@@ -517,7 +517,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
 		// Factory so the protocol client can replace the underlying transport
 		// across transient drops and use the `reconnect` RPC to resume — see
-		// {@link RemoteAgentHostProtocolClient}. The store owns only the client;
+		// {@link AgentHostProtocolClient}. The store owns only the client;
 		// individual transports are owned by the client itself.
 		const transportFactory = () => this._instantiationService.createInstance(
 			WebSocketClientTransport,
@@ -527,7 +527,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				? { logsHome: this._environmentService.logsHome, connectionId: address, transport: 'websocket' }
 				: undefined,
 		);
-		const client = store.add(this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address, transportFactory, undefined, undefined, this.clientInfo));
+		const client = store.add(this._instantiationService.createInstance(AgentHostProtocolClient, address, transportFactory, undefined, undefined, this.clientInfo));
 		const entry: IConnectionEntry = { store, client, connected: false, status: RemoteAgentHostConnectionStatus.connecting };
 		this._entries.set(address, entry);
 

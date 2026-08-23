@@ -15,6 +15,15 @@ const logsRootPath = path.join(artifactRootPath, 'logs');
 const qualityNames = ['Dev', 'Insiders', 'Stable', 'Exploration', 'OSS'];
 
 export type StepStatus = 'started' | 'passed' | 'failed' | 'skipped';
+/**
+ * Why a step could not be validated automatically.
+ *
+ * `human` means the step needs a person (hardware, a judgement call, a sign-in
+ * that cannot be scripted). `infrastructure` means it could be automated, but
+ * the harness is missing a capability — those are enhancement requests, not
+ * permanent limits, so they are reported separately.
+ */
+export type StepBlocker = 'human' | 'infrastructure';
 export type RunOutcome = 'passed' | 'failed' | 'aborted';
 
 interface EvidenceCapture {
@@ -23,6 +32,7 @@ interface EvidenceCapture {
 	screenshot: string;
 	windowUrl: string;
 	details?: string;
+	blockedOn?: StepBlocker;
 }
 
 interface EvidenceStep {
@@ -180,7 +190,7 @@ export class EvidenceService {
 		}
 	}
 
-	async step(id: string, title: string, status: StepStatus, details?: string): Promise<{ screenshot: Buffer; screenshotPath: string }> {
+	async step(id: string, title: string, status: StepStatus, details?: string, blockedOn?: StepBlocker): Promise<{ screenshot: Buffer; screenshotPath: string }> {
 		const run = this.requireRun();
 		if (run.state !== 'active') {
 			throw new Error(`Evidence run '${run.id}' is busy (${run.state}).`);
@@ -243,7 +253,8 @@ export class EvidenceService {
 				timestamp: new Date().toISOString(),
 				screenshot: screenshotName,
 				windowUrl: app.code.driver.currentPage.url(),
-				details
+				details,
+				blockedOn
 			});
 			this.writeManifest();
 
@@ -453,19 +464,27 @@ export class EvidenceService {
 		const rows = run.steps.map(step => {
 			const result = step.captures.at(-1);
 			const screenshots = step.captures.map(capture => `<a href="${escapeHtml(capture.screenshot)}">${escapeHtml(capture.status)}</a>`).join(', ');
-			return `<tr><td>${escapeHtml(step.id)}</td><td>${escapeHtml(step.title)}</td><td>${escapeHtml(result?.status ?? 'unknown')}</td><td>${screenshots}</td><td>${escapeHtml(result?.details ?? '')}</td></tr>`;
+			const blocker = result?.blockedOn ? ` <span class="blocked">(needs ${escapeHtml(result.blockedOn)})</span>` : '';
+			return `<tr><td>${escapeHtml(step.id)}</td><td>${escapeHtml(step.title)}</td><td class="${escapeHtml(result?.status ?? '')}">${escapeHtml(result?.status ?? 'unknown')}${blocker}</td><td>${screenshots}</td><td>${escapeHtml(result?.details ?? '')}</td></tr>`;
 		}).join('');
+		const blocked = run.steps
+			.map(step => ({ step, capture: step.captures.at(-1) }))
+			.filter((entry): entry is { step: EvidenceStep; capture: EvidenceCapture } => !!entry.capture?.blockedOn);
+		const blockedSection = blocked.length
+			? `<h2>Needs attention</h2><ul>${blocked.map(({ step, capture }) =>
+				`<li><strong>${escapeHtml(step.id)}</strong> needs ${escapeHtml(capture.blockedOn ?? '')}: ${escapeHtml(capture.details ?? '')}</li>`).join('')}</ul>`
+			: '';
 		const videoElements = run.artifacts.videos.length
 			? run.artifacts.videos.map(video => `<video controls src="${escapeHtml(video)}"></video>`).join('')
 			: '<p>No video file was produced.</p>';
 		const logs = run.artifacts.logs.map(log => `<li><a href="${escapeHtml(log)}">${escapeHtml(log)}</a></li>`).join('');
 		const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>${escapeHtml(run.title)}</title>
-<style>body{font:14px system-ui;margin:32px;max-width:1200px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #bbb;padding:8px;text-align:left}th{background:#eee}video{display:block;max-width:100%;margin:16px 0}.passed{color:#187b34}.failed{color:#b42318}</style></head>
+<style>body{font:14px system-ui;margin:32px;max-width:1200px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #bbb;padding:8px;text-align:left}th{background:#eee}video{display:block;max-width:100%;margin:16px 0}.passed{color:#187b34}.failed{color:#b42318}.skipped{color:#8a6100}.blocked{color:#8a6100;font-weight:600}</style></head>
 <body><h1>${escapeHtml(run.title)}</h1><p><strong>Scenario:</strong> ${escapeHtml(run.scenarioId)}<br><strong>Outcome:</strong> <span class="${escapeHtml(run.outcome ?? '')}">${escapeHtml(run.outcome ?? 'unknown')}</span><br><strong>Started:</strong> ${escapeHtml(run.startedAt)}<br><strong>Completed:</strong> ${escapeHtml(run.completedAt ?? '')}</p>
 <p><strong>Source:</strong> ${run.source ? `<a href="${escapeHtml(run.source)}">${escapeHtml(run.source)}</a>` : 'Not recorded'}<br><strong>Workspace:</strong> ${escapeHtml(run.workspacePath ?? 'Not specified')}<br><strong>Environment:</strong> ${escapeHtml(`${run.environment.platform} ${run.environment.architecture}; VS Code ${run.environment.vscodeVersion} (${run.environment.quality}); Node ${run.environment.nodeVersion}; commit ${run.environment.commit ?? 'unknown'}`)}</p>
 <p>${escapeHtml(run.notes ?? '')}</p><h2>Steps</h2><table><thead><tr><th>ID</th><th>Title</th><th>Result</th><th>Screenshots</th><th>Details</th></tr></thead><tbody>${rows}</tbody></table>
-<h2>Video</h2>${videoElements}<h2>Trace and logs</h2>${logs ? `<ul>${logs}</ul>` : '<p>No new trace or log content was produced.</p>'}</body></html>`;
+${blockedSection}<h2>Video</h2>${videoElements}<h2>Trace and logs</h2>${logs ? `<ul>${logs}</ul>` : '<p>No new trace or log content was produced.</p>'}</body></html>`;
 		const reportPath = path.join(run.runPath, 'report.html');
 		fs.writeFileSync(reportPath, html);
 		return reportPath;

@@ -5,6 +5,7 @@
 
 import '../../browser/media/editorBreadcrumbs.css';
 import '../../browser/media/editorHeader.css';
+import '../../../../browser/parts/media/editorPart.css';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { localize2 } from '../../../../../nls.js';
 import { MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';

@@ -109,8 +109,6 @@ export interface ChangesetContentChangedAction {
 	files: ChangesetFile[];
 	/** Full replacement operation list. Omit when operations are unchanged. */
 	operations?: ChangesetOperation[];
-	/** Error information, if the changeset content change failed. */
-	error?: ErrorInfo;
 }
 
 /**
