@@ -259,22 +259,16 @@ disown $PID 2>/dev/null || true
 # immediately. If code.sh dies or we time out, dump the log so the failure is
 # visible.
 echo "[launch.sh] waiting for CDP on port $CDP_PORT (timeout 90s)..." >&2
-READY=0
-for i in $(seq 1 90); do
-	if ! kill -0 "$PID" 2>/dev/null; then
-		echo "[launch.sh] code.sh (PID $PID) exited before CDP came up. Log tail:" >&2
-		tail -n 80 "$LOG_FILE" >&2
-		exit 1
-	fi
-	if curl -sf -o /dev/null --max-time 1 "http://127.0.0.1:$CDP_PORT/json/version" 2>/dev/null; then
-		READY=1
-		echo "[launch.sh] CDP ready after ${i}s" >&2
-		break
-	fi
-	sleep 1
-done
-if [[ "$READY" != "1" ]]; then
-	echo "[launch.sh] timed out waiting for CDP on port $CDP_PORT. Log tail:" >&2
+WAIT_FOR_CDP="$(cd "$(dirname "$0")" && pwd)/waitForCdp.ts"
+if READY_MS=$(node "$WAIT_FOR_CDP" "$PID" "$CDP_PORT"); then
+	echo "[launch.sh] CDP ready after ${READY_MS}ms" >&2
+else
+	READY_STATUS=$?
+	case "$READY_STATUS" in
+		1) echo "[launch.sh] timed out waiting for CDP on port $CDP_PORT. Log tail:" >&2 ;;
+		2) echo "[launch.sh] code.sh (PID $PID) exited before CDP came up. Log tail:" >&2 ;;
+		*) echo "[launch.sh] failed while waiting for CDP on port $CDP_PORT. Log tail:" >&2 ;;
+	esac
 	tail -n 80 "$LOG_FILE" >&2
 	exit 1
 fi
