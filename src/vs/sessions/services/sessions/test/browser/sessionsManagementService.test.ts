@@ -990,6 +990,48 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	test('sendNewChatRequest keeps tracking until concurrent first requests settle', async () => {
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+			status: constObservable(SessionStatus.Untitled),
+		});
+		const createBarriers = [new DeferredPromise<void>(), new DeferredPromise<void>()];
+		const bothCreatesStarted = new DeferredPromise<void>();
+		let createCount = 0;
+		const provider = new class extends TestSessionsProvider {
+			override async createNewChat(): Promise<IChat> {
+				const index = createCount++;
+				if (createCount === createBarriers.length) {
+					bothCreatesStarted.complete();
+				}
+				await createBarriers[index].p;
+				return session.mainChat.get();
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		const first = service.sendNewChatRequest(session, { query: 'first' });
+		const second = service.sendNewChatRequest(session, { query: 'second' });
+		await bothCreatesStarted.p;
+		const whileBothPending = service.getInFlightNewSessionRequests().map(session => session.sessionId);
+		createBarriers[0].complete();
+		await first;
+		const afterFirstSettles = service.getInFlightNewSessionRequests().map(session => session.sessionId);
+		createBarriers[1].complete();
+		await second;
+
+		assert.deepStrictEqual({
+			whileBothPending,
+			afterFirstSettles,
+			afterBothSettle: service.getInFlightNewSessionRequests(),
+		}, {
+			whileBothPending: ['s1'],
+			afterFirstSettles: ['s1'],
+			afterBothSettle: [],
+		});
+	});
+
 	test('sendNewChatRequest does not track a request in an existing session', async () => {
 		const session = stubSession({
 			sessionId: 's1',

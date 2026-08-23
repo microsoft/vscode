@@ -7,7 +7,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -85,7 +85,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private readonly _providerListeners = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _disposeCts = this._register(new CancellationTokenSource());
 	private readonly _unlistedNewSessions = new ResourceMap<ISession>();
-	private readonly _inFlightNewSessionRequests = new ResourceMap<ISession>();
+	private readonly _inFlightNewSessionRequests = new ResourceMap<{ readonly session: ISession; count: number }>();
 
 	/**
 	 * Chat resources for which this service has just kicked off a
@@ -228,7 +228,25 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	getInFlightNewSessionRequests(): readonly ISession[] {
-		return Array.from(this._inFlightNewSessionRequests.values());
+		return Array.from(this._inFlightNewSessionRequests.values(), entry => entry.session);
+	}
+
+	private trackInFlightNewSessionRequest(session: ISession): IDisposable {
+		const entry = this._inFlightNewSessionRequests.get(session.resource);
+		if (entry) {
+			entry.count++;
+		} else {
+			this._inFlightNewSessionRequests.set(session.resource, { session, count: 1 });
+		}
+
+		return toDisposable(() => {
+			const current = this._inFlightNewSessionRequests.get(session.resource);
+			if (current?.count === 1) {
+				this._inFlightNewSessionRequests.delete(session.resource);
+			} else if (current) {
+				current.count--;
+			}
+		});
 	}
 
 	private _getMergedSessions(): ISession[] {
@@ -698,9 +716,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 
 		const isNewSessionRequest = session.status.get() === SessionStatus.Untitled;
-		if (isNewSessionRequest) {
-			this._inFlightNewSessionRequests.set(session.resource, session);
-		}
+		const inFlightRequest = isNewSessionRequest ? this.trackInFlightNewSessionRequest(session) : undefined;
 
 		if (options.background) {
 			// Fire-and-forget so the composer can reset immediately. On commit
@@ -711,7 +727,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 					provider.deleteNewSession(session.sessionId);
 					this.logService.error('[SessionsManagement] Failed to send background request:', e);
 				})
-				.finally(() => this._inFlightNewSessionRequests.delete(session.resource));
+				.finally(() => inFlightRequest?.dispose());
 			return;
 		}
 
@@ -742,9 +758,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			this._onDidStartSession.fire(updatedSession);
 			this._onDidSendRequest.fire({ session: updatedSession, chat, isNewSession: true, isNewChat: true, options });
 		} finally {
-			if (isNewSessionRequest) {
-				this._inFlightNewSessionRequests.delete(session.resource);
-			}
+			inFlightRequest?.dispose();
 		}
 	}
 
@@ -809,7 +823,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		folderUri?: URI,
 		requestActivity?: MutableDisposable<IDisposable>,
 	): Promise<ISession | undefined> {
-		this._inFlightNewSessionRequests.set(session.resource, session);
+		const inFlightRequest = this.trackInFlightNewSessionRequest(session);
 		try {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
@@ -834,7 +848,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			provider.deleteNewSession(session.sessionId);
 			throw e;
 		} finally {
-			this._inFlightNewSessionRequests.delete(session.resource);
+			inFlightRequest.dispose();
 		}
 	}
 
