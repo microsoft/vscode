@@ -159,9 +159,17 @@ suite('git smoke test', function () {
 			previousCommitEncoding = undefined;
 		}
 
+		let previousLogOutputEncoding: string | undefined;
+		try {
+			previousLogOutputEncoding = cp.execSync('git config i18n.logOutputEncoding', { cwd, encoding: 'utf8' }).trim();
+		} catch {
+			previousLogOutputEncoding = undefined;
+		}
+
 		try {
 			fs.writeFileSync(commitMessageFile, commitMessage);
 			cp.execSync('git config i18n.commitEncoding EUC-JP', { cwd });
+			cp.execSync('git config i18n.logOutputEncoding EUC-JP', { cwd });
 			cp.execSync(`git commit --allow-empty --file "${commitMessageFile}"`, { cwd });
 
 			const [commitLog] = await repository.log({ maxEntries: 1 });
@@ -181,6 +189,16 @@ suite('git smoke test', function () {
 					cp.execSync(`git config i18n.commitEncoding ${previousCommitEncoding}`, { cwd });
 				} else {
 					cp.execSync('git config --unset i18n.commitEncoding', { cwd });
+				}
+			} catch {
+				// Ignore cleanup errors if the config was never set or already unset.
+			}
+
+			try {
+				if (previousLogOutputEncoding) {
+					cp.execSync(`git config i18n.logOutputEncoding ${previousLogOutputEncoding}`, { cwd });
+				} else {
+					cp.execSync('git config --unset i18n.logOutputEncoding', { cwd });
 				}
 			} catch {
 				// Ignore cleanup errors if the config was never set or already unset.
