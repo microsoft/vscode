@@ -404,7 +404,8 @@ export class FoldingController extends Disposable implements IEditorContribution
 			// Gesture taps (Android vscode.dev) dispatch with leftButton: false.
 			// Allow those taps on the inline folded placeholder ("...") and on
 			// empty content after a folded line (unfoldOnClickAfterEndOfLine).
-			if (e.target.type !== MouseTargetType.CONTENT_TEXT && e.target.type !== MouseTargetType.CONTENT_EMPTY) {
+			// Right-click must still be ignored so the context menu does not unfold.
+			if (e.event.rightButton || (e.target.type !== MouseTargetType.CONTENT_TEXT && e.target.type !== MouseTargetType.CONTENT_EMPTY)) {
 				return;
 			}
 		}

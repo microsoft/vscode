@@ -92,6 +92,30 @@ suite('FoldingController', () => {
 			assert.strictEqual(foldingModel.getRegionAtLine(1)?.isCollapsed, false);
 		});
 	});
+
+	test('issue #292361: right-click on the fold placeholder does not unfold', async () => {
+		await withAsyncTestCodeEditor([
+			'A',
+			'  B',
+			'  C',
+		], { folding: true, foldingStrategy: 'indentation' }, async editor => {
+			const foldingController = editor.registerAndInstantiateContribution(FoldingController.ID, FoldingController);
+			const foldingModel = await foldingController.getFoldingModel();
+			assert.ok(foldingModel);
+
+			const gutterClick = createGutterFoldClickEvent(1);
+			fireEditorMouseDown(editor, gutterClick);
+			fireEditorMouseUp(editor, gutterClick);
+			assert.strictEqual(foldingModel.getRegionAtLine(1)?.isCollapsed, true);
+
+			const maxColumn = editor.getModel()!.getLineMaxColumn(1);
+			const rightClick = createFoldPlaceholderRightClickEvent(1, maxColumn);
+			fireEditorMouseDown(editor, rightClick);
+			fireEditorMouseUp(editor, rightClick);
+
+			assert.strictEqual(foldingModel.getRegionAtLine(1)?.isCollapsed, true);
+		});
+	});
 });
 
 interface MouseEventEmitter {
@@ -106,12 +130,12 @@ function fireEditorMouseUp(editor: ITestCodeEditor, event: IEditorMouseEvent): v
 	(editor as unknown as { _onMouseUp: MouseEventEmitter })._onMouseUp.fire(event);
 }
 
-function createMouseEvent(leftButton: boolean, target: HTMLElement): IMouseEvent {
+function createMouseEvent(leftButton: boolean, target: HTMLElement, rightButton = false): IMouseEvent {
 	return {
-		browserEvent: new MouseEvent('mouseup', { button: leftButton ? 0 : -1, buttons: 0 }),
+		browserEvent: new MouseEvent('mouseup', { button: leftButton ? 0 : rightButton ? 2 : -1, buttons: 0 }),
 		leftButton,
 		middleButton: false,
-		rightButton: false,
+		rightButton,
 		buttons: 0,
 		target,
 		detail: 1,
@@ -167,6 +191,14 @@ function createFoldPlaceholderTapEvent(lineNumber: number, column: number): IEdi
 				injectedText: null,
 			},
 		},
+	};
+}
+
+function createFoldPlaceholderRightClickEvent(lineNumber: number, column: number): IEditorMouseEvent {
+	const event = createFoldPlaceholderTapEvent(lineNumber, column);
+	return {
+		...event,
+		event: createMouseEvent(false, event.target.element!, true),
 	};
 }
 
