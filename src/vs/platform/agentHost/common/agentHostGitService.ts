@@ -203,6 +203,15 @@ export interface IWorktreeFileProgress {
 	readonly filesTotal: number;
 }
 
+export interface IAddWorktreeOptions {
+	readonly path: URI;
+	readonly commitish: string;
+	readonly newBranchName?: string;
+	readonly track: boolean;
+	readonly preferRemoteBranch?: boolean;
+	readonly onProgress?: (progress: IWorktreeFileProgress) => void;
+}
+
 export interface IAgentHostGitService {
 	readonly _serviceBrand: undefined;
 	getCurrentBranch(workingDirectory: URI): Promise<string | undefined>;
@@ -215,13 +224,13 @@ export interface IAgentHostGitService {
 	/** Returns worktree roots in Git's porcelain order, with the primary worktree first. */
 	getWorktreeRoots(workingDirectory: URI): Promise<URI[]>;
 	/**
-	 * Creates a worktree for a new branch. `onProgress` receives every checkout
+	 * Creates a worktree, optionally on a new branch. `onProgress` receives every checkout
 	 * sample git reports, which can be several per second, so consumers are
 	 * expected to round and rate limit for their own presentation. It may also
 	 * never be called (fast checkouts and git versions that stay silent), so it
 	 * MUST be treated as best-effort.
 	 */
-	addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string, track: boolean, onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void>;
+	addWorktree(repositoryRoot: URI, options: IAddWorktreeOptions): Promise<void>;
 	/**
 	 * Copies the git-ignored files matching `globs` into the worktree.
 	 * `onProgress` counts the individual files covered, but only fires as whole

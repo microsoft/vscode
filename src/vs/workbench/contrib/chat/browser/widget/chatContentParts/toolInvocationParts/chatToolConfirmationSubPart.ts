@@ -15,11 +15,13 @@ import { ElementSizeObserver } from '../../../../../../../editor/browser/config/
 import { ILanguageService } from '../../../../../../../editor/common/languages/language.js';
 import { localize } from '../../../../../../../nls.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../../platform/markers/common/markers.js';
+import { isAutoApprovePolicyRestricted } from '../../../../common/agentHostConfigPolicy.js';
 import { IChatToolInvocation, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { createToolSchemaUri, ILanguageModelToolsService, IToolConfirmationMessages } from '../../../../common/tools/languageModelToolsService.js';
 import { ILanguageModelToolsConfirmationService } from '../../../../common/tools/languageModelToolsConfirmationService.js';
@@ -60,6 +62,7 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@ILanguageModelToolsConfirmationService private readonly confirmationService: ILanguageModelToolsConfirmationService,
 		@IChatToolRiskAssessmentService riskAssessmentService: IChatToolRiskAssessmentService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		const state = toolInvocation.state.get();
 		if (state.type !== IChatToolInvocation.StateKind.WaitingForConfirmation || !state.confirmationMessages?.title) {
@@ -86,7 +89,7 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 			return actions;
 		}
 
-		if (state.confirmationMessages?.allowAutoConfirm !== false) {
+		if (state.confirmationMessages?.allowAutoConfirm !== false || isAutoApprovePolicyRestricted(this.configurationService)) {
 			// Get combination label and precomputed key if present
 			const approveCombination = state.confirmationMessages?.approveCombination;
 			const combination = approveCombination

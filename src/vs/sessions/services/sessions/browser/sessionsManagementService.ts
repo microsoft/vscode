@@ -407,6 +407,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		let sessionTypeId: string | undefined;
 		const requiresWorktreeConfiguration = options?.isolationMode === 'worktree'
 			|| options?.worktreeBranchTrack !== undefined
+			|| options?.worktreeCreateNewBranch !== undefined
 			|| options?.branch !== undefined;
 		const resolveSessionTypeId = (candidate: ISessionsProvider): string | undefined => {
 			const sessionTypes = candidate.getSessionTypes(folderUri);
@@ -834,11 +835,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (createOptions?.permissionLevel) {
 			provider.setPermissionLevel?.(session.sessionId, createOptions.permissionLevel);
 		}
-		if (supportsWorktreeConfiguration && (createOptions?.isolationMode || createOptions?.worktreeBranchTrack !== undefined || createOptions?.branch)) {
+		if (supportsWorktreeConfiguration && (createOptions?.isolationMode || createOptions?.worktreeBranchTrack !== undefined || createOptions?.worktreeCreateNewBranch !== undefined || createOptions?.branch)) {
 			if (provider.setWorktreeConfiguration) {
 				await raceCancellationError(provider.setWorktreeConfiguration(session.sessionId, {
 					isolationMode: createOptions.isolationMode,
 					worktreeBranchTrack: createOptions.worktreeBranchTrack,
+					worktreeCreateNewBranch: createOptions.worktreeCreateNewBranch,
 					branch: createOptions.branch,
 				}), token);
 			} else {
@@ -847,6 +849,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				}
 				if (createOptions.worktreeBranchTrack !== undefined && provider.setWorktreeBranchTrack) {
 					await raceCancellationError(provider.setWorktreeBranchTrack(session.sessionId, createOptions.worktreeBranchTrack), token);
+				}
+				if (createOptions.worktreeCreateNewBranch !== undefined && provider.setWorktreeCreateNewBranch) {
+					await raceCancellationError(provider.setWorktreeCreateNewBranch(session.sessionId, createOptions.worktreeCreateNewBranch), token);
 				}
 				if (createOptions.branch && provider.setBranch) {
 					await raceCancellationError(provider.setBranch(session.sessionId, createOptions.branch), token);

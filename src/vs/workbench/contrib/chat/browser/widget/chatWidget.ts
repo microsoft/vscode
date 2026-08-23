@@ -417,6 +417,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _isRenderingWelcome = false;
 	private _isLoading = false;
 
+	/**
+	 * The session whose model was just bound, cleared by the first
+	 * {@link onDidChangeItems} that renders it. Tracked by resource (rather than
+	 * a flag) so the trace marks time-to-first-render for the model it belongs
+	 * to, once, even when an outgoing model triggers a render while unbinding.
+	 */
+	private _pendingFirstRenderSessionResource: URI | undefined;
+
 	// Coding agent locking state
 	private _lockedAgent?: {
 		id: string;
@@ -461,7 +469,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._viewModel = viewModel;
 		if (viewModel) {
 			this.viewModelDisposables.add(viewModel);
-			this.logService.debug('ChatWidget#setViewModel: have viewModel');
+			this.logService.debug(`ChatWidget#setViewModel: have viewModel session=${viewModel.sessionResource.toString()} requests=${viewModel.model.getRequests().length}`);
 
 			// If switching to a model with a request in progress, play progress sound
 			if (viewModel.model.requestInProgress.get()) {
@@ -1340,6 +1348,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.listWidget.setVisibleChangeCount(this.visibleChangeCount);
 			this.listWidget.refresh();
 
+			if (this._pendingFirstRenderSessionResource && this.viewModel && isEqual(this.viewModel.sessionResource, this._pendingFirstRenderSessionResource)) {
+				this._pendingFirstRenderSessionResource = undefined;
+				this.logService.trace(`ChatWidget#firstRender: session=${this.viewModel.sessionResource.toString()} items=${items.length}`);
+			}
+
 			if (!skipDynamicLayout && this._dynamicMessageLayoutData) {
 				this.layoutDynamicChatTreeItemMode();
 			}
@@ -2015,19 +2028,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		));
 
 		// Wire up ChatWidget-specific list widget events
-		this._register(this.listWidget.onDidClickRequest(async item => {
-			// If the click came from a sticky scroll row, scroll to reveal the real
-			// element and use its template so editing works on the actual row.
-			if (dom.findParentWithClass(item.rowContainer, 'monaco-tree-sticky-row') && isRequestVM(item.currentElement)) {
-				this.listWidget.reveal(item.currentElement, 0);
-				const realTemplate = this.listWidget.getTemplateDataForRequestId(item.currentElement.id);
-				if (realTemplate) {
-					this.clickedRequest(realTemplate);
-				}
-				return;
-			}
-			this.clickedRequest(item);
-		}));
+		this._register(this.listWidget.onDidClickRequest(item => this.handleRequestClick(item)));
 
 		this._register(this.listWidget.onDidRerender(item => {
 			if (isRequestVM(item.currentElement) && this.configurationService.getValue<string>('chat.editRequests') !== 'input') {
@@ -2066,6 +2067,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._register(this.listWidget.onDidScroll(() => {
 			this._onDidScroll.fire();
 		}));
+	}
+
+	private handleRequestClick(item: IChatListItemTemplate): void {
+		const currentElement = item.currentElement;
+		if (dom.findParentWithClass(item.rowContainer, 'monaco-tree-sticky-row') && isRequestVM(currentElement)) {
+			this.listWidget.reveal(currentElement, 0);
+			const realTemplate = this.listWidget.getTemplateDataForRequestId(currentElement.id);
+			if (realTemplate) {
+				this.clickedRequest(realTemplate);
+			}
+			return;
+		}
+		this.clickedRequest(item);
 	}
 
 	startEditing(requestId: string): void {
@@ -2551,7 +2565,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	/**
 	 * Updates the widget's color styles after construction. Propagates the new
-	 * `listForeground`/`listBackground` to the list widget, pushes the new color
+	 * list styles to the list widget, pushes the new color
 	 * tokens into `editorOptions` so subscribers (code blocks, result/input editor
 	 * backgrounds, container CSS variables) pick them up via `onDidChange`, and
 	 * refreshes the CSS variables the chat container exposes for stylesheet rules.
@@ -2563,12 +2577,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// update list if needed
 		const listColorsChanged =
 			oldStyles.listBackground !== styles.listBackground ||
-			oldStyles.listForeground !== styles.listForeground;
+			oldStyles.listForeground !== styles.listForeground ||
+			oldStyles.listShadow !== styles.listShadow;
 
 		if (listColorsChanged) {
 			this.listWidget?.setStyles({
 				listForeground: styles.listForeground,
 				listBackground: styles.listBackground,
+				listShadow: styles.listShadow,
 			});
 		}
 
@@ -2596,6 +2612,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const currentInputModel = this.viewModel?.model?.inputModel?.state?.get();
 		if (!model) {
+			this._pendingFirstRenderSessionResource = undefined;
 			logChangesToStateModel(this.viewModel?.model?.inputModel, `ChatWidget.setModel to empty, old ${this.viewModel?.sessionResource.toString()}`, undefined, currentInputModel, this.logService);
 			// Flush any unsent draft to the outgoing input model before we drop our
 			// reference to it, so the host's `willDisposeModel` persistence sees it.
@@ -2643,6 +2660,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		this.listWidget.setViewModel(this.viewModel);
+		// Armed only once the list is bound, so a render triggered while the
+		// outgoing model was torn down cannot consume it.
+		this._pendingFirstRenderSessionResource = model.sessionResource;
 
 		if (this._lockedAgent) {
 			let placeholder = this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id)?.inputPlaceholder;
