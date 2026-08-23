@@ -11,7 +11,8 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
 import { autorun, autorunDelta, derivedOpts } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { FileSystemProviderCapabilities, IFileService } from '../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IConfig, IDebugService, IDebugSessionOptions } from '../../debug/common/debug.js';
@@ -19,8 +20,6 @@ import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { IMcpServer, McpServerDefinition, McpServerLaunch, McpServerTransportType } from './mcpTypes.js';
 
 export class McpDevModeServerAttache extends Disposable {
-	public active: boolean = false;
-
 	constructor(
 		server: IMcpServer,
 		fwdRef: { lastModeDebugged: boolean },
@@ -36,7 +35,7 @@ export class McpDevModeServerAttache extends Disposable {
 		const restart = async () => {
 			const lastDebugged = fwdRef.lastModeDebugged;
 			await server.stop();
-			await server.start({ isFromInteraction: false, debug: lastDebugged });
+			await server.start({ debug: lastDebugged });
 		};
 
 		// 1. Auto-start the server, restart if entering debug mode
@@ -89,8 +88,9 @@ export class McpDevModeServerAttache extends Disposable {
 			const excludes = pattern.filter(p => p.startsWith('!')).map(p => p.slice(1));
 			reader.store.add(fileService.watch(wf, { includes, excludes, recursive: true }));
 
-			const includeParse = includes.map(p => glob.parse({ base: wf.fsPath, pattern: p }));
-			const excludeParse = excludes.map(p => glob.parse({ base: wf.fsPath, pattern: p }));
+			const ignoreCase = !fileService.hasCapability(wf, FileSystemProviderCapabilities.PathCaseSensitive);
+			const includeParse = includes.map(p => glob.parse({ base: wf.fsPath, pattern: p }, { ignoreCase }));
+			const excludeParse = excludes.map(p => glob.parse({ base: wf.fsPath, pattern: p }, { ignoreCase }));
 			reader.store.add(fileService.onDidFilesChange(e => {
 				for (const change of [e.rawAdded, e.rawDeleted, e.rawUpdated]) {
 					for (const uri of change) {
@@ -119,7 +119,8 @@ export class McpDevModeDebugging implements IMcpDevModeDebugging {
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
-		@IDebugService private readonly debugService: IDebugService,
+		@IDebugService private readonly _debugService: IDebugService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) { }
 
 	public async transform(definition: McpServerDefinition, launch: McpServerLaunch): Promise<McpServerLaunch> {
@@ -143,7 +144,7 @@ export class McpDevModeDebugging implements IMcpDevModeDebugging {
 
 				// We intentionally assert types as the DA has additional properties beyong IConfig
 				// eslint-disable-next-line local/code-no-dangerous-type-assertions
-				this.debugService.startDebugging(undefined, {
+				this._debugService.startDebugging(undefined, {
 					type: 'pwa-node',
 					request: 'attach',
 					name,
@@ -160,9 +161,29 @@ export class McpDevModeDebugging implements IMcpDevModeDebugging {
 					throw new Error(localize('mcp.debug.pythonBinReq', 'MCP server must be launched with the "python" executable to enable debugging, but was launched with "{0}"', launch.command));
 				}
 
+				let command: string | undefined;
+				let args = ['--wait-for-client', '--connect', `${DEBUG_HOST}:${port}`, ...launch.args];
+				if (definition.devMode.debug.debugpyPath) {
+					command = definition.devMode.debug.debugpyPath;
+				} else {
+					try {
+						// The Python debugger exposes a command to get its bundle debugpy module path.  Use that if it's available.
+						const debugPyPath = await this._commandService.executeCommand<string | undefined>('python.getDebugpyPackagePath');
+						if (debugPyPath) {
+							command = launch.command;
+							args = [debugPyPath, ...args];
+						}
+					} catch {
+						// ignored, no Python debugger extension installed or an error therein
+					}
+				}
+				if (!command) {
+					command = 'debugpy';
+				}
+
 				await Promise.race([
 					// eslint-disable-next-line local/code-no-dangerous-type-assertions
-					this.debugService.startDebugging(undefined, {
+					this._debugService.startDebugging(undefined, {
 						type: 'debugpy',
 						name,
 						request: 'attach',
@@ -174,7 +195,8 @@ export class McpDevModeDebugging implements IMcpDevModeDebugging {
 					} as IConfig, options),
 					this.ensureListeningOnPort(port)
 				]);
-				return { ...launch, command: definition.devMode.debug.debugpyPath || 'debugpy', args: ['--wait-for-client', '--connect', `${DEBUG_HOST}:${port}`, ...launch.args] };
+
+				return { ...launch, command, args };
 			}
 			default:
 				assertNever(definition.devMode.debug, `Unknown debug type ${JSON.stringify(definition.devMode.debug)}`);

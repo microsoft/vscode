@@ -5,7 +5,7 @@
 
 import './dialog.css';
 import { localize } from '../../../../nls.js';
-import { $, addDisposableListener, clearNode, EventHelper, EventType, getWindow, hide, isActiveElement, isAncestor, show } from '../../dom.js';
+import { $, addDisposableListener, addStandardDisposableListener, clearNode, EventHelper, EventType, getWindow, hide, isActiveElement, isAncestor, isEditableElement, isHTMLElement, show } from '../../dom.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { ActionBar } from '../actionbar/actionbar.js';
 import { ButtonBar, ButtonBarAlignment, ButtonWithDescription, ButtonWithDropdown, IButton, IButtonStyles, IButtonWithDropdownOptions } from '../button/button.js';
@@ -43,19 +43,40 @@ export enum DialogContentsAlignment {
 export interface IDialogOptions {
 	readonly cancelId?: number;
 	readonly detail?: string;
+	/**
+	 * A pre-rendered element to show in place of the plain-text {@link detail}.
+	 * Used to present rich detail content (e.g. rendered Markdown) since this
+	 * base widget has no Markdown rendering capability of its own. Takes
+	 * precedence over {@link detail} when both are provided. Any `<a>` element
+	 * within is made keyboard-focusable and participates in tab order like
+	 * links rendered via {@link renderBody}.
+	 */
+	readonly detailElement?: HTMLElement;
 	readonly alignment?: DialogContentsAlignment;
 	readonly checkboxLabel?: string;
 	readonly checkboxChecked?: boolean;
 	readonly type?: 'none' | 'info' | 'error' | 'question' | 'warning' | 'pending';
+	readonly extraClasses?: string[];
+	/** Classes to add to the full-window modal blocker. */
+	readonly modalBlockExtraClasses?: string[];
 	readonly inputs?: IDialogInputOptions[];
 	readonly keyEventProcessor?: (event: StandardKeyboardEvent) => void;
 	readonly renderBody?: (container: HTMLElement) => void;
 	readonly renderFooter?: (container: HTMLElement) => void;
 	readonly icon?: ThemeIcon;
-	readonly buttonOptions?: Array<undefined | { sublabel?: string; renderAsLink?: boolean }>;
+	readonly buttonOptions?: Array<undefined | { sublabel?: string; styleButton?: (button: IButton) => void }>;
 	readonly primaryButtonDropdown?: IButtonWithDropdownOptions;
 	readonly disableCloseAction?: boolean;
+	readonly disableCloseButton?: boolean;
 	readonly disableDefaultAction?: boolean;
+	/**
+	 * Temporary escape hatch for dialogs that embed widgets whose popups mount
+	 * at window root (outside the dialog DOM). Needed because the focus trap
+	 * would otherwise immediately reclaim focus from context views and pickers.
+	 * See https://github.com/microsoft/vscode/issues/323920 for removal plan.
+	 */
+	readonly isExternalFocusAllowed?: (relatedTarget: HTMLElement) => boolean;
+	readonly onVisibilityChange?: (window: Window, visible: boolean) => void;
 	readonly buttonStyles: IButtonStyles;
 	readonly checkboxStyles: ICheckboxStyles;
 	readonly inputBoxStyles: IInputBoxStyles;
@@ -94,6 +115,7 @@ export class Dialog extends Disposable {
 	private readonly messageDetailElement: HTMLElement;
 	private readonly messageContainer: HTMLElement;
 	private readonly footerContainer: HTMLElement | undefined;
+	private footerActionToFocus: HTMLAnchorElement | undefined;
 	private readonly iconElement: HTMLElement;
 	private readonly checkbox: Checkbox | undefined;
 	private readonly toolbarContainer: HTMLElement;
@@ -106,11 +128,25 @@ export class Dialog extends Disposable {
 	constructor(private container: HTMLElement, private message: string, buttons: string[] | undefined, private readonly options: IDialogOptions) {
 		super();
 
+		// Modal background blocker
 		this.modalElement = this.container.appendChild($(`.monaco-dialog-modal-block.dimmed`));
+		if (options.modalBlockExtraClasses) {
+			this.modalElement.classList.add(...options.modalBlockExtraClasses);
+		}
+		this._register(addStandardDisposableListener(this.modalElement, EventType.CLICK, e => {
+			if (e.target === this.modalElement) {
+				this.element.focus(); // guide users back into the dialog if clicked elsewhere
+			}
+		}));
+
+		// Dialog Box
 		this.shadowElement = this.modalElement.appendChild($('.dialog-shadow'));
 		this.element = this.shadowElement.appendChild($('.monaco-dialog-box'));
 		if (options.alignment === DialogContentsAlignment.Vertical) {
 			this.element.classList.add('align-vertical');
+		}
+		if (options.extraClasses) {
+			this.element.classList.add(...options.extraClasses);
 		}
 		this.element.setAttribute('role', 'dialog');
 		this.element.tabIndex = -1;
@@ -123,8 +159,10 @@ export class Dialog extends Disposable {
 			const customFooter = this.footerContainer.appendChild($('#monaco-dialog-footer.dialog-footer'));
 			this.options.renderFooter(customFooter);
 
+			// eslint-disable-next-line no-restricted-syntax
 			for (const el of this.footerContainer.querySelectorAll('a')) {
 				el.tabIndex = 0;
+				this.footerActionToFocus ??= el;
 			}
 		}
 
@@ -147,14 +185,17 @@ export class Dialog extends Disposable {
 		this.iconElement.setAttribute('aria-label', this.getIconAriaLabel());
 		this.messageContainer = messageRowElement.appendChild($('.dialog-message-container'));
 
-		if (this.options.detail || this.options.renderBody) {
+		const hasDetail = !!this.options.detail || !!this.options.detailElement;
+		if (hasDetail || this.options.renderBody) {
 			const messageElement = this.messageContainer.appendChild($('.dialog-message'));
 			const messageTextElement = messageElement.appendChild($('#monaco-dialog-message-text.dialog-message-text'));
 			messageTextElement.innerText = this.message;
 		}
 
 		this.messageDetailElement = this.messageContainer.appendChild($('#monaco-dialog-message-detail.dialog-message-detail'));
-		if (this.options.detail || !this.options.renderBody) {
+		if (this.options.detailElement) {
+			this.messageDetailElement.appendChild(this.options.detailElement);
+		} else if (hasDetail || !this.options.renderBody) {
 			this.messageDetailElement.innerText = this.options.detail ? this.options.detail : message;
 		} else {
 			this.messageDetailElement.style.display = 'none';
@@ -163,7 +204,10 @@ export class Dialog extends Disposable {
 		if (this.options.renderBody) {
 			const customBody = this.messageContainer.appendChild($('#monaco-dialog-message-body.dialog-message-body'));
 			this.options.renderBody(customBody);
+		}
 
+		if (this.options.renderBody || this.options.detailElement) {
+			// eslint-disable-next-line no-restricted-syntax
 			for (const el of this.messageContainer.querySelectorAll('a')) {
 				el.tabIndex = 0;
 			}
@@ -264,16 +308,13 @@ export class Dialog extends Disposable {
 				});
 			};
 
-			// Handle button clicks
+			// Buttons
 			buttonMap.forEach((_, index) => {
 				const primary = buttonMap[index].index === 0;
 
 				let button: IButton;
 				const buttonOptions = this.options.buttonOptions?.[buttonMap[index]?.index];
-				if (buttonOptions?.renderAsLink) {
-					button = this._register(buttonBar.addButton({ secondary: !primary, ...this.buttonStyles }));
-					button.element.classList.add('link-button');
-				} else if (primary && this.options?.primaryButtonDropdown) {
+				if (primary && this.options?.primaryButtonDropdown) {
 					const actions = isActionProvider(this.options.primaryButtonDropdown.actions) ? this.options.primaryButtonDropdown.actions.getActions() : this.options.primaryButtonDropdown.actions;
 					button = this._register(buttonBar.addButtonWithDropdown({
 						...this.options.primaryButtonDropdown,
@@ -294,6 +335,10 @@ export class Dialog extends Disposable {
 					button = this._register(buttonBar.addButton({ secondary: !primary, ...this.buttonStyles }));
 				}
 
+				if (buttonOptions?.styleButton) {
+					buttonOptions.styleButton(button);
+				}
+
 				button.label = mnemonicButtonLabel(buttonMap[index].label, true);
 				if (button instanceof ButtonWithDescription) {
 					if (buttonOptions?.sublabel) {
@@ -311,8 +356,13 @@ export class Dialog extends Disposable {
 
 			// Handle keyboard events globally: Tab, Arrow-Left/Right
 			const window = getWindow(this.container);
+			let sawEscapeKeyDown = false;
 			this._register(addDisposableListener(window, 'keydown', e => {
 				const evt = new StandardKeyboardEvent(e);
+
+				if (evt.equals(KeyCode.Escape)) {
+					sawEscapeKeyDown = true;
+				}
 
 				if (evt.equals(KeyMod.Alt)) {
 					evt.preventDefault();
@@ -357,13 +407,16 @@ export class Dialog extends Disposable {
 				let eventHandled = false;
 
 				// Focus: Next / Previous
-				if (evt.equals(KeyCode.Tab) || evt.equals(KeyCode.RightArrow) || evt.equals(KeyMod.Shift | KeyCode.Tab) || evt.equals(KeyCode.LeftArrow)) {
+				const isArrowNavigation = evt.equals(KeyCode.RightArrow) || evt.equals(KeyCode.LeftArrow);
+				const isEditableTarget = isHTMLElement(e.target) && (isEditableElement(e.target) || e.target.isContentEditable);
+				if (evt.equals(KeyCode.Tab) || evt.equals(KeyMod.Shift | KeyCode.Tab) || isArrowNavigation && !isEditableTarget) {
 
 					// Build a list of focusable elements in their visual order
 					const focusableElements: { focus: () => void }[] = [];
 					let focusedIndex = -1;
 
 					if (this.messageContainer) {
+						// eslint-disable-next-line no-restricted-syntax
 						const links = this.messageContainer.querySelectorAll('a');
 						for (const link of links) {
 							focusableElements.push(link);
@@ -408,6 +461,7 @@ export class Dialog extends Disposable {
 					}
 
 					if (this.footerContainer) {
+						// eslint-disable-next-line no-restricted-syntax
 						const links = this.footerContainer.querySelectorAll('a');
 						for (const link of links) {
 							focusableElements.push(link);
@@ -451,7 +505,7 @@ export class Dialog extends Disposable {
 				EventHelper.stop(e, true);
 				const evt = new StandardKeyboardEvent(e);
 
-				if (!this.options.disableCloseAction && evt.equals(KeyCode.Escape)) {
+				if (!this.options.disableCloseAction && evt.equals(KeyCode.Escape) && sawEscapeKeyDown) {
 					close();
 				}
 			}, true));
@@ -460,6 +514,11 @@ export class Dialog extends Disposable {
 			this._register(addDisposableListener(this.element, 'focusout', e => {
 				if (!!e.relatedTarget && !!this.element) {
 					if (!isAncestor(e.relatedTarget as HTMLElement, this.element)) {
+						// Temporary: let focus escape for body-level popups.
+						// See https://github.com/microsoft/vscode/issues/323920
+						if (this.options.isExternalFocusAllowed?.(e.relatedTarget as HTMLElement)) {
+							return;
+						}
 						this.focusToReturn = e.relatedTarget as HTMLElement;
 
 						if (e.target) {
@@ -498,8 +557,7 @@ export class Dialog extends Disposable {
 				}
 			}
 
-
-			if (!this.options.disableCloseAction) {
+			if (!this.options.disableCloseAction && !this.options.disableCloseButton) {
 				const actionBar = this._register(new ActionBar(this.toolbarContainer, {}));
 
 				const action = this._register(new Action('dialog.close', localize('dialogClose', "Close Dialog"), ThemeIcon.asClassName(Codicon.dialogClose), true, async () => {
@@ -519,16 +577,25 @@ export class Dialog extends Disposable {
 			this.element.setAttribute('aria-describedby', 'monaco-dialog-icon monaco-dialog-message-text monaco-dialog-message-detail monaco-dialog-message-body monaco-dialog-footer');
 			show(this.element);
 
+			// Notify visibility change
+			this.options.onVisibilityChange?.(window, true);
+			this._register(toDisposable(() => this.options.onVisibilityChange?.(window, false)));
+
 			// Focus first element (input or button)
 			if (this.inputs.length > 0) {
 				this.inputs[0].focus();
 				this.inputs[0].select();
 			} else {
+				let focusedButton = false;
 				buttonMap.forEach((value, index) => {
 					if (value.index === 0) {
 						buttonBar.buttons[index].focus();
+						focusedButton = true;
 					}
 				});
+				if (!focusedButton) {
+					(this.footerActionToFocus ?? this.element).focus();
+				}
 			}
 		});
 	}
@@ -549,8 +616,14 @@ export class Dialog extends Disposable {
 		this.element.style.border = border;
 
 		if (linkFgColor) {
+			// eslint-disable-next-line no-restricted-syntax
 			for (const el of [...this.messageContainer.getElementsByTagName('a'), ...this.footerContainer?.getElementsByTagName('a') ?? []]) {
+				if (el.classList.contains('monaco-button')) {
+					continue;
+				}
 				el.style.color = linkFgColor;
+				// Ensure links are distinguishable by more than just color (WCAG 1.4.1)
+				el.style.textDecoration = 'underline';
 			}
 		}
 

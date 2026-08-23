@@ -19,7 +19,7 @@ class DecorationRequestsQueue {
 	private _requests = new Map<number, DecorationRequest>();
 	private _resolver = new Map<number, DeferredPromise<DecorationData>>();
 
-	private _timer: any;
+	private _timer: Timeout | undefined;
 
 	constructor(
 		private readonly _proxy: ExtHostDecorationsShape,
@@ -45,7 +45,7 @@ class DecorationRequestsQueue {
 	}
 
 	private _processQueue(): void {
-		if (typeof this._timer === 'number') {
+		if (this._timer !== undefined) {
 			// already queued
 			return;
 		}

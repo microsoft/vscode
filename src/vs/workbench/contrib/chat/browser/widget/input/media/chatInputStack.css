@@ -1,0 +1,68 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * The chat input stack: everything docked above a chat input, plus the input.
+ *
+ * A docked surface has a square bottom edge and the surface below it has rounded
+ * top corners, so sitting them flush left gaps at the corners. Members used to
+ * fix that themselves by pulling the next one up, which is why every surface had
+ * a different offset and why five presence checks were needed to decide whose
+ * corners to square.
+ *
+ * Now members meet directly and a docked member squares the top corners of what
+ * follows. Members only declare what they are showing - see `chatInputStack.ts`.
+ *
+ * `display` is not set here; hosts own that, and their layout, using the classes
+ * below. `gap` is the exception, since members meeting is the point.
+ */
+
+.chat-input-stack {
+	gap: 0;
+	/*
+	 * The outer radius of the run: how round the joined surface is on the
+	 * corners it does not share with a neighbour.
+	 *
+	 * The input owns this value - a denser host rounds it tighter - but a custom
+	 * property cannot travel from the input back up to the members docked above
+	 * it, so the input part declares `--chat-input-radius` (see `chat.css`) and
+	 * the stack republishes it here for the whole run to read. The fallback
+	 * covers a stack used outside a chat input part.
+	 */
+	--chat-input-stack-radius-outer: var(--chat-input-radius, var(--vscode-cornerRadius-large));
+}
+
+/*
+ * What the stack dictates for a member's top corners: the run's outer radius for
+ * the member that opens the run, and a squared edge for every member that
+ * continues one. Reset here so a nested stack does not inherit its container's
+ * squaring; the rule below re-squares the ones that continue.
+ *
+ * Members already read this with their own value as the fallback, so a member
+ * used outside a stack keeps its own rounding and one inside a run follows the
+ * run - no member has to know which input it is docked to.
+ */
+.chat-input-stack > * {
+	--chat-input-stack-radius-top: var(--chat-input-stack-radius-outer);
+}
+
+/*
+ * A member that continues the run meets the one above it, so it squares the
+ * shared edge.
+ */
+.chat-input-stack > .chat-input-stack-continues {
+	--chat-input-stack-radius-top: 0px;
+	margin-top: 0;
+}
+
+/*
+ * A slot showing nothing takes up no space. Shared so each producer does not
+ * repeat it, and so a new one cannot ship a permanently visible surface by
+ * forgetting to. Applies only to marked slots, since members that are always
+ * present - the input itself - never report a state.
+ */
+.chat-input-stack-slot:not(.chat-input-stack-docked):not(.chat-input-stack-standalone) {
+	display: none;
+}

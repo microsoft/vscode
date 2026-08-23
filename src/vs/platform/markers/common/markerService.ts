@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isFalsyOrEmpty, isNonEmptyArray } from '../../../base/common/arrays.js';
-import { DebounceEmitter } from '../../../base/common/event.js';
+import { MicrotaskEmitter } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
 import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../base/common/map.js';
@@ -19,6 +19,7 @@ export const unsupportedSchemas = new Set([
 	Schemas.walkThrough,
 	Schemas.walkThroughSnippet,
 	Schemas.vscodeChatCodeBlock,
+	Schemas.vscodeTerminal
 ]);
 
 class DoubleResourceMap<V> {
@@ -150,8 +151,7 @@ export class MarkerService implements IMarkerService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onMarkerChanged = new DebounceEmitter<readonly URI[]>({
-		delay: 0,
+	private readonly _onMarkerChanged = new MicrotaskEmitter<readonly URI[]>({
 		merge: MarkerService._merge
 	});
 
@@ -231,7 +231,8 @@ export class MarkerService implements IMarkerService {
 			message, source,
 			startLineNumber, startColumn, endLineNumber, endColumn,
 			relatedInformation,
-			tags,
+			modelVersionId,
+			tags, origin
 		} = data;
 
 		if (!message) {
@@ -256,7 +257,9 @@ export class MarkerService implements IMarkerService {
 			endLineNumber,
 			endColumn,
 			relatedInformation,
+			modelVersionId,
 			tags,
+			origin
 		};
 	}
 

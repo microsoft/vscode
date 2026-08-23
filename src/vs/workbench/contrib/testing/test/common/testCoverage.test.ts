@@ -3,11 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
-
 import assert from 'assert';
 import { SinonSandbox, createSandbox } from 'sinon';
 import { URI } from '../../../../../base/common/uri.js';
@@ -16,6 +11,8 @@ import { onObservableChange } from '../../common/observableUtils.js';
 import { ICoverageAccessor, TestCoverage } from '../../common/testCoverage.js';
 import { LiveTestResult } from '../../common/testResult.js';
 import { IFileCoverage } from '../../common/testTypes.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { upcastDeepPartial, upcastPartial } from '../../../../../base/test/common/mock.js';
 
 suite('TestCoverage', () => {
 	let sandbox: SinonSandbox;
@@ -29,7 +26,7 @@ suite('TestCoverage', () => {
 		coverageAccessor = {
 			getCoverageDetails: sandbox.stub().resolves([]),
 		};
-		testCoverage = new TestCoverage({} as LiveTestResult, 'taskId', { extUri: { ignorePathCasing: () => true } } as any, coverageAccessor);
+		testCoverage = new TestCoverage({} as LiveTestResult, 'taskId', upcastDeepPartial<IUriIdentityService>({ extUri: upcastPartial({ ignorePathCasing: () => true }) }), coverageAccessor);
 	});
 
 	teardown(() => {
@@ -114,20 +111,20 @@ suite('TestCoverage', () => {
 
 		assert.deepStrictEqual(changes, [
 			[
-				"file:///",
-				"file:///",
-				"file:///",
-				"file:///path",
-				"file:///path/to",
-				"file:///path/to/file",
+				'file:///',
+				'file:///',
+				'file:///',
+				'file:///path',
+				'file:///path/to',
+				'file:///path/to/file',
 			],
 			[
-				"file:///",
-				"file:///",
-				"file:///",
-				"file:///path",
-				"file:///path/to",
-				"file:///path/to/file2",
+				'file:///',
+				'file:///',
+				'file:///',
+				'file:///path',
+				'file:///path/to',
+				'file:///path/to/file2',
 			],
 		]);
 	});

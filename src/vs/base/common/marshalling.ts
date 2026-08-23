@@ -50,8 +50,11 @@ export function revive<T = any>(obj: any, depth = 0): Revived<T> {
 	if (typeof obj === 'object') {
 
 		switch ((<MarshalledObject>obj).$mid) {
+			// eslint-disable-next-line local/code-no-any-casts
 			case MarshalledId.Uri: return <any>URI.revive(obj);
+			// eslint-disable-next-line local/code-no-any-casts
 			case MarshalledId.Regexp: return <any>new RegExp(obj.source, obj.flags);
+			// eslint-disable-next-line local/code-no-any-casts
 			case MarshalledId.Date: return <any>new Date(obj.source);
 		}
 
@@ -59,6 +62,7 @@ export function revive<T = any>(obj: any, depth = 0): Revived<T> {
 			obj instanceof VSBuffer
 			|| obj instanceof Uint8Array
 		) {
+			// eslint-disable-next-line local/code-no-any-casts
 			return <any>obj;
 		}
 

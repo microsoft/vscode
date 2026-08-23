@@ -114,11 +114,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		}];
 		this.editorViewState.reset();
 		disposables.add(picker.onDidTriggerButton(async () => {
-			if (this.searchModel.searchResult.count() > 0) {
-				await this.moveToSearchViewlet(undefined);
-			} else {
-				this._viewsService.openView(VIEW_ID, true);
-			}
+			await this.moveToSearchViewlet(undefined);
 			picker.hide();
 		}));
 
@@ -221,7 +217,11 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		this.searchModel.location = SearchModelLocation.QUICK_ACCESS;
 
 		const viewer: WorkbenchCompressibleAsyncDataTree<ISearchResult, RenderableMatch> | undefined = viewlet?.getControl();
-		if (currentElem) {
+		// The async data tree may not have materialized `currentElem` yet (e.g. its parent
+		// file match has not been expanded/loaded), in which case selecting or revealing it
+		// throws `TreeError [SearchView] Tree element not found`. Guard on `hasNode` before
+		// touching the tree and fall back to focusing the search widget otherwise.
+		if (currentElem && viewer && viewer.hasNode(currentElem)) {
 			viewer.setFocus([currentElem], getSelectionKeyboardEvent());
 			viewer.setSelection([currentElem], getSelectionKeyboardEvent());
 			viewer.reveal(currentElem);

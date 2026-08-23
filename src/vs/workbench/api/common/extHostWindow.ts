@@ -16,6 +16,8 @@ import { decodeBase64 } from '../../../base/common/buffer.js';
 
 export class ExtHostWindow implements ExtHostWindowShape {
 
+	declare _serviceBrand: undefined;
+
 	private static InitialState: WindowState = {
 		focused: true,
 		active: true,

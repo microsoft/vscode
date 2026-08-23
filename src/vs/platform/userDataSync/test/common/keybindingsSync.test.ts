@@ -38,13 +38,11 @@ suite('KeybindingsSync', () => {
 		const keybindingsResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.keybindingsResource;
 
 		assert.deepStrictEqual(await testObject.getLastSyncUserData(), null);
-		let manifest = await client.getResourceManifest();
+		let manifest = await client.getLatestRef(SyncResource.Keybindings);
 		server.reset();
 		await testObject.sync(manifest);
 
-		assert.deepStrictEqual(server.requests, [
-			{ type: 'GET', url: `${server.url}/v1/resource/${testObject.resource}/latest`, headers: {} },
-		]);
+		assert.deepStrictEqual(server.requests, []);
 		assert.ok(!await fileService.exists(keybindingsResource));
 
 		const lastSyncUserData = await testObject.getLastSyncUserData();
@@ -53,12 +51,12 @@ suite('KeybindingsSync', () => {
 		assert.deepStrictEqual(lastSyncUserData!.syncData, remoteUserData.syncData);
 		assert.strictEqual(lastSyncUserData!.syncData, null);
 
-		manifest = await client.getResourceManifest();
+		manifest = await client.getLatestRef(SyncResource.Keybindings);
 		server.reset();
 		await testObject.sync(manifest);
 		assert.deepStrictEqual(server.requests, []);
 
-		manifest = await client.getResourceManifest();
+		manifest = await client.getLatestRef(SyncResource.Keybindings);
 		server.reset();
 		await testObject.sync(manifest);
 		assert.deepStrictEqual(server.requests, []);
@@ -69,7 +67,7 @@ suite('KeybindingsSync', () => {
 		const keybindingsResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.keybindingsResource;
 		await fileService.writeFile(keybindingsResource, VSBuffer.fromString(''));
 
-		await testObject.sync(await client.getResourceManifest());
+		await testObject.sync(await client.getLatestRef(SyncResource.Keybindings));
 
 		const lastSyncUserData = await testObject.getLastSyncUserData();
 		const remoteUserData = await testObject.getRemoteUserData(null);
@@ -94,7 +92,7 @@ suite('KeybindingsSync', () => {
 		const keybindingsResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.keybindingsResource;
 		await fileService.writeFile(keybindingsResource, VSBuffer.fromString(''));
 
-		await testObject.sync(await client.getResourceManifest());
+		await testObject.sync(await client.getLatestRef(SyncResource.Keybindings));
 
 		const lastSyncUserData = await testObject.getLastSyncUserData();
 		const remoteUserData = await testObject.getRemoteUserData(null);
@@ -109,7 +107,7 @@ suite('KeybindingsSync', () => {
 		const expectedContent = '// Empty Keybindings';
 		await fileService.writeFile(keybindingsResource, VSBuffer.fromString(expectedContent));
 
-		await testObject.sync(await client.getResourceManifest());
+		await testObject.sync(await client.getLatestRef(SyncResource.Keybindings));
 
 		const lastSyncUserData = await testObject.getLastSyncUserData();
 		const remoteUserData = await testObject.getRemoteUserData(null);
@@ -134,7 +132,7 @@ suite('KeybindingsSync', () => {
 		const keybindingsResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.keybindingsResource;
 		await fileService.writeFile(keybindingsResource, VSBuffer.fromString('// Empty Keybindings'));
 
-		await testObject.sync(await client.getResourceManifest());
+		await testObject.sync(await client.getLatestRef(SyncResource.Keybindings));
 
 		const lastSyncUserData = await testObject.getLastSyncUserData();
 		const remoteUserData = await testObject.getRemoteUserData(null);
@@ -158,7 +156,7 @@ suite('KeybindingsSync', () => {
 		const expectedLocalContent = '// Empty Keybindings';
 		await fileService.writeFile(keybindingsResource, VSBuffer.fromString(expectedLocalContent));
 
-		await testObject.sync(await client.getResourceManifest());
+		await testObject.sync(await client.getLatestRef(SyncResource.Keybindings));
 
 		const lastSyncUserData = await testObject.getLastSyncUserData();
 		const remoteUserData = await testObject.getRemoteUserData(null);
@@ -170,11 +168,11 @@ suite('KeybindingsSync', () => {
 	test('when keybindings file is created after first sync', async () => {
 		const fileService = client.instantiationService.get(IFileService);
 		const keybindingsResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.keybindingsResource;
-		await testObject.sync(await client.getResourceManifest());
+		await testObject.sync(await client.getLatestRef(SyncResource.Keybindings));
 		await fileService.createFile(keybindingsResource, VSBuffer.fromString('[]'));
 
 		let lastSyncUserData = await testObject.getLastSyncUserData();
-		const manifest = await client.getResourceManifest();
+		const manifest = await client.getLatestRef(SyncResource.Keybindings);
 		server.reset();
 		await testObject.sync(manifest);
 
@@ -196,7 +194,7 @@ suite('KeybindingsSync', () => {
 			await fileService.del(keybindingsResource);
 		}
 
-		const preview = await testObject.sync(await client.getResourceManifest(), true);
+		const preview = await testObject.sync(await client.getLatestRef(SyncResource.Keybindings), true);
 
 		server.reset();
 		const content = await testObject.resolveContent(preview!.resourcePreviews[0].remoteResource);
@@ -208,7 +206,7 @@ suite('KeybindingsSync', () => {
 	test('sync throws invalid content error - content is an object', async () => {
 		await client.instantiationService.get(IFileService).writeFile(client.instantiationService.get(IUserDataProfilesService).defaultProfile.keybindingsResource, VSBuffer.fromString('{}'));
 		try {
-			await testObject.sync(await client.getResourceManifest());
+			await testObject.sync(await client.getLatestRef(SyncResource.Keybindings));
 			assert.fail('should fail with invalid content error');
 		} catch (e) {
 			assert.ok(e instanceof UserDataSyncError);

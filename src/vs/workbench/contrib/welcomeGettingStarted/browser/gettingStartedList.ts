@@ -23,7 +23,7 @@ type GettingStartedIndexListOptions<T> = {
 };
 
 export class GettingStartedIndexList<T extends { id: string; when?: ContextKeyExpression }> extends Disposable {
-	private readonly _onDidChangeEntries = new Emitter<void>();
+	private readonly _onDidChangeEntries = this._register(new Emitter<void>());
 	private readonly onDidChangeEntries: Event<void> = this._onDidChangeEntries.event;
 
 	private domElement: HTMLElement;

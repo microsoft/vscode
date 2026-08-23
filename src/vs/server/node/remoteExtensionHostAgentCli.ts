@@ -63,8 +63,7 @@ class CliMain extends Disposable {
 	}
 
 	private registerListeners(): void {
-		// Dispose on exit
-		process.once('exit', () => this.dispose());
+		process.once('exit', () => this.dispose()); // Dispose on exit
 	}
 
 	async run(): Promise<void> {
@@ -72,6 +71,7 @@ class CliMain extends Disposable {
 		await instantiationService.invokeFunction(async accessor => {
 			const configurationService = accessor.get(IConfigurationService);
 			const logService = accessor.get(ILogService);
+			const productService = accessor.get(IProductService);
 
 			// On Windows, configure the UNC allow list based on settings
 			if (isWindows) {
@@ -83,7 +83,7 @@ class CliMain extends Disposable {
 			}
 
 			try {
-				await this.doRun(instantiationService.createInstance(ExtensionManagementCLI, new ConsoleLogger(logService.getLevel(), false)));
+				await this.doRun(instantiationService.createInstance(ExtensionManagementCLI, productService.extensionsForceVersionByQuality ?? [], new ConsoleLogger(logService.getLevel(), false)));
 			} catch (error) {
 				logService.error(error);
 				console.error(getErrorMessage(error));
@@ -190,12 +190,12 @@ export async function run(args: ServerParsedArgs, REMOTE_DATA_FOLDER: string, op
 		console.log(buildHelpMessage(product.nameLong, executable, product.version, optionDescriptions, { noInputFiles: true, noPipe: true }));
 		return;
 	}
+
 	// Version Info
 	if (args.version) {
 		console.log(buildVersionMessage(product.version, product.commit));
 		return;
 	}
-
 
 	const cliMain = new CliMain(args, REMOTE_DATA_FOLDER);
 	try {

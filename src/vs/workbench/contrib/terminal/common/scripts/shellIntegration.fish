@@ -23,6 +23,13 @@ or exit
 set --global VSCODE_SHELL_INTEGRATION 1
 set --global __vscode_shell_env_reporting $VSCODE_SHELL_ENV_REPORTING
 set -e VSCODE_SHELL_ENV_REPORTING
+
+# Prevent AI-executed commands from polluting shell history
+if test "$VSCODE_PREVENT_SHELL_HISTORY" = "1"
+	set -g fish_private_mode 1
+	set -e VSCODE_PREVENT_SHELL_HISTORY
+end
+
 set -g envVarsToReport
 if test -n "$__vscode_shell_env_reporting"
 	set envVarsToReport (string split "," "$__vscode_shell_env_reporting")
@@ -75,6 +82,25 @@ function __vsc_apply_env_vars
 	end
 end
 
+# Register Python shell activate hooks
+# Prevent multiple activation with guard
+if not set -q VSCODE_PYTHON_AUTOACTIVATE_GUARD
+	set -gx VSCODE_PYTHON_AUTOACTIVATE_GUARD 1
+	if test -n "$VSCODE_PYTHON_FISH_ACTIVATE"; and test "$TERM_PROGRAM" = "vscode"
+		# Fish does not crash on eval failure, so don't need negation.
+		eval $VSCODE_PYTHON_FISH_ACTIVATE
+		set __vsc_activation_status $status
+
+		if test $__vsc_activation_status -ne 0
+			builtin printf '\x1b[0m\x1b[7m * \x1b[0;103m VS Code Python fish activation failed with exit code %d \x1b[0m \n' "$__vsc_activation_status"
+		end
+	end
+	# Remove any leftover Python activation env vars.
+	for var in (set -n | string match -r '^VSCODE_PYTHON_.*_ACTIVATE$')
+		set -eg $var
+	end
+end
+
 # Handle the shell integration nonce
 if set -q VSCODE_NONCE
 	set -l __vsc_nonce $VSCODE_NONCE
@@ -101,10 +127,7 @@ end
 # Backslashes are doubled and non-alphanumeric characters are hex encoded.
 function __vsc_escape_value
 	# Escape backslashes and semi-colons
-	echo $argv \
-	| string replace --all '\\' '\\\\' \
-	| string replace --all ';' '\\x3b' \
-	;
+	echo $argv | string replace --all '\\' '\\\\' | string replace --all ';' '\\x3b'
 end
 
 # Sent right after an interactive command has finished executing.

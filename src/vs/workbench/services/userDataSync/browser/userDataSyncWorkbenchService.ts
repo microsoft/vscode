@@ -42,6 +42,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { IUserDataSyncMachinesService } from '../../../../platform/userDataSync/common/userDataSyncMachines.js';
 import { equals } from '../../../../base/common/arrays.js';
+import { env } from '../../../../base/common/process.js';
 
 type AccountQuickPickItem = { label: string; authenticationProvider: IAuthenticationProvider; account?: UserDataSyncAccount; description?: string };
 
@@ -63,7 +64,7 @@ export function isMergeEditorInput(editor: unknown): editor is MergeEditorInput 
 
 export class UserDataSyncWorkbenchService extends Disposable implements IUserDataSyncWorkbenchService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private static DONOT_USE_WORKBENCH_SESSION_STORAGE_KEY = 'userDataSyncAccount.donotUseWorkbenchSession';
 	private static CACHED_AUTHENTICATION_PROVIDER_KEY = 'userDataSyncAccountProvider';
@@ -258,9 +259,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		let value: { token: string; authenticationProviderId: string } | undefined = undefined;
 		if (current) {
 			try {
-				this.logService.trace('Settings Sync: Updating the token for the account', current.accountName);
 				const token = current.token;
-				this.traceOrInfo('Settings Sync: Token updated for the account', current.accountName);
 				value = { token, authenticationProviderId: current.authenticationProviderId };
 			} catch (e) {
 				this.logService.error(e);
@@ -269,19 +268,16 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		await this.userDataSyncAccountService.updateAccount(value);
 	}
 
-	private traceOrInfo(msg: string, ...args: any[]): void {
-		if (this.environmentService.isBuilt) {
-			this.logService.info(msg, ...args);
-		} else {
-			this.logService.trace(msg, ...args);
-		}
-	}
-
 	private updateAccountStatus(accountStatus: AccountStatus): void {
 		this.logService.trace(`Settings Sync: Updating the account status to ${accountStatus}`);
 		if (this._accountStatus !== accountStatus) {
 			const previous = this._accountStatus;
-			this.traceOrInfo(`Settings Sync: Account status changed from ${previous} to ${accountStatus}`);
+			const logMsg = `Settings Sync: Account status changed from ${previous} to ${accountStatus}`;
+			if (env.VSCODE_DEV) {
+				this.logService.trace(logMsg);
+			} else {
+				this.logService.info(logMsg);
+			}
 
 			this._accountStatus = accountStatus;
 			this.accountStatusContext.set(accountStatus);

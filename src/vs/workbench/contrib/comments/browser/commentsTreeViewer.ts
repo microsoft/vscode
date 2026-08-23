@@ -7,7 +7,6 @@ import * as dom from '../../../../base/browser/dom.js';
 import * as nls from '../../../../nls.js';
 import { renderMarkdown } from '../../../../base/browser/markdownRenderer.js';
 import { IDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IResourceLabel, ResourceLabels } from '../../../browser/labels.js';
 import { CommentNode, ResourceWithCommentThreads } from '../common/commentModel.js';
 import { ITreeContextMenuEvent, ITreeFilter, ITreeNode, TreeFilterResult, TreeVisibility } from '../../../../base/browser/ui/tree/tree.js';
@@ -22,12 +21,11 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { commentViewThreadStateColorVar, getCommentThreadStateIconColor } from './commentColors.js';
-import { CommentThreadApplicability, CommentThreadState } from '../../../../editor/common/languages.js';
+import { CommentThreadApplicability, CommentThreadState, CommentState } from '../../../../editor/common/languages.js';
 import { Color } from '../../../../base/common/color.js';
 import { IMatch } from '../../../../base/common/filters.js';
 import { FilterOptions } from './commentsFilterOptions.js';
 import { basename } from '../../../../base/common/resources.js';
-import { openLinkFromMarkdown } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { IStyleOverride } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IListStyles } from '../../../../base/browser/ui/list/listWidget.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
@@ -74,6 +72,7 @@ interface ICommentThreadTemplateData {
 	};
 	actionBar: ActionBar;
 	disposables: IDisposable[];
+	elementDisposables: DisposableStore;
 }
 
 class CommentsModelVirtualDelegate implements IListVirtualDelegate<ResourceWithCommentThreads | CommentNode> {
@@ -117,7 +116,7 @@ export class ResourceWithCommentsRenderer implements IListRenderer<ITreeNode<Res
 		return { resourceLabel, owner, separator };
 	}
 
-	renderElement(node: ITreeNode<ResourceWithCommentThreads>, index: number, templateData: IResourceTemplateData, height: number | undefined): void {
+	renderElement(node: ITreeNode<ResourceWithCommentThreads>, index: number, templateData: IResourceTemplateData): void {
 		templateData.resourceLabel.setFile(node.element.resource);
 		templateData.separator.innerText = '\u00b7';
 
@@ -183,7 +182,6 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 	constructor(
 		private actionViewItemProvider: IActionViewItemProvider,
 		private menus: CommentsMenus,
-		@IOpenerService private readonly openerService: IOpenerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IThemeService private themeService: IThemeService
@@ -233,7 +231,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		repliesMetadata.icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.indent));
 
 		const disposables = [threadMetadata.timestamp, repliesMetadata.timestamp];
-		return { threadMetadata, repliesMetadata, actionBar, disposables };
+		return { threadMetadata, repliesMetadata, actionBar, disposables, elementDisposables: new DisposableStore() };
 	}
 
 	private getCountString(commentCount: number): string {
@@ -246,25 +244,21 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		}
 	}
 
-	private getRenderedComment(commentBody: IMarkdownString, disposables: DisposableStore) {
-		const renderedComment = renderMarkdown(commentBody, {
-			inline: true,
-			actionHandler: {
-				callback: (link) => openLinkFromMarkdown(this.openerService, link, commentBody.isTrusted),
-				disposables: disposables
-			}
-		});
+	private getRenderedComment(commentBody: IMarkdownString) {
+		const renderedComment = renderMarkdown(commentBody, {}, document.createElement('span'));
+		// eslint-disable-next-line no-restricted-syntax
 		const images = renderedComment.element.getElementsByTagName('img');
 		for (let i = 0; i < images.length; i++) {
 			const image = images[i];
 			const textDescription = dom.$('');
 			textDescription.textContent = image.alt ? nls.localize('imageWithLabel', "Image: {0}", image.alt) : nls.localize('image', "Image");
-			image.parentNode!.replaceChild(textDescription, image);
+			image.replaceWith(textDescription);
 		}
+		// eslint-disable-next-line no-restricted-syntax
 		const headings = [...renderedComment.element.getElementsByTagName('h1'), ...renderedComment.element.getElementsByTagName('h2'), ...renderedComment.element.getElementsByTagName('h3'), ...renderedComment.element.getElementsByTagName('h4'), ...renderedComment.element.getElementsByTagName('h5'), ...renderedComment.element.getElementsByTagName('h6')];
 		for (const heading of headings) {
 			const textNode = document.createTextNode(heading.textContent || '');
-			heading.parentNode!.replaceChild(textNode, heading);
+			heading.replaceWith(textNode);
 		}
 		while ((renderedComment.element.children.length > 1) && (renderedComment.element.firstElementChild?.tagName === 'HR')) {
 			renderedComment.element.removeChild(renderedComment.element.firstElementChild);
@@ -272,15 +266,18 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		return renderedComment;
 	}
 
-	private getIcon(threadState?: CommentThreadState): ThemeIcon {
-		if (threadState === CommentThreadState.Unresolved) {
+	private getIcon(threadState?: CommentThreadState, hasDraft?: boolean): ThemeIcon {
+		// Priority: draft > unresolved > resolved
+		if (hasDraft) {
+			return Codicon.commentDraft;
+		} else if (threadState === CommentThreadState.Unresolved) {
 			return Codicon.commentUnresolved;
 		} else {
 			return Codicon.comment;
 		}
 	}
 
-	renderElement(node: ITreeNode<CommentNode>, index: number, templateData: ICommentThreadTemplateData, height: number | undefined): void {
+	renderElement(node: ITreeNode<CommentNode>, index: number, templateData: ICommentThreadTemplateData): void {
 		templateData.actionBar.clear();
 
 		const commentCount = node.element.replies.length + 1;
@@ -296,7 +293,9 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 
 		templateData.threadMetadata.icon.classList.remove(...Array.from(templateData.threadMetadata.icon.classList.values())
 			.filter(value => value.startsWith('codicon')));
-		templateData.threadMetadata.icon.classList.add(...ThemeIcon.asClassNameArray(this.getIcon(node.element.threadState)));
+		// Check if any comment in the thread has draft state
+		const hasDraft = node.element.thread.comments?.some(comment => comment.state === CommentState.Draft);
+		templateData.threadMetadata.icon.classList.add(...ThemeIcon.asClassNameArray(this.getIcon(node.element.threadState, hasDraft)));
 		if (node.element.threadState !== undefined) {
 			const color = this.getCommentThreadWidgetStateColor(node.element.threadState, this.themeService.getColorTheme());
 			templateData.threadMetadata.icon.style.setProperty(commentViewThreadStateColorVar, `${color}`);
@@ -311,15 +310,13 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		if (typeof originalComment.comment.body === 'string') {
 			templateData.threadMetadata.commentPreview.innerText = originalComment.comment.body;
 		} else {
-			const disposables = new DisposableStore();
-			templateData.disposables.push(disposables);
-			const renderedComment = this.getRenderedComment(originalComment.comment.body, disposables);
-			templateData.disposables.push(renderedComment);
+			const renderedComment = this.getRenderedComment(originalComment.comment.body);
+			templateData.elementDisposables.add(renderedComment);
 			for (let i = renderedComment.element.children.length - 1; i >= 1; i--) {
 				renderedComment.element.removeChild(renderedComment.element.children[i]);
 			}
 			templateData.threadMetadata.commentPreview.appendChild(renderedComment.element);
-			templateData.disposables.push(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.threadMetadata.commentPreview, renderedComment.element.textContent ?? ''));
+			templateData.elementDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.threadMetadata.commentPreview, renderedComment.element.textContent ?? ''));
 		}
 
 		if (node.element.range) {
@@ -354,8 +351,13 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		return (state !== undefined) ? getCommentThreadStateIconColor(state, theme) : undefined;
 	}
 
+	disposeElement(_node: ITreeNode<CommentNode>, _index: number, templateData: ICommentThreadTemplateData): void {
+		templateData.elementDisposables.clear();
+	}
+
 	disposeTemplate(templateData: ICommentThreadTemplateData): void {
 		templateData.disposables.forEach(disposeable => disposeable.dispose());
+		templateData.elementDisposables.dispose();
 		templateData.actionBar.dispose();
 	}
 }

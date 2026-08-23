@@ -63,6 +63,20 @@ suite('StackTraceHelper', () => {
 		assert.equal(errorLocation, '<a href=\'vscode-notebook-cell:?execution_count=3&line=2\'>line 2</a>');
 	});
 
+	test('Does not have catastrophic backtracking https://github.com/microsoft/vscode/issues/251731', () => {
+		const stack =
+			'\u001b[31m---------------------------------------------------------------------------\u001b[39m\n' +
+			'\u001b[31mZeroDivisionError\u001b[39m                         Traceback (most recent call last)\n' +
+			'\u001b[36mCell\u001b[39m\u001b[36m \u001b[39m\u001b[32mIn[1]\u001b[39m\u001b[32m, line 2\u001b[39m\n\u001b[32m      1\u001b[39m raw_str = \u001b[33mr\u001b[39m\u001b[33m\"\u001b[39m\u001b[33m\\\u001b[39m\u001b[33ma\u001b[39m\u001b[33m\\\u001b[39m\u001b[33mc\u001b[39m\u001b[33m\\\u001b[39m\u001b[33me\u001b[39m\u001b[33m\\\u001b[39m\u001b[33mf\u001b[39m\u001b[33m\\\u001b[39m\u001b[33mg\u001b[39m\u001b[33m\\\u001b[39m\u001b[33mh\u001b[39m\u001b[33m\\\u001b[39m\u001b[33mi\u001b[39m\u001b[33m\\\u001b[39m\u001b[33mk\u001b[39m\u001b[33m\\\u001b[39m\u001b[33ml\u001b[39m\u001b[33m\\\u001b[39m\u001b[33mm\u001b[39m\u001b[33m\\\u001b[39m\u001b[33mn\u001b[39m\u001b[33m\\\u001b[39m\u001b[33mo\u001b[39m\u001b[33m\"\u001b[39m\n\u001b[32m----> \u001b[39m\u001b[32m2\u001b[39m \u001b[32;43m1\u001b[39;49m\u001b[43m/\u001b[49m\u001b[32;43m0\u001b[39;49m\n\n' +
+			'\u001b[31mZeroDivisionError\u001b[39m: division by zero\n';
+
+		const { formattedStack, errorLocation } = formatStackTrace(stack, true);
+		const cleanStack = stripAsciiFormatting(formattedStack);
+		assert.ok(cleanStack.indexOf('Cell In[1], <a href=\'vscode-notebook-cell:?execution_count=1&line=2\'>line 2</a>') > 0, 'Missing line link in ' + cleanStack);
+		assert.ok(cleanStack.indexOf('<a href=\'vscode-notebook-cell:?execution_count=1&line=2\'>2</a>') > 0, 'Missing frame link in ' + cleanStack);
+		assert.equal(errorLocation, '<a href=\'vscode-notebook-cell:?execution_count=1&line=2\'>line 2</a>');
+	});
+
 	test('Stack trace is not linkified when HTML is not trusted', () => {
 		const stack =
 			'\u001b[31m---------------------------------------------------------------------------\u001b[39m\n' +

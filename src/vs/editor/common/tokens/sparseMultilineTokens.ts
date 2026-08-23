@@ -298,6 +298,9 @@ class SparseMultilineTokensStorage {
 					tokens[destOffset + 1] = tokenStartCharacter;
 					tokens[destOffset + 2] = tokenEndCharacter;
 					tokens[destOffset + 3] = tokenMetadata;
+				} else if (firstDeltaLine !== 0) {
+					// must adjust the delta line in place
+					tokens[srcOffset] = tokenDeltaLine - firstDeltaLine;
 				}
 				newTokenCount++;
 			}
@@ -571,13 +574,15 @@ class SparseMultilineTokensStorage {
 		for (let i = 0; i < this._tokenCount; i++) {
 			const lineNumber = this._getDeltaLine(i) + startLineNumber;
 
-			if (lineNumber > model.getLineCount()) {
+			if (lineNumber < 1) {
+				SparseMultilineTokensStorage._rateLimiter.runIfNotLimited(() => {
+					console.error('Invalid Semantic Tokens Data From Extension: lineNumber < 1');
+				});
+			} else if (lineNumber > model.getLineCount()) {
 				SparseMultilineTokensStorage._rateLimiter.runIfNotLimited(() => {
 					console.error('Invalid Semantic Tokens Data From Extension: lineNumber > model.getLineCount()');
 				});
-			}
-
-			if (this._getEndCharacter(i) > model.getLineLength(lineNumber)) {
+			} else if (this._getEndCharacter(i) > model.getLineLength(lineNumber)) {
 				SparseMultilineTokensStorage._rateLimiter.runIfNotLimited(() => {
 					console.error('Invalid Semantic Tokens Data From Extension: end character > model.getLineLength(lineNumber)');
 				});

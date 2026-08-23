@@ -68,7 +68,7 @@ You may see improved VNC responsiveness when accessing a codespace from VS Code 
 
 3. After you have connected to the codespace, you can use a [VNC Viewer][def] to connect to `localhost:5901` and enter `vscode` as the password.
 
-    > **Tip:** You may also need change your VNC client's **Picture Quality** setting to **High** to get a full color desktop.
+    > **Tip:** You may also need to change your VNC client's **Picture Quality** setting to **High** to get a full color desktop.
 
 4. Anything you start in VS Code, or the integrated terminal, will appear here.
 
@@ -99,7 +99,7 @@ Next, let's try debugging.
 
 2. Go to your local VS Code client, and use the **Run / Debug** view to launch the **VS Code** configuration. (Typically the default, so you can likely just press <kbd>F5</kbd>).
 
-   > **Note:** If launching times out, you can increase the value of `timeout` in the "VS Code", "Attach Main Process", "Attach Extension Host", and "Attach to Shared Process" configurations in [launch.json](../../.vscode/launch.json). However, running `./scripts/code.sh` first will set up Electron which will usually solve timeout issues.
+   > **Note:** If launching times out, you can increase the value of `timeout` in the "VS Code", "Attach Main Process", "Attach Extension Host", and "Attach to Shared Process" configurations in [launch.json](../.vscode/launch.json). However, running `./scripts/code.sh` first will set up Electron which will usually solve timeout issues.
 
 3. After a bit, Code - OSS will appear with the debugger attached!
 

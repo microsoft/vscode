@@ -13,7 +13,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { FontMeasurements } from '../../../../editor/browser/config/fontMeasurements.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
-import { BareFontInfo } from '../../../../editor/common/config/fontInfo.js';
+import { createBareFontInfoFromRawSettings } from '../../../../editor/common/config/fontInfoFromSettings.js';
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { NotebookTextModel } from '../common/model/notebookTextModel.js';
 import { InteractiveWindowCollapseCodeCells, NotebookCellDefaultCollapseConfig, NotebookCellInternalMetadata, NotebookSetting, ShowCellStatusBarType } from '../common/notebookCommon.js';
@@ -178,42 +178,10 @@ export class NotebookOptions extends Disposable {
 		editorOptionsCustomizations = isObject(editorOptionsCustomizations) ? editorOptionsCustomizations : {};
 		const interactiveWindowCollapseCodeCells: InteractiveWindowCollapseCodeCells = this.configurationService.getValue(NotebookSetting.interactiveWindowCollapseCodeCells);
 
-		// TOOD @rebornix remove after a few iterations of deprecated setting
-		let outputLineHeightSettingValue: number;
-		const deprecatedOutputLineHeightSetting = this.configurationService.getValue<number>(NotebookSetting.outputLineHeightDeprecated);
-		if (deprecatedOutputLineHeightSetting !== undefined) {
-			this._migrateDeprecatedSetting(NotebookSetting.outputLineHeightDeprecated, NotebookSetting.outputLineHeight);
-			outputLineHeightSettingValue = deprecatedOutputLineHeightSetting;
-		} else {
-			outputLineHeightSettingValue = this.configurationService.getValue<number>(NotebookSetting.outputLineHeight);
-		}
-
-		let outputFontSize: number;
-		const deprecatedOutputFontSizeSetting = this.configurationService.getValue<number>(NotebookSetting.outputFontSizeDeprecated);
-		if (deprecatedOutputFontSizeSetting !== undefined) {
-			this._migrateDeprecatedSetting(NotebookSetting.outputFontSizeDeprecated, NotebookSetting.outputFontSize);
-			outputFontSize = deprecatedOutputFontSizeSetting;
-		} else {
-			outputFontSize = this.configurationService.getValue<number>(NotebookSetting.outputFontSize) || fontSize;
-		}
-
-		let outputFontFamily: string;
-		const deprecatedOutputFontFamilySetting = this.configurationService.getValue<string>(NotebookSetting.outputFontFamilyDeprecated);
-		if (deprecatedOutputFontFamilySetting !== undefined) {
-			this._migrateDeprecatedSetting(NotebookSetting.outputFontFamilyDeprecated, NotebookSetting.outputFontFamily);
-			outputFontFamily = deprecatedOutputFontFamilySetting;
-		} else {
-			outputFontFamily = this.configurationService.getValue<string>(NotebookSetting.outputFontFamily);
-		}
-
-		let outputScrolling: boolean;
-		const deprecatedOutputScrollingSetting = this.configurationService.getValue<boolean>(NotebookSetting.outputScrollingDeprecated);
-		if (deprecatedOutputScrollingSetting !== undefined) {
-			this._migrateDeprecatedSetting(NotebookSetting.outputScrollingDeprecated, NotebookSetting.outputScrolling);
-			outputScrolling = deprecatedOutputScrollingSetting;
-		} else {
-			outputScrolling = this.configurationService.getValue<boolean>(NotebookSetting.outputScrolling);
-		}
+		const outputLineHeightSettingValue = this.configurationService.getValue<number>(NotebookSetting.outputLineHeight);
+		const outputFontSize = this.configurationService.getValue<number>(NotebookSetting.outputFontSize) || fontSize;
+		const outputFontFamily = this.configurationService.getValue<string>(NotebookSetting.outputFontFamily);
+		const outputScrolling = this.configurationService.getValue<boolean>(NotebookSetting.outputScrolling);
 
 		const outputLineHeight = this._computeOutputLineHeight(outputLineHeightSettingValue, outputFontSize);
 		const outputWordWrap = this.configurationService.getValue<boolean>(NotebookSetting.outputWordWrap);
@@ -327,7 +295,7 @@ export class NotebookOptions extends Disposable {
 								// there is a `::before` or `::after` text decoration whose position is above or below current line
 								// we at least make sure that the editor top padding is at least one line
 								const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
-								updateEditorTopPadding(BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.getInstance(this.targetWindow).value).lineHeight + 2);
+								updateEditorTopPadding(createBareFontInfoFromRawSettings(editorOptions, PixelRatio.getInstance(this.targetWindow).value).lineHeight + 2);
 								decorationTriggeredAdjustment = true;
 								break;
 							}
@@ -347,47 +315,13 @@ export class NotebookOptions extends Disposable {
 		return this._editorTopPadding;
 	}
 
-	private _migrateDeprecatedSetting(deprecatedKey: string, key: string): void {
-		const deprecatedSetting = this.configurationService.inspect(deprecatedKey);
-
-		if (deprecatedSetting.application !== undefined) {
-			this.configurationService.updateValue(deprecatedKey, undefined, ConfigurationTarget.APPLICATION);
-			this.configurationService.updateValue(key, deprecatedSetting.application.value, ConfigurationTarget.APPLICATION);
-		}
-
-		if (deprecatedSetting.user !== undefined) {
-			this.configurationService.updateValue(deprecatedKey, undefined, ConfigurationTarget.USER);
-			this.configurationService.updateValue(key, deprecatedSetting.user.value, ConfigurationTarget.USER);
-		}
-
-		if (deprecatedSetting.userLocal !== undefined) {
-			this.configurationService.updateValue(deprecatedKey, undefined, ConfigurationTarget.USER_LOCAL);
-			this.configurationService.updateValue(key, deprecatedSetting.userLocal.value, ConfigurationTarget.USER_LOCAL);
-		}
-
-		if (deprecatedSetting.userRemote !== undefined) {
-			this.configurationService.updateValue(deprecatedKey, undefined, ConfigurationTarget.USER_REMOTE);
-			this.configurationService.updateValue(key, deprecatedSetting.userRemote.value, ConfigurationTarget.USER_REMOTE);
-		}
-
-		if (deprecatedSetting.workspace !== undefined) {
-			this.configurationService.updateValue(deprecatedKey, undefined, ConfigurationTarget.WORKSPACE);
-			this.configurationService.updateValue(key, deprecatedSetting.workspace.value, ConfigurationTarget.WORKSPACE);
-		}
-
-		if (deprecatedSetting.workspaceFolder !== undefined) {
-			this.configurationService.updateValue(deprecatedKey, undefined, ConfigurationTarget.WORKSPACE_FOLDER);
-			this.configurationService.updateValue(key, deprecatedSetting.workspaceFolder.value, ConfigurationTarget.WORKSPACE_FOLDER);
-		}
-	}
-
 	private _computeOutputLineHeight(lineHeight: number, outputFontSize: number): number {
 		const minimumLineHeight = 9;
 
 		if (lineHeight === 0) {
 			// use editor line height
 			const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
-			const fontInfo = FontMeasurements.readFontInfo(this.targetWindow, BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.getInstance(this.targetWindow).value));
+			const fontInfo = FontMeasurements.readFontInfo(this.targetWindow, createBareFontInfoFromRawSettings(editorOptions, PixelRatio.getInstance(this.targetWindow).value));
 			lineHeight = fontInfo.lineHeight;
 		} else if (lineHeight < minimumLineHeight) {
 			// Values too small to be line heights in pixels are in ems.

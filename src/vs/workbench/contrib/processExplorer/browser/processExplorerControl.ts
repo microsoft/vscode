@@ -170,20 +170,16 @@ class ProcessHeaderTreeRenderer implements ITreeRenderer<IProcessInformation, vo
 	readonly templateId: string = 'header';
 
 	renderTemplate(container: HTMLElement): IProcessItemTemplateData {
-		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie'); // hack, but no API for hiding twistie on tree
+		container.previousElementSibling?.classList.add('force-no-twistie'); // hack, but no API for hiding twistie on tree
 
 		return createRow(container, 'header');
 	}
 
-	renderElement(node: ITreeNode<IProcessInformation, void>, index: number, templateData: IProcessItemTemplateData, height: number | undefined): void {
+	renderElement(node: ITreeNode<IProcessInformation, void>, index: number, templateData: IProcessItemTemplateData): void {
 		templateData.name.textContent = localize('processName', "Process Name");
 		templateData.cpu.textContent = localize('processCpu', "CPU (%)");
 		templateData.pid.textContent = localize('processPid', "PID");
 		templateData.memory.textContent = localize('processMemory', "Memory (MB)");
-	}
-
-	renderTwistie(element: IProcessInformation, twistieElement: HTMLElement): boolean {
-		return false;
 	}
 
 	disposeTemplate(templateData: unknown): void {
@@ -199,7 +195,7 @@ class MachineRenderer implements ITreeRenderer<IMachineProcessInformation, void,
 		return createRow(container);
 	}
 
-	renderElement(node: ITreeNode<IMachineProcessInformation, void>, index: number, templateData: IProcessRowTemplateData, height: number | undefined): void {
+	renderElement(node: ITreeNode<IMachineProcessInformation, void>, index: number, templateData: IProcessRowTemplateData): void {
 		templateData.name.textContent = node.element.name;
 	}
 
@@ -216,7 +212,7 @@ class ErrorRenderer implements ITreeRenderer<IRemoteDiagnosticError, void, IProc
 		return createRow(container);
 	}
 
-	renderElement(node: ITreeNode<IRemoteDiagnosticError, void>, index: number, templateData: IProcessRowTemplateData, height: number | undefined): void {
+	renderElement(node: ITreeNode<IRemoteDiagnosticError, void>, index: number, templateData: IProcessRowTemplateData): void {
 		templateData.name.textContent = node.element.errorMessage;
 	}
 
@@ -268,7 +264,7 @@ class ProcessRenderer implements ITreeRenderer<ProcessItem, void, IProcessItemTe
 		};
 	}
 
-	renderElement(node: ITreeNode<ProcessItem, void>, index: number, templateData: IProcessItemTemplateData, height: number | undefined): void {
+	renderElement(node: ITreeNode<ProcessItem, void>, index: number, templateData: IProcessItemTemplateData): void {
 		const { element } = node;
 
 		const pid = element.pid.toFixed(0);
@@ -429,6 +425,7 @@ export abstract class ProcessExplorerControl extends Disposable {
 					selectionPids.push(pid);
 				}
 
+				// eslint-disable-next-line no-restricted-syntax
 				const rows = selectionPids?.map(e => getDocument(container).getElementById(`pid-${e}`)).filter(e => !!e);
 				if (rows) {
 					const text = rows.map(e => e.innerText).filter(e => !!e);
@@ -441,6 +438,7 @@ export abstract class ProcessExplorerControl extends Disposable {
 			id: 'copyAll',
 			label: localize('copyAll', "Copy All"),
 			run: () => {
+				// eslint-disable-next-line no-restricted-syntax
 				const processList = getDocument(container).getElementById('process-explorer');
 				if (processList) {
 					this.clipboardService.writeText(processList.innerText);

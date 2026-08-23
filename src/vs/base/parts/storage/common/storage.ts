@@ -7,7 +7,7 @@ import { ThrottledDelayer } from '../../../common/async.js';
 import { Event, PauseableEmitter } from '../../../common/event.js';
 import { Disposable, IDisposable } from '../../../common/lifecycle.js';
 import { parse, stringify } from '../../../common/marshalling.js';
-import { isObject, isUndefinedOrNull } from '../../../common/types.js';
+import { isObject, isUndefined, isUndefinedOrNull } from '../../../common/types.js';
 
 export enum StorageHint {
 
@@ -349,7 +349,7 @@ export class Storage extends Disposable implements IStorage {
 		// the DB is not healthy.
 		try {
 			await this.doFlush(0 /* as soon as possible */);
-		} catch (error) {
+		} catch {
 			// Ignore
 		}
 
@@ -434,3 +434,66 @@ export class InMemoryStorageDatabase implements IStorageDatabase {
 	async optimize(): Promise<void> { }
 	async close(): Promise<void> { }
 }
+
+
+export const MIGRATED_KEY = '__$__migratedStorageMarker';
+
+export class MigratingStorage extends Storage {
+
+	private migratedKeys: Set<string> = new Set();
+	private fallbackStorage: IStorage | undefined = undefined;
+	private isFallbackStorageReadonly: boolean = false;
+
+	override async init(): Promise<void> {
+		await super.init();
+
+		// Load the set of keys already migrated from fallback
+		this.migratedKeys = this.loadMigratedKeys();
+	}
+
+	public setFallbackStorage(storage: IStorage, isReadonly: boolean): void {
+		this.fallbackStorage = storage;
+		this.isFallbackStorageReadonly = isReadonly;
+	}
+
+	private static readonly INTERNAL_KEY_PREFIX = '__$__';
+
+	override get(key: string, fallbackValue: string): string;
+	override get(key: string, fallbackValue?: string): string | undefined;
+	override get(key: string, fallbackValue?: string): string | undefined {
+		if (!key.startsWith(MigratingStorage.INTERNAL_KEY_PREFIX) && !this.migratedKeys.has(key) && isUndefined(super.get(key))) {
+			// Check fallback storage and auto-migrate on hit.
+			// Mark the key as migrated immediately to prevent
+			// re-checking the fallback, and to ensure a key
+			// that was intentionally removed after migration
+			// is not resurrected from the fallback.
+			this.migratedKeys.add(key);
+			const value = this.fallbackStorage?.items.get(key);
+			if (!isUndefined(value)) {
+				this.set(key, value);
+				if (!this.isFallbackStorageReadonly) {
+					this.fallbackStorage?.delete(key);
+				}
+				this.persistMigratedKeys();
+			}
+		}
+		return super.get(key, fallbackValue);
+	}
+
+	private loadMigratedKeys(): Set<string> {
+		const raw = super.get(MIGRATED_KEY);
+		if (raw) {
+			try {
+				return new Set(JSON.parse(raw));
+			} catch {
+				// Fail gracefully
+			}
+		}
+		return new Set();
+	}
+
+	private persistMigratedKeys(): void {
+		this.set(MIGRATED_KEY, JSON.stringify([...this.migratedKeys]));
+	}
+}
+

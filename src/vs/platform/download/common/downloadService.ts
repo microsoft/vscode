@@ -19,13 +19,13 @@ export class DownloadService implements IDownloadService {
 		@IFileService private readonly fileService: IFileService
 	) { }
 
-	async download(resource: URI, target: URI, cancellationToken: CancellationToken = CancellationToken.None): Promise<void> {
+	async download(resource: URI, target: URI, callSite: string, cancellationToken: CancellationToken = CancellationToken.None): Promise<void> {
 		if (resource.scheme === Schemas.file || resource.scheme === Schemas.vscodeRemote) {
 			// Intentionally only support this for file|remote<->file|remote scenarios
 			await this.fileService.copy(resource, target);
 			return;
 		}
-		const options = { type: 'GET', url: resource.toString(true) };
+		const options = { type: 'GET' as const, url: resource.toString(true), callSite };
 		const context = await this.requestService.request(options, cancellationToken);
 		if (context.res.statusCode === 200) {
 			await this.fileService.writeFile(target, context.stream);

@@ -1,7 +1,7 @@
 {
 	"compilerOptions": {
 		"noEmit": true,
-		"module": "None",
+		"module": "preserve",
 		"experimentalDecorators": false,
 		"noImplicitReturns": true,
 		"noImplicitOverride": true,
@@ -13,7 +13,7 @@
 		"forceConsistentCasingInFileNames": true,
 		"types": [],
 		"lib": [
-			"ES2022"
+			"ES2024"
 		],
 	},
 	"include": [

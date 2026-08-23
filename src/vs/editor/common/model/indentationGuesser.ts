@@ -192,10 +192,7 @@ export function guessIndentation(source: ITextBuffer, defaultTabSize: number, de
 
 	// Guess tabSize only if inserting spaces...
 	if (insertSpaces) {
-		let tabSizeScore = (insertSpaces ? 0 : 0.1 * linesCount);
-
-		// console.log("score threshold: " + tabSizeScore);
-
+		let tabSizeScore = 0;
 		ALLOWED_TAB_SIZE_GUESSES.forEach((possibleTabSize) => {
 			const possibleTabSizeScore = spacesDiffCount[possibleTabSize];
 			if (possibleTabSizeScore > tabSizeScore) {
@@ -204,13 +201,13 @@ export function guessIndentation(source: ITextBuffer, defaultTabSize: number, de
 			}
 		});
 
-		// Let a tabSize of 2 win even if it is not the maximum
-		// (only in case 4 was guessed)
-		if (tabSize === 4 && spacesDiffCount[4] > 0 && spacesDiffCount[2] > 0 && spacesDiffCount[2] >= spacesDiffCount[4] / 2) {
+		// Let a tabSize of 2 win over 4 only if it has at least 2/3 of the occurrences of 4
+		// This helps detect 2-space indentation in cases like YAML files where there might be
+		// some 4-space diffs from deeper nesting, while still preferring 4 when it's clearly predominant
+		if (tabSize === 4 && spacesDiffCount[4] > 0 && spacesDiffCount[2] > 0 && spacesDiffCount[2] >= spacesDiffCount[4] * 2 / 3) {
 			tabSize = 2;
 		}
 	}
-
 
 	// console.log('--------------------------');
 	// console.log('linesIndentedWithTabsCount: ' + linesIndentedWithTabsCount + ', linesIndentedWithSpacesCount: ' + linesIndentedWithSpacesCount);

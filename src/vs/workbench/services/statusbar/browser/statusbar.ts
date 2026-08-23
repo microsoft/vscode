@@ -214,6 +214,12 @@ export interface IStatusbarEntry {
 	 * more actions to manage the extension from the status bar entry.
 	 */
 	readonly extensionId?: string;
+
+	/**
+	 * Allows to add content with custom rendering to the status bar entry.
+	 * If possible, use `text` instead.
+	*/
+	readonly content?: HTMLElement;
 }
 
 export interface IStatusbarEntryAccessor extends IDisposable {

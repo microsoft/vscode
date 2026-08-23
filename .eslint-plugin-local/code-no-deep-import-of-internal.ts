@@ -5,9 +5,9 @@
 
 import * as eslint from 'eslint';
 import { join, dirname } from 'path';
-import { createImportRuleListener } from './utils';
+import { createImportRuleListener } from './utils.ts';
 
-export = new class implements eslint.Rule.RuleModule {
+export default new class implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
@@ -28,8 +28,8 @@ export = new class implements eslint.Rule.RuleModule {
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 		const patterns = context.options[0] as Record<string, boolean>;
-		const internalModulePattern = Object.entries(patterns).map(([key, v]) => v ? key : undefined).filter(v => !!v);
-		const allowedPatterns = Object.entries(patterns).map(([key, v]) => !v ? key : undefined).filter(v => !!v);
+		const internalModulePattern = Object.entries(patterns).map(([key, v]) => v ? key : undefined).filter((v): v is string => !!v);
+		const allowedPatterns = Object.entries(patterns).map(([key, v]) => !v ? key : undefined).filter((v): v is string => !!v);
 
 		return createImportRuleListener((node, path) => {
 			const importerModuleDir = dirname(context.filename);

@@ -1,0 +1,172 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Install dependencies",
+			"type": "shell",
+			"command": "npm ci",
+			"inAgents": true,
+			"runOptions": {
+				"runOn": "worktreeCreated"
+			}
+		},
+		{
+			"label": "Compile & Launch Extension Host",
+			"type": "shell",
+			"command": "npm run compile && COPILOT_LOG_TELEMETRY=true VSCODE_DEV_DEBUG=1 code-insiders --extensionDevelopmentPath=$(pwd)",
+			"inAgents": true
+		},
+		{
+			"label": "Typecheck",
+			"type": "shell",
+			"command": "npm run typecheck",
+			"inAgents": true
+		},
+		{
+			"label": "compile",
+			"type": "npm",
+			"script": "compile",
+			"problemMatcher": "$esbuild",
+		},
+		{
+			"type": "npm",
+			"script": "watch",
+			"label": "npm: watch - DO NOT USE", // The auto-discovered npm task is also called watch, so we change its name here. This is here until people clear their histories.
+		},
+		{
+			"label": "ensure-deps",
+			"type": "shell",
+			"windows": {
+				"command": "if not exist node_modules npm ci",
+				"options": {
+					"shell": {
+						"executable": "cmd.exe",
+						"args": [
+							"/c"
+						]
+					}
+				}
+			},
+			"linux": {
+				"command": "test -d node_modules || npm ci"
+			},
+			"osx": {
+				"command": "test -d node_modules || npm ci"
+			},
+			"group": "build",
+			"presentation": {
+				"reveal": "never",
+				"close": true
+			},
+			"problemMatcher": [],
+			"isBackground": true,
+			"promptOnClose": false
+		},
+		{
+			"label": "start-watch-tasks",
+			"dependsOn": [
+				"npm: watch:typecheck-extension",
+				"npm: watch:typecheck-extension-web",
+				"npm: watch:typecheck-simulation-workbench",
+				"npm: watch:esbuild"
+			],
+			"dependsOrder": "parallel",
+			"group": "build",
+			"presentation": {
+				"reveal": "never"
+			}
+		},
+		{
+			"label": "watch",
+			"dependsOn": [
+				"ensure-deps",
+				"start-watch-tasks",
+			],
+			"dependsOrder": "sequence",
+			"presentation": {
+				"reveal": "never",
+			},
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"runOptions": {
+				"runOn": "folderOpen"
+			}
+		},
+		{
+			"type": "npm",
+			"script": "watch:typecheck-extension",
+			"group": "build",
+			"problemMatcher": "$tsc-watch",
+			"isBackground": true,
+			"label": "npm: watch:typecheck-extension",
+			"presentation": {
+				"group": "watch",
+				"reveal": "never"
+			}
+		},
+		{
+			"type": "npm",
+			"script": "watch:typecheck-extension-web",
+			"group": "build",
+			"problemMatcher": "$tsc-watch",
+			"isBackground": true,
+			"label": "npm: watch:typecheck-extension-web",
+			"presentation": {
+				"group": "watch",
+				"reveal": "never"
+			}
+		},
+		{
+			"type": "npm",
+			"script": "watch:typecheck-simulation-workbench",
+			"group": "build",
+			"problemMatcher": "$tsc-watch",
+			"isBackground": true,
+			"label": "npm: watch:typecheck-simulation-workbench",
+			"presentation": {
+				"group": "watch",
+				"reveal": "never"
+			}
+		},
+		{
+			"type": "npm",
+			"script": "watch:esbuild",
+			"group": "build",
+			"problemMatcher": "$esbuild-watch",
+			"isBackground": true,
+			"label": "npm: watch:esbuild",
+			"presentation": {
+				"group": "watch",
+				"reveal": "never"
+			}
+		},
+		{
+			"label": "simulate",
+			"type": "process",
+			"command": "${workspaceFolder}/script/simulate.sh",
+			"windows": {
+				"command": "powershell",
+				"args": [
+					"-ExecutionPolicy",
+					"Bypass",
+					"-File",
+					"${workspaceFolder}/script/simulate.ps1"
+				]
+			},
+			"args": [],
+			"group": {
+				"kind": "test",
+				"isDefault": true
+			},
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated",
+				"clear": true,
+				"focus": true
+			},
+			"problemMatcher": []
+		}
+	]
+}

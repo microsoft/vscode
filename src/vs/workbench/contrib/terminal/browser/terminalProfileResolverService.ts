@@ -18,11 +18,11 @@ import { getIconRegistry, IIconRegistry } from '../../../../platform/theme/commo
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { debounce } from '../../../../base/common/decorators.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { URI } from '../../../../base/common/uri.js';
+import { isUriComponents, URI } from '../../../../base/common/uri.js';
 import { deepClone } from '../../../../base/common/objects.js';
-import { isUriComponents } from '../../../../platform/terminal/common/terminalProfiles.js';
 import { ITerminalInstanceService } from './terminal.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { isString, type SingleOrMany } from '../../../../base/common/types.js';
 
 export interface IProfileContextProvider {
 	getDefaultSystemShell(remoteAuthority: string | undefined, os: OperatingSystem): Promise<string>;
@@ -132,7 +132,7 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 
 		// Verify the icon is valid, and fallback correctly to the generic terminal id if there is
 		// an issue
-		const resource = shellLaunchConfig === undefined || typeof shellLaunchConfig.cwd === 'string' ? undefined : shellLaunchConfig.cwd;
+		const resource = shellLaunchConfig === undefined || isString(shellLaunchConfig.cwd) ? undefined : shellLaunchConfig.cwd;
 		shellLaunchConfig.icon = this._getCustomIcon(shellLaunchConfig.icon)
 			|| this._getCustomIcon(resolvedProfile.icon)
 			|| this.getDefaultIcon(resource);
@@ -157,7 +157,7 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 		return (await this.getDefaultProfile(options)).path;
 	}
 
-	async getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]> {
+	async getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<SingleOrMany<string>> {
 		return (await this.getDefaultProfile(options)).args || [];
 	}
 
@@ -169,11 +169,11 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 		return this._context.getEnvironment(remoteAuthority);
 	}
 
-	private _getCustomIcon(icon?: unknown): TerminalIcon | undefined {
+	private _getCustomIcon(icon?: TerminalIcon): TerminalIcon | undefined {
 		if (!icon) {
 			return undefined;
 		}
-		if (typeof icon === 'string') {
+		if (isString(icon)) {
 			return ThemeIcon.fromId(icon);
 		}
 		if (ThemeIcon.isThemeIcon(icon)) {
@@ -182,16 +182,25 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 		if (URI.isUri(icon) || isUriComponents(icon)) {
 			return URI.revive(icon);
 		}
-		if (typeof icon === 'object' && 'light' in icon && 'dark' in icon) {
-			const castedIcon = (icon as { light: unknown; dark: unknown });
-			if ((URI.isUri(castedIcon.light) || isUriComponents(castedIcon.light)) && (URI.isUri(castedIcon.dark) || isUriComponents(castedIcon.dark))) {
-				return { light: URI.revive(castedIcon.light), dark: URI.revive(castedIcon.dark) };
-			}
+		if ((URI.isUri(icon.light) || isUriComponents(icon.light)) && (URI.isUri(icon.dark) || isUriComponents(icon.dark))) {
+			return { light: URI.revive(icon.light), dark: URI.revive(icon.dark) };
 		}
 		return undefined;
 	}
 
 	private async _getUnresolvedDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
+		// If agent host shell is allowed, prefer that.
+		if (options.allowAgentHostShell) {
+			const raw = this._configurationService.getValue(`terminal.integrated.agentHostProfile.${this._getOsKey(options.os)}`);
+			if (isString(raw)) {
+				await this._terminalProfileService.profilesReady;
+			}
+			const agentHostShellProfile = this._getUnresolvedAgentHostShellProfile(options);
+			if (agentHostShellProfile) {
+				return agentHostShellProfile;
+			}
+		}
+
 		// If automation shell is allowed, prefer that
 		if (options.allowAutomationShell) {
 			const automationShellProfile = this._getUnresolvedAutomationShellProfile(options);
@@ -244,7 +253,7 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 		}
 
 		// Finally fallback to a generated profile
-		let args: string | string[] | undefined;
+		let args: SingleOrMany<string> | undefined;
 		if (options.os === OperatingSystem.Macintosh && path.parse(executable).name.match(/(zsh|bash)/)) {
 			// macOS should launch a login shell by default
 			args = ['--login'];
@@ -269,6 +278,31 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 		if (this._isValidAutomationProfile(automationProfile, options.os)) {
 			automationProfile.icon = this._getCustomIcon(automationProfile.icon) || Codicon.tools;
 			return automationProfile;
+		}
+
+		return undefined;
+	}
+
+	private _getUnresolvedAgentHostShellProfile(options: IShellLaunchConfigResolveOptions): ITerminalProfile | undefined {
+		const agentHostProfile = this._configurationService.getValue(`terminal.integrated.agentHostProfile.${this._getOsKey(options.os)}`);
+
+		// Allow a string value as a reference to a named profile under
+		// `terminal.integrated.profiles.<os>` — same convention as
+		// `terminal.integrated.defaultProfile.<os>` — so users don't have
+		// to inline the path when they already have the profile defined.
+		if (isString(agentHostProfile)) {
+			const named = this._terminalProfileService.availableProfiles.find(p => p.profileName === agentHostProfile && !p.isAutoDetected);
+			if (named) {
+				const cloned = deepClone(named);
+				cloned.icon = this._getCustomIcon(cloned.icon) || Codicon.tools;
+				return cloned;
+			}
+			return undefined;
+		}
+
+		if (this._isValidAutomationProfile(agentHostProfile, options.os)) {
+			agentHostProfile.icon = this._getCustomIcon(agentHostProfile.icon) || Codicon.tools;
+			return agentHostProfile;
 		}
 
 		return undefined;
@@ -303,7 +337,7 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 
 		// Resolve args variables
 		if (profile.args) {
-			if (typeof profile.args === 'string') {
+			if (isString(profile.args)) {
 				profile.args = await this._resolveVariables(profile.args, env, lastActiveWorkspace);
 			} else {
 				profile.args = await Promise.all(profile.args.map(arg => this._resolveVariables(arg, env, lastActiveWorkspace)));
@@ -351,7 +385,7 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 		if (profile === null || profile === undefined || typeof profile !== 'object') {
 			return false;
 		}
-		if ('path' in profile && typeof (profile as { path: unknown }).path === 'string') {
+		if ('path' in profile && isString((profile as { path: unknown }).path)) {
 			return true;
 		}
 		return false;

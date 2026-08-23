@@ -6,17 +6,9 @@
 import { createSingleCallFunction } from '../../../../base/common/functional.js';
 import { IReference } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ICustomEditorModel, ICustomEditorModelManager } from './customEditor.js';
 
 export class CustomEditorModelManager implements ICustomEditorModelManager {
-	private readonly _uriIdentityService: IUriIdentityService;
-
-	constructor(
-		uriIdentityService: IUriIdentityService,
-	) {
-		this._uriIdentityService = uriIdentityService;
-	}
 
 	private readonly _references = new Map<string, {
 		readonly viewType: string;
@@ -83,8 +75,17 @@ export class CustomEditorModelManager implements ICustomEditorModelManager {
 		}
 	}
 
+	public disposeAllModelsForResource(resource: URI): void {
+		const keyStart = `${resource.toString()}@@@`;
+		for (const [key, value] of this._references) {
+			if (key.startsWith(keyStart)) {
+				value.model.then(x => x.dispose());
+				this._references.delete(key);
+			}
+		}
+	}
+
 	private key(resource: URI, viewType: string): string {
-		resource = this._uriIdentityService.asCanonicalUri(resource);
 		return `${resource.toString()}@@@${viewType}`;
 	}
 }

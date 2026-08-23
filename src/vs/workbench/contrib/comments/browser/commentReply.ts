@@ -86,14 +86,10 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		this.updateAuthorInfo();
 		const hasExistingComments = this._commentThread.comments && this._commentThread.comments.length > 0;
 		const modeId = generateUuid() + '-' + (hasExistingComments ? this._commentThread.threadId : ++INMEM_MODEL_ID);
-		const params = JSON.stringify({
-			extensionId: this._commentThread.extensionId,
-			commentThreadId: this._commentThread.threadId
-		});
 
 		let resource = URI.from({
 			scheme: Schemas.commentsInput,
-			path: `/${this._commentThread.extensionId}/commentinput-${modeId}.md?${params}` // TODO. Remove params once extensions adopt authority.
+			path: `/${this._commentThread.extensionId}/commentinput-${modeId}.md`
 		});
 		const commentController = this.commentService.getCommentController(this.owner);
 		if (commentController) {
@@ -128,8 +124,8 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 			this.expandReplyArea();
 		} else if (hasExistingComments) {
 			this.createReplyButton(this.commentEditor, this._form);
-		} else if (focus && (this._commentThread.comments && this._commentThread.comments.length === 0)) {
-			this.expandReplyArea();
+		} else if (this._commentThread.comments && this._commentThread.comments.length === 0) {
+			this.expandReplyArea(focus);
 		}
 		this._error = dom.append(this._container, dom.$('.validation-error.hidden'));
 		const formActions = dom.append(this._container, dom.$('.form-actions'));
@@ -339,10 +335,12 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		return this._container.classList.contains('expand');
 	}
 
-	private expandReplyArea() {
+	private expandReplyArea(focus: boolean = true) {
 		if (!this.isReplyExpanded) {
 			this._container.classList.add('expand');
-			this.commentEditor.focus();
+			if (focus) {
+				this.commentEditor.focus();
+			}
 			this.commentEditor.layout();
 		}
 	}
