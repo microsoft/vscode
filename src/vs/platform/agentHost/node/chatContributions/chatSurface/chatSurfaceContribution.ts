@@ -21,7 +21,7 @@ export class ChatSurfaceContribution extends Disposable implements IAgentHostCha
 		super();
 	}
 
-	contributeSend(turn: IOutgoingTurn): ISendContribution | undefined {
+	onOutgoingTurn(turn: IOutgoingTurn): ISendContribution | undefined {
 		const surface = this._stateManager.getSessionSurfaceMeta(turn.session);
 		const instruction = surface?.surface === 'terminal'
 			? createTerminalChatInstruction(surface)

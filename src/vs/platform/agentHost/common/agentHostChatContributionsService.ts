@@ -38,10 +38,11 @@ export interface ITurnEnd {
 	readonly clientContext?: IAgentHostClientTelemetryContext;
 }
 
-/** A turn about to be sent to an agent, carrying its owning session, target chat, and id. */
+/** A turn about to be sent to an agent, carrying its owning session, target chat, message, and id. */
 export interface IOutgoingTurn {
 	readonly session: ProtocolURI;
 	readonly chat: ProtocolURI;
+	readonly message: Message;
 	readonly turnId: string;
 }
 
@@ -135,12 +136,10 @@ export interface IAgentHostChatContribution extends IDisposable {
 	readonly order?: number;
 	/** Fires on every terminal outcome. Must not throw; the dispatcher isolates failures. */
 	onTurnEnd?(turn: ITurnEnd): void;
-	/** Observes a direct user message after local-command handling. */
-	onUserMessage?(session: ProtocolURI, text: string): void;
 	/** Observes actions submitted through the client dispatch path after state reduction. */
 	onAction?(action: IObservedAction): void;
 	/** Awaited before the turn is sent. Results are concatenated in `order`; failures are isolated and do not block the send. */
-	contributeSend?(turn: IOutgoingTurn): ISendContribution | undefined | Promise<ISendContribution | undefined>;
+	onOutgoingTurn?(turn: IOutgoingTurn): ISendContribution | undefined | Promise<ISendContribution | undefined>;
 	/**
 	 * Hydrates the complete restored turn list. Each ordered stage receives the previous stage's output;
 	 * failures preserve that previous list so a failed enrichment never loses chat history.
@@ -167,9 +166,8 @@ export interface IAgentHostChatContributions extends IDisposable {
 	/** Returns the currently registered host, if AgentSideEffects has been constructed. */
 	getHost(): IAgentHostChatContributionHost | undefined;
 	turnEnd(turn: ITurnEnd): void;
-	userMessage(session: ProtocolURI, text: string): void;
 	action(action: IObservedAction): void;
-	contributeSend(turn: IOutgoingTurn): Promise<readonly string[]>;
+	outgoingTurn(turn: IOutgoingTurn): Promise<readonly string[]>;
 	hydrateTurns(context: IHydrationContext, turns: readonly Turn[]): Promise<readonly Turn[]>;
 	disposeChatState(chat: ProtocolURI): void;
 	disposeSessionState(session: ProtocolURI): void;

@@ -7,7 +7,7 @@ Each contribution has its own subfolder so its implementation, helpers, and test
 
 - `checkpointAndChangeset` — captures the checkpoint before scheduling the changeset recompute; filters to `kind === 'success' || kind === 'error'` and runs first with an explicit order.
 - `queueDrain` — owns queued-sender mementos, pending-message synchronization, and queue admission policy; drains for `kind === 'success' || kind === 'localCommand'`.
-- `githubReferences`: attaches references from direct user messages and the owning session's GitHub pull request only for `kind === 'success'`.
+- `githubReferences`: attaches the owning session's GitHub pull request only for `kind === 'success'`.
 - `sessionTitle` (order 400) refines the first-turn title only for `kind === 'success'`.
 - `onTurnConsumable` is gone. Host-handled local commands now end through `onTurnEnd` with `TurnEndReason.kind === 'localCommand'`; the other turn-end contributions exclude that reason to preserve their previous behavior.
 
@@ -20,11 +20,12 @@ Each contribution has its own subfolder so its implementation, helpers, and test
 - `hostLaunchKind` remains a plain `IAgentSideEffectsOptions` value used for queued-turn telemetry.
 - `sendTurnMessage` remains on the bridge because the shared send tail is still owned by `AgentSideEffects`. Queue admission, including local-command interception, title seeding, provider lookup, and telemetry, lives in `QueueDrainContribution`.
 
-## Completed `contributeSend` extractions
+## Completed `onOutgoingTurn` extractions
 
 - `markdownPlanRichLinks` (order 100) — adds Markdown plan rich-link guidance when `AgentHostMarkdownPlanRichLinksEnabledConfigKey` is enabled.
 - `artifactTools` (order 200) — adds artifact-tool guidance when `AgentHostArtifactToolsConfigKey` is enabled.
 - `chatSurface` (order 300) — adds terminal or editor-inline guidance from the session surface metadata.
+- `githubReferences` (order 300) — attaches references from outgoing user messages.
 - `sessionTitle` (order 400) asynchronously adds the automatic-title rename reminder.
 
 ## Completed `onAction` extractions
@@ -35,13 +36,14 @@ Each contribution has its own subfolder so its implementation, helpers, and test
 
 - `persistedTurnUsage` (order 100) — restores persisted per-turn usage with one database read for the complete list.
 - `worktreeAnnouncement` (order 200) — restores the isolated-worktree notice for default chats through `IAgentHostWorktreeIsolation`.
-- Hydration reuses the spaced 100-series independently from turn-end and send hooks, because ordering is per hook.
+- Hydration reuses the spaced 100-series independently from turn-end and outgoing-turn hooks, because ordering is per hook.
 
 ## Future hooks
 
 - `onAction` observes the post-reduction client dispatch path, not `onDidEmitEnvelope`: client actions already emit envelopes, so observing both would double-drain; pending-message server envelopes historically did not enter `handleAction` and remain outside this hook to preserve that behavior.
 - `onIncomingRequest` — unifies duplicated turn admission in `handleAction` ChatTurnStarted and `QueueDrainContribution`, folds in `ILocalChatCommand`, and moves the read-only/archived guard from `_sendTurnMessage` into a `reject` disposition.
-- `onUserMessage` is dispatched only for direct `ChatTurnStarted` admission after local-command handling. Queued admission in `QueueDrainContribution` therefore continues to skip GitHub reference attachment until `onIncomingRequest` unifies admission.
+- `onOutgoingTurn` runs after the read-only/archived guard in `_sendTurnMessage`, so rejected messages do not attach GitHub references.
+- `onOutgoingTurn` also runs after the provider lookup, so a turn that fails with `noAgent` does not attach GitHub references either. Both cases follow from attaching references to messages that are actually sent.
 - Local commands can migrate to `onIncomingRequest` more easily now that their completion already flows through the normal turn-end path. Their `localCommand` reason continues to skip checkpointing, title refinement, GitHub-reference attachment, and mark-unread.
 - `onAgentSignal` — observes or redirects signals before they reach state.
 
@@ -52,7 +54,7 @@ Each contribution has its own subfolder so its implementation, helpers, and test
 
 ## Payoff
 
-- Migrate btw/sideChat to one contribution (`contributeSend` plus `onHydrateTurns`), deleting the six per-harness wiring sites (`copilot/copilotAgent.ts:3651`, `:3755`, `:3900`; `claude/claudeAgent.ts:1414`, `:1987`, `:2359`) and the `sideChat` field from both `IPersistedChat` blobs. Codex gains btw support by deletion rather than addition.
+- Migrate btw/sideChat to one contribution (`onOutgoingTurn` plus `onHydrateTurns`), deleting the six per-harness wiring sites (`copilot/copilotAgent.ts:3651`, `:3755`, `:3900`; `claude/claudeAgent.ts:1414`, `:1987`, `:2359`) and the `sideChat` field from both `IPersistedChat` blobs. Codex gains btw support by deletion rather than addition.
 
 ## Deliberately not contributions
 

@@ -1499,7 +1499,6 @@ export class AgentSideEffects extends Disposable {
 					this._logService.info(`[AgentSideEffects] Turn started for session not in state manager: ${channel}, turnId=${action.turnId} - status/summary updates may be dropped unless the session is restored`);
 				}
 				this._titleController.seedTitleFromFirstMessage(sessionChannel, action.message.text, chatChannel);
-				this._chatContributions.userMessage(sessionChannel, action.message.text);
 
 				const agent = this._options.getAgent(sessionChannel);
 				if (!agent) {
@@ -1929,7 +1928,7 @@ export class AgentSideEffects extends Disposable {
 			failureStage = 'sendMessage';
 			this._turnTracker.setCurrentStage(turnChannel, turnId, failureStage);
 			const resolvedAttachments = await this._resolveChatAttachments(message.attachments);
-			const hostInstructions = await this._chatContributions.contributeSend({ session: sessionChannel, chat, turnId });
+			const hostInstructions = await this._chatContributions.outgoingTurn({ session: sessionChannel, chat, message, turnId });
 			const sendContext = { ...clientOperationContext, ...(hostInstructions.length ? { hostInstructions } : {}) };
 			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) { return; }
 			if (!this._stateManager.isEphemeralSession(sessionChannel)) {

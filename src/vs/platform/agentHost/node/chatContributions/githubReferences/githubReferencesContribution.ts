@@ -6,11 +6,10 @@
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IAgentHostGitStateService } from '../../../common/agentHostGitStateService.js';
-import { type IAgentHostChatContribution, type IAgentHostChatContributionContext, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
-import type { URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IOutgoingTurn, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 
-/** Attaches GitHub references from user messages and the current pull request after success. */
+/** Attaches GitHub references from outgoing messages and the current pull request after success. */
 export class GitHubReferencesContribution extends Disposable implements IAgentHostChatContribution {
 
 	static readonly id = 'githubReferences';
@@ -24,8 +23,9 @@ export class GitHubReferencesContribution extends Disposable implements IAgentHo
 		super();
 	}
 
-	onUserMessage(session: ProtocolURI, text: string): void {
-		void this._gitStateService.attachSessionGitHubReferences(session, text);
+	onOutgoingTurn(turn: IOutgoingTurn): undefined {
+		void this._gitStateService.attachSessionGitHubReferences(turn.session, turn.message.text);
+		return undefined;
 	}
 
 	onTurnEnd(turn: ITurnEnd): void {

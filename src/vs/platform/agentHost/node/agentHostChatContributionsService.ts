@@ -136,20 +136,6 @@ export class AgentHostChatContributions extends Disposable implements IAgentHost
 		}
 	}
 
-	userMessage(session: ProtocolURI, text: string): void {
-		for (const registration of this._getOrderedContributions()) {
-			const { contribution } = registration;
-			if (!contribution.onUserMessage) {
-				continue;
-			}
-			try {
-				contribution.onUserMessage(session, text);
-			} catch (err) {
-				this._logContributionFailure(registration, err);
-			}
-		}
-	}
-
 	action(action: IObservedAction): void {
 		for (const registration of this._getOrderedContributions()) {
 			const { contribution } = registration;
@@ -164,15 +150,15 @@ export class AgentHostChatContributions extends Disposable implements IAgentHost
 		}
 	}
 
-	async contributeSend(turn: IOutgoingTurn): Promise<readonly string[]> {
+	async outgoingTurn(turn: IOutgoingTurn): Promise<readonly string[]> {
 		const instructions: string[] = [];
 		for (const registration of this._getOrderedContributions()) {
 			const { contribution } = registration;
-			if (!contribution.contributeSend) {
+			if (!contribution.onOutgoingTurn) {
 				continue;
 			}
 			try {
-				const result = await contribution.contributeSend(turn);
+				const result = await contribution.onOutgoingTurn(turn);
 				if (result?.instructions) {
 					instructions.push(...result.instructions);
 				}

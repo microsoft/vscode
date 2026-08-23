@@ -37,7 +37,7 @@ export class SessionTitleContribution extends Disposable implements IAgentHostCh
 		this._titleController.refineTitleFromFirstTurn(turn.session, chat);
 	}
 
-	async contributeSend(turn: IOutgoingTurn): Promise<ISendContribution | undefined> {
+	async onOutgoingTurn(turn: IOutgoingTurn): Promise<ISendContribution | undefined> {
 		const instruction = await this._titleController.prepareInstructionForAgent(turn.session, turn.chat);
 		return instruction ? { instructions: [instruction] } : undefined;
 	}

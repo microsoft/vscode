@@ -38,7 +38,7 @@ export class MarkdownPlanRichLinksContribution extends Disposable implements IAg
 		super();
 	}
 
-	contributeSend(turn: IOutgoingTurn): ISendContribution | undefined {
+	onOutgoingTurn(turn: IOutgoingTurn): ISendContribution | undefined {
 		return this._agentConfigService.getRootValue(platformRootSchema, AgentHostMarkdownPlanRichLinksEnabledConfigKey)
 			? { instructions: [createMarkdownPlanRichLinksInstruction(turn.chat)] }
 			: undefined;

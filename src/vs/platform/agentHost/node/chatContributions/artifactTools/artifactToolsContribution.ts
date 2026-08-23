@@ -22,7 +22,7 @@ export class ArtifactToolsContribution extends Disposable implements IAgentHostC
 		super();
 	}
 
-	contributeSend(): ISendContribution | undefined {
+	onOutgoingTurn(): ISendContribution | undefined {
 		return this._agentConfigService.getRootValue(platformRootSchema, AgentHostArtifactToolsConfigKey)
 			? { instructions: [ARTIFACT_TOOLS_INSTRUCTION] }
 			: undefined;

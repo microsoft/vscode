@@ -246,48 +246,52 @@ class FollowingActionContribution extends TestContribution {
 	}
 }
 
-class OrderedFirstUserMessageContribution extends TestContribution {
-	static readonly id = 'orderedFirstUserMessage';
+class OrderedFirstOutgoingTurnContribution extends TestContribution {
+	static readonly id = 'orderedFirstOutgoingTurn';
 	readonly order = 10;
 
-	onUserMessage(): void {
+	onOutgoingTurn(): undefined {
 		calls.push('first');
+		return undefined;
 	}
 }
 
-class OrderedSecondUserMessageContribution extends TestContribution {
-	static readonly id = 'orderedSecondUserMessage';
+class OrderedSecondOutgoingTurnContribution extends TestContribution {
+	static readonly id = 'orderedSecondOutgoingTurn';
 	readonly order = 0;
 
-	onUserMessage(): void {
+	onOutgoingTurn(): undefined {
 		calls.push('second');
+		return undefined;
 	}
 }
 
-class OrderedThirdUserMessageContribution extends TestContribution {
-	static readonly id = 'orderedThirdUserMessage';
+class OrderedThirdOutgoingTurnContribution extends TestContribution {
+	static readonly id = 'orderedThirdOutgoingTurn';
 	readonly order = 10;
 
-	onUserMessage(): void {
+	onOutgoingTurn(): undefined {
 		calls.push('third');
+		return undefined;
 	}
 }
 
-class ThrowingUserMessageContribution extends TestContribution {
-	static readonly id = 'throwingUserMessage';
+class ThrowingOutgoingTurnObserverContribution extends TestContribution {
+	static readonly id = 'throwingOutgoingTurnObserver';
 	readonly order = 20;
 
-	onUserMessage(): void {
+	onOutgoingTurn(): undefined {
 		throw new Error('expected');
 	}
 }
 
-class FollowingUserMessageContribution extends TestContribution {
-	static readonly id = 'followingUserMessage';
+class FollowingOutgoingTurnObserverContribution extends TestContribution {
+	static readonly id = 'followingOutgoingTurnObserver';
 	readonly order = 21;
 
-	onUserMessage(): void {
-		calls.push('followingUserMessage');
+	onOutgoingTurn(): undefined {
+		calls.push('followingOutgoingTurn');
+		return undefined;
 	}
 }
 
@@ -305,29 +309,29 @@ class OptionalContribution extends TestContribution {
 	static readonly id = 'optional';
 }
 
-class SendOrderFirstContribution extends TestContribution {
-	static readonly id = 'sendOrderFirst';
+class OutgoingTurnOrderFirstContribution extends TestContribution {
+	static readonly id = 'outgoingTurnOrderFirst';
 	readonly order = 11;
 
-	contributeSend(turn: IOutgoingTurn) {
+	onOutgoingTurn(turn: IOutgoingTurn) {
 		return turn.turnId === 'send-order' ? { instructions: ['first'] } : undefined;
 	}
 }
 
-class SendOrderSecondContribution extends TestContribution {
-	static readonly id = 'sendOrderSecond';
+class OutgoingTurnOrderSecondContribution extends TestContribution {
+	static readonly id = 'outgoingTurnOrderSecond';
 	readonly order = 10;
 
-	contributeSend(turn: IOutgoingTurn) {
+	onOutgoingTurn(turn: IOutgoingTurn) {
 		return turn.turnId === 'send-order' ? { instructions: ['second'] } : undefined;
 	}
 }
 
-class AsyncSendContribution extends TestContribution {
-	static readonly id = 'asyncSend';
+class AsyncOutgoingTurnContribution extends TestContribution {
+	static readonly id = 'asyncOutgoingTurn';
 	readonly order = 20;
 
-	async contributeSend(turn: IOutgoingTurn) {
+	async onOutgoingTurn(turn: IOutgoingTurn) {
 		if (turn.turnId !== 'send-async') {
 			return undefined;
 		}
@@ -337,11 +341,11 @@ class AsyncSendContribution extends TestContribution {
 	}
 }
 
-class ThrowingSendContribution extends TestContribution {
-	static readonly id = 'throwingSend';
+class ThrowingOutgoingTurnContribution extends TestContribution {
+	static readonly id = 'throwingOutgoingTurn';
 	readonly order = 30;
 
-	contributeSend(turn: IOutgoingTurn) {
+	onOutgoingTurn(turn: IOutgoingTurn) {
 		if (turn.turnId === 'send-failure') {
 			throw new Error('expected');
 		}
@@ -349,20 +353,20 @@ class ThrowingSendContribution extends TestContribution {
 	}
 }
 
-class FollowingSendContribution extends TestContribution {
-	static readonly id = 'followingSend';
+class FollowingOutgoingTurnContribution extends TestContribution {
+	static readonly id = 'followingOutgoingTurn';
 	readonly order = 31;
 
-	contributeSend(turn: IOutgoingTurn) {
+	onOutgoingTurn(turn: IOutgoingTurn) {
 		return turn.turnId === 'send-failure' ? { instructions: ['following'] } : undefined;
 	}
 }
 
-class EmptySendContribution extends TestContribution {
-	static readonly id = 'emptySend';
+class EmptyOutgoingTurnContribution extends TestContribution {
+	static readonly id = 'emptyOutgoingTurn';
 	readonly order = 40;
 
-	contributeSend(turn: IOutgoingTurn) {
+	onOutgoingTurn(turn: IOutgoingTurn) {
 		if (turn.turnId === 'send-empty-array') {
 			return { instructions: [] };
 		}
@@ -637,8 +641,13 @@ function turnEnd(turnId: string, reason: ITurnEnd['reason'] = { kind: 'success' 
 	return { session: 'agent-host-session://test', channel: buildDefaultChatUri('agent-host-session://test'), turnId, reason };
 }
 
-function outgoingTurn(turnId: string): IOutgoingTurn {
-	return { session: 'agent-host-session://test', chat: 'agent-host-session://test', turnId };
+function outgoingTurn(turnId: string, text = turnId): IOutgoingTurn {
+	return {
+		session: 'agent-host-session://test',
+		chat: 'agent-host-session://test',
+		message: { text, origin: { kind: MessageKind.User } },
+		turnId,
+	};
 }
 
 function hydrationContext(): IHydrationContext {
@@ -876,9 +885,9 @@ suite('AgentHostChatContributions', () => {
 		assert.deepStrictEqual(calls, ['second', 'first', 'third']);
 	});
 
-	test('dispatches user messages in contribution order while preserving registration order for ties', () => {
-		const contributions = disposables.add(createContributions(disposables, OrderedFirstUserMessageContribution, OrderedSecondUserMessageContribution, OrderedThirdUserMessageContribution));
-		contributions.userMessage('agent-host-session://test', 'ordered');
+	test('dispatches outgoing turns in contribution order while preserving registration order for ties', async () => {
+		const contributions = disposables.add(createContributions(disposables, OrderedFirstOutgoingTurnContribution, OrderedSecondOutgoingTurnContribution, OrderedThirdOutgoingTurnContribution));
+		await contributions.outgoingTurn(outgoingTurn('ordered'));
 
 		assert.deepStrictEqual(calls, ['second', 'first', 'third']);
 	});
@@ -911,9 +920,9 @@ suite('AgentHostChatContributions', () => {
 		});
 	});
 
-	test('runs built-in send contributions in the original sequence', async () => {
+	test('runs built-in outgoing-turn contributions in the original sequence', async () => {
 		const contributions = createBuiltInContributions(disposables, undefined, true);
-		const instructions = await contributions.contributeSend(outgoingTurn('built-in-send-order'));
+		const instructions = await contributions.outgoingTurn(outgoingTurn('built-in-send-order'));
 
 		assert.deepStrictEqual(instructions.map(instruction => {
 			if (instruction.includes('<rich_plan_markdown>')) {
@@ -1029,16 +1038,16 @@ suite('AgentHostChatContributions', () => {
 		assert.deepStrictEqual(calls, ['followingAction']);
 	});
 
-	test('isolates a throwing user message contribution', () => {
-		const contributions = disposables.add(createContributions(disposables, ThrowingUserMessageContribution, FollowingUserMessageContribution));
-		contributions.userMessage('agent-host-session://test', 'failure');
+	test('isolates a throwing outgoing-turn contribution', async () => {
+		const contributions = disposables.add(createContributions(disposables, ThrowingOutgoingTurnObserverContribution, FollowingOutgoingTurnObserverContribution));
+		await contributions.outgoingTurn(outgoingTurn('failure'));
 
-		assert.deepStrictEqual(calls, ['followingUserMessage']);
+		assert.deepStrictEqual(calls, ['followingOutgoingTurn']);
 	});
 
-	test('attaches GitHub references from user messages', () => {
+	test('attaches GitHub references from outgoing messages', async () => {
 		const { service, gitStateService } = createGitHubReferencesContributions(disposables);
-		service.userMessage('agent-host-session://test', 'Fix microsoft/vscode#42');
+		await service.outgoingTurn(outgoingTurn('github-references', 'Fix microsoft/vscode#42'));
 
 		assert.deepStrictEqual(gitStateService.attachedGitHubReferences, [{
 			session: 'agent-host-session://test',
@@ -1060,30 +1069,30 @@ suite('AgentHostChatContributions', () => {
 		assert.deepStrictEqual(calls, []);
 	});
 
-	test('collects send instructions in contribution order', async () => {
-		const contributions = disposables.add(createContributions(disposables, SendOrderFirstContribution, SendOrderSecondContribution));
+	test('collects outgoing-turn instructions in contribution order', async () => {
+		const contributions = disposables.add(createContributions(disposables, OutgoingTurnOrderFirstContribution, OutgoingTurnOrderSecondContribution));
 
-		assert.deepStrictEqual(await contributions.contributeSend(outgoingTurn('send-order')), ['second', 'first']);
+		assert.deepStrictEqual(await contributions.outgoingTurn(outgoingTurn('send-order')), ['second', 'first']);
 	});
 
-	test('awaits asynchronous send contributions', async () => {
-		const contributions = disposables.add(createContributions(disposables, AsyncSendContribution));
+	test('awaits asynchronous outgoing-turn contributions', async () => {
+		const contributions = disposables.add(createContributions(disposables, AsyncOutgoingTurnContribution));
 
-		assert.deepStrictEqual(await contributions.contributeSend(outgoingTurn('send-async')), ['async']);
+		assert.deepStrictEqual(await contributions.outgoingTurn(outgoingTurn('send-async')), ['async']);
 		assert.deepStrictEqual(calls, ['async']);
 	});
 
-	test('isolates a failing send contribution', async () => {
-		const contributions = disposables.add(createContributions(disposables, ThrowingSendContribution, FollowingSendContribution));
+	test('isolates a failing outgoing-turn contribution', async () => {
+		const contributions = disposables.add(createContributions(disposables, ThrowingOutgoingTurnContribution, FollowingOutgoingTurnContribution));
 
-		assert.deepStrictEqual(await contributions.contributeSend(outgoingTurn('send-failure')), ['following']);
+		assert.deepStrictEqual(await contributions.outgoingTurn(outgoingTurn('send-failure')), ['following']);
 	});
 
-	test('omits empty send contribution results', async () => {
-		const contributions = disposables.add(createContributions(disposables, EmptySendContribution));
+	test('omits empty outgoing-turn contribution results', async () => {
+		const contributions = disposables.add(createContributions(disposables, EmptyOutgoingTurnContribution));
 
-		assert.deepStrictEqual(await contributions.contributeSend(outgoingTurn('send-empty-array')), []);
-		assert.deepStrictEqual(await contributions.contributeSend(outgoingTurn('send-empty-object')), []);
+		assert.deepStrictEqual(await contributions.outgoingTurn(outgoingTurn('send-empty-array')), []);
+		assert.deepStrictEqual(await contributions.outgoingTurn(outgoingTurn('send-empty-object')), []);
 	});
 
 	test('threads hydrated turns through contributions in order', async () => {
