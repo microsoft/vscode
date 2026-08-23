@@ -3130,6 +3130,80 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		/** An external session two newer local sessions postdate is no longer recent. */
+		test('recent drops external sessions that two newer local sessions superseded', () => {
+			const hour = 60 * 60 * 1000;
+			const at = (hourOfDay: number) => Date.UTC(2026, 0, 1) + hourOfDay * hour;
+			const now = at(18);
+			const external = (id: string, modifiedTime: number): IAgentSessionMetadata => ({
+				session: AgentSession.uri('copilot', id),
+				startTime: modifiedTime,
+				modifiedTime,
+				_meta: withSessionExternal(undefined, true),
+			});
+			const local = (id: string, startTime: number): IAgentSessionMetadata => ({
+				session: AgentSession.uri('copilot', id),
+				startTime,
+				modifiedTime: startTime,
+			});
+			const morning = external('external-morning', at(10));
+			const afternoon = external('external-afternoon', at(16));
+			// The cutoff is snapshotted per service, so each case needs its own.
+			const recentIds = (...locals: IAgentSessionMetadata[]) => {
+				const svc = createExternalSessionService();
+				const keys = (svc as unknown as {
+					_getRecentSessionKeys(sessions: readonly IAgentSessionMetadata[], now: number): ReadonlySet<string>;
+				})._getRecentSessionKeys([morning, afternoon, ...locals], now);
+				return [...keys].map(key => AgentSession.id(URI.parse(key))).sort();
+			};
+
+			assert.deepStrictEqual({
+				noLocalSessionsAfter: recentIds(local('local-8am', at(8)), local('local-9am', at(9))),
+				oneLocalSessionAfter: recentIds(local('local-11am', at(11))),
+				twoLocalSessionsAfterTheMorningOne: recentIds(local('local-11am', at(11)), local('local-5pm', at(17))),
+				twoLocalSessionsAfterBoth: recentIds(local('local-5pm', at(17)), local('local-5pm-2', at(17))),
+			}, {
+				noLocalSessionsAfter: ['external-afternoon', 'external-morning'],
+				oneLocalSessionAfter: ['external-afternoon', 'external-morning'],
+				twoLocalSessionsAfterTheMorningOne: ['external-afternoon'],
+				twoLocalSessionsAfterBoth: [],
+			});
+		});
+
+		/** A first message creates a local session, so the cutoff must not re-measure per listing. */
+		testWithExternalSessionClock('recent snapshots the superseding local sessions until the external mode changes', async () => {
+			const hour = 60 * 60 * 1000;
+			const at = (hourOfDay: number) => Date.now() + hourOfDay * hour - 18 * hour;
+			const now = at(18);
+			const svc = createExternalSessionService();
+			const catalog: IAgentSessionMetadata[] = [
+				{ session: AgentSession.uri('copilot', 'external-morning'), startTime: at(10), modifiedTime: at(10), _meta: withSessionExternal(undefined, true) },
+				{ session: AgentSession.uri('copilot', 'external-afternoon'), startTime: at(16), modifiedTime: at(16), _meta: withSessionExternal(undefined, true) },
+			];
+			const recentIds = () => {
+				const keys = (svc as unknown as {
+					_getRecentSessionKeys(sessions: readonly IAgentSessionMetadata[], now: number): ReadonlySet<string>;
+				})._getRecentSessionKeys(catalog, now);
+				return [...keys].map(key => AgentSession.id(URI.parse(key))).sort();
+			};
+
+			const initial = recentIds();
+			for (const id of ['local-first', 'local-second']) {
+				catalog.push({ session: AgentSession.uri('copilot', id), startTime: at(17), modifiedTime: at(17) });
+			}
+			const afterLocalSessionsCreated = recentIds();
+			// Invalidation is synchronous; read before the queued reconciliation re-snapshots.
+			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.Recent, 1);
+			const afterModeChange = recentIds();
+			await waitForSessionListReconciliation(svc);
+
+			assert.deepStrictEqual({ initial, afterLocalSessionsCreated, afterModeChange }, {
+				initial: ['external-afternoon', 'external-morning'],
+				afterLocalSessionsCreated: ['external-afternoon', 'external-morning'],
+				afterModeChange: [],
+			});
+		});
+
 		testWithExternalSessionClock('filters external sessions in every mode', async () => {
 			const day = 24 * 60 * 60 * 1000;
 			const now = Date.now();

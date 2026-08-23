@@ -97,6 +97,11 @@ const SESSION_GC_GRACE_MS = 30_000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const EXTERNAL_SESSION_MAX_AGE_MS = 30 * DAY_MS;
 const RECENT_EXTERNAL_SESSION_LIMIT = 2;
+/**
+ * How many locally created sessions must postdate an external session's last
+ * update before {@link AgentHostExternalSessionsMode.Recent} stops surfacing it.
+ */
+const RECENT_EXTERNAL_SUPERSEDING_LOCAL_LIMIT = 2;
 /** A catalog pass slower than this is logged at info, since it delays every session-list refresh. */
 const SLOW_LIST_SESSIONS_THRESHOLD_MS = 1_000;
 
@@ -683,6 +688,9 @@ export class AgentService extends Disposable implements IAgentService {
 			if (nextMode !== externalSessionsMode) {
 				const previousMode = externalSessionsMode;
 				externalSessionsMode = nextMode;
+				// The only point past startup where `Recent` re-measures the
+				// superseding local sessions.
+				this._invalidateRecentSupersedingCutoff();
 				this._logService.info(`[AgentService] ${AgentHostShowExternalSessionsConfigKey} changed '${previousMode}' -> '${nextMode}'; queueing session list reconciliation`);
 				this._queueSessionListReconciliation(previousMode);
 			}
@@ -2154,10 +2162,12 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private _getRecentSessionKeys(sessions: readonly IAgentSessionMetadata[], now: number): ReadonlySet<string> {
+		const supersededBefore = this._getRecentSupersedingCutoff(sessions);
 		const recentExternalSessions = sessions
 			.filter(session => readSessionExternal(session._meta)
 				&& !readSessionEhcliAdoptable(session._meta)
-				&& session.modifiedTime >= now - 7 * DAY_MS)
+				&& session.modifiedTime >= now - 7 * DAY_MS
+				&& (supersededBefore === undefined || session.modifiedTime >= supersededBefore))
 			.sort((a, b) => {
 				const timeDifference = b.modifiedTime - a.modifiedTime;
 				if (timeDifference !== 0) {
@@ -2169,6 +2179,38 @@ export class AgentService extends Disposable implements IAgentService {
 			})
 			.slice(0, RECENT_EXTERNAL_SESSION_LIMIT);
 		return new Set(recentExternalSessions.map(session => session.session.toString()));
+	}
+
+	/**
+	 * Start time of the {@link RECENT_EXTERNAL_SUPERSEDING_LOCAL_LIMIT}-th most
+	 * recently created local session, or `undefined` while fewer exist. `Recent`
+	 * drops external sessions last updated before it.
+	 */
+	private _recentSupersedingCutoff: number | undefined;
+	private _hasRecentSupersedingCutoff = false;
+
+	/**
+	 * Snapshotted rather than derived per listing: sending a first message
+	 * materializes a local session, so a live cutoff would rotate an external
+	 * row out of the list mid-use. Refreshed only on a mode change.
+	 */
+	private _getRecentSupersedingCutoff(sessions: readonly IAgentSessionMetadata[]): number | undefined {
+		if (!this._hasRecentSupersedingCutoff) {
+			this._hasRecentSupersedingCutoff = true;
+			const localStartTimes = sessions
+				.filter(session => !readSessionExternal(session._meta) && Number.isFinite(session.startTime))
+				.map(session => session.startTime)
+				.sort((a, b) => b - a);
+			this._recentSupersedingCutoff = localStartTimes.length >= RECENT_EXTERNAL_SUPERSEDING_LOCAL_LIMIT
+				? localStartTimes[RECENT_EXTERNAL_SUPERSEDING_LOCAL_LIMIT - 1]
+				: undefined;
+		}
+		return this._recentSupersedingCutoff;
+	}
+
+	private _invalidateRecentSupersedingCutoff(): void {
+		this._hasRecentSupersedingCutoff = false;
+		this._recentSupersedingCutoff = undefined;
 	}
 
 	private _shouldIncludeSession(
