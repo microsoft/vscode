@@ -51,7 +51,7 @@ function parseRequestUrl(requestUrl: string): URL | undefined {
 	}
 }
 
-export function getRemoteResourceResponseHeaders(): Record<string, string> {
+function getRemoteResourceResponseHeaders(): Record<string, string> {
 	return {
 		'Content-Security-Policy': `default-src 'none'; sandbox`,
 		'X-Content-Type-Options': 'nosniff',
