@@ -208,6 +208,17 @@ export interface IAgentMaterializeChatEvent {
 }
 
 export type AgentProvider = string;
+export type AgentTurnProviderCallState = 'notStarted' | 'pending' | 'resolved' | 'rejected';
+export type AgentTurnProviderSessionState = 'active' | 'disconnecting' | 'disconnected' | 'shutdown';
+
+export type IAgentTurnDiagnosticSnapshot = {
+	readonly state: 'available';
+	readonly providerCallState: AgentTurnProviderCallState;
+	readonly providerTurnStarted: boolean;
+	readonly providerSessionState: AgentTurnProviderSessionState;
+} | {
+	readonly state: 'missingChat' | 'missingTurn';
+};
 
 /** Well-known agent provider id for the Claude agent-host backend. */
 export const CLAUDE_AGENT_PROVIDER_ID = 'claude' as const;
@@ -362,21 +373,6 @@ export interface IAgentCreateSessionConfig {
 	 * connection's own `clientId`.
 	 */
 	readonly activeClient?: SessionActiveClient;
-	/** Fork from an existing session at a specific turn. */
-	readonly fork?: {
-		readonly session: URI;
-		/** Exact source chat supplied transiently by the orchestrator. */
-		readonly chat: URI;
-		readonly turnIndex: number;
-		readonly turnId: string;
-		/**
-		 * Maps old protocol turn IDs to new protocol turn IDs.
-		 * Populated by the service layer after generating fresh UUIDs
-		 * for the forked session's turns. Used by the agent to remap
-		 * per-turn data (e.g. SDK event ID mappings) in the session database.
-		 */
-		readonly turnIdMapping?: ReadonlyMap<string, string>;
-	};
 	/**
 	 * Import an existing (e.g. local) conversation into a brand-new session as
 	 * real, editable turns. The provider translates {@link turns} into a
@@ -1109,6 +1105,9 @@ export interface IAgent {
 
 	/** Optional history mutation for providers with a native truncation operation. */
 	truncateChat?(chat: URI, turnId: string | undefined, context?: URI | IAgentChatContext): Promise<void>;
+
+	/** Return bounded diagnostics for an in-flight turn when supported. */
+	getTurnDiagnosticSnapshot?(chat: URI, turnId: string): IAgentTurnDiagnosticSnapshot | undefined;
 
 	// ---- Active clients and interaction ------------------------------------
 
