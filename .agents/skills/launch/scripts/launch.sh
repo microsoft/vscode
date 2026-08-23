@@ -48,6 +48,12 @@ while [[ $# -gt 0 ]]; do
 	esac
 done
 
+monotonic_ms() {
+	node -e 'process.stdout.write(String(process.hrtime.bigint() / 1_000_000n))'
+}
+
+LAUNCH_START_MS=$(monotonic_ms)
+
 if [[ -z "$REPO" ]]; then
 	if [[ -x "$PWD/scripts/code.sh" ]]; then
 		REPO="$PWD"
@@ -205,6 +211,7 @@ then
 	exit 1
 fi
 echo "[launch.sh] ensured files.simpleDialog.enable=true in $SETTINGS_FILE" >&2
+PROFILE_READY_MS=$(monotonic_ms)
 
 # Strip ELECTRON_RUN_AS_NODE, commonly inherited from VS Code's integrated
 # terminal / agent runtimes; it breaks ./scripts/code.sh.
@@ -244,6 +251,7 @@ if ! ( cd "$REPO" && node build/lib/preLaunch.ts ) >>"$LOG_FILE" 2>&1; then
 	tail -n 80 "$LOG_FILE" >&2
 	exit 1
 fi
+PRELAUNCH_READY_MS=$(monotonic_ms)
 
 # Launch code.sh in the background. Detaching with `nohup ... & disown` is
 # sufficient: by the time we return below, CDP is up and Electron is fully
@@ -274,6 +282,10 @@ else
 fi
 
 node -e '
+	const finishedAt = Number(process.hrtime.bigint() / 1_000_000n);
+	const startedAt = Number(process.argv[7]);
+	const profileReadyAt = Number(process.argv[8]);
+	const preLaunchReadyAt = Number(process.argv[9]);
 	console.log(JSON.stringify({
 		pid: '"$PID"',
 		cdpPort: '"$CDP_PORT"',
@@ -287,5 +299,11 @@ node -e '
 		logFile: process.argv[5],
 		repo: process.argv[6],
 		agents: '"$AGENTS"' === 1,
+		timings: {
+			profileMs: profileReadyAt - startedAt,
+			preLaunchMs: preLaunchReadyAt - profileReadyAt,
+			cdpReadyMs: finishedAt - preLaunchReadyAt,
+			totalMs: finishedAt - startedAt,
+		},
 	}));
-' "$DEST_UDD" "$EXT_DIR" "$SHARED_DATA_DIR" "$RUN_DIR" "$LOG_FILE" "$REPO"
+' "$DEST_UDD" "$EXT_DIR" "$SHARED_DATA_DIR" "$RUN_DIR" "$LOG_FILE" "$REPO" "$LAUNCH_START_MS" "$PROFILE_READY_MS" "$PRELAUNCH_READY_MS"
