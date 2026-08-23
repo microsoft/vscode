@@ -12,6 +12,7 @@ import * as path from 'path';
 import type { GitExtension, API, Repository } from '../api/git';
 import { Status } from '../api/git.constants';
 import { eventToPromise } from '../util';
+import { Git, findGit } from '../git';
 
 suite('git smoke test', function () {
 	const cwd = workspace.workspaceFolders![0].uri.fsPath;
@@ -151,6 +152,8 @@ suite('git smoke test', function () {
 		const expectCommitMessage = 'テスト';
 		const commitMessage = Buffer.from('a5c6a5b9a5c8', 'hex'); // Encoded in EUC-JP
 		const commitMessageFile = file('commit-message.txt');
+		const trackedFileName = 'tracked-file.txt';
+		const trackedFile = file(trackedFileName);
 
 		let previousCommitEncoding: string | undefined;
 		try {
@@ -168,9 +171,11 @@ suite('git smoke test', function () {
 
 		try {
 			fs.writeFileSync(commitMessageFile, commitMessage);
+			fs.writeFileSync(trackedFile, 'hello\n');
+			cp.execSync(`git add ${trackedFileName}`, { cwd });
 			cp.execSync('git config i18n.commitEncoding EUC-JP', { cwd });
 			cp.execSync('git config i18n.logOutputEncoding EUC-JP', { cwd });
-			cp.execSync(`git commit --allow-empty --file "${commitMessageFile}"`, { cwd });
+			cp.execSync(`git commit --file "${commitMessageFile}"`, { cwd });
 
 			const [commitLog] = await repository.log({ maxEntries: 1 });
 
@@ -178,6 +183,32 @@ suite('git smoke test', function () {
 
 			const commit = await repository.getCommit(commitLog.hash);
 			assert.strictEqual(commit.message, expectCommitMessage);
+
+			// Test internal Git/Repository methods that aren't exposed in the public API.
+			const testId = 'git-utf8-encoding-test';
+			const logger = window.createOutputChannel(testId, { log: true });
+			try {
+				const iGit = await findGit(['git'], () => true, logger);
+				const internalGit = new Git({ gitPath: iGit.path, userAgent: testId, version: iGit.version });
+				const dotGit = await internalGit.getRepositoryDotGit(cwd);
+				const internalRepository = internalGit.open(cwd, undefined, dotGit, logger);
+
+				const blame = await internalRepository.blame2(trackedFile);
+				assert.strictEqual(blame?.length, 1);
+				assert.strictEqual(blame[0].subject, expectCommitMessage);
+
+				const fileLog = await internalRepository.logFile(Uri.file(trackedFile));
+				assert.strictEqual(fileLog.length, 1);
+				assert.strictEqual(fileLog[0].message, expectCommitMessage);
+
+				const changes = await internalRepository.showChanges(commitLog.hash);
+				assert(changes.includes(expectCommitMessage));
+
+				const changesBetween = await internalRepository.showChangesBetween(`${commitLog.hash}^`, commitLog.hash);
+				assert(changesBetween.includes(expectCommitMessage));
+			} finally {
+				logger.dispose();
+			}
 		} finally {
 			// Clean up without masking the original failure
 			if (fs.existsSync(commitMessageFile)) {
