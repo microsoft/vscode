@@ -299,6 +299,11 @@ export class SessionChatInputToolbar extends Disposable {
 		}));
 		this._register(resizeObserver.observe(this._content));
 		this._register(resizeObserver.observe(pills.element));
+		this._register(this._scrollable.onScroll(e => {
+			if (e.scrollLeftChanged) {
+				this._onDidChangeChatPetPlatform.fire();
+			}
+		}));
 		this._register(addDisposableListener(this._content, EventType.FOCUS_IN, () => this._scrollable.scanDomNode()));
 
 		this._register(autorun(reader => {

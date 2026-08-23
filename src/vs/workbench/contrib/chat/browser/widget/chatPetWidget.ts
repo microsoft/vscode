@@ -511,6 +511,10 @@ export function isChatPetWindowActive(activeWindowId: number, targetWindowId: nu
 	return activeWindowId === targetWindowId;
 }
 
+export function shouldClaimChatPetWindowOnConstruction(windowActive: boolean, documentFocused: boolean): boolean {
+	return windowActive && documentFocused;
+}
+
 export function isChatPetKeyboardInteractionEnabled(enabled: boolean, isDead: boolean, hasPointerInteraction: boolean, isAirborne: boolean, onTheRun: boolean): boolean {
 	return enabled && !isDead && !hasPointerInteraction && !isAirborne && !onTheRun;
 }
@@ -1383,7 +1387,9 @@ export class ChatPetWidget extends Disposable {
 				windowActive.set(false, undefined);
 			}
 		}));
-		claimWindowOwnership();
+		if (shouldClaimChatPetWindowOnConstruction(windowActive.get(), targetWindow.document.hasFocus())) {
+			claimWindowOwnership();
+		}
 		this._register(autorun(reader => {
 			const wasMotionReduced = this._motionReduced;
 			this._motionReduced = motionReduced.read(reader);
