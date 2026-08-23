@@ -308,7 +308,8 @@ suite('ChatListWidget', () => {
 		disposables.dispose();
 	});
 
-	test('keeps responses visible when a filter excludes their requests', async () => {		const { disposables, model, viewModel, widget } = createWidget({
+	test('keeps responses visible when a filter excludes their requests', async () => {
+		const { disposables, model, viewModel, widget } = createWidget({
 			filter: { filter: item => isResponseVM(item) },
 		});
 		const text = 'question';
