@@ -16,6 +16,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { scrollbarShadow } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -338,6 +339,7 @@ export class ChatView extends AbstractChatView {
 		return {
 			listForeground: active ? activeSessionViewForeground : inactiveSessionViewForeground,
 			listBackground: active ? activeSessionViewBackground : inactiveSessionViewBackground,
+			listShadow: scrollbarShadow,
 			overlayBackground: EDITOR_DRAG_AND_DROP_BACKGROUND,
 			inputEditorBackground: inactiveSessionViewBackground,
 			resultEditorBackground: agentsPanelBackground,

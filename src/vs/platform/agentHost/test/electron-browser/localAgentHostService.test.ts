@@ -19,7 +19,7 @@ import { INotificationService } from '../../../notification/common/notification.
 import { TestNotificationService } from '../../../notification/test/common/testNotificationService.js';
 import { ITelemetryData } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
-import { AgentHostClientState, RemoteAgentHostProtocolClient } from '../../browser/remoteAgentHostProtocolClient.js';
+import { AgentHostClientState, AgentHostProtocolClient } from '../../browser/agentHostProtocolClient.js';
 import { isFatalAgentHostStartError, toFatalAgentHostStartError } from '../../common/agent.js';
 import { AGENT_HOST_CLIENT_PROXY_CHANNEL } from '../../common/agentHostClientProxyChannel.js';
 import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, AgentHostClientByokLmChannel } from '../../common/agentHostClientByokLmChannel.js';
@@ -143,7 +143,7 @@ suite('registerAgentHostClientChannels', () => {
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IEnvironmentService, { logsHome: URI.file('/logs') } as Partial<IEnvironmentService>);
 		instantiationService.stub(INotificationService, notifications);
-		instantiationService.stubInstance(RemoteAgentHostProtocolClient, protocolClient);
+		instantiationService.stubInstance(AgentHostProtocolClient, protocolClient);
 		instantiationService.stubInstance(AgentHostStartupTelemetry, startupTelemetry);
 		instantiationService.set(IInstantiationService, instantiationService);
 		const service = disposables.add(instantiationService.createInstance(LocalAgentHostServiceClient, editorWindowAgentHostClientInfo));

@@ -18,6 +18,7 @@ import { Menus } from '../../../browser/menus.js';
 import { ISessionContext, SessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { setSessionContextKeys } from '../../../services/sessions/common/sessionContextKeys.js';
+import { ISessionChangesStatsCache } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 
 /** Adapts the session metadata menu to observable chat-pill descriptors. */
 export class SessionMetadataPills extends Disposable {
@@ -33,6 +34,7 @@ export class SessionMetadataPills extends Disposable {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMenuService menuService: IMenuService,
+		@ISessionChangesStatsCache changesStatsCache: ISessionChangesStatsCache,
 	) {
 		super();
 
@@ -43,7 +45,7 @@ export class SessionMetadataPills extends Disposable {
 		)));
 
 		this._register(autorun(reader => {
-			setSessionContextKeys(session.read(reader), scopedContextKeyService, reader);
+			setSessionContextKeys(session.read(reader), scopedContextKeyService, reader, changesStatsCache);
 		}));
 
 		const menu = this._register(menuService.createMenu(Menus.SessionHeaderMeta, scopedContextKeyService, { emitEventsForSubmenuChanges: true }));

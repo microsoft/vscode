@@ -56,7 +56,7 @@
 	min-width: 0;
 }
 
-.monaco-workbench .chat-pill-icon.codicon[class*='codicon-'] {
+.monaco-workbench .chat-pill-icon.codicon {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -97,9 +97,9 @@
 	white-space: nowrap;
 }
 
-/* The chevron glyph is drawn above the middle of its box, so nudge it onto the
-	label's optical centre. */
-.monaco-workbench .chat-pill-chevron.codicon[class*='codicon-'] {
+/* The chevron shares the leading glyph's compact box. `chevron-down-compact` is
+	drawn on that box's centre, so it needs no nudge to sit on the label. */
+.monaco-workbench .chat-pill-chevron.codicon {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -108,7 +108,6 @@
 	margin: 0;
 	font-size: var(--vscode-codiconFontSize-compact);
 	flex-shrink: 0;
-	transform: translateY(1px);
 }
 
 /* The themed file icon carries its own leading gap, so the pill adds barely any. */
