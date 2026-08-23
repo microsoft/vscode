@@ -254,7 +254,7 @@ export interface IComposeAgentHostBootstrapScriptArgs {
 	readonly os: string;
 	readonly arch: string;
 	readonly telemetryLevel?: TelemetryConfiguration;
-	/** Dev override; when set, returned verbatim and all CLI bootstrap is skipped. */
+	/** Dev override; executed verbatim with no appended arguments. All CLI bootstrap is skipped. */
 	readonly remoteAgentHostCommand?: string;
 }
 
@@ -276,6 +276,7 @@ export interface IComposeAgentHostBootstrapScriptArgs {
 export function composeAgentHostBootstrapScript(args: IComposeAgentHostBootstrapScriptArgs): string {
 	const telemetryLevel = validateAgentHostTelemetryLevel(args.telemetryLevel ?? TelemetryConfiguration.OFF);
 	if (args.remoteAgentHostCommand) {
+		// The override may not be the VS Code CLI, so pass launch restrictions out-of-band.
 		return `export ${AgentHostTelemetryLevelEnvKey}=${telemetryLevel} && ${args.remoteAgentHostCommand}`;
 	}
 	const installRoot = getRemoteCLIInstallRoot(args.serverDataFolderName);
