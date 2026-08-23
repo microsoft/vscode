@@ -401,7 +401,12 @@ export class FoldingController extends Disposable implements IEditorContribution
 			return;
 		}
 		if (!e.event.leftButton && !e.event.middleButton) {
-			return;
+			// Gesture taps (Android vscode.dev) dispatch with leftButton: false.
+			// Allow those taps on the inline folded placeholder ("...") and on
+			// empty content after a folded line (unfoldOnClickAfterEndOfLine).
+			if (e.target.type !== MouseTargetType.CONTENT_TEXT && e.target.type !== MouseTargetType.CONTENT_EMPTY) {
+				return;
+			}
 		}
 		const range = e.target.range;
 		let iconClicked = false;
@@ -503,6 +508,9 @@ export class FoldingController extends Disposable implements IEditorContribution
 						toToggle.push(region);
 					}
 				}
+				// Consume the paired mousedown so a duplicate mouseup (pointerup + compatibility
+				// mouseup on Android Chrome) cannot immediately toggle the region back.
+				this.mouseDownInfo = null;
 				foldingModel.toggleCollapseState(toToggle);
 				this.reveal({ lineNumber, column: 1 });
 			}
