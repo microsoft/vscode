@@ -280,7 +280,10 @@ export interface SessionWorkingDirectorySetAction {
  * reduced set — so this action is safe to model as idempotent. A host MAY
  * decline to apply the removal (e.g. an immutable primary directory, see
  * {@link MultipleWorkingDirectoriesCapability.immutablePrimary}); it then leaves
- * the set unchanged.
+ * the set unchanged. When the agent advertises
+ * {@link MultipleWorkingDirectoriesCapability.primaryReplacement}, clients MUST
+ * NOT use this generic membership action to remove index `0`; the host MUST
+ * reject such a removal, leaving the protected slot intact.
  *
  * @category Session Actions
  * @version 1
@@ -290,6 +293,37 @@ export interface SessionWorkingDirectoryRemovedAction {
 	type: ActionType.SessionWorkingDirectoryRemoved;
 	/** The working directory to revoke the session's agent tool access to. */
 	directory: URI;
+}
+
+/**
+ * Atomically replaces one of the session's working directories.
+ *
+ * This is a targeted compare-and-swap: the reducer is a no-op when
+ * {@link SessionState.workingDirectories} does not contain `directory`.
+ * Otherwise it replaces that entry with `replacement` and deduplicates the
+ * result, preserving every other directory's relative order. When
+ * `replacement` occurs after the target, it moves to the target's position;
+ * for example, `[A, B, C]` with `B → C` becomes `[A, C]`. When it occurs
+ * before the target, it retains its earlier position and the target is removed;
+ * `[A, B, C]` with `C → A` becomes `[A, B]`.
+ *
+ * Only valid when the agent advertises
+ * {@link AgentCapabilities.multipleWorkingDirectories}. Replacing index `0`
+ * additionally requires
+ * {@link MultipleWorkingDirectoriesCapability.primaryReplacement}; clients
+ * MUST NOT target an immutable primary. The host MUST validate and apply its
+ * backend side effect before broadcasting an accepted action, or reject it.
+ *
+ * @category Session Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface SessionWorkingDirectoryReplacedAction {
+	type: ActionType.SessionWorkingDirectoryReplaced;
+	/** URI of the existing entry to replace. */
+	directory: URI;
+	/** URI to place in the replaced entry's position. */
+	replacement: URI;
 }
 
 // ─── Input Needed Actions ────────────────────────────────────────────────────

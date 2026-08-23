@@ -123,7 +123,7 @@ function exactChatContext(session: URI, chat: URI, resource: URI = chat): IAgent
  * call addressed to the session's first chat, with the owning session as the
  * persistence scope, so the creation also stands the session's runtime up.
  */
-async function provisionSession(agent: CopilotAgent, config: IAgentCreateSessionConfig & { readonly session: URI }): Promise<IAgentCreateChatResult & { readonly session: URI }> {
+async function provisionSession(agent: CopilotAgent, config: IAgentCreateSessionConfig & { readonly session: URI }, chatOptions?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult & { readonly session: URI }> {
 	const chat = defaultChatUri(config.session);
 	const result = await agent.chats.createChat(chat, exactChatContext(config.session, chat, config.session), {
 		model: config.model,
@@ -131,16 +131,9 @@ async function provisionSession(agent: CopilotAgent, config: IAgentCreateSession
 		workingDirectories: config.workingDirectories,
 		config: config.config,
 		activeClient: config.activeClient,
-		deferBacking: !config.fork && !config.importConversation,
+		deferBacking: !chatOptions?.fork && !config.importConversation,
 		importConversation: config.importConversation,
-		...(config.fork ? {
-			fork: {
-				source: config.fork.chat,
-				turnIndex: config.fork.turnIndex,
-				turnId: config.fork.turnId,
-				turnIdMapping: config.fork.turnIdMapping,
-			},
-		} : {}),
+		...chatOptions,
 	});
 	// The provider contract no longer echoes `session` back; the test already
 	// knows it from `config`, so augment locally for test ergonomics only.
@@ -335,7 +328,6 @@ class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 	getContent(): string | undefined { return undefined; }
 	getClaim(): undefined { return undefined; }
 	hasTerminal(): boolean { return false; }
-	getExitCode(): number | undefined { return undefined; }
 	supportsCommandDetection(): boolean { return false; }
 	disposeTerminal(): void { }
 	getTerminalInfos(): [] { return []; }
@@ -735,8 +727,6 @@ class TestProxyResolver implements IAgentHostProxyResolver {
 			}
 		});
 	}
-
-	bindConfigurationService(_configurationService: IAgentConfigurationService, _transient: boolean): void { }
 
 	getConfigurationValue<T>(_key: string): T | undefined {
 		return undefined;
@@ -6040,11 +6030,11 @@ suite('CopilotAgent', () => {
 			const client = new TestCopilotClient([]);
 			const agent = createTestAgent(disposables, { copilotClient: client });
 			const session = AgentSession.uri('copilotcli', 'same-session');
+			const chat = defaultChatUri(session);
 
 			try {
-				await assert.rejects(() => provisionSession(agent, {
-					session,
-					fork: { session, chat: defaultChatUri(session), turnIndex: 0, turnId: 'turn-1' },
+				await assert.rejects(() => agent.chats.createChat(chat, exactChatContext(session, chat), {
+					fork: { source: chat, turnId: 'turn-1' },
 				}), /Cannot fork Copilot chat .* onto itself/);
 				assert.strictEqual(client.startCallCount, 0);
 			} finally {
@@ -6069,10 +6059,9 @@ suite('CopilotAgent', () => {
 				const result = await provisionSession(agent, {
 					session: target,
 					workingDirectories: [URI.file('/ignored-client-workspace')],
+				}, {
 					fork: {
-						session: source,
-						chat: defaultChatUri(source),
-						turnIndex: 0,
+						source: defaultChatUri(source),
 						turnId: sourceTurn.id,
 						turnIdMapping: new Map([[sourceTurn.id, forkedTurnId]]),
 					},
@@ -6080,10 +6069,9 @@ suite('CopilotAgent', () => {
 				const retried = await provisionSession(agent, {
 					session: target,
 					workingDirectories: [URI.file('/different-retry-workspace')],
+				}, {
 					fork: {
-						session: source,
-						chat: defaultChatUri(source),
-						turnIndex: 0,
+						source: defaultChatUri(source),
 						turnId: sourceTurn.id,
 					},
 				});
@@ -6142,11 +6130,10 @@ suite('CopilotAgent', () => {
 
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
-				// A fork that stands a session up stores into the session scope;
-				// a fork into an existing session's own chat stores into the chat.
 				await provisionSession(agent, {
 					session: target,
-					fork: { session: source, chat: defaultChatUri(source), turnIndex: 0, turnId: sourceTurn.id },
+				}, {
+					fork: { source: defaultChatUri(source), turnId: sourceTurn.id },
 				});
 				await agent.chats.createChat(peerChat, exactChatContext(target, peerChat), {
 					workingDirectories: [URI.file('/target-workspace')],
@@ -6175,10 +6162,9 @@ suite('CopilotAgent', () => {
 				await agent.authenticate('https://api.github.com', 'token');
 				const result = await provisionSession(agent, {
 					session: target,
+				}, {
 					fork: {
-						session: source,
-						chat: defaultChatUri(source),
-						turnIndex: 0,
+						source: defaultChatUri(source),
 						turnId: sourceTurn.id,
 					},
 				});
@@ -7542,10 +7528,6 @@ suite('CopilotAgent', () => {
 				await disposeAgent(agent);
 			}
 		});
-
-		// Forking a provisional session is no longer a special case: the agent
-		// service drops `config.fork` for sources with no turns, so the call
-		// reduces to a plain new-session create.
 
 		test('materialization passes VS Code-specific system message to the SDK', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
