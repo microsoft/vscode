@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { promiseWithResolvers } from '../../../../../base/common/async.js';
+import { sep } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -187,6 +188,25 @@ suite('Workspace Trust', () => {
 			const testObject = await initializeTestObject();
 
 			assert.strictEqual(true, testObject.isWorkspaceTrusted());
+		});
+
+		test('trust folder passed via --trust-folder with a trailing separator', async () => {
+			await configurationService.setUserConfiguration('security', getUserSettings(true, false));
+
+			const folder = URI.file('/trusted-trailing-separator');
+			environmentService.trustedFolders = [`${folder.fsPath}${sep}`];
+			instantiationService.stub(IWorkbenchEnvironmentService, { ...environmentService });
+
+			workspaceService.setWorkspace(testWorkspace(folder));
+			const testObject = await initializeTestObject();
+
+			assert.deepStrictEqual({
+				workspaceTrusted: testObject.isWorkspaceTrusted(),
+				trustedUris: testObject.getTrustedUris().map(uri => uri.toString())
+			}, {
+				workspaceTrusted: true,
+				trustedUris: [folder.toString()]
+			});
 		});
 
 		test('trust multiple folders passed via --trust-folder', async () => {

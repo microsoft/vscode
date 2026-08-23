@@ -294,6 +294,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			let uri: URI;
 			try {
 				uri = folder.includes('://') ? URI.parse(folder) : URI.file(folder);
+				uri = this.uriIdentityService.extUri.removeTrailingPathSeparator(uri);
 			} catch {
 				continue; // ignore a malformed --trust-folder value
 			}
