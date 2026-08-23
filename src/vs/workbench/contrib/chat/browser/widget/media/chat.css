@@ -40,6 +40,24 @@
 	overflow: hidden;
 }
 
+.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-tree-sticky-container.source-node-partially-visible .monaco-tree-sticky-container-shadow {
+	display: none;
+}
+
+.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-tree-sticky-container:not(.source-node-partially-visible) .monaco-tree-sticky-container-shadow {
+	pointer-events: none;
+	transform: translateY(var(--vscode-spacing-size80));
+}
+
+.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-tree-sticky-container:not(.source-node-partially-visible) .monaco-tree-sticky-container-shadow::before {
+	content: "";
+	position: absolute;
+	inset-inline: 0;
+	inset-block-end: 100%;
+	height: var(--vscode-spacing-size80);
+	background-color: var(--vscode-chat-list-background);
+}
+
 .interactive-list > .chat-scroll-down {
 	padding: 4px;
 }
@@ -656,7 +674,7 @@
 }
 
 .chat-list-at-bottom .chat-progress-reservable > .value:has(> .rendered-markdown:last-child) {
-	padding-bottom: var(--vscode-spacing-size360);
+	padding-bottom: calc(var(--vscode-spacing-size360) + var(--vscode-strokeThickness));
 }
 
 .interactive-item-container .value > :last-child,
@@ -4038,6 +4056,23 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		display: none;
 	}
 
+	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown.chat-request-has-more > p:first-child::after {
+		content: '\2026';
+	}
+
+	.monaco-tree-sticky-row .interactive-item-container.interactive-request {
+		padding-block: var(--vscode-spacing-size80) 0;
+	}
+
+	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value .rendered-markdown {
+		margin-bottom: 0;
+	}
+
+	.monaco-tree-sticky-row.source-node-partially-visible .interactive-item-container.interactive-request .value .rendered-markdown {
+		border-bottom-left-radius: 0;
+		border-bottom-right-radius: 0;
+	}
+
 	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value .rendered-markdown .chat-request-text.sticky-editing {
 		font-style: italic;
 	}
@@ -4532,7 +4567,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.checkpoint-container.group-hovered,
 	.checkpoint-container:has(.chat-restore-checkpoint-item.confirming),
 	.interactive-item-container.interactive-request:not(.editing):hover .checkpoint-container,
-	.monaco-tree-sticky-row .checkpoint-container,
 	.monaco-tree-sticky-row .interactive-item-container.interactive-request .request-hover {
 		opacity: 1;
 	}
@@ -4549,7 +4583,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		outline: none !important;
 	}
 
-	div[data-index="0"] .monaco-tl-contents {
+	div[data-index="0"]:not(.monaco-tree-sticky-row) .monaco-tl-contents {
 		.interactive-item-container.interactive-request:not(.editing) {
 			padding-top: var(--vscode-spacing-size200);
 		}

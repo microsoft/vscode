@@ -17,6 +17,8 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, IAgent } from '../../common/agent.js';
+import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri, buildSubagentChatUri, ChatInputQuestionKind, MessageKind, ResponsePartKind, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind } from '../../common/state/sessionState.js';
@@ -31,6 +33,7 @@ import { AgentSideEffects } from '../../node/agentSideEffects.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostTurnTracker, TURN_ACTIVITY_NONE, TURN_HANG_THRESHOLD_MS } from '../../node/agentHostTurnTracker.js';
 import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
+import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { MockAgent } from './mockAgent.js';
@@ -122,7 +125,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			message: { text: 'hello', origin: { kind: MessageKind.User }, ...(modelId ? { model: { id: modelId } } : {}) },
 		};
 		stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 1 });
-		sideEffects.handleAction(defaultChatUri, action);
+		sideEffects.handleAction(defaultChatUri, action, 'test');
 	}
 
 	function fire(action: ChatAction): void {
@@ -190,6 +193,12 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 				await checkpointGate?.p;
 			},
 		};
+		const clientConnections = disposables.add(new AgentHostClientConnectionService());
+		disposables.add(clientConnections.registerSource({
+			hasSeenClient: clientId => clientId === 'test',
+			isClientConnected: clientId => clientId === 'test',
+			getConnectedClientTransportCounts: () => new Map([['test', 1]]),
+		}));
 		const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
 			[ILogService, logService],
 			[IAgentConfigurationService, configService],
@@ -198,6 +207,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			[ITelemetryService, telemetryService],
 			[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
 			[ISessionDataService, sessionDataService],
+			[IAgentHostClientConnectionService, clientConnections],
 		), /*strict*/ true));
 		sideEffects = disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, customizationEnablementService, {
 			getAgent: () => agent,
@@ -235,6 +245,8 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 				hadAnyProgress: false,
 				lastActivityKind: TURN_ACTIVITY_NONE,
 				currentStage: 'provider',
+				providerDiagnosticState: 'unsupported',
+				initiatorClientConnectionState: 'connected',
 				blockedOn: undefined,
 				toolId: undefined,
 				toolSourceKind: undefined,
@@ -413,7 +425,11 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 	});
 
 	test('reports the active stage', async () => {
-		const tracker = disposables.add(new AgentHostTurnTracker(new AgentHostTelemetryReporter(telemetry)));
+		const tracker = disposables.add(new AgentHostTurnTracker(
+			new AgentHostTelemetryReporter(telemetry),
+			disposables.add(new AgentHostClientConnectionService()),
+			new NullLogService(),
+		));
 		const cases = [
 			{ session: AgentSession.uri('mock', 'validation').toString(), stage: 'validation' },
 			{ session: AgentSession.uri('mock', 'working-directory').toString(), stage: 'workingDirectory' },
@@ -424,7 +440,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 
 		await runWithFakedTimers({}, async () => {
 			for (const item of cases) {
-				tracker.turnStarted('mock', item.session, 'turn', undefined, undefined, 'default', undefined, undefined);
+				tracker.turnStarted(agent, item.session, 'turn', undefined, undefined, 'default', undefined, undefined);
 				tracker.setCurrentStage(item.session, 'turn', item.stage);
 			}
 			await timeout(TURN_HANG_THRESHOLD_MS);
@@ -447,6 +463,100 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 				hangReason: 'noProgress',
 				hangReportCount: 1,
 			})),
+		});
+	});
+
+	test('reports provider lifecycle and initiating client connection snapshots', async () => {
+		const clientConnections = disposables.add(new AgentHostClientConnectionService());
+		disposables.add(clientConnections.registerSource({
+			hasSeenClient: clientId => clientId === 'connected-client',
+			isClientConnected: clientId => clientId === 'connected-client',
+			getConnectedClientTransportCounts: () => new Map([['connected-client', 1]]),
+		}));
+		const diagnosticAgent = disposables.add(new MockAgent('copilotcli'));
+		diagnosticAgent.getTurnDiagnosticSnapshot = () => ({
+			state: 'available',
+			providerCallState: 'pending',
+			providerTurnStarted: false,
+			providerSessionState: 'active',
+		});
+		const tracker = disposables.add(new AgentHostTurnTracker(
+			new AgentHostTelemetryReporter(telemetry),
+			clientConnections,
+			new NullLogService(),
+		));
+		const session = AgentSession.uri('copilotcli', 'lifecycle').toString();
+
+		await runWithFakedTimers({}, async () => {
+			tracker.turnStarted(
+				diagnosticAgent,
+				session,
+				'turn',
+				undefined,
+				undefined,
+				'default',
+				undefined,
+				undefined,
+				createUnknownAgentHostClientTelemetryContext(AgentHostClientType.AgentsWindow),
+				'connected-client',
+			);
+			tracker.setCurrentStage(session, 'turn', 'provider');
+			await timeout(TURN_HANG_THRESHOLD_MS);
+		});
+
+		assert.deepStrictEqual(hangEvents().at(-1)?.data, {
+			provider: 'copilotcli',
+			agentSessionId: 'lifecycle',
+			chatSessionId: getTelemetryChatSessionId(session),
+			isSubagentSession: false,
+			turnId: 'turn',
+			hangReason: 'noProgress',
+			isExpected: false,
+			hadAnyProgress: false,
+			lastActivityKind: TURN_ACTIVITY_NONE,
+			currentStage: 'provider',
+			providerDiagnosticState: 'available',
+			providerCallState: 'pending',
+			providerTurnStarted: false,
+			providerSessionState: 'active',
+			initiatorClientType: 'agents_window',
+			initiatorClientConnectionState: 'connected',
+			blockedOn: undefined,
+			toolId: undefined,
+			toolSourceKind: undefined,
+			inFlightToolCallCount: 0,
+			quietTimeMs: true,
+			turnElapsedMs: true,
+			model: undefined,
+			modelSelectionKind: 'default',
+			permissionLevel: undefined,
+		});
+	});
+
+	test('reports diagnostic errors without losing the hang event', async () => {
+		const diagnosticAgent = disposables.add(new MockAgent('copilotcli'));
+		diagnosticAgent.getTurnDiagnosticSnapshot = () => {
+			throw new Error('diagnostic failed');
+		};
+		const tracker = disposables.add(new AgentHostTurnTracker(
+			new AgentHostTelemetryReporter(telemetry),
+			disposables.add(new AgentHostClientConnectionService()),
+			new NullLogService(),
+		));
+		const session = AgentSession.uri('copilotcli', 'diagnostic-error').toString();
+
+		await runWithFakedTimers({}, async () => {
+			tracker.turnStarted(diagnosticAgent, session, 'turn', undefined, undefined, 'default', undefined, undefined);
+			tracker.setCurrentStage(session, 'turn', 'provider');
+			await timeout(TURN_HANG_THRESHOLD_MS);
+		});
+
+		assert.deepStrictEqual({
+			providerDiagnosticState: hangEvents().at(-1)?.data.providerDiagnosticState,
+			hangReason: hangEvents().at(-1)?.data.hangReason,
+		}, {
+			providerDiagnosticState: 'error',
+			hangReason: 'noProgress',
 		});
 	});
 

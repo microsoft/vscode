@@ -68,7 +68,7 @@ import { AgentHostSessionTitleSignal, IAgentHostSessionTitleSignal } from '../..
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { IAgentHostAuthenticationService, type IAgentHostAuthTokenChangeEvent } from '../../node/agentHostAuthenticationService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
-import { createTestAgentService } from './agentServiceTestUtils.js';
+import { createTestAgentService, getTestAgentStateManager } from './agentServiceTestUtils.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { makeMcpServerCustomization } from '../../../agentPlugins/common/pluginParsers.js';
 import { ClaudeAgent, fromSdkModelInfo } from '../../node/claude/claudeAgent.js';
@@ -2162,7 +2162,7 @@ suite('ClaudeAgent', () => {
 		// AgentSideEffects publishes registered providers into root state
 		// on the next autorun tick. The state manager exposes the root
 		// state via a public accessor.
-		const rootAgents = service.stateManager.rootState.agents;
+		const rootAgents = getTestAgentStateManager(service).rootState.agents;
 		assert.deepStrictEqual(
 			rootAgents.map(a => ({ provider: a.provider, displayName: a.displayName })),
 			[{ provider: 'claude', displayName: 'Claude' }],
