@@ -1,6 +1,6 @@
 {
 	"date": "2026-08-23",
-	"commit": "pending",
+	"commit": "26e51087e35",
 	"surface": "agents",
 	"skipPreLaunch": true,
 	"fixtureRoot": "/tmp/vscode-launch-prelaunch-verification",
