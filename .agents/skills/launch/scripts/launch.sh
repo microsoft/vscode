@@ -260,18 +260,18 @@ disown $PID 2>/dev/null || true
 # visible.
 echo "[launch.sh] waiting for CDP on port $CDP_PORT (timeout 90s)..." >&2
 READY=0
-for i in $(seq 1 90); do
+for ((i = 0; i < 900; i++)); do
 	if ! kill -0 "$PID" 2>/dev/null; then
 		echo "[launch.sh] code.sh (PID $PID) exited before CDP came up. Log tail:" >&2
 		tail -n 80 "$LOG_FILE" >&2
 		exit 1
 	fi
-	if curl -sf -o /dev/null --max-time 1 "http://127.0.0.1:$CDP_PORT/json/version" 2>/dev/null; then
+	if curl -sf -o /dev/null --max-time 0.2 "http://127.0.0.1:$CDP_PORT/json/version" 2>/dev/null; then
 		READY=1
-		echo "[launch.sh] CDP ready after ${i}s" >&2
+		echo "[launch.sh] CDP ready after $((i * 100))ms" >&2
 		break
 	fi
-	sleep 1
+	sleep 0.1
 done
 if [[ "$READY" != "1" ]]; then
 	echo "[launch.sh] timed out waiting for CDP on port $CDP_PORT. Log tail:" >&2
