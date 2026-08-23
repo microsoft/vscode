@@ -971,14 +971,13 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		// Multi-header reasoning summaries render each header section as its own
-		// row so the dropdown reads as a list. Fixed-scrolling keeps its single
-		// auto-scrolling block. Sibling rows need an attached container so their
+		// row so the dropdown reads as a list. Sibling rows need an attached container so their
 		// insertion isn't a no-op, so a detached (lazy) container falls through to
 		// single-block rendering until it is materialized. A block drops its leading
 		// header only when that header is the tracked title owner, so a grouped block
 		// never drops a header that isn't surfaced as the title.
 		const dropLeadingHeader = this.droppedSummaryHeader !== undefined && extractTitleFromThinkingContent(cleanedContent) === this.droppedSummaryHeader;
-		const summaryRows = this.fixedScrollingMode ? undefined : splitReasoningSummaryRows(cleanedContent, dropLeadingHeader);
+		const summaryRows = splitReasoningSummaryRows(cleanedContent, dropLeadingHeader);
 		if (summaryRows && this.textContainer?.parentNode) {
 			this.renderSummaryRows(summaryRows);
 			return;
@@ -1097,7 +1096,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			return;
 		}
 		const trimmed = value.trim();
-		if (!this.fixedScrollingMode && splitReasoningSummaryRows(trimmed, true)) {
+		if (splitReasoningSummaryRows(trimmed, true)) {
 			this.droppedSummaryHeader = extractTitleFromThinkingContent(trimmed);
 		}
 	}
