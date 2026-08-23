@@ -106,10 +106,13 @@ async function ensureFixture(workspace) {
 	}
 }
 
-function launcherInvocation(surface, workspace) {
+function launcherInvocation(surface, workspace, skipPreLaunch) {
 	const launcherArgs = surface === 'agents'
 		? ['--agents']
 		: ['--', workspace];
+	if (skipPreLaunch) {
+		launcherArgs.unshift('--skip-prelaunch');
+	}
 	if (process.platform === 'win32') {
 		return {
 			command: 'powershell',
@@ -160,9 +163,11 @@ async function cleanupLaunch(info) {
 	}
 }
 
-async function runTrial(surface, workspace, timeoutMs, runIndex) {
+async function runTrial(surface, workspaceRoot, timeoutMs, setupTimeoutMs, runIndex, skipPreLaunch) {
+	const workspace = path.join(workspaceRoot, `${surface}-${runIndex}-${Date.now()}`);
+	await ensureFixture(workspace);
 	const worktreesBefore = await worktreeSnapshot();
-	const invocation = launcherInvocation(surface, workspace);
+	const invocation = launcherInvocation(surface, workspace, skipPreLaunch);
 	const launchStart = performance.now();
 	let info;
 	try {
@@ -178,6 +183,7 @@ async function runTrial(surface, workspace, timeoutMs, runIndex) {
 			'--workspace', workspace,
 			'--file', scenario,
 			'--timeout-ms', String(timeoutMs),
+			'--setup-timeout-ms', String(setupTimeoutMs),
 		]);
 		const scenarioMs = Math.round(performance.now() - scenarioStart);
 		const result = parseJsonOutput(driven.stdout);
@@ -189,16 +195,20 @@ async function runTrial(surface, workspace, timeoutMs, runIndex) {
 		return {
 			run: runIndex,
 			surface,
+			workspace,
 			ok: true,
 			launchMs,
 			scenarioMs,
 			totalMs: launchMs + scenarioMs,
+			preLaunchSkipped: info.preLaunchSkipped,
+			launcherTimings: info.timings,
 			driver: result,
 		};
 	} catch (error) {
 		return {
 			run: runIndex,
 			surface,
+			workspace,
 			ok: false,
 			error: error instanceof Error ? error.message : String(error),
 			totalMs: Math.round(performance.now() - launchStart),
@@ -207,6 +217,7 @@ async function runTrial(surface, workspace, timeoutMs, runIndex) {
 		if (info) {
 			await cleanupLaunch(info);
 		}
+		await fs.rm(workspace, { recursive: true, force: true });
 	}
 }
 
@@ -214,10 +225,13 @@ async function main() {
 	const options = parseArgs(process.argv.slice(2));
 	if (options.help) {
 		console.log(`Usage: benchmark/run.mjs [--surface all|agents|editor] [--repeat N]
-                         [--workspace PATH] [--timeout-ms MS] [--output FILE]
+                         [--workspace PATH] [--timeout-ms MS] [--setup-timeout-ms MS]
+                         [--output FILE]
+                         [--skip-prelaunch]
 
 Runs the checked two-turn/fork scenario against an isolated non-git workspace.
-The runner fails a trial if the repository worktree list changes.`);
+The runner fails a trial if the repository worktree list changes. Only use
+--skip-prelaunch after one successful prepared launch of the same build.`);
 		return;
 	}
 
@@ -227,6 +241,8 @@ The runner fails a trial if the repository worktree list changes.`);
 	}
 	const repeat = positiveInteger(options.repeat, 3, 'repeat');
 	const timeoutMs = positiveInteger(options['timeout-ms'], 30_000, 'timeout-ms');
+	const setupTimeoutMs = positiveInteger(options['setup-timeout-ms'], 90_000, 'setup-timeout-ms');
+	const skipPreLaunch = options['skip-prelaunch'] === true;
 	const workspace = path.resolve(options.workspace ?? path.join(os.tmpdir(), 'vscode-launch-benchmark-workspace'));
 	await ensureFixture(workspace);
 
@@ -234,7 +250,7 @@ The runner fails a trial if the repository worktree list changes.`);
 	const trials = [];
 	for (const currentSurface of surfaces) {
 		for (let runIndex = 1; runIndex <= repeat; runIndex++) {
-			const trial = await runTrial(currentSurface, workspace, timeoutMs, runIndex);
+			const trial = await runTrial(currentSurface, workspace, timeoutMs, setupTimeoutMs, runIndex, skipPreLaunch);
 			trials.push(trial);
 			console.error(`[launch benchmark] ${currentSurface} ${runIndex}/${repeat}: ${trial.ok ? `${trial.totalMs}ms` : trial.error}`);
 		}
@@ -246,6 +262,7 @@ The runner fails a trial if the repository worktree list changes.`);
 		repository: repo,
 		workspace,
 		repeat,
+		skipPreLaunchRequested: skipPreLaunch,
 		trials,
 		summary: Object.fromEntries(surfaces.map(currentSurface => {
 			const surfaceTrials = successful.filter(trial => trial.surface === currentSurface);

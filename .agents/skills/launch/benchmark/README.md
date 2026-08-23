@@ -7,15 +7,19 @@ This benchmark measures the end-to-end agent loop for both supported surfaces:
 
 ## Isolation
 
-Chat benchmarks must use a dedicated non-git fixture outside the VS Code checkout:
+Chat benchmarks must use a dedicated non-git fixture root outside the VS Code checkout:
 
 ```text
-/tmp/vscode-launch-benchmark-workspace
+/tmp/vscode-launch-benchmark-workspaces
 ```
 
 Never use the repository checkout for synthetic prompts. A fork from a repository
 workspace can create a full worktree, pollute its chat history, and consume
 significant disk space.
+
+The runner creates a unique child folder for each trial and removes it during
+cleanup. Reusing one folder can accumulate agent-host session identity and make
+repeated results dependent on earlier trials.
 
 ## Reliability invariants
 
@@ -25,7 +29,8 @@ significant disk space.
    a modal.
 4. Verify the chat input contains the exact prompt before submitting it.
 5. Observe response loading start and completion instead of using a fixed sleep.
-6. Give operations a deadline, but report their actual completion time.
+6. Use state-specific deadlines (setup 90 s, response 60 s, fork 30 s), but
+   report actual completion time and return immediately when state changes.
 7. Verify that a fork changed the visible session or conversation state.
 8. Close the automation connection and terminate only the launched Code OSS PID.
 
@@ -54,8 +59,11 @@ and removes the throwaway launch directory:
 ./.agents/skills/launch/benchmark/run.mjs \
   --surface all \
   --repeat 3 \
-  --workspace /tmp/vscode-launch-benchmark-workspace \
+  --workspace /tmp/vscode-launch-benchmark-workspaces \
   --output .agents/skills/launch/benchmark/results/latest.json
 ```
 
 The fixture path is created if needed and rejected if it contains `.git`.
+Pass `--skip-prelaunch` only after one successful prepared launch of the same
+build when measuring repeated-run Editor steady state. Agents launches ignore
+the flag to preserve model readiness.

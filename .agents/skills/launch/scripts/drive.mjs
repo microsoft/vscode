@@ -9,6 +9,7 @@ import process from 'node:process';
 import { chromium } from 'playwright-core';
 
 const DEFAULT_TIMEOUT_MS = 30_000;
+const DEFAULT_SETUP_TIMEOUT_MS = 90_000;
 const CHAT_INPUT_SELECTORS = [
 	'.new-chat-input-area .native-edit-context',
 	'.interactive-input-editor .native-edit-context',
@@ -297,6 +298,44 @@ async function focusChatInput(page, timeoutMs) {
 	return input;
 }
 
+async function waitForComposerReady(page, timeoutMs, workspace) {
+	let workspaceReselections = 0;
+	const completion = await pollWithModalGate(page, timeoutMs, 'Chat composer', async () => {
+		const pickerVisible = await page.getByRole('button', { name: /Start by picking a workspace/i }).filter({ visible: true }).count() > 0;
+		if (pickerVisible && workspace) {
+			const selection = await ensureWorkspace(page, workspace, timeoutMs);
+			workspaceReselections += selection.selected ? 1 : 0;
+			return false;
+		}
+		return page.evaluate(() => {
+		const visible = element => {
+			const style = getComputedStyle(element);
+			const rect = element.getBoundingClientRect();
+			return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+		};
+		const areas = Array.from(document.querySelectorAll('.new-chat-input-area, .interactive-input-part'))
+			.filter(visible);
+		const area = areas.at(-1);
+		if (!area) {
+			return false;
+		}
+
+		const modelPicker = area.querySelector('.model-picker-split');
+		if (modelPicker) {
+			return modelPicker.getAttribute('aria-disabled') !== 'true'
+				&& (modelPicker.textContent ?? '').trim().length > 0;
+		}
+
+		const loadingSpinner = area.querySelector('.sessions-chat-loading-spinner');
+		return !loadingSpinner || !visible(loadingSpinner);
+		});
+	});
+	return {
+		...completion,
+		workspaceReselections,
+	};
+}
+
 async function pasteAndVerify(page, input, message) {
 	await page.keyboard.press(process.platform === 'darwin' ? 'Meta+a' : 'Control+a');
 	await page.keyboard.press('Backspace');
@@ -335,12 +374,15 @@ async function pasteAndVerify(page, input, message) {
 	throw new Error(`Chat input verification failed: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
 }
 
-async function sendChat(page, message, expectedText, timeoutMs) {
+async function sendChat(page, message, expectedText, timeoutMs, setupTimeoutMs, workspace) {
 	if (!message) {
 		throw new Error('Chat action requires a non-empty message');
 	}
 	const start = performance.now();
 	const handledModals = await modalGate(page, timeoutMs);
+	const composerStart = performance.now();
+	const composerReady = await waitForComposerReady(page, setupTimeoutMs, workspace);
+	const composerReadyMs = elapsedMs(composerStart);
 	const input = await focusChatInput(page, timeoutMs);
 	const inputVerification = await pasteAndVerify(page, input, message);
 	await modalGate(page, timeoutMs);
@@ -379,8 +421,10 @@ async function sendChat(page, message, expectedText, timeoutMs) {
 		action: 'chat',
 		ok: true,
 		durationMs: elapsedMs(start),
-		handledModals: [...handledModals, ...sendReady.handledModals, ...completion.handledModals],
+		handledModals: [...handledModals, ...composerReady.handledModals, ...sendReady.handledModals, ...completion.handledModals],
 		inputVerification,
+		composerReadyMs,
+		workspaceReselections: composerReady.workspaceReselections,
 		observedLoading,
 		responseText: result.responseText.slice(0, 2_000),
 		state: await pageState(page),
@@ -452,13 +496,13 @@ async function forkConversation(page, timeoutMs) {
 	};
 }
 
-async function runScenario(page, scenario, timeoutMs, workspace) {
+async function runScenario(page, scenario, timeoutMs, setupTimeoutMs, workspace) {
 	if (!Array.isArray(scenario.steps) || scenario.steps.length === 0) {
 		throw new Error('Scenario must contain a non-empty steps array');
 	}
 	const start = performance.now();
 	const steps = [];
-	steps.push(await ensureWorkspace(page, workspace ?? scenario.workspace, timeoutMs));
+	steps.push(await ensureWorkspace(page, workspace ?? scenario.workspace, setupTimeoutMs));
 	for (const step of scenario.steps) {
 		await modalGate(page, numberOption(step, 'timeoutMs', timeoutMs));
 		switch (step.action) {
@@ -466,7 +510,14 @@ async function runScenario(page, scenario, timeoutMs, workspace) {
 				steps.push(await prepare(page, numberOption(step, 'timeoutMs', timeoutMs)));
 				break;
 			case 'chat':
-				steps.push(await sendChat(page, step.message, step.expect, numberOption(step, 'timeoutMs', timeoutMs)));
+				steps.push(await sendChat(
+					page,
+					step.message,
+					step.expect,
+					numberOption(step, 'timeoutMs', timeoutMs),
+					numberOption(step, 'setupTimeoutMs', setupTimeoutMs),
+					workspace ?? scenario.workspace,
+				));
 				break;
 			case 'fork':
 				steps.push(await forkConversation(page, numberOption(step, 'timeoutMs', timeoutMs)));
@@ -578,7 +629,7 @@ function printHelp() {
 Usage:
   drive.mjs inspect --cdp <port>
   drive.mjs prepare --cdp <port>
-  drive.mjs chat --cdp <port> --message <text> [--expect <text>] [--timeout-ms <ms>]
+  drive.mjs chat --cdp <port> --message <text> [--expect <text>] [--timeout-ms <ms>] [--setup-timeout-ms <ms>]
   drive.mjs fork --cdp <port> [--timeout-ms <ms>]
   drive.mjs scenario --cdp <port> --file <scenario.json> [--workspace <path>] [--timeout-ms <ms>]
   drive.mjs record --cdp <port> --output <recording.json> [--duration-ms <ms>]
@@ -596,54 +647,76 @@ async function main() {
 	}
 
 	const timeoutMs = numberOption(options, 'timeout-ms', DEFAULT_TIMEOUT_MS);
+	const setupTimeoutMs = numberOption(options, 'setup-timeout-ms', DEFAULT_SETUP_TIMEOUT_MS);
 	const { browser, page } = await connect(options.cdp);
 	try {
 		let result;
-		switch (command) {
-			case 'inspect':
-				result = {
-					action: 'inspect',
-					ok: true,
+		try {
+			switch (command) {
+				case 'inspect':
+					result = {
+						action: 'inspect',
+						ok: true,
+						modals: await visibleModals(page),
+						state: await pageState(page),
+					};
+					break;
+				case 'prepare':
+					result = {
+						action: 'prepare',
+						ok: true,
+						steps: [
+							await prepare(page, timeoutMs),
+							await ensureWorkspace(page, options.workspace, timeoutMs),
+						],
+						state: await pageState(page),
+					};
+					break;
+				case 'chat':
+					result = await sendChat(page, options.message, options.expect, timeoutMs, setupTimeoutMs, options.workspace);
+					break;
+				case 'fork':
+					result = await forkConversation(page, timeoutMs);
+					break;
+				case 'scenario': {
+					if (!options.file) {
+						throw new Error('scenario requires --file <scenario.json>');
+					}
+					const scenario = JSON.parse(await fs.readFile(options.file, 'utf8'));
+					result = await runScenario(page, scenario, timeoutMs, setupTimeoutMs, options.workspace);
+					break;
+				}
+				case 'record': {
+					if (!options.output) {
+						throw new Error('record requires --output <recording.json>');
+					}
+					result = await recordActions(page, numberOption(options, 'duration-ms', 30_000), options.output, timeoutMs);
+					break;
+				}
+				default:
+					throw new Error(`Unknown command: ${command}`);
+			}
+			console.log(JSON.stringify(result));
+		} catch (error) {
+			let diagnostics;
+			try {
+				diagnostics = {
 					modals: await visibleModals(page),
 					state: await pageState(page),
 				};
-				break;
-			case 'prepare':
-				result = {
-					action: 'prepare',
-					ok: true,
-					steps: [
-						await prepare(page, timeoutMs),
-						await ensureWorkspace(page, options.workspace, timeoutMs),
-					],
-					state: await pageState(page),
+			} catch (diagnosticError) {
+				diagnostics = {
+					error: diagnosticError instanceof Error ? diagnosticError.message : String(diagnosticError),
 				};
-				break;
-			case 'chat':
-				result = await sendChat(page, options.message, options.expect, timeoutMs);
-				break;
-			case 'fork':
-				result = await forkConversation(page, timeoutMs);
-				break;
-			case 'scenario': {
-				if (!options.file) {
-					throw new Error('scenario requires --file <scenario.json>');
-				}
-				const scenario = JSON.parse(await fs.readFile(options.file, 'utf8'));
-				result = await runScenario(page, scenario, timeoutMs, options.workspace);
-				break;
 			}
-			case 'record': {
-				if (!options.output) {
-					throw new Error('record requires --output <recording.json>');
-				}
-				result = await recordActions(page, numberOption(options, 'duration-ms', 30_000), options.output, timeoutMs);
-				break;
-			}
-			default:
-				throw new Error(`Unknown command: ${command}`);
+			console.error(JSON.stringify({
+				ok: false,
+				error: error instanceof Error ? error.message : String(error),
+				stack: error instanceof Error ? error.stack : undefined,
+				diagnostics,
+			}));
+			process.exitCode = 1;
 		}
-		console.log(JSON.stringify(result));
 	} finally {
 		await browser.close();
 	}

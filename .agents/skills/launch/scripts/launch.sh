@@ -314,6 +314,7 @@ node -e '
 		logFile: process.argv[5],
 		repo: process.argv[6],
 		agents: '"$AGENTS"' === 1,
+		preLaunchSkipped: '"$SKIP_PRELAUNCH"' === 1,
 		timings: {
 			profileMs: profileReadyAt - startedAt,
 			preLaunchMs: preLaunchReadyAt - profileReadyAt,

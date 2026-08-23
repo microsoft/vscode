@@ -10,7 +10,7 @@ Last updated: 2026-08-22
 | Batched checked driver | Complete | One direct-CDP process runs the full checked scenario |
 | Adaptive waits | Complete | Response/fork state polled every 50 ms up to a real deadline |
 | Action recording hints | Complete | Redacted input events plus compact DOM mutation evidence |
-| Launcher startup | Baseline complete | 1.78-2.02 s to CDP ready on this machine |
+| Launcher startup | Complete | 0.99 s safe default; 0.69 s prepared-build fast path |
 
 ## Baseline
 
@@ -41,16 +41,33 @@ model-driven trials used 21-43 Playwright invocations.
 
 ## Checked-driver result
 
-Preliminary one-run validation after batching:
+Final three-run validation after batching:
 
-| Surface | Result | Launch | Scenario | Total | Automation processes | Fork |
+| Surface | Reliability | Median launch | Median scenario | Median total | Automation processes | Median fork |
 |---|---:|---:|---:|---:|---:|---:|
-| Agents | Passed | 1.60 s | 14.31 s | 15.91 s | 1 | 0.23 s |
-| Editor | Passed | 1.71 s | 13.68 s | 15.38 s | 1 | 0.22 s |
+| Agents | 3/3 | 1.11 s | 13.89 s | 14.87 s | 1 | 0.24 s |
+| Editor | 3/3 | 0.75 s | 14.62 s | 15.37 s | 1 | 0.22 s |
 
-Both trials selected only `/tmp/vscode-launch-benchmark-workspace`, handled
-Workspace Trust before continuing, ended with zero visible modals, and left the
-repository worktree list unchanged.
+Every trial used and removed a unique child of
+`/tmp/vscode-launch-benchmark-workspaces`, ended with zero visible modals, and
+left the repository worktree list unchanged. The Agents window transiently
+dropped its selected workspace once per cold trial while models initialized;
+the driver detected and repaired that state before sending.
+
+## Launcher result
+
+| Mode | Baseline | Current | Change |
+|---|---:|---:|---:|
+| Safe default | 1.78 s | 0.99 s | 44% faster |
+| Prepared Editor build (`--skip-prelaunch`) | 1.78 s | 0.69 s | 61% faster |
+
+The launcher now allocates all four debug ports with one Node process, probes
+CDP every 100 ms instead of every second, and reports profile/pre-launch/CDP
+phase timings in its JSON output.
+
+Three repeated Agents trials without pre-launch preparation all failed model
+readiness, so that attempted optimization was rejected for Agents and the
+launcher now ignores `--skip-prelaunch` on that surface.
 
 ## Commit history
 
@@ -59,4 +76,5 @@ This table is updated after every measured optimization.
 | Commit | Change | Metric |
 |---|---|---|
 | `57fba0f1fde` | Isolated baseline and dashboard | 45-62 s end to end; 21-43 PW calls |
-| Pending | Batched checked driver, adaptive waits, recorder | 15.38-15.91 s; 1 automation process |
+| `0cf9811efae` | Batched checked driver, adaptive waits, recorder | 15.38-15.91 s; 1 automation process |
+| Pending | Faster launch, state-specific waits, per-trial fixtures | 14.87-15.37 s median; 3/3 on both surfaces |
