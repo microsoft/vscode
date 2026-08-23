@@ -21,6 +21,7 @@ arguments=(
 	'--show-versions[show versions of installed extensions, when using --list-extensions]'
 	'--install-extension[install an extension]:id or path:_files -g "*.vsix(-.)"'
 	'--uninstall-extension[uninstall an extension]:id or path:_files -g "*.vsix(-.)"'
+	'--update-extensions[update the installed extensions]'
 	'--enable-proposed-api[enables proposed API features for extensions]::extension id: '
 	'--verbose[print verbose output (implies --wait)]'
 	'--log[log level to use]:level [info]:(critical error warn info debug trace off)'

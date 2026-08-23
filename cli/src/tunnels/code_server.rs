@@ -8,20 +8,22 @@ use crate::constants::{
 	APPLICATION_NAME, EDITOR_WEB_URL, QUALITYLESS_PRODUCT_NAME, QUALITYLESS_SERVER_NAME,
 };
 use crate::download_cache::DownloadCache;
+use crate::log;
 use crate::options::{Quality, TelemetryLevel};
 use crate::state::LauncherPaths;
 use crate::tunnels::paths::{get_server_folder_name, SERVER_FOLDER_NAME};
 use crate::update_service::{
 	unzip_downloaded_release, Platform, Release, TargetKind, UpdateService,
 };
-use crate::util::command::{capture_command, kill_tree};
+use crate::util::command::{
+	capture_command, capture_command_and_check_status, check_output_status, kill_tree,
+	new_script_command,
+};
 use crate::util::errors::{wrap, AnyError, CodeError, ExtensionInstallFailed, WrappedError};
 use crate::util::http::{self, BoxedHttp};
 use crate::util::io::SilentCopyProgress;
 use crate::util::machine::process_exists;
-use crate::{debug, info, log, spanf, trace, warning};
-use lazy_static::lazy_static;
-use opentelemetry::KeyValue;
+use crate::util::prereqs::skip_requirements_check;
 use regex::Regex;
 use serde::Deserialize;
 use std::fs;
@@ -29,6 +31,7 @@ use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::LazyLock;
 use std::time::Duration;
 use tokio::fs::remove_file;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -36,11 +39,10 @@ use tokio::process::{Child, Command};
 use tokio::sync::oneshot::Receiver;
 use tokio::time::{interval, timeout};
 
-lazy_static! {
-	static ref LISTENING_PORT_RE: Regex =
-		Regex::new(r"Extension host agent listening on (.+)").unwrap();
-	static ref WEB_UI_RE: Regex = Regex::new(r"Web UI available at (.+)").unwrap();
-}
+static LISTENING_PORT_RE: LazyLock<Regex> =
+	LazyLock::new(|| Regex::new(r"Extension host agent listening on (.+)").unwrap());
+static WEB_UI_RE: LazyLock<Regex> =
+	LazyLock::new(|| Regex::new(r"Web UI available at (.+)").unwrap());
 
 #[derive(Clone, Debug, Default)]
 pub struct CodeServerArgs {
@@ -53,19 +55,33 @@ pub struct CodeServerArgs {
 	pub log: Option<log::Level>,
 	pub accept_server_license_terms: bool,
 	pub verbose: bool,
+	pub server_data_dir: Option<String>,
+	pub extensions_dir: Option<String>,
 	// extension management
 	pub install_extensions: Vec<String>,
 	pub uninstall_extensions: Vec<String>,
+	pub update_extensions: bool,
 	pub list_extensions: bool,
 	pub show_versions: bool,
 	pub category: Option<String>,
 	pub pre_release: bool,
+	pub donot_include_pack_and_dependencies: bool,
 	pub force: bool,
 	pub start_server: bool,
 	// connection tokens
 	pub connection_token: Option<String>,
 	pub connection_token_file: Option<String>,
 	pub without_connection_token: bool,
+	// reconnection
+	pub reconnection_grace_time: Option<u32>,
+	// agent-host bridge: tells the spawned VS Code server where the
+	// canonical agent host is listening so it can register the
+	// `agentHostProxy` IPC channel and let renderers reach the agent
+	// host over the remote-agent connection. The server does NOT spawn
+	// an agent host of its own when these are set.
+	pub agent_host_bridge_host: Option<String>,
+	pub agent_host_bridge_port: Option<u16>,
+	pub agent_host_bridge_connection_token: Option<String>,
 }
 
 impl CodeServerArgs {
@@ -84,21 +100,21 @@ impl CodeServerArgs {
 	pub fn command_arguments(&self) -> Vec<String> {
 		let mut args = Vec::new();
 		if let Some(i) = &self.socket_path {
-			args.push(format!("--socket-path={}", i));
+			args.push(format!("--socket-path={i}"));
 		} else {
 			if let Some(i) = &self.host {
-				args.push(format!("--host={}", i));
+				args.push(format!("--host={i}"));
 			}
 			if let Some(i) = &self.port {
-				args.push(format!("--port={}", i));
+				args.push(format!("--port={i}"));
 			}
 		}
 
 		if let Some(i) = &self.connection_token {
-			args.push(format!("--connection-token={}", i));
+			args.push(format!("--connection-token={i}"));
 		}
 		if let Some(i) = &self.connection_token_file {
-			args.push(format!("--connection-token-file={}", i));
+			args.push(format!("--connection-token-file={i}"));
 		}
 		if self.without_connection_token {
 			args.push(String::from("--without-connection-token"));
@@ -107,14 +123,17 @@ impl CodeServerArgs {
 			args.push(String::from("--accept-server-license-terms"));
 		}
 		if let Some(i) = self.telemetry_level {
-			args.push(format!("--telemetry-level={}", i));
+			args.push(format!("--telemetry-level={i}"));
 		}
 		if let Some(i) = self.log {
-			args.push(format!("--log={}", i));
+			args.push(format!("--log={i}"));
+		}
+		if let Some(t) = self.reconnection_grace_time {
+			args.push(format!("--reconnection-grace-time={t}"));
 		}
 
 		for extension in &self.install_extensions {
-			args.push(format!("--install-extension={}", extension));
+			args.push(format!("--install-extension={extension}"));
 		}
 		if !&self.install_extensions.is_empty() {
 			if self.pre_release {
@@ -125,7 +144,10 @@ impl CodeServerArgs {
 			}
 		}
 		for extension in &self.uninstall_extensions {
-			args.push(format!("--uninstall-extension={}", extension));
+			args.push(format!("--uninstall-extension={extension}"));
+		}
+		if self.update_extensions {
+			args.push(String::from("--update-extensions"));
 		}
 		if self.list_extensions {
 			args.push(String::from("--list-extensions"));
@@ -133,11 +155,26 @@ impl CodeServerArgs {
 				args.push(String::from("--show-versions"));
 			}
 			if let Some(i) = &self.category {
-				args.push(format!("--category={}", i));
+				args.push(format!("--category={i}"));
 			}
+		}
+		if let Some(d) = &self.server_data_dir {
+			args.push(format!("--server-data-dir={d}"));
+		}
+		if let Some(d) = &self.extensions_dir {
+			args.push(format!("--extensions-dir={d}"));
 		}
 		if self.start_server {
 			args.push(String::from("--start-server"));
+		}
+		if let Some(port) = self.agent_host_bridge_port {
+			args.push(format!("--agent-host-bridge-port={port}"));
+			if let Some(host) = &self.agent_host_bridge_host {
+				args.push(format!("--agent-host-bridge-host={host}"));
+			}
+			if let Some(token) = &self.agent_host_bridge_connection_token {
+				args.push(format!("--agent-host-bridge-connection-token={token}"));
+			}
 		}
 		args
 	}
@@ -313,6 +350,28 @@ pub struct ServerBuilder<'a> {
 	http: BoxedHttp,
 }
 
+/// Ensures the given path has execute permissions on Unix.
+/// This is a self-healing measure for cases where the binary was extracted
+/// without execute permissions or where permissions were lost (e.g. on
+/// network filesystems or after interrupted downloads).
+#[cfg(unix)]
+fn ensure_executable(path: &std::path::Path) -> Result<(), std::io::Error> {
+	use std::os::unix::fs::PermissionsExt;
+
+	let metadata = std::fs::metadata(path)?;
+	let mut permissions = metadata.permissions();
+	if permissions.mode() & 0o111 == 0 {
+		permissions.set_mode(permissions.mode() | 0o111);
+		std::fs::set_permissions(path, permissions)?;
+	}
+	Ok(())
+}
+
+#[cfg(not(unix))]
+fn ensure_executable(_path: &std::path::Path) -> Result<(), std::io::Error> {
+	Ok(())
+}
+
 impl<'a> ServerBuilder<'a> {
 	pub fn new(
 		logger: &'a log::Logger,
@@ -378,6 +437,16 @@ impl<'a> ServerBuilder<'a> {
 		}
 	}
 
+	/// Removes a cached server.
+	pub async fn evict(&self) -> Result<(), WrappedError> {
+		let name = get_server_folder_name(
+			self.server_params.release.quality,
+			&self.server_params.release.commit,
+		);
+
+		self.launcher_paths.server_cache.delete(&name)
+	}
+
 	/// Ensures the server is set up in the configured directory.
 	pub async fn setup(&self) -> Result<(), AnyError> {
 		debug!(
@@ -391,7 +460,8 @@ impl<'a> ServerBuilder<'a> {
 			&self.server_params.release.commit,
 		);
 
-		self.launcher_paths
+		let result = self
+			.launcher_paths
 			.server_cache
 			.create(name, |target_dir| async move {
 				let tmpdir =
@@ -416,15 +486,40 @@ impl<'a> ServerBuilder<'a> {
 				)
 				.await?;
 
+				let server_dir = target_dir.join(SERVER_FOLDER_NAME);
 				unzip_downloaded_release(
 					&archive_path,
-					&target_dir.join(SERVER_FOLDER_NAME),
-					SilentCopyProgress(),
+					&server_dir,
+					self.logger.get_download_logger("server inflate progress:"),
 				)?;
+
+				if !skip_requirements_check().await {
+					let output = capture_command_and_check_status(
+						server_dir
+							.join("bin")
+							.join(self.server_params.release.quality.server_entrypoint()),
+						&["--version"],
+					)
+					.await
+					.map_err(|e| wrap(e, "error checking server integrity"))?;
+
+					trace!(
+						self.logger,
+						"Server integrity verified, version: {}",
+						String::from_utf8_lossy(&output.stdout).replace('\n', " / ")
+					);
+				} else {
+					info!(self.logger, "Skipping server integrity check");
+				}
 
 				Ok(())
 			})
-			.await?;
+			.await;
+
+		if let Err(e) = result {
+			error!(self.logger, "Error installing server: {}", e);
+			return Err(e);
+		}
 
 		debug!(self.logger, "Server setup complete");
 
@@ -435,9 +530,9 @@ impl<'a> ServerBuilder<'a> {
 		let mut cmd = self.get_base_command();
 		cmd.arg("--start-server")
 			.arg("--enable-remote-auto-shutdown")
-			.arg(format!("--port={}", port));
+			.arg(format!("--port={port}"));
 
-		let child = self.spawn_server_process(cmd)?;
+		let child = self.spawn_server_process(cmd).await?;
 		let log_file = self.get_logfile()?;
 		let plog = self.logger.prefixed(&log::new_code_server_prefix());
 
@@ -445,16 +540,16 @@ impl<'a> ServerBuilder<'a> {
 			monitor_server::<PortMatcher, u16>(child, Some(log_file), plog, false);
 
 		let port = match timeout(Duration::from_secs(8), listen_rx).await {
-			Err(e) => {
+			Err(_) => {
 				origin.kill().await;
-				Err(wrap(e, "timed out looking for port"))
+				return Err(CodeError::ServerOriginTimeout.into());
 			}
-			Ok(Err(e)) => {
+			Ok(Err(s)) => {
 				origin.kill().await;
-				Err(wrap(e, "server exited without writing port"))
+				return Err(CodeError::ServerUnexpectedExit(format!("{s}")).into());
 			}
-			Ok(Ok(p)) => Ok(p),
-		}?;
+			Ok(Ok(p)) => p,
+		};
 
 		info!(self.logger, "Server started");
 
@@ -465,20 +560,35 @@ impl<'a> ServerBuilder<'a> {
 		})
 	}
 
+	/// Runs the command that just installs extensions and exits.
+	pub async fn install_extensions(&self) -> Result<(), AnyError> {
+		// cmd already has --install-extensions from base
+		let mut cmd = self.get_base_command();
+		let cmd_str = || {
+			self.server_params
+				.code_server_args
+				.command_arguments()
+				.join(" ")
+		};
+
+		let r = cmd.output().await.map_err(|e| CodeError::CommandFailed {
+			command: cmd_str(),
+			code: -1,
+			output: e.to_string(),
+		})?;
+
+		check_output_status(r, cmd_str)?;
+
+		Ok(())
+	}
+
 	pub async fn listen_on_default_socket(&self) -> Result<SocketCodeServer, AnyError> {
 		let requested_file = get_socket_name();
 		self.listen_on_socket(&requested_file).await
 	}
 
 	pub async fn listen_on_socket(&self, socket: &Path) -> Result<SocketCodeServer, AnyError> {
-		Ok(spanf!(
-			self.logger,
-			self.logger.span("server.start").with_attributes(vec! {
-				KeyValue::new("commit_id", self.server_params.release.commit.to_string()),
-				KeyValue::new("quality", format!("{}", self.server_params.release.quality)),
-			}),
-			self._listen_on_socket(socket)
-		)?)
+		self._listen_on_socket(socket).await
 	}
 
 	async fn _listen_on_socket(&self, socket: &Path) -> Result<SocketCodeServer, AnyError> {
@@ -489,24 +599,24 @@ impl<'a> ServerBuilder<'a> {
 			.arg("--enable-remote-auto-shutdown")
 			.arg(format!("--socket-path={}", socket.display()));
 
-		let child = self.spawn_server_process(cmd)?;
+		let child = self.spawn_server_process(cmd).await?;
 		let log_file = self.get_logfile()?;
 		let plog = self.logger.prefixed(&log::new_code_server_prefix());
 
 		let (mut origin, listen_rx) =
 			monitor_server::<SocketMatcher, PathBuf>(child, Some(log_file), plog, false);
 
-		let socket = match timeout(Duration::from_secs(8), listen_rx).await {
-			Err(e) => {
+		let socket = match timeout(Duration::from_secs(30), listen_rx).await {
+			Err(_) => {
 				origin.kill().await;
-				Err(wrap(e, "timed out looking for socket"))
+				return Err(CodeError::ServerOriginTimeout.into());
 			}
-			Ok(Err(e)) => {
+			Ok(Err(s)) => {
 				origin.kill().await;
-				Err(wrap(e, "server exited without writing socket"))
+				return Err(CodeError::ServerUnexpectedExit(format!("{s}")).into());
 			}
-			Ok(Ok(socket)) => Ok(socket),
-		}?;
+			Ok(Ok(socket)) => socket,
+		};
 
 		info!(self.logger, "Server started");
 
@@ -517,35 +627,46 @@ impl<'a> ServerBuilder<'a> {
 		})
 	}
 
-	/// Starts with a given opaque set of args. Does not set up any port or
-	/// socket, but does return one if present, in the form of a channel.
-	pub async fn start_opaque_with_args<M, R>(
-		&self,
-		args: &[String],
-	) -> Result<(CodeServerOrigin, Receiver<R>), AnyError>
-	where
-		M: ServerOutputMatcher<R>,
-		R: 'static + Send + std::fmt::Debug,
-	{
-		let mut cmd = self.get_base_command();
-		cmd.args(args);
-
-		let child = self.spawn_server_process(cmd)?;
-		let plog = self.logger.prefixed(&log::new_code_server_prefix());
-
-		Ok(monitor_server::<M, R>(child, None, plog, true))
-	}
-
-	fn spawn_server_process(&self, mut cmd: Command) -> Result<Child, AnyError> {
+	async fn spawn_server_process(&self, mut cmd: Command) -> Result<Child, AnyError> {
 		info!(self.logger, "Starting server...");
 
 		debug!(self.logger, "Starting server with command... {:?}", cmd);
+
+		// On Windows spawning a code-server binary will run cmd.exe /c C:\path\to\code-server.cmd...
+		// This spawns a cmd.exe window for the user, which if they close will kill the code-server process
+		// and disconnect the tunnel. To prevent this, pass the CREATE_NO_WINDOW flag to the Command
+		// only on Windows.
+		// Original issue: https://github.com/microsoft/vscode/issues/184058
+		// Partial fix: https://github.com/microsoft/vscode/pull/184621
+		#[cfg(target_os = "windows")]
+		let cmd = cmd.creation_flags(
+			winapi::um::winbase::CREATE_NO_WINDOW
+				| winapi::um::winbase::CREATE_NEW_PROCESS_GROUP
+				| if get_should_use_breakaway_from_job().await {
+					winapi::um::winbase::CREATE_BREAKAWAY_FROM_JOB
+				} else {
+					Default::default()
+				},
+		);
+
+		// Self-heal: if the server binary lost execute permissions (e.g. on a
+		// network filesystem or after a partial extraction), try to restore them
+		// before attempting to spawn. If this fails, report it clearly so that
+		// the UI does not treat it as generic "corruption" and loop re-downloading.
+		if let Err(e) = ensure_executable(&self.server_paths.executable) {
+			return Err(CodeError::ServerNotExecutable(format!(
+				"{} is not executable and permissions could not be restored: {}",
+				self.server_paths.executable.display(),
+				e
+			))
+			.into());
+		}
 
 		let child = cmd
 			.stderr(std::process::Stdio::piped())
 			.stdout(std::process::Stdio::piped())
 			.spawn()
-			.map_err(|e| wrap(e, "error spawning server"))?;
+			.map_err(|e| CodeError::ServerUnexpectedExit(format!("{e}")))?;
 
 		self.server_paths
 			.write_pid(child.id().expect("expected server to have pid"))?;
@@ -566,17 +687,7 @@ impl<'a> ServerBuilder<'a> {
 	}
 
 	fn get_base_command(&self) -> Command {
-		#[cfg(not(windows))]
-		let mut cmd = Command::new(&self.server_paths.executable);
-		#[cfg(windows)]
-		let mut cmd = {
-			let mut cmd = Command::new("cmd");
-			cmd.arg("/Q");
-			cmd.arg("/C");
-			cmd.arg(&self.server_paths.executable);
-			cmd
-		};
-
+		let mut cmd = new_script_command(&self.server_paths.executable);
 		cmd.stdin(std::process::Stdio::null())
 			.args(self.server_params.code_server_args.command_arguments());
 		cmd
@@ -613,10 +724,10 @@ where
 		let write_line = |line: &str| -> std::io::Result<()> {
 			if let Some(mut f) = log_file.as_ref() {
 				f.write_all(line.as_bytes())?;
-				f.write_all(&[b'\n'])?;
+				f.write_all(b"\n")?;
 			}
 			if write_directly {
-				println!("{}", line);
+				println!("{line}");
 			} else {
 				trace!(plog, line);
 			}
@@ -671,7 +782,7 @@ where
 }
 
 fn get_extensions_flag(extension_id: &str) -> String {
-	format!("--install-extension={}", extension_id)
+	format!("--install-extension={extension_id}")
 }
 
 /// A type that can be used to scan stdout from the VS Code server. Returns
@@ -735,12 +846,7 @@ fn parse_port_from(text: &str) -> Option<u16> {
 	})
 }
 
-pub fn print_listening(log: &log::Logger, tunnel_name: &str) {
-	debug!(
-		log,
-		"{} is listening for incoming connections", QUALITYLESS_SERVER_NAME
-	);
-
+pub fn get_tunnel_web_url(tunnel_name: &str) -> Option<url::Url> {
 	let home_dir = dirs::home_dir().unwrap_or_else(|| PathBuf::from(""));
 	let current_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from(""));
 
@@ -750,10 +856,7 @@ pub fn print_listening(log: &log::Logger, tunnel_name: &str) {
 		current_dir
 	};
 
-	let base_web_url = match EDITOR_WEB_URL {
-		Some(u) => u,
-		None => return,
-	};
+	let base_web_url = EDITOR_WEB_URL?;
 
 	let mut addr = url::Url::parse(base_web_url).unwrap();
 	{
@@ -768,8 +871,47 @@ pub fn print_listening(log: &log::Logger, tunnel_name: &str) {
 		}
 	}
 
-	let message = &format!("\nOpen this link in your browser {}\n", addr);
-	log.result(message);
+	Some(addr)
+}
+
+/// Prints the tunnel's ready banner. `show_editor_link` must be `false` for a
+/// tunnel that does not serve the control port (`--agent-host-only`): the
+/// editor URL would 404, since nothing is listening behind it.
+pub fn print_listening(log: &log::Logger, tunnel_name: &str, show_editor_link: bool) {
+	use crate::commands::output;
+	use console::style;
+
+	debug!(
+		log,
+		"{} is listening for incoming connections", QUALITYLESS_SERVER_NAME
+	);
+
+	let addr = match get_tunnel_web_url(tunnel_name) {
+		Some(addr) => addr,
+		None => return,
+	};
+
+	let arrow = style("➜").green().bold();
+	let product = QUALITYLESS_PRODUCT_NAME;
+	let version = crate::constants::VSCODE_CLI_VERSION.unwrap_or("dev");
+
+	println!();
+	println!(
+		"  {} {}",
+		style(format!("{product} Tunnel")).cyan().bold(),
+		style(format!("v{version}")).dim(),
+	);
+	println!();
+	output::print_banner_line("Tunnel", tunnel_name);
+	if show_editor_link {
+		println!(
+			"  {}  {}  {}",
+			arrow,
+			style("Open:").bold(),
+			style(&addr).cyan(),
+		);
+	}
+	output::print_banner_footer();
 }
 
 pub async fn download_cli_into_cache(
@@ -806,4 +948,14 @@ pub async fn download_cli_into_cache(
 			Err(CodeError::CorruptDownload("cli directory is empty").into())
 		}
 	}
+}
+
+#[cfg(target_os = "windows")]
+async fn get_should_use_breakaway_from_job() -> bool {
+	let mut cmd = Command::new("cmd");
+	cmd.creation_flags(
+		winapi::um::winbase::CREATE_NO_WINDOW | winapi::um::winbase::CREATE_BREAKAWAY_FROM_JOB,
+	);
+
+	cmd.args(["/C", "echo ok"]).output().await.is_ok()
 }

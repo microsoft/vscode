@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { Event } from '../../../../base/common/event.js';
+import { IAccessibilityService, AccessibilitySupport } from '../../common/accessibility.js';
 
 export class TestAccessibilityService implements IAccessibilityService {
 
@@ -12,11 +12,14 @@ export class TestAccessibilityService implements IAccessibilityService {
 
 	onDidChangeScreenReaderOptimized = Event.None;
 	onDidChangeReducedMotion = Event.None;
+	onDidChangeReducedTransparency = Event.None;
 
 	isScreenReaderOptimized(): boolean { return false; }
-	isMotionReduced(): boolean { return false; }
+	isMotionReduced(): boolean { return true; }
+	isTransparencyReduced(): boolean { return false; }
 	alwaysUnderlineAccessKeys(): Promise<boolean> { return Promise.resolve(false); }
 	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void { }
 	getAccessibilitySupport(): AccessibilitySupport { return AccessibilitySupport.Unknown; }
 	alert(message: string): void { }
+	status(message: string): void { }
 }

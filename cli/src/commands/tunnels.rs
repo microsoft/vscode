@@ -3,18 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use async_trait::async_trait;
 use base64::{engine::general_purpose as b64, Engine as _};
-use futures::{stream::FuturesUnordered, StreamExt};
+use futures::{stream::FuturesUnordered, FutureExt, StreamExt};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
-use std::{str::FromStr, time::Duration};
+use std::{
+	net::{IpAddr, Ipv4Addr, SocketAddr},
+	str::FromStr,
+	sync::Arc,
+	time::Duration,
+};
 use sysinfo::Pid;
+use tokio::{
+	io::{AsyncBufReadExt, BufReader},
+	sync::watch,
+};
 
 use super::{
+	agent_host::ensure_supervisor_running,
 	args::{
-		AuthProvider, CliCore, CommandShellArgs, ExistingTunnelArgs, TunnelRenameArgs,
-		TunnelServeArgs, TunnelServiceSubCommands, TunnelUserSubCommands,
+		AuthProvider, CliCore, CommandShellArgs, ExistingTunnelArgs, TunnelArgs, TunnelForwardArgs,
+		TunnelRenameArgs, TunnelServeArgs, TunnelServiceSubCommands, TunnelUserSubCommands,
 	},
 	CommandContext,
 };
@@ -22,12 +31,17 @@ use super::{
 use crate::{
 	async_pipe::{get_socket_name, listen_socket_rw_stream, AsyncRWAccepter},
 	auth::Auth,
-	constants::{APPLICATION_NAME, TUNNEL_CLI_LOCK_NAME, TUNNEL_SERVICE_LOCK_NAME},
+	constants::{
+		AGENT_HOST_PORT, APPLICATION_NAME, CONTROL_PORT, IS_A_TTY, TUNNEL_CLI_LOCK_NAME,
+		TUNNEL_SERVICE_LOCK_NAME,
+	},
 	log,
 	state::LauncherPaths,
 	tunnels::{
 		code_server::CodeServerArgs,
-		create_service_manager, dev_tunnels, legal,
+		create_service_manager,
+		dev_tunnels::{self, DevTunnels},
+		legal, local_forwarding, machine_status,
 		paths::get_all_servers,
 		protocol, serve_stream,
 		shutdown_signal::ShutdownRequest,
@@ -36,10 +50,13 @@ use crate::{
 			make_singleton_server, start_singleton_server, BroadcastLogSink, SingletonServerArgs,
 		},
 		AuthRequired, Next, ServeStreamParams, ServiceContainer, ServiceManager,
+		SharedActiveAgentHost,
 	},
 	util::{
 		app_lock::AppMutex,
+		command::new_std_command,
 		errors::{wrap, AnyError, CodeError},
+		machine::canonical_exe,
 		prereqs::PreReqChecker,
 	},
 };
@@ -61,7 +78,7 @@ impl From<AuthProvider> for crate::auth::AuthProvider {
 	}
 }
 
-fn fulfill_existing_tunnel_args(
+pub(super) fn fulfill_existing_tunnel_args(
 	d: ExistingTunnelArgs,
 	name_arg: &Option<String>,
 ) -> Option<dev_tunnels::ExistingTunnel> {
@@ -90,23 +107,27 @@ fn fulfill_existing_tunnel_args(
 }
 
 struct TunnelServiceContainer {
-	args: CliCore,
+	core_args: CliCore,
+	tunnel_args: TunnelArgs,
 }
 
 impl TunnelServiceContainer {
-	fn new(args: CliCore) -> Self {
-		Self { args }
+	fn new(core_args: CliCore, tunnel_args: TunnelArgs) -> Self {
+		Self {
+			core_args,
+			tunnel_args,
+		}
 	}
 }
 
-#[async_trait]
 impl ServiceContainer for TunnelServiceContainer {
 	async fn run_service(
 		&mut self,
 		log: log::Logger,
 		launcher_paths: LauncherPaths,
 	) -> Result<(), AnyError> {
-		let csa = (&self.args).into();
+		let mut csa = (&self.core_args).into();
+		self.tunnel_args.serve_args.server_args.apply_to(&mut csa);
 		serve_with_csa(
 			launcher_paths,
 			log,
@@ -124,6 +145,33 @@ impl ServiceContainer for TunnelServiceContainer {
 
 pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Result<i32, AnyError> {
 	let platform = PreReqChecker::new().verify().await?;
+	let mut shutdown_reqs = vec![ShutdownRequest::CtrlC];
+	if let Some(p) = args.parent_process_id.and_then(|p| Pid::from_str(&p).ok()) {
+		shutdown_reqs.push(ShutdownRequest::ParentProcessKilled(p));
+	}
+
+	// The supervisor is what lets the renderer reach the agent host via
+	// the `agentHostProxy` IPC channel on the spawned VS Code server. This
+	// future is genuinely lazy, exactly like the one built in
+	// `control_server::serve()`: nothing drives it here — a
+	// `command-shell` that nobody connects to must not spawn a standalone
+	// supervisor by itself. It's only driven once `handle_serve` awaits a
+	// clone of it on demand and mixes the bridge endpoint into the
+	// per-request `code_server_args`. On failure the renderer just won't
+	// see `agentHostProxy`; editing and the extension host still work.
+	let active_agent_host: SharedActiveAgentHost = {
+		let paths = ctx.paths.clone();
+		let log = ctx.log.clone();
+		async move {
+			ensure_supervisor_running(&paths, &log)
+				.await
+				.map(Arc::new)
+				.map_err(Arc::new)
+		}
+		.boxed()
+		.shared()
+	};
+
 	let mut params = ServeStreamParams {
 		log: ctx.log,
 		launcher_paths: ctx.paths,
@@ -132,39 +180,59 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 			.require_token
 			.map(AuthRequired::VSDAWithToken)
 			.unwrap_or(AuthRequired::VSDA),
-		exit_barrier: ShutdownRequest::create_rx([ShutdownRequest::CtrlC]),
+		exit_barrier: ShutdownRequest::create_rx(shutdown_reqs),
 		code_server_args: (&ctx.args).into(),
+		active_agent_host: Some(active_agent_host),
 	};
 
-	let mut listener: Box<dyn AsyncRWAccepter> = match (args.on_port, args.on_socket) {
-		(_, true) => {
-			let socket = get_socket_name();
-			let listener = listen_socket_rw_stream(&socket)
-				.await
-				.map_err(|e| wrap(e, "error listening on socket"))?;
+	args.server_args.apply_to(&mut params.code_server_args);
 
-			params
-				.log
-				.result(format!("Listening on {}", socket.display()));
+	let mut listener: Box<dyn AsyncRWAccepter> =
+		match (args.on_port.first(), &args.on_host, args.on_socket) {
+			(_, _, true) => {
+				let socket = get_socket_name();
+				let listener = listen_socket_rw_stream(&socket)
+					.await
+					.map_err(|e| wrap(e, "error listening on socket"))?;
 
-			Box::new(listener)
-		}
-		(true, _) => {
-			let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-				.await
-				.map_err(|e| wrap(e, "error listening on port"))?;
+				params
+					.log
+					.result(format!("Listening on {}", socket.display()));
 
-			params
-				.log
-				.result(format!("Listening on {}", listener.local_addr().unwrap()));
+				Box::new(listener)
+			}
+			(Some(_), _, _) | (_, Some(_), _) => {
+				let host = args
+					.on_host
+					.as_ref()
+					.map(|h| h.parse().map_err(CodeError::InvalidHostAddress))
+					.unwrap_or(Ok(IpAddr::V4(Ipv4Addr::LOCALHOST)))?;
 
-			Box::new(listener)
-		}
-		_ => {
-			serve_stream(tokio::io::stdin(), tokio::io::stderr(), params).await;
-			return Ok(0);
-		}
-	};
+				let lower_port = args.on_port.first().copied().unwrap_or_default();
+				let port_no = if let Some(upper) = args.on_port.get(1) {
+					find_unused_port(&host, lower_port, *upper)
+						.await
+						.unwrap_or_default()
+				} else {
+					lower_port
+				};
+
+				let addr = SocketAddr::new(host, port_no);
+				let listener = tokio::net::TcpListener::bind(addr)
+					.await
+					.map_err(|e| wrap(e, "error listening on port"))?;
+
+				params
+					.log
+					.result(format!("Listening on {}", listener.local_addr().unwrap()));
+
+				Box::new(listener)
+			}
+			_ => {
+				serve_stream(tokio::io::stdin(), tokio::io::stderr(), params).await;
+				return Ok(0);
+			}
+		};
 
 	let mut servers = FuturesUnordered::new();
 
@@ -175,7 +243,7 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 				match socket {
 					Ok((read, write)) => servers.push(serve_stream(read, write, params.clone())),
 					Err(e) => {
-						error!(params.log, &format!("Error accepting connection: {}", e));
+						error!(params.log, &format!("Error accepting connection: {e}"));
 						return Ok(1);
 					}
 				}
@@ -189,8 +257,42 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 	}
 }
 
+async fn find_unused_port(host: &IpAddr, start_port: u16, end_port: u16) -> Option<u16> {
+	for port in start_port..=end_port {
+		if is_port_available(*host, port).await {
+			return Some(port);
+		}
+	}
+	None
+}
+
+async fn is_port_available(host: IpAddr, port: u16) -> bool {
+	tokio::net::TcpListener::bind(SocketAddr::new(host, port))
+		.await
+		.is_ok()
+}
+
+fn make_service_args<'a: 'c, 'b: 'c, 'c>(
+	root_path: &'a str,
+	tunnel_args: &'b TunnelArgs,
+) -> Vec<&'c str> {
+	let mut args = ["--verbose", "--cli-data-dir", root_path, "tunnel"].to_vec();
+
+	if let Some(d) = tunnel_args.serve_args.server_args.extensions_dir.as_ref() {
+		args.extend_from_slice(&["--extensions-dir", d]);
+	}
+	if let Some(d) = tunnel_args.serve_args.server_args.server_data_dir.as_ref() {
+		args.extend_from_slice(&["--server-data-dir", d]);
+	}
+
+	args.extend_from_slice(&["service", "internal-run"]);
+
+	args
+}
+
 pub async fn service(
 	ctx: CommandContext,
+	tunnel_args: TunnelArgs,
 	service_args: TunnelServiceSubCommands,
 ) -> Result<i32, AnyError> {
 	let manager = create_service_manager(ctx.log.clone(), &ctx.paths);
@@ -200,7 +302,7 @@ pub async fn service(
 
 			if let Some(name) = &args.name {
 				// ensure the name matches, and tunnel exists
-				dev_tunnels::DevTunnels::new(&ctx.log, auth, &ctx.paths)
+				dev_tunnels::DevTunnels::new_remote_tunnel(&ctx.log, auth, &ctx.paths)
 					.rename_tunnel(name)
 					.await?;
 			} else {
@@ -211,23 +313,12 @@ pub async fn service(
 			// likewise for license consent
 			legal::require_consent(&ctx.paths, args.accept_server_license_terms)?;
 
-			let current_exe =
-				std::env::current_exe().map_err(|e| wrap(e, "could not get current exe"))?;
+			let current_exe = canonical_exe().map_err(|e| wrap(e, "could not get current exe"))?;
+			let root_path = ctx.paths.root().as_os_str().to_string_lossy();
+			let args = make_service_args(&root_path, &tunnel_args);
 
-			manager
-				.register(
-					current_exe,
-					&[
-						"--verbose",
-						"--cli-data-dir",
-						ctx.paths.root().as_os_str().to_string_lossy().as_ref(),
-						"tunnel",
-						"service",
-						"internal-run",
-					],
-				)
-				.await?;
-			ctx.log.result(format!("Service successfully installed! You can use `{} tunnel service log` to monitor it, and `{} tunnel service uninstall` to remove it.", APPLICATION_NAME, APPLICATION_NAME));
+			manager.register(current_exe, &args).await?;
+			ctx.log.result(format!("Service successfully installed! You can use `{APPLICATION_NAME} tunnel service log` to monitor it, and `{APPLICATION_NAME} tunnel service uninstall` to remove it."));
 		}
 		TunnelServiceSubCommands::Uninstall => {
 			manager.unregister().await?;
@@ -237,7 +328,10 @@ pub async fn service(
 		}
 		TunnelServiceSubCommands::InternalRun => {
 			manager
-				.run(ctx.paths.clone(), TunnelServiceContainer::new(ctx.args))
+				.run(
+					ctx.paths.clone(),
+					TunnelServiceContainer::new(ctx.args, tunnel_args),
+				)
 				.await?;
 		}
 	}
@@ -248,10 +342,11 @@ pub async fn service(
 pub async fn user(ctx: CommandContext, user_args: TunnelUserSubCommands) -> Result<i32, AnyError> {
 	let auth = Auth::new(&ctx.paths, ctx.log.clone());
 	match user_args {
-		TunnelUserSubCommands::Login(login_args) => {
+		TunnelUserSubCommands::Login(mut login_args) => {
 			auth.login(
 				login_args.provider.map(|p| p.into()),
-				login_args.access_token.to_owned(),
+				login_args.access_token.take(),
+				login_args.refresh_token.take(),
 			)
 			.await?;
 		}
@@ -259,8 +354,9 @@ pub async fn user(ctx: CommandContext, user_args: TunnelUserSubCommands) -> Resu
 			auth.clear_credentials()?;
 		}
 		TunnelUserSubCommands::Show => {
-			if let Ok(Some(_)) = auth.get_current_credential() {
-				ctx.log.result("logged in");
+			if let Ok(Some(sc)) = auth.get_current_credential() {
+				ctx.log
+					.result(format!("logged in with provider {}", sc.provider));
 			} else {
 				ctx.log.result("not logged in");
 				return Ok(1);
@@ -274,7 +370,7 @@ pub async fn user(ctx: CommandContext, user_args: TunnelUserSubCommands) -> Resu
 /// Remove the tunnel used by this tunnel, if any.
 pub async fn rename(ctx: CommandContext, rename_args: TunnelRenameArgs) -> Result<i32, AnyError> {
 	let auth = Auth::new(&ctx.paths, ctx.log.clone());
-	let mut dt = dev_tunnels::DevTunnels::new(&ctx.log, auth, &ctx.paths);
+	let mut dt = dev_tunnels::DevTunnels::new_remote_tunnel(&ctx.log, auth, &ctx.paths);
 	dt.rename_tunnel(&rename_args.name).await?;
 	ctx.log.result(format!(
 		"Successfully renamed this tunnel to {}",
@@ -287,7 +383,7 @@ pub async fn rename(ctx: CommandContext, rename_args: TunnelRenameArgs) -> Resul
 /// Remove the tunnel used by this tunnel, if any.
 pub async fn unregister(ctx: CommandContext) -> Result<i32, AnyError> {
 	let auth = Auth::new(&ctx.paths, ctx.log.clone());
-	let mut dt = dev_tunnels::DevTunnels::new(&ctx.log, auth, &ctx.paths);
+	let mut dt = dev_tunnels::DevTunnels::new_remote_tunnel(&ctx.log, auth, &ctx.paths);
 	dt.remove_tunnel().await?;
 	Ok(0)
 }
@@ -318,12 +414,12 @@ pub async fn kill(ctx: CommandContext) -> Result<i32, AnyError> {
 
 #[derive(Serialize)]
 pub struct StatusOutput {
-	pub tunnel: Option<protocol::singleton::TunnelState>,
+	pub tunnel: Option<protocol::singleton::StatusWithTunnelName>,
 	pub service_installed: bool,
 }
 
 pub async fn status(ctx: CommandContext) -> Result<i32, AnyError> {
-	let tunnel_status = do_single_rpc_call::<_, protocol::singleton::Status>(
+	let tunnel = do_single_rpc_call::<_, protocol::singleton::StatusWithTunnelName>(
 		&ctx.paths.tunnel_lockfile(),
 		ctx.log.clone(),
 		protocol::singleton::METHOD_STATUS,
@@ -339,9 +435,9 @@ pub async fn status(ctx: CommandContext) -> Result<i32, AnyError> {
 	ctx.log.result(
 		serde_json::to_string(&StatusOutput {
 			service_installed,
-			tunnel: match tunnel_status {
-				Ok(s) => Some(s.tunnel),
-				Err(CodeError::NoRunningTunnel) => None,
+			tunnel: match tunnel {
+				Ok(s) => Some(s),
+				Err(CodeError::NoRunningTunnel | CodeError::AsyncPipeFailed(_)) => None,
 				Err(e) => return Err(e.into()),
 			},
 		})
@@ -388,18 +484,108 @@ pub async fn serve(ctx: CommandContext, gateway_args: TunnelServeArgs) -> Result
 
 	legal::require_consent(&paths, gateway_args.accept_server_license_terms)?;
 
-	let csa = (&args).into();
+	let mut csa = (&args).into();
+	gateway_args.server_args.apply_to(&mut csa);
 	let result = serve_with_csa(paths, log, gateway_args, csa, TUNNEL_CLI_LOCK_NAME).await;
 	drop(no_sleep);
 
 	result
 }
 
+/// Internal command used by port forwarding. It reads requests for forwarded ports
+/// on lines from stdin, as JSON. It uses singleton logic as well (though on
+/// a different tunnel than the main one used for the control server) so that
+/// all forward requests on a single machine go through a single hosted tunnel
+/// process. Without singleton logic, requests could get routed to processes
+/// that aren't forwarding a given port and then fail.
+pub async fn forward(
+	ctx: CommandContext,
+	mut forward_args: TunnelForwardArgs,
+) -> Result<i32, AnyError> {
+	// Spooky: check IS_A_TTY before starting the stdin reader, since IS_A_TTY will
+	// access stdin but a lock will later be held on stdin by the line-reader.
+	if *IS_A_TTY {
+		trace!(ctx.log, "port forwarding is an internal preview feature");
+	}
+
+	// #region stdin reading logic:
+	let (own_ports_tx, own_ports_rx) = watch::channel(vec![]);
+	let ports_process_log = ctx.log.clone();
+	tokio::spawn(async move {
+		let mut lines = BufReader::new(tokio::io::stdin()).lines();
+		while let Ok(Some(line)) = lines.next_line().await {
+			match serde_json::from_str(&line) {
+				Ok(p) => {
+					let _ = own_ports_tx.send(p);
+				}
+				Err(e) => warning!(ports_process_log, "error parsing ports: {}", e),
+			}
+		}
+	});
+
+	// #region singleton acquisition
+	let shutdown = ShutdownRequest::create_rx([ShutdownRequest::CtrlC]);
+	let server = loop {
+		if shutdown.is_open() {
+			return Ok(0);
+		}
+
+		match acquire_singleton(&ctx.paths.forwarding_lockfile()).await {
+			Ok(SingletonConnection::Client(stream)) => {
+				debug!(ctx.log, "starting as client to singleton");
+				let r = local_forwarding::client(local_forwarding::SingletonClientArgs {
+					log: ctx.log.clone(),
+					shutdown: shutdown.clone(),
+					stream,
+					port_requests: own_ports_rx.clone(),
+				})
+				.await;
+				if let Err(e) = r {
+					warning!(ctx.log, "error contacting forwarding singleton: {}", e);
+				}
+			}
+			Ok(SingletonConnection::Singleton(server)) => break server,
+			Err(e) => {
+				warning!(ctx.log, "error access singleton, retrying: {}", e);
+				tokio::time::sleep(Duration::from_secs(2)).await
+			}
+		}
+	};
+
+	// #region singleton handler
+	let auth = Auth::new(&ctx.paths, ctx.log.clone());
+	if let (Some(p), Some(at)) = (
+		forward_args.login.provider.take(),
+		forward_args.login.access_token.take(),
+	) {
+		auth.login(
+			Some(p.into()),
+			Some(at),
+			forward_args.login.refresh_token.take(),
+		)
+		.await?;
+	}
+
+	let mut tunnels = DevTunnels::new_port_forwarding(&ctx.log, auth, &ctx.paths);
+	let tunnel = tunnels
+		.start_new_launcher_tunnel(None, true, &forward_args.ports)
+		.await?;
+
+	local_forwarding::server(ctx.log, tunnel, server, own_ports_rx, shutdown).await?;
+
+	Ok(0)
+}
+
 fn get_connection_token(tunnel: &ActiveTunnel) -> String {
 	let mut hash = Sha256::new();
 	hash.update(tunnel.id.as_bytes());
 	let result = hash.finalize();
-	b64::URL_SAFE_NO_PAD.encode(result)
+	let mut result = b64::URL_SAFE_NO_PAD.encode(result);
+	if result.starts_with('-') {
+		result.insert(0, 'a'); // avoid arg parsing issue
+	}
+
+	result
 }
 
 async fn serve_with_csa(
@@ -409,6 +595,8 @@ async fn serve_with_csa(
 	mut csa: CodeServerArgs,
 	app_mutex_name: Option<&'static str>,
 ) -> Result<i32, AnyError> {
+	machine_status::set_stdout_enabled(gateway_args.machine_status);
+
 	let log_broadcast = BroadcastLogSink::new();
 	log = log.tee(log_broadcast.clone());
 	log::install_global_logger(log.clone()); // re-install so that library logs are captured
@@ -435,20 +623,32 @@ async fn serve_with_csa(
 	{
 		vec.push(ShutdownRequest::ParentProcessKilled(p));
 	}
-	let shutdown = ShutdownRequest::create_rx(vec);
+	let mut shutdown = ShutdownRequest::create_rx(vec);
 
 	let server = loop {
 		if shutdown.is_open() {
 			return Ok(0);
 		}
 
-		match acquire_singleton(paths.tunnel_lockfile()).await {
+		match acquire_singleton(&paths.tunnel_lockfile()).await {
 			Ok(SingletonConnection::Client(stream)) => {
 				debug!(log, "starting as client to singleton");
+				if gateway_args.name.is_some()
+					|| !gateway_args.server_args.install_extension.is_empty()
+					|| gateway_args.tunnel.tunnel_id.is_some()
+				{
+					warning!(
+						log,
+						"Command-line options will not be applied until the existing tunnel exits."
+					);
+				}
+
 				let should_exit = start_singleton_client(SingletonClientArgs {
 					log: log.clone(),
 					shutdown: shutdown.clone(),
 					stream,
+					machine_status_enabled: gateway_args.machine_status,
+					has_editor_link: !gateway_args.agent_host_only,
 				})
 				.await;
 				if should_exit {
@@ -467,19 +667,26 @@ async fn serve_with_csa(
 
 	let mut server =
 		make_singleton_server(log_broadcast.clone(), log.clone(), server, shutdown.clone());
-	let platform = spanf!(log, log.span("prereq"), PreReqChecker::new().verify())?;
+	let platform = PreReqChecker::new().verify().await?;
 	let _lock = app_mutex_name.map(AppMutex::new);
 
 	let auth = Auth::new(&paths, log.clone());
-	let mut dt = dev_tunnels::DevTunnels::new(&log, auth, &paths);
+	let mut dt = dev_tunnels::DevTunnels::new_remote_tunnel(&log, auth, &paths);
 	loop {
 		let tunnel = if let Some(t) =
 			fulfill_existing_tunnel_args(gateway_args.tunnel.clone(), &gateway_args.name)
 		{
 			dt.start_existing_tunnel(t).await
 		} else {
-			dt.start_new_launcher_tunnel(gateway_args.name.as_deref(), gateway_args.random_name)
-				.await
+			let ports = if gateway_args.agent_host_only {
+				vec![AGENT_HOST_PORT]
+			} else {
+				vec![CONTROL_PORT, AGENT_HOST_PORT]
+			};
+			tokio::select! {
+				t = dt.start_new_launcher_tunnel(gateway_args.name.as_deref(), gateway_args.random_name, &ports) => t,
+				_ = shutdown.wait() => return Ok(1),
+			}
 		}?;
 
 		csa.connection_token = Some(get_connection_token(&tunnel));
@@ -490,6 +697,9 @@ async fn serve_with_csa(
 			paths: &paths,
 			code_server_args: &csa,
 			platform,
+			user_data_dir: gateway_args.user_data_dir.clone(),
+			agent_host_only: gateway_args.agent_host_only,
+			delegate_to_editor: gateway_args.delegate_to_editor,
 			log_broadcast: &log_broadcast,
 			shutdown: shutdown.clone(),
 			server: &mut server,
@@ -503,7 +713,7 @@ async fn serve_with_csa(
 				// reuse current args, but specify no-forward since tunnels will
 				// already be running in this process, and we cannot do a login
 				let args = std::env::args().skip(1).collect::<Vec<String>>();
-				let exit = std::process::Command::new(current_exe)
+				let exit = new_std_command(current_exe)
 					.args(args)
 					.spawn()
 					.map_err(|e| wrap(e, "error respawning after update"))?

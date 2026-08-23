@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { IUpdateService, State, UpdateType } from 'vs/platform/update/common/update';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { IUpdateService, State, UpdateType } from '../../../../platform/update/common/update.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
+import { IHostService } from '../../host/browser/host.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 
 export interface IUpdate {
 	version: string;
@@ -70,7 +70,7 @@ export class BrowserUpdateService extends Disposable implements IUpdateService {
 			const update = await updateProvider.checkForUpdate();
 			if (update) {
 				// State -> Downloaded
-				this.state = State.Ready({ version: update.version, productVersion: update.version });
+				this.state = State.Ready({ version: update.version, productVersion: update.version }, explicit, false);
 			} else {
 				// State -> Idle
 				this.state = State.Idle(UpdateType.Archive);
@@ -82,7 +82,7 @@ export class BrowserUpdateService extends Disposable implements IUpdateService {
 		return undefined; // no update provider to ask
 	}
 
-	async downloadUpdate(): Promise<void> {
+	async downloadUpdate(_explicit: boolean): Promise<void> {
 		// no-op
 	}
 
@@ -96,6 +96,10 @@ export class BrowserUpdateService extends Disposable implements IUpdateService {
 
 	async _applySpecificUpdate(packagePath: string): Promise<void> {
 		// noop
+	}
+
+	async setInternalOrg(_internalOrg: string | undefined): Promise<void> {
+		// noop - not applicable in browser
 	}
 }
 

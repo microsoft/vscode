@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Server as ChildProcessServer } from 'vs/base/parts/ipc/node/ipc.cp';
-import { Server as UtilityProcessServer } from 'vs/base/parts/ipc/node/ipc.mp';
-import { isUtilityProcess } from 'vs/base/parts/sandbox/node/electronTypes';
-import { UniversalWatcher } from 'vs/platform/files/node/watcher/watcher';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { Server as ChildProcessServer } from '../../../../base/parts/ipc/node/ipc.cp.js';
+import { Server as UtilityProcessServer } from '../../../../base/parts/ipc/node/ipc.mp.js';
+import { isUtilityProcess } from '../../../../base/parts/sandbox/node/electronTypes.js';
+import { UniversalWatcher } from './watcher.js';
 
 let server: ChildProcessServer<string> | UtilityProcessServer;
 if (isUtilityProcess(process)) {
@@ -17,4 +18,4 @@ if (isUtilityProcess(process)) {
 }
 
 const service = new UniversalWatcher();
-server.registerChannel('watcher', ProxyChannel.fromService(service));
+server.registerChannel('watcher', ProxyChannel.fromService(service, new DisposableStore()));

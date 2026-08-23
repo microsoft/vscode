@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isMacintosh } from 'vs/base/common/platform';
-import { getMachineId } from 'vs/base/node/id';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IStateReadService } from 'vs/platform/state/node/state';
-import { machineIdKey } from 'vs/platform/telemetry/common/telemetry';
+import { isMacintosh } from '../../../base/common/platform.js';
+import { stripUTF8BOM } from '../../../base/common/strings.js';
+import { getMachineId, getSqmMachineId, getDevDeviceId } from '../../../base/node/id.js';
+import { ILogService } from '../../log/common/log.js';
+import { IStateReadService } from '../../state/node/state.js';
+import { machineIdKey, sqmIdKey, devDeviceIdKey } from '../common/telemetry.js';
 
 
-export async function resolveMachineId(stateService: IStateReadService, logService: ILogService) {
+export async function resolveMachineId(stateService: IStateReadService, logService: ILogService): Promise<string> {
 	// We cache the machineId for faster lookups
 	// and resolve it only once initially if not cached or we need to replace the macOS iBridge device
 	let machineId = stateService.getItem<string>(machineIdKey);
@@ -19,4 +20,21 @@ export async function resolveMachineId(stateService: IStateReadService, logServi
 	}
 
 	return machineId;
+}
+
+export async function resolveSqmId(stateService: IStateReadService, logService: ILogService): Promise<string> {
+	let sqmId = stateService.getItem<string>(sqmIdKey);
+	if (typeof sqmId !== 'string') {
+		sqmId = await getSqmMachineId(logService.error.bind(logService));
+	}
+
+	return sqmId;
+}
+
+export async function resolveDevDeviceId(stateService: IStateReadService, logService: ILogService): Promise<string> {
+	let devDeviceId = stateService.getItem<string>(devDeviceIdKey);
+	if (typeof devDeviceId !== 'string') {
+		devDeviceId = await getDevDeviceId(logService.error.bind(logService));
+	}
+	return stripUTF8BOM(devDeviceId);
 }

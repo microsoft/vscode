@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, doesNotThrow, equal, ok, strictEqual, throws } from 'assert';
-import { commands, ConfigurationTarget, Disposable, env, EnvironmentVariableCollection, EnvironmentVariableMutator, EnvironmentVariableMutatorOptions, EnvironmentVariableMutatorType, EnvironmentVariableScope, EventEmitter, ExtensionContext, extensions, ExtensionTerminalOptions, Pseudoterminal, Terminal, TerminalDimensions, TerminalExitReason, TerminalOptions, TerminalState, UIKind, Uri, window, workspace } from 'vscode';
+import { commands, ConfigurationTarget, Disposable, env, EnvironmentVariableMutator, EnvironmentVariableMutatorOptions, EnvironmentVariableMutatorType, EventEmitter, ExtensionContext, extensions, ExtensionTerminalOptions, Pseudoterminal, Terminal, TerminalDimensions, TerminalExitReason, TerminalOptions, TerminalState, UIKind, Uri, window, workspace } from 'vscode';
 import { assertNoRpc, poll } from '../utils';
 
 // Disable terminal tests:
@@ -15,17 +15,17 @@ import { assertNoRpc, poll } from '../utils';
 	suiteSetup(async () => {
 		// Trigger extension activation and grab the context as some tests depend on it
 		await extensions.getExtension('vscode.vscode-api-tests')?.activate();
-		extensionContext = (global as any).testExtensionContext;
+		extensionContext = global.testExtensionContext;
 
 		const config = workspace.getConfiguration('terminal.integrated');
-		// Disable conpty in integration tests because of https://github.com/microsoft/vscode/issues/76548
-		await config.update('windowsEnableConpty', false, ConfigurationTarget.Global);
 		// Disable exit alerts as tests may trigger then and we're not testing the notifications
 		await config.update('showExitAlert', false, ConfigurationTarget.Global);
 		// Canvas may cause problems when running in a container
 		await config.update('gpuAcceleration', 'off', ConfigurationTarget.Global);
 		// Disable env var relaunch for tests to prevent terminals relaunching themselves
 		await config.update('environmentChangesRelaunch', false, ConfigurationTarget.Global);
+		// Disable local echo in case it causes any problems in remote tests
+		await config.update('localEchoEnabled', 'off', ConfigurationTarget.Global);
 		await config.update('shellIntegration.enabled', false);
 	});
 
@@ -68,7 +68,7 @@ import { assertNoRpc, poll } from '../utils';
 						r(terminal);
 					}
 				}));
-				// Use a single character to avoid winpty/conpty issues with injected sequences
+				// Use a single character to avoid conpty issues with injected sequences
 				const terminal = window.createTerminal({
 					env: { TEST: '`' }
 				});
@@ -231,19 +231,40 @@ import { assertNoRpc, poll } from '../utils';
 			});
 		});
 
-		test('onDidChangeTerminalState should fire after writing to a terminal', async () => {
+		test('onDidChangeTerminalState should fire with isInteractedWith after writing to a terminal', async () => {
 			const terminal = window.createTerminal();
-			deepStrictEqual(terminal.state, { isInteractedWith: false });
+			strictEqual(terminal.state.isInteractedWith, false);
 			const eventState = await new Promise<TerminalState>(r => {
 				disposables.push(window.onDidChangeTerminalState(e => {
-					if (e === terminal) {
+					if (e === terminal && e.state.isInteractedWith) {
 						r(e.state);
 					}
 				}));
 				terminal.sendText('test');
 			});
-			deepStrictEqual(eventState, { isInteractedWith: true });
-			deepStrictEqual(terminal.state, { isInteractedWith: true });
+			strictEqual(eventState.isInteractedWith, true);
+			await new Promise<void>(r => {
+				disposables.push(window.onDidCloseTerminal(t => {
+					if (t === terminal) {
+						r();
+					}
+				}));
+				terminal.dispose();
+			});
+		});
+
+		test('onDidChangeTerminalState should fire with shellType when created', async () => {
+			const terminal = window.createTerminal();
+			if (terminal.state.shell) {
+				return;
+			}
+			await new Promise<void>(r => {
+				disposables.push(window.onDidChangeTerminalState(e => {
+					if (e === terminal && e.state.shell) {
+						r();
+					}
+				}));
+			});
 			await new Promise<void>(r => {
 				disposables.push(window.onDidCloseTerminal(t => {
 					if (t === terminal) {
@@ -387,7 +408,13 @@ import { assertNoRpc, poll } from '../utils';
 		});
 
 		suite('window.onDidWriteTerminalData', () => {
-			test.skip('should listen to all future terminal data events', (done) => {
+			// still flaky with retries, skipping https://github.com/microsoft/vscode/issues/193505
+			test.skip('should listen to all future terminal data events', function (done) {
+				// This test has been flaky in the past but it's not clear why, possibly because
+				// events from previous tests polluting the event recording in this test. Retries
+				// was added so we continue to have coverage of the onDidWriteTerminalData API.
+				this.retries(3);
+
 				const openEvents: string[] = [];
 				const dataEvents: { name: string; data: string }[] = [];
 				const closeEvents: string[] = [];
@@ -734,19 +761,19 @@ import { assertNoRpc, poll } from '../utils';
 					data += sanitizeData(e.data);
 				}));
 
-				// Run both PowerShell and sh commands, errors don't matter we're just looking for
-				// the correct output
-				terminal.sendText('$env:A');
-				terminal.sendText('echo $A');
-				terminal.sendText('$env:B');
-				terminal.sendText('echo $B');
-				terminal.sendText('$env:C');
-				terminal.sendText('echo $C');
+				// Run sh commands, if this is ever enabled on Windows we would also want to run
+				// the pwsh equivalent
+				terminal.sendText('echo "$A $B $C"');
 
 				// Poll for the echo results to show up
-				await poll<void>(() => Promise.resolve(), () => data.includes('~a2~'), '~a2~ should be printed');
-				await poll<void>(() => Promise.resolve(), () => data.includes('b1~b2~'), 'b1~b2~ should be printed');
-				await poll<void>(() => Promise.resolve(), () => data.includes('~c2~c1'), '~c2~c1 should be printed');
+				try {
+					await poll<void>(() => Promise.resolve(), () => data.includes('~a2~'), '~a2~ should be printed');
+					await poll<void>(() => Promise.resolve(), () => data.includes('b1~b2~'), 'b1~b2~ should be printed');
+					await poll<void>(() => Promise.resolve(), () => data.includes('~c2~c1'), '~c2~c1 should be printed');
+				} catch (err) {
+					console.error('DATA UP UNTIL NOW:', data);
+					throw err;
+				}
 
 				// Wait for terminal to be disposed
 				await new Promise<void>(r => {
@@ -779,19 +806,19 @@ import { assertNoRpc, poll } from '../utils';
 					data += sanitizeData(e.data);
 				}));
 
-				// Run both PowerShell and sh commands, errors don't matter we're just looking for
-				// the correct output
-				terminal.sendText('$env:A');
-				terminal.sendText('echo $A');
-				terminal.sendText('$env:B');
-				terminal.sendText('echo $B');
-				terminal.sendText('$env:C');
-				terminal.sendText('echo $C');
+				// Run sh commands, if this is ever enabled on Windows we would also want to run
+				// the pwsh equivalent
+				terminal.sendText('echo "$A $B $C"');
 
 				// Poll for the echo results to show up
-				await poll<void>(() => Promise.resolve(), () => data.includes('~a2~'), '~a2~ should be printed');
-				await poll<void>(() => Promise.resolve(), () => data.includes('~b2~'), '~b2~ should be printed');
-				await poll<void>(() => Promise.resolve(), () => data.includes('~c2~'), '~c2~ should be printed');
+				try {
+					await poll<void>(() => Promise.resolve(), () => data.includes('~a2~'), '~a2~ should be printed');
+					await poll<void>(() => Promise.resolve(), () => data.includes('~b2~'), '~b2~ should be printed');
+					await poll<void>(() => Promise.resolve(), () => data.includes('~c2~'), '~c2~ should be printed');
+				} catch (err) {
+					console.error('DATA UP UNTIL NOW:', data);
+					throw err;
+				}
 
 				// Wait for terminal to be disposed
 				await new Promise<void>(r => {
@@ -823,16 +850,18 @@ import { assertNoRpc, poll } from '../utils';
 					data += sanitizeData(e.data);
 				}));
 
-				// Run both PowerShell and sh commands, errors don't matter we're just looking for
-				// the correct output
-				terminal.sendText('$env:A');
-				terminal.sendText('echo $A');
-				terminal.sendText('$env:B');
-				terminal.sendText('echo $B');
+				// Run sh commands, if this is ever enabled on Windows we would also want to run
+				// the pwsh equivalent
+				terminal.sendText('echo "$A $B"');
 
 				// Poll for the echo results to show up
-				await poll<void>(() => Promise.resolve(), () => data.includes('~a1~'), '~a1~ should be printed');
-				await poll<void>(() => Promise.resolve(), () => data.includes('~b1~'), '~b1~ should be printed');
+				try {
+					await poll<void>(() => Promise.resolve(), () => data.includes('~a1~'), '~a1~ should be printed');
+					await poll<void>(() => Promise.resolve(), () => data.includes('~b1~'), '~b1~ should be printed');
+				} catch (err) {
+					console.error('DATA UP UNTIL NOW:', data);
+					throw err;
+				}
 
 				// Wait for terminal to be disposed
 				await new Promise<void>(r => {
@@ -864,16 +893,18 @@ import { assertNoRpc, poll } from '../utils';
 					data += sanitizeData(e.data);
 				}));
 
-				// Run both PowerShell and sh commands, errors don't matter we're just looking for
-				// the correct output
-				terminal.sendText('$env:A');
-				terminal.sendText('echo $A');
-				terminal.sendText('$env:B');
-				terminal.sendText('echo $B');
+				// Run sh commands, if this is ever enabled on Windows we would also want to run
+				// the pwsh equivalent
+				terminal.sendText('echo "$A $B"');
 
 				// Poll for the echo results to show up
-				await poll<void>(() => Promise.resolve(), () => data.includes('~a1~'), '~a1~ should be printed');
-				await poll<void>(() => Promise.resolve(), () => data.includes('~b2~'), '~b2~ should be printed');
+				try {
+					await poll<void>(() => Promise.resolve(), () => data.includes('~a1~'), '~a1~ should be printed');
+					await poll<void>(() => Promise.resolve(), () => data.includes('~b2~'), '~b2~ should be printed');
+				} catch (err) {
+					console.error('DATA UP UNTIL NOW:', data);
+					throw err;
+				}
 
 				// Wait for terminal to be disposed
 				await new Promise<void>(r => {
@@ -893,25 +924,24 @@ import { assertNoRpc, poll } from '../utils';
 					applyAtProcessCreation: true,
 					applyAtShellIntegration: false
 				};
-				deepStrictEqual(collection.get('A'), { value: '~a2~', type: EnvironmentVariableMutatorType.Replace, options: defaultOptions });
-				deepStrictEqual(collection.get('B'), { value: '~b2~', type: EnvironmentVariableMutatorType.Append, options: defaultOptions });
-				deepStrictEqual(collection.get('C'), { value: '~c2~', type: EnvironmentVariableMutatorType.Prepend, options: defaultOptions });
+				deepStrictEqual(collection.get('A'), { value: '~a2~', type: EnvironmentVariableMutatorType.Replace, options: defaultOptions, variable: 'A' });
+				deepStrictEqual(collection.get('B'), { value: '~b2~', type: EnvironmentVariableMutatorType.Append, options: defaultOptions, variable: 'B' });
+				deepStrictEqual(collection.get('C'), { value: '~c2~', type: EnvironmentVariableMutatorType.Prepend, options: defaultOptions, variable: 'C' });
 				// Verify forEach
 				const entries: [string, EnvironmentVariableMutator][] = [];
 				collection.forEach((v, m) => entries.push([v, m]));
 				deepStrictEqual(entries, [
-					['A', { value: '~a2~', type: EnvironmentVariableMutatorType.Replace, options: defaultOptions }],
-					['B', { value: '~b2~', type: EnvironmentVariableMutatorType.Append, options: defaultOptions }],
-					['C', { value: '~c2~', type: EnvironmentVariableMutatorType.Prepend, options: defaultOptions }]
+					['A', { value: '~a2~', type: EnvironmentVariableMutatorType.Replace, options: defaultOptions, variable: 'A' }],
+					['B', { value: '~b2~', type: EnvironmentVariableMutatorType.Append, options: defaultOptions, variable: 'B' }],
+					['C', { value: '~c2~', type: EnvironmentVariableMutatorType.Prepend, options: defaultOptions, variable: 'C' }]
 				]);
 			});
 
 			test('get and forEach should work (scope)', () => {
-				// TODO: Remove cast once `envCollectionWorkspace` API is finalized.
-				const collection = extensionContext.environmentVariableCollection as (EnvironmentVariableCollection & { getScopedEnvironmentVariableCollection(scope: EnvironmentVariableScope): EnvironmentVariableCollection });
+				const collection = extensionContext.environmentVariableCollection;
 				disposables.push({ dispose: () => collection.clear() });
 				const scope = { workspaceFolder: { uri: Uri.file('workspace1'), name: 'workspace1', index: 0 } };
-				const scopedCollection = collection.getScopedEnvironmentVariableCollection(scope);
+				const scopedCollection = collection.getScoped(scope);
 				scopedCollection.replace('A', 'scoped~a2~');
 				scopedCollection.append('B', 'scoped~b2~');
 				scopedCollection.prepend('C', 'scoped~c2~');
@@ -923,19 +953,20 @@ import { assertNoRpc, poll } from '../utils';
 					applyAtProcessCreation: true,
 					applyAtShellIntegration: false
 				};
-				const expectedScopedCollection = collection.getScopedEnvironmentVariableCollection(scope);
-				deepStrictEqual(expectedScopedCollection.get('A'), { value: 'scoped~a2~', type: EnvironmentVariableMutatorType.Replace, options: defaultOptions });
-				deepStrictEqual(expectedScopedCollection.get('B'), { value: 'scoped~b2~', type: EnvironmentVariableMutatorType.Append, options: defaultOptions });
-				deepStrictEqual(expectedScopedCollection.get('C'), { value: 'scoped~c2~', type: EnvironmentVariableMutatorType.Prepend, options: defaultOptions });
+				const expectedScopedCollection = collection.getScoped(scope);
+				deepStrictEqual(expectedScopedCollection.get('A'), { value: 'scoped~a2~', type: EnvironmentVariableMutatorType.Replace, options: defaultOptions, variable: 'A' });
+				deepStrictEqual(expectedScopedCollection.get('B'), { value: 'scoped~b2~', type: EnvironmentVariableMutatorType.Append, options: defaultOptions, variable: 'B' });
+				deepStrictEqual(expectedScopedCollection.get('C'), { value: 'scoped~c2~', type: EnvironmentVariableMutatorType.Prepend, options: defaultOptions, variable: 'C' });
 
 				// Verify forEach
 				const entries: [string, EnvironmentVariableMutator][] = [];
 				expectedScopedCollection.forEach((v, m) => entries.push([v, m]));
 				deepStrictEqual(entries.map(v => v[1]), [
-					{ value: 'scoped~a2~', type: EnvironmentVariableMutatorType.Replace, options: defaultOptions },
-					{ value: 'scoped~b2~', type: EnvironmentVariableMutatorType.Append, options: defaultOptions },
-					{ value: 'scoped~c2~', type: EnvironmentVariableMutatorType.Prepend, options: defaultOptions }
+					{ value: 'scoped~a2~', type: EnvironmentVariableMutatorType.Replace, options: defaultOptions, variable: 'A' },
+					{ value: 'scoped~b2~', type: EnvironmentVariableMutatorType.Append, options: defaultOptions, variable: 'B' },
+					{ value: 'scoped~c2~', type: EnvironmentVariableMutatorType.Prepend, options: defaultOptions, variable: 'C' }
 				]);
+				deepStrictEqual(entries.map(v => v[0]), ['A', 'B', 'C']);
 			});
 		});
 	});
@@ -945,10 +976,10 @@ function sanitizeData(data: string): string {
 	// Strip NL/CR so terminal dimensions don't impact tests
 	data = data.replace(/[\r\n]/g, '');
 
-	// Strip escape sequences so winpty/conpty doesn't cause flakiness, do for all platforms for
+	// Strip escape sequences so conpty doesn't cause flakiness, do for all platforms for
 	// consistency
-	const terminalCodesRegex = /(?:\u001B|\u009B)[\[\]()#;?]*(?:(?:(?:[a-zA-Z0-9]*(?:;[a-zA-Z0-9]*)*)?\u0007)|(?:(?:\d{1,4}(?:;\d{0,4})*)?[0-9A-PR-TZcf-ntqry=><~]))/g;
-	data = data.replace(terminalCodesRegex, '');
+	const CSI_SEQUENCE = /(:?(:?\x1b\[|\x9B)[=?>!]?[\d;:]*["$#'* ]?[a-zA-Z@^`{}|~])|(:?\x1b\].*?\x07)/g;
+	data = data.replace(CSI_SEQUENCE, '');
 
 	return data;
 }

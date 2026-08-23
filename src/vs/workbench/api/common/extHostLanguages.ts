@@ -3,23 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MainContext, MainThreadLanguagesShape, IMainContext, ExtHostLanguagesShape } from './extHost.protocol';
+import { MainContext, MainThreadLanguagesShape, IMainContext, ExtHostLanguagesShape } from './extHost.protocol.js';
 import type * as vscode from 'vscode';
-import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { StandardTokenType, Range, Position, LanguageStatusSeverity } from 'vs/workbench/api/common/extHostTypes';
-import Severity from 'vs/base/common/severity';
-import { disposableTimeout } from 'vs/base/common/async';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
-import { IURITransformer } from 'vs/base/common/uriIpc';
+import { ExtHostDocuments } from './extHostDocuments.js';
+import * as typeConvert from './extHostTypeConverters.js';
+import { StandardTokenType, Range, Position, LanguageStatusSeverity } from './extHostTypes.js';
+import Severity from '../../../base/common/severity.js';
+import { disposableTimeout } from '../../../base/common/async.js';
+import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { CommandsConverter } from './extHostCommands.js';
+import { IURITransformer } from '../../../base/common/uriIpc.js';
+import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { Emitter } from '../../../base/common/event.js';
 
 export class ExtHostLanguages implements ExtHostLanguagesShape {
 
 	private readonly _proxy: MainThreadLanguagesShape;
 
 	private _languageIds: string[] = [];
+
+	private readonly _onDidChangeSyntaxHighlighting = new Emitter<void>();
+	readonly onDidChangeSyntaxHighlighting = this._onDidChangeSyntaxHighlighting.event;
 
 	constructor(
 		mainContext: IMainContext,
@@ -32,6 +37,15 @@ export class ExtHostLanguages implements ExtHostLanguagesShape {
 
 	$acceptLanguageIds(ids: string[]): void {
 		this._languageIds = ids;
+	}
+
+	$acceptSyntaxHighlightingThemeChanged(): void {
+		this._onDidChangeSyntaxHighlighting.fire();
+	}
+
+	async computeFullSyntaxHighlighting(source: string, languageId: string): Promise<vscode.SyntaxHighlightingResult> {
+		const result = await this._proxy.$computeFullSyntaxHighlighting(source, languageId);
+		return result as vscode.SyntaxHighlightingResult;
 	}
 
 	async getLanguages(): Promise<string[]> {
@@ -90,7 +104,7 @@ export class ExtHostLanguages implements ExtHostLanguagesShape {
 		}
 		ids.add(fullyQualifiedId);
 
-		const data: Omit<vscode.LanguageStatusItem, 'dispose'> = {
+		const data: Omit<vscode.LanguageStatusItem, 'dispose' | 'text2'> = {
 			selector,
 			id,
 			name: extension.displayName ?? extension.name,
@@ -159,6 +173,15 @@ export class ExtHostLanguages implements ExtHostLanguagesShape {
 			set text(value) {
 				data.text = value;
 				updateAsync();
+			},
+			set text2(value) {
+				checkProposedApiEnabled(extension, 'languageStatusText');
+				data.text = value;
+				updateAsync();
+			},
+			get text2() {
+				checkProposedApiEnabled(extension, 'languageStatusText');
+				return data.text;
 			},
 			get detail() {
 				return data.detail;

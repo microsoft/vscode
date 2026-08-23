@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
+import fs from 'fs';
+import path from 'path';
 
 if (process.argv.length !== 3) {
-	console.error('Usage: node listNodeModules.js OUTPUT_FILE');
+	console.error('Usage: node listNodeModules.ts OUTPUT_FILE');
 	process.exit(-1);
 }
 
-const ROOT = path.join(__dirname, '../../../');
+const ROOT = path.join(import.meta.dirname, '../../../');
 
 function findNodeModulesFiles(location: string, inNodeModules: boolean, result: string[]) {
 	const entries = fs.readdirSync(path.join(ROOT, location));

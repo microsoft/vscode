@@ -31,8 +31,8 @@
 			"modifiedRange": "[19,26)",
 			"innerChanges": [
 				{
-					"originalRange": "[8,2 -> 8,2]",
-					"modifiedRange": "[18,2 -> 25,2]"
+					"originalRange": "[8,2 -> 8,2 EOL]",
+					"modifiedRange": "[18,2 -> 25,2 EOL]"
 				}
 			]
 		}

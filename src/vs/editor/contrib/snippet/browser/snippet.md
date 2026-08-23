@@ -27,6 +27,7 @@ With `$name` or `${name:default}` you can insert the value of a variable. When a
 * `TM_FILENAME` The filename of the current document
 * `TM_FILENAME_BASE` The filename of the current document without its extensions
 * `TM_DIRECTORY` The directory of the current document
+* `TM_DIRECTORY_BASE` The base directory name of the current document
 * `TM_FILEPATH` The full file path of the current document
 * `RELATIVE_FILEPATH` The relative (to the opened workspace or folder) file path of the current document
 * `CLIPBOARD` The contents of your clipboard
@@ -46,7 +47,11 @@ For inserting the current date and time:
 * `CURRENT_HOUR` The current hour in 24-hour clock format
 * `CURRENT_MINUTE` The current minute
 * `CURRENT_SECOND` The current second
+* `CURRENT_MILLISECOND` The current millisecond as three digits
 * `CURRENT_SECONDS_UNIX` The number of seconds since the Unix epoch
+* `CURRENT_MILLISECONDS_UNIX` The number of milliseconds since the Unix epoch
+* `CURRENT_TIMEZONE_OFFSET` The current UTC offset in the format +HH:MM or -HH:MM
+* `CURRENT_TIMEZONE_NAME` The current IANA time zone name (example 'Europe/Berlin')
 
 For inserting random values:
 
@@ -103,7 +108,7 @@ ${1/^_(.*)/$1/}
 Grammar
 --
 
-Below is the EBNF for snippets. With `\` (backslash) you can escape `$`, `}` and `\`, within choice elements the backslash also escapes comma and pipe characters.
+Below is the EBNF for snippets.
 
 ```
 any         ::= tabstop | placeholder | choice | variable | text
@@ -117,7 +122,7 @@ variable    ::= '$' var | '${' var }'
                 | '${' var transform '}'
 transform   ::= '/' regex '/' (format | text)+ '/' options
 format      ::= '$' int | '${' int '}'
-                | '${' int ':' '/upcase' | '/downcase' | '/capitalize' | '/camelcase' | '/pascalcase' '}'
+                | '${' int ':' '/upcase' | '/downcase' | '/capitalize' | '/camelcase' | '/pascalcase' | '/kebabcase' | '/snakecase' '}'
                 | '${' int ':+' if '}'
                 | '${' int ':?' if ':' else '}'
                 | '${' int ':-' else '}' | '${' int ':' else '}'
@@ -127,3 +132,5 @@ var         ::= [_a-zA-Z] [_a-zA-Z0-9]*
 int         ::= [0-9]+
 text        ::= .*
 ```
+
+Escaping is done with with the `\` (backslash) character. The rule of thumb is that you can escape characters that otherwise would have a syntactic meaning, e.g within text you can escape `$`, `}` and `\`, within choice elements you can escape `|`, `,` and `\`, and within transform elements you can escape `/` and `\`. Also note that in JSON you need to escape `\` as `\\`.

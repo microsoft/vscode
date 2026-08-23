@@ -2,9 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { ContextKeyExpr, ContextKeyExpression, implies } from 'vs/platform/contextkey/common/contextkey';
+import assert from 'assert';
+import { isLinux, isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ContextKeyExpr, ContextKeyExpression, implies } from '../../common/contextkey.js';
 
 function createContext(ctx: any) {
 	return {
@@ -15,6 +16,9 @@ function createContext(ctx: any) {
 }
 
 suite('ContextKeyExpr', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('ContextKeyExpr.equals', () => {
 		const a = ContextKeyExpr.and(
 			ContextKeyExpr.has('a1'),
@@ -89,7 +93,9 @@ suite('ContextKeyExpr', () => {
 			testExpression(expr + ' != true', !value);
 			testExpression(expr + ' == false', !value);
 			testExpression(expr + ' != false', !!value);
+			// eslint-disable-next-line local/code-no-any-casts
 			testExpression(expr + ' == 5', value == <any>'5');
+			// eslint-disable-next-line local/code-no-any-casts
 			testExpression(expr + ' != 5', value != <any>'5');
 			testExpression('!' + expr, !value);
 			testExpression(expr + ' =~ /d.*/', /d.*/.test(value));
@@ -177,6 +183,19 @@ suite('ContextKeyExpr', () => {
 		assert.strictEqual(ainb.evaluate(createContext({ 'a': 'x', 'b': { 'x': false } })), true);
 		assert.strictEqual(ainb.evaluate(createContext({ 'a': 'x', 'b': { 'x': true } })), true);
 		assert.strictEqual(ainb.evaluate(createContext({ 'a': 'prototype', 'b': {} })), false);
+
+		// file URI case-insensitive comparison on Windows
+		if (isWindows) {
+			// Array source: file URIs with different casing should match on Windows
+			assert.strictEqual(ainb.evaluate(createContext({ 'a': 'file:///c%3A/Users/path/file.ts', 'b': ['file:///c%3A/users/path/file.ts'] })), true);
+			assert.strictEqual(ainb.evaluate(createContext({ 'a': 'file:///c%3A/users/path/file.ts', 'b': ['file:///c%3A/Users/path/file.ts'] })), true);
+			// Object source: file URIs with different casing should match on Windows
+			assert.strictEqual(ainb.evaluate(createContext({ 'a': 'file:///c%3A/Users/path/file.ts', 'b': { 'file:///c%3A/users/path/file.ts': true } })), true);
+			// Non-file URIs should still be case-sensitive
+			assert.strictEqual(ainb.evaluate(createContext({ 'a': 'git:/path/File.ts', 'b': ['git:/path/file.ts'] })), false);
+			// Exact match still works
+			assert.strictEqual(ainb.evaluate(createContext({ 'a': 'file:///c%3A/Users/path/file.ts', 'b': ['file:///c%3A/Users/path/file.ts'] })), true);
+		}
 	});
 
 	test('ContextKeyNotInExpr', () => {
@@ -192,6 +211,13 @@ suite('ContextKeyExpr', () => {
 		assert.strictEqual(aNotInB.evaluate(createContext({ 'a': 'x', 'b': { 'x': false } })), false);
 		assert.strictEqual(aNotInB.evaluate(createContext({ 'a': 'x', 'b': { 'x': true } })), false);
 		assert.strictEqual(aNotInB.evaluate(createContext({ 'a': 'prototype', 'b': {} })), true);
+
+		// file URI case-insensitive comparison on Windows
+		if (isWindows) {
+			assert.strictEqual(aNotInB.evaluate(createContext({ 'a': 'file:///c%3A/Users/path/file.ts', 'b': ['file:///c%3A/users/path/file.ts'] })), false);
+			assert.strictEqual(aNotInB.evaluate(createContext({ 'a': 'file:///c%3A/users/path/file.ts', 'b': ['file:///c%3A/Users/path/file.ts'] })), false);
+			assert.strictEqual(aNotInB.evaluate(createContext({ 'a': 'git:/path/File.ts', 'b': ['git:/path/file.ts'] })), true);
+		}
 	});
 
 	test('issue #106524: distributing AND should normalize', () => {

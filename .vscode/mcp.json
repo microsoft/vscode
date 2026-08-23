@@ -1,0 +1,29 @@
+{
+	"servers": {
+		"vscode-automation-mcp": {
+			"type": "stdio",
+			"command": "npm",
+			"args": [
+				"run",
+				"start-stdio"
+			],
+			"cwd": "${workspaceFolder}/test/mcp"
+		},
+		"component-explorer": {
+			"type": "stdio",
+			"command": "npm",
+			"args": [
+				"exec",
+				"--no",
+				"--",
+				"component-explorer",
+				"mcp",
+				"-p",
+				"./test/componentFixtures/component-explorer.json",
+				"--use-daemon",
+				"-vv"
+			]
+		}
+	},
+	"inputs": []
+}

@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Promises } from 'vs/base/common/async';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { equals } from 'vs/base/common/objects';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { defaultUserDataProfileIcon, DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { Promises } from '../../../../base/common/async.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { equals } from '../../../../base/common/objects.js';
+import { IUserDataProfile } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { DidChangeUserDataProfileEvent, IUserDataProfileService } from './userDataProfile.js';
 
 export class UserDataProfileService extends Disposable implements IUserDataProfileService {
 
@@ -22,8 +21,7 @@ export class UserDataProfileService extends Disposable implements IUserDataProfi
 	get currentProfile(): IUserDataProfile { return this._currentProfile; }
 
 	constructor(
-		currentProfile: IUserDataProfile,
-		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService
+		currentProfile: IUserDataProfile
 	) {
 		super();
 		this._currentProfile = currentProfile;
@@ -45,12 +43,4 @@ export class UserDataProfileService extends Disposable implements IUserDataProfi
 		});
 		await Promises.settled(joiners);
 	}
-
-	getShortName(profile: IUserDataProfile): string {
-		if (!profile.isDefault && profile.shortName && ThemeIcon.fromId(profile.shortName)) {
-			return profile.shortName;
-		}
-		return `$(${defaultUserDataProfileIcon.id})`;
-	}
-
 }

@@ -3,20 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { basename } from 'vs/base/common/resources';
-import Severity from 'vs/base/common/severity';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { MessageBoxOptions } from 'vs/base/parts/sandbox/common/electronTypes';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { deepClone } from 'vs/base/common/objects';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Event } from '../../../base/common/event.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
+import { basename } from '../../../base/common/resources.js';
+import Severity from '../../../base/common/severity.js';
+import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ITelemetryData } from '../../telemetry/common/telemetry.js';
 
 export interface IDialogArgs {
 	readonly confirmArgs?: IConfirmDialogArgs;
@@ -29,7 +25,17 @@ export interface IBaseDialogOptions {
 
 	readonly title?: string;
 	readonly message: string;
-	readonly detail?: string;
+
+	/**
+	 * Supporting copy shown below the message. Can be an {@link IMarkdownString}
+	 * to emphasize part of the text (e.g. a command name) or to offer a
+	 * command link, in addition to plain text.
+	 *
+	 * Native and other non-browser dialog handlers cannot render Markdown and
+	 * degrade a Markdown detail to its plain-text equivalent, stripping
+	 * formatting and link syntax rather than showing it verbatim.
+	 */
+	readonly detail?: string | IMarkdownString;
 
 	readonly checkbox?: ICheckbox;
 
@@ -37,6 +43,17 @@ export interface IBaseDialogOptions {
 	 * Allows to enforce use of custom dialog even in native environments.
 	 */
 	readonly custom?: boolean | ICustomDialogOptions;
+
+	/**
+	 * An optional cancellation token that can be used to dismiss the dialog
+	 * programmatically for custom dialog implementations.
+	 *
+	 * When cancelled, the custom dialog resolves as if the cancel button was
+	 * pressed. Native dialog handlers cannot currently be dismissed
+	 * programmatically and ignore this option unless a custom dialog is
+	 * explicitly enforced via the {@link custom} option.
+	 */
+	readonly token?: CancellationToken;
 }
 
 export interface IConfirmDialogArgs {
@@ -152,7 +169,19 @@ export interface IPromptResultWithCancel<T> extends IPromptResult<T> {
 	readonly result: T;
 }
 
-export type IDialogResult = IConfirmationResult | IInputResult | IPromptResult<unknown>;
+export interface IAsyncPromptResult<T> extends ICheckboxResult {
+
+	/**
+	 * The result of the `IPromptButton` that was pressed or `undefined` if none.
+	 */
+	readonly result?: Promise<T>;
+}
+
+export interface IAsyncPromptResultWithCancel<T> extends IAsyncPromptResult<T> {
+	readonly result: Promise<T>;
+}
+
+export type IDialogResult = IConfirmationResult | IInputResult | IAsyncPromptResult<unknown>;
 
 export type DialogType = 'none' | 'info' | 'error' | 'question' | 'warning';
 
@@ -204,7 +233,7 @@ export interface ISaveDialogOptions {
 	/**
 	 * A human-readable string for the ok button
 	 */
-	readonly saveLabel?: string;
+	readonly saveLabel?: { readonly withMnemonic: string; readonly withoutMnemonic: string } | string;
 
 	/**
 	 * Specifies a list of schemas for the file systems the user can save to. If not specified, uses the schema of the defaultURI or, if also not specified,
@@ -228,7 +257,7 @@ export interface IOpenDialogOptions {
 	/**
 	 * A human-readable string for the open button.
 	 */
-	readonly openLabel?: string;
+	readonly openLabel?: { readonly withMnemonic: string; readonly withoutMnemonic: string } | string;
 
 	/**
 	 * Allow to select files, defaults to `true`.
@@ -266,11 +295,21 @@ export interface ICustomDialogOptions {
 	readonly classes?: string[];
 	readonly icon?: ThemeIcon;
 	readonly disableCloseAction?: boolean;
+
+	/**
+	 * Aligns the dialog's icon, message, and buttons vertically (full-width
+	 * stacked buttons) instead of the default horizontal layout. Defaults to
+	 * `'horizontal'`. Implemented by the browser dialog handler via the base
+	 * dialog widget's alignment option.
+	 */
+	readonly alignment?: 'horizontal' | 'vertical';
 }
 
 export interface ICustomDialogMarkdown {
 	readonly markdown: IMarkdownString;
 	readonly classes?: string[];
+	/** Custom link handler for markdown content, see {@link IContentActionHandler}. Defaults to {@link openLinkFromMarkdown}. */
+	actionHandler?(link: string): Promise<boolean>;
 }
 
 /**
@@ -286,7 +325,7 @@ export interface IDialogHandler {
 	/**
 	 * Prompt the user with a modal dialog.
 	 */
-	prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>>;
+	prompt<T>(prompt: IPrompt<T>): Promise<IAsyncPromptResult<T>>;
 
 	/**
 	 * Present a modal dialog to the user asking for input.
@@ -296,7 +335,7 @@ export interface IDialogHandler {
 	/**
 	 * Present the about dialog to the user.
 	 */
-	about(): Promise<void>;
+	about(title: string, details: string, detailsToCopy: string): Promise<void>;
 }
 
 enum DialogKind {
@@ -409,21 +448,24 @@ export abstract class AbstractDialogHandler implements IDialogHandler {
 		return undefined;
 	}
 
-	protected async getPromptResult<T>(prompt: IPrompt<T>, buttonIndex: number, checkboxChecked: boolean | undefined): Promise<IPromptResult<T>> {
+	protected getPromptResult<T>(prompt: IPrompt<T>, buttonIndex: number, checkboxChecked: boolean | undefined): IAsyncPromptResult<T> {
 		const promptButtons: IPromptBaseButton<T>[] = [...(prompt.buttons ?? [])];
 		if (prompt.cancelButton && typeof prompt.cancelButton !== 'string' && typeof prompt.cancelButton !== 'boolean') {
 			promptButtons.push(prompt.cancelButton);
 		}
 
-		const result = await promptButtons[buttonIndex]?.run({ checkboxChecked });
+		let result = promptButtons[buttonIndex]?.run({ checkboxChecked });
+		if (!(result instanceof Promise)) {
+			result = Promise.resolve(result);
+		}
 
 		return { result, checkboxChecked };
 	}
 
 	abstract confirm(confirmation: IConfirmation): Promise<IConfirmationResult>;
 	abstract input(input: IInput): Promise<IInputResult>;
-	abstract prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>>;
-	abstract about(): Promise<void>;
+	abstract prompt<T>(prompt: IPrompt<T>): Promise<IAsyncPromptResult<T>>;
+	abstract about(title: string, details: string, detailsToCopy: string): Promise<void>;
 }
 
 /**
@@ -439,12 +481,12 @@ export interface IDialogService {
 	/**
 	 * An event that fires when a dialog is about to show.
 	 */
-	onWillShowDialog: Event<void>;
+	readonly onWillShowDialog: Event<void>;
 
 	/**
 	 * An event that fires when a dialog did show (closed).
 	 */
-	onDidShowDialog: Event<void>;
+	readonly onDidShowDialog: Event<void>;
 
 	/**
 	 * Ask the user for confirmation with a modal dialog.
@@ -599,115 +641,4 @@ export interface INativeOpenDialogOptions {
 
 	readonly telemetryEventName?: string;
 	readonly telemetryExtraData?: ITelemetryData;
-}
-
-export interface IMassagedMessageBoxOptions {
-
-	/**
-	 * OS massaged message box options.
-	 */
-	readonly options: MessageBoxOptions;
-
-	/**
-	 * Since the massaged result of the message box options potentially
-	 * changes the order of buttons, we have to keep a map of these
-	 * changes so that we can still return the correct index to the caller.
-	 */
-	readonly buttonIndeces: number[];
-}
-
-/**
- * A utility method to ensure the options for the message box dialog
- * are using properties that are consistent across all platforms and
- * specific to the platform where necessary.
- */
-export function massageMessageBoxOptions(options: MessageBoxOptions, productService: IProductService): IMassagedMessageBoxOptions {
-	const massagedOptions = deepClone(options);
-
-	let buttons = (massagedOptions.buttons ?? []).map(button => mnemonicButtonLabel(button));
-	let buttonIndeces = (options.buttons || []).map((button, index) => index);
-
-	let defaultId = 0; // by default the first button is default button
-	let cancelId = massagedOptions.cancelId ?? buttons.length - 1; // by default the last button is cancel button
-
-	// Apply HIG per OS when more than one button is used
-	if (buttons.length > 1) {
-		const cancelButton = typeof cancelId === 'number' ? buttons[cancelId] : undefined;
-
-		if (isLinux || isMacintosh) {
-
-			// Linux: the GNOME HIG (https://developer.gnome.org/hig/patterns/feedback/dialogs.html?highlight=dialog)
-			// recommend the following:
-			// "Always ensure that the cancel button appears first, before the affirmative button. In left-to-right
-			//  locales, this is on the left. This button order ensures that users become aware of, and are reminded
-			//  of, the ability to cancel prior to encountering the affirmative button."
-			//
-			// Electron APIs do not reorder buttons for us, so we ensure a reverse order of buttons and a position
-			// of the cancel button (if provided) that matches the HIG
-
-			// macOS: the HIG (https://developer.apple.com/design/human-interface-guidelines/components/presentation/alerts)
-			// recommend the following:
-			// "Place buttons where people expect. In general, place the button people are most likely to choose on the trailing side in a
-			//  row of buttons or at the top in a stack of buttons. Always place the default button on the trailing side of a row or at the
-			//  top of a stack. Cancel buttons are typically on the leading side of a row or at the bottom of a stack."
-			//
-			// However: it seems that older macOS versions where 3 buttons were presented in a row differ from this
-			// recommendation. In fact, cancel buttons were placed to the left of the default button and secondary
-			// buttons on the far left. To support these older macOS versions we have to manually shuffle the cancel
-			// button in the same way as we do on Linux. This will not have any impact on newer macOS versions where
-			// shuffling is done for us.
-
-			if (typeof cancelButton === 'string' && buttons.length > 1 && cancelId !== 1) {
-				buttons.splice(cancelId, 1);
-				buttons.splice(1, 0, cancelButton);
-
-				const cancelButtonIndex = buttonIndeces[cancelId];
-				buttonIndeces.splice(cancelId, 1);
-				buttonIndeces.splice(1, 0, cancelButtonIndex);
-
-				cancelId = 1;
-			}
-
-			if (isLinux && buttons.length > 1) {
-				buttons = buttons.reverse();
-				buttonIndeces = buttonIndeces.reverse();
-
-				defaultId = buttons.length - 1;
-				if (typeof cancelButton === 'string') {
-					cancelId = defaultId - 1;
-				}
-			}
-		} else if (isWindows) {
-
-			// Windows: the HIG (https://learn.microsoft.com/en-us/windows/win32/uxguide/win-dialog-box)
-			// recommend the following:
-			// "One of the following sets of concise commands: Yes/No, Yes/No/Cancel, [Do it]/Cancel,
-			//  [Do it]/[Don't do it], [Do it]/[Don't do it]/Cancel."
-			//
-			// Electron APIs do not reorder buttons for us, so we ensure the position of the cancel button
-			// (if provided) that matches the HIG
-
-			if (typeof cancelButton === 'string' && buttons.length > 1 && cancelId !== buttons.length - 1 /* last action */) {
-				buttons.splice(cancelId, 1);
-				buttons.push(cancelButton);
-
-				const buttonIndex = buttonIndeces[cancelId];
-				buttonIndeces.splice(cancelId, 1);
-				buttonIndeces.push(buttonIndex);
-
-				cancelId = buttons.length - 1;
-			}
-		}
-	}
-
-	massagedOptions.buttons = buttons;
-	massagedOptions.defaultId = defaultId;
-	massagedOptions.cancelId = cancelId;
-	massagedOptions.noLink = true;
-	massagedOptions.title = massagedOptions.title || productService.nameLong;
-
-	return {
-		options: massagedOptions,
-		buttonIndeces
-	};
 }

@@ -3,27 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExtUri } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { getServiceMachineId } from 'vs/platform/externalServices/common/serviceMachineId';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { ISyncData, ISyncResourceHandle, IUserData, IUserDataSyncBackupStoreService, IUserDataSyncLogService, IUserDataSyncStoreService, SyncResource, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, IUserDataSyncResourceProviderService, ISyncUserDataProfile, CONFIG_SYNC_KEYBINDINGS_PER_PLATFORM, IUserDataSyncResource } from 'vs/platform/userDataSync/common/userDataSync';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { isSyncData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
-import { parseSnippets } from 'vs/platform/userDataSync/common/snippetsSync';
-import { parseSettingsSyncContent } from 'vs/platform/userDataSync/common/settingsSync';
-import { getKeybindingsContentFromSyncContent } from 'vs/platform/userDataSync/common/keybindingsSync';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { getTasksContentFromSyncContent } from 'vs/platform/userDataSync/common/tasksSync';
-import { LocalExtensionsProvider, parseExtensions, stringify as stringifyExtensions } from 'vs/platform/userDataSync/common/extensionsSync';
-import { LocalGlobalStateProvider, stringify as stringifyGlobalState } from 'vs/platform/userDataSync/common/globalStateSync';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { parseUserDataProfilesManifest, stringifyLocalProfiles } from 'vs/platform/userDataSync/common/userDataProfilesManifestSync';
-import { toFormattedString } from 'vs/base/common/jsonFormatter';
+import { IExtUri } from '../../../base/common/resources.js';
+import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
+import { IEnvironmentService } from '../../environment/common/environment.js';
+import { IFileService } from '../../files/common/files.js';
+import { getServiceMachineId } from '../../externalServices/common/serviceMachineId.js';
+import { IStorageService } from '../../storage/common/storage.js';
+import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
+import { ISyncData, ISyncResourceHandle, IUserData, IUserDataSyncLocalStoreService, IUserDataSyncLogService, IUserDataSyncStoreService, SyncResource, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, IUserDataSyncResourceProviderService, ISyncUserDataProfile, CONFIG_SYNC_KEYBINDINGS_PER_PLATFORM, IUserDataSyncResource } from './userDataSync.js';
+import { IUserDataProfile, IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
+import { isSyncData } from './abstractSynchronizer.js';
+import { parseSnippets } from './snippetsSync.js';
+import { parseSettingsSyncContent } from './settingsSync.js';
+import { getKeybindingsContentFromSyncContent } from './keybindingsSync.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { getTasksContentFromSyncContent } from './tasksSync.js';
+import { getMcpContentFromSyncContent } from './mcpSync.js';
+import { LocalExtensionsProvider, parseExtensions, stringify as stringifyExtensions } from './extensionsSync.js';
+import { LocalGlobalStateProvider, stringify as stringifyGlobalState } from './globalStateSync.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { parseUserDataProfilesManifest, stringifyLocalProfiles } from './userDataProfilesManifestSync.js';
+import { toFormattedString } from '../../../base/common/jsonFormatter.js';
+import { trim } from '../../../base/common/strings.js';
+import { IMachinesData, IUserDataSyncMachine } from './userDataSyncMachines.js';
+import { parsePrompts } from './promptsSync/promptsSync.js';
 
 interface ISyncResourceUriInfo {
 	readonly remote: boolean;
@@ -32,11 +36,12 @@ interface ISyncResourceUriInfo {
 	readonly collection: string | undefined;
 	readonly ref: string | undefined;
 	readonly node: string | undefined;
+	readonly location: URI | undefined;
 }
 
 export class UserDataSyncResourceProviderService implements IUserDataSyncResourceProviderService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private static readonly NOT_EXISTING_RESOURCE = 'not-existing-resource';
 	private static readonly REMOTE_BACKUP_AUTHORITY = 'remote-backup';
@@ -46,7 +51,7 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 
 	constructor(
 		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
-		@IUserDataSyncBackupStoreService private readonly userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
+		@IUserDataSyncLocalStoreService private readonly userDataSyncLocalStoreService: IUserDataSyncLocalStoreService,
 		@IUserDataSyncLogService protected readonly logService: IUserDataSyncLogService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
@@ -68,7 +73,31 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 		return [];
 	}
 
-	async getRemoteSyncResourceHandles(syncResource: SyncResource, profile: ISyncUserDataProfile | undefined): Promise<ISyncResourceHandle[]> {
+	async getLocalSyncedProfiles(location?: URI): Promise<ISyncUserDataProfile[]> {
+		const refs = await this.userDataSyncLocalStoreService.getAllResourceRefs(SyncResource.Profiles, undefined, location);
+		if (refs.length) {
+			const content = await this.userDataSyncLocalStoreService.resolveResourceContent(SyncResource.Profiles, refs[0].ref, undefined, location);
+			if (content) {
+				const syncData = this.parseSyncData(content, SyncResource.Profiles);
+				return parseUserDataProfilesManifest(syncData);
+			}
+		}
+		return [];
+	}
+
+	async getLocalSyncedMachines(location?: URI): Promise<IUserDataSyncMachine[]> {
+		const refs = await this.userDataSyncLocalStoreService.getAllResourceRefs('machines', undefined, location);
+		if (refs.length) {
+			const content = await this.userDataSyncLocalStoreService.resolveResourceContent('machines', refs[0].ref, undefined, location);
+			if (content) {
+				const machinesData: IMachinesData = JSON.parse(content);
+				return machinesData.machines.map(m => ({ ...m, isCurrent: false }));
+			}
+		}
+		return [];
+	}
+
+	async getRemoteSyncResourceHandles(syncResource: SyncResource, profile?: ISyncUserDataProfile): Promise<ISyncResourceHandle[]> {
 		const handles = await this.userDataSyncStoreService.getAllResourceRefs(syncResource, profile?.collection);
 		return handles.map(({ created, ref }) => ({
 			created,
@@ -76,6 +105,7 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 				remote: true,
 				syncResource,
 				profile: profile?.id ?? this.userDataProfilesService.defaultProfile.id,
+				location: undefined,
 				collection: profile?.collection,
 				ref,
 				node: undefined,
@@ -83,17 +113,18 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 		}));
 	}
 
-	async getLocalSyncResourceHandles(syncResource: SyncResource, profile: IUserDataProfile): Promise<ISyncResourceHandle[]> {
-		const handles = await this.userDataSyncBackupStoreService.getAllRefs(profile, syncResource);
+	async getLocalSyncResourceHandles(syncResource: SyncResource, profile?: ISyncUserDataProfile, location?: URI): Promise<ISyncResourceHandle[]> {
+		const handles = await this.userDataSyncLocalStoreService.getAllResourceRefs(syncResource, profile?.collection, location);
 		return handles.map(({ created, ref }) => ({
 			created,
 			uri: this.toUri({
 				remote: false,
 				syncResource,
-				profile: profile.id,
-				collection: undefined,
+				profile: profile?.id ?? this.userDataProfilesService.defaultProfile.id,
+				collection: profile?.collection,
 				ref,
 				node: undefined,
+				location,
 			})
 		}));
 	}
@@ -115,7 +146,9 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 			case SyncResource.Settings: return this.getSettingsAssociatedResources(uri, profile);
 			case SyncResource.Keybindings: return this.getKeybindingsAssociatedResources(uri, profile);
 			case SyncResource.Tasks: return this.getTasksAssociatedResources(uri, profile);
+			case SyncResource.Mcp: return this.getMcpAssociatedResources(uri, profile);
 			case SyncResource.Snippets: return this.getSnippetsAssociatedResources(uri, profile);
+			case SyncResource.Prompts: return this.getPromptsAssociatedResources(uri, profile);
 			case SyncResource.GlobalState: return this.getGlobalStateAssociatedResources(uri, profile);
 			case SyncResource.Extensions: return this.getExtensionsAssociatedResources(uri, profile);
 			case SyncResource.Profiles: return this.getProfilesAssociatedResources(uri, profile);
@@ -138,6 +171,18 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 			}
 			return undefined;
 		}
+
+		if (resolved.location) {
+			if (resolved.ref) {
+				const content = await this.userDataSyncLocalStoreService.resolveResourceContent(resolved.syncResource, resolved.ref, resolved.collection, resolved.location);
+				if (content) {
+					const syncData = this.parseSyncData(content, resolved.syncResource);
+					return syncData?.machineId;
+				}
+			}
+			return undefined;
+		}
+
 		return getServiceMachineId(this.environmentService, this.fileService, this.storageService);
 	}
 
@@ -152,7 +197,7 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 		}
 
 		if (resolved.ref) {
-			const content = await this.getContentFromStore(resolved.remote, resolved.syncResource, resolved.profile, resolved.collection, resolved.ref);
+			const content = await this.getContentFromStore(resolved.remote, resolved.syncResource, resolved.collection, resolved.ref, resolved.location);
 			if (resolved.node && content) {
 				return this.resolveNodeContent(resolved.syncResource, content, resolved.node);
 			}
@@ -166,16 +211,12 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 		return null;
 	}
 
-	private async getContentFromStore(remote: boolean, syncResource: SyncResource, profileId: string, collection: string | undefined, ref: string): Promise<string | null> {
+	private async getContentFromStore(remote: boolean, syncResource: SyncResource, collection: string | undefined, ref: string, location?: URI): Promise<string | null> {
 		if (remote) {
 			const { content } = await this.getUserData(syncResource, ref, collection);
 			return content;
 		}
-		const profile = this.userDataProfilesService.profiles.find(p => p.id === profileId);
-		if (profile) {
-			return this.userDataSyncBackupStoreService.resolveContent(profile, syncResource, ref);
-		}
-		return null;
+		return this.userDataSyncLocalStoreService.resolveResourceContent(syncResource, ref, collection, location);
 	}
 
 	private resolveNodeContent(syncResource: SyncResource, content: string, node: string): string | null {
@@ -184,7 +225,9 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 			case SyncResource.Settings: return this.resolveSettingsNodeContent(syncData, node);
 			case SyncResource.Keybindings: return this.resolveKeybindingsNodeContent(syncData, node);
 			case SyncResource.Tasks: return this.resolveTasksNodeContent(syncData, node);
+			case SyncResource.Mcp: return this.resolveMcpNodeContent(syncData, node);
 			case SyncResource.Snippets: return this.resolveSnippetsNodeContent(syncData, node);
+			case SyncResource.Prompts: return this.resolvePromptsNodeContent(syncData, node);
 			case SyncResource.GlobalState: return this.resolveGlobalStateNodeContent(syncData, node);
 			case SyncResource.Extensions: return this.resolveExtensionsNodeContent(syncData, node);
 			case SyncResource.Profiles: return this.resolveProfileNodeContent(syncData, node);
@@ -204,7 +247,9 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 			case SyncResource.Settings: return null;
 			case SyncResource.Keybindings: return null;
 			case SyncResource.Tasks: return null;
+			case SyncResource.Mcp: return null;
 			case SyncResource.Snippets: return null;
+			case SyncResource.Prompts: return null;
 			case SyncResource.WorkspaceState: return null;
 		}
 	}
@@ -273,6 +318,30 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 		return parseSnippets(syncData)[node] || null;
 	}
 
+	private async getPromptsAssociatedResources(uri: URI, profile: IUserDataProfile | undefined): Promise<{ resource: URI; comparableResource: URI }[]> {
+		const content = await this.resolveContent(uri);
+		if (content) {
+			const syncData = this.parseSyncData(content, SyncResource.Prompts);
+			if (syncData) {
+				const prompts = parsePrompts(syncData);
+				const result = [];
+				for (const prompt of Object.keys(prompts)) {
+					const resource = this.extUri.joinPath(uri, prompt);
+					const comparableResource = (profile)
+						? this.extUri.joinPath(profile.promptsHome, prompt)
+						: this.extUri.joinPath(uri, UserDataSyncResourceProviderService.NOT_EXISTING_RESOURCE);
+					result.push({ resource, comparableResource });
+				}
+				return result;
+			}
+		}
+		return [];
+	}
+
+	private resolvePromptsNodeContent(syncData: ISyncData, node: string): string | null {
+		return parsePrompts(syncData)[node] || null;
+	}
+
 	private getExtensionsAssociatedResources(uri: URI, profile: IUserDataProfile | undefined): { resource: URI; comparableResource: URI }[] {
 		const resource = this.extUri.joinPath(uri, 'extensions.json');
 		const comparableResource = profile
@@ -280,6 +349,7 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 				remote: false,
 				syncResource: SyncResource.Extensions,
 				profile: profile.id,
+				location: undefined,
 				collection: undefined,
 				ref: undefined,
 				node: undefined,
@@ -308,6 +378,7 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 				remote: false,
 				syncResource: SyncResource.GlobalState,
 				profile: profile.id,
+				location: undefined,
 				collection: undefined,
 				ref: undefined,
 				node: undefined,
@@ -335,6 +406,7 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 			remote: false,
 			syncResource: SyncResource.Profiles,
 			profile: this.userDataProfilesService.defaultProfile.id,
+			location: undefined,
 			collection: undefined,
 			ref: undefined,
 			node: undefined,
@@ -356,10 +428,14 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 
 	private toUri(syncResourceUriInfo: ISyncResourceUriInfo): URI {
 		const authority = syncResourceUriInfo.remote ? UserDataSyncResourceProviderService.REMOTE_BACKUP_AUTHORITY : UserDataSyncResourceProviderService.LOCAL_BACKUP_AUTHORITY;
-		const paths = [
-			syncResourceUriInfo.syncResource,
-			syncResourceUriInfo.profile,
-		];
+		const paths = [];
+		if (syncResourceUriInfo.location) {
+			paths.push(`scheme:${syncResourceUriInfo.location.scheme}`);
+			paths.push(`authority:${syncResourceUriInfo.location.authority}`);
+			paths.push(trim(syncResourceUriInfo.location.path, '/'));
+		}
+		paths.push(`syncResource:${syncResourceUriInfo.syncResource}`);
+		paths.push(`profile:${syncResourceUriInfo.profile}`);
 		if (syncResourceUriInfo.collection) {
 			paths.push(`collection:${syncResourceUriInfo.collection}`);
 		}
@@ -369,14 +445,11 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 		if (syncResourceUriInfo.node) {
 			paths.push(syncResourceUriInfo.node);
 		}
-		return this.extUri.joinPath(URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority, path: `/` }), ...paths);
+		return this.extUri.joinPath(URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority, path: `/`, query: syncResourceUriInfo.location?.query, fragment: syncResourceUriInfo.location?.fragment }), ...paths);
 	}
 
 	private resolveUri(uri: URI): ISyncResourceUriInfo | undefined {
 		if (uri.scheme !== USER_DATA_SYNC_SCHEME) {
-			return undefined;
-		}
-		if (uri.authority !== UserDataSyncResourceProviderService.LOCAL_BACKUP_AUTHORITY && uri.authority !== UserDataSyncResourceProviderService.REMOTE_BACKUP_AUTHORITY) {
 			return undefined;
 		}
 		const paths: string[] = [];
@@ -388,28 +461,42 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 			return undefined;
 		}
 		const remote = uri.authority === UserDataSyncResourceProviderService.REMOTE_BACKUP_AUTHORITY;
-		const syncResource = paths.shift()! as SyncResource;
-		const profile = paths.shift()!;
+		let scheme: string | undefined;
+		let authority: string | undefined;
+		const locationPaths: string[] = [];
+		let syncResource: SyncResource | undefined;
+		let profile: string | undefined;
 		let collection: string | undefined;
 		let ref: string | undefined;
 		let node: string | undefined;
 		while (paths.length) {
 			const path = paths.shift()!;
-			if (path.startsWith('collection:')) {
+			if (path.startsWith('scheme:')) {
+				scheme = path.substring('scheme:'.length);
+			} else if (path.startsWith('authority:')) {
+				authority = path.substring('authority:'.length);
+			} else if (path.startsWith('syncResource:')) {
+				syncResource = path.substring('syncResource:'.length) as SyncResource;
+			} else if (path.startsWith('profile:')) {
+				profile = path.substring('profile:'.length);
+			} else if (path.startsWith('collection:')) {
 				collection = path.substring('collection:'.length);
 			} else if (path.startsWith('ref:')) {
 				ref = path.substring('ref:'.length);
+			} else if (!syncResource) {
+				locationPaths.push(path);
 			} else {
 				node = path;
 			}
 		}
 		return {
 			remote,
-			syncResource,
-			profile,
+			syncResource: syncResource!,
+			profile: profile!,
 			collection,
 			ref,
 			node,
+			location: scheme && authority !== undefined ? this.extUri.joinPath(URI.from({ scheme, authority, query: uri.query, fragment: uri.fragment, path: '/' }), ...locationPaths) : undefined
 		};
 	}
 
@@ -428,6 +515,20 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 	private async getUserData(syncResource: SyncResource, ref: string, collection?: string): Promise<IUserData> {
 		const content = await this.userDataSyncStoreService.resolveResourceContent(syncResource, ref, collection);
 		return { ref, content };
+	}
+
+	private getMcpAssociatedResources(uri: URI, profile: IUserDataProfile | undefined): { resource: URI; comparableResource: URI }[] {
+		const resource = this.extUri.joinPath(uri, 'mcp.json');
+		const comparableResource = profile ? profile.mcpResource : this.extUri.joinPath(uri, UserDataSyncResourceProviderService.NOT_EXISTING_RESOURCE);
+		return [{ resource, comparableResource }];
+	}
+
+	private resolveMcpNodeContent(syncData: ISyncData, node: string): string | null {
+		switch (node) {
+			case 'mcp.json':
+				return getMcpContentFromSyncContent(syncData.content, this.logService);
+		}
+		return null;
 	}
 
 }

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// keytar depends on a native module shipped in vscode, so this is
-// how we load it
 import * as vscode from 'vscode';
 import { Log } from './logger';
 

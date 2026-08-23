@@ -4,39 +4,64 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { BaseLanguageClient, LanguageClientOptions, NotebookDocumentSyncRegistrationType } from 'vscode-languageclient';
+import * as lsp from 'vscode-languageclient';
 import { IMdParser } from '../markdownEngine';
-import * as proto from './protocol';
-import { looksLikeMarkdownPath, markdownFileExtensions } from '../util/file';
-import { VsCodeMdWorkspace } from './workspace';
-import { FileWatcherManager } from './fileWatchingManager';
 import { IDisposable } from '../util/dispose';
+import { looksLikeMarkdownPath, markdownFileExtensions, markdownLanguageIds } from '../util/file';
+import { FileWatcherManager } from './fileWatchingManager';
+import { InMemoryDocument } from './inMemoryDocument';
+import * as proto from './protocol';
+import { VsCodeMdWorkspace } from './workspace';
 
+export type LanguageClientConstructor = (name: string, description: string, clientOptions: lsp.LanguageClientOptions) => lsp.BaseLanguageClient;
 
-export type LanguageClientConstructor = (name: string, description: string, clientOptions: LanguageClientOptions) => BaseLanguageClient;
+function toLspRange(range: vscode.Range): lsp.Range {
+	return lsp.Range.create(range.start.line, range.start.character, range.end.line, range.end.character);
+}
 
 export class MdLanguageClient implements IDisposable {
 
+	readonly #client: lsp.BaseLanguageClient;
+	readonly #workspace: VsCodeMdWorkspace;
+
 	constructor(
-		private readonly _client: BaseLanguageClient,
-		private readonly _workspace: VsCodeMdWorkspace,
-	) { }
+		client: lsp.BaseLanguageClient,
+		workspace: VsCodeMdWorkspace,
+	) {
+		this.#client = client;
+		this.#workspace = workspace;
+	}
 
 	dispose(): void {
-		this._client.stop();
-		this._workspace.dispose();
+		this.#client.stop();
+		this.#workspace.dispose();
 	}
 
 	resolveLinkTarget(linkText: string, uri: vscode.Uri): Promise<proto.ResolvedDocumentLinkTarget> {
-		return this._client.sendRequest(proto.resolveLinkTarget, { linkText, uri: uri.toString() });
+		return this.#client.sendRequest(proto.resolveLinkTarget, { linkText, uri: uri.toString() });
 	}
 
 	getEditForFileRenames(files: ReadonlyArray<{ oldUri: string; newUri: string }>, token: vscode.CancellationToken) {
-		return this._client.sendRequest(proto.getEditForFileRenames, files, token);
+		return this.#client.sendRequest(proto.getEditForFileRenames, files, token);
 	}
 
 	getReferencesToFileInWorkspace(resource: vscode.Uri, token: vscode.CancellationToken) {
-		return this._client.sendRequest(proto.getReferencesToFileInWorkspace, { uri: resource.toString() }, token);
+		return this.#client.sendRequest(proto.getReferencesToFileInWorkspace, { uri: resource.toString() }, token);
+	}
+
+	prepareUpdatePastedLinks(doc: vscode.Uri, ranges: readonly vscode.Range[], token: vscode.CancellationToken) {
+		return this.#client.sendRequest(proto.prepareUpdatePastedLinks, {
+			uri: doc.toString(),
+			ranges: ranges.map(toLspRange),
+		}, token);
+	}
+
+	getUpdatePastedLinksEdit(pastingIntoDoc: vscode.Uri, edits: readonly vscode.TextEdit[], metadata: string, token: vscode.CancellationToken) {
+		return this.#client.sendRequest(proto.getUpdatePastedLinksEdit, {
+			metadata,
+			pasteIntoDoc: pastingIntoDoc.toString(),
+			edits: edits.map(edit => lsp.TextEdit.replace(toLspRange(edit.range), edit.newText)),
+		}, token);
 	}
 }
 
@@ -44,8 +69,8 @@ export async function startClient(factory: LanguageClientConstructor, parser: IM
 
 	const mdFileGlob = `**/*.{${markdownFileExtensions.join(',')}}`;
 
-	const clientOptions: LanguageClientOptions = {
-		documentSelector: [{ language: 'markdown' }],
+	const clientOptions: lsp.LanguageClientOptions = {
+		documentSelector: markdownLanguageIds,
 		synchronize: {
 			configurationSection: ['markdown'],
 			fileEvents: vscode.workspace.createFileSystemWatcher(mdFileGlob),
@@ -61,13 +86,16 @@ export async function startClient(factory: LanguageClientConstructor, parser: IM
 				return looksLikeMarkdownPath(resource);
 			},
 		},
+		markdown: {
+			supportHtml: true,
+		}
 	};
 
 	const client = factory('markdown', vscode.l10n.t("Markdown Language Server"), clientOptions);
 
 	client.registerProposedFeatures();
 
-	const notebookFeature = client.getFeature(NotebookDocumentSyncRegistrationType.method);
+	const notebookFeature = client.getFeature(lsp.NotebookDocumentSyncRegistrationType.method);
 	if (notebookFeature !== undefined) {
 		notebookFeature.register({
 			id: String(Date.now()),
@@ -84,11 +112,15 @@ export async function startClient(factory: LanguageClientConstructor, parser: IM
 
 	client.onRequest(proto.parse, async (e) => {
 		const uri = vscode.Uri.parse(e.uri);
-		const doc = await workspace.getOrLoadMarkdownDocument(uri);
-		if (doc) {
-			return parser.tokenize(doc);
+		if (typeof e.text === 'string') {
+			return parser.tokenize(new InMemoryDocument(uri, e.text, -1));
 		} else {
-			return [];
+			const doc = await workspace.getOrLoadMarkdownDocument(uri);
+			if (doc) {
+				return parser.tokenize(doc);
+			} else {
+				return [];
+			}
 		}
 	});
 

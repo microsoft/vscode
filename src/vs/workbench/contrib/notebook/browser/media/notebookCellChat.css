@@ -1,0 +1,348 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .notebookOverlay .cell-chat-part {
+	display: none;
+	color: inherit;
+	padding: 6px;
+	border-radius: 6px;
+	border: 1px solid var(--vscode-inlineChat-border);
+	background: var(--vscode-inlineChat-background);
+}
+.monaco-workbench .notebookOverlay .cell-chat-part .cell-chat-container {
+	padding: 8px 8px 0px 8px;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat {
+	color: inherit;
+}
+
+/* body */
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .body {
+	display: flex;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .body .content {
+	display: flex;
+	box-sizing: border-box;
+	outline: 1px solid var(--vscode-inlineChatInput-border);
+	outline-offset: -1px;
+	border-radius: 2px;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .body .content.synthetic-focus {
+	outline: 1px solid var(--vscode-inlineChatInput-focusBorder);
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .body .content .input {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 2px 2px 2px 6px;
+	background-color: var(--vscode-inlineChatInput-background);
+	cursor: text;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .body .content .input .monaco-editor-background {
+	background-color: var(--vscode-inlineChatInput-background);
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .body .content .input .editor-placeholder {
+	position: absolute;
+	z-index: 1;
+	color: var(--vscode-inlineChatInput-placeholderForeground);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .body .content .input .editor-placeholder.hidden {
+	display: none;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .body .content .input .editor-container {
+	vertical-align: middle;
+}
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .body .toolbar {
+	display: flex;
+	flex-direction: column;
+	align-self: stretch;
+	padding-right: 4px;
+	border-top-right-radius: 2px;
+	border-bottom-right-radius: 2px;
+	background: var(--vscode-inlineChatInput-background);
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .body .toolbar .actions-container {
+	display: flex;
+	flex-direction: row;
+	gap: 4px;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .body > .widget-toolbar {
+	padding-left: 4px;
+}
+
+/* progress bit */
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .progress {
+	position: relative;
+	width: calc(100% - 18px);
+	left: 19px;
+}
+
+/* UGLY - fighting against workbench styles */
+.monaco-workbench .part.editor > .content .monaco-editor .inline-chat .progress .monaco-progress-container {
+	top: 0;
+}
+
+/* status */
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .status {
+	margin-top: 4px;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .status.actions {
+	margin-top: 4px;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .status .actions.hidden {
+	display: none;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .status .label {
+	overflow: hidden;
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+	align-self: baseline;
+	display: flex;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .status .label.hidden {
+	display: none;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .status .label.info {
+	margin-right: auto;
+	padding-left: 2px;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .status .label.info > .codicon {
+	padding: 0 5px;
+	font-size: 12px;
+	line-height: 18px;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .status .label.status {
+	padding-left: 10px;
+	padding-right: 4px;
+	margin-left: auto;
+	align-self: center;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .status .label .slash-command-pill CODE {
+	border-radius: 3px;
+	padding: 0 1px;
+	background-color: var(--vscode-chat-slashCommandBackground);
+	color: var(--vscode-chat-slashCommandForeground);
+}
+
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .markdownMessage {
+	padding: 10px 5px;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .markdownMessage.hidden {
+	display: none;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .markdownMessage .message * {
+	margin: unset;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .markdownMessage .message code {
+	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
+	color: var(--vscode-textPreformat-foreground);
+	background-color: var(--vscode-textPreformat-background);
+	padding: 1px 3px;
+	border-radius: 4px;
+	border: 1px solid var(--vscode-textPreformat-border);
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .markdownMessage .message .interactive-result-code-block {
+	margin: 16px 0;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .markdownMessage .message {
+	line-clamp: initial;
+	-webkit-line-clamp: initial;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+	display: -webkit-box;
+	-webkit-user-select: text;
+	user-select: text;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .status .label A {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .status .label.error {
+	color: var(--vscode-errorForeground);
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .status .label.warn {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .status .actions  {
+	display: flex;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .status .actions > .monaco-button,
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .status .actions > .monaco-button-dropdown {
+	margin-right: 6px;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .status .actions > .monaco-button-dropdown > .monaco-dropdown-button {
+	display: flex;
+	align-items: center;
+	padding: 0 4px;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .status .actions > .monaco-button.codicon {
+	display: flex;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .status .actions > .monaco-button.codicon::before {
+	align-self: center;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .status .actions .monaco-text-button {
+	padding: 2px 4px;
+	white-space: nowrap;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .status .monaco-toolbar .action-item {
+	padding: 0 2px;
+}
+
+/* TODO@jrieken not needed? */
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .status .monaco-toolbar .action-label.checked {
+	color: var(--vscode-inputOption-activeForeground);
+	background-color: var(--vscode-inputOption-activeBackground);
+	outline: 1px solid var(--vscode-inputOption-activeBorder);
+}
+
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .status .monaco-toolbar .action-item.button-item .action-label:is(:hover, :focus) {
+	background-color: var(--vscode-button-hoverBackground);
+}
+
+/* preview */
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .preview {
+	display: none;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .previewDiff {
+	display: inherit;
+	padding: 6px;
+	border: 1px solid var(--vscode-inlineChat-border);
+	border-top: none;
+	border-bottom-left-radius: 2px;
+	border-bottom-right-radius: 2px;
+	margin: 0 2px 6px 2px;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .previewCreateTitle {
+	padding-top: 6px;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .previewCreate {
+	display: inherit;
+	padding: 6px;
+	border: 1px solid var(--vscode-inlineChat-border);
+	border-radius: 2px;
+	margin: 0 2px 6px 2px;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .previewDiff.hidden,
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .previewCreate.hidden,
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .previewCreateTitle.hidden {
+	display: none;
+}
+
+/* decoration styles */
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat-lines-deleted-range-inline {
+	text-decoration: line-through;
+	background-color: var(--vscode-diffEditor-removedTextBackground);
+	opacity: 0.6;
+}
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat-lines-inserted-range {
+	background-color: var(--vscode-diffEditor-insertedTextBackground);
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat-block-selection {
+	background-color: var(--vscode-inlineChat-regionHighlight);
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat-slash-command {
+	opacity: 0;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat-slash-command-detail {
+	opacity: 0.5;
+}
+
+/* diff zone */
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat-diff-widget .monaco-diff-editor .monaco-editor-background,
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat-diff-widget .monaco-diff-editor .monaco-editor .margin-view-overlays {
+	background-color: var(--vscode-inlineChat-regionHighlight);
+}
+
+/* create zone */
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat-newfile-widget {
+	padding: 3px 0 6px 0;
+	background-color: var(--vscode-inlineChat-regionHighlight);
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat-newfile-widget .title {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 3px 6px 3px 0;
+}
+
+/* gutter decoration */
+
+.monaco-workbench .notebookOverlay .cell-chat-part .glyph-margin-widgets .cgmr.codicon-inline-chat-opaque,
+.monaco-workbench .notebookOverlay .cell-chat-part .glyph-margin-widgets .cgmr.codicon-inline-chat-transparent {
+	display: block;
+	cursor: pointer;
+	transition: opacity .2s ease-in-out;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .glyph-margin-widgets .cgmr.codicon-inline-chat-opaque {
+	opacity: 0.5;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .glyph-margin-widgets .cgmr.codicon-inline-chat-transparent {
+	opacity: 0;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .glyph-margin-widgets .cgmr.codicon-inline-chat-opaque:hover,
+.monaco-workbench .notebookOverlay .cell-chat-part .glyph-margin-widgets .cgmr.codicon-inline-chat-transparent:hover {
+	opacity: 1;
+}

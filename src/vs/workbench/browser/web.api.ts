@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { PerformanceMark } from 'vs/base/common/performance';
-import type { UriComponents, URI } from 'vs/base/common/uri';
-import type { IWebSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
-import type { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
-import type { LogLevel } from 'vs/platform/log/common/log';
-import type { IUpdateProvider } from 'vs/workbench/services/update/browser/updateService';
-import type { Event } from 'vs/base/common/event';
-import type { IWorkspaceProvider } from 'vs/workbench/services/host/browser/browserHostService';
-import type { IProductConfiguration } from 'vs/base/common/product';
-import type { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
-import type { ISecretStorageProvider } from 'vs/platform/secrets/common/secrets';
-import type { TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
-import type { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
-import type { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import type { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
-import type { IEmbedderTerminalOptions } from 'vs/workbench/services/terminal/common/embedderTerminalService';
+import type { PerformanceMark } from '../../base/common/performance.js';
+import type { UriComponents, URI } from '../../base/common/uri.js';
+import type { IWebSocketFactory } from '../../platform/remote/browser/browserSocketFactory.js';
+import type { IURLCallbackProvider } from '../services/url/browser/urlService.js';
+import type { LogLevel } from '../../platform/log/common/log.js';
+import type { IUpdateProvider } from '../services/update/browser/updateService.js';
+import type { Event } from '../../base/common/event.js';
+import type { IProductConfiguration } from '../../base/common/product.js';
+import type { ISecretStorageProvider } from '../../platform/secrets/common/secrets.js';
+import type { TunnelProviderFeatures } from '../../platform/tunnel/common/tunnel.js';
+import type { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from '../../platform/progress/common/progress.js';
+import type { ITextEditorOptions } from '../../platform/editor/common/editor.js';
+import type { IFolderToOpen, IWorkspaceToOpen } from '../../platform/window/common/window.js';
+import type { EditorGroupLayout } from '../services/editor/common/editorGroupsService.js';
+import type { IEmbedderTerminalOptions } from '../services/terminal/common/embedderTerminalService.js';
+import type { IAuthenticationProvider } from '../services/authentication/common/authentication.js';
 
 /**
  * The `IWorkbench` interface is the API facade for web embedders
@@ -37,7 +37,7 @@ export interface IWorkbench {
 		 * @param rest Parameters passed to the command function.
 		 * @return A promise that resolves to the returned value of the given command.
 		 */
-		executeCommand(command: string, ...args: any[]): Promise<unknown>;
+		executeCommand(command: string, ...args: unknown[]): Promise<unknown>;
 	};
 
 	logger: {
@@ -73,10 +73,10 @@ export interface IWorkbench {
 		retrievePerformanceMarks(): Promise<[string, readonly PerformanceMark[]][]>;
 
 		/**
-		 * Allows to open a `URI` with the standard opener service of the
+		 * Allows to open a target Uri with the standard opener service of the
 		 * workbench.
 		 */
-		openUri(target: URI): Promise<boolean>;
+		openUri(target: URI | UriComponents): Promise<boolean>;
 	};
 
 	window: {
@@ -102,10 +102,24 @@ export interface IWorkbench {
 		 * @param options The definition of the terminal, this is similar to
 		 * `ExtensionTerminalOptions` in the extension API.
 		 */
-		createTerminal(options: IEmbedderTerminalOptions): void;
+		createTerminal(options: IEmbedderTerminalOptions): Promise<void>;
+
+		/**
+		 * Show an information message to users. Optionally provide an array of items which will be presented as
+		 * clickable buttons.
+		 *
+		 * @param message The message to show.
+		 * @param items A set of items that will be rendered as actions in the message.
+		 * @returns A thenable that resolves to the selected item or `undefined` when being dismissed.
+		 */
+		showInformationMessage<T extends string>(message: string, ...items: T[]): Promise<T | undefined>;
 	};
 
 	workspace: {
+		/**
+		 * Resolves once the remote authority has been resolved.
+		 */
+		didResolveRemoteAuthority(): Promise<void>;
 
 		/**
 		 * Forwards a port. If the current embedder implements a tunnelFactory then that will be used to make the tunnel.
@@ -143,6 +157,13 @@ export interface IWorkbenchConstructionOptions {
 	readonly remoteAuthority?: string;
 
 	/**
+	 * The server base path is the path where the workbench is served from.
+	 * The path must be absolute (start with a slash).
+	 * Corresponds to option `server-base-path` on the server side.
+	 */
+	readonly serverBasePath?: string;
+
+	/**
 	 * The connection token to send to the server.
 	 */
 	readonly connectionToken?: string | Promise<string>;
@@ -175,6 +196,15 @@ export interface IWorkbenchConstructionOptions {
 	 * such as creating tunnels and showing candidate ports to forward.
 	 */
 	readonly tunnelProvider?: ITunnelProvider;
+
+	/**
+	 * A provider for discovering and connecting to dev tunnel agent hosts.
+	 *
+	 * The embedder (e.g. vscode.dev) implements this to handle tunnel listing
+	 * and relay WebSocket proxying. If not provided, the sessions workbench
+	 * will not be able to discover tunnel-based agent hosts.
+	 */
+	readonly tunnelDiscoveryProvider?: ITunnelDiscoveryProvider;
 
 	/**
 	 * Endpoints to be used for proxying authentication code exchange calls in the browser.
@@ -211,12 +241,6 @@ export interface IWorkbenchConstructionOptions {
 	readonly settingsSyncOptions?: ISettingsSyncOptions;
 
 	/**
-	 * The credentials provider to store and retrieve secrets.
-	 * TODO: Remove this in favor of the secret storage provider.
-	 */
-	readonly credentialsProvider?: ICredentialsProvider;
-
-	/**
 	 * The secret storage provider to store and retrieve secrets.
 	 */
 	readonly secretStorageProvider?: ISecretStorageProvider;
@@ -234,6 +258,13 @@ export interface IWorkbenchConstructionOptions {
 	 * Note: This will not install extensions if not installed.
 	 */
 	readonly enabledExtensions?: readonly ExtensionId[];
+
+	/**
+	 * List of extensions allowed to use proposed APIs in this session.
+	 * This is the equivalent of the `--enable-proposed-api` command line flag.
+	 * An empty array enables proposed APIs for all extensions.
+	 */
+	readonly enabledExtensionProposedApi?: readonly ExtensionId[];
 
 	/**
 	 * Additional domains allowed to open from the workbench without the
@@ -281,7 +312,7 @@ export interface IWorkbenchConstructionOptions {
 	/**
 	 * Optional configuration default overrides contributed to the workbench.
 	 */
-	readonly configurationDefaults?: Record<string, any>;
+	readonly configurationDefaults?: Record<string, unknown>;
 
 	//#endregion
 
@@ -318,11 +349,6 @@ export interface IWorkbenchConstructionOptions {
 	//#region Branding
 
 	/**
-	 * Optional home indicator to appear above the hamburger menu in the activity bar.
-	 */
-	readonly homeIndicator?: IHomeIndicator;
-
-	/**
 	 * Optional welcome banner to appear above the workbench. Can be dismissed by the
 	 * user.
 	 */
@@ -347,11 +373,6 @@ export interface IWorkbenchConstructionOptions {
 	 */
 	readonly initialColorTheme?: IInitialColorTheme;
 
-	/**
-	 *  Welcome dialog. Can be dismissed by the user.
-	 */
-	readonly welcomeDialog?: IWelcomeDialog;
-
 	//#endregion
 
 
@@ -361,6 +382,15 @@ export interface IWorkbenchConstructionOptions {
 
 	//#endregion
 
+	//#region Authentication Providers
+
+	/**
+	 * Optional authentication provider contributions. These take precedence over
+	 * any authentication providers contributed via extensions.
+	 */
+	readonly authenticationProviders?: readonly IAuthenticationProvider[];
+
+	//#endregion
 
 	//#region Development options
 
@@ -368,6 +398,47 @@ export interface IWorkbenchConstructionOptions {
 
 	//#endregion
 
+}
+
+
+/**
+ * A workspace to open in the workbench can either be:
+ * - a workspace file with 0-N folders (via `workspaceUri`)
+ * - a single folder (via `folderUri`)
+ * - empty (via `undefined`)
+ */
+export type IWorkspace = IWorkspaceToOpen | IFolderToOpen | undefined;
+
+export interface IWorkspaceProvider {
+
+	/**
+	 * The initial workspace to open.
+	 */
+	readonly workspace: IWorkspace;
+
+	/**
+	 * Arbitrary payload from the `IWorkspaceProvider.open` call.
+	 */
+	readonly payload?: object;
+
+	/**
+	 * Return `true` if the provided [workspace](#IWorkspaceProvider.workspace) is trusted, `false` if not trusted, `undefined` if unknown.
+	 */
+	readonly trusted: boolean | undefined;
+
+	/**
+	 * Asks to open a workspace in the current or a new window.
+	 *
+	 * @param workspace the workspace to open.
+	 * @param options optional options for the workspace to open.
+	 * - `reuse`: whether to open inside the current window or a new window
+	 * - `payload`: arbitrary payload that should be made available
+	 * to the opening window via the `IWorkspaceProvider.payload` property.
+	 * @param payload optional payload to send to the workspace to open.
+	 *
+	 * @returns true if successfully opened, false otherwise.
+	 */
+	open(workspace: IWorkspace, options?: { reuse?: boolean; payload?: object }): Promise<boolean>;
 }
 
 export interface IResourceUriProvider {
@@ -382,7 +453,7 @@ export type ExtensionId = string;
 export type MarketplaceExtension = ExtensionId | { readonly id: ExtensionId; preRelease?: boolean; migrateStorageFrom?: ExtensionId };
 
 export interface ICommonTelemetryPropertiesResolver {
-	(): { [key: string]: any };
+	(): { [key: string]: unknown };
 }
 
 export interface IExternalUriResolver {
@@ -417,6 +488,80 @@ export interface ITunnelProvider {
 	 * The features that the tunnel provider supports.
 	 */
 	features?: TunnelProviderFeatures;
+}
+
+/**
+ * Enables the embedder to provide tunnel discovery and connection for agent
+ * host sessions.
+ */
+export interface ITunnelDiscoveryProvider {
+
+	/**
+	 * List dev tunnels that have agent hosts available.
+	 *
+	 * The embedder is responsible for acquiring and managing authentication
+	 * tokens internally.
+	 *
+	 * @returns An array of discovered tunnels with their metadata.
+	 */
+	listTunnels(): Promise<IDiscoveredTunnel[]>;
+
+	/**
+	 * Connect to a tunnel's agent host port and return a message-passing
+	 * interface. The embedder handles all connection details including
+	 * authentication (e.g. using the Dev Tunnels SDK browser WebSocket
+	 * relay + SSH port forwarding).
+	 *
+	 * The returned {@link ITunnelConnection} carries JSON text messages
+	 * for the Agent Host Protocol.
+	 *
+	 * @param tunnelId The tunnel to connect to.
+	 * @param clusterId The cluster region of the tunnel.
+	 */
+	connect(tunnelId: string, clusterId: string): Promise<ITunnelConnection>;
+
+	/**
+	 * Delete a tunnel from the embedder's backing tunnel service.
+	 */
+	deleteTunnel?(tunnelId: string, clusterId: string): Promise<void>;
+}
+
+/**
+ * A bidirectional message-passing connection to a tunnel's agent host.
+ * Returned by {@link ITunnelDiscoveryProvider.connect}.
+ */
+export interface ITunnelConnection {
+	/**
+	 * Send a text message to the agent host.
+	 */
+	send(data: string): void;
+
+	/**
+	 * Fires when a text message is received from the agent host.
+	 */
+	readonly onMessage: Event<string>;
+
+	/**
+	 * Fires when the connection is closed.
+	 */
+	readonly onClose: Event<void>;
+
+	/**
+	 * Close the connection and release resources.
+	 */
+	close(): void;
+}
+
+/**
+ * A tunnel discovered by {@link ITunnelDiscoveryProvider}.
+ */
+export interface IDiscoveredTunnel {
+	readonly tunnelId: string;
+	readonly clusterId: string;
+	readonly name: string;
+	readonly tags: readonly string[];
+	/** Number of hosts currently accepting connections (0 = offline). */
+	readonly hostConnectionCount: number;
 }
 
 export interface ITunnelFactory {
@@ -466,7 +611,7 @@ export interface ITunnel {
 	/**
 	 * Implementers of Tunnel should fire onDidDispose when dispose is called.
 	 */
-	onDidDispose: Event<void>;
+	readonly onDidDispose: Event<void>;
 
 	dispose(): Promise<void> | void;
 }
@@ -508,26 +653,7 @@ export interface ICommand {
 	 * Note: arguments and return type should be serializable so that they can
 	 * be exchanged across processes boundaries.
 	 */
-	handler: (...args: any[]) => unknown;
-}
-
-export interface IHomeIndicator {
-
-	/**
-	 * The link to open when clicking the home indicator.
-	 */
-	href: string;
-
-	/**
-	 * The icon name for the home indicator. This needs to be one of the existing
-	 * icons from our Codicon icon set. For example `code`.
-	 */
-	icon: string;
-
-	/**
-	 * A tooltip that will appear while hovering over the home indicator.
-	 */
-	title: string;
+	handler: (...args: unknown[]) => unknown;
 }
 
 export interface IWelcomeBanner {
@@ -614,40 +740,6 @@ export interface IInitialColorTheme {
 	 * A list of workbench colors to apply initially.
 	 */
 	readonly colors?: { [colorId: string]: string };
-}
-
-export interface IWelcomeDialog {
-
-	/**
-	 * Unique identifier of the welcome dialog. The identifier will be used to determine
-	 * if the dialog has been previously displayed.
-	 */
-	id: string;
-
-	/**
-	 * Title of the welcome dialog.
-	 */
-	title: string;
-
-	/**
-	 * Button text of the welcome dialog.
-	 */
-	buttonText: string;
-
-	/**
-	 * Button command to execute from the welcome dialog.
-	 */
-	buttonCommand: string;
-
-	/**
-	 * Message text for the welcome dialog.
-	 */
-	message: string;
-
-	/**
-	 * Media to include in the welcome dialog.
-	 */
-	media: { altText: string; path: string };
 }
 
 export interface IDefaultView {
@@ -753,6 +845,7 @@ export interface ISettingsSyncOptions {
 	 * Authentication provider
 	 */
 	readonly authenticationProvider?: {
+
 		/**
 		 * Unique identifier of the authentication provider.
 		 */
@@ -799,6 +892,7 @@ export interface IDevelopmentOptions {
  * when remote resolvers are used in the web.
  */
 export interface IRemoteResourceProvider {
+
 	/**
 	 * Path the workbench should delegate requests to. The embedder should
 	 * install a service worker on this path and emit {@link onDidReceiveRequest}
@@ -817,6 +911,7 @@ export interface IRemoteResourceProvider {
  * headers, but for now we only deal with GET requests.
  */
 export interface IRemoteResourceRequest {
+
 	/**
 	 * Request URI. Generally will begin with the current
 	 * origin and {@link IRemoteResourceProvider.pathPrefix}.

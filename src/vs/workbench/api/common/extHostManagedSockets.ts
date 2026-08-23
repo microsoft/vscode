@@ -3,15 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtHostManagedSocketsShape, MainContext, MainThreadManagedSocketsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ExtHostManagedSocketsShape, MainContext, MainThreadManagedSocketsShape } from './extHost.protocol.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import * as vscode from 'vscode';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { VSBuffer } from 'vs/base/common/buffer';
+import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { IExtHostRpcService } from './extHostRpcService.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
 
 export interface IExtHostManagedSockets extends ExtHostManagedSocketsShape {
 	setFactory(socketFactoryId: number, makeConnection: () => Thenable<vscode.ManagedMessagePassing>): void;
+	/**
+	 * Opens a managed connection in-process using the currently registered
+	 * factory. Used by consumers that live inside the extension host (e.g. the
+	 * browser tunnel proxy). There is only ever one active remote per window, so
+	 * the latest factory is the correct one to dial; this avoids depending on a
+	 * factory id that can lag connection-data updates by a renderer round-trip.
+	 */
+	makeConnection(): Promise<vscode.ManagedMessagePassing>;
 	readonly _serviceBrand: undefined;
 }
 
@@ -44,6 +52,13 @@ export class ExtHostManagedSockets implements IExtHostManagedSockets {
 
 		this._factory = new ManagedSocketFactory(socketFactoryId, makeConnection);
 		this._proxy.$registerSocketFactory(this._factory.socketFactoryId);
+	}
+
+	makeConnection(): Promise<vscode.ManagedMessagePassing> {
+		if (!this._factory) {
+			throw new Error('No managed socket factory registered');
+		}
+		return Promise.resolve(this._factory.makeConnection());
 	}
 
 	async $openRemoteSocket(socketFactoryId: number): Promise<number> {

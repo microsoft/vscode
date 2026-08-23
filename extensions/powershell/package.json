@@ -2,12 +2,13 @@
   "name": "powershell",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.0.0",
+  "version": "10.0.0",
   "publisher": "vscode",
   "license": "MIT",
   "engines": {
     "vscode": "*"
   },
+  "categories": ["Programming Languages"],
   "contributes": {
     "languages": [
       {
@@ -23,7 +24,8 @@
           "PowerShell",
           "powershell",
           "ps",
-          "ps1"
+          "ps1",
+          "pwsh"
         ],
         "firstLine": "^#!\\s*/.*\\bpwsh\\b",
         "configuration": "./language-configuration.json"

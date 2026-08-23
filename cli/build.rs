@@ -6,53 +6,214 @@
 const FILE_HEADER: &str = "/*---------------------------------------------------------------------------------------------\n *  Copyright (c) Microsoft Corporation. All rights reserved.\n *  Licensed under the MIT License. See License.txt in the project root for license information.\n *--------------------------------------------------------------------------------------------*/";
 
 use std::{
+	collections::HashMap,
 	env, fs, io,
-	path::PathBuf,
-	process::{self, Command},
+	path::{Path, PathBuf},
+	process::{self},
 	str::FromStr,
 };
+
+use serde::{de::DeserializeOwned, Deserialize};
+use serde_json::Value;
 
 fn main() {
 	let files = enumerate_source_files().expect("expected to enumerate files");
 	ensure_file_headers(&files).expect("expected to ensure file headers");
 	apply_build_environment_variables();
+	apply_win32_version_resources();
+	apply_debug_stack_size();
+}
+
+/// Windows gives the main thread a 1MB stack by default, where Linux and macOS
+/// give 8MB. `#[tokio::main]` runs the whole async runtime on that thread, and
+/// unoptimized builds do not collapse nested async state machines, so a debug
+/// build of `code tunnel` can overflow it before it finishes starting up.
+///
+/// Raise it to match the Unix default, for debug builds only: release builds
+/// optimize those futures down and should not have their link flags changed
+/// without separate scrutiny.
+fn apply_debug_stack_size() {
+	let is_windows = env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows");
+	let is_debug = env::var("PROFILE").as_deref() == Ok("debug");
+	if is_windows && is_debug {
+		println!("cargo:rustc-link-arg-bins=/STACK:8388608");
+	}
+}
+
+fn camel_case_to_constant_case(key: &str) -> String {
+	let mut output = String::new();
+	let mut prev_upper = false;
+	for c in key.chars() {
+		if c.is_uppercase() {
+			if prev_upper {
+				output.push(c.to_ascii_lowercase());
+			} else {
+				output.push('_');
+				output.push(c.to_ascii_uppercase());
+			}
+			prev_upper = true;
+		} else if c.is_lowercase() {
+			output.push(c.to_ascii_uppercase());
+			prev_upper = false;
+		} else {
+			output.push(c);
+			prev_upper = false;
+		}
+	}
+
+	output
+}
+
+fn set_env_vars_from_map_keys(prefix: &str, map: impl IntoIterator<Item = (String, Value)>) {
+	let mut win32_app_ids = vec![];
+
+	for (key, value) in map {
+		//#region special handling
+		let value = match key.as_str() {
+			"tunnelServerQualities" | "serverLicense" => {
+				Value::String(serde_json::to_string(&value).unwrap())
+			}
+			"nameLong" => {
+				if let Value::String(s) = &value {
+					let idx = s.find(" - ");
+					println!(
+						"cargo:rustc-env=VSCODE_CLI_QUALITYLESS_PRODUCT_NAME={}",
+						idx.map(|i| &s[..i]).unwrap_or(s)
+					);
+				}
+
+				value
+			}
+			"tunnelApplicationConfig" => {
+				if let Value::Object(v) = value {
+					set_env_vars_from_map_keys(&format!("{}_{}", prefix, "TUNNEL"), v);
+				}
+				continue;
+			}
+			_ => value,
+		};
+		if key.contains("win32") && key.contains("AppId") {
+			if let Value::String(s) = value {
+				win32_app_ids.push(s);
+				continue;
+			}
+		}
+		//#endregion
+
+		if let Value::String(s) = value {
+			println!(
+				"cargo:rustc-env={}_{}={}",
+				prefix,
+				camel_case_to_constant_case(&key),
+				s
+			);
+		}
+	}
+
+	if !win32_app_ids.is_empty() {
+		println!(
+			"cargo:rustc-env=VSCODE_CLI_WIN32_APP_IDS={}",
+			win32_app_ids.join(",")
+		);
+	}
+}
+
+fn read_json_from_path<T>(path: &Path) -> T
+where
+	T: DeserializeOwned,
+{
+	let mut file = fs::File::open(path).expect("failed to open file");
+	serde_json::from_reader(&mut file).expect("failed to deserialize JSON")
+}
+
+fn apply_build_from_product_json(path: &Path) {
+	let json: HashMap<String, Value> = read_json_from_path(path);
+	set_env_vars_from_map_keys("VSCODE_CLI", json);
+}
+
+#[derive(Deserialize)]
+struct PackageJson {
+	pub version: String,
 }
 
 fn apply_build_environment_variables() {
-	// only do this for local, debug builds
-	if env::var("PROFILE").unwrap() != "debug" || env::var("VSCODE_CLI_ALREADY_PREPARED").is_ok() {
+	let repo_dir = env::current_dir().unwrap().join("..");
+	let package_json = read_json_from_path::<PackageJson>(&repo_dir.join("package.json"));
+	println!(
+		"cargo:rustc-env=VSCODE_CLI_VERSION={}",
+		package_json.version
+	);
+
+	match env::var("VSCODE_CLI_PRODUCT_JSON") {
+		Ok(v) => {
+			let path = if cfg!(windows) {
+				PathBuf::from_str(&v.replace('/', "\\")).unwrap()
+			} else {
+				PathBuf::from_str(&v).unwrap()
+			};
+			println!("cargo:warning=loading product.json from <{path:?}>");
+			apply_build_from_product_json(&path);
+		}
+
+		Err(_) => {
+			apply_build_from_product_json(&repo_dir.join("product.json"));
+
+			let overrides = repo_dir.join("product.overrides.json");
+			if overrides.exists() {
+				apply_build_from_product_json(&overrides);
+			}
+		}
+	};
+}
+
+fn apply_win32_version_resources() {
+	if env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("windows") {
 		return;
 	}
 
-	let pkg_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-	let mut cmd = Command::new(env::var("NODE_PATH").unwrap_or_else(|_| "node".to_string()));
-	cmd.arg("../build/azure-pipelines/cli/prepare.js");
-	cmd.current_dir(&pkg_dir);
-	cmd.env("VSCODE_CLI_PREPARE_OUTPUT", "json");
+	let repo_dir = env::current_dir().unwrap().join("..");
+	let package_json = read_json_from_path::<PackageJson>(&repo_dir.join("package.json"));
 
-	let mut distro_location = PathBuf::from_str(&pkg_dir).unwrap();
-	distro_location.pop(); // vscode dir
-	distro_location.pop(); // parent dir
-	distro_location.push("vscode-distro"); // distro dir, perhaps?
-	if distro_location.exists() {
-		cmd.env("VSCODE_CLI_PREPARE_ROOT", distro_location);
-		cmd.env("VSCODE_QUALITY", "insider");
-	}
+	let product_json_path = match env::var("VSCODE_CLI_PRODUCT_JSON") {
+		Ok(v) => {
+			if cfg!(windows) {
+				PathBuf::from_str(&v.replace('/', "\\")).unwrap()
+			} else {
+				PathBuf::from_str(&v).unwrap()
+			}
+		}
+		Err(_) => repo_dir.join("product.json"),
+	};
 
-	let output = cmd.output().expect("expected to run prepare script");
-	if !output.status.success() {
-		eprint!(
-			"error running prepare script: {}",
-			String::from_utf8_lossy(&output.stderr)
-		);
-		process::exit(output.status.code().unwrap_or(1));
-	}
+	let product: HashMap<String, Value> = read_json_from_path(&product_json_path);
+	let name_long = product
+		.get("nameLong")
+		.and_then(|v| v.as_str())
+		.unwrap_or("Code - OSS");
+	let application_name = product
+		.get("applicationName")
+		.and_then(|v| v.as_str())
+		.unwrap_or("code");
+	let exe_name = format!("{application_name}.exe");
 
-	let vars = serde_json::from_slice::<Vec<(String, String)>>(&output.stdout)
-		.expect("expected to deserialize output");
-	for (key, value) in vars {
-		println!("cargo:rustc-env={}={}", key, value);
-	}
+	let base_version = package_json.version.split('-').next().unwrap_or("0.0.0");
+	let version_parts: Vec<&str> = base_version.split('.').collect();
+	let major: u64 = version_parts.first().and_then(|v| v.parse().ok()).unwrap_or(0);
+	let minor: u64 = version_parts.get(1).and_then(|v| v.parse().ok()).unwrap_or(0);
+	let patch: u64 = version_parts.get(2).and_then(|v| v.parse().ok()).unwrap_or(0);
+
+	let mut res = winresource::WindowsResource::new();
+	res.set("ProductName", name_long);
+	res.set("FileDescription", name_long);
+	res.set("CompanyName", "Microsoft Corporation");
+	res.set("LegalCopyright", "Copyright (C) 2026 Microsoft. All rights reserved");
+	res.set("FileVersion", &package_json.version);
+	res.set("ProductVersion", &package_json.version);
+	res.set("InternalName", &exe_name);
+	res.set("OriginalFilename", &exe_name);
+	res.set_version_info(winresource::VersionInfo::FILEVERSION, (major << 48) | (minor << 16) | patch);
+	res.set_version_info(winresource::VersionInfo::PRODUCTVERSION, (major << 48) | (minor << 16) | patch);
+	res.compile().expect("failed to compile Windows resources");
 }
 
 fn ensure_file_headers(files: &[PathBuf]) -> Result<(), io::Error> {

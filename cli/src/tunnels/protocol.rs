@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 #[allow(non_camel_case_types)]
 pub enum ClientRequestMethod<'a> {
 	servermsg(RefServerMessageParams<'a>),
+	serverclose(ServerClosedParams),
 	serverlog(ServerLog<'a>),
 	makehttpreq(HttpRequestParams<'a>),
 	version(VersionResponse),
@@ -46,6 +47,8 @@ pub struct HttpHeadersParams {
 #[derive(Deserialize, Debug)]
 pub struct ForwardParams {
 	pub port: u16,
+	#[serde(default)]
+	pub public: bool,
 }
 
 #[derive(Deserialize, Debug)]
@@ -90,6 +93,11 @@ pub struct ServerMessageParams {
 }
 
 #[derive(Serialize, Debug)]
+pub struct ServerClosedParams {
+	pub i: u16,
+}
+
+#[derive(Serialize, Debug)]
 pub struct RefServerMessageParams<'a> {
 	pub i: u16,
 	#[serde(with = "serde_bytes")]
@@ -127,9 +135,53 @@ pub struct GetEnvResponse {
 	pub os_release: String,
 }
 
+/// Method: `kill`. Sends a generic, platform-specific kill command to the process.
 #[derive(Deserialize)]
-pub struct FsStatRequest {
+pub struct SysKillRequest {
+	pub pid: u32,
+}
+
+#[derive(Serialize)]
+pub struct SysKillResponse {
+	pub success: bool,
+}
+
+/// Methods: `fs_read`/`fs_write`/`fs_rm`/`fs_mkdirp`/`fs_stat`
+///  - fs_read: reads into a stream returned from the method,
+///  - fs_write: writes from a stream passed to the method.
+///  - fs_rm: recursively removes the file
+///  - fs_mkdirp: recursively creates the directory
+///  - fs_readdir: reads directory contents
+///  - fs_stat: stats the given path
+///  - fs_connect: connect to the given unix or named pipe socket, streaming
+///    data in and out from the method's stream.
+#[derive(Deserialize)]
+pub struct FsSinglePathRequest {
 	pub path: String,
+}
+
+#[derive(Serialize)]
+pub enum FsFileKind {
+	#[serde(rename = "dir")]
+	Directory,
+	#[serde(rename = "file")]
+	File,
+	#[serde(rename = "link")]
+	Link,
+}
+
+impl From<std::fs::FileType> for FsFileKind {
+	fn from(kind: std::fs::FileType) -> Self {
+		if kind.is_dir() {
+			Self::Directory
+		} else if kind.is_file() {
+			Self::File
+		} else if kind.is_symlink() {
+			Self::Link
+		} else {
+			unreachable!()
+		}
+	}
 }
 
 #[derive(Serialize, Default)]
@@ -137,7 +189,33 @@ pub struct FsStatResponse {
 	pub exists: bool,
 	pub size: Option<u64>,
 	#[serde(rename = "type")]
-	pub kind: Option<&'static str>,
+	pub kind: Option<FsFileKind>,
+}
+
+#[derive(Serialize)]
+pub struct FsReadDirResponse {
+	pub contents: Vec<FsReadDirEntry>,
+}
+
+#[derive(Serialize)]
+pub struct FsReadDirEntry {
+	pub name: String,
+	#[serde(rename = "type")]
+	pub kind: Option<FsFileKind>,
+}
+
+/// Method: `fs_reaname`. Renames a file.
+#[derive(Deserialize)]
+pub struct FsRenameRequest {
+	pub from_path: String,
+	pub to_path: String,
+}
+
+/// Method: `net_connect`. Connects to a port.
+#[derive(Deserialize)]
+pub struct NetConnectRequest {
+	pub port: u16,
+	pub host: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -214,8 +292,68 @@ pub struct ChallengeVerifyParams {
 	pub response: String,
 }
 
+#[derive(Serialize, Deserialize, PartialEq, Eq, Copy, Clone, Debug)]
+#[serde(rename_all = "lowercase")]
+pub enum PortPrivacy {
+	Public,
+	Private,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Copy, Eq, Clone, Debug, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum PortProtocol {
+	#[default]
+	Auto,
+	Http,
+	Https,
+}
+
+impl std::fmt::Display for PortProtocol {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}", self.to_contract_str())
+	}
+}
+
+impl PortProtocol {
+	pub fn to_contract_str(&self) -> &'static str {
+		match *self {
+			Self::Auto => tunnels::contracts::TUNNEL_PROTOCOL_AUTO,
+			Self::Http => tunnels::contracts::TUNNEL_PROTOCOL_HTTP,
+			Self::Https => tunnels::contracts::TUNNEL_PROTOCOL_HTTPS,
+		}
+	}
+}
+
+pub mod forward_singleton {
+	use serde::{Deserialize, Serialize};
+
+	use super::{PortPrivacy, PortProtocol};
+
+	pub const METHOD_SET_PORTS: &str = "set_ports";
+
+	#[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Debug)]
+	pub struct PortRec {
+		pub number: u16,
+		pub privacy: PortPrivacy,
+		pub protocol: PortProtocol,
+	}
+
+	pub type PortList = Vec<PortRec>;
+
+	#[derive(Serialize, Deserialize)]
+	pub struct SetPortsParams {
+		pub ports: PortList,
+	}
+
+	#[derive(Serialize, Deserialize)]
+	pub struct SetPortsResponse {
+		pub port_format: Option<String>,
+	}
+}
+
 pub mod singleton {
 	use crate::log;
+	use jiff::Timestamp;
 	use serde::{Deserialize, Serialize};
 
 	pub const METHOD_RESTART: &str = "restart";
@@ -223,6 +361,7 @@ pub mod singleton {
 	pub const METHOD_STATUS: &str = "status";
 	pub const METHOD_LOG: &str = "log";
 	pub const METHOD_LOG_REPLY_DONE: &str = "log_done";
+	pub const METHOD_MACHINE_STATUS: &str = "machine_status";
 
 	#[derive(Serialize)]
 	pub struct LogMessage<'a> {
@@ -238,17 +377,120 @@ pub mod singleton {
 		pub message: String,
 	}
 
-	#[derive(Serialize, Deserialize)]
+	#[derive(Serialize, Deserialize, Clone, Default)]
+	pub struct StatusWithTunnelName {
+		pub name: Option<String>,
+		/// The stable dev tunnel identity. `None` from servers predating this
+		/// field, so clients must not treat a missing value as an identity.
+		#[serde(default)]
+		pub tunnel_id: Option<String>,
+		/// Whether the running singleton serves the editor, as opposed to only
+		/// the agent host. `None` from servers predating this field, in which
+		/// case a client must fall back to describing its own invocation.
+		#[serde(default)]
+		pub has_editor_link: Option<bool>,
+		#[serde(flatten)]
+		pub status: Status,
+	}
+
+	#[derive(Serialize, Deserialize, Clone)]
 	pub struct Status {
+		pub started_at: Timestamp,
 		pub tunnel: TunnelState,
+		pub last_connected_at: Option<Timestamp>,
+		pub last_disconnected_at: Option<Timestamp>,
+		pub last_fail_reason: Option<String>,
+	}
+
+	impl Default for Status {
+		fn default() -> Self {
+			Self {
+				started_at: Timestamp::now(),
+				tunnel: TunnelState::Disconnected,
+				last_connected_at: None,
+				last_disconnected_at: None,
+				last_fail_reason: None,
+			}
+		}
 	}
 
 	#[derive(Deserialize, Serialize, Debug)]
 	pub struct LogReplayFinished {}
 
-	#[derive(Deserialize, Serialize, Debug)]
+	#[derive(Deserialize, Serialize, Debug, Default, Clone)]
 	pub enum TunnelState {
+		#[default]
 		Disconnected,
-		Connected { name: String },
+		Connected,
+	}
+
+	#[cfg(test)]
+	mod tests {
+		use super::*;
+
+		/// A singleton server predating `has_editor_link` omits the field
+		/// entirely; clients must still be able to read its status and fall
+		/// back to describing their own invocation.
+		#[test]
+		fn status_without_editor_link_field_deserializes_as_unknown() {
+			// Built by removing the field from a real payload rather than
+			// hand-writing the wire shape, so it stays accurate if `Status`
+			// changes.
+			let mut legacy = serde_json::to_value(StatusWithTunnelName {
+				name: Some("tunnel-name".to_string()),
+				tunnel_id: None,
+				has_editor_link: Some(true),
+				status: Status::default(),
+			})
+			.unwrap();
+			legacy
+				.as_object_mut()
+				.unwrap()
+				.remove("has_editor_link")
+				.unwrap();
+
+			let parsed: StatusWithTunnelName = serde_json::from_value(legacy).unwrap();
+
+			assert_eq!(
+				(parsed.name.as_deref(), parsed.has_editor_link),
+				(Some("tunnel-name"), None)
+			);
+		}
+
+		#[test]
+		fn status_with_tunnel_id_round_trips() {
+			let expected = StatusWithTunnelName {
+				name: Some("tunnel-name".to_string()),
+				tunnel_id: Some("tunnel-id".to_string()),
+				has_editor_link: Some(true),
+				status: Status::default(),
+			};
+
+			let parsed: StatusWithTunnelName =
+				serde_json::from_value(serde_json::to_value(&expected).unwrap()).unwrap();
+
+			assert_eq!(
+				(parsed.name.as_deref(), parsed.tunnel_id.as_deref()),
+				(Some("tunnel-name"), Some("tunnel-id"))
+			);
+		}
+
+		/// A singleton server predating `tunnel_id` omits the field entirely,
+		/// so clients can continue to attach without treating its absence as an ID.
+		#[test]
+		fn status_without_tunnel_id_field_deserializes_as_unknown() {
+			let mut legacy = serde_json::to_value(StatusWithTunnelName {
+				name: Some("tunnel-name".to_string()),
+				tunnel_id: Some("tunnel-id".to_string()),
+				has_editor_link: Some(true),
+				status: Status::default(),
+			})
+			.unwrap();
+			legacy.as_object_mut().unwrap().remove("tunnel_id").unwrap();
+
+			let parsed: StatusWithTunnelName = serde_json::from_value(legacy).unwrap();
+
+			assert_eq!(parsed.tunnel_id, None);
+		}
 	}
 }

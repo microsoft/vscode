@@ -2,34 +2,60 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { Disposable } from 'vs/base/common/lifecycle';
-import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IndentationRule } from 'vs/editor/common/languages/languageConfiguration';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { LanguageService } from 'vs/editor/common/services/languageService';
-import { MoveLinesCommand } from 'vs/editor/contrib/linesOperations/browser/moveLinesCommand';
-import { testCommand } from 'vs/editor/test/browser/testCommand';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { EditorAutoIndentStrategy } from '../../../../common/config/editorOptions.js';
+import { Selection } from '../../../../common/core/selection.js';
+import { ILanguageService } from '../../../../common/languages/language.js';
+import { IndentationRule } from '../../../../common/languages/languageConfiguration.js';
+import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
+import { LanguageService } from '../../../../common/services/languageService.js';
+import { MoveLinesCommand } from '../../browser/moveLinesCommand.js';
+import { testCommand } from '../../../../test/browser/testCommand.js';
+import { TestLanguageConfigurationService } from '../../../../test/common/modes/testLanguageConfigurationService.js';
 
-function testMoveLinesDownCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService = new TestLanguageConfigurationService()): void {
-	testCommand(lines, null, selection, (accessor, sel) => new MoveLinesCommand(sel, true, EditorAutoIndentStrategy.Advanced, languageConfigurationService), expectedLines, expectedSelection);
+const enum MoveLinesDirection {
+	Up,
+	Down
 }
 
-function testMoveLinesUpCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService = new TestLanguageConfigurationService()): void {
-	testCommand(lines, null, selection, (accessor, sel) => new MoveLinesCommand(sel, false, EditorAutoIndentStrategy.Advanced, languageConfigurationService), expectedLines, expectedSelection);
+function testMoveLinesDownCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService?: ILanguageConfigurationService): void {
+	testMoveLinesUpOrDownCommand(MoveLinesDirection.Down, lines, selection, expectedLines, expectedSelection, languageConfigurationService);
 }
 
-function testMoveLinesDownWithIndentCommand(languageId: string, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService = new TestLanguageConfigurationService()): void {
-	testCommand(lines, languageId, selection, (accessor, sel) => new MoveLinesCommand(sel, true, EditorAutoIndentStrategy.Full, languageConfigurationService), expectedLines, expectedSelection);
+function testMoveLinesUpCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService?: ILanguageConfigurationService): void {
+	testMoveLinesUpOrDownCommand(MoveLinesDirection.Up, lines, selection, expectedLines, expectedSelection, languageConfigurationService);
 }
 
-function testMoveLinesUpWithIndentCommand(languageId: string, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService = new TestLanguageConfigurationService()): void {
-	testCommand(lines, languageId, selection, (accessor, sel) => new MoveLinesCommand(sel, false, EditorAutoIndentStrategy.Full, languageConfigurationService), expectedLines, expectedSelection);
+function testMoveLinesDownWithIndentCommand(languageId: string, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService?: ILanguageConfigurationService): void {
+	testMoveLinesUpOrDownWithIndentCommand(MoveLinesDirection.Down, languageId, lines, selection, expectedLines, expectedSelection, languageConfigurationService);
+}
+
+function testMoveLinesUpWithIndentCommand(languageId: string, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService?: ILanguageConfigurationService): void {
+	testMoveLinesUpOrDownWithIndentCommand(MoveLinesDirection.Up, languageId, lines, selection, expectedLines, expectedSelection, languageConfigurationService);
+}
+
+function testMoveLinesUpOrDownCommand(direction: MoveLinesDirection, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService?: ILanguageConfigurationService) {
+	const disposables = new DisposableStore();
+	if (!languageConfigurationService) {
+		languageConfigurationService = disposables.add(new TestLanguageConfigurationService());
+	}
+	testCommand(lines, null, selection, (accessor, sel) => new MoveLinesCommand(sel, direction === MoveLinesDirection.Up ? false : true, EditorAutoIndentStrategy.Advanced, languageConfigurationService), expectedLines, expectedSelection);
+	disposables.dispose();
+}
+
+function testMoveLinesUpOrDownWithIndentCommand(direction: MoveLinesDirection, languageId: string, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService?: ILanguageConfigurationService) {
+	const disposables = new DisposableStore();
+	if (!languageConfigurationService) {
+		languageConfigurationService = disposables.add(new TestLanguageConfigurationService());
+	}
+	testCommand(lines, languageId, selection, (accessor, sel) => new MoveLinesCommand(sel, direction === MoveLinesDirection.Up ? false : true, EditorAutoIndentStrategy.Full, languageConfigurationService), expectedLines, expectedSelection);
+	disposables.dispose();
 }
 
 suite('Editor Contrib - Move Lines Command', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('move first up / last down disabled', function () {
 		testMoveLinesUpCommand(
@@ -277,6 +303,9 @@ class IndentRulesMode extends Disposable {
 }
 
 suite('Editor contrib - Move Lines Command honors Indentation Rules', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	const indentRules = {
 		decreaseIndentPattern: /^\s*((?!\S.*\/[*]).*[*]\/\s*)?[})\]]|^\s*(case\b.*|default):\s*(\/\/.*|\/[*].*[*]\/\s*)?$/,
 		increaseIndentPattern: /(\{[^}"'`]*|\([^)"']*|\[[^\]"']*|^\s*(\{\}|\(\)|\[\]|(case\b.*|default):))\s*(\/\/.*|\/[*].*[*]\/\s*)?$/,
@@ -309,6 +338,7 @@ suite('Editor contrib - Move Lines Command honors Indentation Rules', () => {
 
 		mode.dispose();
 		languageService.dispose();
+		languageConfigurationService.dispose();
 	});
 
 	// https://github.com/microsoft/vscode/issues/28552#issuecomment-307867717
@@ -342,6 +372,7 @@ suite('Editor contrib - Move Lines Command honors Indentation Rules', () => {
 
 		mode.dispose();
 		languageService.dispose();
+		languageConfigurationService.dispose();
 	});
 
 
@@ -390,6 +421,8 @@ class EnterRulesMode extends Disposable {
 
 suite('Editor - contrib - Move Lines Command honors onEnter Rules', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('issue #54829. move block across block', () => {
 		const languageService = new LanguageService();
 		const languageConfigurationService = new TestLanguageConfigurationService();
@@ -425,5 +458,6 @@ suite('Editor - contrib - Move Lines Command honors onEnter Rules', () => {
 
 		mode.dispose();
 		languageService.dispose();
+		languageConfigurationService.dispose();
 	});
 });

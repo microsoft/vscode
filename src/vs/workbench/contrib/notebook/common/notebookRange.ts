@@ -19,12 +19,12 @@ export interface ICellRange {
 }
 
 
-export function isICellRange(candidate: any): candidate is ICellRange {
+export function isICellRange(candidate: unknown): candidate is ICellRange {
 	if (!candidate || typeof candidate !== 'object') {
 		return false;
 	}
-	return typeof (<ICellRange>candidate).start === 'number'
-		&& typeof (<ICellRange>candidate).end === 'number';
+	return typeof (candidate as ICellRange).start === 'number'
+		&& typeof (candidate as ICellRange).end === 'number';
 }
 
 export function cellIndexesToRanges(indexes: number[]) {
@@ -65,7 +65,7 @@ export function reduceCellRanges(ranges: ICellRange[]): ICellRange[] {
 		return [];
 	}
 
-	return sorted.reduce((prev: ICellRange[], curr) => {
+	const reduced = sorted.reduce((prev: ICellRange[], curr) => {
 		const last = prev[prev.length - 1];
 		if (last.end >= curr.start) {
 			last.end = Math.max(last.end, curr.end);
@@ -74,6 +74,13 @@ export function reduceCellRanges(ranges: ICellRange[]): ICellRange[] {
 		}
 		return prev;
 	}, [first] as ICellRange[]);
+
+	if (reduced.length > 1) {
+		// remove the (0, 0) range
+		return reduced.filter(range => !(range.start === range.end && range.start === 0));
+	}
+
+	return reduced;
 }
 
 export function cellRangesEqual(a: ICellRange[], b: ICellRange[]) {

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { IAddress } from 'vs/platform/remote/common/remoteAgentConnection';
-import { extractLocalHostUriMetaDataForPortMapping, ITunnelService, RemoteTunnel } from 'vs/platform/tunnel/common/tunnel';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { Schemas } from '../../../base/common/network.js';
+import { URI } from '../../../base/common/uri.js';
+import { IAddress } from '../../remote/common/remoteAgentConnection.js';
+import { extractLocalHostUriMetaDataForPortMapping, ITunnelService, RemoteTunnel } from '../../tunnel/common/tunnel.js';
 
 export interface IWebviewPortMapping {
 	readonly webviewPort: number;
@@ -72,7 +72,11 @@ export class WebviewPortMappingManager implements IDisposable {
 		if (existing) {
 			return existing;
 		}
-		const tunnel = await this.tunnelService.openTunnel({ getAddress: async () => remoteAuthority }, undefined, remotePort);
+		const tunnelOrError = await this.tunnelService.openTunnel({ getAddress: async () => remoteAuthority }, undefined, remotePort);
+		let tunnel: RemoteTunnel | undefined;
+		if (typeof tunnelOrError === 'string') {
+			tunnel = undefined;
+		}
 		if (tunnel) {
 			this._tunnels.set(remotePort, tunnel);
 		}

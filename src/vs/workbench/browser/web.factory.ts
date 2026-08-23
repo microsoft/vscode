@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITunnel, ITunnelOptions, IWorkbench, IWorkbenchConstructionOptions, Menu } from 'vs/workbench/browser/web.api';
-import { BrowserMain } from 'vs/workbench/browser/web.main';
-import { URI } from 'vs/base/common/uri';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { mark, PerformanceMark } from 'vs/base/common/performance';
-import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { DeferredPromise } from 'vs/base/common/async';
-import { asArray } from 'vs/base/common/arrays';
-import { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
-import { LogLevel } from 'vs/platform/log/common/log';
+import { ITunnel, ITunnelOptions, IWorkbench, IWorkbenchConstructionOptions, Menu } from './web.api.js';
+import { BrowserMain } from './web.main.js';
+import { URI, UriComponents } from '../../base/common/uri.js';
+import { IDisposable, toDisposable } from '../../base/common/lifecycle.js';
+import { CommandsRegistry } from '../../platform/commands/common/commands.js';
+import { mark, PerformanceMark } from '../../base/common/performance.js';
+import { MenuId, MenuRegistry } from '../../platform/actions/common/actions.js';
+import { DeferredPromise } from '../../base/common/async.js';
+import { asArray } from '../../base/common/arrays.js';
+import { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from '../../platform/progress/common/progress.js';
+import { LogLevel } from '../../platform/log/common/log.js';
+import { IEmbedderTerminalOptions } from '../services/terminal/common/embedderTerminalService.js';
 
 let created = false;
 const workbenchPromise = new DeferredPromise<IWorkbench>();
@@ -84,7 +85,7 @@ export namespace commands {
 	/**
 	 * {@linkcode IWorkbench.commands IWorkbench.commands.executeCommand}
 	 */
-	export async function executeCommand(command: string, ...args: any[]): Promise<unknown> {
+	export async function executeCommand(command: string, ...args: unknown[]): Promise<unknown> {
 		const workbench = await workbenchPromise.p;
 
 		return workbench.commands.executeCommand(command, ...args);
@@ -124,10 +125,10 @@ export namespace env {
 	/**
 	 * {@linkcode IWorkbench.env IWorkbench.env.openUri}
 	 */
-	export async function openUri(target: URI): Promise<boolean> {
+	export async function openUri(target: URI | UriComponents): Promise<boolean> {
 		const workbench = await workbenchPromise.p;
 
-		return workbench.env.openUri(target);
+		return workbench.env.openUri(URI.isUri(target) ? target : URI.from(target));
 	}
 }
 
@@ -144,9 +145,27 @@ export namespace window {
 
 		return workbench.window.withProgress(options, task);
 	}
+
+	export async function createTerminal(options: IEmbedderTerminalOptions): Promise<void> {
+		const workbench = await workbenchPromise.p;
+		workbench.window.createTerminal(options);
+	}
+
+	export async function showInformationMessage<T extends string>(message: string, ...items: T[]): Promise<T | undefined> {
+		const workbench = await workbenchPromise.p;
+		return await workbench.window.showInformationMessage(message, ...items);
+	}
 }
 
 export namespace workspace {
+
+	/**
+	 * {@linkcode IWorkbench.workspace IWorkbench.workspace.didResolveRemoteAuthority}
+	 */
+	export async function didResolveRemoteAuthority() {
+		const workbench = await workbenchPromise.p;
+		await workbench.workspace.didResolveRemoteAuthority();
+	}
 
 	/**
 	 * {@linkcode IWorkbench.workspace IWorkbench.workspace.openTunnel}

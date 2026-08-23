@@ -1,0 +1,19 @@
+{
+	"extends": "../tsconfig.base.json",
+	"compilerOptions": {
+		"rootDir": "./src",
+		"outDir": "./out",
+		"typeRoots": [
+			"./node_modules/@types"
+		],
+		"types": [
+			"node"
+		]
+	},
+	"include": [
+		"src/**/*",
+		"../../src/vscode-dts/vscode.d.ts",
+		"../../src/vscode-dts/vscode.proposed.resolvers.d.ts",
+		"../../src/vscode-dts/vscode.proposed.tunnelFactory.d.ts"
+	]
+}

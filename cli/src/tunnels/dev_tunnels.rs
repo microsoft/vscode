@@ -2,38 +2,74 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+use super::protocol::{self, PortPrivacy, PortProtocol};
 use crate::auth;
-use crate::constants::{
-	CONTROL_PORT, IS_INTERACTIVE_CLI, PROTOCOL_VERSION_TAG, TUNNEL_SERVICE_USER_AGENT,
-};
+use crate::constants::{IS_INTERACTIVE_CLI, PROTOCOL_VERSION_TAG, TUNNEL_SERVICE_USER_AGENT};
+use crate::log;
 use crate::state::{LauncherPaths, PersistedState};
 use crate::util::errors::{
-	wrap, AnyError, DevTunnelError, InvalidTunnelName, TunnelCreationFailed, WrappedError,
+	wrap, AnyError, CodeError, DevTunnelError, InvalidTunnelName, TunnelCreationFailed,
+	WrappedError,
 };
 use crate::util::input::prompt_placeholder;
-use crate::{debug, info, log, spanf, trace, warning};
-use async_trait::async_trait;
-use futures::TryFutureExt;
-use lazy_static::lazy_static;
+use futures::future::BoxFuture;
+use futures::{FutureExt, TryFutureExt};
+use http::StatusCode;
 use rand::prelude::IteratorRandom;
 use regex::Regex;
-use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, Mutex};
+use std::future::Future;
+use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
 use tokio::sync::{mpsc, watch};
-use tunnels::connections::{ForwardedPortConnection, RelayTunnelHost};
+use tunnels::connections::{
+	ClientRelayHandle, ForwardedPortConnection, PortConnection, RelayTunnelClient, RelayTunnelHost,
+};
 use tunnels::contracts::{
-	Tunnel, TunnelPort, TunnelRelayTunnelEndpoint, PORT_TOKEN, TUNNEL_PROTOCOL_AUTO,
+	Tunnel, TunnelAccessControl, TunnelEndpoint, TunnelPort, PORT_TOKEN,
+	TUNNEL_ACCESS_SCOPES_CONNECT, TUNNEL_PROTOCOL_AUTO,
 };
 use tunnels::management::{
 	new_tunnel_management, HttpError, TunnelLocator, TunnelManagementClient, TunnelRequestOptions,
 	NO_REQUEST_OPTIONS,
 };
 
-use super::wsl_detect::is_wsl_installed;
-
 static TUNNEL_COUNT_LIMIT_NAME: &str = "TunnelsPerUserPerLocation";
+static TUNNEL_PORT_PROTOCOL_CONFLICT_DETAIL: &str = "The tunnel port protocol cannot be changed.";
+
+#[allow(dead_code)]
+mod tunnel_flags {
+	use crate::{log, tunnels::wsl_detect::is_wsl_installed};
+
+	pub const IS_WSL_INSTALLED: u32 = 1 << 0;
+	pub const IS_WINDOWS: u32 = 1 << 1;
+	pub const IS_LINUX: u32 = 1 << 2;
+	pub const IS_MACOS: u32 = 1 << 3;
+
+	/// Creates a flag string for the tunnel
+	pub fn create(log: &log::Logger) -> String {
+		let mut flags = 0;
+
+		#[cfg(windows)]
+		{
+			flags |= IS_WINDOWS;
+		}
+		#[cfg(target_os = "linux")]
+		{
+			flags |= IS_LINUX;
+		}
+		#[cfg(target_os = "macos")]
+		{
+			flags |= IS_MACOS;
+		}
+
+		if is_wsl_installed(log) {
+			flags |= IS_WSL_INSTALLED;
+		}
+
+		format!("_flag{flags}")
+	}
+}
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct PersistedTunnel {
@@ -57,10 +93,15 @@ impl PersistedTunnel {
 	}
 }
 
-#[async_trait]
+#[allow(clippy::manual_async_fn)]
 trait AccessTokenProvider: Send + Sync {
 	/// Gets the current access token.
-	async fn refresh_token(&self) -> Result<String, WrappedError>;
+	fn refresh_token(&self) -> impl Future<Output = Result<String, WrappedError>> + Send;
+
+	/// Maintains the stored credential by refreshing it against the service
+	/// to ensure its stays current. Returns a future that should be polled and
+	/// only completes if a refresh fails in a consistent way.
+	fn keep_alive(&self) -> BoxFuture<'static, Result<(), AnyError>>;
 }
 
 /// Access token provider that provides a fixed token without refreshing.
@@ -72,15 +113,20 @@ impl StaticAccessTokenProvider {
 	}
 }
 
-#[async_trait]
+#[allow(clippy::manual_async_fn)]
 impl AccessTokenProvider for StaticAccessTokenProvider {
-	async fn refresh_token(&self) -> Result<String, WrappedError> {
-		Ok(self.0.clone())
+	fn refresh_token(&self) -> impl Future<Output = Result<String, WrappedError>> + Send {
+		async move { Ok(self.0.clone()) }
+	}
+
+	fn keep_alive(&self) -> BoxFuture<'static, Result<(), AnyError>> {
+		futures::future::pending().boxed()
 	}
 }
 
 /// Access token provider that looks up the token from the tunnels API.
 struct LookupAccessTokenProvider {
+	auth: auth::Auth,
 	client: TunnelManagementClient,
 	locator: TunnelLocator,
 	log: log::Logger,
@@ -89,12 +135,14 @@ struct LookupAccessTokenProvider {
 
 impl LookupAccessTokenProvider {
 	pub fn new(
+		auth: auth::Auth,
 		client: TunnelManagementClient,
 		locator: TunnelLocator,
 		log: log::Logger,
 		initial_token: Option<String>,
 	) -> Self {
 		Self {
+			auth,
 			client,
 			locator,
 			log,
@@ -103,39 +151,47 @@ impl LookupAccessTokenProvider {
 	}
 }
 
-#[async_trait]
+#[allow(clippy::manual_async_fn)]
 impl AccessTokenProvider for LookupAccessTokenProvider {
-	async fn refresh_token(&self) -> Result<String, WrappedError> {
-		if let Some(token) = self.initial_token.lock().unwrap().take() {
-			return Ok(token);
+	fn refresh_token(&self) -> impl Future<Output = Result<String, WrappedError>> + Send {
+		async move {
+			if let Some(token) = self.initial_token.lock().unwrap().take() {
+				return Ok(token);
+			}
+
+			let tunnel_lookup = self
+				.client
+				.get_tunnel(
+					&self.locator,
+					&TunnelRequestOptions {
+						token_scopes: vec!["host".to_string()],
+						..Default::default()
+					},
+				)
+				.await;
+
+			trace!(self.log, "Successfully refreshed access token");
+
+			match tunnel_lookup {
+				Ok(tunnel) => Ok(get_host_token_from_tunnel(&tunnel)),
+				Err(e) => Err(wrap(e, "failed to lookup tunnel for host token")),
+			}
 		}
+	}
 
-		let tunnel_lookup = spanf!(
-			self.log,
-			self.log.span("dev-tunnel.tag.get"),
-			self.client.get_tunnel(
-				&self.locator,
-				&TunnelRequestOptions {
-					token_scopes: vec!["host".to_string()],
-					..Default::default()
-				}
-			)
-		);
-
-		trace!(self.log, "Successfully refreshed access token");
-
-		match tunnel_lookup {
-			Ok(tunnel) => Ok(get_host_token_from_tunnel(&tunnel)),
-			Err(e) => Err(wrap(e, "failed to lookup tunnel for host token")),
-		}
+	fn keep_alive(&self) -> BoxFuture<'static, Result<(), AnyError>> {
+		let auth = self.auth.clone();
+		auth.keep_token_alive().boxed()
 	}
 }
 
 #[derive(Clone)]
 pub struct DevTunnels {
+	auth: auth::Auth,
 	log: log::Logger,
 	launcher_tunnel: PersistedState<Option<PersistedTunnel>>,
 	client: TunnelManagementClient,
+	tag: &'static str,
 }
 
 /// Representation of a tunnel returned from the `start` methods.
@@ -164,30 +220,55 @@ impl ActiveTunnel {
 	}
 
 	/// Forwards a port over TCP.
-	pub async fn add_port_tcp(&mut self, port_number: u16) -> Result<(), AnyError> {
-		self.manager.add_port_tcp(port_number).await?;
+	pub async fn add_port_tcp(
+		&self,
+		port_number: u16,
+		privacy: PortPrivacy,
+		protocol: PortProtocol,
+	) -> Result<(), AnyError> {
+		self.manager
+			.add_port_tcp(port_number, privacy, protocol)
+			.await?;
 		Ok(())
 	}
 
 	/// Removes a forwarded port TCP.
-	pub async fn remove_port(&mut self, port_number: u16) -> Result<(), AnyError> {
+	pub async fn remove_port(&self, port_number: u16) -> Result<(), AnyError> {
 		self.manager.remove_port(port_number).await?;
 		Ok(())
 	}
 
-	/// Gets the public URI on which a forwarded port can be access in browser.
-	pub async fn get_port_uri(&mut self, port: u16) -> Result<String, AnyError> {
-		let endpoint = self.manager.get_endpoint().await?;
-		let format = endpoint
-			.base
-			.port_uri_format
-			.expect("expected to have port format");
+	/// Gets the template string for forming forwarded port web URIs..
+	pub fn get_port_format(&self) -> Result<String, AnyError> {
+		if let Some(details) = &*self.manager.endpoint_rx.borrow() {
+			return details
+				.as_ref()
+				.map(|r| {
+					r.port_uri_format
+						.clone()
+						.expect("expected to have port format")
+				})
+				.map_err(|e| e.clone().into());
+		}
 
-		Ok(format.replace(PORT_TOKEN, &port.to_string()))
+		Err(CodeError::NoTunnelEndpoint.into())
+	}
+
+	/// Gets the public URI on which a forwarded port can be access in browser.
+	pub fn get_port_uri(&self, port: u16) -> Result<String, AnyError> {
+		self.get_port_format()
+			.map(|f| f.replace(PORT_TOKEN, &port.to_string()))
+	}
+
+	/// Gets an object to read the current tunnel status.
+	pub fn status(&self) -> StatusLock {
+		self.manager.get_status()
 	}
 }
 
 const VSCODE_CLI_TUNNEL_TAG: &str = "vscode-server-launcher";
+const VSCODE_CLI_FORWARDING_TAG: &str = "vscode-port-forward";
+const OWNED_TUNNEL_TAGS: &[&str] = &[VSCODE_CLI_TUNNEL_TAG, VSCODE_CLI_FORWARDING_TAG];
 const MAX_TUNNEL_NAME_LENGTH: usize = 20;
 
 fn get_host_token_from_tunnel(tunnel: &Tunnel) -> String {
@@ -203,8 +284,7 @@ fn get_host_token_from_tunnel(tunnel: &Tunnel) -> String {
 fn is_valid_name(name: &str) -> Result<(), InvalidTunnelName> {
 	if name.len() > MAX_TUNNEL_NAME_LENGTH {
 		return Err(InvalidTunnelName(format!(
-			"Names cannot be longer than {} characters. Please try a different name.",
-			MAX_TUNNEL_NAME_LENGTH
+			"Names cannot be longer than {MAX_TUNNEL_NAME_LENGTH} characters. Please try a different name."
 		)));
 	}
 
@@ -219,13 +299,12 @@ fn is_valid_name(name: &str) -> Result<(), InvalidTunnelName> {
 	Ok(())
 }
 
-lazy_static! {
-	static ref HOST_TUNNEL_REQUEST_OPTIONS: TunnelRequestOptions = TunnelRequestOptions {
+static HOST_TUNNEL_REQUEST_OPTIONS: LazyLock<TunnelRequestOptions> =
+	LazyLock::new(|| TunnelRequestOptions {
 		include_ports: true,
 		token_scopes: vec!["host".to_string()],
 		..Default::default()
-	};
-}
+	});
 
 /// Structure optionally passed into `start_existing_tunnel` to forward an existing tunnel.
 #[derive(Clone, Debug)]
@@ -244,14 +323,39 @@ pub struct ExistingTunnel {
 }
 
 impl DevTunnels {
-	pub fn new(log: &log::Logger, auth: auth::Auth, paths: &LauncherPaths) -> DevTunnels {
+	/// Creates a new DevTunnels client used for port forwarding.
+	pub fn new_port_forwarding(
+		log: &log::Logger,
+		auth: auth::Auth,
+		paths: &LauncherPaths,
+	) -> DevTunnels {
 		let mut client = new_tunnel_management(&TUNNEL_SERVICE_USER_AGENT);
-		client.authorization_provider(auth);
+		client.authorization_provider(auth.clone());
 
 		DevTunnels {
+			auth,
+			log: log.clone(),
+			client: client.into(),
+			launcher_tunnel: PersistedState::new(paths.root().join("port_forwarding_tunnel.json")),
+			tag: VSCODE_CLI_FORWARDING_TAG,
+		}
+	}
+
+	/// Creates a new DevTunnels client used for the Remote Tunnels extension to access the VS Code Server.
+	pub fn new_remote_tunnel(
+		log: &log::Logger,
+		auth: auth::Auth,
+		paths: &LauncherPaths,
+	) -> DevTunnels {
+		let mut client = new_tunnel_management(&TUNNEL_SERVICE_USER_AGENT);
+		client.authorization_provider(auth.clone());
+
+		DevTunnels {
+			auth,
 			log: log.clone(),
 			client: client.into(),
 			launcher_tunnel: PersistedState::new(paths.root().join("code_tunnel.json")),
+			tag: VSCODE_CLI_TUNNEL_TAG,
 		}
 	}
 
@@ -263,13 +367,10 @@ impl DevTunnels {
 			}
 		};
 
-		spanf!(
-			self.log,
-			self.log.span("dev-tunnel.delete"),
-			self.client
-				.delete_tunnel(&tunnel.into_locator(), NO_REQUEST_OPTIONS)
-		)
-		.map_err(|e| wrap(e, "failed to execute `tunnel delete`"))?;
+		self.client
+			.delete_tunnel(&tunnel.into_locator(), NO_REQUEST_OPTIONS)
+			.await
+			.map_err(|e| wrap(e, "failed to execute `tunnel delete`"))?;
 
 		self.launcher_tunnel.save(None)?;
 		Ok(())
@@ -280,6 +381,83 @@ impl DevTunnels {
 		self.update_tunnel_name(self.launcher_tunnel.load(), name)
 			.await
 			.map(|_| ())
+	}
+
+	/// Connects to a tunnel by name as a client, returning a raw connection
+	/// to the tunnel's agent host port. The caller is responsible for doing
+	/// the WebSocket upgrade over the returned stream.
+	///
+	/// The returned [`ClientRelayHandle`] must be kept alive for the duration
+	/// of the connection; dropping it closes the underlying SSH session.
+	pub async fn connect_to_tunnel_port(
+		&mut self,
+		name: &str,
+		port: u16,
+	) -> Result<(PortConnection, ClientRelayHandle), AnyError> {
+		let tunnel = self.get_tunnel_with_connect_scope(name).await?;
+
+		let endpoint = tunnel.endpoints.first().ok_or_else(|| {
+			DevTunnelError(format!(
+				"Tunnel '{name}' has no active endpoint (is the host running?)",
+			))
+		})?;
+
+		let connect_token = tunnel
+			.access_tokens
+			.as_ref()
+			.and_then(|t| t.get("connect"))
+			.ok_or_else(|| {
+				DevTunnelError(format!(
+					"No connect-scoped access token for tunnel '{name}'",
+				))
+			})?;
+
+		let client = RelayTunnelClient::new(self.client.clone());
+		let handle = client
+			.connect(endpoint, connect_token)
+			.await
+			.map_err(|e| wrap(e, "failed to connect to tunnel relay"))?;
+
+		let port_conn = handle
+			.connect_to_port(port)
+			.await
+			.map_err(|e| wrap(e, format!("failed to connect to port {port} on tunnel")))?;
+
+		Ok((port_conn, handle))
+	}
+
+	/// Looks up a tunnel by name with connect-scoped access token.
+	async fn get_tunnel_with_connect_scope(&self, name: &str) -> Result<Tunnel, AnyError> {
+		let existing: Vec<Tunnel> = self
+			.client
+			.list_all_tunnels(&TunnelRequestOptions {
+				labels: vec![self.tag.to_string(), name.to_string()],
+				require_all_labels: true,
+				limit: 1,
+				..Default::default()
+			})
+			.await
+			.map_err(|e| wrap(e, "failed to list tunnels"))?;
+
+		let tunnel = match existing.into_iter().next() {
+			Some(t) => t,
+			None => {
+				return Err(DevTunnelError(format!("No tunnel found with name '{name}'")).into())
+			}
+		};
+
+		let loc = TunnelLocator::try_from(&tunnel).unwrap();
+		self.client
+			.get_tunnel(
+				&loc,
+				&TunnelRequestOptions {
+					include_ports: true,
+					token_scopes: vec!["connect".to_string()],
+					..Default::default()
+				},
+			)
+			.await
+			.map_err(|e| wrap(e, "failed to lookup tunnel").into())
 	}
 
 	/// Updates the name of the existing persisted tunnel to the new name.
@@ -308,21 +486,20 @@ impl DevTunnels {
 			}
 		}?;
 
-		let desired_tags = self.get_tags(&name);
-		if is_new || vec_eq_as_set(&full_tunnel.tags, &desired_tags) {
+		let desired_tags = self.get_labels(&name);
+		if is_new || vec_eq_as_set(&full_tunnel.labels, &desired_tags) {
 			return Ok((full_tunnel, persisted));
 		}
 
 		debug!(self.log, "Tunnel name changed, applying updates...");
 
-		full_tunnel.tags = desired_tags;
+		full_tunnel.labels = desired_tags;
 
-		let updated_tunnel = spanf!(
-			self.log,
-			self.log.span("dev-tunnel.tag.update"),
-			self.client.update_tunnel(&full_tunnel, NO_REQUEST_OPTIONS)
-		)
-		.map_err(|e| wrap(e, "failed to rename tunnel"))?;
+		let updated_tunnel = self
+			.client
+			.update_tunnel(&full_tunnel, NO_REQUEST_OPTIONS)
+			.await
+			.map_err(|e| wrap(e, "failed to rename tunnel"))?;
 
 		persisted.name = name;
 		self.launcher_tunnel.save(Some(persisted.clone()))?;
@@ -339,17 +516,13 @@ impl DevTunnels {
 		create_with_new_name: Option<&str>,
 		options: &TunnelRequestOptions,
 	) -> Result<(Tunnel, PersistedTunnel, /* is_new */ bool), AnyError> {
-		let tunnel_lookup = spanf!(
-			self.log,
-			self.log.span("dev-tunnel.tag.get"),
-			self.client.get_tunnel(&persisted.locator(), options)
-		);
+		let tunnel_lookup = self.client.get_tunnel(&persisted.locator(), options).await;
 
 		match tunnel_lookup {
 			Ok(ft) => Ok((ft, persisted, false)),
 			Err(HttpError::ResponseError(e))
-				if e.status_code == StatusCode::NOT_FOUND
-					|| e.status_code == StatusCode::FORBIDDEN =>
+				if e.status_code.as_u16() == StatusCode::NOT_FOUND.as_u16()
+					|| e.status_code.as_u16() == StatusCode::FORBIDDEN.as_u16() =>
 			{
 				let (persisted, tunnel) = self
 					.create_tunnel(create_with_new_name.unwrap_or(&persisted.name), options)
@@ -366,6 +539,7 @@ impl DevTunnels {
 		&mut self,
 		preferred_name: Option<&str>,
 		use_random_name: bool,
+		preserve_ports: &[u16],
 	) -> Result<ActiveTunnel, AnyError> {
 		let (mut tunnel, persisted) = match self.launcher_tunnel.load() {
 			Some(mut persisted) => {
@@ -409,19 +583,16 @@ impl DevTunnels {
 		for port_to_delete in tunnel
 			.ports
 			.iter()
-			.filter(|p| p.port_number != CONTROL_PORT)
+			.filter(|p: &&TunnelPort| !preserve_ports.contains(&p.port_number))
 		{
 			let output_fut = self.client.delete_tunnel_port(
 				&locator,
 				port_to_delete.port_number,
 				NO_REQUEST_OPTIONS,
 			);
-			spanf!(
-				self.log,
-				self.log.span("dev-tunnel.port.delete"),
-				output_fut
-			)
-			.map_err(|e| wrap(e, "failed to delete port"))?;
+			output_fut
+				.await
+				.map_err(|e| wrap(e, "failed to delete port"))?;
 		}
 
 		// cleanup any old trailing tunnel endpoints
@@ -429,11 +600,10 @@ impl DevTunnels {
 			let fut = self.client.delete_tunnel_endpoints(
 				&locator,
 				&endpoint.host_id,
-				None,
 				NO_REQUEST_OPTIONS,
 			);
 
-			spanf!(self.log, self.log.span("dev-tunnel.endpoint.prune"), fut)
+			fut.await
 				.map_err(|e| wrap(e, "failed to prune tunnel endpoint"))?;
 		}
 
@@ -442,6 +612,7 @@ impl DevTunnels {
 			&persisted,
 			self.client.clone(),
 			LookupAccessTokenProvider::new(
+				self.auth.clone(),
 				self.client.clone(),
 				locator,
 				self.log.clone(),
@@ -458,80 +629,83 @@ impl DevTunnels {
 	) -> Result<(PersistedTunnel, Tunnel), AnyError> {
 		info!(self.log, "Creating tunnel with the name: {}", name);
 
-		self.check_is_name_free(name).await?;
+		let tunnel = match self.get_existing_tunnel_with_name(name).await? {
+			Some(e) => {
+				if tunnel_has_host_connection(&e) {
+					return Err(CodeError::TunnelActiveAndInUse(name.to_string()).into());
+				}
 
-		let new_tunnel = Tunnel {
-			tags: vec![
-				name.to_string(),
-				PROTOCOL_VERSION_TAG.to_string(),
-				VSCODE_CLI_TUNNEL_TAG.to_string(),
-			],
-			..Default::default()
-		};
+				let loc = TunnelLocator::try_from(&e).unwrap();
+				info!(self.log, "Adopting existing tunnel (ID={:?})", loc);
+				self.client
+					.get_tunnel(&loc, &HOST_TUNNEL_REQUEST_OPTIONS)
+					.await
+					.map_err(|e| wrap(e, "failed to lookup tunnel"))?
+			}
+			None => loop {
+				let result = self
+					.client
+					.create_tunnel(
+						Tunnel {
+							labels: self.get_labels(name),
+							..Default::default()
+						},
+						options,
+					)
+					.await;
 
-		loop {
-			let result = spanf!(
-				self.log,
-				self.log.span("dev-tunnel.create"),
-				self.client.create_tunnel(&new_tunnel, options)
-			);
+				match result {
+					Err(HttpError::ResponseError(e))
+						if e.status_code.as_u16() == StatusCode::TOO_MANY_REQUESTS.as_u16() =>
+					{
+						if let Some(d) = e.get_details() {
+							let detail = d.detail.unwrap_or_else(|| "unknown".to_string());
+							if detail.contains(TUNNEL_COUNT_LIMIT_NAME)
+								&& self.try_recycle_tunnel().await?
+							{
+								continue;
+							}
 
-			match result {
-				Err(HttpError::ResponseError(e))
-					if e.status_code == StatusCode::TOO_MANY_REQUESTS =>
-				{
-					if let Some(d) = e.get_details() {
-						let detail = d.detail.unwrap_or_else(|| "unknown".to_string());
-						if detail.contains(TUNNEL_COUNT_LIMIT_NAME)
-							&& self.try_recycle_tunnel().await?
-						{
-							continue;
+							return Err(AnyError::from(TunnelCreationFailed(
+								name.to_string(),
+								detail,
+							)));
 						}
 
 						return Err(AnyError::from(TunnelCreationFailed(
-							name.to_string(),
-							detail,
-						)));
+								name.to_string(),
+								"You have exceeded a limit for the port fowarding service. Please remove other machines before trying to add this machine.".to_string(),
+							)));
 					}
+					Err(e) => {
+						return Err(AnyError::from(TunnelCreationFailed(
+							name.to_string(),
+							format!("{e:?}"),
+						)))
+					}
+					Ok(t) => break t,
+				}
+			},
+		};
 
-					return Err(AnyError::from(TunnelCreationFailed(
-						name.to_string(),
-						"You have exceeded a limit for the port fowarding service. Please remove other machines before trying to add this machine.".to_string(),
-					)));
-				}
-				Err(e) => {
-					return Err(AnyError::from(TunnelCreationFailed(
-						name.to_string(),
-						format!("{:?}", e),
-					)))
-				}
-				Ok(t) => {
-					let pt = PersistedTunnel {
-						cluster: t.cluster_id.clone().unwrap(),
-						id: t.tunnel_id.clone().unwrap(),
-						name: name.to_string(),
-					};
+		let pt = PersistedTunnel {
+			cluster: tunnel.cluster_id.clone().unwrap(),
+			id: tunnel.tunnel_id.clone().unwrap(),
+			name: name.to_string(),
+		};
 
-					self.launcher_tunnel.save(Some(pt.clone()))?;
-					return Ok((pt, t));
-				}
-			}
-		}
+		self.launcher_tunnel.save(Some(pt.clone()))?;
+		Ok((pt, tunnel))
 	}
 
 	/// Gets the expected tunnel tags
-	fn get_tags(&self, name: &str) -> Vec<String> {
-		let mut tags = vec![
+	fn get_labels(&self, name: &str) -> Vec<String> {
+		vec![
 			name.to_string(),
 			PROTOCOL_VERSION_TAG.to_string(),
-			VSCODE_CLI_TUNNEL_TAG.to_string(),
-		];
-
-		if is_wsl_installed(&self.log) {
-			tags.push("_wsl".to_string())
-		}
-
-		tags
+			self.tag.to_string(),
+			tunnel_flags::create(&self.log),
+		]
 	}
 
 	/// Ensures the tunnel contains a tag for the current PROTCOL_VERSION, and no
@@ -543,30 +717,26 @@ impl DevTunnels {
 		tunnel: Tunnel,
 		options: &TunnelRequestOptions,
 	) -> Result<Tunnel, AnyError> {
-		let new_tags = self.get_tags(name);
-		if vec_eq_as_set(&tunnel.tags, &new_tags) {
+		let new_labels = self.get_labels(name);
+		if vec_eq_as_set(&tunnel.labels, &new_labels) {
 			return Ok(tunnel);
 		}
 
 		debug!(
 			self.log,
 			"Updating tunnel tags {} -> {}",
-			tunnel.tags.join(", "),
-			new_tags.join(", ")
+			tunnel.labels.join(", "),
+			new_labels.join(", ")
 		);
 
 		let tunnel_update = Tunnel {
-			tags: new_tags,
+			labels: new_labels,
 			tunnel_id: tunnel.tunnel_id.clone(),
 			cluster_id: tunnel.cluster_id.clone(),
 			..Default::default()
 		};
 
-		let result = spanf!(
-			self.log,
-			self.log.span("dev-tunnel.protocol-tag-update"),
-			client.update_tunnel(&tunnel_update, options)
-		);
+		let result = client.update_tunnel(&tunnel_update, options).await;
 
 		result.map_err(|e| wrap(e, "tunnel tag update failed").into())
 	}
@@ -579,29 +749,20 @@ impl DevTunnels {
 			"Tunnel limit hit, trying to recycle an old tunnel"
 		);
 
-		let existing_tunnels = self.list_all_server_tunnels().await?;
+		let existing_tunnels = self.list_tunnels_with_tag(OWNED_TUNNEL_TAGS).await?;
 
 		let recyclable = existing_tunnels
 			.iter()
-			.filter(|t| {
-				t.status
-					.as_ref()
-					.and_then(|s| s.host_connection_count.as_ref())
-					.map(|c| c.get_count())
-					.unwrap_or(0) == 0
-			})
+			.filter(|t| !tunnel_has_host_connection(t))
 			.choose(&mut rand::thread_rng());
 
 		match recyclable {
 			Some(tunnel) => {
 				trace!(self.log, "Recycling tunnel ID {:?}", tunnel.tunnel_id);
-				spanf!(
-					self.log,
-					self.log.span("dev-tunnel.delete"),
-					self.client
-						.delete_tunnel(&tunnel.try_into().unwrap(), NO_REQUEST_OPTIONS)
-				)
-				.map_err(|e| wrap(e, "failed to execute `tunnel delete`"))?;
+				self.client
+					.delete_tunnel(&tunnel.try_into().unwrap(), NO_REQUEST_OPTIONS)
+					.await
+					.map_err(|e| wrap(e, "failed to execute `tunnel delete`"))?;
 				Ok(true)
 			}
 			None => {
@@ -611,44 +772,43 @@ impl DevTunnels {
 		}
 	}
 
-	async fn list_all_server_tunnels(&mut self) -> Result<Vec<Tunnel>, AnyError> {
-		let tunnels = spanf!(
-			self.log,
-			self.log.span("dev-tunnel.listall"),
-			self.client.list_all_tunnels(&TunnelRequestOptions {
-				tags: vec![VSCODE_CLI_TUNNEL_TAG.to_string()],
-				require_all_tags: true,
+	async fn list_tunnels_with_tag(
+		&mut self,
+		tags: &[&'static str],
+	) -> Result<Vec<Tunnel>, AnyError> {
+		let tunnels = self
+			.client
+			.list_all_tunnels(&TunnelRequestOptions {
+				labels: tags.iter().map(|t| t.to_string()).collect(),
 				..Default::default()
 			})
-		)
-		.map_err(|e| wrap(e, "error listing current tunnels"))?;
+			.await
+			.map_err(|e| wrap(e, "error listing current tunnels"))?;
 
 		Ok(tunnels)
 	}
 
-	async fn check_is_name_free(&mut self, name: &str) -> Result<(), AnyError> {
-		let existing: Vec<Tunnel> = spanf!(
-			self.log,
-			self.log.span("dev-tunnel.rename.search"),
-			self.client.list_all_tunnels(&TunnelRequestOptions {
-				tags: vec![VSCODE_CLI_TUNNEL_TAG.to_string(), name.to_string()],
-				require_all_tags: true,
+	async fn get_existing_tunnel_with_name(&self, name: &str) -> Result<Option<Tunnel>, AnyError> {
+		let existing: Vec<Tunnel> = self
+			.client
+			.list_all_tunnels(&TunnelRequestOptions {
+				labels: vec![self.tag.to_string(), name.to_string()],
+				require_all_labels: true,
+				limit: 1,
+				include_ports: true,
+				token_scopes: vec!["host".to_string()],
 				..Default::default()
 			})
-		)
-		.map_err(|e| wrap(e, "failed to list existing tunnels"))?;
-		if !existing.is_empty() {
-			return Err(AnyError::from(TunnelCreationFailed(
-				name.to_string(),
-				"tunnel name already in use".to_string(),
-			)));
-		};
-		Ok(())
+			.await
+			.map_err(|e| wrap(e, "failed to list existing tunnels"))?;
+
+		Ok(existing.into_iter().next())
 	}
 
 	fn get_placeholder_name() -> String {
 		let mut n = clean_hostname_for_tunnel(&gethostname::gethostname().to_string_lossy());
 		n.make_ascii_lowercase();
+		n.truncate(MAX_TUNNEL_NAME_LENGTH);
 		n
 	}
 
@@ -657,14 +817,11 @@ impl DevTunnels {
 		preferred_name: Option<&str>,
 		mut use_random_name: bool,
 	) -> Result<String, AnyError> {
-		let existing_tunnels = self.list_all_server_tunnels().await?;
+		let existing_tunnels = self.list_tunnels_with_tag(&[self.tag]).await?;
 		let is_name_free = |n: &str| {
-			!existing_tunnels.iter().any(|v| {
-				v.status
-					.as_ref()
-					.and_then(|s| s.host_connection_count.as_ref().map(|c| c.get_count()))
-					.unwrap_or(0) > 0 && v.tags.iter().any(|t| t == n)
-			})
+			!existing_tunnels
+				.iter()
+				.any(|v| tunnel_has_host_connection(v) && v.labels.iter().any(|t| t == n))
 		};
 
 		if let Some(machine_name) = preferred_name {
@@ -686,7 +843,7 @@ impl DevTunnels {
 		let mut placeholder_name = Self::get_placeholder_name();
 		if !is_name_free(&placeholder_name) {
 			for i in 2.. {
-				let fixed_name = format!("{}{}", placeholder_name, i);
+				let fixed_name = format!("{placeholder_name}{i}");
 				if is_name_free(&fixed_name) {
 					placeholder_name = fixed_name;
 					break;
@@ -769,11 +926,7 @@ impl DevTunnels {
 	) -> Result<ActiveTunnel, AnyError> {
 		let mut manager = ActiveTunnelManager::new(self.log.clone(), client, locator, access_token);
 
-		let endpoint_result = spanf!(
-			self.log,
-			self.log.span("dev-tunnel.serve.callback"),
-			manager.get_endpoint()
-		);
+		let endpoint_result = manager.get_endpoint().await;
 
 		let endpoint = match endpoint_result {
 			Ok(endpoint) => endpoint,
@@ -794,10 +947,36 @@ impl DevTunnels {
 	}
 }
 
+#[derive(Clone, Default)]
+pub struct StatusLock(Arc<std::sync::Mutex<protocol::singleton::Status>>);
+
+impl StatusLock {
+	fn succeed(&self) {
+		let mut status = self.0.lock().unwrap();
+		status.tunnel = protocol::singleton::TunnelState::Connected;
+		status.last_connected_at = Some(jiff::Timestamp::now());
+	}
+
+	fn fail(&self, reason: String) {
+		let mut status = self.0.lock().unwrap();
+		if let protocol::singleton::TunnelState::Connected = status.tunnel {
+			status.last_disconnected_at = Some(jiff::Timestamp::now());
+			status.tunnel = protocol::singleton::TunnelState::Disconnected;
+		}
+		status.last_fail_reason = Some(reason);
+	}
+
+	pub fn read(&self) -> protocol::singleton::Status {
+		let status = self.0.lock().unwrap();
+		status.clone()
+	}
+}
+
 struct ActiveTunnelManager {
 	close_tx: Option<mpsc::Sender<()>>,
-	endpoint_rx: watch::Receiver<Option<Result<TunnelRelayTunnelEndpoint, WrappedError>>>,
+	endpoint_rx: watch::Receiver<Option<Result<TunnelEndpoint, WrappedError>>>,
 	relay: Arc<tokio::sync::Mutex<RelayTunnelHost>>,
+	status: StatusLock,
 }
 
 impl ActiveTunnelManager {
@@ -813,6 +992,9 @@ impl ActiveTunnelManager {
 		let relay = Arc::new(tokio::sync::Mutex::new(RelayTunnelHost::new(locator, mgmt)));
 		let relay_spawned = relay.clone();
 
+		let status = StatusLock::default();
+
+		let status_spawned = status.clone();
 		tokio::spawn(async move {
 			ActiveTunnelManager::spawn_tunnel(
 				log,
@@ -820,6 +1002,7 @@ impl ActiveTunnelManager {
 				close_rx,
 				endpoint_tx,
 				access_token,
+				status_spawned,
 			)
 			.await;
 		});
@@ -828,22 +1011,45 @@ impl ActiveTunnelManager {
 			endpoint_rx,
 			relay,
 			close_tx: Some(close_tx),
+			status,
 		}
 	}
 
+	/// Gets a copy of the current tunnel status information
+	pub fn get_status(&self) -> StatusLock {
+		self.status.clone()
+	}
+
 	/// Adds a port for TCP/IP forwarding.
-	#[allow(dead_code)] // todo: port forwarding
-	pub async fn add_port_tcp(&self, port_number: u16) -> Result<(), WrappedError> {
-		self.relay
-			.lock()
-			.await
-			.add_port(&TunnelPort {
-				port_number,
-				protocol: Some(TUNNEL_PROTOCOL_AUTO.to_owned()),
-				..Default::default()
-			})
-			.await
-			.map_err(|e| wrap(e, "error adding port to relay"))?;
+	pub async fn add_port_tcp(
+		&self,
+		port_number: u16,
+		privacy: PortPrivacy,
+		protocol: PortProtocol,
+	) -> Result<(), WrappedError> {
+		let relay = self.relay.lock().await;
+		let port = TunnelPort {
+			port_number,
+			protocol: Some(protocol.to_contract_str().to_string()),
+			access_control: Some(privacy_to_tunnel_acl(privacy)),
+			..Default::default()
+		};
+
+		match relay.add_port(&port).await {
+			Ok(()) => {}
+			Err(error) if is_tunnel_port_protocol_conflict(&error) => {
+				relay
+					.remove_port(port_number)
+					.await
+					.map_err(|e| wrap(e, "error replacing port protocol in relay"))?;
+				relay
+					.add_port(&port)
+					.await
+					.map_err(|e| wrap(e, "error adding port to relay"))?;
+			}
+			Err(error) => return Err(wrap(error, "error adding port to relay")),
+		}
+
 		Ok(())
 	}
 
@@ -852,16 +1058,28 @@ impl ActiveTunnelManager {
 		&self,
 		port_number: u16,
 	) -> Result<mpsc::UnboundedReceiver<ForwardedPortConnection>, WrappedError> {
-		self.relay
-			.lock()
-			.await
-			.add_port_raw(&TunnelPort {
-				port_number,
-				protocol: Some(TUNNEL_PROTOCOL_AUTO.to_owned()),
-				..Default::default()
-			})
-			.await
-			.map_err(|e| wrap(e, "error adding port to relay"))
+		let relay = self.relay.lock().await;
+		let port = TunnelPort {
+			port_number,
+			protocol: Some(TUNNEL_PROTOCOL_AUTO.to_owned()),
+			access_control: Some(privacy_to_tunnel_acl(PortPrivacy::Private)),
+			..Default::default()
+		};
+
+		match relay.add_port_raw(&port).await {
+			Ok(receiver) => Ok(receiver),
+			Err(error) if is_tunnel_port_protocol_conflict(&error) => {
+				relay
+					.remove_port(port_number)
+					.await
+					.map_err(|e| wrap(e, "error replacing port protocol in relay"))?;
+				relay
+					.add_port_raw(&port)
+					.await
+					.map_err(|e| wrap(e, "error adding port to relay"))
+			}
+			Err(error) => Err(wrap(error, "error adding port to relay")),
+		}
 	}
 
 	/// Removes a port from TCP/IP forwarding.
@@ -876,7 +1094,7 @@ impl ActiveTunnelManager {
 
 	/// Gets the most recent details from the tunnel process. Returns None if
 	/// the process exited before providing details.
-	pub async fn get_endpoint(&mut self) -> Result<TunnelRelayTunnelEndpoint, AnyError> {
+	pub async fn get_endpoint(&mut self) -> Result<TunnelEndpoint, AnyError> {
 		loop {
 			if let Some(details) = &*self.endpoint_rx.borrow() {
 				return details.clone().map_err(AnyError::from);
@@ -911,14 +1129,18 @@ impl ActiveTunnelManager {
 		log: log::Logger,
 		relay: Arc<tokio::sync::Mutex<RelayTunnelHost>>,
 		mut close_rx: mpsc::Receiver<()>,
-		endpoint_tx: watch::Sender<Option<Result<TunnelRelayTunnelEndpoint, WrappedError>>>,
+		endpoint_tx: watch::Sender<Option<Result<TunnelEndpoint, WrappedError>>>,
 		access_token_provider: impl AccessTokenProvider + 'static,
+		status: StatusLock,
 	) {
+		let mut token_ka = access_token_provider.keep_alive();
 		let mut backoff = Backoff::new(Duration::from_secs(5), Duration::from_secs(120));
 
 		macro_rules! fail {
 			($e: expr, $msg: expr) => {
-				warning!(log, "{}: {}", $msg, $e);
+				let fmt = format!("{}: {}", $msg, $e);
+				warning!(log, &fmt);
+				status.fail(fmt);
 				endpoint_tx.send(Some(Err($e))).ok();
 				backoff.delay().await;
 			};
@@ -954,6 +1176,7 @@ impl ActiveTunnelManager {
 			};
 
 			backoff.reset();
+			status.succeed();
 			endpoint_tx.send(Some(Ok(handle.endpoint().clone()))).ok();
 
 			tokio::select! {
@@ -966,6 +1189,10 @@ impl ActiveTunnelManager {
 						warning!(log, "Tunnel exited unexpectedly but gracefully, reconnecting");
 						backoff.delay().await;
 					}
+				},
+				Err(e) = &mut token_ka => {
+					error!(log, "access token is no longer valid, exiting: {}", e);
+					return;
 				},
 				_ = close_rx.recv() => {
 					trace!(log, "Tunnel closing gracefully");
@@ -1048,6 +1275,55 @@ fn vec_eq_as_set(a: &[String], b: &[String]) -> bool {
 	true
 }
 
+// This is only relevant for Node-owned tunnels created before
+// https://github.com/microsoft/vscode/pull/329066 was merged. The pinned dev-tunnels
+// revision does not expose the inner HttpError as Error::source(), so match its detail
+// in the formatted error until the SDK provides a structured error code.
+fn is_tunnel_port_protocol_conflict(error: &impl std::fmt::Display) -> bool {
+	error
+		.to_string()
+		.contains(TUNNEL_PORT_PROTOCOL_CONFLICT_DETAIL)
+}
+
+fn privacy_to_tunnel_acl(privacy: PortPrivacy) -> TunnelAccessControl {
+	TunnelAccessControl {
+		entries: vec![match privacy {
+			PortPrivacy::Public => tunnels::contracts::TunnelAccessControlEntry {
+				kind: tunnels::contracts::TunnelAccessControlEntryType::Anonymous,
+				provider: None,
+				is_inherited: false,
+				is_deny: false,
+				is_inverse: false,
+				organization: None,
+				expiration: None,
+				subjects: vec![],
+				scopes: vec![TUNNEL_ACCESS_SCOPES_CONNECT.to_string()],
+			},
+			// Ensure private ports are actually private and do not inherit any
+			// default visibility that may be set on the tunnel:
+			PortPrivacy::Private => tunnels::contracts::TunnelAccessControlEntry {
+				kind: tunnels::contracts::TunnelAccessControlEntryType::Anonymous,
+				provider: None,
+				is_inherited: false,
+				is_deny: true,
+				is_inverse: false,
+				organization: None,
+				expiration: None,
+				subjects: vec![],
+				scopes: vec![TUNNEL_ACCESS_SCOPES_CONNECT.to_string()],
+			},
+		}],
+	}
+}
+
+fn tunnel_has_host_connection(tunnel: &Tunnel) -> bool {
+	tunnel
+		.status
+		.as_ref()
+		.and_then(|s| s.host_connection_count.as_ref().map(|c| c.get_count() > 0))
+		.unwrap_or_default()
+}
+
 #[cfg(test)]
 mod test {
 	use super::*;
@@ -1067,5 +1343,16 @@ mod test {
 			"coolname-with-chars".to_string()
 		);
 		assert_eq!(clean_hostname_for_tunnel("z"), "remote-machine".to_string());
+	}
+
+	#[test]
+	fn test_is_tunnel_port_protocol_conflict() {
+		assert!(is_tunnel_port_protocol_conflict(&format!(
+			"failed to add port to tunnel: response error: HTTP status 400: \
+			 {{\"detail\":\"{TUNNEL_PORT_PROTOCOL_CONFLICT_DETAIL}\"}}"
+		)));
+		assert!(!is_tunnel_port_protocol_conflict(
+			&"response error: Another validation error."
+		));
 	}
 }

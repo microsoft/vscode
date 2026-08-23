@@ -4,15 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import * as assert from 'assert';
-import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import { MarkdownString, NotebookCellOutputItem, NotebookData, LanguageSelector, WorkspaceEdit } from 'vs/workbench/api/common/extHostTypeConverters';
-import { isEmptyObject } from 'vs/base/common/types';
-import { LogLevel as _MainLogLevel } from 'vs/platform/log/common/log';
-import { URI } from 'vs/base/common/uri';
-import { IWorkspaceTextEditDto } from 'vs/workbench/api/common/extHost.protocol';
+import assert from 'assert';
+import * as extHostTypes from '../../common/extHostTypes.js';
+import { ChatAgentResult, LanguageModelChatMessage2, MarkdownString, NotebookCellOutputItem, NotebookData, LanguageSelector, WorkspaceEdit } from '../../common/extHostTypeConverters.js';
+import { isEmptyObject } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IWorkspaceTextEditDto } from '../../common/extHost.protocol.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 
 suite('ExtHostTypeConverter', function () {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function size<T>(from: Record<any, any>): number {
 		let count = 0;
 		for (const key in from) {
@@ -69,6 +73,39 @@ suite('ExtHostTypeConverter', function () {
 		assert.ok(!!data.uris!['file:///somepath/here2']);
 	});
 
+	test('LanguageModelChatMessage2 converters preserve tool-result data parts across the provider boundary #313920', function () {
+
+		// Platform converters round-trip data parts unchanged (unknown mime types aren't stripped), so the producer must gate emission (#313920).
+		const CACHE_CONTROL_MIME = 'cache_control';
+
+		const toolResult = new extHostTypes.LanguageModelToolResultPart('call-1', [
+			new extHostTypes.LanguageModelTextPart('the tool output'),
+			new extHostTypes.LanguageModelDataPart(new TextEncoder().encode('ephemeral'), CACHE_CONTROL_MIME),
+		]);
+		const hostMessage = extHostTypes.LanguageModelChatMessage2.User([toolResult]);
+
+		const providerMessage = LanguageModelChatMessage2.to(LanguageModelChatMessage2.from(hostMessage));
+		const providerToolResult = providerMessage.content[0] as extHostTypes.LanguageModelToolResultPart;
+		const roundTrippedPart = providerToolResult.content[1] as extHostTypes.LanguageModelDataPart;
+
+		assert.deepStrictEqual({
+			mimeType: roundTrippedPart.mimeType,
+			decodedData: new TextDecoder().decode(roundTrippedPart.data),
+			marshalled: roundTrippedPart.toJSON(),
+			naiveSerialization: JSON.stringify(roundTrippedPart),
+		}, {
+			mimeType: 'cache_control',
+			decodedData: 'ephemeral',
+			marshalled: {
+				$mid: MarshalledId.LanguageModelDataPart,
+				mimeType: 'cache_control',
+				data: 'ZXBoZW1lcmFs', // base64('ephemeral')
+				audience: undefined,
+			},
+			naiveSerialization: '{"$mid":24,"mimeType":"cache_control","data":"ZXBoZW1lcmFs"}',
+		});
+	});
+
 	test('NPM script explorer running a script from the hover does not work #65561', function () {
 
 		const data = MarkdownString.from('*hello* [click](command:npm.runScriptFromHover?%7B%22documentUri%22%3A%7B%22%24mid%22%3A1%2C%22external%22%3A%22file%3A%2F%2F%2Fc%253A%2Ffoo%2Fbaz.ex%22%2C%22path%22%3A%22%2Fc%3A%2Ffoo%2Fbaz.ex%22%2C%22scheme%22%3A%22file%22%7D%2C%22script%22%3A%22dev%22%7D)');
@@ -87,7 +124,7 @@ suite('ExtHostTypeConverter', function () {
 
 		const d = new extHostTypes.NotebookData([]);
 		d.cells.push(new extHostTypes.NotebookCellData(extHostTypes.NotebookCellKind.Code, 'hello', 'fooLang'));
-		d.metadata = { custom: { foo: 'bar', bar: 123 } };
+		d.metadata = { foo: 'bar', bar: 123 };
 
 		const dto = NotebookData.from(d);
 
@@ -138,5 +175,48 @@ suite('ExtHostTypeConverter', function () {
 		const dto2 = WorkspaceEdit.from(ws2);
 		const first2 = <IWorkspaceTextEditDto>dto2.edits[0];
 		assert.strictEqual(first2.textEdit.insertAsSnippet, true);
+	});
+});
+
+suite('ChatAgentResult', function () {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('reviveMetadata - roundtrips base64-encoded LanguageModelDataPart', function () {
+		const originalData = new Uint8Array([10, 20, 30, 40]);
+		const part = new extHostTypes.LanguageModelDataPart(originalData, 'image/png');
+		const serialized = part.toJSON();
+
+		const result = ChatAgentResult.to({ metadata: { part: serialized } });
+		const revived = result.metadata!.part as extHostTypes.LanguageModelDataPart;
+
+		assert.ok(revived instanceof extHostTypes.LanguageModelDataPart);
+		assert.deepStrictEqual(Array.from(revived.data), Array.from(originalData));
+		assert.strictEqual(revived.mimeType, 'image/png');
+	});
+
+	test('reviveMetadata - decodes legacy Buffer-like LanguageModelDataPart shape', function () {
+		const legacySerialized = {
+			$mid: MarshalledId.LanguageModelDataPart,
+			data: { type: 'Buffer', data: [1, 2, 3] },
+			mimeType: 'image/jpeg',
+		};
+
+		const result = ChatAgentResult.to({ metadata: { part: legacySerialized } });
+		const revived = result.metadata!.part as extHostTypes.LanguageModelDataPart;
+
+		assert.ok(revived instanceof extHostTypes.LanguageModelDataPart);
+		assert.deepStrictEqual(Array.from(revived.data), [1, 2, 3]);
+		assert.strictEqual(revived.mimeType, 'image/jpeg');
+	});
+
+	test('reviveMetadata - does not throw on malformed LanguageModelDataPart shape', function () {
+		const malformed = {
+			$mid: MarshalledId.LanguageModelDataPart,
+			data: null,
+			mimeType: 'image/png',
+		};
+
+		assert.doesNotThrow(() => ChatAgentResult.to({ metadata: { part: malformed } }));
 	});
 });

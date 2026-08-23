@@ -3,27 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ITerminalLinkOpener, ITerminalSimpleLink } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { osPathModule, updateLinkWithRelativeCwd } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkHelpers';
-import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
-import { ISearchService } from 'vs/workbench/services/search/common/search';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { getLinkSuffix } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
-import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
+import { Schemas } from '../../../../../base/common/network.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ITextEditorSelection } from '../../../../../platform/editor/common/editor.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { ITerminalLinkOpener, ITerminalSimpleLink, TerminalBuiltinLinkType } from './links.js';
+import { osPathModule, updateLinkWithRelativeCwd } from './terminalLinkHelpers.js';
+import { getTerminalLinkType } from './terminalLocalLinkDetector.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { IHostService } from '../../../../services/host/browser/host.js';
+import { QueryBuilder } from '../../../../services/search/common/queryBuilder.js';
+import { ISearchService } from '../../../../services/search/common/search.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { detectLinks, getLinkSuffix } from './terminalLinkParsing.js';
+import { ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
 
 export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 	constructor(
@@ -77,7 +79,7 @@ export class TerminalLocalFolderOutsideWorkspaceLinkOpener implements ITerminalL
 }
 
 export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
-	protected _fileQueryBuilder = this._instantiationService.createInstance(QueryBuilder);
+	protected _fileQueryBuilder: QueryBuilder;
 
 	constructor(
 		private readonly _capabilities: ITerminalCapabilityStore,
@@ -86,21 +88,49 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		private readonly _localFolderInWorkspaceOpener: TerminalLocalFolderInWorkspaceLinkOpener,
 		private readonly _getOS: () => OperatingSystem,
 		@IFileService private readonly _fileService: IFileService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ITerminalLogService private readonly _logService: ITerminalLogService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@ISearchService private readonly _searchService: ISearchService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@ITerminalLogService private readonly _logService: ITerminalLogService,
 		@IWorkbenchEnvironmentService private readonly _workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
+		this._fileQueryBuilder = instantiationService.createInstance(QueryBuilder);
 	}
 
 	async open(link: ITerminalSimpleLink): Promise<void> {
 		const osPath = osPathModule(this._getOS());
 		const pathSeparator = osPath.sep;
+
 		// Remove file:/// and any leading ./ or ../ since quick access doesn't understand that format
 		let text = link.text.replace(/^file:\/\/\/?/, '');
 		text = osPath.normalize(text).replace(/^(\.+[\\/])+/, '');
+
+		// Try extract any trailing line and column numbers by matching the text against parsed
+		// links. This will give a search link `foo` on a line like `"foo", line 10` to open the
+		// quick pick with `foo:10` as the contents.
+		//
+		// This also normalizes the path to remove suffixes like :10 or :5.0-4
+		if (link.contextLine) {
+			// Skip suffix parsing if the text looks like it contains an ISO 8601 timestamp format
+			const iso8601Pattern = /:\d{2}:\d{2}[+-]\d{2}:\d{2}\.[a-z]+/;
+			if (!iso8601Pattern.test(link.text)) {
+				const parsedLinks = detectLinks(link.contextLine, this._getOS());
+				// Optimistically check that the link _starts with_ the parsed link text. If so,
+				// continue to use the parsed link
+				const matchingParsedLink = parsedLinks.find(parsedLink => parsedLink.suffix && link.text.startsWith(parsedLink.path.text));
+				if (matchingParsedLink) {
+					if (matchingParsedLink.suffix?.row !== undefined) {
+						// Normalize the path based on the parsed link
+						text = matchingParsedLink.path.text;
+						text += `:${matchingParsedLink.suffix.row}`;
+						if (matchingParsedLink.suffix?.col !== undefined) {
+							text += `:${matchingParsedLink.suffix.col}`;
+						}
+					}
+				}
+			}
+		}
 
 		// Remove `:<one or more non number characters>` from the end of the link.
 		// Examples:
@@ -108,7 +138,14 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		// - Grep output: <link>:<result line>
 		// This only happens when the colon is _not_ followed by a forward- or back-slash as that
 		// would break absolute Windows paths (eg. `C:/Users/...`).
-		text = text.replace(/:[^\\/][^\d]+$/, '');
+		text = text.replace(/:[^\\/\d][^\d]*$/, '');
+
+		// Remove any trailing periods after the line/column numbers, to prevent breaking the search feature, #200257
+		// Examples:
+		// "Check your code Test.tsx:12:45." -> Test.tsx:12:45
+		// "Check your code Test.tsx:12." -> Test.tsx:12
+
+		text = text.replace(/\.$/, '');
 
 		// If any of the names of the folders in the workspace matches
 		// a prefix of the link, remove that prefix and continue
@@ -246,8 +283,15 @@ interface IResourceMatch {
 export class TerminalUrlLinkOpener implements ITerminalLinkOpener {
 	constructor(
 		private readonly _isRemote: boolean,
+		private readonly _localFileOpener: TerminalLocalFileLinkOpener,
+		private readonly _localFolderInWorkspaceOpener: TerminalLocalFolderInWorkspaceLinkOpener,
+		private readonly _localFolderOutsideWorkspaceOpener: TerminalLocalFolderOutsideWorkspaceLinkOpener,
 		@IOpenerService private readonly _openerService: IOpenerService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IFileService private readonly _fileService: IFileService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
 	}
 
@@ -255,8 +299,52 @@ export class TerminalUrlLinkOpener implements ITerminalLinkOpener {
 		if (!link.uri) {
 			throw new Error('Tried to open a url without a resolved URI');
 		}
+		// Handle file:// URIs by delegating to appropriate file/folder openers
+		if (link.uri.scheme === Schemas.file) {
+			return this._openFileSchemeLink(link);
+		}
 		// It's important to use the raw string value here to avoid converting pre-encoded values
 		// from the URL like `%2B` -> `+`.
+		this._openerService.open(link.text, {
+			allowTunneling: this._isRemote && this._configurationService.getValue('remote.forwardOnOpen'),
+			allowContributedOpeners: true,
+			openExternal: true
+		});
+	}
+
+	private async _openFileSchemeLink(link: ITerminalSimpleLink): Promise<void> {
+		if (!link.uri) {
+			return;
+		}
+
+		try {
+			const stat = await this._fileService.stat(link.uri);
+			const isDirectory = stat.isDirectory;
+			const linkType = getTerminalLinkType(
+				link.uri,
+				isDirectory,
+				this._uriIdentityService,
+				this._workspaceContextService
+			);
+
+			// Delegate to appropriate opener based on link type
+			switch (linkType) {
+				case TerminalBuiltinLinkType.LocalFile:
+					await this._localFileOpener.open(link);
+					return;
+				case TerminalBuiltinLinkType.LocalFolderInWorkspace:
+					await this._localFolderInWorkspaceOpener.open(link);
+					return;
+				case TerminalBuiltinLinkType.LocalFolderOutsideWorkspace:
+					await this._localFolderOutsideWorkspaceOpener.open(link);
+					return;
+				case TerminalBuiltinLinkType.Url:
+					await this.open(link);
+					return;
+			}
+		} catch (error) {
+			this._logService.warn('Open file via native file explorer');
+		}
 		this._openerService.open(link.text, {
 			allowTunneling: this._isRemote && this._configurationService.getValue('remote.forwardOnOpen'),
 			allowContributedOpeners: true,

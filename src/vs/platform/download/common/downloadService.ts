@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { IDownloadService } from 'vs/platform/download/common/download';
-import { IFileService } from 'vs/platform/files/common/files';
-import { asTextOrError, IRequestService } from 'vs/platform/request/common/request';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Schemas } from '../../../base/common/network.js';
+import { URI } from '../../../base/common/uri.js';
+import { IDownloadService } from './download.js';
+import { IFileService } from '../../files/common/files.js';
+import { asTextOrError, IRequestService } from '../../request/common/request.js';
 
 export class DownloadService implements IDownloadService {
 
@@ -19,13 +19,13 @@ export class DownloadService implements IDownloadService {
 		@IFileService private readonly fileService: IFileService
 	) { }
 
-	async download(resource: URI, target: URI, cancellationToken: CancellationToken = CancellationToken.None): Promise<void> {
+	async download(resource: URI, target: URI, callSite: string, cancellationToken: CancellationToken = CancellationToken.None): Promise<void> {
 		if (resource.scheme === Schemas.file || resource.scheme === Schemas.vscodeRemote) {
 			// Intentionally only support this for file|remote<->file|remote scenarios
 			await this.fileService.copy(resource, target);
 			return;
 		}
-		const options = { type: 'GET', url: resource.toString(true) };
+		const options = { type: 'GET' as const, url: resource.toString(true), callSite };
 		const context = await this.requestService.request(options, cancellationToken);
 		if (context.res.statusCode === 200) {
 			await this.fileService.writeFile(target, context.stream);

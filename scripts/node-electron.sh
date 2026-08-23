@@ -11,14 +11,17 @@ pushd $ROOT
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	NAME=`node -p "require('./product.json').nameLong"`
-	CODE="$ROOT/.build/electron/$NAME.app/Contents/MacOS/Electron"
+	EXE_NAME=`node -p "require('./product.json').nameShort"`
+	CODE="$ROOT/.build/electron/$NAME.app/Contents/MacOS/$EXE_NAME"
 else
 	NAME=`node -p "require('./product.json').applicationName"`
 	CODE="$ROOT/.build/electron/$NAME"
 fi
 
 # Get electron
-yarn electron
+if [[ -z "${VSCODE_SKIP_PRELAUNCH}" ]]; then
+	npm run electron
+fi
 
 popd
 
@@ -26,11 +29,9 @@ export VSCODE_DEV=1
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	ulimit -n 4096 ; ELECTRON_RUN_AS_NODE=1 \
 		"$CODE" \
-		"$@" \
-		--ms-enable-electron-run-as-node
+		"$@"
 else
 	ELECTRON_RUN_AS_NODE=1 \
 		"$CODE" \
-		"$@" \
-		--ms-enable-electron-run-as-node
+		"$@"
 fi

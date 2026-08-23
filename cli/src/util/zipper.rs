@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 use super::errors::{wrap, WrappedError};
+use super::extract_safety::{
+	ensure_canonical_within_root, prepare_extraction_root, safe_extract_join,
+};
 use super::io::ReportCopyProgress;
 use std::fs::{self, File};
 use std::io;
@@ -44,28 +47,39 @@ fn should_skip_first_segment(archive: &mut ZipArchive<File>) -> bool {
 	archive.len() > 1 // prefix removal is invalid if there's only a single file
 }
 
-pub fn unzip_file<T>(path: &Path, parent_path: &Path, mut reporter: T) -> Result<(), WrappedError>
+pub fn unzip_file<T>(file: File, parent_path: &Path, mut reporter: T) -> Result<(), WrappedError>
 where
 	T: ReportCopyProgress,
 {
-	let file = fs::File::open(path)
-		.map_err(|e| wrap(e, format!("unable to open file {}", path.display())))?;
+	let mut archive =
+		zip::ZipArchive::new(file).map_err(|e| wrap(e, "failed to open zip archive"))?;
 
-	let mut archive = zip::ZipArchive::new(file)
-		.map_err(|e| wrap(e, format!("failed to open zip archive {}", path.display())))?;
+	let canonical_root = prepare_extraction_root(parent_path)?;
 
 	let skip_segments_no = usize::from(should_skip_first_segment(&mut archive));
+	let report_progress_every = (archive.len() / 20).max(1);
+
 	for i in 0..archive.len() {
-		reporter.report_progress(i as u64, archive.len() as u64);
+		if i % report_progress_every == 0 {
+			reporter.report_progress(i as u64, archive.len() as u64);
+		}
 		let mut file = archive
 			.by_index(i)
-			.map_err(|e| wrap(e, format!("could not open zip entry {}", i)))?;
+			.map_err(|e| wrap(e, format!("could not open zip entry {i}")))?;
 
 		let outpath: PathBuf = match file.enclosed_name() {
 			Some(path) => {
-				let mut full_path = PathBuf::from(parent_path);
-				full_path.push(PathBuf::from_iter(path.iter().skip(skip_segments_no)));
-				full_path
+				let relative: PathBuf = path.iter().skip(skip_segments_no).collect();
+				// Skip bare top-level directory entries that become empty once
+				// their single segment has been stripped. Only directory entries
+				// are skipped; non-directory entries with an empty relative path
+				// fall through to `safe_extract_join`, which rejects them.
+				if relative.as_os_str().is_empty()
+					&& (file.is_dir() || file.name().ends_with('/'))
+				{
+					continue;
+				}
+				safe_extract_join(&canonical_root, &relative)?
 			}
 			None => continue,
 		};
@@ -73,6 +87,7 @@ where
 		if file.is_dir() || file.name().ends_with('/') {
 			fs::create_dir_all(&outpath)
 				.map_err(|e| wrap(e, format!("could not create dir for {}", outpath.display())))?;
+			ensure_canonical_within_root(&canonical_root, &outpath)?;
 			apply_permissions(&file, &outpath)?;
 			continue;
 		}
@@ -80,10 +95,12 @@ where
 		if let Some(p) = outpath.parent() {
 			fs::create_dir_all(p)
 				.map_err(|e| wrap(e, format!("could not create dir for {}", outpath.display())))?;
+			ensure_canonical_within_root(&canonical_root, p)?;
 		}
 
 		#[cfg(unix)]
 		{
+			use super::extract_safety::validate_symlink_target;
 			use libc::S_IFLNK;
 			use std::io::Read;
 			use std::os::unix::ffi::OsStringExt;
@@ -104,6 +121,7 @@ where
 				})?;
 
 				let link_path = PathBuf::from(std::ffi::OsString::from_vec(link_to));
+				validate_symlink_target(&canonical_root, &outpath, &link_path)?;
 				std::os::unix::fs::symlink(link_path, &outpath).map_err(|e| {
 					wrap(e, format!("could not create symlink {}", outpath.display()))
 				})?;

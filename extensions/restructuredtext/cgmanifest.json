@@ -6,11 +6,11 @@
 				"git": {
 					"name": "trond-snekvik/vscode-rst",
 					"repositoryUrl": "https://github.com/trond-snekvik/vscode-rst",
-					"commitHash": "4f6f1a8f94e0d16e30dddc9c4e359d062b715408"
+					"commitHash": "7f2d6bb4e20642b60f2979afcb594cfe4b48117a"
 				}
 			},
 			"license": "MIT",
-			"version": "1.5.2"
+			"version": "1.5.3"
 		}
 	],
 	"version": 1

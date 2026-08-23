@@ -3,15 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Event } from 'vs/base/common/event';
-import { equals } from 'vs/base/common/objects';
-import { Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { DefaultConfiguration } from 'vs/platform/configuration/common/configurations';
-import { Registry } from 'vs/platform/registry/common/platform';
+import assert from 'assert';
+import { Event } from '../../../../base/common/event.js';
+import { equals } from '../../../../base/common/objects.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../common/configurationRegistry.js';
+import { DefaultConfiguration } from '../../common/configurations.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { Registry } from '../../../registry/common/platform.js';
 
 suite('DefaultConfiguration', () => {
 
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 
 	setup(() => reset());
@@ -19,12 +22,11 @@ suite('DefaultConfiguration', () => {
 
 	function reset() {
 		configurationRegistry.deregisterConfigurations(configurationRegistry.getConfigurations());
-		const configurationDefaultsOverrides = configurationRegistry.getConfigurationDefaultsOverrides();
-		configurationRegistry.deregisterDefaultConfigurations([...configurationDefaultsOverrides.keys()].map(key => ({ extensionId: configurationDefaultsOverrides.get(key)?.source, overrides: { [key]: configurationDefaultsOverrides.get(key)?.value } })));
+		configurationRegistry.deregisterDefaultConfigurations(configurationRegistry.getRegisteredDefaultConfigurations());
 	}
 
 	test('Test registering a property before initialize', async () => {
-		const testObject = new DefaultConfiguration();
+		const testObject = disposables.add(new DefaultConfiguration(new NullLogService()));
 		configurationRegistry.registerConfiguration({
 			'id': 'a',
 			'order': 1,
@@ -43,7 +45,7 @@ suite('DefaultConfiguration', () => {
 	});
 
 	test('Test registering a property and do not initialize', async () => {
-		const testObject = new DefaultConfiguration();
+		const testObject = disposables.add(new DefaultConfiguration(new NullLogService()));
 		configurationRegistry.registerConfiguration({
 			'id': 'a',
 			'order': 1,
@@ -61,7 +63,7 @@ suite('DefaultConfiguration', () => {
 	});
 
 	test('Test registering a property after initialize', async () => {
-		const testObject = new DefaultConfiguration();
+		const testObject = disposables.add(new DefaultConfiguration(new NullLogService()));
 		await testObject.initialize();
 		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
 		configurationRegistry.registerConfiguration({
@@ -83,7 +85,7 @@ suite('DefaultConfiguration', () => {
 	});
 
 	test('Test registering nested properties', async () => {
-		const testObject = new DefaultConfiguration();
+		const testObject = disposables.add(new DefaultConfiguration(new NullLogService()));
 		configurationRegistry.registerConfiguration({
 			'id': 'a',
 			'order': 1,
@@ -107,11 +109,11 @@ suite('DefaultConfiguration', () => {
 
 		assert.ok(equals(actual.getValue('a'), { b: { c: '2' } }));
 		assert.ok(equals(actual.contents, { 'a': { b: { c: '2' } } }));
-		assert.deepStrictEqual(actual.keys, ['a.b', 'a.b.c']);
+		assert.deepStrictEqual(actual.keys.sort(), ['a.b', 'a.b.c']);
 	});
 
 	test('Test registering the same property again', async () => {
-		const testObject = new DefaultConfiguration();
+		const testObject = disposables.add(new DefaultConfiguration(new NullLogService()));
 		configurationRegistry.registerConfiguration({
 			'id': 'a',
 			'order': 1,
@@ -143,7 +145,7 @@ suite('DefaultConfiguration', () => {
 	});
 
 	test('Test registering an override identifier', async () => {
-		const testObject = new DefaultConfiguration();
+		const testObject = disposables.add(new DefaultConfiguration(new NullLogService()));
 		configurationRegistry.registerDefaultConfigurations([{
 			overrides: {
 				'[a]': {
@@ -155,12 +157,12 @@ suite('DefaultConfiguration', () => {
 		assert.ok(equals(actual.getValue('[a]'), { 'b': true }));
 		assert.ok(equals(actual.contents, { '[a]': { 'b': true } }));
 		assert.ok(equals(actual.overrides, [{ contents: { 'b': true }, identifiers: ['a'], keys: ['b'] }]));
-		assert.deepStrictEqual(actual.keys, ['[a]']);
+		assert.deepStrictEqual(actual.keys.sort(), ['[a]']);
 		assert.strictEqual(actual.getOverrideValue('b', 'a'), true);
 	});
 
 	test('Test registering a normal property and override identifier', async () => {
-		const testObject = new DefaultConfiguration();
+		const testObject = disposables.add(new DefaultConfiguration(new NullLogService()));
 		configurationRegistry.registerConfiguration({
 			'id': 'a',
 			'order': 1,
@@ -188,12 +190,12 @@ suite('DefaultConfiguration', () => {
 		assert.ok(equals(actual.getValue('[a]'), { 'b': true }));
 		assert.ok(equals(actual.contents, { 'b': false, '[a]': { 'b': true } }));
 		assert.ok(equals(actual.overrides, [{ contents: { 'b': true }, identifiers: ['a'], keys: ['b'] }]));
-		assert.deepStrictEqual(actual.keys, ['b', '[a]']);
+		assert.deepStrictEqual(actual.keys.sort(), ['[a]', 'b']);
 		assert.strictEqual(actual.getOverrideValue('b', 'a'), true);
 	});
 
 	test('Test normal property is registered after override identifier', async () => {
-		const testObject = new DefaultConfiguration();
+		const testObject = disposables.add(new DefaultConfiguration(new NullLogService()));
 		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
 		configurationRegistry.registerDefaultConfigurations([{
 			overrides: {
@@ -224,13 +226,13 @@ suite('DefaultConfiguration', () => {
 		assert.ok(equals(actual.getValue('[a]'), { 'b': true }));
 		assert.ok(equals(actual.contents, { 'b': false, '[a]': { 'b': true } }));
 		assert.ok(equals(actual.overrides, [{ contents: { 'b': true }, identifiers: ['a'], keys: ['b'] }]));
-		assert.deepStrictEqual(actual.keys, ['[a]', 'b']);
+		assert.deepStrictEqual(actual.keys.sort(), ['[a]', 'b']);
 		assert.strictEqual(actual.getOverrideValue('b', 'a'), true);
 		assert.deepStrictEqual(properties, ['b']);
 	});
 
 	test('Test override identifier is registered after property', async () => {
-		const testObject = new DefaultConfiguration();
+		const testObject = disposables.add(new DefaultConfiguration(new NullLogService()));
 		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
 		configurationRegistry.registerConfiguration({
 			'id': 'a',
@@ -260,13 +262,13 @@ suite('DefaultConfiguration', () => {
 		assert.ok(equals(actual.getValue('[a]'), { 'b': true }));
 		assert.ok(equals(actual.contents, { 'b': false, '[a]': { 'b': true } }));
 		assert.ok(equals(actual.overrides, [{ contents: { 'b': true }, identifiers: ['a'], keys: ['b'] }]));
-		assert.deepStrictEqual(actual.keys, ['b', '[a]']);
+		assert.deepStrictEqual(actual.keys.sort(), ['[a]', 'b']);
 		assert.strictEqual(actual.getOverrideValue('b', 'a'), true);
 		assert.deepStrictEqual(properties, ['[a]']);
 	});
 
 	test('Test register override identifier and property after initialize', async () => {
-		const testObject = new DefaultConfiguration();
+		const testObject = disposables.add(new DefaultConfiguration(new NullLogService()));
 
 		await testObject.initialize();
 
@@ -296,12 +298,12 @@ suite('DefaultConfiguration', () => {
 		assert.ok(equals(actual.getValue('[a]'), { 'b': true }));
 		assert.ok(equals(actual.contents, { 'b': false, '[a]': { 'b': true } }));
 		assert.ok(equals(actual.overrides, [{ contents: { 'b': true }, identifiers: ['a'], keys: ['b'] }]));
-		assert.deepStrictEqual(actual.keys, ['b', '[a]']);
+		assert.deepStrictEqual(actual.keys.sort(), ['[a]', 'b']);
 		assert.strictEqual(actual.getOverrideValue('b', 'a'), true);
 	});
 
 	test('Test deregistering a property', async () => {
-		const testObject = new DefaultConfiguration();
+		const testObject = disposables.add(new DefaultConfiguration(new NullLogService()));
 		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
 		const node: IConfigurationNode = {
 			'id': 'a',
@@ -328,7 +330,7 @@ suite('DefaultConfiguration', () => {
 	});
 
 	test('Test deregistering an override identifier', async () => {
-		const testObject = new DefaultConfiguration();
+		const testObject = disposables.add(new DefaultConfiguration(new NullLogService()));
 		configurationRegistry.registerConfiguration({
 			'id': 'a',
 			'order': 1,
@@ -357,5 +359,55 @@ suite('DefaultConfiguration', () => {
 		assert.ok(equals(testObject.configurationModel.overrides, []));
 		assert.deepStrictEqual(testObject.configurationModel.keys, ['b']);
 		assert.strictEqual(testObject.configurationModel.getOverrideValue('b', 'a'), undefined);
+	});
+
+	test('Test deregistering a merged language object setting', async () => {
+		const testObject = disposables.add(new DefaultConfiguration(new NullLogService()));
+		configurationRegistry.registerConfiguration({
+			'id': 'b',
+			'order': 1,
+			'title': 'b',
+			'type': 'object',
+			'properties': {
+				'b': {
+					'description': 'b',
+					'type': 'object',
+					'default': {},
+				}
+			}
+		});
+		const node1 = {
+			overrides: {
+				'[a]': {
+					'b': {
+						'aa': '1',
+						'bb': '2'
+					}
+				}
+			},
+			source: { id: 'source1', displayName: 'source1' }
+		};
+
+		const node2 = {
+			overrides: {
+				'[a]': {
+					'b': {
+						'bb': '20',
+						'cc': '30'
+					}
+				}
+			},
+			source: { id: 'source2', displayName: 'source2' }
+		};
+		configurationRegistry.registerDefaultConfigurations([node1]);
+		configurationRegistry.registerDefaultConfigurations([node2]);
+		await testObject.initialize();
+
+		configurationRegistry.deregisterDefaultConfigurations([node1]);
+		assert.ok(equals(testObject.configurationModel.getValue('[a]'), { 'b': { 'bb': '20', 'cc': '30' } }));
+		assert.ok(equals(testObject.configurationModel.contents, { '[a]': { 'b': { 'bb': '20', 'cc': '30' } }, 'b': {} }));
+		assert.ok(equals(testObject.configurationModel.overrides, [{ contents: { 'b': { 'bb': '20', 'cc': '30' } }, identifiers: ['a'], keys: ['b'] }]));
+		assert.deepStrictEqual(testObject.configurationModel.keys.sort(), ['[a]', 'b']);
+		assert.ok(equals(testObject.configurationModel.getOverrideValue('b', 'a'), { 'bb': '20', 'cc': '30' }));
 	});
 });

@@ -3,20 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { illegalState } from 'vs/base/common/errors';
-import { ExtHostDocumentSaveParticipantShape, IWorkspaceEditDto, MainThreadBulkEditsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { TextEdit } from 'vs/workbench/api/common/extHostTypes';
-import { Range, TextDocumentSaveReason, EndOfLine } from 'vs/workbench/api/common/extHostTypeConverters';
-import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import { SaveReason } from 'vs/workbench/common/editor';
+import { Event } from '../../../base/common/event.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { illegalState } from '../../../base/common/errors.js';
+import { ExtHostDocumentSaveParticipantShape, IWorkspaceEditDto, MainThreadBulkEditsShape } from './extHost.protocol.js';
+import { TextEdit } from './extHostTypes.js';
+import { Range, TextDocumentSaveReason, EndOfLine } from './extHostTypeConverters.js';
+import { ExtHostDocuments } from './extHostDocuments.js';
+import { SaveReason } from '../../common/editor.js';
 import type * as vscode from 'vscode';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { LinkedList } from '../../../base/common/linkedList.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 
-type Listener = [Function, any, IExtensionDescription];
+type Listener = [Function, unknown, IExtensionDescription];
 
 export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSaveParticipantShape {
 
@@ -61,7 +62,8 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 					break;
 				}
 				const document = this._documents.getDocument(resource);
-				const success = await this._deliverEventAsyncAndBlameBadListeners(listener, <any>{ document, reason: TextDocumentSaveReason.to(reason) });
+
+				const success = await this._deliverEventAsyncAndBlameBadListeners(listener, { document, reason: TextDocumentSaveReason.to(reason) });
 				results.push(success);
 			}
 		} finally {
@@ -70,7 +72,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 		return results;
 	}
 
-	private _deliverEventAsyncAndBlameBadListeners([listener, thisArg, extension]: Listener, stubEvent: vscode.TextDocumentWillSaveEvent): Promise<any> {
+	private _deliverEventAsyncAndBlameBadListeners([listener, thisArg, extension]: Listener, stubEvent: Pick<vscode.TextDocumentWillSaveEvent, 'document' | 'reason'>): Promise<boolean> {
 		const errors = this._badListeners.get(listener);
 		if (typeof errors === 'number' && errors > this._thresholds.errors) {
 			// bad listener - ignore
@@ -98,7 +100,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 		});
 	}
 
-	private _deliverEventAsync(extension: IExtensionDescription, listener: Function, thisArg: any, stubEvent: vscode.TextDocumentWillSaveEvent): Promise<any> {
+	private _deliverEventAsync(extension: IExtensionDescription, listener: Function, thisArg: unknown, stubEvent: Pick<vscode.TextDocumentWillSaveEvent, 'document' | 'reason'>): Promise<boolean | undefined> {
 
 		const promises: Promise<vscode.TextEdit[]>[] = [];
 
@@ -109,6 +111,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 		const event = Object.freeze<vscode.TextDocumentWillSaveEvent>({
 			document,
 			reason,
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			waitUntil(p: Promise<any | vscode.TextEdit[]>) {
 				if (Object.isFrozen(promises)) {
 					throw illegalState('waitUntil can not be called async');
@@ -165,7 +168,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 			}
 
 			if (version === document.version) {
-				return this._mainThreadBulkEdits.$tryApplyWorkspaceEdit(dto);
+				return this._mainThreadBulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers(dto));
 			}
 
 			return Promise.reject(new Error('concurrent_edits'));

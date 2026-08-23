@@ -50,6 +50,7 @@ function getParameterListParts(
 	displayParts: ReadonlyArray<Proto.SymbolDisplayPart>
 ): ParamterListParts {
 	const parts: Proto.SymbolDisplayPart[] = [];
+	let optionalParams: Proto.SymbolDisplayPart[] = [];
 	let isInMethod = false;
 	let hasOptionalParameters = false;
 	let parenCount = 0;
@@ -72,9 +73,20 @@ function getParameterListParts(
 					// Only take top level paren names
 					const next = displayParts[i + 1];
 					// Skip optional parameters
-					const nameIsFollowedByOptionalIndicator = next && next.text === '?';
+					const nameIsFollowedByOptionalIndicator = next?.text === '?';
 					// Skip this parameter
 					const nameIsThis = part.text === 'this';
+
+					/* Add optional param to temp array. Once a non-optional param is encountered,
+					this means that previous optional params were mid-list ones, thus they should
+					be displayed */
+					if (nameIsFollowedByOptionalIndicator) {
+						optionalParams.push(part);
+					} else {
+						parts.push(...optionalParams);
+						optionalParams = [];
+					}
+
 					if (!nameIsFollowedByOptionalIndicator && !nameIsThis) {
 						parts.push(part);
 					}

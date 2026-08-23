@@ -3,15 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as ts from 'typescript';
-import * as path from 'path';
+import ts from 'typescript';
+import path from 'path';
 
 export class StaticLanguageServiceHost implements ts.LanguageServiceHost {
 
 	private readonly _cmdLine: ts.ParsedCommandLine;
 	private readonly _scriptSnapshots: Map<string, ts.IScriptSnapshot> = new Map();
+	readonly projectPath: string;
 
-	constructor(readonly projectPath: string) {
+	constructor(projectPath: string) {
+		this.projectPath = projectPath;
 		const existingOptions: Partial<ts.CompilerOptions> = {};
 		const parsed = ts.readConfigFile(projectPath, ts.sys.readFile);
 		if (parsed.error) {

@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
 export const IInteractiveDocumentService = createDecorator<IInteractiveDocumentService>('IInteractiveDocumentService');
 
 export interface IInteractiveDocumentService {
 	readonly _serviceBrand: undefined;
-	onWillAddInteractiveDocument: Event<{ notebookUri: URI; inputUri: URI; languageId: string }>;
-	onWillRemoveInteractiveDocument: Event<{ notebookUri: URI; inputUri: URI }>;
+	readonly onWillAddInteractiveDocument: Event<{ notebookUri: URI; inputUri: URI; languageId: string }>;
+	readonly onWillRemoveInteractiveDocument: Event<{ notebookUri: URI; inputUri: URI }>;
 	willCreateInteractiveDocument(notebookUri: URI, inputUri: URI, languageId: string): void;
 	willRemoveInteractiveDocument(notebookUri: URI, inputUri: URI): void;
 }

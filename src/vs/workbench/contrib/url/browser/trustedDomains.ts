@@ -3,34 +3,71 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
+import { URI } from '../../../../base/common/uri.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
+import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { createScanner, SyntaxKind } from '../../../../base/common/json.js';
 
 const TRUSTED_DOMAINS_URI = URI.parse('trustedDomains:/Trusted Domains');
 
 export const TRUSTED_DOMAINS_STORAGE_KEY = 'http.linkProtectionTrustedDomains';
 export const TRUSTED_DOMAINS_CONTENT_STORAGE_KEY = 'http.linkProtectionTrustedDomainsContent';
 
+async function openInEditor(editorService: IEditorService, resource: URI): Promise<void> {
+	await editorService.openEditor({
+		resource,
+		languageId: 'jsonc',
+		options: { pinned: true }
+	});
+
+	const editor = editorService.activeTextEditorControl;
+	if (!isCodeEditor(editor)) {
+		return;
+	}
+
+	const model = editor.getModel();
+	if (!model || !isEqual(model.uri, resource)) {
+		return;
+	}
+
+	// Find first token after [ to place cursor there
+	const scanner = createScanner(model.getValue(), true);
+	let offset: number | undefined;
+	for (let token = scanner.scan(); token !== SyntaxKind.EOF; token = scanner.scan()) {
+		if (token === SyntaxKind.OpenBracketToken) {
+			offset = scanner.getTokenOffset() + scanner.getTokenLength();
+			const nextToken = scanner.scan();
+			if (nextToken !== SyntaxKind.EOF && nextToken !== SyntaxKind.CloseBracketToken) {
+				offset = scanner.getTokenOffset();
+			}
+			break;
+		}
+	}
+
+	if (offset !== undefined) {
+		const position = model.getPositionAt(offset);
+		editor.setPosition(position);
+		editor.revealPositionInCenter(position);
+	}
+}
+
 export const manageTrustedDomainSettingsCommand = {
 	id: 'workbench.action.manageTrustedDomain',
 	description: {
-		description: localize('trustedDomain.manageTrustedDomain', 'Manage Trusted Domains'),
+		description: localize2('trustedDomain.manageTrustedDomain', 'Manage Trusted Domains'),
 		args: []
 	},
 	handler: async (accessor: ServicesAccessor) => {
 		const editorService = accessor.get(IEditorService);
-		editorService.openEditor({ resource: TRUSTED_DOMAINS_URI, languageId: 'jsonc', options: { pinned: true } });
+		await openInEditor(editorService, TRUSTED_DOMAINS_URI);
 		return;
 	}
 };
@@ -102,13 +139,11 @@ export async function configureOpenerTrustedDomainsHandler(
 
 	if (pickedResult && pickedResult.id) {
 		switch (pickedResult.id) {
-			case 'manage':
-				await editorService.openEditor({
-					resource: TRUSTED_DOMAINS_URI.with({ fragment: resource.toString() }),
-					languageId: 'jsonc',
-					options: { pinned: true }
-				});
+			case 'manage': {
+				const uriWithFragment = TRUSTED_DOMAINS_URI.with({ fragment: resource.toString() });
+				await openInEditor(editorService, uriWithFragment);
 				return trustedDomains;
+			}
 			case 'trust': {
 				const itemToTrust = pickedResult.toTrust;
 				if (trustedDomains.indexOf(itemToTrust) === -1) {
@@ -129,77 +164,17 @@ export async function configureOpenerTrustedDomainsHandler(
 	return [];
 }
 
-// Exported for testing.
-export function extractGitHubRemotesFromGitConfig(gitConfig: string): string[] {
-	const domains = new Set<string>();
-	let match: RegExpExecArray | null;
-
-	const RemoteMatcher = /^\s*url\s*=\s*(?:git@|https:\/\/)github\.com(?::|\/)(\S*)\s*$/mg;
-	while (match = RemoteMatcher.exec(gitConfig)) {
-		const repo = match[1].replace(/\.git$/, '');
-		if (repo) {
-			domains.add(`https://github.com/${repo}/`);
-		}
-	}
-	return [...domains];
-}
-
-async function getRemotes(fileService: IFileService, textFileService: ITextFileService, contextService: IWorkspaceContextService): Promise<string[]> {
-	const workspaceUris = contextService.getWorkspace().folders.map(folder => folder.uri);
-	const domains = await Promise.race([
-		new Promise<string[][]>(resolve => setTimeout(() => resolve([]), 2000)),
-		Promise.all<string[]>(workspaceUris.map(async workspaceUri => {
-			try {
-				const path = workspaceUri.path;
-				const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
-				const exists = await fileService.exists(uri);
-				if (!exists) {
-					return [];
-				}
-				const gitConfig = (await (textFileService.read(uri, { acceptTextOnly: true }).catch(() => ({ value: '' })))).value;
-				return extractGitHubRemotesFromGitConfig(gitConfig);
-			} catch {
-				return [];
-			}
-		}))]);
-
-	const set = domains.reduce((set, list) => list.reduce((set, item) => set.add(item), set), new Set<string>());
-	return [...set];
-}
-
 export interface IStaticTrustedDomains {
 	readonly defaultTrustedDomains: string[];
 	readonly trustedDomains: string[];
 }
 
-export interface ITrustedDomains extends IStaticTrustedDomains {
-	readonly userDomains: string[];
-	readonly workspaceDomains: string[];
-}
-
-export async function readTrustedDomains(accessor: ServicesAccessor): Promise<ITrustedDomains> {
+export async function readTrustedDomains(accessor: ServicesAccessor): Promise<IStaticTrustedDomains> {
 	const { defaultTrustedDomains, trustedDomains } = readStaticTrustedDomains(accessor);
-	const [workspaceDomains, userDomains] = await Promise.all([readWorkspaceTrustedDomains(accessor), readAuthenticationTrustedDomains(accessor)]);
 	return {
-		workspaceDomains,
-		userDomains,
 		defaultTrustedDomains,
 		trustedDomains,
 	};
-}
-
-export async function readWorkspaceTrustedDomains(accessor: ServicesAccessor): Promise<string[]> {
-	const fileService = accessor.get(IFileService);
-	const textFileService = accessor.get(ITextFileService);
-	const workspaceContextService = accessor.get(IWorkspaceContextService);
-	return getRemotes(fileService, textFileService, workspaceContextService);
-}
-
-export async function readAuthenticationTrustedDomains(accessor: ServicesAccessor): Promise<string[]> {
-	const authenticationService = accessor.get(IAuthenticationService);
-	return authenticationService.isAuthenticationProviderRegistered('github') && ((await authenticationService.getSessions('github')) ?? []).length > 0
-		? [`https://github.com`]
-		: [];
 }
 
 export function readStaticTrustedDomains(accessor: ServicesAccessor): IStaticTrustedDomains {

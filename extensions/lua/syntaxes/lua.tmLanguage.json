@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/sumneko/lua.tmbundle/commit/3a18700941737c3ab66ac5964696f141aee61800",
+	"version": "https://github.com/sumneko/lua.tmbundle/commit/b295d83bf0e91b5d3a69eb097f9ed351623b95be",
 	"name": "Lua",
 	"scopeName": "source.lua",
 	"patterns": [
@@ -31,7 +31,7 @@
 							"name": "punctuation.definition.parameters.begin.lua"
 						}
 					},
-					"end": "(\\))|(?=[\\-\\.{}\\[\\]\"'])",
+					"end": "(\\))|(?=[\\-{}\\[\\]\"'])|(?<!\\.)\\.(?!\\.)",
 					"endCaptures": {
 						"1": {
 							"name": "punctuation.definition.parameters.finish.lua"
@@ -41,6 +41,17 @@
 					"patterns": [
 						{
 							"include": "#comment"
+						},
+						{
+							"match": "(\\.{3})\\s*([a-zA-Z_][a-zA-Z0-9_]*)",
+							"captures": {
+								"1": {
+									"name": "constant.language.lua"
+								},
+								"2": {
+									"name": "variable.parameter.function.lua"
+								}
+							}
 						},
 						{
 							"match": "[a-zA-Z_][a-zA-Z0-9_]*",
@@ -141,8 +152,8 @@
 		{
 			"match": "<\\s*(const|close)\\s*>",
 			"captures": {
-				"1": {
-					"name": "string.tag.lua"
+				"0": {
+					"name": "storage.type.attribute.lua"
 				}
 			}
 		},
@@ -155,8 +166,16 @@
 			"name": "keyword.control.lua"
 		},
 		{
-			"match": "\\b(local|global)\\b",
+			"match": "\\b(local)\\b",
 			"name": "keyword.local.lua"
+		},
+		{
+			"match": "^\\s*(global)\\b(?!\\s*=)",
+			"captures": {
+				"1": {
+					"name": "keyword.global.lua"
+				}
+			}
 		},
 		{
 			"match": "\\b(function)\\b(?![,:])",
@@ -179,12 +198,16 @@
 			"name": "entity.name.tag.lua"
 		},
 		{
-			"match": "(?<![^.]\\.|:)\\b(coroutine\\.(create|isyieldable|close|resume|running|status|wrap|yield)|string\\.(byte|char|dump|find|format|gmatch|gsub|len|lower|match|pack|packsize|rep|reverse|sub|unpack|upper)|table\\.(concat|insert|maxn|move|pack|remove|sort|unpack)|math\\.(abs|acos|asin|atan2?|ceil|cosh?|deg|exp|floor|fmod|frexp|ldexp|log|log10|max|min|modf|pow|rad|random|randomseed|sinh?|sqrt|tanh?|tointeger|type)|io\\.(close|flush|input|lines|open|output|popen|read|tmpfile|type|write)|os\\.(clock|date|difftime|execute|exit|getenv|remove|rename|setlocale|time|tmpname)|package\\.(loadlib|seeall|searchpath)|debug\\.(debug|[gs]etfenv|[gs]ethook|getinfo|[gs]etlocal|[gs]etmetatable|getregistry|[gs]etupvalue|[gs]etuservalue|set[Cc]stacklimit|traceback|upvalueid|upvaluejoin)|bit32\\.(arshift|band|bnot|bor|btest|bxor|extract|replace|lrotate|lshift|rrotate|rshift)|utf8\\.(char|codes|codepoint|len|offset))\\b(?!\\s*=(?!=))",
+			"match": "(?<![^.]\\.|:)\\b(coroutine\\.(create|isyieldable|close|resume|running|status|wrap|yield)|string\\.(byte|char|dump|find|format|gmatch|gsub|len|lower|match|pack|packsize|rep|reverse|sub|unpack|upper)|table\\.(concat|create|insert|maxn|move|pack|remove|sort|unpack)|math\\.(abs|acos|asin|atan2?|ceil|cosh?|deg|exp|floor|fmod|frexp|ldexp|log|log10|max|min|modf|pow|rad|random|randomseed|sinh?|sqrt|tanh?|tointeger|type)|io\\.(close|flush|input|lines|open|output|popen|read|tmpfile|type|write)|os\\.(clock|date|difftime|execute|exit|getenv|remove|rename|setlocale|time|tmpname)|package\\.(loadlib|seeall|searchpath)|debug\\.(debug|[gs]etfenv|[gs]ethook|getinfo|[gs]etlocal|[gs]etmetatable|getregistry|[gs]etupvalue|[gs]etuservalue|set[Cc]stacklimit|traceback|upvalueid|upvaluejoin)|bit32\\.(arshift|band|bnot|bor|btest|bxor|extract|replace|lrotate|lshift|rrotate|rshift)|utf8\\.(char|codes|codepoint|len|offset))\\b(?!\\s*=(?!=))",
 			"name": "support.function.library.lua"
 		},
 		{
-			"match": "\\b(and|or|not|\\|\\||\\&\\&|\\!)\\b",
+			"match": "\\b(\\|\\||\\&\\&|\\!)\\b",
 			"name": "keyword.operator.lua"
+		},
+		{
+			"match": "\\b(and|or|not)\\b",
+			"name": "keyword.operator.logical.lua"
 		},
 		{
 			"match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\b(?=\\s*(?:[({\"']|\\[\\[))",
@@ -357,13 +380,33 @@
 					},
 					"patterns": [
 						{
+							"begin": "--\\[(=*)\\[@@@",
+							"beginCaptures": {
+								"0": {
+									"name": "punctuation.definition.comment.begin.lua"
+								}
+							},
+							"end": "(--)?\\]\\1\\]",
+							"endCaptures": {
+								"0": {
+									"name": "punctuation.definition.comment.end.lua"
+								}
+							},
+							"name": "",
+							"patterns": [
+								{
+									"include": "source.lua"
+								}
+							]
+						},
+						{
 							"begin": "--\\[(=*)\\[",
 							"beginCaptures": {
 								"0": {
 									"name": "punctuation.definition.comment.begin.lua"
 								}
 							},
-							"end": "\\]\\1\\]",
+							"end": "(--)?\\]\\1\\]",
 							"endCaptures": {
 								"0": {
 									"name": "punctuation.definition.comment.end.lua"
@@ -452,7 +495,7 @@
 		"emmydoc": {
 			"patterns": [
 				{
-					"begin": "(?<=---[ \\t]*)@class",
+					"begin": "(?<=---)[ \\t]*@class",
 					"beginCaptures": {
 						"0": {
 							"name": "storage.type.annotation.lua"
@@ -471,7 +514,7 @@
 					]
 				},
 				{
-					"begin": "(?<=---[ \\t]*)@enum",
+					"begin": "(?<=---)[ \\t]*@enum",
 					"beginCaptures": {
 						"0": {
 							"name": "storage.type.annotation.lua"
@@ -491,7 +534,7 @@
 					]
 				},
 				{
-					"begin": "(?<=---[ \\t]*)@type",
+					"begin": "(?<=---)[ \\t]*@type",
 					"beginCaptures": {
 						"0": {
 							"name": "storage.type.annotation.lua"
@@ -505,7 +548,7 @@
 					]
 				},
 				{
-					"begin": "(?<=---[ \\t]*)@alias",
+					"begin": "(?<=---)[ \\t]*@alias",
 					"beginCaptures": {
 						"0": {
 							"name": "storage.type.annotation.lua"
@@ -530,7 +573,7 @@
 					]
 				},
 				{
-					"begin": "(?<=---[ \\t]*)(@operator)\\s*(\\b[a-z]+)?",
+					"begin": "(?<=---)[ \\t]*(@operator)\\s*(\\b[a-z]+)?",
 					"beginCaptures": {
 						"1": {
 							"name": "storage.type.annotation.lua"
@@ -547,7 +590,7 @@
 					]
 				},
 				{
-					"begin": "(?<=---[ \\t]*)@cast",
+					"begin": "(?<=---)[ \\t]*@cast",
 					"beginCaptures": {
 						"0": {
 							"name": "storage.type.annotation.lua"
@@ -576,7 +619,7 @@
 					]
 				},
 				{
-					"begin": "(?<=---[ \\t]*)@param",
+					"begin": "(?<=---)[ \\t]*@param",
 					"beginCaptures": {
 						"0": {
 							"name": "storage.type.annotation.lua"
@@ -604,7 +647,7 @@
 					]
 				},
 				{
-					"begin": "(?<=---[ \\t]*)@return",
+					"begin": "(?<=---)[ \\t]*@return",
 					"beginCaptures": {
 						"0": {
 							"name": "storage.type.annotation.lua"
@@ -622,7 +665,7 @@
 					]
 				},
 				{
-					"begin": "(?<=---[ \\t]*)@field",
+					"begin": "(?<=---)[ \\t]*@field",
 					"beginCaptures": {
 						"0": {
 							"name": "storage.type.annotation.lua"
@@ -657,7 +700,7 @@
 					]
 				},
 				{
-					"begin": "(?<=---[ \\t]*)@generic",
+					"begin": "(?<=---)[ \\t]*@generic",
 					"beginCaptures": {
 						"0": {
 							"name": "storage.type.annotation.lua"
@@ -691,7 +734,7 @@
 					]
 				},
 				{
-					"begin": "(?<=---[ \\t]*)@vararg",
+					"begin": "(?<=---)[ \\t]*@vararg",
 					"beginCaptures": {
 						"0": {
 							"name": "storage.type.annotation.lua"
@@ -705,7 +748,7 @@
 					]
 				},
 				{
-					"begin": "(?<=---[ \\t]*)@overload",
+					"begin": "(?<=---)[ \\t]*@overload",
 					"beginCaptures": {
 						"0": {
 							"name": "storage.type.annotation.lua"
@@ -719,7 +762,7 @@
 					]
 				},
 				{
-					"begin": "(?<=---[ \\t]*)@deprecated",
+					"begin": "(?<=---)[ \\t]*@deprecated",
 					"beginCaptures": {
 						"0": {
 							"name": "storage.type.annotation.lua"
@@ -728,7 +771,7 @@
 					"end": "(?=[\\n@#])"
 				},
 				{
-					"begin": "(?<=---[ \\t]*)@meta",
+					"begin": "(?<=---)[ \\t]*@meta",
 					"beginCaptures": {
 						"0": {
 							"name": "storage.type.annotation.lua"
@@ -737,7 +780,7 @@
 					"end": "(?=[\\n@#])"
 				},
 				{
-					"begin": "(?<=---[ \\t]*)@private",
+					"begin": "(?<=---)[ \\t]*@private",
 					"beginCaptures": {
 						"0": {
 							"name": "storage.type.annotation.lua"
@@ -746,7 +789,7 @@
 					"end": "(?=[\\n@#])"
 				},
 				{
-					"begin": "(?<=---[ \\t]*)@protected",
+					"begin": "(?<=---)[ \\t]*@protected",
 					"beginCaptures": {
 						"0": {
 							"name": "storage.type.annotation.lua"
@@ -755,7 +798,7 @@
 					"end": "(?=[\\n@#])"
 				},
 				{
-					"begin": "(?<=---[ \\t]*)@package",
+					"begin": "(?<=---)[ \\t]*@package",
 					"beginCaptures": {
 						"0": {
 							"name": "storage.type.annotation.lua"
@@ -764,7 +807,7 @@
 					"end": "(?=[\\n@#])"
 				},
 				{
-					"begin": "(?<=---[ \\t]*)@version",
+					"begin": "(?<=---)[ \\t]*@version",
 					"beginCaptures": {
 						"0": {
 							"name": "storage.type.annotation.lua"
@@ -783,7 +826,7 @@
 					]
 				},
 				{
-					"begin": "(?<=---[ \\t]*)@see",
+					"begin": "(?<=---)[ \\t]*@see",
 					"beginCaptures": {
 						"0": {
 							"name": "storage.type.annotation.lua"
@@ -802,7 +845,7 @@
 					]
 				},
 				{
-					"begin": "(?<=---[ \\t]*)@diagnostic",
+					"begin": "(?<=---)[ \\t]*@diagnostic",
 					"beginCaptures": {
 						"0": {
 							"name": "storage.type.annotation.lua"
@@ -835,7 +878,7 @@
 					]
 				},
 				{
-					"begin": "(?<=---[ \\t]*)@module",
+					"begin": "(?<=---)[ \\t]*@module",
 					"beginCaptures": {
 						"0": {
 							"name": "storage.type.annotation.lua"
@@ -849,7 +892,7 @@
 					]
 				},
 				{
-					"match": "(?<=---[ \\t]*)@(async|nodiscard)",
+					"match": "(?<=---)[ \\t]*@(async|nodiscard)",
 					"name": "storage.type.annotation.lua"
 				},
 				{
@@ -880,11 +923,11 @@
 					"end": "(?=[\\s#])",
 					"patterns": [
 						{
-							"match": "[\\(\\),:\\?][ \\t]*",
+							"match": "[\\(\\),\\:\\?\\[\\]\\<\\>][ \\t]*",
 							"name": "keyword.operator.lua"
 						},
 						{
-							"match": "([a-zA-Z_][a-zA-Z0-9_\\.\\*\\[\\]\\<\\>\\,\\-]*)(?<!,)[ \\t]*(?=\\??:)",
+							"match": "([a-zA-Z_][a-zA-Z0-9_\\.\\*\\-]*)(?<!,)[ \\t]*(?=\\??:)",
 							"name": "entity.name.variable.lua"
 						},
 						{
@@ -928,7 +971,6 @@
 		},
 		"ldoc_tag": {
 			"match": "\\G[ \\t]*(@)(alias|annotation|author|charset|class|classmod|comment|constructor|copyright|description|example|export|factory|field|file|fixme|function|include|lfunction|license|local|module|name|param|pragma|private|raise|release|return|script|section|see|set|static|submodule|summary|tfield|thread|tparam|treturn|todo|topic|type|usage|warning|within)\\b",
-			"end": "(?!@)\\b",
 			"captures": {
 				"1": {
 					"name": "punctuation.definition.block.tag.ldoc"

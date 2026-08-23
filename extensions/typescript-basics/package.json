@@ -2,7 +2,7 @@
   "name": "typescript",
   "description": "%description%",
   "displayName": "%displayName%",
-  "version": "1.0.0",
+  "version": "10.0.0",
   "author": "vscode",
   "publisher": "vscode",
   "license": "MIT",
@@ -12,6 +12,7 @@
   "scripts": {
     "update-grammar": "node ./build/update-grammars.mjs"
   },
+  "categories": ["Programming Languages"],
   "contributes": {
     "languages": [
       {
@@ -26,6 +27,7 @@
           ".cts",
           ".mts"
         ],
+        "firstLine": "^#!.*\\b(deno|bun|ts-node)\\b",
         "configuration": "./language-configuration.json"
       },
       {
@@ -55,8 +57,8 @@
       },
       {
         "id": "json",
-        "filenames": [
-          "tsconfig.tsbuildinfo"
+        "extensions": [
+          ".tsbuildinfo"
         ]
       }
     ],
@@ -74,9 +76,7 @@
           "keyword.operator.assignment.compound.bitwise.ts"
         ],
         "tokenTypes": {
-          "meta.template.expression": "other",
-          "meta.template.expression string": "string",
-          "meta.template.expression comment": "comment",
+          "punctuation.definition.template-expression": "other",
           "entity.name.type.instance.jsdoc": "other",
           "entity.name.function.tagged-template": "other",
           "meta.import string.quoted": "other",
@@ -101,9 +101,7 @@
           "meta.embedded.expression.tsx": "typescriptreact"
         },
         "tokenTypes": {
-          "meta.template.expression": "other",
-          "meta.template.expression string": "string",
-          "meta.template.expression comment": "comment",
+          "punctuation.definition.template-expression": "other",
           "entity.name.type.instance.jsdoc": "other",
           "entity.name.function.tagged-template": "other",
           "meta.import string.quoted": "other",

@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { EndOfLinePreference, EndOfLineSequence } from 'vs/editor/common/model';
-import { MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import assert from 'assert';
+import { ISingleEditOperation } from '../../../common/core/editOperation.js';
+import { Position } from '../../../common/core/position.js';
+import { EndOfLinePreference, EndOfLineSequence } from '../../../common/model.js';
+import { MirrorTextModel } from '../../../common/model/mirrorTextModel.js';
+import { TextModel } from '../../../common/model/textModel.js';
+import { IModelContentChangedEvent } from '../../../common/textModelEvents.js';
+import { createTextModel } from '../testTextModel.js';
 
 export function testApplyEditsWithSyncedModels(original: string[], edits: ISingleEditOperation[], expected: string[], inputEditsAreInvalid: boolean = false): void {
 	const originalStr = original.join('\n');
@@ -100,7 +100,7 @@ export function assertSyncedModels(text: string, callback: (model: TextModel, as
 	const mirrorModel2 = new MirrorTextModel(null!, model.getLinesContent(), model.getEOL(), model.getVersionId());
 	let mirrorModel2PrevVersionId = model.getVersionId();
 
-	model.onDidChangeContent((e: IModelContentChangedEvent) => {
+	const disposable = model.onDidChangeContent((e: IModelContentChangedEvent) => {
 		const versionId = e.versionId;
 		if (versionId < mirrorModel2PrevVersionId) {
 			console.warn('Model version id did not advance between edits (2)');
@@ -117,6 +117,7 @@ export function assertSyncedModels(text: string, callback: (model: TextModel, as
 
 	callback(model, assertMirrorModels);
 
+	disposable.dispose();
 	model.dispose();
 	mirrorModel2.dispose();
 }

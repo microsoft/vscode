@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
-import { Constants } from 'vs/base/common/uint';
-import { LinePartMetadata } from 'vs/editor/common/viewLayout/linePart';
-import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel';
+import * as strings from '../../../base/common/strings.js';
+import { Constants } from '../../../base/common/uint.js';
+import { InlineDecoration, InlineDecorationType } from '../viewModel/inlineDecorations.js';
+import { LinePartMetadata } from './linePart.js';
 
 export class LineDecoration {
 	_lineDecorationBrand: void = undefined;
@@ -28,7 +28,7 @@ export class LineDecoration {
 		);
 	}
 
-	public static equalsArr(a: LineDecoration[], b: LineDecoration[]): boolean {
+	public static equalsArr(a: readonly LineDecoration[], b: readonly LineDecoration[]): boolean {
 		const aLen = a.length;
 		const bLen = b.length;
 		if (aLen !== bLen) {

@@ -77,7 +77,7 @@ function createLargeProjectMonitorFromTypeScript(item: ExcludeHintItem, client: 
 						title: vscode.l10n.t("Configure Excludes"),
 						index: 0
 					}).then(selected => {
-						if (selected && selected.index === 0) {
+						if (selected?.index === 0) {
 							onConfigureExcludesSelected(client, configFileName);
 						}
 					});
@@ -97,6 +97,7 @@ function onConfigureExcludesSelected(
 		const root = client.getWorkspaceRootForResource(vscode.Uri.file(configFileName));
 		if (root) {
 			openOrCreateConfig(
+				client.apiVersion,
 				/tsconfig\.?.*\.json/.test(configFileName) ? ProjectType.TypeScript : ProjectType.JavaScript,
 				root,
 				client.configuration);

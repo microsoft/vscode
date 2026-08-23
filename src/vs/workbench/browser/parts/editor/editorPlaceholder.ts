@@ -3,32 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/editorplaceholder';
-import { localize } from 'vs/nls';
-import Severity from 'vs/base/common/severity';
-import { IEditorOpenContext, isEditorOpenError } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { Dimension, size, clearNode, $, EventHelper } from 'vs/base/browser/dom';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { EditorOpenSource, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { computeEditorAriaLabel, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
-import { ButtonBar } from 'vs/base/browser/ui/button/button';
-import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
-import { FileChangeType, FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { truncate } from 'vs/base/common/strings';
+import './media/editorplaceholder.css';
+import { localize } from '../../../../nls.js';
+import { truncate } from '../../../../base/common/strings.js';
+import Severity from '../../../../base/common/severity.js';
+import { IEditorOpenContext, isEditorOpenError } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { EditorPane } from './editorPane.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { Dimension, size, clearNode, $, EventHelper } from '../../../../base/browser/dom.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { assertReturnsAllDefined } from '../../../../base/common/types.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
+import { EditorOpenSource, IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { computeEditorAriaLabel, EditorPaneDescriptor } from '../../editor.js';
+import { ButtonBar } from '../../../../base/browser/ui/button/button.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { SimpleIconLabel } from '../../../../base/browser/ui/iconLabel/simpleIconLabel.js';
+import { FileChangeType, FileOperationError, FileOperationResult, IFileService } from '../../../../platform/files/common/files.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
+import { showWindowLogActionId } from '../../../services/log/common/logConstants.js';
 
 export interface IEditorPlaceholderContents {
 	icon: string;
@@ -51,24 +53,25 @@ export abstract class EditorPlaceholder extends EditorPane {
 
 	private container: HTMLElement | undefined;
 	private scrollbar: DomScrollableElement | undefined;
-	private inputDisposable = this._register(new MutableDisposable());
+	private readonly inputDisposable = this._register(new MutableDisposable());
 
 	constructor(
 		id: string,
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService
 	) {
-		super(id, telemetryService, themeService, storageService);
+		super(id, group, telemetryService, themeService, storageService);
 	}
 
 	protected createEditor(parent: HTMLElement): void {
 
 		// Container
-		this.container = document.createElement('div');
-		this.container.className = 'monaco-editor-pane-placeholder';
+		this.container = $('.monaco-editor-pane-placeholder', {
+			tabIndex: 0 // enable focus support from the editor part (do not remove)
+		});
 		this.container.style.outline = 'none';
-		this.container.tabIndex = 0; // enable focus support from the editor part (do not remove)
 
 		// Custom Scrollbars
 		this.scrollbar = this._register(new DomScrollableElement(this.container, { horizontal: ScrollbarVisibility.Auto, vertical: ScrollbarVisibility.Auto }));
@@ -88,7 +91,7 @@ export abstract class EditorPlaceholder extends EditorPane {
 	}
 
 	private async renderInput(input: EditorInput, options: IEditorOptions | undefined): Promise<IDisposable> {
-		const [container, scrollbar] = assertAllDefined(this.container, this.scrollbar);
+		const [container, scrollbar] = assertReturnsAllDefined(this.container, this.scrollbar);
 
 		// Reset any previous contents
 		clearNode(container);
@@ -100,12 +103,12 @@ export abstract class EditorPlaceholder extends EditorPane {
 
 		// Icon
 		const iconContainer = container.appendChild($('.editor-placeholder-icon-container'));
-		const iconWidget = new SimpleIconLabel(iconContainer);
+		const iconWidget = disposables.add(new SimpleIconLabel(iconContainer));
 		iconWidget.text = icon;
 
 		// Label
 		const labelContainer = container.appendChild($('.editor-placeholder-label-container'));
-		const labelWidget = document.createElement('span');
+		const labelWidget = $('span');
 		labelWidget.textContent = truncatedLabel;
 		labelContainer.appendChild(labelWidget);
 
@@ -153,7 +156,7 @@ export abstract class EditorPlaceholder extends EditorPane {
 	}
 
 	layout(dimension: Dimension): void {
-		const [container, scrollbar] = assertAllDefined(this.container, this.scrollbar);
+		const [container, scrollbar] = assertReturnsAllDefined(this.container, this.scrollbar);
 
 		// Pass on to Container
 		size(container, dimension.width, dimension.height);
@@ -166,9 +169,9 @@ export abstract class EditorPlaceholder extends EditorPane {
 	}
 
 	override focus(): void {
-		const container = assertIsDefined(this.container);
+		super.focus();
 
-		container.focus();
+		this.container?.focus();
 	}
 
 	override dispose(): void {
@@ -183,16 +186,17 @@ export class WorkspaceTrustRequiredPlaceholderEditor extends EditorPlaceholder {
 	static readonly ID = 'workbench.editors.workspaceTrustRequiredEditor';
 	private static readonly LABEL = localize('trustRequiredEditor', "Workspace Trust Required");
 
-	static readonly DESCRIPTOR = EditorPaneDescriptor.create(WorkspaceTrustRequiredPlaceholderEditor, WorkspaceTrustRequiredPlaceholderEditor.ID, WorkspaceTrustRequiredPlaceholderEditor.LABEL);
+	static readonly DESCRIPTOR = EditorPaneDescriptor.create(this, this.ID, this.LABEL);
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService
 	) {
-		super(WorkspaceTrustRequiredPlaceholderEditor.ID, telemetryService, themeService, storageService);
+		super(WorkspaceTrustRequiredPlaceholderEditor.ID, group, telemetryService, themeService, storageService);
 	}
 
 	override getTitle(): string {
@@ -220,21 +224,22 @@ export class ErrorPlaceholderEditor extends EditorPlaceholder {
 	private static readonly ID = 'workbench.editors.errorEditor';
 	private static readonly LABEL = localize('errorEditor', "Error Editor");
 
-	static readonly DESCRIPTOR = EditorPaneDescriptor.create(ErrorPlaceholderEditor, ErrorPlaceholderEditor.ID, ErrorPlaceholderEditor.LABEL);
+	static readonly DESCRIPTOR = EditorPaneDescriptor.create(this, this.ID, this.LABEL);
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IFileService private readonly fileService: IFileService,
-		@IDialogService private readonly dialogService: IDialogService
+		@IDialogService private readonly dialogService: IDialogService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(ErrorPlaceholderEditor.ID, telemetryService, themeService, storageService);
+		super(ErrorPlaceholderEditor.ID, group, telemetryService, themeService, storageService);
 	}
 
 	protected async getContents(input: EditorInput, options: IErrorEditorPlaceholderOptions, disposables: DisposableStore): Promise<IEditorPlaceholderContents> {
 		const resource = input.resource;
-		const group = this.group;
 		const error = options.error;
 		const isFileNotFound = (<FileOperationError | undefined>error)?.fileOperationResult === FileOperationResult.FILE_NOT_FOUND;
 
@@ -245,7 +250,7 @@ export class ErrorPlaceholderEditor extends EditorPlaceholder {
 		} else if (isEditorOpenError(error) && error.forceMessage) {
 			label = error.message;
 		} else if (error) {
-			label = localize('unknownErrorEditorTextWithError', "The editor could not be opened due to an unexpected error: {0}", toErrorMessage(error));
+			label = localize('unknownErrorEditorTextWithError', "The editor could not be opened due to an unexpected error. Please consult the log for more details.");
 		} else {
 			label = localize('unknownErrorEditorTextWithoutError', "The editor could not be opened due to an unexpected error.");
 		}
@@ -274,20 +279,24 @@ export class ErrorPlaceholderEditor extends EditorPlaceholder {
 					}
 				};
 			});
-		} else if (group) {
+		} else {
 			actions = [
 				{
 					label: localize('retry', "Try Again"),
-					run: () => group.openEditor(input, { ...options, source: EditorOpenSource.USER /* explicit user gesture */ })
+					run: () => this.group.openEditor(input, { ...options, source: EditorOpenSource.USER /* explicit user gesture */ })
+				},
+				{
+					label: localize('showLogs', "Show Logs"),
+					run: () => this.commandService.executeCommand(showWindowLogActionId)
 				}
 			];
 		}
 
 		// Auto-reload when file is added
-		if (group && isFileNotFound && resource && this.fileService.hasProvider(resource)) {
+		if (isFileNotFound && resource && this.fileService.hasProvider(resource)) {
 			disposables.add(this.fileService.onDidFilesChange(e => {
 				if (e.contains(resource, FileChangeType.ADDED, FileChangeType.UPDATED)) {
-					group.openEditor(input, options);
+					this.group.openEditor(input, options);
 				}
 			}));
 		}

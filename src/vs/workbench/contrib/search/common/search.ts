@@ -3,22 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ISearchConfiguration, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
-import { SymbolKind, Location, ProviderResult, SymbolTag } from 'vs/editor/common/languages';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { URI } from 'vs/base/common/uri';
-import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { isNumber } from 'vs/base/common/types';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { compare } from 'vs/base/common/strings';
-import { groupBy } from 'vs/base/common/arrays';
+import { onUnexpectedExternalError } from '../../../../base/common/errors.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { ISearchConfiguration, ISearchConfigurationProperties } from '../../../services/search/common/search.js';
+import { SymbolKind, Location, ProviderResult, SymbolTag } from '../../../../editor/common/languages.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { URI } from '../../../../base/common/uri.js';
+import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
+import { isNumber } from '../../../../base/common/types.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { compare } from '../../../../base/common/strings.js';
+import { groupBy } from '../../../../base/common/arrays.js';
+import * as nls from '../../../../nls.js';
+import type { IConfigurationNode } from '../../../../platform/configuration/common/configurationRegistry.js';
 
 export interface IWorkspaceSymbol {
 	name: string;
@@ -120,11 +122,11 @@ export async function getWorkspaceSymbols(query: string, token: CancellationToke
 }
 
 export interface IWorkbenchSearchConfigurationProperties extends ISearchConfigurationProperties {
-	quickOpen: {
-		includeSymbols: boolean;
-		includeHistory: boolean;
-		history: {
-			filterSortOrder: 'default' | 'recency';
+	quickOpen?: {
+		includeSymbols?: boolean;
+		includeHistory?: boolean;
+		history?: {
+			filterSortOrder?: 'default' | 'recency';
 		};
 	};
 }
@@ -148,8 +150,8 @@ export function getOutOfWorkspaceEditorResources(accessor: ServicesAccessor): UR
 	return resources as URI[];
 }
 
-// Supports patterns of <path><#|:|(><line><#|:|,><col?><:?>
-const LINE_COLON_PATTERN = /\s?[#:\(](?:line )?(\d*)(?:[#:,](\d*))?\)?:?\s*$/;
+// Supports patterns of <path><#|:|(><line><#|:|,><col?>> optionally followed by a range suffix <-<endLine><#|:|,><endCol?>>
+const LINE_COLON_PATTERN = /\s?[#:\(](?:line )?(\d*)(?:[#:,](\d*))?(?:-(\d*)(?:[#:,](\d*))?)?\)?:?\s*$/;
 
 export interface IFilterAndRange {
 	filter: string;
@@ -192,6 +194,20 @@ export function extractRangeFromFilter(filter: string, unless?: string[]): IFilt
 					endColumn: startColumn
 				};
 			}
+
+			// End Line Number (range selection, e.g. "20-40")
+			const endLineNumber = parseInt(patternMatch[3] ?? '', 10);
+			if (isNumber(endLineNumber)) {
+
+				// End Column Number (e.g. "20:3-40:5"), defaults to the start of the end line
+				const endColumn = parseInt(patternMatch[4] ?? '', 10);
+				range = {
+					startLineNumber: range.startLineNumber,
+					startColumn: range.startColumn,
+					endLineNumber: endLineNumber,
+					endColumn: isNumber(endColumn) ? endColumn : 1
+				};
+			}
 		}
 
 		// User has typed "something:" or "something#" without a line number, in this case treat as start of file
@@ -222,3 +238,16 @@ export enum SearchUIState {
 }
 
 export const SearchStateKey = new RawContextKey<SearchUIState>('searchState', SearchUIState.Idle);
+
+export interface NotebookPriorityInfo {
+	isFromSettings: boolean;
+	filenamePatterns: string[];
+}
+
+export const searchConfigurationNode: IConfigurationNode = {
+	id: 'search',
+	order: 13,
+	title: nls.localize('searchConfigurationTitle', "Search"),
+	type: 'object',
+	properties: {}
+};

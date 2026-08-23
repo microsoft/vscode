@@ -1,6 +1,7 @@
 src/**
 notebook/**
-tsconfig.json
+tsconfig*.json
+**/*.tsbuildinfo
 .gitignore
-esbuild.js
+esbuild.*
 src/**

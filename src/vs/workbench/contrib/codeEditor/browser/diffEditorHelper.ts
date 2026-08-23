@@ -3,26 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { registerDiffEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { AccessibleDiffViewerNext, AccessibleDiffViewerPrev } from 'vs/editor/browser/widget/diffEditor.contribution';
-import { DiffEditorWidget2 } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorWidget2';
-import { EmbeddedDiffEditorWidget, EmbeddedDiffEditorWidget2 } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
-import { IDiffEditorContribution } from 'vs/editor/common/editorCommon';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
-import { AccessibilityHelpAction, AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { localize } from 'vs/nls';
-import { observableFromEvent } from 'vs/base/common/observable';
-import { autorunWithStore2 } from 'vs/base/common/observableImpl/autorun';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { autorunWithStore, observableFromEvent } from '../../../../base/common/observable.js';
+import { IDiffEditor } from '../../../../editor/browser/editorBrowser.js';
+import { registerDiffEditorContribution } from '../../../../editor/browser/editorExtensions.js';
+import { EmbeddedDiffEditorWidget } from '../../../../editor/browser/widget/diffEditor/embeddedDiffEditorWidget.js';
+import { IDiffEditorContribution } from '../../../../editor/common/editorCommon.js';
+import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { localize } from '../../../../nls.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { FloatingEditorClickWidget } from '../../../browser/codeeditor.js';
+import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
+import { DiffEditorAccessibilityHelp } from './diffEditorAccessibilityHelp.js';
 
 class DiffEditorHelperContribution extends Disposable implements IDiffEditorContribution {
 	public static readonly ID = 'editor.contrib.diffEditorHelper';
@@ -30,29 +25,28 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 	constructor(
 		private readonly _diffEditor: IDiffEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITextResourceConfigurationService private readonly _textResourceConfigurationService: ITextResourceConfigurationService,
 		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		super();
 
-		this._register(createScreenReaderHelp());
-
-		const isEmbeddedDiffEditor = (this._diffEditor instanceof EmbeddedDiffEditorWidget) || (this._diffEditor instanceof EmbeddedDiffEditorWidget2);
+		const isEmbeddedDiffEditor = this._diffEditor instanceof EmbeddedDiffEditorWidget;
 
 		if (!isEmbeddedDiffEditor) {
-			const computationResult = observableFromEvent(e => this._diffEditor.onDidUpdateDiff(e), () => this._diffEditor.getDiffComputationResult());
+			const computationResult = observableFromEvent(this, e => this._diffEditor.onDidUpdateDiff(e), () => /** @description diffEditor.diffComputationResult */ this._diffEditor.getDiffComputationResult());
 			const onlyWhiteSpaceChange = computationResult.map(r => r && !r.identical && r.changes2.length === 0);
 
-			this._register(autorunWithStore2('update state', (reader, store) => {
+			this._register(autorunWithStore((reader, store) => {
+				/** @description update state */
 				if (onlyWhiteSpaceChange.read(reader)) {
 					const helperWidget = store.add(this._instantiationService.createInstance(
-						FloatingClickWidget,
+						FloatingEditorClickWidget,
 						this._diffEditor.getModifiedEditor(),
 						localize('hintWhitespace', "Show Whitespace Differences"),
 						null
 					));
 					store.add(helperWidget.onClick(() => {
-						this._configurationService.updateValue('diffEditor.ignoreTrimWhitespace', false);
+						this._textResourceConfigurationService.updateValue(this._diffEditor.getModel()!.modified.uri, 'diffEditor.ignoreTrimWhitespace', false);
 					}));
 					helperWidget.render();
 				}
@@ -68,7 +62,7 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 						[{
 							label: localize('removeTimeout', "Remove Limit"),
 							run: () => {
-								this._configurationService.updateValue('diffEditor.maxComputationTime', 0);
+								this._textResourceConfigurationService.updateValue(this._diffEditor.getModel()!.modified.uri, 'diffEditor.maxComputationTime', 0);
 							}
 						}],
 						{}
@@ -79,43 +73,16 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 	}
 }
 
-function createScreenReaderHelp(): IDisposable {
-	return AccessibilityHelpAction.addImplementation(105, 'diff-editor', async (accessor) => {
-		const accessibleViewService = accessor.get(IAccessibleViewService);
-		const editorService = accessor.get(IEditorService);
-		const codeEditorService = accessor.get(ICodeEditorService);
-		const keybindingService = accessor.get(IKeybindingService);
-
-		const next = keybindingService.lookupKeybinding(AccessibleDiffViewerNext.id)?.getAriaLabel();
-		const previous = keybindingService.lookupKeybinding(AccessibleDiffViewerPrev.id)?.getAriaLabel();
-
-		if (!(editorService.activeTextEditorControl instanceof DiffEditorWidget2)) {
-			return;
-		}
-
-		const codeEditor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
-		if (!codeEditor) {
-			return;
-		}
-
-		const keys = ['audioCues.diffLineDeleted', 'audioCues.diffLineInserted', 'audioCues.diffLineModified'];
-
-		accessibleViewService.show({
-			verbositySettingKey: AccessibilityVerbositySettingId.DiffEditor,
-			provideContent: () => [
-				localize('msg1', "You are in a diff editor."),
-				localize('msg2', "Press {0} or {1} to view the next or previous diff in the diff review mode that is optimized for screen readers.", next, previous),
-				localize('msg3', "To control which audio cues should be played, the following settings can be configured: {0}.", keys.join(', ')),
-			].join('\n'),
-			onClose: () => {
-				codeEditor.focus();
-			},
-			options: { type: AccessibleViewType.HelpMenu, ariaLabel: localize('chat-help-label', "Diff editor accessibility help") }
-		});
-	}, ContextKeyExpr.and(
-		ContextKeyEqualsExpr.create('diffEditorVersion', 2),
-		ContextKeyEqualsExpr.create('isInDiffEditor', true)
-	));
-}
-
 registerDiffEditorContribution(DiffEditorHelperContribution.ID, DiffEditorHelperContribution);
+
+Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: 'diffEditor.experimental.collapseUnchangedRegions',
+		migrateFn: (value, accessor) => {
+			return [
+				['diffEditor.hideUnchangedRegions.enabled', { value }],
+				['diffEditor.experimental.collapseUnchangedRegions', { value: undefined }]
+			];
+		}
+	}]);
+AccessibleViewRegistry.register(new DiffEditorAccessibilityHelp());

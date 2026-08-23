@@ -3,14 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI as uri } from 'vs/base/common/uri';
-import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
-import { isWindows } from 'vs/base/common/platform';
-import { mockUriIdentityService } from 'vs/workbench/contrib/debug/test/browser/mockDebugModel';
-import { NullLogService } from 'vs/platform/log/common/log';
+import assert from 'assert';
+import { isWindows } from '../../../../../base/common/platform.js';
+import { URI as uri } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { Source } from '../../common/debugSource.js';
+import { mockUriIdentityService } from './mockDebugModel.js';
 
 suite('Debug - Source', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('from raw source', () => {
 		const source = new Source({

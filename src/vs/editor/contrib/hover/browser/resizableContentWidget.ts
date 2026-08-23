@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ResizableHTMLElement } from 'vs/base/browser/ui/resizable/resizable';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import * as dom from 'vs/base/browser/dom';
+import { ResizableHTMLElement } from '../../../../base/browser/ui/resizable/resizable.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../browser/editorBrowser.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { IPosition, Position } from '../../../common/core/position.js';
+import * as dom from '../../../../base/browser/dom.js';
 
 const TOP_HEIGHT = 30;
 const BOTTOM_HEIGHT = 24;
@@ -78,7 +78,7 @@ export abstract class ResizableContentWidget extends Disposable implements ICont
 			return;
 		}
 		const editorBox = dom.getDomNodePagePosition(editorDomNode);
-		const bodyBox = dom.getClientArea(document.body);
+		const bodyBox = dom.getClientArea(editorDomNode.ownerDocument.body);
 		const mouseBottom = editorBox.top + mouseBox.top + mouseBox.height;
 		return bodyBox.height - mouseBottom - BOTTOM_HEIGHT;
 	}

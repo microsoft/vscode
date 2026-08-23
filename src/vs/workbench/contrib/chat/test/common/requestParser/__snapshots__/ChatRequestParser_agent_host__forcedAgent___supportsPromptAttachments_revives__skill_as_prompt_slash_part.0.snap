@@ -1,0 +1,33 @@
+{
+  parts: [
+    {
+      range: {
+        start: 0,
+        endExclusive: 6
+      },
+      editorRange: {
+        startLineNumber: 1,
+        startColumn: 1,
+        endLineNumber: 1,
+        endColumn: 7
+      },
+      name: "skill",
+      kind: "prompt"
+    },
+    {
+      range: {
+        start: 6,
+        endExclusive: 28
+      },
+      editorRange: {
+        startLineNumber: 1,
+        startColumn: 7,
+        endLineNumber: 1,
+        endColumn: 29
+      },
+      text: " plan run a quick plan",
+      kind: "text"
+    }
+  ],
+  text: "/skill plan run a quick plan"
+}

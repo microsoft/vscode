@@ -3,75 +3,98 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { notEqual, strictEqual, throws } from 'assert';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/decorationAddon';
-import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import type { IDecoration, IDecorationOptions, Terminal as RawXtermTerminal } from 'xterm';
-import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { importAMDNodeModule } from 'vs/amdX';
+import type { IDecoration, IDecorationOptions, Terminal as RawXtermTerminal } from '@xterm/xterm';
+import { deepStrictEqual, notEqual, strictEqual, throws } from 'assert';
+import { importAMDNodeModule } from '../../../../../../amdX.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { ITerminalCommand, TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { CommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/commandDetectionCapability.js';
+import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
+import { DecorationAddon } from '../../../browser/xterm/decorationAddon.js';
+import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { TestXtermLogger } from '../../../../../../platform/terminal/test/common/terminalTestHelpers.js';
 
 suite('DecorationAddon', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	let decorationAddon: DecorationAddon;
 	let xterm: RawXtermTerminal;
-	let instantiationService: TestInstantiationService;
+	let hoverDisposed: boolean;
+	let removedEventListeners: string[];
 
 	setup(async () => {
-		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+		hoverDisposed = false;
+		removedEventListeners = [];
+		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 		class TestTerminal extends TerminalCtor {
 			override registerDecoration(decorationOptions: IDecorationOptions): IDecoration | undefined {
 				if (decorationOptions.marker.isDisposed) {
 					return undefined;
 				}
 				const element = document.createElement('div');
-				return { marker: decorationOptions.marker, element, onDispose: () => { }, isDisposed: false, dispose: () => { }, onRender: (element: HTMLElement) => { return element; } } as unknown as IDecoration;
+				const removeEventListener = element.removeEventListener.bind(element);
+				element.removeEventListener = ((...args: Parameters<typeof element.removeEventListener>) => {
+					removedEventListeners.push(args[0]);
+					removeEventListener(...args);
+				}) as typeof element.removeEventListener;
+				const disposeListeners = new Set<() => void>();
+				let isDisposed = false;
+				return {
+					marker: decorationOptions.marker,
+					element,
+					onDispose: (listener: () => void) => {
+						disposeListeners.add(listener);
+						return { dispose: () => disposeListeners.delete(listener) };
+					},
+					get isDisposed() { return isDisposed; },
+					dispose: () => {
+						isDisposed = true;
+						for (const listener of disposeListeners) {
+							listener();
+						}
+						disposeListeners.clear();
+					},
+					onRender: (listener: (element: HTMLElement) => void) => {
+						listener(element);
+						return { dispose: () => { } };
+					}
+				} as unknown as IDecoration;
 			}
 		}
 
-		instantiationService = new TestInstantiationService();
-		const configurationService = new TestConfigurationService({
-			workbench: {
-				hover: { delay: 5 },
-			},
-			terminal: {
-				integrated: {
-					shellIntegration: {
-						decorationsEnabled: 'both'
+		const instantiationService = workbenchInstantiationService({
+			configurationService: () => new TestConfigurationService({
+				files: {},
+				workbench: {
+					hover: { delay: 5 },
+				},
+				terminal: {
+					integrated: {
+						shellIntegration: {
+							decorationsEnabled: 'both'
+						}
 					}
 				}
-			}
-		});
-		instantiationService.stub(IThemeService, new TestThemeService());
-		xterm = new TestTerminal({
+			})
+		}, store);
+		instantiationService.stub(IHoverService, {
+			setupDelayedHover: () => ({ dispose: () => hoverDisposed = true })
+		} as unknown as IHoverService);
+		xterm = store.add(new TestTerminal({
 			allowProposedApi: true,
 			cols: 80,
-			rows: 30
-		});
-		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(IContextMenuService, instantiationService.createInstance(ContextMenuService));
-		instantiationService.stub(ILogService, NullLogService);
-		const capabilities = new TerminalCapabilityStore();
-		capabilities.add(TerminalCapability.CommandDetection, instantiationService.createInstance(CommandDetectionCapability, xterm));
-		instantiationService.stub(ILifecycleService, new TestLifecycleService());
-		decorationAddon = instantiationService.createInstance(DecorationAddon, capabilities);
+			rows: 30,
+			logger: TestXtermLogger
+		}));
+		const capabilities = store.add(new TerminalCapabilityStore());
+		capabilities.add(TerminalCapability.CommandDetection, store.add(instantiationService.createInstance(CommandDetectionCapability, xterm)));
+		decorationAddon = store.add(instantiationService.createInstance(DecorationAddon, undefined, capabilities));
 		xterm.loadAddon(decorationAddon);
 	});
 
-	teardown(() => {
-		instantiationService.dispose();
-	});
-
-	suite('registerDecoration', async () => {
+	suite('registerDecoration', () => {
 		test('should throw when command has no marker', async () => {
 			throws(() => decorationAddon.registerCommandDecoration({ command: 'cd src', timestamp: Date.now(), hasOutput: () => false } as ITerminalCommand));
 		});
@@ -87,6 +110,17 @@ suite('DecorationAddon', () => {
 		test('should return decoration with mark properties', async () => {
 			const marker = xterm.registerMarker(2);
 			notEqual(decorationAddon.registerCommandDecoration(undefined, undefined, { marker }), undefined);
+		});
+		test('should dispose decoration resources when the decoration is disposed', () => {
+			const marker = xterm.registerMarker(2)!;
+			const decoration = decorationAddon.registerCommandDecoration({ command: 'cd src', marker, exitCode: 0, timestamp: Date.now(), hasOutput: () => false } as ITerminalCommand)!;
+			const decorations = (decorationAddon as unknown as { _decorations: Map<number, unknown> })._decorations;
+
+			decoration.dispose();
+
+			strictEqual(hoverDisposed, true);
+			deepStrictEqual(removedEventListeners.sort(), ['click', 'contextmenu', 'mousedown']);
+			strictEqual(decorations.has(marker.id), false);
 		});
 	});
 });

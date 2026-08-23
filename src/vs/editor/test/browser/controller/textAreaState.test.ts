@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ITextAreaWrapper, PagedScreenReaderStrategy, TextAreaState } from 'vs/editor/browser/controller/textAreaState';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import assert from 'assert';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ITextAreaWrapper, TextAreaState } from '../../../browser/controller/editContext/textArea/textAreaEditContextState.js';
+import { Range } from '../../../common/core/range.js';
+import { Selection } from '../../../common/core/selection.js';
+import { createTextModel } from '../../common/testTextModel.js';
+import { SimplePagedScreenReaderStrategy } from '../../../browser/controller/editContext/screenReaderUtils.js';
 
 class MockTextAreaWrapper extends Disposable implements ITextAreaWrapper {
 
@@ -70,6 +72,8 @@ function equalsTextAreaState(a: TextAreaState, b: TextAreaState): boolean {
 }
 
 suite('TextAreaState', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function assertTextAreaState(actual: TextAreaState, value: string, selectionStart: number, selectionEnd: number): void {
 		const desired = new TextAreaState(value, selectionStart, selectionEnd, null, undefined);
@@ -357,12 +361,14 @@ suite('TextAreaState', () => {
 		);
 	});
 
-	suite('PagedScreenReaderStrategy', () => {
+	suite('SimplePagedScreenReaderStrategy', () => {
 
 		function testPagedScreenReaderStrategy(lines: string[], selection: Selection, expected: TextAreaState): void {
 			const model = createTextModel(lines.join('\n'));
-			const actual = PagedScreenReaderStrategy.fromEditorSelection(model, selection, 10, true);
-			assert.ok(equalsTextAreaState(actual, expected));
+			const screenReaderStrategy = new SimplePagedScreenReaderStrategy();
+			const screenReaderContentState = screenReaderStrategy.fromEditorSelection(model, selection, 10, true);
+			const textAreaState = TextAreaState.fromScreenReaderContentState(screenReaderContentState);
+			assert.ok(equalsTextAreaState(textAreaState, expected));
 			model.dispose();
 		}
 

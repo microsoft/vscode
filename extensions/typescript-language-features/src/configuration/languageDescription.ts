@@ -32,7 +32,7 @@ export const standardLanguageDescriptions: LanguageDescription[] = [
 		diagnosticSource: 'ts',
 		diagnosticLanguage: DiagnosticLanguage.TypeScript,
 		languageIds: [languageIds.typescript, languageIds.typescriptreact],
-		configFilePattern: /^tsconfig(\..*)?\.json$/gi,
+		configFilePattern: /^tsconfig(\..*)?\.json$/i,
 		standardFileExtensions: [
 			'ts',
 			'tsx',
@@ -45,7 +45,7 @@ export const standardLanguageDescriptions: LanguageDescription[] = [
 		diagnosticSource: 'ts',
 		diagnosticLanguage: DiagnosticLanguage.JavaScript,
 		languageIds: [languageIds.javascript, languageIds.javascriptreact],
-		configFilePattern: /^jsconfig(\..*)?\.json$/gi,
+		configFilePattern: /^jsconfig(\..*)?\.json$/i,
 		standardFileExtensions: [
 			'js',
 			'jsx',

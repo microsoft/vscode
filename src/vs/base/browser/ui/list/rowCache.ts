@@ -3,22 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from 'vs/base/browser/dom';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IListRenderer } from './list';
+import { $ } from '../../dom.js';
+import { IDisposable } from '../../../common/lifecycle.js';
+import { IListRenderer } from './list.js';
 
 export interface IRow {
 	domNode: HTMLElement;
 	templateId: string;
 	templateData: any;
-}
-
-function removeFromParent(element: HTMLElement): void {
-	try {
-		element.parentElement?.removeChild(element);
-	} catch (e) {
-		// this will throw if this happens due to a blur event, nasty business
-	}
 }
 
 export class RowCache<T> implements IDisposable {
@@ -41,10 +33,7 @@ export class RowCache<T> implements IDisposable {
 
 		let isStale = false;
 		if (result) {
-			isStale = this.transactionNodesPendingRemoval.has(result.domNode);
-			if (isStale) {
-				this.transactionNodesPendingRemoval.delete(result.domNode);
-			}
+			isStale = this.transactionNodesPendingRemoval.delete(result.domNode);
 		} else {
 			const domNode = $('.monaco-list-row');
 			const renderer = this.getRenderer(templateId);
@@ -104,7 +93,7 @@ export class RowCache<T> implements IDisposable {
 
 	private doRemoveNode(domNode: HTMLElement) {
 		domNode.classList.remove('scrolling');
-		removeFromParent(domNode);
+		domNode.remove();
 	}
 
 	private getTemplateCache(templateId: string): IRow[] {

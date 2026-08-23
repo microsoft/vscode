@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { timeout } from 'vs/base/common/async';
-import { MockDebugAdapter } from 'vs/workbench/contrib/debug/test/common/mockDebug';
+import assert from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { MockDebugAdapter } from './mockDebug.js';
 
 suite('Debug - AbstractDebugAdapter', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	suite('event ordering', () => {
 		let adapter: MockDebugAdapter;
 		let output: string[];

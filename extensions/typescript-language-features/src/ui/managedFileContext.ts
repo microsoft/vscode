@@ -10,7 +10,7 @@ import { isSupportedLanguageMode } from '../configuration/languageIds';
 import { Disposable } from '../utils/dispose';
 import { ActiveJsTsEditorTracker } from './activeJsTsEditorTracker';
 
-/**E
+/**
  * When clause context set when the current file is managed by vscode's built-in typescript extension.
  */
 export default class ManagedFileContextManager extends Disposable {
@@ -18,11 +18,18 @@ export default class ManagedFileContextManager extends Disposable {
 
 	private isInManagedFileContext: boolean = false;
 
-	public constructor(activeJsTsEditorTracker: ActiveJsTsEditorTracker) {
+	constructor(activeJsTsEditorTracker: ActiveJsTsEditorTracker) {
 		super();
 		activeJsTsEditorTracker.onDidChangeActiveJsTsEditor(this.onDidChangeActiveTextEditor, this, this._disposables);
 
 		this.onDidChangeActiveTextEditor(activeJsTsEditorTracker.activeJsTsEditor);
+	}
+
+	override dispose() {
+		// Clear the context
+		this.updateContext(false);
+
+		super.dispose();
 	}
 
 	private onDidChangeActiveTextEditor(editor?: vscode.TextEditor): void {

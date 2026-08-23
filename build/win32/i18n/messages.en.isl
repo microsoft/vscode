@@ -1,4 +1,4 @@
-[Messages]
+﻿[Messages]
 FinishedLabel=Setup has finished installing [name] on your computer. The application may be launched by selecting the installed shortcuts.
 ConfirmUninstall=Are you sure you want to completely remove %1 and all of its components?
 
@@ -14,3 +14,4 @@ RunAfter=Run %1 after installation
 Other=Other:
 SourceFile=%1 Source File
 OpenWithCodeContextMenu=Open w&ith %1
+UpdatingVisualStudioCode=Updating Visual Studio Code...

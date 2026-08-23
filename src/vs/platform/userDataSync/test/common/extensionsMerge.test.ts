@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { merge } from 'vs/platform/userDataSync/common/extensionsMerge';
-import { ILocalSyncExtension, ISyncExtension } from 'vs/platform/userDataSync/common/userDataSync';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { merge } from '../../common/extensionsMerge.js';
+import { ILocalSyncExtension, ISyncExtension } from '../../common/userDataSync.js';
 
 suite('ExtensionsMerge', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('merge returns local extension if remote does not exist', () => {
 		const localExtensions = [
@@ -1382,6 +1385,40 @@ suite('ExtensionsMerge', () => {
 		assert.deepStrictEqual(actual.local.added, []);
 		assert.deepStrictEqual(actual.local.removed, []);
 		assert.deepStrictEqual(actual.local.updated, [anExpectedSyncExtension({ identifier: { id: 'a', uuid: 'a' }, isApplicationScoped: true })]);
+		assert.deepStrictEqual(actual.remote, null);
+	});
+
+	test('merge does not remove remote extension when skipped extension has uuid but remote does not has', () => {
+		const localExtensions = [
+			aLocalSyncExtension({ identifier: { id: 'a', uuid: 'a' } }),
+		];
+		const remoteExtensions = [
+			aRemoteSyncExtension({ identifier: { id: 'a', uuid: 'a' } }),
+			aRemoteSyncExtension({ identifier: { id: 'b' } }),
+		];
+
+		const actual = merge(localExtensions, remoteExtensions, remoteExtensions, [aRemoteSyncExtension({ identifier: { id: 'b', uuid: 'b' } })], [], []);
+
+		assert.deepStrictEqual(actual.local.added, []);
+		assert.deepStrictEqual(actual.local.removed, []);
+		assert.deepStrictEqual(actual.local.updated, []);
+		assert.deepStrictEqual(actual.remote, null);
+	});
+
+	test('merge does not remove remote extension when last sync builtin extension has uuid but remote does not has', () => {
+		const localExtensions = [
+			aLocalSyncExtension({ identifier: { id: 'a', uuid: 'a' } }),
+		];
+		const remoteExtensions = [
+			aRemoteSyncExtension({ identifier: { id: 'a', uuid: 'a' } }),
+			aRemoteSyncExtension({ identifier: { id: 'b' } }),
+		];
+
+		const actual = merge(localExtensions, remoteExtensions, remoteExtensions, [], [], [{ id: 'b', uuid: 'b' }]);
+
+		assert.deepStrictEqual(actual.local.added, []);
+		assert.deepStrictEqual(actual.local.removed, []);
+		assert.deepStrictEqual(actual.local.updated, []);
 		assert.deepStrictEqual(actual.remote, null);
 	});
 

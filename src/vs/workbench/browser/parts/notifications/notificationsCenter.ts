@@ -3,32 +3,43 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/notificationsCenter';
-import 'vs/css!./media/notificationsActions';
-import { NOTIFICATIONS_CENTER_HEADER_FOREGROUND, NOTIFICATIONS_CENTER_HEADER_BACKGROUND, NOTIFICATIONS_CENTER_BORDER } from 'vs/workbench/common/theme';
-import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
-import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, NotificationViewItemContentChangeKind } from 'vs/workbench/common/notifications';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { Emitter } from 'vs/base/common/event';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { INotificationsCenterController, NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
-import { NotificationsList } from 'vs/workbench/browser/parts/notifications/notificationsList';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { isAncestor, Dimension } from 'vs/base/browser/dom';
-import { widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { localize } from 'vs/nls';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ClearAllNotificationsAction, HideNotificationsCenterAction, ToggleDoNotDisturbAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
-import { IAction } from 'vs/base/common/actions';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
-import { NotificationsCenterVisibleContext } from 'vs/workbench/common/contextkeys';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import './media/notificationsCenter.css';
+import './media/notificationsActions.css';
+import { NOTIFICATIONS_CENTER_HEADER_FOREGROUND, NOTIFICATIONS_CENTER_HEADER_BACKGROUND, NOTIFICATIONS_CENTER_BORDER } from '../../../common/theme.js';
+import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
+import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, NotificationViewItemContentChangeKind, NotificationsSettings, NotificationsPosition, getNotificationsPosition } from '../../../common/notifications.js';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { INotificationsCenterController, NotificationActionRunner } from './notificationsCommands.js';
+import { NotificationsList } from './notificationsList.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { $, Dimension, isAncestorOfActiveElement } from '../../../../base/browser/dom.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { localize } from '../../../../nls.js';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { ClearAllNotificationsAction, ConfigureDoNotDisturbAction, ConfigureNotificationsPositionAction, ToggleDoNotDisturbBySourceAction, HideNotificationsCenterAction, ToggleDoNotDisturbAction, hideIcon, hideUpIcon } from './notificationsActions.js';
+import { IAction, Separator, toAction } from '../../../../base/common/actions.js';
+import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
+import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { assertReturnsAllDefined, assertReturnsDefined } from '../../../../base/common/types.js';
+import { NotificationsCenterVisibleContext } from '../../../common/contextkeys.js';
+import { INotificationService, NotificationsFilter } from '../../../../platform/notification/common/notification.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { DropdownMenuActionViewItem } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT } from '../../../../platform/window/common/window.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { onDidChangeNotificationRowHeight } from './notificationsViewer.js';
 
 export class NotificationsCenter extends Themable implements INotificationsCenterController {
 
 	private static readonly MAX_DIMENSIONS = new Dimension(450, 400);
+
+	private static readonly MAX_NOTIFICATION_SOURCES = 10; // maximum number of notification sources to show in configure dropdown
 
 	private readonly _onDidChangeVisibility = this._register(new Emitter<void>());
 	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
@@ -39,9 +50,10 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 	private notificationsList: NotificationsList | undefined;
 	private _isVisible: boolean | undefined;
 	private workbenchDimensions: Dimension | undefined;
-	private readonly notificationsCenterVisibleContextKey = NotificationsCenterVisibleContext.bindTo(this.contextKeyService);
+	private readonly notificationsCenterVisibleContextKey;
 	private clearAllAction: ClearAllNotificationsAction | undefined;
-	private toggleDoNotDisturbAction: ToggleDoNotDisturbAction | undefined;
+	private configureDoNotDisturbAction: ConfigureDoNotDisturbAction | undefined;
+	private hideAction: HideNotificationsCenterAction | undefined;
 
 	constructor(
 		private readonly container: HTMLElement,
@@ -53,6 +65,10 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IMenuService private readonly menuService: IMenuService
 	) {
 		super(themeService);
 
@@ -63,12 +79,58 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 
 	private registerListeners(): void {
 		this._register(this.model.onDidChangeNotification(e => this.onDidChangeNotification(e)));
-		this._register(this.layoutService.onDidLayout(dimension => this.layout(Dimension.lift(dimension))));
-		this._register(this.notificationService.onDidChangeDoNotDisturbMode(() => this.onDidChangeDoNotDisturbMode()));
+		this._register(this.layoutService.onDidLayoutMainContainer(dimension => this.layout(Dimension.lift(dimension))));
+		this._register(this.notificationService.onDidChangeFilter(() => this.onDidChangeFilter()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(NotificationsSettings.NOTIFICATIONS_POSITION)) {
+				this.updatePositionClass();
+			}
+		}));
 	}
 
-	private onDidChangeDoNotDisturbMode(): void {
-		this.hide(); // hide the notification center when do not disturb is toggled
+	private updatePositionClass(): void {
+		if (!this.notificationsCenterContainer) {
+			return;
+		}
+
+		const position = getNotificationsPosition(this.configurationService);
+		this.notificationsCenterContainer.classList.remove('bottom-right', 'bottom-left', 'top-right');
+		this.notificationsCenterContainer.classList.add(position);
+
+		this.updateHideActionIcon();
+		this.updateTopOffset();
+	}
+
+	private updateHideActionIcon(): void {
+		if (!this.hideAction) {
+			return;
+		}
+
+		const position = getNotificationsPosition(this.configurationService);
+		this.hideAction.class = ThemeIcon.asClassName(position === NotificationsPosition.TOP_RIGHT ? hideUpIcon : hideIcon);
+	}
+
+	private updateTopOffset(): void {
+		if (!this.notificationsCenterContainer) {
+			return;
+		}
+
+		const position = getNotificationsPosition(this.configurationService);
+		if (position === NotificationsPosition.TOP_RIGHT) {
+			let topOffset = 7;
+			if (this.layoutService.isVisible(Parts.TITLEBAR_PART, mainWindow)) {
+				topOffset += DEFAULT_CUSTOM_TITLEBAR_HEIGHT;
+			}
+			this.notificationsCenterContainer.style.top = `${topOffset}px`;
+		} else {
+			this.notificationsCenterContainer.style.top = '';
+		}
+	}
+
+	private onDidChangeFilter(): void {
+		if (this.notificationService.getFilter() === NotificationsFilter.ERROR) {
+			this.hide(); // hide the notification center when we have a error filter enabled
+		}
 	}
 
 	get isVisible(): boolean {
@@ -77,8 +139,13 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 
 	show(): void {
 		if (this._isVisible) {
-			const notificationsList = assertIsDefined(this.notificationsList);
-			notificationsList.show(true /* focus */);
+			const notificationsList = assertReturnsDefined(this.notificationsList);
+
+			// Make visible
+			notificationsList.show();
+
+			// Focus first
+			notificationsList.focusFirst();
 
 			return; // already visible
 		}
@@ -92,7 +159,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		this.updateTitle();
 
 		// Make visible
-		const [notificationsList, notificationsCenterContainer] = assertAllDefined(this.notificationsList, this.notificationsCenterContainer);
+		const [notificationsList, notificationsCenterContainer] = assertReturnsAllDefined(this.notificationsList, this.notificationsCenterContainer);
 		this._isVisible = true;
 		notificationsCenterContainer.classList.add('visible');
 		notificationsList.show();
@@ -120,7 +187,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 	}
 
 	private updateTitle(): void {
-		const [notificationsCenterTitle, clearAllAction] = assertAllDefined(this.notificationsCenterTitle, this.clearAllAction);
+		const [notificationsCenterTitle, clearAllAction] = assertReturnsAllDefined(this.notificationsCenterTitle, this.clearAllAction);
 
 		if (this.model.notifications.length === 0) {
 			notificationsCenterTitle.textContent = localize('notificationsEmpty', "No new notifications");
@@ -134,44 +201,104 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 	private create(): void {
 
 		// Container
-		this.notificationsCenterContainer = document.createElement('div');
-		this.notificationsCenterContainer.classList.add('notifications-center');
+		this.notificationsCenterContainer = $('.notifications-center');
+
+		// Apply position class
+		this.updatePositionClass();
 
 		// Header
-		this.notificationsCenterHeader = document.createElement('div');
-		this.notificationsCenterHeader.classList.add('notifications-center-header');
+		this.notificationsCenterHeader = $('.notifications-center-header');
 		this.notificationsCenterContainer.appendChild(this.notificationsCenterHeader);
 
 		// Header Title
-		this.notificationsCenterTitle = document.createElement('span');
-		this.notificationsCenterTitle.classList.add('notifications-center-header-title');
+		this.notificationsCenterTitle = $('span.notifications-center-header-title');
 		this.notificationsCenterHeader.appendChild(this.notificationsCenterTitle);
 
 		// Header Toolbar
-		const toolbarContainer = document.createElement('div');
-		toolbarContainer.classList.add('notifications-center-header-toolbar');
+		const toolbarContainer = $('.notifications-center-header-toolbar');
 		this.notificationsCenterHeader.appendChild(toolbarContainer);
 
 		const actionRunner = this._register(this.instantiationService.createInstance(NotificationActionRunner));
 
+		const that = this;
 		const notificationsToolBar = this._register(new ActionBar(toolbarContainer, {
 			ariaLabel: localize('notificationsToolbar', "Notification Center Actions"),
-			actionRunner
+			actionRunner,
+			actionViewItemProvider: (action, options) => {
+				if (action.id === ConfigureNotificationsPositionAction.ID) {
+					return this._register(this.instantiationService.createInstance(DropdownMenuActionViewItem, action, {
+						getActions: () => Separator.join(...this.menuService.getMenuActions(MenuId.NotificationsCenterPositionMenu, this.contextKeyService).map(([, actions]) => actions)),
+					}, this.contextMenuService, {
+						...options,
+						actionRunner,
+						classNames: action.class,
+						keybindingProvider: action => this.keybindingService.lookupKeybinding(action.id)
+					}));
+				}
+
+				if (action.id === ConfigureDoNotDisturbAction.ID) {
+					return this._register(this.instantiationService.createInstance(DropdownMenuActionViewItem, action, {
+						getActions() {
+							const actions = [toAction({
+								id: ToggleDoNotDisturbAction.ID,
+								label: that.notificationService.getFilter() === NotificationsFilter.OFF ? localize('turnOnNotifications', "Enable Do Not Disturb Mode") : localize('turnOffNotifications', "Disable Do Not Disturb Mode"),
+								run: () => that.notificationService.setFilter(that.notificationService.getFilter() === NotificationsFilter.OFF ? NotificationsFilter.ERROR : NotificationsFilter.OFF)
+							})];
+
+							const sortedFilters = that.notificationService.getFilters().sort((a, b) => a.label.localeCompare(b.label));
+							for (const source of sortedFilters.slice(0, NotificationsCenter.MAX_NOTIFICATION_SOURCES)) {
+								if (actions.length === 1) {
+									actions.push(new Separator());
+								}
+
+								actions.push(toAction({
+									id: `${ToggleDoNotDisturbAction.ID}.${source.id}`,
+									label: source.label,
+									checked: source.filter !== NotificationsFilter.ERROR,
+									run: () => that.notificationService.setFilter({
+										...source,
+										filter: source.filter === NotificationsFilter.ERROR ? NotificationsFilter.OFF : NotificationsFilter.ERROR
+									})
+								}));
+							}
+
+							if (sortedFilters.length > NotificationsCenter.MAX_NOTIFICATION_SOURCES) {
+								actions.push(new Separator());
+								actions.push(that._register(that.instantiationService.createInstance(ToggleDoNotDisturbBySourceAction, ToggleDoNotDisturbBySourceAction.ID, localize('moreSources', "More…"))));
+							}
+
+							return actions;
+						},
+					}, this.contextMenuService, {
+						...options,
+						actionRunner,
+						classNames: action.class,
+						keybindingProvider: action => this.keybindingService.lookupKeybinding(action.id)
+					}));
+				}
+
+				return createActionViewItem(this.instantiationService, action, options);
+			}
 		}));
 
 		this.clearAllAction = this._register(this.instantiationService.createInstance(ClearAllNotificationsAction, ClearAllNotificationsAction.ID, ClearAllNotificationsAction.LABEL));
 		notificationsToolBar.push(this.clearAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.clearAllAction) });
 
-		this.toggleDoNotDisturbAction = this._register(this.instantiationService.createInstance(ToggleDoNotDisturbAction, ToggleDoNotDisturbAction.ID, ToggleDoNotDisturbAction.LABEL));
-		notificationsToolBar.push(this.toggleDoNotDisturbAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.toggleDoNotDisturbAction) });
+		this.configureDoNotDisturbAction = this._register(this.instantiationService.createInstance(ConfigureDoNotDisturbAction, ConfigureDoNotDisturbAction.ID, ConfigureDoNotDisturbAction.LABEL));
+		notificationsToolBar.push(this.configureDoNotDisturbAction, { icon: true, label: false });
 
-		const hideAllAction = this._register(this.instantiationService.createInstance(HideNotificationsCenterAction, HideNotificationsCenterAction.ID, HideNotificationsCenterAction.LABEL));
-		notificationsToolBar.push(hideAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(hideAllAction) });
+		const configureNotificationsPositionAction = this._register(this.instantiationService.createInstance(ConfigureNotificationsPositionAction, ConfigureNotificationsPositionAction.ID, ConfigureNotificationsPositionAction.LABEL));
+		notificationsToolBar.push(configureNotificationsPositionAction, { icon: true, label: false });
+
+		this.hideAction = this._register(this.instantiationService.createInstance(HideNotificationsCenterAction, HideNotificationsCenterAction.ID, HideNotificationsCenterAction.LABEL));
+		this.updateHideActionIcon();
+		notificationsToolBar.push(this.hideAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.hideAction) });
 
 		// Notifications List
-		this.notificationsList = this.instantiationService.createInstance(NotificationsList, this.notificationsCenterContainer, {
+		this.notificationsList = this._register(this.instantiationService.createInstance(NotificationsList, this.notificationsCenterContainer, {
 			widgetAriaLabel: localize('notificationsCenterWidgetAriaLabel', "Notifications Center")
-		});
+		}));
+		this._register(onDidChangeNotificationRowHeight(() => this.notificationsList?.updateNotificationHeights()));
 		this.container.appendChild(this.notificationsCenterContainer);
 	}
 
@@ -189,7 +316,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		let focusEditor = false;
 
 		// Update notifications list based on event kind
-		const [notificationsList, notificationsCenterContainer] = assertAllDefined(this.notificationsList, this.notificationsCenterContainer);
+		const [notificationsList, notificationsCenterContainer] = assertReturnsAllDefined(this.notificationsList, this.notificationsCenterContainer);
 		switch (e.kind) {
 			case NotificationChangeType.ADD:
 				notificationsList.updateNotificationsList(e.index, 0, [e.item]);
@@ -215,7 +342,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 				notificationsList.updateNotificationsList(e.index, 1, [e.item]);
 				break;
 			case NotificationChangeType.REMOVE:
-				focusEditor = isAncestor(document.activeElement, notificationsCenterContainer);
+				focusEditor = isAncestorOfActiveElement(notificationsCenterContainer);
 				notificationsList.updateNotificationsList(e.index, 1);
 				e.item.updateVisibility(false);
 				break;
@@ -240,7 +367,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 			return; // already hidden
 		}
 
-		const focusEditor = isAncestor(document.activeElement, this.notificationsCenterContainer);
+		const focusEditor = isAncestorOfActiveElement(this.notificationsCenterContainer);
 
 		// Hide
 		this._isVisible = false;
@@ -264,8 +391,6 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 
 	override updateStyles(): void {
 		if (this.notificationsCenterContainer && this.notificationsCenterHeader) {
-			const widgetShadowColor = this.getColor(widgetShadow);
-			this.notificationsCenterContainer.style.boxShadow = widgetShadowColor ? `0 0 8px 2px ${widgetShadowColor}` : '';
 
 			const borderColor = this.getColor(NOTIFICATIONS_CENTER_BORDER);
 			this.notificationsCenterContainer.style.border = borderColor ? `1px solid ${borderColor}` : '';
@@ -297,19 +422,22 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 
 				// Make sure notifications are not exceeding available height
 				availableHeight = this.workbenchDimensions.height - 35 /* header */;
-				if (this.layoutService.isVisible(Parts.STATUSBAR_PART)) {
+				if (this.layoutService.isVisible(Parts.STATUSBAR_PART, mainWindow)) {
 					availableHeight -= 22; // adjust for status bar
 				}
 
-				if (this.layoutService.isVisible(Parts.TITLEBAR_PART)) {
+				if (this.layoutService.isVisible(Parts.TITLEBAR_PART, mainWindow)) {
 					availableHeight -= 22; // adjust for title bar
 				}
 
 				availableHeight -= (2 * 12); // adjust for paddings top and bottom
 			}
 
+			// Update position offset
+			this.updateTopOffset();
+
 			// Apply to list
-			const notificationsList = assertIsDefined(this.notificationsList);
+			const notificationsList = assertReturnsDefined(this.notificationsList);
 			notificationsList.layout(Math.min(maxWidth, availableWidth), Math.min(maxHeight, availableHeight));
 		}
 	}
@@ -324,6 +452,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 			if (!notification.hasProgress) {
 				notification.close();
 			}
+			this.accessibilitySignalService.playSignal(AccessibilitySignal.clear);
 		}
 	}
 }

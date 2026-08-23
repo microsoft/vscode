@@ -1,15 +1,14 @@
 {
 	"extends": "../../tsconfig.base.json",
 	"compilerOptions": {
+		"rootDir": "./src",
 		"outDir": "../../out",
-		"module": "nodenext",
-		"moduleDetection": "legacy",
-		"experimentalDecorators": true,
+		"esModuleInterop": true,
 		"types": [
 			"node"
 		]
 	},
-	"files": [
-		"webServer.ts"
+	"include": [
+		"src/**/*.ts"
 	]
 }

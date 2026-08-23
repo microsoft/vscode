@@ -4,33 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
-import * as path from 'vs/base/common/path';
-import * as glob from 'vs/base/common/glob';
-import { normalizeNFD } from 'vs/base/common/normalization';
-import * as extpath from 'vs/base/common/extpath';
-import { isMacintosh as isMac } from 'vs/base/common/platform';
-import * as strings from 'vs/base/common/strings';
-import { IFileQuery, IFolderQuery } from 'vs/workbench/services/search/common/search';
-import { anchorGlob } from 'vs/workbench/services/search/node/ripgrepSearchUtils';
-import { rgPath } from '@vscode/ripgrep';
+import * as path from '../../../../base/common/path.js';
+import * as glob from '../../../../base/common/glob.js';
+import { normalizeNFD } from '../../../../base/common/normalization.js';
+import * as extpath from '../../../../base/common/extpath.js';
+import { isMacintosh as isMac } from '../../../../base/common/platform.js';
+import * as strings from '../../../../base/common/strings.js';
+import { IFileQuery, IFolderQuery } from '../common/search.js';
+import { anchorGlob } from './ripgrepSearchUtils.js';
+import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 
-// If @vscode/ripgrep is in an .asar file, then the binary is unpacked.
-const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
-
-export function spawnRipgrepCmd(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression) {
-	const rgArgs = getRgArgs(config, folderQuery, includePattern, excludePattern);
+export async function spawnRipgrepCmd(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression, numThreads?: number) {
+	const rgArgs = getRgArgs(config, folderQuery, includePattern, excludePattern, numThreads);
 	const cwd = folderQuery.folder.fsPath;
+	const resolvedRgDiskPath = await rgDiskPath();
 	return {
-		cmd: cp.spawn(rgDiskPath, rgArgs.args, { cwd }),
-		rgDiskPath,
+		cmd: cp.spawn(resolvedRgDiskPath, rgArgs.args, { cwd }),
+		rgDiskPath: resolvedRgDiskPath,
 		siblingClauses: rgArgs.siblingClauses,
 		rgArgs,
 		cwd
 	};
 }
 
-function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression) {
+function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression, numThreads?: number) {
 	const args = ['--files', '--hidden', '--case-sensitive', '--no-require-git'];
+
+	if (config.ignoreGlobCase || folderQuery.ignoreGlobCase) {
+		args.push('--glob-case-insensitive');
+		args.push('--ignore-file-case-insensitive');
+	}
 
 	// includePattern can't have siblingClauses
 	foldersToIncludeGlobs([folderQuery], includePattern, false).forEach(globArg => {
@@ -69,6 +72,10 @@ function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern
 
 	if (config.exists) {
 		args.push('--quiet');
+	}
+
+	if (numThreads) {
+		args.push('--threads', `${numThreads}`);
 	}
 
 	args.push('--no-config');

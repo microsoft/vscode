@@ -3,20 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { ResolvedKeybinding, Keybinding } from 'vs/base/common/keybindings';
-import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ResolutionResult } from 'vs/platform/keybinding/common/keybindingResolver';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+import { Event } from '../../../base/common/event.js';
+import { IJSONSchema } from '../../../base/common/jsonSchema.js';
+import { KeyCode } from '../../../base/common/keyCodes.js';
+import { ResolvedKeybinding, Keybinding } from '../../../base/common/keybindings.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { IContextKeyService, IContextKeyServiceTarget } from '../../contextkey/common/contextkey.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ResolutionResult } from './keybindingResolver.js';
+import { ResolvedKeybindingItem } from './resolvedKeybindingItem.js';
 
 export interface IUserFriendlyKeybinding {
 	key: string;
 	command: string;
 	args?: any;
 	when?: string;
+	/**
+	 * When `true`, the keybinding is registered as a system-wide (OS global) shortcut that fires
+	 * even when VS Code does not have focus. Desktop only; ignored on web/server. Only honored for
+	 * user `keybindings.json` entries (not extension-contributed keybindings).
+	 */
+	systemWide?: boolean;
 }
 
 export interface IKeyboardEvent {
@@ -44,7 +51,7 @@ export interface IKeybindingService {
 
 	readonly inChordMode: boolean;
 
-	onDidUpdateKeybindings: Event<void>;
+	readonly onDidUpdateKeybindings: Event<void>;
 
 	/**
 	 * Returns none, one or many (depending on keyboard layout)!
@@ -65,6 +72,14 @@ export interface IKeybindingService {
 	 */
 	softDispatch(keyboardEvent: IKeyboardEvent, target: IContextKeyServiceTarget): ResolutionResult;
 
+	/**
+	 * Enable hold mode for this command. This is only possible if the command is current being dispatched, meaning
+	 * we are after its keydown and before is keyup event.
+	 *
+	 * @returns A promise that resolves when hold stops, returns undefined if hold mode could not be enabled.
+	 */
+	enableKeybindingHoldMode(commandId: string): Promise<void> | undefined;
+
 	dispatchByUserSettingsLabel(userSettingsLabel: string, target: IContextKeyServiceTarget): void;
 
 	/**
@@ -77,7 +92,7 @@ export interface IKeybindingService {
 	 * Look up the preferred (last defined) keybinding for a command.
 	 * @returns The preferred keybinding or null if the command is not bound.
 	 */
-	lookupKeybinding(commandId: string, context?: IContextKeyService): ResolvedKeybinding | undefined;
+	lookupKeybinding(commandId: string, context?: IContextKeyService, enforceContextCheck?: boolean): ResolvedKeybinding | undefined;
 
 	getDefaultKeybindingsContent(): string;
 
@@ -93,11 +108,16 @@ export interface IKeybindingService {
 	 */
 	mightProducePrintableCharacter(event: IKeyboardEvent): boolean;
 
-	registerSchemaContribution(contribution: KeybindingsSchemaContribution): void;
+	registerSchemaContribution(contribution: KeybindingsSchemaContribution): IDisposable;
 
 	toggleLogging(): boolean;
+
+	/**
+	 * Given a UI element label and a command ID, appends the keybinding label if any.
+	 * If the command is defined and has a keybinding, returns `${label} (keybinding label)`, otherwise just `label`.
+	 */
+	appendKeybinding(label: string, commandId: string | undefined | null, context?: IContextKeyService, enforceContextCheck?: boolean): string;
 
 	_dumpDebugInfo(): string;
 	_dumpDebugInfoJSON(): string;
 }
-

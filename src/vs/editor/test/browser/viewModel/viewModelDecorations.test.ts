@@ -3,13 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
-import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel';
-import { testViewModel } from 'vs/editor/test/browser/viewModel/testViewModel';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IEditorOptions } from '../../../common/config/editorOptions.js';
+import { Range } from '../../../common/core/range.js';
+import { testViewModel } from './testViewModel.js';
+import { InlineDecoration, InlineDecorationType } from '../../../common/viewModel/inlineDecorations.js';
 
 suite('ViewModelDecorations', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('getDecorationsViewportData', () => {
 		const text = [
 			'hello world, this is a buffer that will be wrapped'

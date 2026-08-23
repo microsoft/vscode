@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICellOutput, IOutputDto, IOutputItemDto, compressOutputItemStreams, isTextStreamMime } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { ICellOutput, IOutputDto, IOutputItemDto, compressOutputItemStreams } from '../notebookCommon.js';
+import { isTextStreamMime } from '../../../../../base/common/mime.js';
 
 export class NotebookCellOutputTextModel extends Disposable implements ICellOutput {
 
@@ -17,12 +18,21 @@ export class NotebookCellOutputTextModel extends Disposable implements ICellOutp
 		return this._rawOutput.outputs || [];
 	}
 
-	get metadata(): Record<string, any> | undefined {
+	get metadata(): Record<string, unknown> | undefined {
 		return this._rawOutput.metadata;
 	}
 
 	get outputId(): string {
 		return this._rawOutput.outputId;
+	}
+
+	/**
+	 * Alternative output id that's reused when the output is updated.
+	 */
+	private _alternativeOutputId: string;
+
+	get alternativeOutputId(): string {
+		return this._alternativeOutputId;
 	}
 
 	private _versionId = 0;
@@ -35,6 +45,8 @@ export class NotebookCellOutputTextModel extends Disposable implements ICellOutp
 		private _rawOutput: IOutputDto
 	) {
 		super();
+
+		this._alternativeOutputId = this._rawOutput.outputId;
 	}
 
 	replaceData(rawData: IOutputDto) {
@@ -109,7 +121,7 @@ export class NotebookCellOutputTextModel extends Disposable implements ICellOutp
 		}
 	}
 
-	toJSON(): IOutputDto {
+	asDto(): IOutputDto {
 		return {
 			// data: this._data,
 			metadata: this._rawOutput.metadata,

@@ -3,13 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { EndOfLineSequence } from 'vs/editor/common/model';
-import { SingleModelEditStackData } from 'vs/editor/common/model/editStack';
-import { Selection } from 'vs/editor/common/core/selection';
-import { TextChange } from 'vs/editor/common/core/textChange';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Selection } from '../../../common/core/selection.js';
+import { TextChange } from '../../../common/core/textChange.js';
+import { EndOfLineSequence } from '../../../common/model.js';
+import { SingleModelEditStackData } from '../../../common/model/editStack.js';
 
 suite('EditStack', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('issue #118041: unicode character undo bug', () => {
 		const stackData = new SingleModelEditStackData(

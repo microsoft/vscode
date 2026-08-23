@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GlobalPointerMoveMonitor } from 'vs/base/browser/globalPointerMoveMonitor';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { IntervalTimer, TimeoutTimer } from 'vs/base/common/async';
-import { ThemeIcon } from 'vs/base/common/themables';
-import * as dom from 'vs/base/browser/dom';
+import { GlobalPointerMoveMonitor } from '../../globalPointerMoveMonitor.js';
+import { Widget } from '../widget.js';
+import { TimeoutTimer } from '../../../common/async.js';
+import { ThemeIcon } from '../../../common/themables.js';
+import * as dom from '../../dom.js';
 
 /**
  * The arrow image size.
@@ -33,7 +33,7 @@ export class ScrollbarArrow extends Widget {
 	private _onActivate: () => void;
 	public bgDomNode: HTMLElement;
 	public domNode: HTMLElement;
-	private _pointerdownRepeatTimer: IntervalTimer;
+	private _pointerdownRepeatTimer: dom.WindowIntervalTimer;
 	private _pointerdownScheduleRepeatTimer: TimeoutTimer;
 	private _pointerMoveMonitor: GlobalPointerMoveMonitor;
 
@@ -83,7 +83,7 @@ export class ScrollbarArrow extends Widget {
 		this._register(dom.addStandardDisposableListener(this.bgDomNode, dom.EventType.POINTER_DOWN, (e) => this._arrowPointerDown(e)));
 		this._register(dom.addStandardDisposableListener(this.domNode, dom.EventType.POINTER_DOWN, (e) => this._arrowPointerDown(e)));
 
-		this._pointerdownRepeatTimer = this._register(new IntervalTimer());
+		this._pointerdownRepeatTimer = this._register(new dom.WindowIntervalTimer());
 		this._pointerdownScheduleRepeatTimer = this._register(new TimeoutTimer());
 	}
 
@@ -92,7 +92,7 @@ export class ScrollbarArrow extends Widget {
 			return;
 		}
 		const scheduleRepeater = () => {
-			this._pointerdownRepeatTimer.cancelAndSet(() => this._onActivate(), 1000 / 24);
+			this._pointerdownRepeatTimer.cancelAndSet(() => this._onActivate(), 1000 / 24, dom.getWindow(e));
 		};
 
 		this._onActivate();

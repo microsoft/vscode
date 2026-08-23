@@ -3,23 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Emitter } from 'vs/base/common/event';
-import { toResource } from 'vs/base/test/common/utils';
-import { TestFileService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
-import { getContext } from 'vs/workbench/contrib/files/browser/views/explorerView';
-import { listInvalidItemForeground } from 'vs/platform/theme/common/colorRegistry';
-import { CompressedNavigationController } from 'vs/workbench/contrib/files/browser/views/explorerViewer';
-import * as dom from 'vs/base/browser/dom';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { provideDecorations } from 'vs/workbench/contrib/files/browser/views/explorerDecorationsProvider';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { NullFilesConfigurationService } from 'vs/workbench/test/common/workbenchTestServices';
+import assert from 'assert';
+import { Emitter } from '../../../../../base/common/event.js';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
+import { ExplorerItem } from '../../common/explorerModel.js';
+import { getContext, shouldPreserveWorkspaceNameCase } from '../../browser/views/explorerView.js';
+import { listInvalidItemForeground } from '../../../../../platform/theme/common/colorRegistry.js';
+import { CompressedNavigationController } from '../../browser/views/explorerViewer.js';
+import * as dom from '../../../../../base/browser/dom.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { provideDecorations } from '../../browser/views/explorerDecorationsProvider.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { NullFilesConfigurationService, TestFileService } from '../../../../test/common/workbenchTestServices.js';
+import { TestEnvironmentService } from '../../../../test/browser/workbenchTestServices.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IWorkspace, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
+import { joinPath } from '../../../../../base/common/resources.js';
 
 suite('Files - ExplorerView', () => {
 
 	const $ = dom.$;
+
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const fileService = new TestFileService();
 	const configService = new TestConfigurationService();
@@ -68,6 +73,27 @@ suite('Files - ExplorerView', () => {
 		});
 	});
 
+	test('preserves workspace name case only for user named workspaces', async function () {
+		const untitledWorkspacesHome = TestEnvironmentService.untitledWorkspacesHome;
+		function workspace(configuration: URI | null): IWorkspace {
+			return { id: 'test', folders: [], configuration };
+		}
+
+		assert.deepStrictEqual({
+			empty: shouldPreserveWorkspaceNameCase(WorkbenchState.EMPTY, workspace(null), TestEnvironmentService),
+			folder: shouldPreserveWorkspaceNameCase(WorkbenchState.FOLDER, workspace(null), TestEnvironmentService),
+			untitled: shouldPreserveWorkspaceNameCase(WorkbenchState.WORKSPACE, workspace(joinPath(untitledWorkspacesHome, '1234', 'workspace.json')), TestEnvironmentService),
+			untitledDifferentCase: shouldPreserveWorkspaceNameCase(WorkbenchState.WORKSPACE, workspace(joinPath(untitledWorkspacesHome.with({ path: untitledWorkspacesHome.path.toUpperCase() }), '1234', 'workspace.json')), TestEnvironmentService),
+			named: shouldPreserveWorkspaceNameCase(WorkbenchState.WORKSPACE, workspace(URI.file('/some/path/myWorkspace.code-workspace')), TestEnvironmentService),
+		}, {
+			empty: false,
+			folder: true,
+			untitled: false,
+			untitledDifferentCase: false,
+			named: true,
+		});
+	});
+
 	test('compressed navigation controller', async function () {
 		const container = $('.file');
 		const label = $('.label');
@@ -87,13 +113,17 @@ suite('Files - ExplorerView', () => {
 
 		const navigationController = new CompressedNavigationController('id', [s1, s2, s3], {
 			container,
-			templateDisposables: new DisposableStore(),
-			elementDisposables: new DisposableStore(),
+			templateDisposables: ds.add(new DisposableStore()),
+			elementDisposables: ds.add(new DisposableStore()),
+			contribs: [],
+			// eslint-disable-next-line local/code-no-any-casts
 			label: <any>{
 				container: label,
 				onDidRender: emitter.event
-			}
+			},
 		}, 1, false);
+
+		ds.add(navigationController);
 
 		assert.strictEqual(navigationController.count, 3);
 		assert.strictEqual(navigationController.index, 2);

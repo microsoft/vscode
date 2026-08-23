@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Extensions as ThemeingExtensions, IColorRegistry, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ansiColorIdentifiers, registerColors } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { IColorTheme } from 'vs/platform/theme/common/themeService';
-import { Color } from 'vs/base/common/color';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
+import assert from 'assert';
+import { Extensions as ThemeingExtensions, IColorRegistry, ColorIdentifier } from '../../../../../platform/theme/common/colorRegistry.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { ansiColorIdentifiers, registerColors } from '../../common/terminalColorRegistry.js';
+import { IColorTheme } from '../../../../../platform/theme/common/themeService.js';
+import { Color } from '../../../../../base/common/color.js';
+import { ColorScheme } from '../../../../../platform/theme/common/theme.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 registerColors();
 
@@ -23,12 +24,14 @@ function getMockTheme(type: ColorScheme): IColorTheme {
 		defines: () => true,
 		getTokenStyleMetadata: () => undefined,
 		tokenColorMap: [],
+		tokenFontMap: [],
 		semanticHighlighting: false
 	};
 	return theme;
 }
 
 suite('Workbench - TerminalColorRegistry', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('hc colors', function () {
 		const theme = getMockTheme(ColorScheme.HIGH_CONTRAST_DARK);
@@ -62,7 +65,7 @@ suite('Workbench - TerminalColorRegistry', () => {
 		assert.deepStrictEqual(colors, [
 			'#000000',
 			'#cd3131',
-			'#00bc00',
+			'#107c10',
 			'#949800',
 			'#0451a5',
 			'#bc05bc',

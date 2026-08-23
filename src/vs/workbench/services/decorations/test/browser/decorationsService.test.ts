@@ -3,24 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DecorationsService } from 'vs/workbench/services/decorations/browser/decorationsService';
-import { IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/common/decorations';
-import { URI } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
-import * as resources from 'vs/base/common/resources';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { mock } from 'vs/base/test/common/mock';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import assert from 'assert';
+import { DecorationsService } from '../../browser/decorationsService.js';
+import { IDecorationsProvider, IDecorationData } from '../../common/decorations.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { Event, Emitter } from '../../../../../base/common/event.js';
+import * as resources from '../../../../../base/common/resources.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import * as DOM from '../../../../../base/browser/dom.js';
 
 suite('DecorationsService', function () {
 
 	let service: DecorationsService;
 
 	setup(function () {
-		service?.dispose();
 		service = new DecorationsService(
 			new class extends mock<IUriIdentityService>() {
 				override extUri = resources.extUri;
@@ -29,6 +30,13 @@ suite('DecorationsService', function () {
 		);
 	});
 
+	teardown(function () {
+		service.dispose();
+	});
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+
 	test('Async provider, async/evented result', function () {
 
 		return runWithFakedTimers({}, async function () {
@@ -36,7 +44,7 @@ suite('DecorationsService', function () {
 			const uri = URI.parse('foo:bar');
 			let callCounter = 0;
 
-			service.registerDecorationsProvider(new class implements IDecorationsProvider {
+			const reg = service.registerDecorationsProvider(new class implements IDecorationsProvider {
 				readonly label: string = 'Test';
 				readonly onDidChange: Event<readonly URI[]> = Event.None;
 				provideDecorations(uri: URI) {
@@ -62,6 +70,8 @@ suite('DecorationsService', function () {
 			assert.deepStrictEqual(service.getDecoration(uri, false)!.tooltip, 'T');
 			assert.deepStrictEqual(service.getDecoration(uri, false)!.strikethrough, true);
 			assert.strictEqual(callCounter, 1);
+
+			reg.dispose();
 		});
 	});
 
@@ -70,7 +80,7 @@ suite('DecorationsService', function () {
 		const uri = URI.parse('foo:bar');
 		let callCounter = 0;
 
-		service.registerDecorationsProvider(new class implements IDecorationsProvider {
+		const reg = service.registerDecorationsProvider(new class implements IDecorationsProvider {
 			readonly label: string = 'Test';
 			readonly onDidChange: Event<readonly URI[]> = Event.None;
 			provideDecorations(uri: URI) {
@@ -83,6 +93,45 @@ suite('DecorationsService', function () {
 		assert.deepStrictEqual(service.getDecoration(uri, false)!.tooltip, 'Z');
 		assert.deepStrictEqual(service.getDecoration(uri, false)!.strikethrough, false);
 		assert.strictEqual(callCounter, 1);
+
+		reg.dispose();
+	});
+
+	test('Falls back to lower-weight decoration color when a theme color is undefined', function () {
+
+		const uri = URI.parse('foo:/folder/file');
+		const parentUri = URI.parse('foo:/folder/');
+		const highPriority = service.registerDecorationsProvider({
+			label: 'High priority',
+			onDidChange: Event.None,
+			provideDecorations: resource => resource.toString() === uri.toString() ? { color: 'highPriorityColor', weight: 10, letter: 'H', bubble: true } : undefined
+		});
+		const lowPriority = service.registerDecorationsProvider({
+			label: 'Low priority',
+			onDidChange: Event.None,
+			provideDecorations: resource => resource.toString() === uri.toString() ? { color: 'lowPriorityColor', weight: 5, letter: 'L', bubble: true } : undefined
+		});
+
+		const decoration = service.getDecoration(uri, false)!;
+		const bubbleDecoration = service.getDecoration(parentUri, true)!;
+		for (const [className, pseudoElement] of [
+			[decoration.labelClassName, undefined],
+			[decoration.badgeClassName, '::after'],
+			[bubbleDecoration.badgeClassName, '::after']
+		] as const) {
+			const element = document.createElement('div');
+			element.className = className;
+			element.style.setProperty('--vscode-lowPriorityColor', '#ff0000');
+			document.body.appendChild(element);
+
+			assert.strictEqual(DOM.getWindow(element).getComputedStyle(element, pseudoElement).color, 'rgb(255, 0, 0)');
+			element.remove();
+		}
+
+		decoration.dispose();
+		bubbleDecoration.dispose();
+		highPriority.dispose();
+		lowPriority.dispose();
 	});
 
 	test('Clear decorations on provider dispose', async function () {
@@ -107,11 +156,12 @@ suite('DecorationsService', function () {
 			// un-register -> ensure good event
 			let didSeeEvent = false;
 			const p = new Promise<void>(resolve => {
-				service.onDidChangeDecorations(e => {
+				const l = service.onDidChangeDecorations(e => {
 					assert.strictEqual(e.affectsResource(uri), true);
 					assert.deepStrictEqual(service.getDecoration(uri, false), undefined);
 					assert.strictEqual(callCounter, 1);
 					didSeeEvent = true;
+					l.dispose();
 					resolve();
 				});
 			});
@@ -159,26 +209,26 @@ suite('DecorationsService', function () {
 
 		deco = service.getDecoration(childUri.with({ path: 'some/path/' }), true)!;
 		assert.strictEqual(typeof deco.tooltip, 'string');
+		reg.dispose();
 	});
 
 	test('Decorations not showing up for second root folder #48502', async function () {
 
 		let cancelCount = 0;
-		const winjsCancelCount = 0;
 		let callCount = 0;
 
 		const provider = new class implements IDecorationsProvider {
 
 			_onDidChange = new Emitter<URI[]>();
-			onDidChange: Event<readonly URI[]> = this._onDidChange.event;
+			readonly onDidChange: Event<readonly URI[]> = this._onDidChange.event;
 
 			label: string = 'foo';
 
 			provideDecorations(uri: URI, token: CancellationToken): Promise<IDecorationData> {
 
-				token.onCancellationRequested(() => {
+				store.add(token.onCancellationRequested(() => {
 					cancelCount += 1;
-				});
+				}));
 
 				return new Promise(resolve => {
 					callCount += 1;
@@ -192,15 +242,16 @@ suite('DecorationsService', function () {
 		const reg = service.registerDecorationsProvider(provider);
 
 		const uri = URI.parse('foo://bar');
-		service.getDecoration(uri, false);
+		const d1 = service.getDecoration(uri, false);
 
 		provider._onDidChange.fire([uri]);
-		service.getDecoration(uri, false);
+		const d2 = service.getDecoration(uri, false);
 
 		assert.strictEqual(cancelCount, 1);
-		assert.strictEqual(winjsCancelCount, 0);
 		assert.strictEqual(callCount, 2);
 
+		d1?.dispose();
+		d2?.dispose();
 		reg.dispose();
 	});
 
@@ -314,23 +365,23 @@ suite('DecorationsService', function () {
 
 		const invokeOrder: string[] = [];
 
-		service.registerDecorationsProvider(new class {
+		store.add(service.registerDecorationsProvider(new class {
 			label = 'Provider-1';
 			onDidChange = Event.None;
 			provideDecorations() {
 				invokeOrder.push(this.label);
 				return undefined;
 			}
-		});
+		}));
 
-		service.registerDecorationsProvider(new class {
+		store.add(service.registerDecorationsProvider(new class {
 			label = 'Provider-2';
 			onDidChange = Event.None;
 			provideDecorations() {
 				invokeOrder.push(this.label);
 				return undefined;
 			}
-		});
+		}));
 
 		service.getDecoration(URI.parse('test://me/path'), false);
 

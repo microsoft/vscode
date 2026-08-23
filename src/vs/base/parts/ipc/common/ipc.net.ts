@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IIPCLogger, IMessagePassingProtocol, IPCClient } from 'vs/base/parts/ipc/common/ipc';
+import { VSBuffer } from '../../../common/buffer.js';
+import { Emitter, Event } from '../../../common/event.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../common/lifecycle.js';
+import { IIPCLogger, IMessagePassingProtocol, IPCClient } from './ipc.js';
 
 export const enum SocketDiagnosticsEventType {
 	Created = 'created',
@@ -66,7 +66,7 @@ export namespace SocketDiagnostics {
 	const socketIds = new WeakMap<any, string>();
 	let lastUsedSocketId = 0;
 
-	function getSocketId(nativeObject: any, label: string): string {
+	function getSocketId(nativeObject: unknown, label: string): string {
 		if (!socketIds.has(nativeObject)) {
 			const id = String(++lastUsedSocketId);
 			socketIds.set(nativeObject, id);
@@ -74,7 +74,7 @@ export namespace SocketDiagnostics {
 		return socketIds.get(nativeObject)!;
 	}
 
-	export function traceSocketEvent(nativeObject: any, socketDebugLabel: string, type: SocketDiagnosticsEventType, data?: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView | any): void {
+	export function traceSocketEvent(nativeObject: unknown, socketDebugLabel: string, type: SocketDiagnosticsEventType, data?: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView | any): void {
 		if (!enableDiagnostics) {
 			return;
 		}
@@ -136,9 +136,15 @@ export interface WebSocketCloseEvent {
 
 export type SocketCloseEvent = NodeSocketCloseEvent | WebSocketCloseEvent | undefined;
 
+export const enum SocketTimeoutReason {
+	UNACKNOWLEDGED_MESSAGE = 'unacknowledgedMessage',
+	KEEP_ALIVE = 'keepAlive',
+}
+
 export interface SocketTimeoutEvent {
+	readonly reason: SocketTimeoutReason;
 	readonly unacknowledgedMsgCount: number;
-	readonly timeSinceOldestUnacknowledgedMsg: number;
+	readonly timeSinceOldestUnacknowledgedMsg?: number;
 	readonly timeSinceLastReceivedSomeData: number;
 }
 
@@ -497,7 +503,7 @@ class ProtocolWriter {
 		}
 	}
 
-	private _writeNowTimeout: any = null;
+	private _writeNowTimeout: Timeout | null = null;
 	private _scheduleWriting(): void {
 		if (this._writeNowTimeout) {
 			return;
@@ -544,10 +550,10 @@ export class Protocol extends Disposable implements IMessagePassingProtocol {
 	private _socketWriter: ProtocolWriter;
 	private _socketReader: ProtocolReader;
 
-	private readonly _onMessage = new Emitter<VSBuffer>();
+	private readonly _onMessage = this._register(new Emitter<VSBuffer>());
 	readonly onMessage: Event<VSBuffer> = this._onMessage.event;
 
-	private readonly _onDidDispose = new Emitter<void>();
+	private readonly _onDidDispose = this._register(new Emitter<void>());
 	readonly onDidDispose: Event<void> = this._onDidDispose.event;
 
 	constructor(socket: ISocket) {
@@ -597,6 +603,8 @@ export class Client<TContext = string> extends IPCClient<TContext> {
 	override dispose(): void {
 		super.dispose();
 		const socket = this.protocol.getSocket();
+		// should be sent gracefully with a .flush(), but try to send it out as a
+		// last resort here if nothing else:
 		this.protocol.sendDisconnect();
 		this.protocol.dispose();
 		socket.end();
@@ -731,7 +739,7 @@ class Queue<T> {
 	}
 }
 
-class LoadEstimator {
+export class LoadEstimator {
 
 	private static _HISTORY_LENGTH = 10;
 	private static _INSTANCE: LoadEstimator | null = null;
@@ -808,18 +816,19 @@ export interface PersistentProtocolOptions {
 export class PersistentProtocol implements IMessagePassingProtocol {
 
 	private _isReconnecting: boolean;
+	private _didSendDisconnect?: boolean;
 
 	private _outgoingUnackMsg: Queue<ProtocolMessage>;
 	private _outgoingMsgId: number;
 	private _outgoingAckId: number;
-	private _outgoingAckTimeout: any | null;
+	private _outgoingAckTimeout: Timeout | null;
 
 	private _incomingMsgId: number;
 	private _incomingAckId: number;
 	private _incomingMsgLastTime: number;
-	private _incomingAckTimeout: any | null;
+	private _incomingAckTimeout: Timeout | null;
 
-	private _keepAliveInterval: any | null;
+	private _keepAliveInterval: Timeout | null;
 
 	private _lastReplayRequestTime: number;
 	private _lastSocketTimeoutTime: number;
@@ -827,6 +836,7 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	private _socket: ISocket;
 	private _socketWriter: ProtocolWriter;
 	private _socketReader: ProtocolReader;
+	// eslint-disable-next-line local/code-no-potentially-unsafe-disposables
 	private _socketDisposables: DisposableStore;
 
 	private readonly _loadEstimator: ILoadEstimator;
@@ -909,9 +919,12 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	}
 
 	sendDisconnect(): void {
-		const msg = new ProtocolMessage(ProtocolMessageType.Disconnect, 0, 0, getEmptyBuffer());
-		this._socketWriter.write(msg);
-		this._socketWriter.flush();
+		if (!this._didSendDisconnect) {
+			this._didSendDisconnect = true;
+			const msg = new ProtocolMessage(ProtocolMessageType.Disconnect, 0, 0, getEmptyBuffer());
+			this._socketWriter.write(msg);
+			this._socketWriter.flush();
+		}
 	}
 
 	sendPause(): void {
@@ -1142,6 +1155,7 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 				// Trash the socket
 				this._lastSocketTimeoutTime = Date.now();
 				this._onSocketTimeout.fire({
+					reason: SocketTimeoutReason.UNACKNOWLEDGED_MESSAGE,
 					unacknowledgedMsgCount: this._outgoingUnackMsg.length(),
 					timeSinceOldestUnacknowledgedMsg,
 					timeSinceLastReceivedSomeData
@@ -1163,6 +1177,41 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		}, minimumTimeUntilTimeout);
 	}
 
+	/**
+	 * Called after sending a keepalive. Both sides of this protocol send
+	 * keepalives every KeepAliveSendTime (5s), so receiving no data for
+	 * TimeoutTime (20s) means the connection is dead. This catches silent
+	 * connection deaths that _recvAckCheck cannot detect because there are
+	 * no unacknowledged regular messages.
+	 */
+	private _keepAliveTimeoutCheck(): void {
+		if (this._isReconnecting) {
+			return;
+		}
+
+		const now = Date.now();
+		const timeSinceLastReceivedSomeData = now - this._socketReader.lastReadTime;
+		const timeSinceLastTimeout = now - this._lastSocketTimeoutTime;
+
+		if (
+			timeSinceLastReceivedSomeData >= ProtocolConstants.TimeoutTime
+			&& timeSinceLastTimeout >= ProtocolConstants.TimeoutTime
+		) {
+			// But this might be caused by the event loop being busy and failing to read messages
+			if (!this._loadEstimator.hasHighLoad()) {
+				this._lastSocketTimeoutTime = now;
+				const unacknowledgedMsgCount = this._outgoingUnackMsg.length();
+				const oldestUnacknowledgedMsg = this._outgoingUnackMsg.peek();
+				this._onSocketTimeout.fire({
+					reason: SocketTimeoutReason.KEEP_ALIVE,
+					unacknowledgedMsgCount,
+					timeSinceOldestUnacknowledgedMsg: oldestUnacknowledgedMsg ? now - oldestUnacknowledgedMsg.writtenTime : undefined,
+					timeSinceLastReceivedSomeData
+				});
+			}
+		}
+	}
+
 	private _sendAck(): void {
 		if (this._incomingMsgId <= this._incomingAckId) {
 			// nothink to acknowledge
@@ -1178,41 +1227,6 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		this._incomingAckId = this._incomingMsgId;
 		const msg = new ProtocolMessage(ProtocolMessageType.KeepAlive, 0, this._incomingAckId, getEmptyBuffer());
 		this._socketWriter.write(msg);
+		this._keepAliveTimeoutCheck();
 	}
 }
-
-// (() => {
-// 	if (!SocketDiagnostics.enableDiagnostics) {
-// 		return;
-// 	}
-// 	if (typeof require.__$__nodeRequire !== 'function') {
-// 		console.log(`Can only log socket diagnostics on native platforms.`);
-// 		return;
-// 	}
-// 	const type = (
-// 		process.argv.includes('--type=renderer')
-// 			? 'renderer'
-// 			: (process.argv.includes('--type=extensionHost')
-// 				? 'extensionHost'
-// 				: (process.argv.some(item => item.includes('server-main'))
-// 					? 'server'
-// 					: 'unknown'
-// 				)
-// 			)
-// 	);
-// 	setTimeout(() => {
-// 		SocketDiagnostics.records.forEach(r => {
-// 			if (r.buff) {
-// 				r.data = Buffer.from(r.buff.buffer).toString('base64');
-// 				r.buff = undefined;
-// 			}
-// 		});
-
-// 		const fs = <typeof import('fs')>require.__$__nodeRequire('fs');
-// 		const path = <typeof import('path')>require.__$__nodeRequire('path');
-// 		const logPath = path.join(process.cwd(),`${type}-${process.pid}`);
-
-// 		console.log(`dumping socket diagnostics at ${logPath}`);
-// 		fs.writeFileSync(logPath, JSON.stringify(SocketDiagnostics.records));
-// 	}, 20000);
-// })();

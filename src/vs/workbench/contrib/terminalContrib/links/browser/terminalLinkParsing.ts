@@ -9,8 +9,8 @@
  * exist.
  */
 
-import { Lazy } from 'vs/base/common/lazy';
-import { OperatingSystem } from 'vs/base/common/platform';
+import { Lazy } from '../../../../../base/common/lazy.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
 
 export interface IParsedLink {
 	path: ILinkPartialRange;
@@ -63,21 +63,36 @@ function generateLinkSuffixRegex(eolOnly: boolean) {
 
 	// The comments in the regex below use real strings/numbers for better readability, here's
 	// the legend:
-	// - Path = foo
-	// - Row  = 339
-	// - Col  = 12
+	// - Path    = foo
+	// - Row     = 339
+	// - Col     = 12
+	// - RowEnd  = 341
+	// - ColEnd  = 789
 	//
 	// These all support single quote ' in the place of " and [] in the place of ()
+	//
+	// See the tests for an exhaustive list of all supported formats
 	const lineAndColumnRegexClauses = [
 		// foo:339
 		// foo:339:12
+		// foo:339:12-789
+		// foo:339:12-341.789
+		// foo:339.12
 		// foo 339
-		// foo 339:12                             [#140780]
+		// foo 339:12                              [#140780]
+		// foo 339.12
+		// foo#339
+		// foo#339:12                              [#190288]
+		// foo#339.12
+		// foo, 339                                [#217927]
 		// "foo",339
 		// "foo",339:12
-		`(?::| |['"],)${r()}(:${c()})?` + eolSuffix,
-		// The quotes below are optional          [#171652]
-		// "foo", line 339                        [#40468]
+		// "foo",339.12
+		// "foo",339.12-789
+		// "foo",339.12-341.789
+		`(?::|#| |['"],|, )${r()}([:.]${c()}(?:-(?:${re()}\\.)?${ce()})?)?` + eolSuffix,
+		// The quotes below are optional           [#171652]
+		// "foo", line 339                         [#40468]
 		// "foo", line 339, col 12
 		// "foo", line 339, column 12
 		// "foo":line 339
@@ -90,19 +105,24 @@ function generateLinkSuffixRegex(eolOnly: boolean) {
 		// "foo" on line 339, col 12
 		// "foo" on line 339, column 12
 		// "foo" line 339 column 12
-		// "foo", line 339, character 12          [#171880]
-		// "foo", line 339, characters 12-14      [#171880]
-		// "foo", lines 339-341                   [#171880]
-		// "foo", lines 339-341, characters 12-14 [#178287]
+		// "foo", line 339, character 12           [#171880]
+		// "foo", line 339, characters 12-789      [#171880]
+		// "foo", lines 339-341                    [#171880]
+		// "foo", lines 339-341, characters 12-789 [#178287]
 		`['"]?(?:,? |: ?| on )lines? ${r()}(?:-${re()})?(?:,? (?:col(?:umn)?|characters?) ${c()}(?:-${ce()})?)?` + eolSuffix,
+		// () and [] are interchangeable
 		// foo(339)
 		// foo(339,12)
 		// foo(339, 12)
 		// foo (339)
-		//   ...
+		// foo (339,12)
+		// foo (339, 12)
 		// foo: (339)
-		//   ...
-		`:? ?[\\[\\(]${r()}(?:, ?${c()})?[\\]\\)]` + eolSuffix,
+		// foo: (339,12)
+		// foo: (339, 12)
+		// foo(339:12)                             [#229842]
+		// foo (339:12)                            [#229842]
+		`:? ?[\\[\\(]${r()}(?:(?:, ?|:)${c()})?[\\]\\)]` + eolSuffix,
 	];
 
 	const suffixClause = lineAndColumnRegexClauses
@@ -189,7 +209,7 @@ function parseIntOptional(value: string | undefined): number | undefined {
 // characters the path is not allowed to _start_ with, the second `[]` includes characters not
 // allowed at all in the path. If the characters show up in both regexes the link will stop at that
 // character, otherwise it will stop at a space character.
-const linkWithSuffixPathCharacters = /(?<path>[^\s\|<>\[\({][^\s\|<>]*)$/;
+const linkWithSuffixPathCharacters = /(?<path>(?:file:\/\/\/)?[^\s\|<>\[\({][^\s\|<>]*)$/;
 
 export function detectLinks(line: string, os: OperatingSystem) {
 	// 1: Detect all links on line via suffixes first
@@ -247,6 +267,11 @@ function detectLinksViaSuffix(line: string): IParsedLink[] {
 	// 1: Detect link suffixes on the line
 	const suffixes = detectLinkSuffixes(line);
 	for (const suffix of suffixes) {
+		// Ignore suffixes followed by `/` so numeric Git diff prefixes such as `1/` are parsed as paths.
+		const suffixEndIndex = suffix.suffix.index + suffix.suffix.text.length;
+		if (line[suffixEndIndex] === '/') {
+			continue;
+		}
 		const beforeSuffix = line.substring(0, suffix.suffix.index);
 		const possiblePathMatch = beforeSuffix.match(linkWithSuffixPathCharacters);
 		if (possiblePathMatch && possiblePathMatch.index !== undefined && possiblePathMatch.groups?.path) {
@@ -262,6 +287,11 @@ function detectLinksViaSuffix(line: string): IParsedLink[] {
 					text: prefixMatch.groups.prefix
 				};
 				path = path.substring(prefix.text.length);
+
+				// Don't allow suffix links to be returned when the link itself is the empty string
+				if (path.trim().length === 0) {
+					continue;
+				}
 
 				// If there are multiple characters in the prefix, trim the prefix if the _first_
 				// suffix character is the same as the last prefix character. For example, for the
@@ -289,6 +319,23 @@ function detectLinksViaSuffix(line: string): IParsedLink[] {
 				prefix,
 				suffix
 			});
+
+			// If the path contains an opening bracket, provide the path starting immediately after
+			// the opening bracket as an additional result
+			const openingBracketMatch = path.matchAll(/(?<bracket>[\[\(])(?![\]\)])/g);
+			for (const match of openingBracketMatch) {
+				const bracket = match.groups?.bracket;
+				if (bracket) {
+					results.push({
+						path: {
+							index: linkStartIndex + (prefix?.text.length || 0) + match.index + 1,
+							text: path.substring(match.index + bracket.length)
+						},
+						prefix,
+						suffix
+					});
+				}
+			}
 		}
 	}
 
@@ -296,12 +343,12 @@ function detectLinksViaSuffix(line: string): IParsedLink[] {
 }
 
 enum RegexPathConstants {
-	PathPrefix = '(?:\\.\\.?|\\~)',
+	PathPrefix = '(?:\\.\\.?|\\~|file:\/\/)',
 	PathSeparatorClause = '\\/',
 	// '":; are allowed in paths but they are often separators so ignore them
 	// Also disallow \\ to prevent a catastropic backtracking case #24795
 	ExcludedPathCharactersClause = '[^\\0<>\\?\\s!`&*()\'":;\\\\]',
-	ExcludedStartPathCharactersClause = '[^\\0<>\\s!`&*()\\[\\]\'":;\\\\]',
+	ExcludedStartPathCharactersClause = '[^\\0<>\\?\\s!`&*()\\[\\]\'":;\\\\]',
 
 	WinOtherPathPrefix = '\\.\\.?|\\~',
 	WinPathSeparatorClause = '(?:\\\\|\\/)',
@@ -316,16 +363,32 @@ enum RegexPathConstants {
 const unixLocalLinkClause = '(?:(?:' + RegexPathConstants.PathPrefix + '|(?:' + RegexPathConstants.ExcludedStartPathCharactersClause + RegexPathConstants.ExcludedPathCharactersClause + '*))?(?:' + RegexPathConstants.PathSeparatorClause + '(?:' + RegexPathConstants.ExcludedPathCharactersClause + ')+)+)';
 
 /**
- * A regex clause that matches the start of an absolute path on Windows, such as: `C:`, `c:` and
- * `\\?\C` (UNC path).
+ * A regex clause that matches the start of an absolute path on Windows, such as: `C:`, `c:`,
+ * `file:///c:` (uri) and `\\?\C:` (UNC path).
  */
-export const winDrivePrefix = '(?:\\\\\\\\\\?\\\\)?[a-zA-Z]:';
+export const winDrivePrefix = '(?:\\\\\\\\\\?\\\\|file:\\/\\/\\/)?[a-zA-Z]:';
 
 /**
  * A regex that matches Windows paths, such as `\\?\c:\foo`, `c:\foo`, `~\foo`, `.\foo`, `..\foo`
  * and `foo\bar`.
  */
 const winLocalLinkClause = '(?:(?:' + `(?:${winDrivePrefix}|${RegexPathConstants.WinOtherPathPrefix})` + '|(?:' + RegexPathConstants.WinExcludedStartPathCharactersClause + RegexPathConstants.WinExcludedPathCharactersClause + '*))?(?:' + RegexPathConstants.WinPathSeparatorClause + '(?:' + RegexPathConstants.WinExcludedPathCharactersClause + ')+)+)';
+
+/**
+ * A regex clause that matches the known single-character prefixes used in git diffs.
+ * When diff.mnemonicPrefix is enabled, Git uses mnemonic letter prefixes and uses 1/ and 2/
+ * for `git diff --no-index`.
+ */
+const diffFilePrefix = '[abciow12]\\/';
+
+/**
+ * A regex that matches git diff lines with filenames, such as `--- a/foo`, `+++ b/foo`.
+ */
+const gitDiffLineRegex = new Lazy<RegExp>(() => new RegExp(`^[-+]{3} ${diffFilePrefix}`));
+/**
+ * A regex that matches filenames in lines like `diff --git a/foo b/foo` without the prefix.
+ */
+const gitDiffTextRegex = new Lazy<RegExp>(() => new RegExp(`^${diffFilePrefix}`));
 
 function detectPathsNoSuffix(line: string, os: OperatingSystem): IParsedLink[] {
 	const results: IParsedLink[] = [];
@@ -341,13 +404,13 @@ function detectPathsNoSuffix(line: string, os: OperatingSystem): IParsedLink[] {
 			break;
 		}
 
-		// Adjust the link range to exclude a/ and b/ if it looks like a git diff
+		// Adjust the link range to exclude a known Git diff prefix
 		if (
 			// --- a/foo/bar
 			// +++ b/foo/bar
-			((line.startsWith('--- a/') || line.startsWith('+++ b/')) && index === 4) ||
+			(gitDiffLineRegex.value.test(line) && index === 4) ||
 			// diff --git a/foo/bar b/foo/bar
-			(line.startsWith('diff --git') && (text.startsWith('a/') || text.startsWith('b/')))
+			(line.startsWith('diff --git') && gitDiffTextRegex.value.test(text))
 		) {
 			text = text.substring(2);
 			index += 2;

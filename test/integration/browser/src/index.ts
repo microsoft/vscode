@@ -10,34 +10,61 @@ import * as url from 'url';
 import * as tmp from 'tmp';
 import * as rimraf from 'rimraf';
 import { URI } from 'vscode-uri';
-import * as kill from 'tree-kill';
-import * as optimistLib from 'optimist';
+import kill from 'tree-kill';
+import minimist from 'minimist';
 import { promisify } from 'util';
 import { promises } from 'fs';
 
 const root = path.join(__dirname, '..', '..', '..', '..');
 const logsPath = path.join(root, '.build', 'logs', 'integration-tests-browser');
 
-const optimist = optimistLib
-	.describe('workspacePath', 'path to the workspace (folder or *.code-workspace file) to open in the test').string('workspacePath')
-	.describe('extensionDevelopmentPath', 'path to the extension to test').string('extensionDevelopmentPath')
-	.describe('extensionTestsPath', 'path to the extension tests').string('extensionTestsPath')
-	.describe('debug', 'do not run browsers headless').boolean('debug')
-	.describe('browser', 'browser in which integration tests should run').string('browser').default('browser', 'chromium')
-	.describe('help', 'show the help').alias('help', 'h');
+const args = minimist(process.argv.slice(2), {
+	string: [
+		// path to the workspace (folder or *.code-workspace file) to open in the test
+		'workspacePath',
+		// path to the extension to test
+		'extensionDevelopmentPath',
+		// path to the extension tests
+		'extensionTestsPath',
+		// browser in which integration tests should run
+		'browser',
+	],
+	boolean: [
+		'help',
+		// do not run browsers headless
+		'debug',
+	],
+	alias: {
+		h: 'help'
+	},
+	default: {
+		'browser': 'chromium'
+	}
+});
 
-if (optimist.argv.help) {
-	optimist.showHelp();
-	process.exit(0);
+if (args.help) {
+	console.error(`Integration test runner for VS Code in the browser
+	Usage: node integration-tests-browser/out/index.js [options]
+
+	--workspacePath <path>             Path to the workspace (folder or *.code-workspace file) to open in the test
+	--extensionDevelopmentPath <path>  Path to the extension to test
+	--extensionTestsPath <path>        Path to the extension tests
+	--browser <browser>                Browser in which integration tests should run. separate the channel with a dash, e.g. 'chromium-msedge' or 'chromium-chrome'
+	--debug                            Do not run browsers headless
+	--help                             Print this help message
+	`);
+
+	process.exit(1);
 }
 
-const width = 1200;
-const height = 800;
+const width = 1440;
+const height = 900;
 
 type BrowserType = 'chromium' | 'firefox' | 'webkit';
+type BrowserChannel = 'msedge' | 'chrome';
 
-async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWithStringQuery, server: cp.ChildProcess): Promise<void> {
-	const browser = await playwright[browserType].launch({ headless: !Boolean(optimist.argv.debug) });
+async function runTestsInBrowser(browserType: BrowserType, browserChannel: BrowserChannel, endpoint: URL, server: cp.ChildProcess): Promise<void> {
+	const browser = await playwright[browserType].launch({ headless: !Boolean(args.debug), channel: browserChannel });
 	const context = await browser.newContext();
 
 	const page = await context.newPage();
@@ -79,6 +106,10 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 			console.error(`Error saving web client logs (${error})`);
 		}
 
+		if (args.debug) {
+			return;
+		}
+
 		try {
 			await browser.close();
 		} catch (error) {
@@ -97,16 +128,38 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 	const host = endpoint.host;
 	const protocol = 'vscode-remote';
 
-	const testWorkspacePath = URI.file(path.resolve(optimist.argv.workspacePath)).path;
-	const testExtensionUri = url.format({ pathname: URI.file(path.resolve(optimist.argv.extensionDevelopmentPath)).path, protocol, host, slashes: true });
-	const testFilesUri = url.format({ pathname: URI.file(path.resolve(optimist.argv.extensionTestsPath)).path, protocol, host, slashes: true });
+	const testWorkspacePath = URI.file(path.resolve(args.workspacePath)).path;
+	const testExtensionUri = url.format({ pathname: URI.file(path.resolve(args.extensionDevelopmentPath)).path, protocol, host, slashes: true });
+	const testFilesUri = url.format({ pathname: URI.file(path.resolve(args.extensionTestsPath)).path, protocol, host, slashes: true });
 
 	const payloadParam = `[["extensionDevelopmentPath","${testExtensionUri}"],["extensionTestsPath","${testFilesUri}"],["enableProposedApi",""],["webviewExternalEndpointCommit","ef65ac1ba57f57f2a3961bfe94aa20481caca4c6"],["skipWelcome","true"]]`;
 
-	if (path.extname(testWorkspacePath) === '.code-workspace') {
-		await page.goto(`${endpoint.href}&workspace=${testWorkspacePath}&payload=${payloadParam}`);
-	} else {
-		await page.goto(`${endpoint.href}&folder=${testWorkspacePath}&payload=${payloadParam}`);
+	const targetUrl = path.extname(testWorkspacePath) === '.code-workspace'
+		? `${endpoint.href}&workspace=${testWorkspacePath}&payload=${payloadParam}`
+		: `${endpoint.href}&folder=${testWorkspacePath}&payload=${payloadParam}`;
+
+	// The server prints "Web UI available at" before its HTTP listener is fully ready to
+	// accept connections on some platforms (notably Windows + Firefox). Retry the initial
+	// navigation a few times on connection-refused errors to avoid spurious test failures.
+	await gotoWithRetry(page, targetUrl);
+}
+
+async function gotoWithRetry(page: playwright.Page, targetUrl: string): Promise<void> {
+	const maxAttempts = 5;
+	for (let attempt = 1; ; attempt++) {
+		try {
+			await page.goto(targetUrl);
+			return;
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			const isConnectionRefused = /NS_ERROR_CONNECTION_REFUSED|net::ERR_CONNECTION_REFUSED|ECONNREFUSED/i.test(message);
+			if (!isConnectionRefused || attempt >= maxAttempts) {
+				throw error;
+			}
+			const delayMs = 500 * attempt;
+			console.log(`page.goto failed with connection refused (attempt ${attempt}/${maxAttempts}), retrying in ${delayMs}ms...`);
+			await new Promise(resolve => setTimeout(resolve, delayMs));
+		}
 	}
 }
 
@@ -124,7 +177,7 @@ function consoleLogFn(msg: playwright.ConsoleMessage) {
 	return console.log;
 }
 
-async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.UrlWithStringQuery; server: cp.ChildProcess }> {
+async function launchServer(browserType: BrowserType, browserChannel: BrowserChannel): Promise<{ endpoint: URL; server: cp.ChildProcess }> {
 
 	// Ensure a tmp user-data-dir is used for the tests
 	const tmpDir = tmp.dirSync({ prefix: 't' });
@@ -134,25 +187,25 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 	const userDataDir = path.join(testDataPath, 'd');
 
 	const env = {
-		VSCODE_BROWSER: browserType,
+		VSCODE_BROWSER: browserChannel ? `${browserType}-${browserChannel}` : browserType,
 		...process.env
 	};
 
-	const serverArgs = ['--enable-proposed-api', '--disable-telemetry', '--server-data-dir', userDataDir, '--accept-server-license-terms', '--disable-workspace-trust'];
+	const serverArgs = ['--enable-proposed-api', '--disable-telemetry', '--disable-experiments', '--server-data-dir', userDataDir, '--accept-server-license-terms', '--disable-workspace-trust', '--enable-smoke-test-driver'];
 
 	let serverLocation: string;
 	if (process.env.VSCODE_REMOTE_SERVER_PATH) {
 		const { serverApplicationName } = require(path.join(process.env.VSCODE_REMOTE_SERVER_PATH, 'product.json'));
 		serverLocation = path.join(process.env.VSCODE_REMOTE_SERVER_PATH, 'bin', `${serverApplicationName}${process.platform === 'win32' ? '.cmd' : ''}`);
 
-		if (optimist.argv.debug) {
+		if (args.debug) {
 			console.log(`Starting built server from '${serverLocation}'`);
 		}
 	} else {
 		serverLocation = path.join(root, `scripts/code-server.${process.platform === 'win32' ? 'bat' : 'sh'}`);
 		process.env.VSCODE_DEV = '1';
 
-		if (optimist.argv.debug) {
+		if (args.debug) {
 			console.log(`Starting server out of sources from '${serverLocation}'`);
 		}
 	}
@@ -161,15 +214,15 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 	console.log(`Storing log files into '${serverLogsPath}'`);
 	serverArgs.push('--logsPath', serverLogsPath);
 
-	const stdio: cp.StdioOptions = optimist.argv.debug ? 'pipe' : ['ignore', 'pipe', 'ignore'];
-
+	const stdio: cp.StdioOptions = args.debug ? 'pipe' : ['ignore', 'pipe', 'ignore'];
+	const shell: boolean = (process.platform === 'win32');
 	const serverProcess = cp.spawn(
 		serverLocation,
 		serverArgs,
-		{ env, stdio }
+		{ env, stdio, shell }
 	);
 
-	if (optimist.argv.debug) {
+	if (args.debug) {
 		serverProcess.stderr!.on('data', error => console.log(`Server stderr: ${error}`));
 		serverProcess.stdout!.on('data', data => console.log(`Server stdout: ${data}`));
 	}
@@ -188,14 +241,15 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 		serverProcess.stdout!.on('data', data => {
 			const matches = data.toString('ascii').match(/Web UI available at (.+)/);
 			if (matches !== null) {
-				c({ endpoint: url.parse(matches[1]), server: serverProcess });
+				c({ endpoint: new URL(matches[1]), server: serverProcess });
 			}
 		});
 	});
 }
 
-launchServer(optimist.argv.browser).then(async ({ endpoint, server }) => {
-	return runTestsInBrowser(optimist.argv.browser, endpoint, server);
+const [browserType, browserChannel] = args.browser.split('-');
+launchServer(browserType, browserChannel).then(async ({ endpoint, server }) => {
+	return runTestsInBrowser(browserType, browserChannel, endpoint, server);
 }, error => {
 	console.error(error);
 	process.exit(1);

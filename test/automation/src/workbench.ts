@@ -22,9 +22,11 @@ import { Terminal } from './terminal';
 import { Notebook } from './notebook';
 import { Localization } from './localization';
 import { Task } from './task';
+import { Chat } from './chat';
+import { AgentsWindow } from './agentsWindow';
 
 export interface Commands {
-	runCommand(command: string): Promise<any>;
+	runCommand(command: string, options?: { exactLabelMatch?: boolean }): Promise<any>;
 }
 
 export class Workbench {
@@ -47,6 +49,8 @@ export class Workbench {
 	readonly notebook: Notebook;
 	readonly localization: Localization;
 	readonly task: Task;
+	readonly chat: Chat;
+	readonly agentsWindow: AgentsWindow;
 
 	constructor(code: Code) {
 		this.editors = new Editors(code);
@@ -55,7 +59,7 @@ export class Workbench {
 		this.explorer = new Explorer(code);
 		this.activitybar = new ActivityBar(code);
 		this.search = new Search(code);
-		this.extensions = new Extensions(code);
+		this.extensions = new Extensions(code, this.quickaccess);
 		this.editor = new Editor(code, this.quickaccess);
 		this.scm = new SCM(code);
 		this.debug = new Debug(code, this.quickaccess, this.editors, this.editor);
@@ -67,5 +71,7 @@ export class Workbench {
 		this.notebook = new Notebook(this.quickaccess, this.quickinput, code);
 		this.localization = new Localization(code);
 		this.task = new Task(code, this.editor, this.editors, this.quickaccess, this.quickinput, this.terminal);
+		this.chat = new Chat(code);
+		this.agentsWindow = new AgentsWindow(code, this.quickaccess);
 	}
 }

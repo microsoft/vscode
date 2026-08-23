@@ -3,31 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 
-export const enum TabFocusContext {
-	Terminal = 'terminalFocus',
-	Editor = 'editorFocus'
-}
+class TabFocusImpl extends Disposable {
+	private _tabFocus: boolean = false;
+	private readonly _onDidChangeTabFocus = this._register(new Emitter<boolean>());
+	public readonly onDidChangeTabFocus: Event<boolean> = this._onDidChangeTabFocus.event;
 
-class TabFocusImpl {
-	private _tabFocusTerminal: boolean = false;
-	private _tabFocusEditor: boolean = false;
-
-	private readonly _onDidChangeTabFocus = new Emitter<void>();
-	public readonly onDidChangeTabFocus: Event<void> = this._onDidChangeTabFocus.event;
-
-	public getTabFocusMode(context: TabFocusContext): boolean {
-		return context === TabFocusContext.Terminal ? this._tabFocusTerminal : this._tabFocusEditor;
+	public getTabFocusMode(): boolean {
+		return this._tabFocus;
 	}
 
-	public setTabFocusMode(tabFocusMode: boolean, context: TabFocusContext): void {
-		if (context === TabFocusContext.Terminal) {
-			this._tabFocusTerminal = tabFocusMode;
-		} else {
-			this._tabFocusEditor = tabFocusMode;
-		}
-		this._onDidChangeTabFocus.fire();
+	public setTabFocusMode(tabFocusMode: boolean): void {
+		this._tabFocus = tabFocusMode;
+		this._onDidChangeTabFocus.fire(this._tabFocus);
 	}
 }
 

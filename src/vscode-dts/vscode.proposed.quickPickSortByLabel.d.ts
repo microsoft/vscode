@@ -9,8 +9,16 @@ declare module 'vscode' {
 
 	export interface QuickPick<T extends QuickPickItem> extends QuickInput {
 		/**
-		 * An optional flag to sort the final results by index of first query match in label. Defaults to true.
+		 * Controls whether items should be sorted based on the match position in their labels when filtering.
+		 *
+		 * When `true`, items are sorted by the position of the first match in the label, with items that
+		 * match earlier in the label appearing first. When `false`, items maintain their original order.
+		 *
+		 * Defaults to `true`.
 		 */
+		// @API is a bug that we need this API at all. why do we change the sort order
+		// when extensions give us a (sorted) array of items?
+		// @API sortByLabel isn't a great name
 		sortByLabel: boolean;
 	}
 }

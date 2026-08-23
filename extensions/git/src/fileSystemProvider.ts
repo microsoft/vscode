@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace, Uri, Disposable, Event, EventEmitter, window, FileSystemProvider, FileChangeEvent, FileStat, FileType, FileChangeType, FileSystemError } from 'vscode';
+import { workspace, Uri, Disposable, Event, EventEmitter, window, FileSystemProvider, FileChangeEvent, FileStat, FileType, FileChangeType, FileSystemError, LogOutputChannel } from 'vscode';
 import { debounce, throttle } from './decorators';
 import { fromGitUri, toGitUri } from './uri';
 import { Model, ModelChangeEvent, OriginalResourceChangeEvent } from './model';
@@ -18,7 +18,7 @@ interface CacheRow {
 const THREE_MINUTES = 1000 * 60 * 3;
 const FIVE_MINUTES = 1000 * 60 * 5;
 
-function sanitizeRef(ref: string, path: string, repository: Repository): string {
+function sanitizeRef(ref: string, path: string, submoduleOf: string | undefined, repository: Repository): string {
 	if (ref === '~') {
 		const fileUri = Uri.file(path);
 		const uriString = fileUri.toString();
@@ -28,6 +28,11 @@ function sanitizeRef(ref: string, path: string, repository: Repository): string 
 
 	if (/^~\d$/.test(ref)) {
 		return `:${ref[1]}`;
+	}
+
+	// Submodule HEAD
+	if (submoduleOf && (ref === 'index' || ref === 'wt')) {
+		return 'HEAD';
 	}
 
 	return ref;
@@ -43,14 +48,15 @@ export class GitFileSystemProvider implements FileSystemProvider {
 	private mtime = new Date().getTime();
 	private disposables: Disposable[] = [];
 
-	constructor(private model: Model) {
+	constructor(private readonly model: Model, private readonly logger: LogOutputChannel) {
+		const cleanupHandle = setInterval(() => this.cleanup(), FIVE_MINUTES);
+
 		this.disposables.push(
 			model.onDidChangeRepository(this.onDidChangeRepository, this),
 			model.onDidChangeOriginalResource(this.onDidChangeOriginalResource, this),
 			workspace.registerFileSystemProvider('git', this, { isReadonly: true, isCaseSensitive: true }),
+			new Disposable(() => clearInterval(cleanupHandle)),
 		);
-
-		setInterval(() => this.cleanup(), FIVE_MINUTES);
 	}
 
 	private onDidChangeRepository({ repository }: ModelChangeEvent): void {
@@ -63,9 +69,14 @@ export class GitFileSystemProvider implements FileSystemProvider {
 			return;
 		}
 
-		const gitUri = toGitUri(uri, '', { replaceFileExtension: true });
+		const diffOriginalResourceUri = toGitUri(uri, '~',);
+		const quickDiffOriginalResourceUri = toGitUri(uri, '', { replaceFileExtension: true });
+
 		this.mtime = new Date().getTime();
-		this._onDidChangeFile.fire([{ type: FileChangeType.Changed, uri: gitUri }]);
+		this._onDidChangeFile.fire([
+			{ type: FileChangeType.Changed, uri: diffOriginalResourceUri },
+			{ type: FileChangeType.Changed, uri: quickDiffOriginalResourceUri }
+		]);
 	}
 
 	@debounce(1100)
@@ -121,6 +132,26 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		this.cache = cache;
 	}
 
+	private async getOrOpenRepository(uri: string | Uri): Promise<Repository | undefined> {
+		let repository = this.model.getRepository(uri);
+		if (repository) {
+			return repository;
+		}
+
+		// In case of the empty window, or the agent sessions window, no repositories are open
+		// so we need to explicitly open a repository before we can serve git content for the
+		// given git resource.
+		if (workspace.workspaceFolders === undefined || workspace.isAgentSessionsWorkspace) {
+			const fsPath = typeof uri === 'string' ? uri : fromGitUri(uri).path;
+			this.logger.info(`[GitFileSystemProvider][getOrOpenRepository] Opening repository for ${fsPath}`);
+
+			await this.model.openRepository(fsPath, true, true);
+			repository = this.model.getRepository(uri);
+		}
+
+		return repository;
+	}
+
 	watch(): Disposable {
 		return EmptyDisposable;
 	}
@@ -129,19 +160,30 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		await this.model.isInitialized;
 
 		const { submoduleOf, path, ref } = fromGitUri(uri);
-		const repository = submoduleOf ? this.model.getRepository(submoduleOf) : this.model.getRepository(uri);
+
+		const repository = submoduleOf
+			? await this.getOrOpenRepository(submoduleOf)
+			: await this.getOrOpenRepository(uri);
+
 		if (!repository) {
+			this.logger.warn(`[GitFileSystemProvider][stat] Repository not found - ${uri.toString()}`);
 			throw FileSystemError.FileNotFound();
 		}
 
-		let size = 0;
 		try {
-			const details = await repository.getObjectDetails(sanitizeRef(ref, path, repository), path);
-			size = details.size;
+			const details = await repository.getObjectDetails(sanitizeRef(ref, path, submoduleOf, repository), path);
+			return { type: FileType.File, size: details.size, mtime: this.mtime, ctime: 0 };
 		} catch {
-			// noop
+			// Empty tree
+			if (ref === await repository.getEmptyTree()) {
+				this.logger.warn(`[GitFileSystemProvider][stat] Empty tree - ${uri.toString()}`);
+				return { type: FileType.File, size: 0, mtime: this.mtime, ctime: 0 };
+			}
+
+			// File does not exist in git. This could be because the file is untracked or ignored
+			this.logger.warn(`[GitFileSystemProvider][stat] File not found - ${uri.toString()}`);
+			throw FileSystemError.FileNotFound();
 		}
-		return { type: FileType.File, size: size, mtime: this.mtime, ctime: 0 };
 	}
 
 	readDirectory(): Thenable<[string, FileType][]> {
@@ -158,7 +200,7 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		const { path, ref, submoduleOf } = fromGitUri(uri);
 
 		if (submoduleOf) {
-			const repository = this.model.getRepository(submoduleOf);
+			const repository = await this.getOrOpenRepository(submoduleOf);
 
 			if (!repository) {
 				throw FileSystemError.FileNotFound();
@@ -173,9 +215,10 @@ export class GitFileSystemProvider implements FileSystemProvider {
 			}
 		}
 
-		const repository = this.model.getRepository(uri);
+		const repository = await this.getOrOpenRepository(uri);
 
 		if (!repository) {
+			this.logger.warn(`[GitFileSystemProvider][readFile] Repository not found - ${uri.toString()}`);
 			throw FileSystemError.FileNotFound();
 		}
 
@@ -185,9 +228,17 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		this.cache.set(uri.toString(), cacheValue);
 
 		try {
-			return await repository.buffer(sanitizeRef(ref, path, repository), path);
-		} catch (err) {
-			return new Uint8Array(0);
+			return await repository.buffer(sanitizeRef(ref, path, submoduleOf, repository), path);
+		} catch {
+			// Empty tree
+			if (ref === await repository.getEmptyTree()) {
+				this.logger.warn(`[GitFileSystemProvider][readFile] Empty tree - ${uri.toString()}`);
+				return new Uint8Array(0);
+			}
+
+			// File does not exist in git. This could be because the file is untracked or ignored
+			this.logger.warn(`[GitFileSystemProvider][readFile] File not found - ${uri.toString()}`);
+			throw FileSystemError.FileNotFound();
 		}
 	}
 

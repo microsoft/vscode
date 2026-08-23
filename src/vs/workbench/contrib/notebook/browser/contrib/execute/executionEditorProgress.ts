@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { throttle } from 'vs/base/common/decorators';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { IUserActivityService } from 'vs/workbench/services/userActivity/common/userActivityService';
+import { throttle } from '../../../../../../base/common/decorators.js';
+import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { INotebookEditor, INotebookEditorContribution } from '../../notebookBrowser.js';
+import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
+import { NotebookCellExecutionState } from '../../../common/notebookCommon.js';
+import { INotebookCellExecution, INotebookExecutionStateService } from '../../../common/notebookExecutionStateService.js';
+import { IUserActivityService } from '../../../../../services/userActivity/common/userActivityService.js';
 
 export class ExecutionEditorProgressController extends Disposable implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.executionEditorProgress';
@@ -42,8 +42,6 @@ export class ExecutionEditorProgressController extends Disposable implements INo
 			return;
 		}
 
-		const scrollPadding = this._notebookEditor.notebookOptions.computeTopInsertToolbarHeight(this._notebookEditor.textModel.viewType);
-
 		const cellExecutions = this._notebookExecutionStateService.getCellExecutionsForNotebook(this._notebookEditor.textModel?.uri)
 			.filter(exe => exe.state === NotebookCellExecutionState.Executing);
 		const notebookExecution = this._notebookExecutionStateService.getExecution(this._notebookEditor.textModel?.uri);
@@ -52,7 +50,7 @@ export class ExecutionEditorProgressController extends Disposable implements INo
 				for (const cell of this._notebookEditor.getCellsInRange(range)) {
 					if (cell.handle === exe.cellHandle) {
 						const top = this._notebookEditor.getAbsoluteTopOfElement(cell);
-						if (this._notebookEditor.scrollTop < top + scrollPadding + 5) {
+						if (this._notebookEditor.scrollTop < top + 5) {
 							return true;
 						}
 					}

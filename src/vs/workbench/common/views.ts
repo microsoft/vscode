@@ -3,33 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Command } from 'vs/editor/common/languages';
-import { UriComponents, URI } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
-import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { localize } from 'vs/nls';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { getOrSet } from 'vs/base/common/map';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { flatten } from 'vs/base/common/arrays';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { SetMap } from 'vs/base/common/collections';
-import { IProgressIndicator } from 'vs/platform/progress/common/progress';
-import Severity from 'vs/base/common/severity';
-import { IPaneComposite } from 'vs/workbench/common/panecomposite';
-import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { mixin } from 'vs/base/common/objects';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { VSDataTransfer } from 'vs/base/common/dataTransfer';
-import { ILocalizedString } from 'vs/platform/action/common/action';
+import { Command } from '../../editor/common/languages.js';
+import { UriComponents, URI } from '../../base/common/uri.js';
+import { Event, Emitter } from '../../base/common/event.js';
+import { ContextKeyExpression } from '../../platform/contextkey/common/contextkey.js';
+import { localize } from '../../nls.js';
+import { createDecorator } from '../../platform/instantiation/common/instantiation.js';
+import { IDisposable, Disposable, toDisposable } from '../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../base/common/themables.js';
+import { getOrSet, SetMap } from '../../base/common/map.js';
+import { Registry } from '../../platform/registry/common/platform.js';
+import { IKeybindings } from '../../platform/keybinding/common/keybindingsRegistry.js';
+import { ExtensionIdentifier } from '../../platform/extensions/common/extensions.js';
+import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.js';
+import { IProgressIndicator } from '../../platform/progress/common/progress.js';
+import Severity from '../../base/common/severity.js';
+import { IAccessibilityInformation } from '../../platform/accessibility/common/accessibility.js';
+import { IMarkdownString, MarkdownString } from '../../base/common/htmlContent.js';
+import { mixin } from '../../base/common/objects.js';
+import { Codicon } from '../../base/common/codicons.js';
+import { registerIcon } from '../../platform/theme/common/iconRegistry.js';
+import { CancellationToken } from '../../base/common/cancellation.js';
+import { VSDataTransfer } from '../../base/common/dataTransfer.js';
+import { ILocalizedString } from '../../platform/action/common/action.js';
 
+export const VIEWS_LOG_ID = 'views';
+export const VIEWS_LOG_NAME = localize('views log', "Views");
 export const defaultViewIcon = registerIcon('default-view-icon', Codicon.window, localize('defaultViewIcon', 'Default view icon.'));
 
 export namespace Extensions {
@@ -40,10 +39,8 @@ export namespace Extensions {
 export const enum ViewContainerLocation {
 	Sidebar,
 	Panel,
-	AuxiliaryBar
+	AuxiliaryBar,
 }
-
-export const ViewContainerLocations = [ViewContainerLocation.Sidebar, ViewContainerLocation.Panel, ViewContainerLocation.AuxiliaryBar];
 
 export function ViewContainerLocationToString(viewContainerLocation: ViewContainerLocation) {
 	switch (viewContainerLocation) {
@@ -62,6 +59,24 @@ type OpenCommandActionDescriptor = {
 };
 
 /**
+ * Specifies in which window a view or view container should be visible.
+ */
+export const enum WindowEnablement {
+	/**
+	 * Visible only in the editor window
+	 */
+	Editor = 1,
+	/**
+	 * Visible only in agent sessions window
+	 */
+	Sessions = 2,
+	/**
+	 * Visible in both editor and agent sessions windows
+	 */
+	Both = 3,
+}
+
+/**
  * View Container Contexts
  */
 
@@ -75,7 +90,7 @@ export interface IViewContainerDescriptor {
 	/**
 	 * The title of the view container
 	 */
-	readonly title: ILocalizedString | string;
+	readonly title: ILocalizedString;
 
 	/**
 	 * Icon representation of the View container
@@ -121,6 +136,12 @@ export interface IViewContainerDescriptor {
 	readonly viewOrderDelegate?: ViewOrderDelegate;
 
 	readonly rejectAddedViews?: boolean;
+
+	/**
+	 * Specifies in which window this view container should be enabled.
+	 * Defaults to WindowEnablement.Editor
+	 */
+	readonly windowEnablement?: WindowEnablement;
 
 	requestedIndex?: number;
 }
@@ -176,9 +197,9 @@ export interface IViewContainersRegistry {
 	getViewContainerLocation(container: ViewContainer): ViewContainerLocation;
 
 	/**
-	 * Return the default view container from the given location
+	 * Return the default view containers from the given location
 	 */
-	getDefaultViewContainer(location: ViewContainerLocation): ViewContainer | undefined;
+	getDefaultViewContainers(location: ViewContainerLocation): ViewContainer[];
 }
 
 interface ViewOrderDelegate {
@@ -204,7 +225,7 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 	private readonly defaultViewContainers: ViewContainer[] = [];
 
 	get all(): ViewContainer[] {
-		return flatten([...this.viewContainers.values()]);
+		return [...this.viewContainers.values()].flat();
 	}
 
 	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, viewContainerLocation: ViewContainerLocation, options?: { isDefault?: boolean; doNotRegisterOpenCommand?: boolean }): ViewContainer {
@@ -251,8 +272,8 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 		return [...this.viewContainers.keys()].filter(location => this.getViewContainers(location).filter(viewContainer => viewContainer?.id === container.id).length > 0)[0];
 	}
 
-	getDefaultViewContainer(location: ViewContainerLocation): ViewContainer | undefined {
-		return this.defaultViewContainers.find(viewContainer => this.getViewContainerLocation(viewContainer) === location);
+	getDefaultViewContainers(location: ViewContainerLocation): ViewContainer[] {
+		return this.defaultViewContainers.filter(viewContainer => this.getViewContainerLocation(viewContainer) === location);
 	}
 }
 
@@ -264,7 +285,7 @@ export interface IViewDescriptor {
 
 	readonly id: string;
 
-	readonly name: string;
+	readonly name: ILocalizedString;
 
 	readonly ctorDescriptor: SyncDescriptor<IView>;
 
@@ -284,6 +305,8 @@ export interface IViewDescriptor {
 
 	readonly containerTitle?: string;
 
+	readonly singleViewPaneContainerTitle?: string;
+
 	// Applies only to newly created views
 	readonly hideByDefault?: boolean;
 
@@ -298,19 +321,21 @@ export interface IViewDescriptor {
 	readonly virtualWorkspace?: string;
 
 	readonly openCommandActionDescriptor?: OpenCommandActionDescriptor;
+
+	readonly accessibilityHelpContent?: MarkdownString;
+
+	/**
+	 * Specifies in which window this view should be visible.
+	 * Defaults to WindowEnablement.Workbench (main workbench only).
+	 */
+	readonly windowEnablement?: WindowEnablement;
 }
 
-export interface ICustomTreeViewDescriptor extends ITreeViewDescriptor {
+export interface ICustomViewDescriptor extends IViewDescriptor {
 	readonly extensionId: ExtensionIdentifier;
 	readonly originalContainerId: string;
+	readonly treeView?: ITreeView;
 }
-
-export interface ICustomWebviewViewDescriptor extends IViewDescriptor {
-	readonly extensionId: ExtensionIdentifier;
-	readonly originalContainerId: string;
-}
-
-export type ICustomViewDescriptor = ICustomTreeViewDescriptor | ICustomWebviewViewDescriptor;
 
 export interface IViewDescriptorRef {
 	viewDescriptor: IViewDescriptor;
@@ -369,6 +394,11 @@ export enum ViewContentGroups {
 
 export interface IViewContentDescriptor {
 	readonly content: string;
+	/**
+	 * Whether to render all but the first button as secondary
+	 * if there are buttons in the `content` property.
+	 */
+	readonly renderSecondaryButtons?: boolean;
 	readonly when?: ContextKeyExpression | 'default';
 	readonly group?: string;
 	readonly order?: number;
@@ -572,29 +602,6 @@ export interface IView {
 	getProgressIndicator(): IProgressIndicator | undefined;
 }
 
-export const IViewsService = createDecorator<IViewsService>('viewsService');
-export interface IViewsService {
-
-	readonly _serviceBrand: undefined;
-
-	// View Container APIs
-	readonly onDidChangeViewContainerVisibility: Event<{ id: string; visible: boolean; location: ViewContainerLocation }>;
-	isViewContainerVisible(id: string): boolean;
-	openViewContainer(id: string, focus?: boolean): Promise<IPaneComposite | null>;
-	closeViewContainer(id: string): void;
-	getVisibleViewContainer(location: ViewContainerLocation): ViewContainer | null;
-	getActiveViewPaneContainerWithId(viewContainerId: string): IViewPaneContainer | null;
-
-	// View APIs
-	readonly onDidChangeViewVisibility: Event<{ id: string; visible: boolean }>;
-	isViewVisible(id: string): boolean;
-	openView<T extends IView>(id: string, focus?: boolean): Promise<T | null>;
-	closeView(id: string): void;
-	getActiveViewWithId<T extends IView>(id: string): T | null;
-	getViewWithId<T extends IView>(id: string): T | null;
-	getViewProgressIndicator(id: string): IProgressIndicator | undefined;
-}
-
 export const IViewDescriptorService = createDecorator<IViewDescriptorService>('viewDescriptorService');
 
 export enum ViewVisibilityState {
@@ -619,7 +626,7 @@ export interface IViewDescriptorService {
 	getViewContainerModel(viewContainer: ViewContainer): IViewContainerModel;
 
 	readonly onDidChangeContainerLocation: Event<{ viewContainer: ViewContainer; from: ViewContainerLocation; to: ViewContainerLocation }>;
-	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation, requestedIndex?: number): void;
+	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation, requestedIndex?: number, reason?: string): void;
 
 	getViewContainerBadgeEnablementState(id: string): boolean;
 	setViewContainerBadgeEnablementState(id: string, badgesEnabled: boolean): void;
@@ -630,11 +637,13 @@ export interface IViewDescriptorService {
 	getDefaultContainerById(id: string): ViewContainer | null;
 	getViewLocationById(id: string): ViewContainerLocation | null;
 
+	canMoveViews(): boolean;
+
 	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[]; from: ViewContainer; to: ViewContainer }>;
-	moveViewsToContainer(views: IViewDescriptor[], viewContainer: ViewContainer, visibilityState?: ViewVisibilityState): void;
+	moveViewsToContainer(views: IViewDescriptor[], viewContainer: ViewContainer, visibilityState?: ViewVisibilityState, reason?: string): void;
 
 	readonly onDidChangeLocation: Event<{ views: IViewDescriptor[]; from: ViewContainerLocation; to: ViewContainerLocation }>;
-	moveViewToLocation(view: IViewDescriptor, location: ViewContainerLocation): void;
+	moveViewToLocation(view: IViewDescriptor, location: ViewContainerLocation, reason?: string): void;
 
 	reset(): void;
 }
@@ -681,9 +690,10 @@ export interface ITreeView extends IDisposable {
 
 	readonly onDidChangeCheckboxState: Event<readonly ITreeItem[]>;
 
-	readonly container: any | undefined;
+	readonly container: unknown /* HTMLElement */ | undefined;
 
-	refresh(treeItems?: readonly ITreeItem[]): Promise<void>;
+	// checkboxesChanged is a subset of treeItems
+	refresh(treeItems?: readonly ITreeItem[], checkboxesChanged?: readonly ITreeItem[]): Promise<void>;
 
 	setVisibility(visible: boolean): void;
 
@@ -705,7 +715,7 @@ export interface ITreeView extends IDisposable {
 
 	setFocus(item?: ITreeItem): void;
 
-	show(container: any): void;
+	show(container: unknown /* HTMLElement */): void;
 }
 
 export interface IRevealOptions {
@@ -741,11 +751,9 @@ export enum TreeItemCollapsibleState {
 
 export interface ITreeItemLabel {
 
-	label: string;
+	label: string | IMarkdownString;
 
 	highlights?: [number, number][];
-
-	strikethrough?: boolean;
 
 }
 
@@ -783,7 +791,7 @@ export interface ITreeItem {
 
 	command?: TreeCommand;
 
-	children?: ITreeItem[];
+	children?: readonly ITreeItem[];
 
 	parent?: ITreeItem;
 
@@ -858,15 +866,16 @@ export class NoTreeViewError extends Error {
 	constructor(treeViewId: string) {
 		super(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId));
 	}
-	static is(err: Error): err is NoTreeViewError {
-		return err.name === 'NoTreeViewError';
+	static is(err: unknown): err is NoTreeViewError {
+		return !!err && (err as Error).name === 'NoTreeViewError';
 	}
 }
 
 export interface ITreeViewDataProvider {
 	readonly isTreeEmpty?: boolean;
-	onDidChangeEmpty?: Event<void>;
-	getChildren(element?: ITreeItem): Promise<ITreeItem[] | undefined>;
+	readonly onDidChangeEmpty?: Event<void>;
+	getChildren(element?: ITreeItem): Promise<readonly ITreeItem[] | undefined>;
+	getChildrenBatch?(element?: ITreeItem[]): Promise<(readonly ITreeItem[])[] | undefined>;
 }
 
 export interface ITreeViewDragAndDropController {
@@ -884,9 +893,9 @@ export interface IEditableData {
 }
 
 export interface IViewPaneContainer {
-	onDidAddViews: Event<IView[]>;
-	onDidRemoveViews: Event<IView[]>;
-	onDidChangeViewVisibility: Event<IView>;
+	readonly onDidAddViews: Event<IView[]>;
+	readonly onDidRemoveViews: Event<IView[]>;
+	readonly onDidChangeViewVisibility: Event<IView>;
 
 	readonly views: IView[];
 

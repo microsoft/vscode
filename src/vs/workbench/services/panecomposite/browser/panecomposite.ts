@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
-import { PaneCompositeDescriptor } from 'vs/workbench/browser/panecomposite';
-import { IProgressIndicator } from 'vs/platform/progress/common/progress';
-import { IPaneComposite } from 'vs/workbench/common/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IBadge } from 'vs/workbench/services/activity/common/activity';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { Event } from '../../../../base/common/event.js';
+import { PaneCompositeDescriptor } from '../../../browser/panecomposite.js';
+import { IProgressIndicator } from '../../../../platform/progress/common/progress.js';
+import { IPaneComposite } from '../../../common/panecomposite.js';
+import { ViewContainerLocation } from '../../../common/views.js';
+import { SINGLE_WINDOW_PARTS } from '../../layout/browser/layoutService.js';
 
 export const IPaneCompositePartService = createDecorator<IPaneCompositePartService>('paneCompositePartService');
 
@@ -20,6 +19,10 @@ export interface IPaneCompositePartService {
 
 	readonly onDidPaneCompositeOpen: Event<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation }>;
 	readonly onDidPaneCompositeClose: Event<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation }>;
+
+	getRegistryId(viewContainerLocation: ViewContainerLocation): string;
+
+	getPartId(viewContainerLocation: ViewContainerLocation): SINGLE_WINDOW_PARTS;
 
 	/**
 	 * Opens a viewlet with the given identifier and pass keyboard focus to it if specified.
@@ -52,6 +55,11 @@ export interface IPaneCompositePartService {
 	getVisiblePaneCompositeIds(viewContainerLocation: ViewContainerLocation): string[];
 
 	/**
+	 * Returns id of all view containers following visual order.
+	 */
+	getPaneCompositeIds(viewContainerLocation: ViewContainerLocation): string[];
+
+	/**
 	 * Returns the progress indicator for the side bar.
 	 */
 	getProgressIndicator(id: string, viewContainerLocation: ViewContainerLocation): IProgressIndicator | undefined;
@@ -65,9 +73,4 @@ export interface IPaneCompositePartService {
 	 * Return the last active viewlet id.
 	 */
 	getLastActivePaneCompositeId(viewContainerLocation: ViewContainerLocation): string;
-
-	/**
-	 * Show an activity in a viewlet.
-	 */
-	showActivity(id: string, viewContainerLocation: ViewContainerLocation, badge: IBadge, clazz?: string, priority?: number): IDisposable;
 }

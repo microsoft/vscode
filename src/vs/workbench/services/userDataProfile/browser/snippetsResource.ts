@@ -3,21 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { ResourceSet } from 'vs/base/common/map';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { FileOperationError, FileOperationResult, IFileService, IFileStat } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IUserDataProfile, ProfileResourceType } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { ITreeItemCheckboxState, TreeItemCollapsibleState } from 'vs/workbench/common/views';
-import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceInitializer, IProfileResourceTreeItem, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
+import { ResourceSet } from '../../../../base/common/map.js';
+import { IExtUri } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
+import { FileOperationError, FileOperationResult, IFileService, IFileStat } from '../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IUserDataProfile, ProfileResourceType } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { API_OPEN_EDITOR_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
+import { ITreeItemCheckboxState, TreeItemCollapsibleState } from '../../../common/views.js';
+import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceInitializer, IProfileResourceTreeItem, IUserDataProfileService } from '../common/userDataProfile.js';
 
 interface ISnippetsContent {
 	snippets: IStringDictionary<string>;
+}
+
+/**
+ * Resolves the target resource for a snippet `key` relative to `snippetsHome`,
+ * ensuring the result stays contained within `snippetsHome`. The `key` originates
+ * from an imported (and therefore untrusted) profile, so it can contain path
+ * traversal segments (e.g. `../../../foo`). `joinPath` normalizes such segments,
+ * which would otherwise allow writing files outside the profile directory.
+ * Returns `undefined` when the resolved resource escapes `snippetsHome`.
+ */
+function toSnippetResource(extUri: IExtUri, snippetsHome: URI, key: string): URI | undefined {
+	const resource = extUri.joinPath(snippetsHome, key);
+	if (!extUri.isEqualOrParent(resource, snippetsHome) || extUri.isEqual(resource, snippetsHome)) {
+		return undefined;
+	}
+	return resource;
 }
 
 export class SnippetsResourceInitializer implements IProfileResourceInitializer {
@@ -26,13 +44,18 @@ export class SnippetsResourceInitializer implements IProfileResourceInitializer 
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IFileService private readonly fileService: IFileService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@ILogService private readonly logService: ILogService,
 	) {
 	}
 
 	async initialize(content: string): Promise<void> {
 		const snippetsContent: ISnippetsContent = JSON.parse(content);
 		for (const key in snippetsContent.snippets) {
-			const resource = this.uriIdentityService.extUri.joinPath(this.userDataProfileService.currentProfile.snippetsHome, key);
+			const resource = toSnippetResource(this.uriIdentityService.extUri, this.userDataProfileService.currentProfile.snippetsHome, key);
+			if (!resource) {
+				this.logService.warn(`SnippetsResourceInitializer: Ignoring snippet with key '${key}' as it escapes the snippets folder.`);
+				continue;
+			}
 			await this.fileService.writeFile(resource, VSBuffer.fromString(snippetsContent.snippets[key]));
 		}
 	}
@@ -43,6 +66,7 @@ export class SnippetsResource implements IProfileResource {
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@ILogService private readonly logService: ILogService,
 	) {
 	}
 
@@ -54,7 +78,11 @@ export class SnippetsResource implements IProfileResource {
 	async apply(content: string, profile: IUserDataProfile): Promise<void> {
 		const snippetsContent: ISnippetsContent = JSON.parse(content);
 		for (const key in snippetsContent.snippets) {
-			const resource = this.uriIdentityService.extUri.joinPath(profile.snippetsHome, key);
+			const resource = toSnippetResource(this.uriIdentityService.extUri, profile.snippetsHome, key);
+			if (!resource) {
+				this.logService.warn(`SnippetsResource: Ignoring snippet with key '${key}' as it escapes the snippets folder.`);
+				continue;
+			}
 			await this.fileService.writeFile(resource, VSBuffer.fromString(snippetsContent.snippets[key]));
 		}
 	}
@@ -99,7 +127,7 @@ export class SnippetsResource implements IProfileResource {
 export class SnippetsResourceTreeItem implements IProfileResourceTreeItem {
 
 	readonly type = ProfileResourceType.Snippets;
-	readonly handle = this.profile.snippetsHome.toString();
+	readonly handle: string;
 	readonly label = { label: localize('snippets', "Snippets") };
 	readonly collapsibleState = TreeItemCollapsibleState.Collapsed;
 	checkbox: ITreeItemCheckboxState | undefined;
@@ -110,7 +138,9 @@ export class SnippetsResourceTreeItem implements IProfileResourceTreeItem {
 		private readonly profile: IUserDataProfile,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-	) { }
+	) {
+		this.handle = this.profile.snippetsHome.toString();
+	}
 
 	async getChildren(): Promise<IProfileResourceChildTreeItem[] | undefined> {
 		const snippetsResources = await this.instantiationService.createInstance(SnippetsResource).getSnippetsResources(this.profile);

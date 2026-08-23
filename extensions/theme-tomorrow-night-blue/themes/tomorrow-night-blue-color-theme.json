@@ -2,6 +2,11 @@
 	"type": "dark",
 	"colors": {
 		"focusBorder": "#bbdaff",
+		// agent sessions
+		"agentsPanel.border": "#404f7d",
+		"agentsChatInput.border": "#404f7d",
+		"agentsChatInput.focusBorder": "#bbdaff",
+		"agentsNewSessionButton.border": "#404f7d",
 		"errorForeground": "#a92049",
 		"input.background": "#001733",
 		"dropdown.background": "#001733",
@@ -36,7 +41,6 @@
 		"statusBar.noFolderBackground": "#001126",
 		"statusBar.debuggingBackground": "#001126",
 		"activityBar.background": "#001733",
-		"activityBarItem.profilesBackground": "#003271",
 		"progressBar.background": "#bbdaffcc",
 		"badge.background": "#bbdaffcc",
 		"badge.foreground": "#001733",
@@ -56,7 +60,11 @@
 		"terminal.ansiBrightBlue": "#80baff",
 		"terminal.ansiBrightMagenta": "#d778ff",
 		"terminal.ansiBrightCyan": "#78ffff",
-		"terminal.ansiBrightWhite": "#ffffff"
+		"terminal.ansiBrightWhite": "#ffffff",
+		"agentsCard.border": "#00000000",
+		// modern ui
+		"surface.border": "#00000000",
+		"modernActivityBar.background": "#00000000",
 	},
 	"tokenColors": [
 		{
@@ -70,7 +78,8 @@
 				"meta.embedded",
 				"source.groovy.embedded",
 				"meta.jsx.children",
-				"string meta.image.inline.markdown"
+				"string meta.image.inline.markdown",
+				"variable.legacy.builtin.python"
 			],
 			"settings": {
 				//"background": "#002451",
@@ -117,7 +126,7 @@
 		},
 		{
 			"name": "String, Symbols, Inherited Class, Markup Heading, GitGutter inserted",
-			"scope": "string, constant.other.symbol, entity.other.inherited-class, markup.heading, markup.inserted.git_gutter",
+			"scope": "string, constant.other.symbol, entity.other.inherited-class, punctuation.separator.namespace.ruby, markup.heading, markup.inserted.git_gutter",
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#D1F1A9"
@@ -140,7 +149,7 @@
 		},
 		{
 			"name": "Keyword, Storage",
-			"scope": "keyword, storage, storage.type, entity.name.tag.css",
+			"scope": "keyword, storage, storage.type, entity.name.tag.css, entity.name.tag.less",
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#EBBBFF"

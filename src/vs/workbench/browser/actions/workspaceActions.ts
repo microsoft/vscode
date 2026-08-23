@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder, hasWorkspaceFileExtension } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, PICK_WORKSPACE_FOLDER_COMMAND_ID, SET_ROOT_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
-import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { MenuRegistry, MenuId, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { EmptyWorkspaceSupportContext, EnterMultiRootWorkspaceSupportContext, OpenFolderWorkspaceSupportContext, WorkbenchStateContext, WorkspaceFolderCountContext } from 'vs/workbench/common/contextkeys';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IsMacNativeContext } from 'vs/platform/contextkey/common/contextkeys';
-import { ILocalizedString } from 'vs/platform/action/common/action';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { localize, localize2 } from '../../../nls.js';
+import { ITelemetryData } from '../../../platform/telemetry/common/telemetry.js';
+import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder, hasWorkspaceFileExtension } from '../../../platform/workspace/common/workspace.js';
+import { IWorkspaceEditingService } from '../../services/workspaces/common/workspaceEditing.js';
+import { IEditorService } from '../../services/editor/common/editorService.js';
+import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, PICK_WORKSPACE_FOLDER_COMMAND_ID, SET_ROOT_FOLDER_COMMAND_ID } from './workspaceCommands.js';
+import { IFileDialogService } from '../../../platform/dialogs/common/dialogs.js';
+import { MenuRegistry, MenuId, Action2, registerAction2 } from '../../../platform/actions/common/actions.js';
+import { EmptyWorkspaceSupportContext, EnterMultiRootWorkspaceSupportContext, IsSessionsWindowContext, OpenFolderWorkspaceSupportContext, WorkbenchStateContext, WorkspaceFolderCountContext } from '../../common/contextkeys.js';
+import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
+import { IHostService } from '../../services/host/browser/host.js';
+import { KeyChord, KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
+import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
+import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
+import { IWorkspacesService } from '../../../platform/workspaces/common/workspaces.js';
+import { KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IsMacNativeContext } from '../../../platform/contextkey/common/contextkeys.js';
+import { ILocalizedString } from '../../../platform/action/common/action.js';
+import { Categories } from '../../../platform/action/common/actionCommonCategories.js';
 
-const workspacesCategory: ILocalizedString = { value: localize('workspaces', "Workspaces"), original: 'Workspaces' };
+const workspacesCategory: ILocalizedString = localize2('workspaces', 'Workspaces');
 
 export class OpenFileAction extends Action2 {
 
@@ -33,11 +33,11 @@ export class OpenFileAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenFileAction.ID,
-			title: { value: localize('openFile', "Open File..."), original: 'Open File...' },
+			title: localize2('openFile', 'Open File...'),
 			category: Categories.File,
 			f1: true,
-			precondition: IsMacNativeContext.toNegated(),
 			keybinding: {
+				when: IsMacNativeContext.toNegated(),
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.KeyO
 			}
@@ -58,7 +58,7 @@ export class OpenFolderAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenFolderAction.ID,
-			title: { value: localize('openFolder', "Open Folder..."), original: 'Open Folder...' },
+			title: localize2('openFolder', 'Open Folder...'),
 			category: Categories.File,
 			f1: true,
 			precondition: OpenFolderWorkspaceSupportContext,
@@ -94,7 +94,7 @@ export class OpenFolderViaWorkspaceAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenFolderViaWorkspaceAction.ID,
-			title: { value: localize('openFolder', "Open Folder..."), original: 'Open Folder...' },
+			title: localize2('openFolder', 'Open Folder...'),
 			category: Categories.File,
 			f1: true,
 			precondition: ContextKeyExpr.and(OpenFolderWorkspaceSupportContext.toNegated(), WorkbenchStateContext.isEqualTo('workspace')),
@@ -115,7 +115,7 @@ export class OpenFolderViaWorkspaceAction extends Action2 {
 export class OpenFileFolderAction extends Action2 {
 
 	static readonly ID = 'workbench.action.files.openFileFolder';
-	static readonly LABEL: ILocalizedString = { value: localize('openFileFolder', "Open..."), original: 'Open...' };
+	static readonly LABEL: ILocalizedString = localize2('openFileFolder', 'Open...');
 
 	constructor() {
 		super({
@@ -145,7 +145,7 @@ class OpenWorkspaceAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenWorkspaceAction.ID,
-			title: { value: localize('openWorkspaceAction', "Open Workspace from File..."), original: 'Open Workspace from File...' },
+			title: localize2('openWorkspaceAction', 'Open Workspace from File...'),
 			category: Categories.File,
 			f1: true,
 			precondition: EnterMultiRootWorkspaceSupportContext
@@ -166,10 +166,10 @@ class CloseWorkspaceAction extends Action2 {
 	constructor() {
 		super({
 			id: CloseWorkspaceAction.ID,
-			title: { value: localize('closeWorkspace', "Close Workspace"), original: 'Close Workspace' },
+			title: localize2('closeWorkspace', 'Close Workspace'),
 			category: workspacesCategory,
 			f1: true,
-			precondition: ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('empty'), EmptyWorkspaceSupportContext),
+			precondition: ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('empty'), EmptyWorkspaceSupportContext, IsSessionsWindowContext.negate()),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyF)
@@ -192,10 +192,10 @@ class OpenWorkspaceConfigFileAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenWorkspaceConfigFileAction.ID,
-			title: { value: localize('openWorkspaceConfigFile', "Open Workspace Configuration File"), original: 'Open Workspace Configuration File' },
+			title: localize2('openWorkspaceConfigFile', 'Open Workspace Configuration File'),
 			category: workspacesCategory,
 			f1: true,
-			precondition: WorkbenchStateContext.isEqualTo('workspace')
+			precondition: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace'), IsSessionsWindowContext.negate())
 		});
 	}
 
@@ -220,7 +220,7 @@ export class AddRootFolderAction extends Action2 {
 			title: ADD_ROOT_FOLDER_LABEL,
 			category: workspacesCategory,
 			f1: true,
-			precondition: ContextKeyExpr.or(EnterMultiRootWorkspaceSupportContext, WorkbenchStateContext.isEqualTo('workspace'))
+			precondition: ContextKeyExpr.and(ContextKeyExpr.or(EnterMultiRootWorkspaceSupportContext, WorkbenchStateContext.isEqualTo('workspace')), IsSessionsWindowContext.negate())
 		});
 	}
 
@@ -238,10 +238,10 @@ export class RemoveRootFolderAction extends Action2 {
 	constructor() {
 		super({
 			id: RemoveRootFolderAction.ID,
-			title: { value: localize('globalRemoveFolderFromWorkspace', "Remove Folder from Workspace..."), original: 'Remove Folder from Workspace...' },
+			title: localize2('globalRemoveFolderFromWorkspace', 'Remove Folder from Workspace...'),
 			category: workspacesCategory,
 			f1: true,
-			precondition: ContextKeyExpr.and(WorkspaceFolderCountContext.notEqualsTo('0'), ContextKeyExpr.or(EnterMultiRootWorkspaceSupportContext, WorkbenchStateContext.isEqualTo('workspace')))
+			precondition: ContextKeyExpr.and(WorkspaceFolderCountContext.notEqualsTo('0'), ContextKeyExpr.or(EnterMultiRootWorkspaceSupportContext, WorkbenchStateContext.isEqualTo('workspace')), IsSessionsWindowContext.negate())
 		});
 	}
 
@@ -263,10 +263,10 @@ class SaveWorkspaceAsAction extends Action2 {
 	constructor() {
 		super({
 			id: SaveWorkspaceAsAction.ID,
-			title: { value: localize('saveWorkspaceAsAction', "Save Workspace As..."), original: 'Save Workspace As...' },
+			title: localize2('saveWorkspaceAsAction', 'Save Workspace As...'),
 			category: workspacesCategory,
 			f1: true,
-			precondition: EnterMultiRootWorkspaceSupportContext
+			precondition: ContextKeyExpr.and(EnterMultiRootWorkspaceSupportContext, IsSessionsWindowContext.negate())
 		});
 	}
 
@@ -296,10 +296,10 @@ class DuplicateWorkspaceInNewWindowAction extends Action2 {
 	constructor() {
 		super({
 			id: DuplicateWorkspaceInNewWindowAction.ID,
-			title: { value: localize('duplicateWorkspaceInNewWindow', "Duplicate As Workspace in New Window"), original: 'Duplicate As Workspace in New Window' },
+			title: localize2('duplicateWorkspaceInNewWindow', 'Duplicate As Workspace in New Window'),
 			category: workspacesCategory,
 			f1: true,
-			precondition: EnterMultiRootWorkspaceSupportContext
+			precondition: ContextKeyExpr.and(EnterMultiRootWorkspaceSupportContext, IsSessionsWindowContext.negate())
 		});
 	}
 
@@ -392,7 +392,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		id: ADD_ROOT_FOLDER_COMMAND_ID,
 		title: localize({ key: 'miAddFolderToWorkspace', comment: ['&& denotes a mnemonic'] }, "A&&dd Folder to Workspace...")
 	},
-	when: ContextKeyExpr.or(EnterMultiRootWorkspaceSupportContext, WorkbenchStateContext.isEqualTo('workspace')),
+	when: ContextKeyExpr.and(ContextKeyExpr.or(EnterMultiRootWorkspaceSupportContext, WorkbenchStateContext.isEqualTo('workspace')), IsSessionsWindowContext.negate()),
 	order: 1
 });
 
@@ -403,7 +403,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		title: localize('miSaveWorkspaceAs', "Save Workspace As...")
 	},
 	order: 2,
-	when: EnterMultiRootWorkspaceSupportContext
+	when: ContextKeyExpr.and(EnterMultiRootWorkspaceSupportContext, IsSessionsWindowContext.negate())
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
@@ -413,7 +413,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		title: localize('duplicateWorkspace', "Duplicate Workspace")
 	},
 	order: 3,
-	when: EnterMultiRootWorkspaceSupportContext
+	when: ContextKeyExpr.and(EnterMultiRootWorkspaceSupportContext, IsSessionsWindowContext.negate())
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
@@ -423,7 +423,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		title: localize({ key: 'miCloseFolder', comment: ['&& denotes a mnemonic'] }, "Close &&Folder")
 	},
 	order: 3,
-	when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('folder'), EmptyWorkspaceSupportContext)
+	when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('folder'), EmptyWorkspaceSupportContext, IsSessionsWindowContext.negate())
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
@@ -433,5 +433,5 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		title: localize({ key: 'miCloseWorkspace', comment: ['&& denotes a mnemonic'] }, "Close &&Workspace")
 	},
 	order: 3,
-	when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace'), EmptyWorkspaceSupportContext)
+	when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace'), EmptyWorkspaceSupportContext, IsSessionsWindowContext.negate())
 });

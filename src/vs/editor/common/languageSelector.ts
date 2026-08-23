@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRelativePattern, match as matchGlobPattern } from 'vs/base/common/glob';
-import { URI } from 'vs/base/common/uri';
-import { normalize } from 'vs/base/common/path';
+import { IRelativePattern, match as matchGlobPattern } from '../../base/common/glob.js';
+import { URI } from '../../base/common/uri.js';
+import { normalize } from '../../base/common/path.js';
 
 export interface LanguageFilter {
 	readonly language?: string;
@@ -129,5 +129,31 @@ export function score(selector: LanguageSelector | undefined, candidateUri: URI,
 
 	} else {
 		return 0;
+	}
+}
+
+
+export function targetsNotebooks(selector: LanguageSelector): boolean {
+	if (typeof selector === 'string') {
+		return false;
+	} else if (Array.isArray(selector)) {
+		return selector.some(targetsNotebooks);
+	} else {
+		return !!(<LanguageFilter>selector).notebookType;
+	}
+}
+
+export function selectLanguageIds(selector: LanguageSelector, into: Set<string>): void {
+	if (typeof selector === 'string') {
+		into.add(selector);
+	} else if (Array.isArray(selector)) {
+		for (const item of selector) {
+			selectLanguageIds(item, into);
+		}
+	} else {
+		const language = (<LanguageFilter>selector).language;
+		if (language) {
+			into.add(language);
+		}
 	}
 }

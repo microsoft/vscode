@@ -18,7 +18,8 @@ function code() {
 
 	if [[ "$OSTYPE" == "darwin"* ]]; then
 		NAME=`node -p "require('./product.json').nameLong"`
-		CODE="./.build/electron/$NAME.app/Contents/MacOS/Electron"
+		EXE_NAME=`node -p "require('./product.json').nameShort"`
+		CODE="./.build/electron/$NAME.app/Contents/MacOS/$EXE_NAME"
 	else
 		NAME=`node -p "require('./product.json').applicationName"`
 		CODE=".build/electron/$NAME"
@@ -26,7 +27,7 @@ function code() {
 
 	# Get electron, compile, built-in extensions
 	if [[ -z "${VSCODE_SKIP_PRELAUNCH}" ]]; then
-		node build/lib/preLaunch.js
+		node build/lib/preLaunch.ts
 	fi
 
 	# Manage built-in extensions
@@ -42,8 +43,13 @@ function code() {
 	export ELECTRON_ENABLE_STACK_DUMPING=1
 	export ELECTRON_ENABLE_LOGGING=1
 
+	DISABLE_TEST_EXTENSION="--disable-extension=vscode.vscode-api-tests"
+	if [[ "$@" == *"--extensionTestsPath"* ]]; then
+		DISABLE_TEST_EXTENSION=""
+	fi
+
 	# Launch Code
-	exec "$CODE" . "$@"
+	exec "$CODE" . $DISABLE_TEST_EXTENSION "$@"
 }
 
 function code-wsl()
@@ -58,7 +64,7 @@ function code-wsl()
 		cd $ROOT
 		export WSLENV=ELECTRON_RUN_AS_NODE/w:VSCODE_DEV/w:$WSLENV
 		local WSL_EXT_ID="ms-vscode-remote.remote-wsl"
-		local WSL_EXT_WLOC=$(echo "" | VSCODE_DEV=1 ELECTRON_RUN_AS_NODE=1 "$ROOT/.build/electron/Code - OSS.exe" "out/cli.js" --ms-enable-electron-run-as-node --locate-extension $WSL_EXT_ID)
+		local WSL_EXT_WLOC=$(echo "" | VSCODE_DEV=1 ELECTRON_RUN_AS_NODE=1 "$ROOT/.build/electron/Code - OSS.exe" "out/cli.js" --locate-extension $WSL_EXT_ID)
 		cd $CWD
 		if [ -n "$WSL_EXT_WLOC" ]; then
 			# replace \r\n with \n in WSL_EXT_WLOC

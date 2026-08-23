@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes } from '../git';
+import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
 import * as assert from 'assert';
 import { splitInChunks } from '../util';
 
@@ -270,14 +270,15 @@ suite('git', () => {
 
 	suite('parseGitCommit', () => {
 		test('single parent commit', function () {
-			const GIT_OUTPUT_SINGLE_PARENT = `52c293a05038d865604c2284aa8698bd087915a1
-John Doe
-john.doe@mail.com
-1580811030
-1580811031
-8e5a374372b8393906c7e380dbb09349c5385554
-main,branch
-This is a commit message.\x00`;
+			const GIT_OUTPUT_SINGLE_PARENT =
+				'52c293a05038d865604c2284aa8698bd087915a1\n' +
+				'John Doe\n' +
+				'john.doe@mail.com\n' +
+				'1580811030\n' +
+				'1580811031\n' +
+				'8e5a374372b8393906c7e380dbb09349c5385554\n' +
+				'main,branch\n' +
+				'This is a commit message.\x00';
 
 			assert.deepStrictEqual(parseGitCommits(GIT_OUTPUT_SINGLE_PARENT), [{
 				hash: '52c293a05038d865604c2284aa8698bd087915a1',
@@ -288,18 +289,21 @@ This is a commit message.\x00`;
 				authorEmail: 'john.doe@mail.com',
 				commitDate: new Date(1580811031000),
 				refNames: ['main', 'branch'],
+				shortStat: undefined,
+				coAuthors: []
 			}]);
 		});
 
 		test('multiple parent commits', function () {
-			const GIT_OUTPUT_MULTIPLE_PARENTS = `52c293a05038d865604c2284aa8698bd087915a1
-John Doe
-john.doe@mail.com
-1580811030
-1580811031
-8e5a374372b8393906c7e380dbb09349c5385554 df27d8c75b129ab9b178b386077da2822101b217
-main
-This is a commit message.\x00`;
+			const GIT_OUTPUT_MULTIPLE_PARENTS =
+				'52c293a05038d865604c2284aa8698bd087915a1\n' +
+				'John Doe\n' +
+				'john.doe@mail.com\n' +
+				'1580811030\n' +
+				'1580811031\n' +
+				'8e5a374372b8393906c7e380dbb09349c5385554 df27d8c75b129ab9b178b386077da2822101b217\n' +
+				'main\n' +
+				'This is a commit message.\x00';
 
 			assert.deepStrictEqual(parseGitCommits(GIT_OUTPUT_MULTIPLE_PARENTS), [{
 				hash: '52c293a05038d865604c2284aa8698bd087915a1',
@@ -310,18 +314,21 @@ This is a commit message.\x00`;
 				authorEmail: 'john.doe@mail.com',
 				commitDate: new Date(1580811031000),
 				refNames: ['main'],
+				shortStat: undefined,
+				coAuthors: []
 			}]);
 		});
 
 		test('no parent commits', function () {
-			const GIT_OUTPUT_NO_PARENTS = `52c293a05038d865604c2284aa8698bd087915a1
-John Doe
-john.doe@mail.com
-1580811030
-1580811031
-
-main
-This is a commit message.\x00`;
+			const GIT_OUTPUT_NO_PARENTS =
+				'52c293a05038d865604c2284aa8698bd087915a1\n' +
+				'John Doe\n' +
+				'john.doe@mail.com\n' +
+				'1580811030\n' +
+				'1580811031\n' +
+				'\n' +
+				'main\n' +
+				'This is a commit message.\x00';
 
 			assert.deepStrictEqual(parseGitCommits(GIT_OUTPUT_NO_PARENTS), [{
 				hash: '52c293a05038d865604c2284aa8698bd087915a1',
@@ -332,6 +339,199 @@ This is a commit message.\x00`;
 				authorEmail: 'john.doe@mail.com',
 				commitDate: new Date(1580811031000),
 				refNames: ['main'],
+				shortStat: undefined,
+				coAuthors: []
+			}]);
+		});
+
+		test('commit with shortstat', function () {
+			const GIT_OUTPUT_SINGLE_PARENT =
+				'52c293a05038d865604c2284aa8698bd087915a1\n' +
+				'John Doe\n' +
+				'john.doe@mail.com\n' +
+				'1580811030\n' +
+				'1580811031\n' +
+				'8e5a374372b8393906c7e380dbb09349c5385554\n' +
+				'main,branch\n' +
+				'This is a commit message.\x00\n' +
+				' 1 file changed, 2 insertions(+), 3 deletion(-)';
+
+			assert.deepStrictEqual(parseGitCommits(GIT_OUTPUT_SINGLE_PARENT), [{
+				hash: '52c293a05038d865604c2284aa8698bd087915a1',
+				message: 'This is a commit message.',
+				parents: ['8e5a374372b8393906c7e380dbb09349c5385554'],
+				authorDate: new Date(1580811030000),
+				authorName: 'John Doe',
+				authorEmail: 'john.doe@mail.com',
+				commitDate: new Date(1580811031000),
+				refNames: ['main', 'branch'],
+				shortStat: {
+					deletions: 3,
+					files: 1,
+					insertions: 2
+				},
+				coAuthors: []
+			}]);
+		});
+
+		test('commit with shortstat (no insertions)', function () {
+			const GIT_OUTPUT_SINGLE_PARENT =
+				'52c293a05038d865604c2284aa8698bd087915a1\n' +
+				'John Doe\n' +
+				'john.doe@mail.com\n' +
+				'1580811030\n' +
+				'1580811031\n' +
+				'8e5a374372b8393906c7e380dbb09349c5385554\n' +
+				'main,branch\n' +
+				'This is a commit message.\x00\n' +
+				' 1 file changed, 3 deletion(-)';
+
+			assert.deepStrictEqual(parseGitCommits(GIT_OUTPUT_SINGLE_PARENT), [{
+				hash: '52c293a05038d865604c2284aa8698bd087915a1',
+				message: 'This is a commit message.',
+				parents: ['8e5a374372b8393906c7e380dbb09349c5385554'],
+				authorDate: new Date(1580811030000),
+				authorName: 'John Doe',
+				authorEmail: 'john.doe@mail.com',
+				commitDate: new Date(1580811031000),
+				refNames: ['main', 'branch'],
+				shortStat: {
+					deletions: 3,
+					files: 1,
+					insertions: 0
+				},
+				coAuthors: []
+			}]);
+		});
+
+		test('commit with shortstat (no deletions)', function () {
+			const GIT_OUTPUT_SINGLE_PARENT =
+				'52c293a05038d865604c2284aa8698bd087915a1\n' +
+				'John Doe\n' +
+				'john.doe@mail.com\n' +
+				'1580811030\n' +
+				'1580811031\n' +
+				'8e5a374372b8393906c7e380dbb09349c5385554\n' +
+				'main,branch\n' +
+				'This is a commit message.\x00\n' +
+				' 1 file changed, 2 insertions(+)';
+
+			assert.deepStrictEqual(parseGitCommits(GIT_OUTPUT_SINGLE_PARENT), [{
+				hash: '52c293a05038d865604c2284aa8698bd087915a1',
+				message: 'This is a commit message.',
+				parents: ['8e5a374372b8393906c7e380dbb09349c5385554'],
+				authorDate: new Date(1580811030000),
+				authorName: 'John Doe',
+				authorEmail: 'john.doe@mail.com',
+				commitDate: new Date(1580811031000),
+				refNames: ['main', 'branch'],
+				shortStat: {
+					deletions: 0,
+					files: 1,
+					insertions: 2
+				},
+				coAuthors: []
+			}]);
+		});
+
+		test('commit list', function () {
+			const GIT_OUTPUT_SINGLE_PARENT =
+				'52c293a05038d865604c2284aa8698bd087915a1\n' +
+				'John Doe\n' +
+				'john.doe@mail.com\n' +
+				'1580811030\n' +
+				'1580811031\n' +
+				'8e5a374372b8393906c7e380dbb09349c5385554\n' +
+				'main,branch\n' +
+				'This is a commit message.\x00\n' +
+				'52c293a05038d865604c2284aa8698bd087915a2\n' +
+				'Jane Doe\n' +
+				'jane.doe@mail.com\n' +
+				'1580811032\n' +
+				'1580811033\n' +
+				'8e5a374372b8393906c7e380dbb09349c5385555\n' +
+				'main,branch\n' +
+				'This is another commit message.\x00';
+
+			assert.deepStrictEqual(parseGitCommits(GIT_OUTPUT_SINGLE_PARENT), [
+				{
+					hash: '52c293a05038d865604c2284aa8698bd087915a1',
+					message: 'This is a commit message.',
+					parents: ['8e5a374372b8393906c7e380dbb09349c5385554'],
+					authorDate: new Date(1580811030000),
+					authorName: 'John Doe',
+					authorEmail: 'john.doe@mail.com',
+					commitDate: new Date(1580811031000),
+					refNames: ['main', 'branch'],
+					shortStat: undefined,
+					coAuthors: []
+				},
+				{
+					hash: '52c293a05038d865604c2284aa8698bd087915a2',
+					message: 'This is another commit message.',
+					parents: ['8e5a374372b8393906c7e380dbb09349c5385555'],
+					authorDate: new Date(1580811032000),
+					authorName: 'Jane Doe',
+					authorEmail: 'jane.doe@mail.com',
+					commitDate: new Date(1580811033000),
+					refNames: ['main', 'branch'],
+					shortStat: undefined,
+					coAuthors: []
+				},
+			]);
+		});
+
+		test('commit list with shortstat', function () {
+			const GIT_OUTPUT_SINGLE_PARENT = '52c293a05038d865604c2284aa8698bd087915a1\n' +
+				'John Doe\n' +
+				'john.doe@mail.com\n' +
+				'1580811030\n' +
+				'1580811031\n' +
+				'8e5a374372b8393906c7e380dbb09349c5385554\n' +
+				'main,branch\n' +
+				'This is a commit message.\x00\n' +
+				' 5 file changed, 12 insertions(+), 13 deletion(-)\n' +
+				'52c293a05038d865604c2284aa8698bd087915a2\n' +
+				'Jane Doe\n' +
+				'jane.doe@mail.com\n' +
+				'1580811032\n' +
+				'1580811033\n' +
+				'8e5a374372b8393906c7e380dbb09349c5385555\n' +
+				'main,branch\n' +
+				'This is another commit message.\x00\n' +
+				' 6 file changed, 22 insertions(+), 23 deletion(-)';
+
+			assert.deepStrictEqual(parseGitCommits(GIT_OUTPUT_SINGLE_PARENT), [{
+				hash: '52c293a05038d865604c2284aa8698bd087915a1',
+				message: 'This is a commit message.',
+				parents: ['8e5a374372b8393906c7e380dbb09349c5385554'],
+				authorDate: new Date(1580811030000),
+				authorName: 'John Doe',
+				authorEmail: 'john.doe@mail.com',
+				commitDate: new Date(1580811031000),
+				refNames: ['main', 'branch'],
+				shortStat: {
+					deletions: 13,
+					files: 5,
+					insertions: 12
+				},
+				coAuthors: []
+			},
+			{
+				hash: '52c293a05038d865604c2284aa8698bd087915a2',
+				message: 'This is another commit message.',
+				parents: ['8e5a374372b8393906c7e380dbb09349c5385555'],
+				authorDate: new Date(1580811032000),
+				authorName: 'Jane Doe',
+				authorEmail: 'jane.doe@mail.com',
+				commitDate: new Date(1580811033000),
+				refNames: ['main', 'branch'],
+				shortStat: {
+					deletions: 23,
+					files: 6,
+					insertions: 22
+				},
+				coAuthors: []
 			}]);
 		});
 	});
@@ -397,6 +597,50 @@ This is a commit message.\x00`;
 				{ mode: '100644', object: 'be859e3f412fa86513cd8bebe8189d1ea1a3e46d', stage: '0', file: 'what.txt' },
 				{ mode: '100644', object: '56ec42c9dc6fcf4534788f0fe34b36e09f37d085', stage: '0', file: 'what.txt2' },
 			]);
+		});
+	});
+
+	suite('parseCoAuthors', () => {
+		test('no co-authors', function () {
+			assert.deepStrictEqual(parseCoAuthors('This is a commit message.'), []);
+		});
+
+		test('single co-author', function () {
+			assert.deepStrictEqual(
+				parseCoAuthors('Fix bug\n\nCo-authored-by: Jane Doe <jane@example.com>'),
+				[{ name: 'Jane Doe', email: 'jane@example.com' }]
+			);
+		});
+
+		test('multiple co-authors', function () {
+			assert.deepStrictEqual(
+				parseCoAuthors('Fix bug\n\nCo-authored-by: Jane Doe <jane@example.com>\nCo-authored-by: Bob Smith <bob@example.com>'),
+				[
+					{ name: 'Jane Doe', email: 'jane@example.com' },
+					{ name: 'Bob Smith', email: 'bob@example.com' }
+				]
+			);
+		});
+
+		test('case insensitive', function () {
+			assert.deepStrictEqual(
+				parseCoAuthors('Fix bug\n\nco-authored-by: Jane Doe <jane@example.com>'),
+				[{ name: 'Jane Doe', email: 'jane@example.com' }]
+			);
+		});
+
+		test('AI co-author (Copilot)', function () {
+			assert.deepStrictEqual(
+				parseCoAuthors('Fix bug\n\nCo-authored-by: Copilot <copilot@github.com>'),
+				[{ name: 'Copilot', email: 'copilot@github.com' }]
+			);
+		});
+
+		test('mixed with other trailers', function () {
+			assert.deepStrictEqual(
+				parseCoAuthors('Fix bug\n\nSigned-off-by: Admin <admin@corp.com>\nCo-authored-by: Jane Doe <jane@example.com>'),
+				[{ name: 'Jane Doe', email: 'jane@example.com' }]
+			);
 		});
 	});
 

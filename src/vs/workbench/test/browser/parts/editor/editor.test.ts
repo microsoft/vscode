@@ -3,25 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { EditorResourceAccessor, SideBySideEditor, EditorInputWithPreferredResource, EditorInputCapabilities, isEditorIdentifier, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, isResourceEditorInput, isUntitledResourceEditorInput, isResourceDiffEditorInput, isEditorInputWithOptionsAndGroup, EditorInputWithOptions, isEditorInputWithOptions, isEditorInput, EditorInputWithOptionsAndGroup, isResourceSideBySideEditorInput, IResourceSideBySideEditorInput, isTextEditorViewState, isResourceMergeEditorInput, IResourceMergeEditorInput } from 'vs/workbench/common/editor';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { URI } from 'vs/base/common/uri';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { workbenchInstantiationService, TestServiceAccessor, TestEditorInput, registerTestEditor, registerTestFileEditor, registerTestResourceEditor, TestFileEditorInput, createEditorPart, registerTestSideBySideEditor } from 'vs/workbench/test/browser/workbenchTestServices';
-import { Schemas } from 'vs/base/common/network';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { toResource } from 'vs/base/test/common/utils';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { whenEditorClosed } from 'vs/workbench/browser/editor';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { EditorResolution, IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { ICodeEditorViewState, IDiffEditorViewState } from 'vs/editor/common/editorCommon';
-import { Position } from 'vs/editor/common/core/position';
+import assert from 'assert';
+import { EditorResourceAccessor, SideBySideEditor, EditorInputWithPreferredResource, EditorInputCapabilities, isEditorIdentifier, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, isResourceEditorInput, isUntitledResourceEditorInput, isResourceDiffEditorInput, isEditorInputWithOptionsAndGroup, EditorInputWithOptions, isEditorInputWithOptions, isEditorInput, EditorInputWithOptionsAndGroup, isResourceSideBySideEditorInput, IResourceSideBySideEditorInput, isTextEditorViewState, isResourceMergeEditorInput, IResourceMergeEditorInput } from '../../../../common/editor.js';
+import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { workbenchInstantiationService, TestServiceAccessor, TestEditorInput, registerTestEditor, registerTestFileEditor, registerTestResourceEditor, TestFileEditorInput, createEditorPart, registerTestSideBySideEditor } from '../../workbenchTestServices.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { UntitledTextEditorInput } from '../../../../services/untitled/common/untitledTextEditorInput.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { whenEditorClosed } from '../../../../browser/editor.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { EditorService } from '../../../../services/editor/browser/editorService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
+import { EditorResolution, IResourceEditorInput } from '../../../../../platform/editor/common/editor.js';
+import { ICodeEditorViewState, IDiffEditorViewState } from '../../../../../editor/common/editorCommon.js';
+import { Position } from '../../../../../editor/common/core/position.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../../browser/parts/editor/editor.js';
 
 suite('Workbench editor utils', () => {
 
@@ -39,22 +41,11 @@ suite('Workbench editor utils', () => {
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
-	async function createServices(): Promise<TestServiceAccessor> {
-		const instantiationService = workbenchInstantiationService(undefined, disposables);
-
-		const part = await createEditorPart(instantiationService, disposables);
-		instantiationService.stub(IEditorGroupsService, part);
-
-		const editorService = instantiationService.createInstance(EditorService);
-		instantiationService.stub(IEditorService, editorService);
-
-		return instantiationService.createInstance(TestServiceAccessor);
-	}
-
 	setup(() => {
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
+		disposables.add(accessor.untitledTextEditorService);
 		disposables.add(registerTestFileEditor());
 		disposables.add(registerTestSideBySideEditor());
 		disposables.add(registerTestResourceEditor());
@@ -62,8 +53,6 @@ suite('Workbench editor utils', () => {
 	});
 
 	teardown(() => {
-		accessor.untitledTextEditorService.dispose();
-
 		disposables.clear();
 	});
 
@@ -99,8 +88,8 @@ suite('Workbench editor utils', () => {
 	});
 
 	test('EditorInputCapabilities', () => {
-		const testInput1 = new TestFileEditorInput(URI.file('resource1'), 'testTypeId');
-		const testInput2 = new TestFileEditorInput(URI.file('resource2'), 'testTypeId');
+		const testInput1 = disposables.add(new TestFileEditorInput(URI.file('resource1'), 'testTypeId'));
+		const testInput2 = disposables.add(new TestFileEditorInput(URI.file('resource2'), 'testTypeId'));
 
 		testInput1.capabilities = EditorInputCapabilities.None;
 		assert.strictEqual(testInput1.hasCapability(EditorInputCapabilities.None), true);
@@ -159,10 +148,10 @@ suite('Workbench editor utils', () => {
 	test('EditorResourceAccessor - typed inputs', () => {
 		const service = accessor.untitledTextEditorService;
 
-		assert.ok(!EditorResourceAccessor.getCanonicalUri(null!));
-		assert.ok(!EditorResourceAccessor.getOriginalUri(null!));
+		assert.ok(!EditorResourceAccessor.getCanonicalUri(null));
+		assert.ok(!EditorResourceAccessor.getOriginalUri(null));
 
-		const untitled = instantiationService.createInstance(UntitledTextEditorInput, service.create());
+		const untitled = disposables.add(instantiationService.createInstance(UntitledTextEditorInput, service.create()));
 
 		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(untitled)?.toString(), untitled.resource.toString());
 		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(untitled, { supportSideBySide: SideBySideEditor.PRIMARY })?.toString(), untitled.resource.toString());
@@ -182,7 +171,7 @@ suite('Workbench editor utils', () => {
 		assert.strictEqual(EditorResourceAccessor.getOriginalUri(untitled, { filterByScheme: [Schemas.file, Schemas.untitled] })?.toString(), untitled.resource.toString());
 		assert.ok(!EditorResourceAccessor.getOriginalUri(untitled, { filterByScheme: Schemas.file }));
 
-		const file = new TestEditorInput(URI.file('/some/path.txt'), 'editorResourceFileTest');
+		const file = disposables.add(new TestEditorInput(URI.file('/some/path.txt'), 'editorResourceFileTest'));
 
 		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(file)?.toString(), file.resource.toString());
 		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(file, { supportSideBySide: SideBySideEditor.PRIMARY })?.toString(), file.resource.toString());
@@ -246,7 +235,7 @@ suite('Workbench editor utils', () => {
 
 		const resource = URI.file('/some/path.txt');
 		const preferredResource = URI.file('/some/PATH.txt');
-		const fileWithPreferredResource = new TestEditorInputWithPreferredResource(URI.file('/some/path.txt'), URI.file('/some/PATH.txt'), 'editorResourceFileTest');
+		const fileWithPreferredResource = disposables.add(new TestEditorInputWithPreferredResource(URI.file('/some/path.txt'), URI.file('/some/PATH.txt'), 'editorResourceFileTest'));
 
 		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(fileWithPreferredResource)?.toString(), resource.toString());
 		assert.strictEqual(EditorResourceAccessor.getOriginalUri(fileWithPreferredResource)?.toString(), preferredResource.toString());
@@ -254,8 +243,8 @@ suite('Workbench editor utils', () => {
 
 	test('EditorResourceAccessor - untyped inputs', () => {
 
-		assert.ok(!EditorResourceAccessor.getCanonicalUri(null!));
-		assert.ok(!EditorResourceAccessor.getOriginalUri(null!));
+		assert.ok(!EditorResourceAccessor.getCanonicalUri(null));
+		assert.ok(!EditorResourceAccessor.getOriginalUri(null));
 
 		const untitledURI = URI.from({
 			scheme: Schemas.untitled,
@@ -363,13 +352,13 @@ suite('Workbench editor utils', () => {
 		assert.strictEqual(isEditorIdentifier(undefined), false);
 		assert.strictEqual(isEditorIdentifier('undefined'), false);
 
-		const testInput1 = new TestFileEditorInput(URI.file('resource1'), 'testTypeId');
+		const testInput1 = disposables.add(new TestFileEditorInput(URI.file('resource1'), 'testTypeId'));
 		assert.strictEqual(isEditorIdentifier(testInput1), false);
 		assert.strictEqual(isEditorIdentifier({ editor: testInput1, groupId: 3 }), true);
 	});
 
 	test('isEditorInputWithOptionsAndGroup', () => {
-		const editorInput = new TestFileEditorInput(URI.file('resource1'), 'testTypeId');
+		const editorInput = disposables.add(new TestFileEditorInput(URI.file('resource1'), 'testTypeId'));
 		assert.strictEqual(isEditorInput(editorInput), true);
 		assert.strictEqual(isEditorInputWithOptions(editorInput), false);
 		assert.strictEqual(isEditorInputWithOptionsAndGroup(editorInput), false);
@@ -410,6 +399,34 @@ suite('Workbench editor utils', () => {
 		assert.strictEqual(isTextEditorViewState(diffEditorViewState), true);
 	});
 
+	test('editor tab action space reservation reserves by default and can be configured or enforced', async () => {
+		assert.strictEqual(DEFAULT_EDITOR_PART_OPTIONS.tabActionReserveSpace, true);
+
+		const configuredInstantiationService = workbenchInstantiationService({
+			configurationService: () => {
+				const configurationService = new TestConfigurationService({
+					workbench: { editor: { tabActionReserveSpace: false } }
+				});
+				disposables.add(configurationService.onDidChangeConfigurationEmitter);
+				return configurationService;
+			}
+		}, disposables);
+		const part = await createEditorPart(configuredInstantiationService, disposables);
+
+		const configured = part.partOptions.tabActionReserveSpace;
+		const enforcedOverride = part.enforcePartOptions({ tabActionReserveSpace: true });
+		assert.deepStrictEqual({
+			configured,
+			enforced: part.partOptions.tabActionReserveSpace,
+		}, {
+			configured: false,
+			enforced: true,
+		});
+
+		enforcedOverride.dispose();
+		assert.strictEqual(part.partOptions.tabActionReserveSpace, false);
+	});
+
 	test('whenEditorClosed (single editor)', async function () {
 		return testWhenEditorClosed(false, false, toResource.call(this, '/path/index.txt'));
 	});
@@ -434,6 +451,18 @@ suite('Workbench editor utils', () => {
 		return testWhenEditorClosed(false, true, toResource.call(this, '/path/index.txt'), toResource.call(this, '/test.html'));
 	});
 
+	async function createServices(): Promise<TestServiceAccessor> {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+
+		const part = await createEditorPart(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, part);
+
+		const editorService = disposables.add(instantiationService.createInstance(EditorService, undefined));
+		instantiationService.stub(IEditorService, editorService);
+
+		return instantiationService.createInstance(TestServiceAccessor);
+	}
+
 	async function testWhenEditorClosed(sideBySide: boolean, custom: boolean, ...resources: URI[]): Promise<void> {
 		const accessor = await createServices();
 
@@ -453,4 +482,6 @@ suite('Workbench editor utils', () => {
 
 		await closedPromise;
 	}
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

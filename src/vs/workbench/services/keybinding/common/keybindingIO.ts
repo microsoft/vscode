@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeybindingParser } from 'vs/base/common/keybindingParser';
-import { Keybinding } from 'vs/base/common/keybindings';
-import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+import { KeybindingParser } from '../../../../base/common/keybindingParser.js';
+import { Keybinding } from '../../../../base/common/keybindings.js';
+import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
+import { ResolvedKeybindingItem } from '../../../../platform/keybinding/common/resolvedKeybindingItem.js';
 
 export interface IUserKeybindingItem {
 	keybinding: Keybinding | null;
 	command: string | null;
-	commandArgs?: any;
+	commandArgs?: unknown;
 	when: ContextKeyExpression | undefined;
+	systemWide: boolean;
 	_sourceKey: string | undefined; /** captures `key` field from `keybindings.json`; `this.keybinding !== null` implies `_sourceKey !== null` */
 }
 
@@ -39,6 +40,11 @@ export class KeybindingIO {
 			out.writeLine();
 			out.write(`                                     "args": ${JSON.stringify(item.commandArgs)}`);
 		}
+		if (item.systemWide) {
+			out.write(',');
+			out.writeLine();
+			out.write(`                                     "systemWide": true`);
+		}
 		out.write(' }');
 	}
 
@@ -55,11 +61,15 @@ export class KeybindingIO {
 		const commandArgs = 'args' in input && typeof input.args !== 'undefined'
 			? input.args
 			: undefined;
+		const systemWide = 'systemWide' in input && typeof input.systemWide === 'boolean'
+			? input.systemWide
+			: false;
 		return {
 			keybinding,
 			command,
 			commandArgs,
 			when,
+			systemWide,
 			_sourceKey: 'key' in input && typeof input.key === 'string' ? input.key : undefined,
 		};
 	}

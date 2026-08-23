@@ -2,7 +2,7 @@
   "name": "cpp",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.0.0",
+  "version": "10.0.0",
   "publisher": "vscode",
   "license": "MIT",
   "engines": {
@@ -11,6 +11,7 @@
   "scripts": {
     "update-grammar": "node ./build/update-grammars.js"
   },
+  "categories": ["Programming Languages"],
   "contributes": {
     "languages": [
       {
@@ -29,9 +30,13 @@
         "id": "cpp",
         "extensions": [
           ".cpp",
+          ".cppm",
           ".cc",
+          ".ccm",
           ".cxx",
+          ".cxxm",
           ".c++",
+          ".c++m",
           ".hpp",
           ".hh",
           ".hxx",
@@ -42,6 +47,8 @@
           ".inl",
           ".ipp",
           ".ixx",
+          ".mpp",
+          ".mxx",
           ".tpp",
           ".txx",
           ".hpp.in",

@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ResourceTree } from 'vs/base/common/resourceTree';
-import { URI } from 'vs/base/common/uri';
+import assert from 'assert';
+import { ResourceTree } from '../../common/resourceTree.js';
+import { URI } from '../../common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('ResourceTree', function () {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('ctor', function () {
 		const tree = new ResourceTree<string, null>(null);
 		assert.strictEqual(tree.root.childrenCount, 0);

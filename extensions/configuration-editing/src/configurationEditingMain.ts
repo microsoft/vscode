@@ -54,6 +54,7 @@ function registerVariableCompletions(pattern: string): vscode.Disposable {
 				return [
 					{ label: 'workspaceFolder', detail: vscode.l10n.t("The path of the folder opened in VS Code") },
 					{ label: 'workspaceFolderBasename', detail: vscode.l10n.t("The name of the folder opened in VS Code without any slashes (/)") },
+					{ label: 'fileWorkspaceFolderBasename', detail: vscode.l10n.t("The current opened file workspace folder name without any slashes (/)") },
 					{ label: 'relativeFile', detail: vscode.l10n.t("The current opened file relative to ${workspaceFolder}") },
 					{ label: 'relativeFileDirname', detail: vscode.l10n.t("The current opened file's dirname relative to ${workspaceFolder}") },
 					{ label: 'file', detail: vscode.l10n.t("The current opened file") },
@@ -61,12 +62,13 @@ function registerVariableCompletions(pattern: string): vscode.Disposable {
 					{ label: 'lineNumber', detail: vscode.l10n.t("The current selected line number in the active file") },
 					{ label: 'selectedText', detail: vscode.l10n.t("The current selected text in the active file") },
 					{ label: 'fileDirname', detail: vscode.l10n.t("The current opened file's dirname") },
+					{ label: 'fileDirnameBasename', detail: vscode.l10n.t("The current opened file's folder name") },
 					{ label: 'fileExtname', detail: vscode.l10n.t("The current opened file's extension") },
 					{ label: 'fileBasename', detail: vscode.l10n.t("The current opened file's basename") },
 					{ label: 'fileBasenameNoExtension', detail: vscode.l10n.t("The current opened file's basename with no file extension") },
 					{ label: 'defaultBuildTask', detail: vscode.l10n.t("The name of the default build task. If there is not a single default build task then a quick pick is shown to choose the build task.") },
-					{ label: 'pathSeparator', detail: vscode.l10n.t("The character used by the operating system to separate components in file paths") },
-					{ label: 'extensionInstallFolder', detail: vscode.l10n.t("The path where an an extension is installed."), param: 'publisher.extension' },
+					{ label: 'pathSeparator', detail: vscode.l10n.t("The character used by the operating system to separate components in file paths. Is also aliased to '/'.") },
+					{ label: 'extensionInstallFolder', detail: vscode.l10n.t("The path where an extension is installed."), param: 'publisher.extension' },
 				].map(variable => ({
 					label: `\${${variable.label}}`,
 					range,

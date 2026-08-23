@@ -3,36 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { ModelService } from 'vs/editor/common/services/modelService';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestColorTheme, TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
-import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { DocumentSemanticTokensProvider, SemanticTokens, SemanticTokensEdits, SemanticTokensLegend } from 'vs/editor/common/languages';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Barrier, timeout } from 'vs/base/common/async';
-import { LanguageService } from 'vs/editor/common/services/languageService';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
-import { getDocumentSemanticTokens, isSemanticTokens } from 'vs/editor/contrib/semanticTokens/common/getSemanticTokens';
-import { LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { SemanticTokensStylingService } from 'vs/editor/common/services/semanticTokensStylingService';
-import { DocumentSemanticTokensFeature } from 'vs/editor/contrib/semanticTokens/browser/documentSemanticTokens';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { mock } from 'vs/base/test/common/mock';
+import assert from 'assert';
+import { Barrier, timeout } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Range } from '../../../../common/core/range.js';
+import { DocumentSemanticTokensProvider, SemanticTokens, SemanticTokensEdits, SemanticTokensLegend } from '../../../../common/languages.js';
+import { ILanguageService } from '../../../../common/languages/language.js';
+import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
+import { ITextModel } from '../../../../common/model.js';
+import { LanguageFeatureDebounceService } from '../../../../common/services/languageFeatureDebounce.js';
+import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
+import { LanguageFeaturesService } from '../../../../common/services/languageFeaturesService.js';
+import { LanguageService } from '../../../../common/services/languageService.js';
+import { IModelService } from '../../../../common/services/model.js';
+import { ModelService } from '../../../../common/services/modelService.js';
+import { SemanticTokensStylingService } from '../../../../common/services/semanticTokensStylingService.js';
+import { DocumentSemanticTokensFeature } from '../../browser/documentSemanticTokens.js';
+import { getDocumentSemanticTokens, isSemanticTokens } from '../../common/getSemanticTokens.js';
+import { TestLanguageConfigurationService } from '../../../../test/common/modes/testLanguageConfigurationService.js';
+import { TestTextResourcePropertiesService } from '../../../../test/common/services/testTextResourcePropertiesService.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
+import { ColorScheme } from '../../../../../platform/theme/common/theme.js';
+import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
+import { UndoRedoService } from '../../../../../platform/undoRedo/common/undoRedoService.js';
+import { ITreeSitterLibraryService } from '../../../../common/services/treeSitter/treeSitterLibraryService.js';
+import { TestTreeSitterLibraryService } from '../../../../test/common/services/testTreeSitterLibraryService.js';
 
 suite('ModelSemanticColoring', () => {
 
@@ -49,12 +54,15 @@ suite('ModelSemanticColoring', () => {
 		languageFeaturesService = new LanguageFeaturesService();
 		languageService = disposables.add(new LanguageService(false));
 		const semanticTokensStylingService = disposables.add(new SemanticTokensStylingService(themeService, logService, languageService));
+		const instantiationService = new TestInstantiationService();
+		instantiationService.set(ILanguageService, languageService);
+		instantiationService.set(ILanguageConfigurationService, new TestLanguageConfigurationService());
+		instantiationService.set(ITreeSitterLibraryService, new TestTreeSitterLibraryService());
 		modelService = disposables.add(new ModelService(
 			configService,
 			new TestTextResourcePropertiesService(configService),
 			new UndoRedoService(new TestDialogService(), new TestNotificationService()),
-			languageService,
-			new TestLanguageConfigurationService(),
+			instantiationService
 		));
 		const envService = new class extends mock<IEnvironmentService>() {
 			override isBuilt: boolean = true;
@@ -66,6 +74,8 @@ suite('ModelSemanticColoring', () => {
 	teardown(() => {
 		disposables.clear();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('DocumentSemanticTokens should be fetched when the result is empty if there are pending changes', async () => {
 		await runWithFakedTimers({}, async () => {

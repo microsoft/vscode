@@ -3,32 +3,222 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
-import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { TimeoutTimer } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import * as event from 'vs/base/common/event';
-import * as dompurify from 'vs/base/browser/dompurify/dompurify';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { FileAccess, RemoteAuthorities, Schemas } from 'vs/base/common/network';
-import * as platform from 'vs/base/common/platform';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
+import * as browser from './browser.js';
+import { BrowserFeatures } from './canIUse.js';
+import { hasModifierKeys, IKeyboardEvent, StandardKeyboardEvent } from './keyboardEvent.js';
+import { IMouseEvent, StandardMouseEvent } from './mouseEvent.js';
+import { AbstractIdleValue, IntervalTimer, TimeoutTimer, _runWhenIdle, IdleDeadline } from '../common/async.js';
+import { BugIndicatingError, onUnexpectedError } from '../common/errors.js';
+import * as event from '../common/event.js';
+import { KeyCode } from '../common/keyCodes.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../common/lifecycle.js';
+import { RemoteAuthorities } from '../common/network.js';
+import * as platform from '../common/platform.js';
+import { URI } from '../common/uri.js';
+import { hash } from '../common/hash.js';
+import { CodeWindow, ensureCodeWindow, mainWindow } from './window.js';
+import { isPointWithinTriangle } from '../common/numbers.js';
+import { IObservable, derived, derivedOpts, IReader, observableValue, isObservable } from '../common/observable.js';
+
+export interface IRegisteredCodeWindow {
+	readonly window: CodeWindow;
+	readonly disposables: DisposableStore;
+}
+
+//# region Multi-Window Support Utilities
+
+export const {
+	registerWindow,
+	getWindow,
+	getDocument,
+	getWindows,
+	getWindowsCount,
+	getWindowId,
+	getWindowById,
+	hasWindow,
+	onDidRegisterWindow,
+	onWillUnregisterWindow,
+	onDidUnregisterWindow
+} = (function () {
+	const windows = new Map<number, IRegisteredCodeWindow>();
+
+	ensureCodeWindow(mainWindow, 1);
+	const mainWindowRegistration = { window: mainWindow, disposables: new DisposableStore() };
+	windows.set(mainWindow.vscodeWindowId, mainWindowRegistration);
+
+	const onDidRegisterWindow = new event.Emitter<IRegisteredCodeWindow>();
+	const onDidUnregisterWindow = new event.Emitter<CodeWindow>();
+	const onWillUnregisterWindow = new event.Emitter<CodeWindow>();
+
+	function getWindowById(windowId: number): IRegisteredCodeWindow | undefined;
+	function getWindowById(windowId: number | undefined, fallbackToMain: true): IRegisteredCodeWindow;
+	function getWindowById(windowId: number | undefined, fallbackToMain?: boolean): IRegisteredCodeWindow | undefined {
+		const window = typeof windowId === 'number' ? windows.get(windowId) : undefined;
+
+		return window ?? (fallbackToMain ? mainWindowRegistration : undefined);
+	}
+
+	return {
+		onDidRegisterWindow: onDidRegisterWindow.event,
+		onWillUnregisterWindow: onWillUnregisterWindow.event,
+		onDidUnregisterWindow: onDidUnregisterWindow.event,
+		registerWindow(window: CodeWindow): IDisposable {
+			if (windows.has(window.vscodeWindowId)) {
+				return Disposable.None;
+			}
+
+			const disposables = new DisposableStore();
+
+			const registeredWindow = {
+				window,
+				disposables: disposables.add(new DisposableStore())
+			};
+			windows.set(window.vscodeWindowId, registeredWindow);
+
+			disposables.add(toDisposable(() => {
+				windows.delete(window.vscodeWindowId);
+				onDidUnregisterWindow.fire(window);
+			}));
+
+			disposables.add(addDisposableListener(window, EventType.BEFORE_UNLOAD, () => {
+				onWillUnregisterWindow.fire(window);
+			}));
+
+			onDidRegisterWindow.fire(registeredWindow);
+
+			return disposables;
+		},
+		getWindows(): Iterable<IRegisteredCodeWindow> {
+			return windows.values();
+		},
+		getWindowsCount(): number {
+			return windows.size;
+		},
+		getWindowId(targetWindow: Window): number {
+			return (targetWindow as CodeWindow).vscodeWindowId;
+		},
+		hasWindow(windowId: number): boolean {
+			return windows.has(windowId);
+		},
+		getWindowById,
+		getWindow(e: Node | UIEvent | undefined | null): CodeWindow {
+			const candidateNode = e as Node | undefined | null;
+			if (candidateNode?.ownerDocument?.defaultView) {
+				return candidateNode.ownerDocument.defaultView.window as CodeWindow;
+			}
+
+			const candidateEvent = e as UIEvent | undefined | null;
+			if (candidateEvent?.view) {
+				return candidateEvent.view.window as CodeWindow;
+			}
+
+			return mainWindow;
+		},
+		getDocument(e: Node | UIEvent | undefined | null): Document {
+			const candidateNode = e as Node | undefined | null;
+			return getWindow(candidateNode).document;
+		}
+	};
+})();
+
+//#endregion
+
+//#region External Focus Tracking
+
+/**
+ * Information about external focus state, including the associated window.
+ */
+export interface IExternalFocusInfo {
+	readonly hasFocus: boolean;
+	readonly window?: CodeWindow;
+}
+
+/**
+ * A function that checks if a component outside the normal DOM tree has focus.
+ * Returns focus info including which window the component is associated with.
+ */
+export type ExternalFocusChecker = () => IExternalFocusInfo;
+
+/**
+ * A registry for functions that check if a component outside the normal DOM tree has focus.
+ * This is used to extend the concept of "window has focus" to include things like
+ * Electron WebContentsViews (browser views) that exist outside the workbench DOM.
+ */
+const externalFocusCheckers = new Set<ExternalFocusChecker>();
+
+/**
+ * Register a function that checks if a component outside the DOM has focus.
+ * This allows `hasExternalFocus` to detect when focus is in components like browser views,
+ * and `getExternalFocusWindow` to determine which window the focused component belongs to.
+ *
+ * @param checker A function that returns focus info for the component
+ * @returns A disposable to unregister the checker
+ */
+export function registerExternalFocusChecker(checker: ExternalFocusChecker): IDisposable {
+	externalFocusCheckers.add(checker);
+
+	return toDisposable(() => {
+		externalFocusCheckers.delete(checker);
+	});
+}
+
+/**
+ * Check if any registered external component has focus.
+ * This is used to extend focus detection beyond the normal DOM to include
+ * components like Electron WebContentsViews.
+ *
+ * @returns true if any registered external component has focus
+ */
+export function hasExternalFocus(): boolean {
+	for (const checker of externalFocusCheckers) {
+		if (checker().hasFocus) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * Get the window associated with a focused external component.
+ * This is used to determine which window should receive UI like dialogs
+ * when an external component (like a browser view) has focus.
+ *
+ * @returns The window of the focused external component, or undefined if none
+ */
+export function getExternalFocusWindow(): CodeWindow | undefined {
+	for (const checker of externalFocusCheckers) {
+		const info = checker();
+		if (info.hasFocus && info.window) {
+			return info.window;
+		}
+	}
+	return undefined;
+}
+
+/**
+ * Check if the application has focus in any window, either via the normal DOM or via an
+ * external component like a browser view (which exists outside the document tree).
+ *
+ * @returns true if the application owns the current focus
+ */
+export function hasAppFocus(): boolean {
+	for (const { window } of getWindows()) {
+		if (window.document.hasFocus()) {
+			return true;
+		}
+	}
+	if (hasExternalFocus()) {
+		return true;
+	}
+	return false;
+}
+
+//#endregion
 
 export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
 		node.firstChild.remove();
 	}
-}
-
-/**
- * @deprecated Use node.isConnected directly
- */
-export function isInDOM(node: Node | null): boolean {
-	return node?.isConnected ?? false;
 }
 
 class DomListener implements IDisposable {
@@ -46,7 +236,7 @@ class DomListener implements IDisposable {
 		this._node.addEventListener(this._type, this._handler, this._options);
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		if (!this._handler) {
 			// Already disposed
 			return;
@@ -68,19 +258,19 @@ export function addDisposableListener(node: EventTarget, type: string, handler: 
 }
 
 export interface IAddStandardDisposableListenerSignature {
-	(node: HTMLElement, type: 'click', handler: (event: IMouseEvent) => void, useCapture?: boolean): IDisposable;
-	(node: HTMLElement, type: 'mousedown', handler: (event: IMouseEvent) => void, useCapture?: boolean): IDisposable;
-	(node: HTMLElement, type: 'keydown', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
-	(node: HTMLElement, type: 'keypress', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
-	(node: HTMLElement, type: 'keyup', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
-	(node: HTMLElement, type: 'pointerdown', handler: (event: PointerEvent) => void, useCapture?: boolean): IDisposable;
-	(node: HTMLElement, type: 'pointermove', handler: (event: PointerEvent) => void, useCapture?: boolean): IDisposable;
-	(node: HTMLElement, type: 'pointerup', handler: (event: PointerEvent) => void, useCapture?: boolean): IDisposable;
-	(node: HTMLElement, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement | Element | Document, type: 'click', handler: (event: IMouseEvent) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement | Element | Document, type: 'mousedown', handler: (event: IMouseEvent) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement | Element | Document, type: 'keydown', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement | Element | Document, type: 'keypress', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement | Element | Document, type: 'keyup', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement | Element | Document, type: 'pointerdown', handler: (event: PointerEvent) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement | Element | Document, type: 'pointermove', handler: (event: PointerEvent) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement | Element | Document, type: 'pointerup', handler: (event: PointerEvent) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement | Element | Document, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
 }
-function _wrapAsStandardMouseEvent(handler: (e: IMouseEvent) => void): (e: MouseEvent) => void {
+function _wrapAsStandardMouseEvent(targetWindow: Window, handler: (e: IMouseEvent) => void): (e: MouseEvent) => void {
 	return function (e: MouseEvent) {
-		return handler(new StandardMouseEvent(e));
+		return handler(new StandardMouseEvent(targetWindow, e));
 	};
 }
 function _wrapAsStandardKeyboardEvent(handler: (e: IKeyboardEvent) => void): (e: KeyboardEvent) => void {
@@ -88,11 +278,11 @@ function _wrapAsStandardKeyboardEvent(handler: (e: IKeyboardEvent) => void): (e:
 		return handler(new StandardKeyboardEvent(e));
 	};
 }
-export const addStandardDisposableListener: IAddStandardDisposableListenerSignature = function addStandardDisposableListener(node: HTMLElement, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+export const addStandardDisposableListener: IAddStandardDisposableListenerSignature = function addStandardDisposableListener(node: HTMLElement | Element | Document, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable {
 	let wrapHandler = handler;
 
-	if (type === 'click' || type === 'mousedown') {
-		wrapHandler = _wrapAsStandardMouseEvent(handler);
+	if (type === 'click' || type === 'mousedown' || type === 'contextmenu') {
+		wrapHandler = _wrapAsStandardMouseEvent(getWindow(node), handler);
 	} else if (type === 'keydown' || type === 'keypress' || type === 'keyup') {
 		wrapHandler = _wrapAsStandardKeyboardEvent(handler);
 	}
@@ -101,13 +291,13 @@ export const addStandardDisposableListener: IAddStandardDisposableListenerSignat
 };
 
 export const addStandardDisposableGenericMouseDownListener = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
-	const wrapHandler = _wrapAsStandardMouseEvent(handler);
+	const wrapHandler = _wrapAsStandardMouseEvent(getWindow(node), handler);
 
 	return addDisposableGenericMouseDownListener(node, wrapHandler, useCapture);
 };
 
 export const addStandardDisposableGenericMouseUpListener = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
-	const wrapHandler = _wrapAsStandardMouseEvent(handler);
+	const wrapHandler = _wrapAsStandardMouseEvent(getWindow(node), handler);
 
 	return addDisposableGenericMouseUpListener(node, wrapHandler, useCapture);
 };
@@ -124,19 +314,84 @@ export function addDisposableGenericMouseUpListener(node: EventTarget, handler: 
 }
 
 /**
+ * Execute the callback the next time the browser is idle, returning an
+ * {@link IDisposable} that will cancel the callback when disposed. This wraps
+ * [requestIdleCallback] so it will fallback to [setTimeout] if the environment
+ * doesn't support it.
+ *
+ * @param targetWindow The window for which to run the idle callback
+ * @param callback The callback to run when idle, this includes an
+ * [IdleDeadline] that provides the time alloted for the idle callback by the
+ * browser. Not respecting this deadline will result in a degraded user
+ * experience.
+ * @param timeout A timeout at which point to queue no longer wait for an idle
+ * callback but queue it on the regular event loop (like setTimeout). Typically
+ * this should not be used.
+ *
+ * [IdleDeadline]: https://developer.mozilla.org/en-US/docs/Web/API/IdleDeadline
+ * [requestIdleCallback]: https://developer.mozilla.org/en-US/docs/Web/API/Window/requestIdleCallback
+ * [setTimeout]: https://developer.mozilla.org/en-US/docs/Web/API/Window/setTimeout
+ */
+export function runWhenWindowIdle(targetWindow: Window | typeof globalThis, callback: (idle: IdleDeadline) => void, timeout?: number): IDisposable {
+	return _runWhenIdle(targetWindow, callback, timeout);
+}
+
+/**
+ * An implementation of the "idle-until-urgent"-strategy as introduced
+ * here: https://philipwalton.com/articles/idle-until-urgent/
+ */
+export class WindowIdleValue<T> extends AbstractIdleValue<T> {
+	constructor(targetWindow: Window | typeof globalThis, executor: () => T) {
+		super(targetWindow, executor);
+	}
+}
+
+/**
  * Schedule a callback to be run at the next animation frame.
  * This allows multiple parties to register callbacks that should run at the next animation frame.
  * If currently in an animation frame, `runner` will be executed immediately.
  * @return token that can be used to cancel the scheduled runner (only if `runner` was not executed immediately).
  */
-export let runAtThisOrScheduleAtNextAnimationFrame: (runner: () => void, priority?: number) => IDisposable;
+export let runAtThisOrScheduleAtNextAnimationFrame: (targetWindow: Window, runner: () => void, priority?: number) => IDisposable;
 /**
  * Schedule a callback to be run at the next animation frame.
  * This allows multiple parties to register callbacks that should run at the next animation frame.
  * If currently in an animation frame, `runner` will be executed at the next animation frame.
  * @return token that can be used to cancel the scheduled runner.
  */
-export let scheduleAtNextAnimationFrame: (runner: () => void, priority?: number) => IDisposable;
+export let scheduleAtNextAnimationFrame: (targetWindow: Window, runner: () => void, priority?: number) => IDisposable;
+
+export function disposableWindowInterval(targetWindow: Window, handler: () => void | boolean /* stop interval */ | Promise<unknown>, interval: number, iterations?: number): IDisposable {
+	let iteration = 0;
+	const timer = targetWindow.setInterval(() => {
+		iteration++;
+		if ((typeof iterations === 'number' && iteration >= iterations) || handler() === true) {
+			disposable.dispose();
+		}
+	}, interval);
+	const disposable = toDisposable(() => {
+		targetWindow.clearInterval(timer);
+	});
+	return disposable;
+}
+
+export class WindowIntervalTimer extends IntervalTimer {
+
+	private readonly defaultTarget?: Window & typeof globalThis;
+
+	/**
+	 *
+	 * @param node The optional node from which the target window is determined
+	 */
+	constructor(node?: Node) {
+		super();
+		this.defaultTarget = node && getWindow(node);
+	}
+
+	override cancelAndSet(runner: () => void, interval: number, targetWindow?: Window & typeof globalThis): void {
+		return super.cancelAndSet(runner, interval, targetWindow ?? this.defaultTarget);
+	}
+}
 
 class AnimationFrameQueueItem implements IDisposable {
 
@@ -150,11 +405,11 @@ class AnimationFrameQueueItem implements IDisposable {
 		this._canceled = false;
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this._canceled = true;
 	}
 
-	public execute(): void {
+	execute(): void {
 		if (this._canceled) {
 			return;
 		}
@@ -167,7 +422,7 @@ class AnimationFrameQueueItem implements IDisposable {
 	}
 
 	// Sort by priority (largest to lowest)
-	public static sort(a: AnimationFrameQueueItem, b: AnimationFrameQueueItem): number {
+	static sort(a: AnimationFrameQueueItem, b: AnimationFrameQueueItem): number {
 		return b.priority - a.priority;
 	}
 }
@@ -176,64 +431,129 @@ class AnimationFrameQueueItem implements IDisposable {
 	/**
 	 * The runners scheduled at the next animation frame
 	 */
-	let NEXT_QUEUE: AnimationFrameQueueItem[] = [];
+	const NEXT_QUEUE = new Map<number /* window ID */, AnimationFrameQueueItem[]>();
 	/**
 	 * The runners scheduled at the current animation frame
 	 */
-	let CURRENT_QUEUE: AnimationFrameQueueItem[] | null = null;
+	const CURRENT_QUEUE = new Map<number /* window ID */, AnimationFrameQueueItem[]>();
 	/**
 	 * A flag to keep track if the native requestAnimationFrame was already called
 	 */
-	let animFrameRequested = false;
+	const animFrameRequested = new Map<number /* window ID */, boolean>();
 	/**
 	 * A flag to indicate if currently handling a native requestAnimationFrame callback
 	 */
-	let inAnimationFrameRunner = false;
+	const inAnimationFrameRunner = new Map<number /* window ID */, boolean>();
 
-	const animationFrameRunner = () => {
-		animFrameRequested = false;
+	const animationFrameRunner = (targetWindowId: number) => {
+		animFrameRequested.set(targetWindowId, false);
 
-		CURRENT_QUEUE = NEXT_QUEUE;
-		NEXT_QUEUE = [];
+		const currentQueue = NEXT_QUEUE.get(targetWindowId) ?? [];
+		CURRENT_QUEUE.set(targetWindowId, currentQueue);
+		NEXT_QUEUE.set(targetWindowId, []);
 
-		inAnimationFrameRunner = true;
-		while (CURRENT_QUEUE.length > 0) {
-			CURRENT_QUEUE.sort(AnimationFrameQueueItem.sort);
-			const top = CURRENT_QUEUE.shift()!;
+		inAnimationFrameRunner.set(targetWindowId, true);
+		while (currentQueue.length > 0) {
+			currentQueue.sort(AnimationFrameQueueItem.sort);
+			const top = currentQueue.shift()!;
 			top.execute();
 		}
-		inAnimationFrameRunner = false;
+		inAnimationFrameRunner.set(targetWindowId, false);
 	};
 
-	scheduleAtNextAnimationFrame = (runner: () => void, priority: number = 0) => {
+	scheduleAtNextAnimationFrame = (targetWindow: Window, runner: () => void, priority: number = 0) => {
+		const targetWindowId = getWindowId(targetWindow);
 		const item = new AnimationFrameQueueItem(runner, priority);
-		NEXT_QUEUE.push(item);
 
-		if (!animFrameRequested) {
-			animFrameRequested = true;
-			requestAnimationFrame(animationFrameRunner);
+		let nextQueue = NEXT_QUEUE.get(targetWindowId);
+		if (!nextQueue) {
+			nextQueue = [];
+			NEXT_QUEUE.set(targetWindowId, nextQueue);
+		}
+		nextQueue.push(item);
+
+		if (!animFrameRequested.get(targetWindowId)) {
+			animFrameRequested.set(targetWindowId, true);
+			targetWindow.requestAnimationFrame(() => animationFrameRunner(targetWindowId));
 		}
 
 		return item;
 	};
 
-	runAtThisOrScheduleAtNextAnimationFrame = (runner: () => void, priority?: number) => {
-		if (inAnimationFrameRunner) {
+	runAtThisOrScheduleAtNextAnimationFrame = (targetWindow: Window, runner: () => void, priority?: number) => {
+		const targetWindowId = getWindowId(targetWindow);
+		if (inAnimationFrameRunner.get(targetWindowId)) {
 			const item = new AnimationFrameQueueItem(runner, priority);
-			CURRENT_QUEUE!.push(item);
+			let currentQueue = CURRENT_QUEUE.get(targetWindowId);
+			if (!currentQueue) {
+				currentQueue = [];
+				CURRENT_QUEUE.set(targetWindowId, currentQueue);
+			}
+			currentQueue.push(item);
 			return item;
 		} else {
-			return scheduleAtNextAnimationFrame(runner, priority);
+			return scheduleAtNextAnimationFrame(targetWindow, runner, priority);
 		}
 	};
 })();
 
-export function measure(callback: () => void): IDisposable {
-	return scheduleAtNextAnimationFrame(callback, 10000 /* must be early */);
+export function measure(targetWindow: Window, callback: () => void): IDisposable {
+	return scheduleAtNextAnimationFrame(targetWindow, callback, 10000 /* must be early */);
 }
 
-export function modify(callback: () => void): IDisposable {
-	return scheduleAtNextAnimationFrame(callback, -10000 /* must be late */);
+export function modify(targetWindow: Window, callback: () => void): IDisposable {
+	return scheduleAtNextAnimationFrame(targetWindow, callback, -10000 /* must be late */);
+}
+
+/**
+ * A scheduler that coalesces multiple `schedule()` calls into a single callback
+ * at the next animation frame. Similar to `RunOnceScheduler` but uses animation frames
+ * instead of timeouts.
+ */
+export class AnimationFrameScheduler implements IDisposable {
+
+	private readonly runner: () => void;
+	private readonly node: Node;
+	private readonly pendingRunner = new MutableDisposable<IDisposable>();
+
+	constructor(node: Node, runner: () => void) {
+		this.node = node;
+		this.runner = runner;
+	}
+
+	dispose(): void {
+		this.pendingRunner.dispose();
+	}
+
+	/**
+	 * Cancel the currently scheduled runner (if any).
+	 */
+	cancel(): void {
+		this.pendingRunner.clear();
+	}
+
+	/**
+	 * Schedule the runner to execute at the next animation frame.
+	 * If already scheduled, this is a no-op (the existing schedule is kept).
+	 * If currently in an animation frame, the runner will execute immediately.
+	 */
+	schedule(): void {
+		if (this.pendingRunner.value) {
+			return; // Already scheduled
+		}
+
+		this.pendingRunner.value = runAtThisOrScheduleAtNextAnimationFrame(getWindow(this.node), () => {
+			this.pendingRunner.clear();
+			this.runner();
+		});
+	}
+
+	/**
+	 * Returns true if a runner is scheduled.
+	 */
+	isScheduled(): boolean {
+		return this.pendingRunner.value !== undefined;
+	}
 }
 
 /**
@@ -244,13 +564,13 @@ export interface IEventMerger<R, E> {
 }
 
 const MINIMUM_TIME_MS = 8;
-const DEFAULT_EVENT_MERGER: IEventMerger<Event, Event> = function (lastEvent: Event | null, currentEvent: Event) {
+function DEFAULT_EVENT_MERGER<T>(_lastEvent: unknown, currentEvent: T) {
 	return currentEvent;
-};
+}
 
 class TimeoutThrottledDomListener<R, E extends Event> extends Disposable {
 
-	constructor(node: any, type: string, handler: (event: R) => void, eventMerger: IEventMerger<R, E> = <any>DEFAULT_EVENT_MERGER, minimumTimeMs: number = MINIMUM_TIME_MS) {
+	constructor(node: Node, type: string, handler: (event: R) => void, eventMerger: IEventMerger<R, E> = DEFAULT_EVENT_MERGER as IEventMerger<R, E>, minimumTimeMs: number = MINIMUM_TIME_MS) {
 		super();
 
 		let lastEvent: R | null = null;
@@ -283,34 +603,44 @@ export function addDisposableThrottledListener<R, E extends Event = Event>(node:
 }
 
 export function getComputedStyle(el: HTMLElement): CSSStyleDeclaration {
-	return document.defaultView!.getComputedStyle(el, null);
+	return getWindow(el).getComputedStyle(el, null);
 }
 
-export function getClientArea(element: HTMLElement): Dimension {
+export function getClientArea(element: HTMLElement, defaultValue?: Dimension, fallbackElement?: HTMLElement): Dimension {
+	const elWindow = getWindow(element);
+	const elDocument = elWindow.document;
 
 	// Try with DOM clientWidth / clientHeight
-	if (element !== document.body) {
+	if (element !== elDocument.body) {
 		return new Dimension(element.clientWidth, element.clientHeight);
 	}
 
 	// If visual view port exits and it's on mobile, it should be used instead of window innerWidth / innerHeight, or document.body.clientWidth / document.body.clientHeight
-	if (platform.isIOS && window.visualViewport) {
-		return new Dimension(window.visualViewport.width, window.visualViewport.height);
+	if (platform.isIOS && elWindow?.visualViewport) {
+		return new Dimension(elWindow.visualViewport.width, elWindow.visualViewport.height);
 	}
 
 	// Try innerWidth / innerHeight
-	if (window.innerWidth && window.innerHeight) {
-		return new Dimension(window.innerWidth, window.innerHeight);
+	if (elWindow?.innerWidth && elWindow.innerHeight) {
+		return new Dimension(elWindow.innerWidth, elWindow.innerHeight);
 	}
 
 	// Try with document.body.clientWidth / document.body.clientHeight
-	if (document.body && document.body.clientWidth && document.body.clientHeight) {
-		return new Dimension(document.body.clientWidth, document.body.clientHeight);
+	if (elDocument.body && elDocument.body.clientWidth && elDocument.body.clientHeight) {
+		return new Dimension(elDocument.body.clientWidth, elDocument.body.clientHeight);
 	}
 
 	// Try with document.documentElement.clientWidth / document.documentElement.clientHeight
-	if (document.documentElement && document.documentElement.clientWidth && document.documentElement.clientHeight) {
-		return new Dimension(document.documentElement.clientWidth, document.documentElement.clientHeight);
+	if (elDocument.documentElement && elDocument.documentElement.clientWidth && elDocument.documentElement.clientHeight) {
+		return new Dimension(elDocument.documentElement.clientWidth, elDocument.documentElement.clientHeight);
+	}
+
+	if (fallbackElement) {
+		return getClientArea(fallbackElement, defaultValue);
+	}
+
+	if (defaultValue) {
+		return defaultValue;
 	}
 
 	throw new Error('Unable to figure out browser width and height');
@@ -323,49 +653,49 @@ class SizeUtils {
 		return parseFloat(value) || 0;
 	}
 
-	private static getDimension(element: HTMLElement, cssPropertyName: string, jsPropertyName: string): number {
+	private static getDimension(element: HTMLElement, cssPropertyName: string): number {
 		const computedStyle = getComputedStyle(element);
 		const value = computedStyle ? computedStyle.getPropertyValue(cssPropertyName) : '0';
 		return SizeUtils.convertToPixels(element, value);
 	}
 
 	static getBorderLeftWidth(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'border-left-width', 'borderLeftWidth');
+		return SizeUtils.getDimension(element, 'border-left-width');
 	}
 	static getBorderRightWidth(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'border-right-width', 'borderRightWidth');
+		return SizeUtils.getDimension(element, 'border-right-width');
 	}
 	static getBorderTopWidth(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'border-top-width', 'borderTopWidth');
+		return SizeUtils.getDimension(element, 'border-top-width');
 	}
 	static getBorderBottomWidth(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'border-bottom-width', 'borderBottomWidth');
+		return SizeUtils.getDimension(element, 'border-bottom-width');
 	}
 
 	static getPaddingLeft(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'padding-left', 'paddingLeft');
+		return SizeUtils.getDimension(element, 'padding-left');
 	}
 	static getPaddingRight(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'padding-right', 'paddingRight');
+		return SizeUtils.getDimension(element, 'padding-right');
 	}
 	static getPaddingTop(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'padding-top', 'paddingTop');
+		return SizeUtils.getDimension(element, 'padding-top');
 	}
 	static getPaddingBottom(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'padding-bottom', 'paddingBottom');
+		return SizeUtils.getDimension(element, 'padding-bottom');
 	}
 
 	static getMarginLeft(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'margin-left', 'marginLeft');
+		return SizeUtils.getDimension(element, 'margin-left');
 	}
 	static getMarginTop(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'margin-top', 'marginTop');
+		return SizeUtils.getDimension(element, 'margin-top');
 	}
 	static getMarginRight(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'margin-right', 'marginRight');
+		return SizeUtils.getDimension(element, 'margin-right');
 	}
 	static getMarginBottom(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'margin-bottom', 'marginBottom');
+		return SizeUtils.getDimension(element, 'margin-bottom');
 	}
 }
 
@@ -382,8 +712,8 @@ export class Dimension implements IDimension {
 	static readonly None = new Dimension(0, 0);
 
 	constructor(
-		public readonly width: number,
-		public readonly height: number,
+		readonly width: number,
+		readonly height: number,
 	) { }
 
 	with(width: number = this.width, height: number = this.height): Dimension {
@@ -432,8 +762,8 @@ export function getTopLeftOffset(element: HTMLElement): IDomPosition {
 
 	while (
 		(element = <HTMLElement>element.parentNode) !== null
-		&& element !== document.body
-		&& element !== document.documentElement
+		&& element !== element.ownerDocument.body
+		&& element !== element.ownerDocument.documentElement
 	) {
 		top -= element.scrollTop;
 		const c = isShadowRoot(element) ? null : getComputedStyle(element);
@@ -498,6 +828,7 @@ export function position(element: HTMLElement, top: number, right?: number, bott
  */
 export function getDomNodePagePosition(domNode: HTMLElement): IDomNodePagePosition {
 	const bb = domNode.getBoundingClientRect();
+	const window = getWindow(domNode);
 	return {
 		left: bb.left + window.scrollX,
 		top: bb.top + window.scrollY,
@@ -513,13 +844,14 @@ export function getDomNodeZoomLevel(domNode: HTMLElement): number {
 	let testElement: HTMLElement | null = domNode;
 	let zoom = 1.0;
 	do {
+		// eslint-disable-next-line local/code-no-any-casts
 		const elementZoomLevel = (getComputedStyle(testElement) as any).zoom;
 		if (elementZoomLevel !== null && elementZoomLevel !== undefined && elementZoomLevel !== '1') {
 			zoom *= elementZoomLevel;
 		}
 
 		testElement = testElement.parentElement;
-	} while (testElement !== null && testElement !== document.documentElement);
+	} while (testElement !== null && testElement !== testElement.ownerDocument.documentElement);
 
 	return zoom;
 }
@@ -580,14 +912,7 @@ export function getLargestChildWidth(parent: HTMLElement, children: HTMLElement[
 // ----------------------------------------------------------------------------------------
 
 export function isAncestor(testChild: Node | null, testAncestor: Node | null): boolean {
-	while (testChild) {
-		if (testChild === testAncestor) {
-			return true;
-		}
-		testChild = testChild.parentNode;
-	}
-
-	return false;
+	return Boolean(testAncestor?.contains(testChild));
 }
 
 const parentFlowToDataKey = 'parentFlowToElementId';
@@ -603,7 +928,8 @@ export function setParentFlowTo(fromChildElement: HTMLElement, toParentElement: 
 function getParentFlowToElement(node: HTMLElement): HTMLElement | null {
 	const flowToParentId = node.dataset[parentFlowToDataKey];
 	if (typeof flowToParentId === 'string') {
-		return document.getElementById(flowToParentId);
+		// eslint-disable-next-line no-restricted-syntax
+		return node.ownerDocument.getElementById(flowToParentId);
 	}
 	return null;
 }
@@ -619,7 +945,7 @@ export function isAncestorUsingFlowTo(testChild: Node, testAncestor: Node): bool
 			return true;
 		}
 
-		if (node instanceof HTMLElement) {
+		if (isHTMLElement(node)) {
 			const flowToParentElement = getParentFlowToElement(node);
 			if (flowToParentElement) {
 				node = flowToParentElement;
@@ -632,9 +958,9 @@ export function isAncestorUsingFlowTo(testChild: Node, testAncestor: Node): bool
 	return false;
 }
 
-export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClazzOrNode?: string | HTMLElement): HTMLElement | null {
+export function findParentWithClass(node: HTMLElement, clazz: string | readonly string[], stopAtClazzOrNode?: string | HTMLElement): HTMLElement | null {
 	while (node && node.nodeType === node.ELEMENT_NODE) {
-		if (node.classList.contains(clazz)) {
+		if (typeof clazz === 'string' ? node.classList.contains(clazz) : clazz.every(candidate => node.classList.contains(candidate))) {
 			return node;
 		}
 
@@ -656,7 +982,7 @@ export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClaz
 	return null;
 }
 
-export function hasParentWithClass(node: HTMLElement, clazz: string, stopAtClazzOrNode?: string | HTMLElement): boolean {
+export function hasParentWithClass(node: HTMLElement, clazz: string | readonly string[], stopAtClazzOrNode?: string | HTMLElement): boolean {
 	return !!findParentWithClass(node, clazz, stopAtClazzOrNode);
 }
 
@@ -672,7 +998,7 @@ export function isInShadowDOM(domNode: Node): boolean {
 
 export function getShadowRoot(domNode: Node): ShadowRoot | null {
 	while (domNode.parentNode) {
-		if (domNode === document.body) {
+		if (domNode === domNode.ownerDocument?.body) {
 			// reached the body
 			return null;
 		}
@@ -681,8 +1007,13 @@ export function getShadowRoot(domNode: Node): ShadowRoot | null {
 	return isShadowRoot(domNode) ? domNode : null;
 }
 
+/**
+ * Returns the active element across all child windows
+ * based on document focus. Falls back to the main
+ * window if no window has focus.
+ */
 export function getActiveElement(): Element | null {
-	let result = document.activeElement;
+	let result = getActiveDocument().activeElement;
 
 	while (result?.shadowRoot) {
 		result = result.shadowRoot.activeElement;
@@ -691,73 +1022,191 @@ export function getActiveElement(): Element | null {
 	return result;
 }
 
-export function createStyleSheet(container: HTMLElement = document.getElementsByTagName('head')[0], beforeAppend?: (style: HTMLStyleElement) => void): HTMLStyleElement {
-	const style = document.createElement('style');
-	style.type = 'text/css';
-	style.media = 'screen';
-	beforeAppend?.(style);
-	container.appendChild(style);
-	return style;
+/**
+ * Returns true if the focused window active element matches
+ * the provided element. Falls back to the main window if no
+ * window has focus.
+ */
+export function isActiveElement(element: Element): boolean {
+	return getActiveElement() === element;
 }
 
-export function createMetaElement(container: HTMLElement = document.getElementsByTagName('head')[0]): HTMLMetaElement {
-	const meta = document.createElement('meta');
-	container.appendChild(meta);
-	return meta;
+/**
+ * Returns true if the focused window active element is contained in
+ * `ancestor`. Falls back to the main window if no window has focus.
+ */
+export function isAncestorOfActiveElement(ancestor: Element): boolean {
+	return isAncestor(getActiveElement(), ancestor);
 }
 
-let _sharedStyleSheet: HTMLStyleElement | null = null;
-function getSharedStyleSheet(): HTMLStyleElement {
-	if (!_sharedStyleSheet) {
-		_sharedStyleSheet = createStyleSheet();
-	}
-	return _sharedStyleSheet;
+/**
+ * Returns whether the element is in the active `document`. The active
+ * document has focus or will be the main windows document.
+ */
+export function isActiveDocument(element: Element): boolean {
+	return element.ownerDocument === getActiveDocument();
 }
 
-function getDynamicStyleSheetRules(style: any) {
-	if (style?.sheet?.rules) {
-		// Chrome, IE
-		return style.sheet.rules;
+/**
+ * Returns the active document across main and child windows.
+ * Prefers the window with focus (including external components like browser views),
+ * otherwise falls back to the main windows document.
+ */
+export function getActiveDocument(): Document {
+	if (getWindowsCount() <= 1) {
+		return mainWindow.document;
 	}
-	if (style?.sheet?.cssRules) {
-		// FF
-		return style.sheet.cssRules;
+
+	const documents = Array.from(getWindows()).map(({ window }) => window.document);
+	const focusedDoc = documents.find(doc => doc.hasFocus());
+	if (focusedDoc) {
+		return focusedDoc;
 	}
-	return [];
+
+	// Check if an external component (like browser view) has focus
+	const externalWindow = getExternalFocusWindow();
+	if (externalWindow) {
+		return externalWindow.document;
+	}
+
+	return mainWindow.document;
 }
 
-export function createCSSRule(selector: string, cssText: string, style: HTMLStyleElement = getSharedStyleSheet()): void {
-	if (!style || !cssText) {
-		return;
-	}
-
-	(<CSSStyleSheet>style.sheet).insertRule(selector + '{' + cssText + '}', 0);
+/**
+ * Returns the active window across main and child windows.
+ * Prefers the window with focus, otherwise falls back to
+ * the main window.
+ */
+export function getActiveWindow(): CodeWindow {
+	const document = getActiveDocument();
+	return (document.defaultView?.window ?? mainWindow) as CodeWindow;
 }
 
-export function removeCSSRulesContainingSelector(ruleName: string, style: HTMLStyleElement = getSharedStyleSheet()): void {
-	if (!style) {
-		return;
-	}
+interface IMutationObserver {
+	users: number;
+	readonly observer: MutationObserver;
+	readonly onDidMutate: event.Event<MutationRecord[]>;
+}
 
-	const rules = getDynamicStyleSheetRules(style);
-	const toDelete: number[] = [];
-	for (let i = 0; i < rules.length; i++) {
-		const rule = rules[i];
-		if (rule.selectorText.indexOf(ruleName) !== -1) {
-			toDelete.push(i);
+export const sharedMutationObserver = new class {
+
+	readonly mutationObservers = new Map<Node, Map<number, IMutationObserver>>();
+
+	observe(target: Node, disposables: DisposableStore, options?: MutationObserverInit): event.Event<MutationRecord[]> {
+		let mutationObserversPerTarget = this.mutationObservers.get(target);
+		if (!mutationObserversPerTarget) {
+			mutationObserversPerTarget = new Map<number, IMutationObserver>();
+			this.mutationObservers.set(target, mutationObserversPerTarget);
 		}
-	}
 
-	for (let i = toDelete.length - 1; i >= 0; i--) {
-		(<any>style.sheet).deleteRule(toDelete[i]);
+		const optionsHash = hash(options);
+		let mutationObserverPerOptions = mutationObserversPerTarget.get(optionsHash);
+		if (!mutationObserverPerOptions) {
+			const onDidMutate = new event.Emitter<MutationRecord[]>();
+			const observer = new MutationObserver(mutations => onDidMutate.fire(mutations));
+			observer.observe(target, options);
+
+			const resolvedMutationObserverPerOptions = mutationObserverPerOptions = {
+				users: 1,
+				observer,
+				onDidMutate: onDidMutate.event
+			};
+
+			disposables.add(toDisposable(() => {
+				resolvedMutationObserverPerOptions.users -= 1;
+
+				if (resolvedMutationObserverPerOptions.users === 0) {
+					onDidMutate.dispose();
+					observer.disconnect();
+
+					mutationObserversPerTarget?.delete(optionsHash);
+					if (mutationObserversPerTarget?.size === 0) {
+						this.mutationObservers.delete(target);
+					}
+				}
+			}));
+
+			mutationObserversPerTarget.set(optionsHash, mutationObserverPerOptions);
+		} else {
+			mutationObserverPerOptions.users += 1;
+		}
+
+		return mutationObserverPerOptions.onDidMutate;
 	}
+};
+
+export function createMetaElement(container: HTMLElement = mainWindow.document.head): HTMLMetaElement {
+	return createHeadElement('meta', container);
 }
 
-export function isHTMLElement(o: any): o is HTMLElement {
-	if (typeof HTMLElement === 'object') {
-		return o instanceof HTMLElement;
-	}
-	return o && typeof o === 'object' && o.nodeType === 1 && typeof o.nodeName === 'string';
+export function createLinkElement(container: HTMLElement = mainWindow.document.head): HTMLLinkElement {
+	return createHeadElement('link', container);
+}
+
+function createHeadElement<K extends keyof HTMLElementTagNameMap>(tagName: K, container: HTMLElement = mainWindow.document.head): HTMLElementTagNameMap[K] {
+	const element = document.createElement(tagName);
+	container.appendChild(element);
+	return element;
+}
+
+export function isHTMLElement(e: unknown): e is HTMLElement {
+	// eslint-disable-next-line no-restricted-syntax
+	return e instanceof HTMLElement || e instanceof getWindow(e as Node).HTMLElement;
+}
+
+export function isHTMLAnchorElement(e: unknown): e is HTMLAnchorElement {
+	// eslint-disable-next-line no-restricted-syntax
+	return e instanceof HTMLAnchorElement || e instanceof getWindow(e as Node).HTMLAnchorElement;
+}
+
+export function isHTMLSpanElement(e: unknown): e is HTMLSpanElement {
+	// eslint-disable-next-line no-restricted-syntax
+	return e instanceof HTMLSpanElement || e instanceof getWindow(e as Node).HTMLSpanElement;
+}
+
+export function isHTMLTextAreaElement(e: unknown): e is HTMLTextAreaElement {
+	// eslint-disable-next-line no-restricted-syntax
+	return e instanceof HTMLTextAreaElement || e instanceof getWindow(e as Node).HTMLTextAreaElement;
+}
+
+export function isHTMLInputElement(e: unknown): e is HTMLInputElement {
+	// eslint-disable-next-line no-restricted-syntax
+	return e instanceof HTMLInputElement || e instanceof getWindow(e as Node).HTMLInputElement;
+}
+
+export function isHTMLButtonElement(e: unknown): e is HTMLButtonElement {
+	// eslint-disable-next-line no-restricted-syntax
+	return e instanceof HTMLButtonElement || e instanceof getWindow(e as Node).HTMLButtonElement;
+}
+
+export function isHTMLDivElement(e: unknown): e is HTMLDivElement {
+	// eslint-disable-next-line no-restricted-syntax
+	return e instanceof HTMLDivElement || e instanceof getWindow(e as Node).HTMLDivElement;
+}
+
+export function isSVGElement(e: unknown): e is SVGElement {
+	// eslint-disable-next-line no-restricted-syntax
+	return e instanceof SVGElement || e instanceof getWindow(e as Node).SVGElement;
+}
+
+export function isMouseEvent(e: unknown): e is MouseEvent {
+	// eslint-disable-next-line no-restricted-syntax
+	return e instanceof MouseEvent || e instanceof getWindow(e as UIEvent).MouseEvent;
+}
+
+export function isKeyboardEvent(e: unknown): e is KeyboardEvent {
+	// eslint-disable-next-line no-restricted-syntax
+	return e instanceof KeyboardEvent || e instanceof getWindow(e as UIEvent).KeyboardEvent;
+}
+
+export function isPointerEvent(e: unknown): e is PointerEvent {
+	// eslint-disable-next-line no-restricted-syntax
+	return e instanceof PointerEvent || e instanceof getWindow(e as UIEvent).PointerEvent;
+}
+
+export function isDragEvent(e: unknown): e is DragEvent {
+	// eslint-disable-next-line no-restricted-syntax
+	return e instanceof DragEvent || e instanceof getWindow(e as UIEvent).DragEvent;
 }
 
 export const EventType = {
@@ -789,6 +1238,7 @@ export const EventType = {
 	UNLOAD: 'unload',
 	PAGE_SHOW: 'pageshow',
 	PAGE_HIDE: 'pagehide',
+	PASTE: 'paste',
 	ABORT: 'abort',
 	ERROR: 'error',
 	RESIZE: 'resize',
@@ -843,8 +1293,8 @@ export const EventHelper = {
 };
 
 export interface IFocusTracker extends Disposable {
-	onDidFocus: event.Event<void>;
-	onDidBlur: event.Event<void>;
+	readonly onDidFocus: event.Event<void>;
+	readonly onDidBlur: event.Event<void>;
 	refreshState(): void;
 }
 
@@ -869,22 +1319,27 @@ export function restoreParentsScrollTop(node: Element, state: number[]): void {
 class FocusTracker extends Disposable implements IFocusTracker {
 
 	private readonly _onDidFocus = this._register(new event.Emitter<void>());
-	public readonly onDidFocus: event.Event<void> = this._onDidFocus.event;
+	get onDidFocus() { return this._onDidFocus.event; }
 
 	private readonly _onDidBlur = this._register(new event.Emitter<void>());
-	public readonly onDidBlur: event.Event<void> = this._onDidBlur.event;
+	get onDidBlur() { return this._onDidBlur.event; }
 
 	private _refreshStateHandler: () => void;
 
-	private static hasFocusWithin(element: HTMLElement): boolean {
-		const shadowRoot = getShadowRoot(element);
-		const activeElement = (shadowRoot ? shadowRoot.activeElement : document.activeElement);
-		return isAncestor(activeElement, element);
+	private static hasFocusWithin(element: HTMLElement | Window): boolean {
+		if (isHTMLElement(element)) {
+			const shadowRoot = getShadowRoot(element);
+			const activeElement = (shadowRoot ? shadowRoot.activeElement : element.ownerDocument.activeElement);
+			return isAncestor(activeElement, element);
+		} else {
+			const window = element;
+			return isAncestor(window.document.activeElement, window.document);
+		}
 	}
 
 	constructor(element: HTMLElement | Window) {
 		super();
-		let hasFocus = FocusTracker.hasFocusWithin(<HTMLElement>element);
+		let hasFocus = FocusTracker.hasFocusWithin(element);
 		let loosingFocus = false;
 
 		const onFocus = () => {
@@ -898,7 +1353,7 @@ class FocusTracker extends Disposable implements IFocusTracker {
 		const onBlur = () => {
 			if (hasFocus) {
 				loosingFocus = true;
-				window.setTimeout(() => {
+				(isHTMLElement(element) ? getWindow(element) : element).setTimeout(() => {
 					if (loosingFocus) {
 						loosingFocus = false;
 						hasFocus = false;
@@ -921,8 +1376,11 @@ class FocusTracker extends Disposable implements IFocusTracker {
 
 		this._register(addDisposableListener(element, EventType.FOCUS, onFocus, true));
 		this._register(addDisposableListener(element, EventType.BLUR, onBlur, true));
-		this._register(addDisposableListener(element, EventType.FOCUS_IN, () => this._refreshStateHandler()));
-		this._register(addDisposableListener(element, EventType.FOCUS_OUT, () => this._refreshStateHandler()));
+		if (isHTMLElement(element)) {
+			this._register(addDisposableListener(element, EventType.FOCUS_IN, () => this._refreshStateHandler()));
+			this._register(addDisposableListener(element, EventType.FOCUS_OUT, () => this._refreshStateHandler()));
+		}
+
 	}
 
 	refreshState() {
@@ -950,7 +1408,7 @@ export function append<T extends Node>(parent: HTMLElement, ...children: (T | st
 export function append<T extends Node>(parent: HTMLElement, ...children: (T | string)[]): T | void {
 	parent.append(...children);
 	if (children.length === 1 && typeof children[0] !== 'string') {
-		return <T>children[0];
+		return children[0];
 	}
 }
 
@@ -963,7 +1421,7 @@ export function prepend<T extends Node>(parent: HTMLElement, child: T): T {
  * Removes all children from `parent` and appends `children`
  */
 export function reset(parent: HTMLElement, ...children: Array<Node | string>): void {
-	parent.innerText = '';
+	parent.textContent = '';
 	append(parent, ...children);
 }
 
@@ -1004,6 +1462,7 @@ function _$<T extends Element>(namespace: Namespace, description: string, attrs?
 			}
 
 			if (/^on\w+$/.test(name)) {
+				// eslint-disable-next-line local/code-no-any-casts
 				(<any>result)[name] = value;
 			} else if (name === 'selected') {
 				if (value) {
@@ -1018,7 +1477,7 @@ function _$<T extends Element>(namespace: Namespace, description: string, attrs?
 
 	result.append(...children);
 
-	return result as T;
+	return result;
 }
 
 export function $<T extends HTMLElement>(description: string, attrs?: { [key: string]: any }, ...children: Array<Node | string>): T {
@@ -1071,7 +1530,7 @@ export function hide(...elements: HTMLElement[]): void {
 
 function findParentWithAttribute(node: Node | null, attribute: string): HTMLElement | null {
 	while (node && node.nodeType === node.ELEMENT_NODE) {
-		if (node instanceof HTMLElement && node.hasAttribute(attribute)) {
+		if (isHTMLElement(node) && node.hasAttribute(attribute)) {
 			return node;
 		}
 
@@ -1090,7 +1549,7 @@ export function removeTabIndexAndUpdateFocus(node: HTMLElement): void {
 	// standard DOM behavior is to move focus to the <body> element. We
 	// typically never want that, rather put focus to the closest element
 	// in the hierarchy of the parent DOM nodes.
-	if (document.activeElement === node) {
+	if (node.ownerDocument.activeElement === node) {
 		const parentFocusable = findParentWithAttribute(node.parentElement, 'tabIndex');
 		parentFocusable?.focus();
 	}
@@ -1098,7 +1557,7 @@ export function removeTabIndexAndUpdateFocus(node: HTMLElement): void {
 	node.removeAttribute('tabindex');
 }
 
-export function finalHandler<T extends Event>(fn: (event: T) => any): (event: T) => any {
+export function finalHandler<T extends Event>(fn: (event: T) => unknown): (event: T) => unknown {
 	return e => {
 		e.preventDefault();
 		e.stopPropagation();
@@ -1106,13 +1565,18 @@ export function finalHandler<T extends Event>(fn: (event: T) => any): (event: T)
 	};
 }
 
-export function domContentLoaded(): Promise<unknown> {
-	return new Promise<unknown>(resolve => {
-		const readyState = document.readyState;
-		if (readyState === 'complete' || (document && document.body !== null)) {
+export function domContentLoaded(targetWindow: Window): Promise<void> {
+	return new Promise<void>(resolve => {
+		const readyState = targetWindow.document.readyState;
+		if (readyState === 'complete' || (targetWindow.document && targetWindow.document.body !== null)) {
 			resolve(undefined);
 		} else {
-			window.addEventListener('DOMContentLoaded', resolve, false);
+			const listener = () => {
+				targetWindow.window.removeEventListener('DOMContentLoaded', listener, false);
+				resolve();
+			};
+
+			targetWindow.window.addEventListener('DOMContentLoaded', listener, false);
 		}
 	});
 }
@@ -1125,7 +1589,7 @@ export function domContentLoaded(): Promise<unknown> {
  * of 1.25, the cursor will be 2.5 screen pixels wide. Depending on how the dom node aligns/"snaps"
  * with the screen pixels, it will sometimes be rendered with 2 screen pixels, and sometimes with 3 screen pixels.
  */
-export function computeScreenAwareSize(cssPx: number): number {
+export function computeScreenAwareSize(window: Window, cssPx: number): number {
 	const screenPx = window.devicePixelRatio * cssPx;
 	return Math.max(1, Math.floor(screenPx)) / window.devicePixelRatio;
 }
@@ -1148,7 +1612,7 @@ export function windowOpenNoOpener(url: string): void {
 	// See https://developer.mozilla.org/en-US/docs/Web/API/Window/open#noopener
 	// However, this also doesn't allow us to realize if the browser blocked
 	// the creation of the window.
-	window.open(url, '_blank', 'noopener');
+	mainWindow.open(url, '_blank', 'noopener');
 }
 
 /**
@@ -1164,9 +1628,9 @@ export function windowOpenNoOpener(url: string): void {
  */
 const popupWidth = 780, popupHeight = 640;
 export function windowOpenPopup(url: string): void {
-	const left = Math.floor(window.screenLeft + window.innerWidth / 2 - popupWidth / 2);
-	const top = Math.floor(window.screenTop + window.innerHeight / 2 - popupHeight / 2);
-	window.open(
+	const left = Math.floor(mainWindow.screenLeft + mainWindow.innerWidth / 2 - popupWidth / 2);
+	const top = Math.floor(mainWindow.screenTop + mainWindow.innerHeight / 2 - popupHeight / 2);
+	mainWindow.open(
 		url,
 		'_blank',
 		`width=${popupWidth},height=${popupHeight},top=${top},left=${left}`
@@ -1189,10 +1653,11 @@ export function windowOpenPopup(url: string): void {
  * @returns boolean indicating if the {@link window.open} call succeeded
  */
 export function windowOpenWithSuccess(url: string, noOpener = true): boolean {
-	const newTab = window.open();
+	const newTab = mainWindow.open();
 	if (newTab) {
 		if (noOpener) {
 			// see `windowOpenNoOpener` for details on why this is important
+			// eslint-disable-next-line local/code-no-any-casts
 			(newTab as any).opener = null;
 		}
 		newTab.location.href = url;
@@ -1201,46 +1666,17 @@ export function windowOpenWithSuccess(url: string, noOpener = true): boolean {
 	return false;
 }
 
-export function animate(fn: () => void): IDisposable {
+export function animate(targetWindow: Window, fn: () => void): IDisposable {
 	const step = () => {
 		fn();
-		stepDisposable = scheduleAtNextAnimationFrame(step);
+		stepDisposable = scheduleAtNextAnimationFrame(targetWindow, step);
 	};
 
-	let stepDisposable = scheduleAtNextAnimationFrame(step);
+	let stepDisposable = scheduleAtNextAnimationFrame(targetWindow, step);
 	return toDisposable(() => stepDisposable.dispose());
 }
 
-RemoteAuthorities.setPreferredWebSchema(/^https:/.test(window.location.href) ? 'https' : 'http');
-
-/**
- * returns url('...')
- */
-export function asCSSUrl(uri: URI | null | undefined): string {
-	if (!uri) {
-		return `url('')`;
-	}
-	return `url('${FileAccess.uriToBrowserUri(uri).toString(true).replace(/'/g, '%27')}')`;
-}
-
-export function asCSSPropertyValue(value: string) {
-	return `'${value.replace(/'/g, '%27')}'`;
-}
-
-export function asCssValueWithDefault(cssPropertyValue: string | undefined, dflt: string): string {
-	if (cssPropertyValue !== undefined) {
-		const variableMatch = cssPropertyValue.match(/^\s*var\((.+)\)$/);
-		if (variableMatch) {
-			const varArguments = variableMatch[1].split(',', 2);
-			if (varArguments.length === 2) {
-				dflt = asCssValueWithDefault(varArguments[1].trim(), dflt);
-			}
-			return `var(${varArguments[0]}, ${dflt})`;
-		}
-		return cssPropertyValue;
-	}
-	return dflt;
-}
+RemoteAuthorities.setPreferredWebSchema(/^https:/.test(mainWindow.location.href) ? 'https' : 'http');
 
 export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void {
 
@@ -1250,7 +1686,7 @@ export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void
 	if (URI.isUri(dataOrUri)) {
 		url = dataOrUri.toString(true);
 	} else {
-		const blob = new Blob([dataOrUri]);
+		const blob = new Blob([dataOrUri as Uint8Array<ArrayBuffer>]);
 		url = URL.createObjectURL(blob);
 
 		// Ensure to free the data from DOM eventually
@@ -1261,14 +1697,15 @@ export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void
 	// to be creating a <a> element with download attribute that
 	// points to the file to download.
 	// See also https://developers.google.com/web/updates/2011/08/Downloading-resources-in-HTML5-a-download
+	const activeWindow = getActiveWindow();
 	const anchor = document.createElement('a');
-	document.body.appendChild(anchor);
+	activeWindow.document.body.appendChild(anchor);
 	anchor.download = name;
 	anchor.href = url;
 	anchor.click();
 
 	// Ensure to remove the element from DOM eventually
-	setTimeout(() => document.body.removeChild(anchor));
+	setTimeout(() => anchor.remove());
 }
 
 export function triggerUpload(): Promise<FileList | undefined> {
@@ -1277,20 +1714,21 @@ export function triggerUpload(): Promise<FileList | undefined> {
 		// In order to upload to the browser, create a
 		// input element of type `file` and click it
 		// to gather the selected files
+		const activeWindow = getActiveWindow();
 		const input = document.createElement('input');
-		document.body.appendChild(input);
+		activeWindow.document.body.appendChild(input);
 		input.type = 'file';
 		input.multiple = true;
 
 		// Resolve once the input event has fired once
 		event.Event.once(event.Event.fromDOMEventEmitter(input, 'input'))(() => {
-			resolve(withNullAsUndefined(input.files));
+			resolve(input.files ?? undefined);
 		});
 
 		input.click();
 
 		// Ensure to remove the element from DOM eventually
-		setTimeout(() => document.body.removeChild(input));
+		setTimeout(() => input.remove());
 	});
 }
 
@@ -1323,10 +1761,11 @@ export interface IDetectedFullscreen {
 	guess: boolean;
 }
 
-export function detectFullscreen(): IDetectedFullscreen | null {
+export function detectFullscreen(targetWindow: Window): IDetectedFullscreen | null {
 
 	// Browser fullscreen: use DOM APIs to detect
-	if (document.fullscreenElement || (<any>document).webkitFullscreenElement || (<any>document).webkitIsFullScreen) {
+	// eslint-disable-next-line local/code-no-any-casts
+	if (targetWindow.document.fullscreenElement || (<any>targetWindow.document).webkitFullscreenElement || (<any>targetWindow.document).webkitIsFullScreen) {
 		return { mode: DetectedFullscreenMode.DOCUMENT, guess: false };
 	}
 
@@ -1335,7 +1774,7 @@ export function detectFullscreen(): IDetectedFullscreen | null {
 	// height and comparing that to window height, we can guess
 	// it though.
 
-	if (window.innerHeight === screen.height) {
+	if (targetWindow.innerHeight === targetWindow.screen.height) {
 		// if the height of the window matches the screen height, we can
 		// safely assume that the browser is fullscreen because no browser
 		// chrome is taking height away (e.g. like toolbars).
@@ -1344,7 +1783,7 @@ export function detectFullscreen(): IDetectedFullscreen | null {
 
 	if (platform.isMacintosh || platform.isLinux) {
 		// macOS and Linux do not properly report `innerHeight`, only Windows does
-		if (window.outerHeight === screen.height && window.outerWidth === screen.width) {
+		if (targetWindow.outerHeight === targetWindow.screen.height && targetWindow.outerWidth === targetWindow.screen.width) {
 			// if the height of the browser matches the screen height, we can
 			// only guess that we are in fullscreen. It is also possible that
 			// the user has turned off taskbars in the OS and the browser is
@@ -1355,170 +1794,6 @@ export function detectFullscreen(): IDetectedFullscreen | null {
 
 	// Not in fullscreen
 	return null;
-}
-
-// -- sanitize and trusted html
-
-/**
- * Hooks dompurify using `afterSanitizeAttributes` to check that all `href` and `src`
- * attributes are valid.
- */
-export function hookDomPurifyHrefAndSrcSanitizer(allowedProtocols: readonly string[], allowDataImages = false): IDisposable {
-	// https://github.com/cure53/DOMPurify/blob/main/demos/hooks-scheme-allowlist.html
-
-	// build an anchor to map URLs to
-	const anchor = document.createElement('a');
-
-	dompurify.addHook('afterSanitizeAttributes', (node) => {
-		// check all href/src attributes for validity
-		for (const attr of ['href', 'src']) {
-			if (node.hasAttribute(attr)) {
-				const attrValue = node.getAttribute(attr) as string;
-				if (attr === 'href' && attrValue.startsWith('#')) {
-					// Allow fragment links
-					continue;
-				}
-
-				anchor.href = attrValue;
-				if (!allowedProtocols.includes(anchor.protocol.replace(/:$/, ''))) {
-					if (allowDataImages && attr === 'src' && anchor.href.startsWith('data:')) {
-						continue;
-					}
-
-					node.removeAttribute(attr);
-				}
-			}
-		}
-	});
-
-	return toDisposable(() => {
-		dompurify.removeHook('afterSanitizeAttributes');
-	});
-}
-
-const defaultSafeProtocols = [
-	Schemas.http,
-	Schemas.https,
-	Schemas.command,
-];
-
-/**
- * List of safe, non-input html tags.
- */
-export const basicMarkupHtmlTags = Object.freeze([
-	'a',
-	'abbr',
-	'b',
-	'bdo',
-	'blockquote',
-	'br',
-	'caption',
-	'cite',
-	'code',
-	'col',
-	'colgroup',
-	'dd',
-	'del',
-	'details',
-	'dfn',
-	'div',
-	'dl',
-	'dt',
-	'em',
-	'figcaption',
-	'figure',
-	'h1',
-	'h2',
-	'h3',
-	'h4',
-	'h5',
-	'h6',
-	'hr',
-	'i',
-	'img',
-	'ins',
-	'kbd',
-	'label',
-	'li',
-	'mark',
-	'ol',
-	'p',
-	'pre',
-	'q',
-	'rp',
-	'rt',
-	'ruby',
-	'samp',
-	'small',
-	'small',
-	'source',
-	'span',
-	'strike',
-	'strong',
-	'sub',
-	'summary',
-	'sup',
-	'table',
-	'tbody',
-	'td',
-	'tfoot',
-	'th',
-	'thead',
-	'time',
-	'tr',
-	'tt',
-	'u',
-	'ul',
-	'var',
-	'video',
-	'wbr',
-]);
-
-const defaultDomPurifyConfig = Object.freeze<dompurify.Config & { RETURN_TRUSTED_TYPE: true }>({
-	ALLOWED_TAGS: ['a', 'button', 'blockquote', 'code', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'strong', 'textarea', 'ul', 'ol'],
-	ALLOWED_ATTR: ['href', 'data-href', 'data-command', 'target', 'title', 'name', 'src', 'alt', 'class', 'id', 'role', 'tabindex', 'style', 'data-code', 'width', 'height', 'align', 'x-dispatch', 'required', 'checked', 'placeholder', 'type', 'start'],
-	RETURN_DOM: false,
-	RETURN_DOM_FRAGMENT: false,
-	RETURN_TRUSTED_TYPE: true
-});
-
-/**
- * Sanitizes the given `value` and reset the given `node` with it.
- */
-export function safeInnerHtml(node: HTMLElement, value: string): void {
-	const hook = hookDomPurifyHrefAndSrcSanitizer(defaultSafeProtocols);
-	try {
-		const html = dompurify.sanitize(value, defaultDomPurifyConfig);
-		node.innerHTML = html as unknown as string;
-	} finally {
-		hook.dispose();
-	}
-}
-
-/**
- * Convert a Unicode string to a string in which each 16-bit unit occupies only one byte
- *
- * From https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/btoa
- */
-function toBinary(str: string): string {
-	const codeUnits = new Uint16Array(str.length);
-	for (let i = 0; i < codeUnits.length; i++) {
-		codeUnits[i] = str.charCodeAt(i);
-	}
-	let binary = '';
-	const uint8array = new Uint8Array(codeUnits.buffer);
-	for (let i = 0; i < uint8array.length; i++) {
-		binary += String.fromCharCode(uint8array[i]);
-	}
-	return binary;
-}
-
-/**
- * Version of the global `btoa` function that handles multi-byte characters instead
- * of throwing an exception.
- */
-export function multibyteAwareBtoa(str: string): string {
-	return btoa(toBinary(str));
 }
 
 type ModifierKey = 'alt' | 'ctrl' | 'shift' | 'meta';
@@ -1537,7 +1812,7 @@ export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 
 	private readonly _subscriptions = new DisposableStore();
 	private _keyStatus: IModifierKeyStatus;
-	private static instance: ModifierKeyEmitter;
+	private static instance: ModifierKeyEmitter | undefined;
 
 	private constructor() {
 		super();
@@ -1549,7 +1824,11 @@ export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 			metaKey: false
 		};
 
-		this._subscriptions.add(addDisposableListener(window, 'keydown', e => {
+		this._subscriptions.add(event.Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => this.registerListeners(window, disposables), { window: mainWindow, disposables: this._subscriptions }));
+	}
+
+	private registerListeners(window: Window, disposables: DisposableStore): void {
+		disposables.add(addDisposableListener(window, 'keydown', e => {
 			if (e.defaultPrevented) {
 				return;
 			}
@@ -1586,7 +1865,7 @@ export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 			}
 		}, true));
 
-		this._subscriptions.add(addDisposableListener(window, 'keyup', e => {
+		disposables.add(addDisposableListener(window, 'keyup', e => {
 			if (e.defaultPrevented) {
 				return;
 			}
@@ -1618,21 +1897,21 @@ export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 			}
 		}, true));
 
-		this._subscriptions.add(addDisposableListener(document.body, 'mousedown', () => {
+		disposables.add(addDisposableListener(window.document.body, 'mousedown', () => {
 			this._keyStatus.lastKeyPressed = undefined;
 		}, true));
 
-		this._subscriptions.add(addDisposableListener(document.body, 'mouseup', () => {
+		disposables.add(addDisposableListener(window.document.body, 'mouseup', () => {
 			this._keyStatus.lastKeyPressed = undefined;
 		}, true));
 
-		this._subscriptions.add(addDisposableListener(document.body, 'mousemove', e => {
+		disposables.add(addDisposableListener(window.document.body, 'mousemove', e => {
 			if (e.buttons) {
 				this._keyStatus.lastKeyPressed = undefined;
 			}
 		}, true));
 
-		this._subscriptions.add(addDisposableListener(window, 'blur', () => {
+		disposables.add(addDisposableListener(window, 'blur', () => {
 			this.resetKeyStatus();
 		}));
 	}
@@ -1642,7 +1921,7 @@ export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 	}
 
 	get isModifierPressed(): boolean {
-		return this._keyStatus.altKey || this._keyStatus.ctrlKey || this._keyStatus.metaKey || this._keyStatus.shiftKey;
+		return hasModifierKeys(this._keyStatus);
 	}
 
 	/**
@@ -1670,6 +1949,13 @@ export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 		return ModifierKeyEmitter.instance;
 	}
 
+	static disposeInstance() {
+		if (ModifierKeyEmitter.instance) {
+			ModifierKeyEmitter.instance.dispose();
+			ModifierKeyEmitter.instance = undefined;
+		}
+	}
+
 	override dispose() {
 		super.dispose();
 		this._subscriptions.dispose();
@@ -1683,10 +1969,12 @@ export function getCookieValue(name: string): string | undefined {
 }
 
 export interface IDragAndDropObserverCallbacks {
-	readonly onDragEnter: (e: DragEvent) => void;
-	readonly onDragLeave: (e: DragEvent) => void;
-	readonly onDrop: (e: DragEvent) => void;
-	readonly onDragEnd: (e: DragEvent) => void;
+	readonly onDragEnter?: (e: DragEvent) => void;
+	readonly onDragLeave?: (e: DragEvent) => void;
+	readonly onDrop?: (e: DragEvent) => void;
+	readonly onDragEnd?: (e: DragEvent) => void;
+	readonly onDragStart?: (e: DragEvent) => void;
+	readonly onDrag?: (e: DragEvent) => void;
 	readonly onDragOver?: (e: DragEvent, dragDuration: number) => void;
 }
 
@@ -1708,11 +1996,23 @@ export class DragAndDropObserver extends Disposable {
 	}
 
 	private registerListeners(): void {
+		if (this.callbacks.onDragStart) {
+			this._register(addDisposableListener(this.element, EventType.DRAG_START, (e: DragEvent) => {
+				this.callbacks.onDragStart?.(e);
+			}));
+		}
+
+		if (this.callbacks.onDrag) {
+			this._register(addDisposableListener(this.element, EventType.DRAG, (e: DragEvent) => {
+				this.callbacks.onDrag?.(e);
+			}));
+		}
+
 		this._register(addDisposableListener(this.element, EventType.DRAG_ENTER, (e: DragEvent) => {
 			this.counter++;
 			this.dragStartTime = e.timeStamp;
 
-			this.callbacks.onDragEnter(e);
+			this.callbacks.onDragEnter?.(e);
 		}));
 
 		this._register(addDisposableListener(this.element, EventType.DRAG_OVER, (e: DragEvent) => {
@@ -1727,7 +2027,7 @@ export class DragAndDropObserver extends Disposable {
 			if (this.counter === 0) {
 				this.dragStartTime = 0;
 
-				this.callbacks.onDragLeave(e);
+				this.callbacks.onDragLeave?.(e);
 			}
 		}));
 
@@ -1735,16 +2035,153 @@ export class DragAndDropObserver extends Disposable {
 			this.counter = 0;
 			this.dragStartTime = 0;
 
-			this.callbacks.onDragEnd(e);
+			this.callbacks.onDragEnd?.(e);
 		}));
 
 		this._register(addDisposableListener(this.element, EventType.DROP, (e: DragEvent) => {
 			this.counter = 0;
 			this.dragStartTime = 0;
 
-			this.callbacks.onDrop(e);
+			this.callbacks.onDrop?.(e);
 		}));
 	}
+}
+
+/**
+ * A wrapper around `ResizeObserver` that is disposable.
+ *
+ * Behavior is intentionally identical to using `new ResizeObserver(callback)`
+ * directly: the user-supplied callback runs synchronously inside the
+ * browser's resize-observation phase, with the entries the browser delivered.
+ * The wrapper adds three things on top:
+ *
+ * 1. Lifetime management: `dispose()` disconnects the underlying observer.
+ * 2. Auxiliary-window support: pass `targetWindow` so the observer is
+ *    constructed in the realm of the element being observed.
+ * 3. Context for the
+ *    `ResizeObserver loop completed with undelivered notifications` warning:
+ *    each instance carries a stable `name`, and just before invoking the user
+ *    callback we add that name to a bounded, per-window set that is cleared
+ *    at the next animation frame. The warning is delivered as a stackless
+ *    `ErrorEvent` on `window` after callbacks run, so error telemetry can
+ *    include the wrapped observers that recently ran in that window (see
+ *    {@link getRecentDisposableResizeObserverContextForLoopError}). This is
+ *    delivery context, not causal attribution: the browser does not expose
+ *    which observer or skipped target caused the warning.
+ *
+ * @param name Stable identifier used in loop-warning context. Prefer one that
+ * survives minification and refactors (e.g. the consumer class + purpose)
+ * since callstacks change across releases.
+ * @param callback Invoked synchronously when the browser delivers resize
+ * notifications, with the same entries the native `ResizeObserver` would
+ * have delivered.
+ * @param targetWindow The window whose `ResizeObserver` constructor should
+ * be used. Defaults to `mainWindow`. Pass the containing window when
+ * creating an observer for elements that live in an auxiliary window.
+ * @param options Optional configuration. `resizeObserverCtor` is a test
+ * seam that defaults to `targetWindow.ResizeObserver`.
+ */
+export class DisposableResizeObserver extends Disposable {
+
+	private readonly observer: ResizeObserver;
+	readonly name: string;
+
+	constructor(
+		name: string,
+		callback: ResizeObserverCallback,
+		targetWindow: CodeWindow = mainWindow,
+		options?: { resizeObserverCtor?: typeof ResizeObserver },
+	) {
+		super();
+		this.name = name;
+		const ctor = options?.resizeObserverCtor ?? targetWindow.ResizeObserver;
+		this.observer = new ctor((entries: ResizeObserverEntry[], observer) => {
+			recordDisposableResizeObserverInvocation(targetWindow, this.name);
+			try {
+				callback(entries, observer);
+			} catch (e) {
+				onUnexpectedError(e);
+			}
+		});
+		this._register(toDisposable(() => this.observer.disconnect()));
+	}
+
+	observe(target: Element, options?: ResizeObserverOptions): IDisposable {
+		this.observer.observe(target, options);
+		return toDisposable(() => this.observer.unobserve(target));
+	}
+}
+
+/**
+ * Keep the context bounded so a large delivery phase cannot create an
+ * unbounded telemetry value. Names are static component identifiers, and are
+ * sorted when read so equivalent phases share a stable bucket.
+ */
+const maxRecentDisposableResizeObservers = 8;
+
+/**
+ * Wrapped observers that ran recently in one window. This is deliberately
+ * scoped by window because auxiliary windows have independent documents and
+ * resize-observation delivery loops.
+ */
+interface IRecentDisposableResizeObserverContext {
+	readonly names: Set<string>;
+	overflow: boolean;
+}
+
+const recentDisposableResizeObserverContexts = new WeakMap<CodeWindow, IRecentDisposableResizeObserverContext>();
+
+function recordDisposableResizeObserverInvocation(targetWindow: CodeWindow, name: string): void {
+	let context = recentDisposableResizeObserverContexts.get(targetWindow);
+	if (!context) {
+		context = { names: new Set(), overflow: false };
+		recentDisposableResizeObserverContexts.set(targetWindow, context);
+
+		// ResizeObserver callbacks and the synthetic loop error are delivered
+		// after requestAnimationFrame callbacks in the rendering update. A
+		// request made here therefore clears this context at the next frame,
+		// after telemetry has observed any warning from the current update.
+		targetWindow.requestAnimationFrame(() => recentDisposableResizeObserverContexts.delete(targetWindow));
+	}
+
+	if (context.names.has(name)) {
+		return;
+	}
+	if (context.names.size < maxRecentDisposableResizeObservers) {
+		context.names.add(name);
+	} else {
+		context.overflow = true;
+		const largestName = Array.from(context.names).sort().at(-1)!;
+		if (name < largestName) {
+			context.names.delete(largestName);
+			context.names.add(name);
+		}
+	}
+}
+
+/**
+ * If `message` looks like the ResizeObserver loop warning, return a stable
+ * context string containing the wrapped observers that ran recently in
+ * `targetWindow`. The names are delivery context only; the browser does not
+ * expose the observer or skipped target that caused the warning. Returns
+ * `undefined` for unrelated messages or when no wrapped observer has fired.
+ */
+export function getRecentDisposableResizeObserverContextForLoopError(
+	message: string | undefined | null,
+	targetWindow: CodeWindow = mainWindow,
+): string | undefined {
+	if (typeof message !== 'string' || !message.includes('ResizeObserver loop')) {
+		return undefined;
+	}
+	const context = recentDisposableResizeObserverContexts.get(targetWindow);
+	if (!context) {
+		return undefined;
+	}
+	const names = Array.from(context.names).sort();
+	if (context.overflow) {
+		names.push('<overflow>');
+	}
+	return `[ResizeObserverLoopContext(${names.join(',')})] ${message}`;
 }
 
 type HTMLElementAttributeKeys<T> = Partial<{ [K in keyof T]: T[K] extends Function ? never : T[K] extends object ? HTMLElementAttributeKeys<T[K]> : T[K] }>;
@@ -1817,6 +2254,7 @@ export function h(tag: string, ...args: [] | [attributes: { $: string } & Partia
 		attributes = {};
 		children = args[0];
 	} else {
+		// eslint-disable-next-line local/code-no-any-casts
 		attributes = args[0] as any || {};
 		children = args[1];
 	}
@@ -1861,7 +2299,111 @@ export function h(tag: string, ...args: [] | [attributes: { $: string } & Partia
 
 	if (children) {
 		for (const c of children) {
-			if (c instanceof HTMLElement) {
+			if (isHTMLElement(c)) {
+				el.appendChild(c);
+			} else if (typeof c === 'string') {
+				el.append(c);
+			} else if ('root' in c) {
+				Object.assign(result, c);
+				el.appendChild(c.root);
+			}
+		}
+	}
+
+	for (const [key, value] of Object.entries(attributes)) {
+		if (key === 'className') {
+			continue;
+		} else if (key === 'style') {
+			for (const [cssKey, cssValue] of Object.entries(value)) {
+				el.style.setProperty(
+					camelCaseToHyphenCase(cssKey),
+					typeof cssValue === 'number' ? cssValue + 'px' : '' + cssValue
+				);
+			}
+		} else if (key === 'tabIndex') {
+			el.tabIndex = value;
+		} else {
+			el.setAttribute(camelCaseToHyphenCase(key), value.toString());
+		}
+	}
+
+	result['root'] = el;
+
+	return result;
+}
+
+/** @deprecated This is a duplication of the h function. Needs cleanup. */
+export function svgElem<TTag extends string>
+	(tag: TTag):
+	TagToRecord<TTag> extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
+/** @deprecated This is a duplication of the h function. Needs cleanup. */
+export function svgElem<TTag extends string, T extends Child[]>
+	(tag: TTag, children: [...T]):
+	(ArrayToObj<T> & TagToRecord<TTag>) extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
+/** @deprecated This is a duplication of the h function. Needs cleanup. */
+export function svgElem<TTag extends string>
+	(tag: TTag, attributes: Partial<ElementAttributes<TagToElement<TTag>>>):
+	TagToRecord<TTag> extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
+/** @deprecated This is a duplication of the h function. Needs cleanup. */
+export function svgElem<TTag extends string, T extends Child[]>
+	(tag: TTag, attributes: Partial<ElementAttributes<TagToElement<TTag>>>, children: [...T]):
+	(ArrayToObj<T> & TagToRecord<TTag>) extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
+/** @deprecated This is a duplication of the h function. Needs cleanup. */
+export function svgElem(tag: string, ...args: [] | [attributes: { $: string } & Partial<ElementAttributes<HTMLElement>> | Record<string, any>, children?: any[]] | [children: any[]]): Record<string, HTMLElement> {
+	let attributes: { $?: string } & Partial<ElementAttributes<HTMLElement>>;
+	let children: (Record<string, HTMLElement> | HTMLElement)[] | undefined;
+
+	if (Array.isArray(args[0])) {
+		attributes = {};
+		children = args[0];
+	} else {
+		// eslint-disable-next-line local/code-no-any-casts
+		attributes = args[0] as any || {};
+		children = args[1];
+	}
+
+	const match = H_REGEX.exec(tag);
+
+	if (!match || !match.groups) {
+		throw new Error('Bad use of h');
+	}
+
+	const tagName = match.groups['tag'] || 'div';
+	// eslint-disable-next-line local/code-no-any-casts
+	const el = document.createElementNS('http://www.w3.org/2000/svg', tagName) as any as HTMLElement;
+
+	if (match.groups['id']) {
+		el.id = match.groups['id'];
+	}
+
+	const classNames = [];
+	if (match.groups['class']) {
+		for (const className of match.groups['class'].split('.')) {
+			if (className !== '') {
+				classNames.push(className);
+			}
+		}
+	}
+	if (attributes.className !== undefined) {
+		for (const className of attributes.className.split('.')) {
+			if (className !== '') {
+				classNames.push(className);
+			}
+		}
+	}
+	if (classNames.length > 0) {
+		el.className = classNames.join(' ');
+	}
+
+	const result: Record<string, HTMLElement> = {};
+
+	if (match.groups['name']) {
+		result[match.groups['name']] = el;
+	}
+
+	if (children) {
+		for (const c of children) {
+			if (isHTMLElement(c)) {
 				el.appendChild(c);
 			} else if (typeof c === 'string') {
 				el.append(c);
@@ -1896,4 +2438,470 @@ export function h(tag: string, ...args: [] | [attributes: { $: string } & Partia
 
 function camelCaseToHyphenCase(str: string) {
 	return str.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
+}
+
+export function copyAttributes(from: Element, to: Element, filter?: string[]): void {
+	for (const { name, value } of from.attributes) {
+		if (!filter || filter.includes(name)) {
+			to.setAttribute(name, value);
+		}
+	}
+}
+
+function copyAttribute(from: Element, to: Element, name: string): void {
+	const value = from.getAttribute(name);
+	if (value) {
+		to.setAttribute(name, value);
+	} else {
+		to.removeAttribute(name);
+	}
+}
+
+export function trackAttributes(from: Element, to: Element, filter?: string[]): IDisposable {
+	copyAttributes(from, to, filter);
+
+	const disposables = new DisposableStore();
+
+	disposables.add(sharedMutationObserver.observe(from, disposables, { attributes: true, attributeFilter: filter })(mutations => {
+		for (const mutation of mutations) {
+			if (mutation.type === 'attributes' && mutation.attributeName) {
+				copyAttribute(from, to, mutation.attributeName);
+			}
+		}
+	}));
+
+	return disposables;
+}
+
+export function isEditableElement(element: Element): boolean {
+	return element.tagName.toLowerCase() === 'input' || element.tagName.toLowerCase() === 'textarea' || isHTMLElement(element) && !!element.editContext;
+}
+
+/**
+ * Helper for calculating the "safe triangle" occluded by hovers to avoid early dismissal.
+ * @see https://www.smashingmagazine.com/2023/08/better-context-menus-safe-triangles/ for example
+ */
+export class SafeTriangle {
+	// 4 points (x, y), 8 length
+	private points = new Int16Array(8);
+
+	constructor(
+		private readonly originX: number,
+		private readonly originY: number,
+		target: HTMLElement
+	) {
+		const { top, left, right, bottom } = target.getBoundingClientRect();
+		const t = this.points;
+		let i = 0;
+
+		t[i++] = left;
+		t[i++] = top;
+
+		t[i++] = right;
+		t[i++] = top;
+
+		t[i++] = left;
+		t[i++] = bottom;
+
+		t[i++] = right;
+		t[i++] = bottom;
+	}
+
+	public contains(x: number, y: number) {
+		const { points, originX, originY } = this;
+		for (let i = 0; i < 4; i++) {
+			const p1 = 2 * i;
+			const p2 = 2 * ((i + 1) % 4);
+			if (isPointWithinTriangle(x, y, originX, originY, points[p1], points[p1 + 1], points[p2], points[p2 + 1])) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+}
+
+
+export namespace n {
+	function nodeNs<TMap extends Record<string, any>>(elementNs: string | undefined = undefined): DomTagCreateFn<TMap> {
+		return (tag, attributes, children) => {
+			const className = attributes.class;
+			delete attributes.class;
+			const ref = attributes.ref;
+			delete attributes.ref;
+			const obsRef = attributes.obsRef;
+			delete attributes.obsRef;
+
+			// eslint-disable-next-line local/code-no-any-casts
+			return new ObserverNodeWithElement(tag as any, ref, obsRef, elementNs, className, attributes, children);
+		};
+	}
+
+	function node<TMap extends Record<string, any>, TKey extends keyof TMap>(tag: TKey, elementNs: string | undefined = undefined): DomCreateFn<TMap[TKey], TMap[TKey]> {
+		// eslint-disable-next-line local/code-no-any-casts
+		const f = nodeNs(elementNs) as any;
+		return (attributes, children) => {
+			return f(tag, attributes, children);
+		};
+	}
+
+	export const div: DomCreateFn<HTMLDivElement, HTMLDivElement> = node<HTMLElementTagNameMap, 'div'>('div');
+
+	export const elem = nodeNs<HTMLElementTagNameMap>(undefined);
+
+	export const svg: DomCreateFn<SVGElementTagNameMap2['svg'], SVGElement> = node<SVGElementTagNameMap2, 'svg'>('svg', 'http://www.w3.org/2000/svg');
+
+	export const svgElem = nodeNs<SVGElementTagNameMap2>('http://www.w3.org/2000/svg');
+
+	export function ref<T = HTMLOrSVGElement>(): IRefWithVal<T> {
+		let value: T | undefined = undefined;
+		const result: IRef<T> = function (val: T) {
+			value = val;
+		};
+		Object.defineProperty(result, 'element', {
+			get() {
+				if (!value) {
+					throw new BugIndicatingError('Make sure the ref is set before accessing the element. Maybe wrong initialization order?');
+				}
+				return value;
+			}
+		});
+		// eslint-disable-next-line local/code-no-any-casts
+		return result as any;
+	}
+}
+type Value<T> = T | IObservable<T>;
+type ValueOrList<T> = Value<T> | ValueOrList<T>[];
+type ValueOrList2<T> = ValueOrList<T> | ValueOrList<ValueOrList<T>>;
+type HTMLOrSVGElement = HTMLElement | SVGElement;
+type SVGElementTagNameMap2 = {
+	svg: SVGElement & {
+		width: number;
+		height: number;
+		transform: string;
+		viewBox: string;
+		fill: string;
+	};
+	path: SVGElement & {
+		d: string;
+		stroke: string;
+		fill: string;
+	};
+	linearGradient: SVGElement & {
+		id: string;
+		x1: string | number;
+		x2: string | number;
+	};
+	stop: SVGElement & {
+		offset: string;
+	};
+	rect: SVGElement & {
+		x: number;
+		y: number;
+		width: number;
+		height: number;
+		fill: string;
+	};
+	defs: SVGElement;
+};
+type DomTagCreateFn<TMap extends Record<string, any>> = <TTag extends keyof TMap>(
+	tag: TTag,
+	attributes: ElementAttributeKeys<TMap[TTag]> & { class?: ValueOrList<string | false | undefined>; ref?: IRef<TMap[TTag]>; obsRef?: IRef<ObserverNodeWithElement<TMap[TTag]> | null> },
+	children?: ChildNode
+) => ObserverNode<TMap[TTag]>;
+type DomCreateFn<TAttributes, TResult extends HTMLOrSVGElement> = (
+	attributes: ElementAttributeKeys<TAttributes> & { class?: ValueOrList<string | false | undefined>; ref?: IRef<TResult>; obsRef?: IRef<ObserverNodeWithElement<TResult> | null> },
+	children?: ChildNode
+) => ObserverNode<TResult>;
+
+export type ChildNode = ValueOrList2<HTMLOrSVGElement | string | ObserverNode | undefined>;
+
+export type IRef<T> = (value: T) => void;
+
+export interface IRefWithVal<T> extends IRef<T> {
+	readonly element: T;
+}
+
+export abstract class ObserverNode<T extends HTMLOrSVGElement = HTMLOrSVGElement> {
+	private readonly _deriveds: (IObservable<any>)[] = [];
+
+	protected readonly _element: T;
+
+	constructor(
+		tag: string,
+		ref: IRef<T> | undefined,
+		obsRef: IRef<ObserverNodeWithElement<T> | null> | undefined,
+		ns: string | undefined,
+		className: ValueOrList<string | undefined | false> | undefined,
+		attributes: ElementAttributeKeys<T>,
+		children: ChildNode
+	) {
+		this._element = (ns ? document.createElementNS(ns, tag) : document.createElement(tag)) as unknown as T;
+		if (ref) {
+			ref(this._element);
+		}
+		if (obsRef) {
+			this._deriveds.push(derived((_reader) => {
+				obsRef(this as unknown as ObserverNodeWithElement<T>);
+				_reader.store.add({
+					dispose: () => {
+						obsRef(null);
+					}
+				});
+			}));
+		}
+
+		if (className) {
+			if (hasObservable(className)) {
+				this._deriveds.push(derived(this, reader => {
+					/** @description set.class */
+					setClassName(this._element, getClassName(className, reader));
+				}));
+			} else {
+				setClassName(this._element, getClassName(className, undefined));
+			}
+		}
+
+		for (const [key, value] of Object.entries(attributes)) {
+			if (key === 'style') {
+				for (const [cssKey, cssValue] of Object.entries(value)) {
+					const key = camelCaseToHyphenCase(cssKey);
+					if (isObservable(cssValue)) {
+						this._deriveds.push(derivedOpts({ owner: this, debugName: () => `set.style.${key}` }, reader => {
+							this._element.style.setProperty(key, convertCssValue(cssValue.read(reader)));
+						}));
+					} else {
+						this._element.style.setProperty(key, convertCssValue(cssValue));
+					}
+				}
+			} else if (key === 'tabIndex') {
+				if (isObservable(value)) {
+					this._deriveds.push(derived(this, reader => {
+						/** @description set.tabIndex */
+						// eslint-disable-next-line local/code-no-any-casts
+						this._element.tabIndex = value.read(reader) as any;
+					}));
+				} else {
+					this._element.tabIndex = value;
+				}
+			} else if (key.startsWith('on')) {
+				// eslint-disable-next-line local/code-no-any-casts
+				(this._element as any)[key] = value;
+			} else {
+				if (isObservable(value)) {
+					this._deriveds.push(derivedOpts({ owner: this, debugName: () => `set.${key}` }, reader => {
+						setOrRemoveAttribute(this._element, key, value.read(reader));
+					}));
+				} else {
+					setOrRemoveAttribute(this._element, key, value);
+				}
+			}
+		}
+
+		if (children) {
+			function getChildren(reader: IReader | undefined, children: ValueOrList2<HTMLOrSVGElement | string | ObserverNode | undefined>): (HTMLOrSVGElement | string)[] {
+				if (isObservable(children)) {
+					return getChildren(reader, children.read(reader));
+				}
+				if (Array.isArray(children)) {
+					return children.flatMap(c => getChildren(reader, c));
+				}
+				if (children instanceof ObserverNode) {
+					if (reader) {
+						children.readEffect(reader);
+					}
+					return [children._element];
+				}
+				if (children) {
+					return [children];
+				}
+				return [];
+			}
+
+			const d = derived(this, reader => {
+				/** @description set.children */
+				this._element.replaceChildren(...getChildren(reader, children));
+			});
+			this._deriveds.push(d);
+			if (!childrenIsObservable(children)) {
+				d.get();
+			}
+		}
+	}
+
+	readEffect(reader: IReader | undefined): void {
+		for (const d of this._deriveds) {
+			d.read(reader);
+		}
+	}
+
+	keepUpdated(store: DisposableStore): ObserverNodeWithElement<T> {
+		derived(reader => {
+			/** update */
+			this.readEffect(reader);
+		}).recomputeInitiallyAndOnChange(store);
+		return this as unknown as ObserverNodeWithElement<T>;
+	}
+
+	/**
+	 * Creates a live element that will keep the element updated as long as the returned object is not disposed.
+	*/
+	toDisposableLiveElement() {
+		const store = new DisposableStore();
+		this.keepUpdated(store);
+		return new LiveElement(this._element, store);
+	}
+
+	private _isHovered: IObservable<boolean> | undefined = undefined;
+
+	get isHovered(): IObservable<boolean> {
+		if (!this._isHovered) {
+			const hovered = observableValue<boolean>('hovered', false);
+			this._element.addEventListener('mouseenter', (_e) => hovered.set(true, undefined));
+			this._element.addEventListener('mouseleave', (_e) => hovered.set(false, undefined));
+			this._isHovered = hovered;
+		}
+		return this._isHovered;
+	}
+
+	private _didMouseMoveDuringHover: IObservable<boolean> | undefined = undefined;
+
+	get didMouseMoveDuringHover(): IObservable<boolean> {
+		if (!this._didMouseMoveDuringHover) {
+			let _hovering = false;
+			const hovered = observableValue<boolean>('didMouseMoveDuringHover', false);
+			this._element.addEventListener('mouseenter', (_e) => {
+				_hovering = true;
+			});
+			this._element.addEventListener('mousemove', (_e) => {
+				if (_hovering) {
+					hovered.set(true, undefined);
+				}
+			});
+			this._element.addEventListener('mouseleave', (_e) => {
+				_hovering = false;
+				hovered.set(false, undefined);
+			});
+			this._didMouseMoveDuringHover = hovered;
+		}
+		return this._didMouseMoveDuringHover;
+	}
+}
+
+function setClassName(domNode: HTMLOrSVGElement, className: string) {
+	if (isSVGElement(domNode)) {
+		domNode.setAttribute('class', className);
+	} else {
+		domNode.className = className;
+	}
+}
+
+function resolve<T>(value: ValueOrList<T>, reader: IReader | undefined, cb: (val: T) => void): void {
+	if (isObservable(value)) {
+		cb(value.read(reader));
+		return;
+	}
+	if (Array.isArray(value)) {
+		for (const v of value) {
+			resolve(v, reader, cb);
+		}
+		return;
+	}
+	// eslint-disable-next-line local/code-no-any-casts
+	cb(value as any);
+}
+function getClassName(className: ValueOrList<string | undefined | false> | undefined, reader: IReader | undefined): string {
+	let result = '';
+	resolve(className, reader, val => {
+		if (val) {
+			if (result.length === 0) {
+				result = val;
+			} else {
+				result += ' ' + val;
+			}
+		}
+	});
+	return result;
+}
+function hasObservable(value: ValueOrList<unknown>): boolean {
+	if (isObservable(value)) {
+		return true;
+	}
+	if (Array.isArray(value)) {
+		return value.some(v => hasObservable(v));
+	}
+	return false;
+}
+function convertCssValue(value: any): string {
+	if (typeof value === 'number') {
+		return value + 'px';
+	}
+	return value;
+}
+function childrenIsObservable(children: ValueOrList2<HTMLOrSVGElement | string | ObserverNode | undefined>): boolean {
+	if (isObservable(children)) {
+		return true;
+	}
+	if (Array.isArray(children)) {
+		return children.some(c => childrenIsObservable(c));
+	}
+	return false;
+}
+
+export class LiveElement<T extends HTMLOrSVGElement = HTMLElement> {
+	constructor(
+		public readonly element: T,
+		private readonly _disposable: IDisposable
+	) { }
+
+	dispose() {
+		this._disposable.dispose();
+	}
+}
+
+export class ObserverNodeWithElement<T extends HTMLOrSVGElement = HTMLOrSVGElement> extends ObserverNode<T> {
+	public get element() {
+		return this._element;
+	}
+}
+function setOrRemoveAttribute(element: HTMLOrSVGElement, key: string, value: unknown) {
+	if (value === null || value === undefined) {
+		element.removeAttribute(camelCaseToHyphenCase(key));
+	} else {
+		element.setAttribute(camelCaseToHyphenCase(key), String(value));
+	}
+}
+
+type ElementAttributeKeys<T> = Partial<{
+	[K in keyof T]: T[K] extends Function ? never : T[K] extends object ? ElementAttributeKeys<T[K]> : Value<number | T[K] | undefined | null>;
+}>;
+
+/**
+ * A custom element that fires callbacks when connected to or disconnected from the DOM.
+ * Useful for tracking whether a template or component is currently mounted, especially
+ * with iframes/webviews that are sensitive to movement.
+ *
+ * @example
+ * ```ts
+ * const observer = document.createElement('connection-observer') as ConnectionObserverElement;
+ * observer.onDidConnect = () => console.log('mounted');
+ * observer.onDidDisconnect = () => console.log('unmounted');
+ * container.appendChild(observer);
+ * ```
+ */
+export class ConnectionObserverElement extends HTMLElement {
+	public onDidConnect?: () => void;
+	public onDidDisconnect?: () => void;
+
+	disconnectedCallback() {
+		this.onDidDisconnect?.();
+	}
+
+	connectedCallback() {
+		this.onDidConnect?.();
+	}
+}
+
+if (!customElements.get('connection-observer')) {
+	customElements.define('connection-observer', ConnectionObserverElement);
 }

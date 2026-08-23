@@ -3,26 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { TreeView, TreeViewPane } from 'vs/workbench/browser/parts/views/treeView';
-import { Extensions, ITreeItem, ITreeViewDataProvider, ITreeViewDescriptor, IViewsRegistry, TreeItemCollapsibleState, TreeViewItemHandleArg, ViewContainer } from 'vs/workbench/common/views';
-import { ChangeType, EDIT_SESSIONS_DATA_VIEW_ID, EDIT_SESSIONS_SCHEME, EDIT_SESSIONS_SHOW_VIEW, EDIT_SESSIONS_TITLE, EditSession, IEditSessionsStorageService } from 'vs/workbench/contrib/editSessions/common/editSessions';
-import { URI } from 'vs/base/common/uri';
-import { fromNow } from 'vs/base/common/date';
-import { Codicon } from 'vs/base/common/codicons';
-import { API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { joinPath } from 'vs/base/common/resources';
-import { IFileService } from 'vs/platform/files/common/files';
-import { basename } from 'vs/base/common/path';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { localize } from '../../../../nls.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { TreeView, TreeViewPane } from '../../../browser/parts/views/treeView.js';
+import { Extensions, ITreeItem, ITreeViewDataProvider, ITreeViewDescriptor, IViewsRegistry, TreeItemCollapsibleState, TreeViewItemHandleArg, ViewContainer } from '../../../common/views.js';
+import { ChangeType, EDIT_SESSIONS_DATA_VIEW_ID, EDIT_SESSIONS_SCHEME, EDIT_SESSIONS_SHOW_VIEW, EDIT_SESSIONS_TITLE, EditSession, IEditSessionsStorageService } from '../common/editSessions.js';
+import { URI } from '../../../../base/common/uri.js';
+import { fromNow } from '../../../../base/common/date.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { API_OPEN_EDITOR_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
+import { registerAction2, Action2, MenuId } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { joinPath } from '../../../../base/common/resources.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { basename } from '../../../../base/common/path.js';
+import { createCommandUri } from '../../../../base/common/htmlContent.js';
 
 const EDIT_SESSIONS_COUNT_KEY = 'editSessionsCount';
 const EDIT_SESSIONS_COUNT_CONTEXT_KEY = new RawContextKey<number>(EDIT_SESSIONS_COUNT_KEY, 0);
@@ -38,16 +39,16 @@ export class EditSessionsDataViews extends Disposable {
 
 	private registerViews(container: ViewContainer): void {
 		const viewId = EDIT_SESSIONS_DATA_VIEW_ID;
-		const name = EDIT_SESSIONS_TITLE;
-		const treeView = this.instantiationService.createInstance(TreeView, viewId, name);
+		const treeView = this.instantiationService.createInstance(TreeView, viewId, EDIT_SESSIONS_TITLE.value);
 		treeView.showCollapseAllAction = true;
 		treeView.showRefreshAction = true;
 		treeView.dataProvider = this.instantiationService.createInstance(EditSessionDataViewDataProvider);
 
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		viewsRegistry.registerViews([<ITreeViewDescriptor>{
 			id: viewId,
-			name,
+			name: EDIT_SESSIONS_TITLE,
 			ctorDescriptor: new SyncDescriptor(TreeViewPane),
 			canToggleVisibility: true,
 			canMoveView: false,
@@ -62,13 +63,13 @@ export class EditSessionsDataViews extends Disposable {
 			content: localize(
 				'noStoredChanges',
 				'You have no stored changes in the cloud to display.\n{0}',
-				`[${localize('storeWorkingChangesTitle', 'Store Working Changes')}](command:workbench.editSessions.actions.store)`,
+				`[${localize('storeWorkingChangesTitle', 'Store Working Changes')}](${createCommandUri('workbench.editSessions.actions.store')})`,
 			),
 			when: ContextKeyExpr.equals(EDIT_SESSIONS_COUNT_KEY, 0),
 			order: 1
 		});
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.resume',
@@ -88,9 +89,9 @@ export class EditSessionsDataViews extends Disposable {
 				await commandService.executeCommand('workbench.editSessions.actions.resumeLatest', editSessionId, true);
 				await treeView.refresh();
 			}
-		});
+		}));
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.store',
@@ -104,9 +105,9 @@ export class EditSessionsDataViews extends Disposable {
 				await commandService.executeCommand('workbench.editSessions.actions.storeCurrent');
 				await treeView.refresh();
 			}
-		});
+		}));
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.delete',
@@ -128,16 +129,16 @@ export class EditSessionsDataViews extends Disposable {
 					message: localize('confirm delete.v2', 'Are you sure you want to permanently delete your working changes with ref {0}?', editSessionId),
 					detail: localize('confirm delete detail.v2', ' You cannot undo this action.'),
 					type: 'warning',
-					title: EDIT_SESSIONS_TITLE
+					title: EDIT_SESSIONS_TITLE.value
 				});
 				if (result.confirmed) {
 					await editSessionStorageService.delete('editSessions', editSessionId);
 					await treeView.refresh();
 				}
 			}
-		});
+		}));
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.deleteAll',
@@ -157,14 +158,14 @@ export class EditSessionsDataViews extends Disposable {
 					message: localize('confirm delete all', 'Are you sure you want to permanently delete all stored changes from the cloud?'),
 					detail: localize('confirm delete all detail', ' You cannot undo this action.'),
 					type: 'warning',
-					title: EDIT_SESSIONS_TITLE
+					title: EDIT_SESSIONS_TITLE.value
 				});
 				if (result.confirmed) {
 					await editSessionStorageService.delete('editSessions', null);
 					await treeView.refresh();
 				}
 			}
-		});
+		}));
 	}
 }
 

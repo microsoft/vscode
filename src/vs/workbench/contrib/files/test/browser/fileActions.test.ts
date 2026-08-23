@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { incrementFileName } from 'vs/workbench/contrib/files/browser/fileActions';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { incrementFileName } from '../../browser/fileActions.js';
 
 suite('Files - Increment file name simple', () => {
 
@@ -134,6 +135,7 @@ suite('Files - Increment file name simple', () => {
 		assert.strictEqual(result, 'test copy 2');
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
 });
 
 suite('Files - Increment file name smart', () => {
@@ -324,4 +326,5 @@ suite('Files - Increment file name smart', () => {
 		assert.strictEqual(result, '2-test');
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

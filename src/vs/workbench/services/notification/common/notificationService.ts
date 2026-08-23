@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NeverShowAgainScope, NotificationsFilter, INeverShowAgainOptions } from 'vs/platform/notification/common/notification';
-import { NotificationsModel, ChoiceAction, NotificationChangeType } from 'vs/workbench/common/notifications';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { Emitter, Event } from 'vs/base/common/event';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IAction, Action } from 'vs/base/common/actions';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { localize } from '../../../../nls.js';
+import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NeverShowAgainScope, NotificationsFilter, INeverShowAgainOptions, INotificationSource, INotificationSourceFilter, isNotificationSource, IStatusHandle } from '../../../../platform/notification/common/notification.js';
+import { NotificationsModel, ChoiceAction, NotificationChangeType } from '../../../common/notifications.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IAction, Action } from '../../../../base/common/actions.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
 export class NotificationService extends Disposable implements INotificationService {
 
@@ -18,42 +18,42 @@ export class NotificationService extends Disposable implements INotificationServ
 
 	readonly model = this._register(new NotificationsModel());
 
-	private readonly _onDidAddNotification = this._register(new Emitter<INotification>());
-	readonly onDidAddNotification = this._onDidAddNotification.event;
-
-	private readonly _onDidRemoveNotification = this._register(new Emitter<INotification>());
-	readonly onDidRemoveNotification = this._onDidRemoveNotification.event;
-
-	private readonly _onDidChangeDoNotDisturbMode = this._register(new Emitter<void>());
-	readonly onDidChangeDoNotDisturbMode = this._onDidChangeDoNotDisturbMode.event;
-
 	constructor(
 		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
 
-		this.updateDoNotDisturbFilters();
+		this.mapSourceToFilter = (() => {
+			const map = new Map<string, INotificationSourceFilter>();
+
+			for (const sourceFilter of this.storageService.getObject<INotificationSourceFilter[]>(NotificationService.PER_SOURCE_FILTER_SETTINGS_KEY, StorageScope.APPLICATION, [])) {
+				map.set(sourceFilter.id, sourceFilter);
+			}
+
+			return map;
+		})();
+
+		this.globalFilterEnabled = this.storageService.getBoolean(NotificationService.GLOBAL_FILTER_SETTINGS_KEY, StorageScope.APPLICATION, false);
+
+		this.updateFilters();
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
 		this._register(this.model.onDidChangeNotification(e => {
 			switch (e.kind) {
-				case NotificationChangeType.ADD:
-				case NotificationChangeType.REMOVE: {
-					const notification: INotification = {
-						message: e.item.message.original,
-						severity: e.item.severity,
-						source: typeof e.item.sourceId === 'string' && typeof e.item.source === 'string' ? { id: e.item.sourceId, label: e.item.source } : e.item.source,
-						priority: e.item.priority
-					};
+				case NotificationChangeType.ADD: {
+					const source = typeof e.item.sourceId === 'string' && typeof e.item.source === 'string' ? { id: e.item.sourceId, label: e.item.source } : e.item.source;
 
-					if (e.kind === NotificationChangeType.ADD) {
-						this._onDidAddNotification.fire(notification);
-					}
+					// Make sure to track sources for notifications by registering
+					// them with our do not disturb system which is backed by storage
 
-					if (e.kind === NotificationChangeType.REMOVE) {
-						this._onDidRemoveNotification.fire(notification);
+					if (isNotificationSource(source)) {
+						if (!this.mapSourceToFilter.has(source.id)) {
+							this.setFilter({ ...source, filter: NotificationsFilter.OFF });
+						} else {
+							this.updateSourceFilter(source);
+						}
 					}
 
 					break;
@@ -62,47 +62,102 @@ export class NotificationService extends Disposable implements INotificationServ
 		}));
 	}
 
-	//#region Do not disturb mode
+	//#region Filters
 
-	static readonly DND_SETTINGS_KEY = 'notifications.doNotDisturbMode';
+	private static readonly GLOBAL_FILTER_SETTINGS_KEY = 'notifications.doNotDisturbMode';
+	private static readonly PER_SOURCE_FILTER_SETTINGS_KEY = 'notifications.perSourceDoNotDisturbMode';
 
-	private _doNotDisturbMode = this.storageService.getBoolean(NotificationService.DND_SETTINGS_KEY, StorageScope.APPLICATION, false);
+	private readonly _onDidChangeFilter = this._register(new Emitter<void>());
+	readonly onDidChangeFilter = this._onDidChangeFilter.event;
 
-	get doNotDisturbMode() {
-		return this._doNotDisturbMode;
-	}
+	private globalFilterEnabled: boolean;
 
-	set doNotDisturbMode(enabled: boolean) {
-		if (this._doNotDisturbMode === enabled) {
-			return; // no change
-		}
+	private readonly mapSourceToFilter: Map<string /** source id */, INotificationSourceFilter>;
 
-		this.storageService.store(NotificationService.DND_SETTINGS_KEY, enabled, StorageScope.APPLICATION, StorageTarget.MACHINE);
-		this._doNotDisturbMode = enabled;
+	setFilter(filter: NotificationsFilter | INotificationSourceFilter): void {
+		if (typeof filter === 'number') {
+			if (this.globalFilterEnabled === (filter === NotificationsFilter.ERROR)) {
+				return; // no change
+			}
 
-		// Toggle via filter
-		this.updateDoNotDisturbFilters();
+			// Store into model and persist
+			this.globalFilterEnabled = filter === NotificationsFilter.ERROR;
+			this.storageService.store(NotificationService.GLOBAL_FILTER_SETTINGS_KEY, this.globalFilterEnabled, StorageScope.APPLICATION, StorageTarget.MACHINE);
 
-		// Events
-		this._onDidChangeDoNotDisturbMode.fire();
-	}
+			// Update model
+			this.updateFilters();
 
-	private updateDoNotDisturbFilters(): void {
-		let filter: NotificationsFilter;
-		if (this._doNotDisturbMode) {
-			filter = NotificationsFilter.ERROR;
+			// Events
+			this._onDidChangeFilter.fire();
 		} else {
-			filter = NotificationsFilter.OFF;
+			const existing = this.mapSourceToFilter.get(filter.id);
+			if (existing?.filter === filter.filter && existing.label === filter.label) {
+				return; // no change
+			}
+
+			// Store into model and persist
+			this.mapSourceToFilter.set(filter.id, { id: filter.id, label: filter.label, filter: filter.filter });
+			this.saveSourceFilters();
+
+			// Update model
+			this.updateFilters();
+		}
+	}
+
+	getFilter(source?: INotificationSource): NotificationsFilter {
+		if (source) {
+			return this.mapSourceToFilter.get(source.id)?.filter ?? NotificationsFilter.OFF;
 		}
 
-		this.model.setFilter(filter);
+		return this.globalFilterEnabled ? NotificationsFilter.ERROR : NotificationsFilter.OFF;
+	}
+
+	private updateSourceFilter(source: INotificationSource): void {
+		const existing = this.mapSourceToFilter.get(source.id);
+		if (!existing) {
+			return; // nothing to do
+		}
+
+		// Store into model and persist
+		if (existing.label !== source.label) {
+			this.mapSourceToFilter.set(source.id, { id: source.id, label: source.label, filter: existing.filter });
+			this.saveSourceFilters();
+		}
+	}
+
+	private saveSourceFilters(): void {
+		this.storageService.store(NotificationService.PER_SOURCE_FILTER_SETTINGS_KEY, JSON.stringify([...this.mapSourceToFilter.values()]), StorageScope.APPLICATION, StorageTarget.MACHINE);
+	}
+
+	getFilters(): INotificationSourceFilter[] {
+		return [...this.mapSourceToFilter.values()];
+	}
+
+	private updateFilters(): void {
+		this.model.setFilter({
+			global: this.globalFilterEnabled ? NotificationsFilter.ERROR : NotificationsFilter.OFF,
+			sources: new Map([...this.mapSourceToFilter.values()].map(source => [source.id, source.filter]))
+		});
+	}
+
+	removeFilter(sourceId: string): void {
+		if (this.mapSourceToFilter.delete(sourceId)) {
+
+			// Persist
+			this.saveSourceFilters();
+
+			// Update model
+			this.updateFilters();
+		}
 	}
 
 	//#endregion
 
 	info(message: NotificationMessage | NotificationMessage[]): void {
 		if (Array.isArray(message)) {
-			message.forEach(m => this.info(m));
+			for (const messageEntry of message) {
+				this.info(messageEntry);
+			}
 
 			return;
 		}
@@ -112,7 +167,9 @@ export class NotificationService extends Disposable implements INotificationServ
 
 	warn(message: NotificationMessage | NotificationMessage[]): void {
 		if (Array.isArray(message)) {
-			message.forEach(m => this.warn(m));
+			for (const messageEntry of message) {
+				this.warn(messageEntry);
+			}
 
 			return;
 		}
@@ -122,7 +179,9 @@ export class NotificationService extends Disposable implements INotificationServ
 
 	error(message: NotificationMessage | NotificationMessage[]): void {
 		if (Array.isArray(message)) {
-			message.forEach(m => this.error(m));
+			for (const messageEntry of message) {
+				this.error(messageEntry);
+			}
 
 			return;
 		}
@@ -194,7 +253,6 @@ export class NotificationService extends Disposable implements INotificationServ
 	}
 
 	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
-		const toDispose = new DisposableStore();
 
 		// Handle neverShowAgain option accordingly
 		if (options?.neverShowAgain) {
@@ -222,6 +280,7 @@ export class NotificationService extends Disposable implements INotificationServ
 		}
 
 		let choiceClicked = false;
+		const toDispose = new DisposableStore();
 
 
 		// Convert choices into primary/secondary actions
@@ -266,7 +325,7 @@ export class NotificationService extends Disposable implements INotificationServ
 		return handle;
 	}
 
-	status(message: NotificationMessage, options?: IStatusMessageOptions): IDisposable {
+	status(message: NotificationMessage, options?: IStatusMessageOptions): IStatusHandle {
 		return this.model.showStatusMessage(message, options);
 	}
 }

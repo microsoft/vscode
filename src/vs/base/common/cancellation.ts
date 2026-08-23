@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Emitter, Event } from './event.js';
+import { DisposableStore, IDisposable } from './lifecycle.js';
 
 export interface CancellationToken {
 
@@ -21,10 +21,10 @@ export interface CancellationToken {
 	 *
 	 * @event
 	 */
-	readonly onCancellationRequested: (listener: (e: any) => any, thisArgs?: any, disposables?: IDisposable[]) => IDisposable;
+	readonly onCancellationRequested: (listener: (e: void) => unknown, thisArgs?: unknown, disposables?: IDisposable[]) => IDisposable;
 }
 
-const shortcutEvent: Event<any> = Object.freeze(function (callback, context?): IDisposable {
+const shortcutEvent: Event<void> = Object.freeze(function (callback, context?): IDisposable {
 	const handle = setTimeout(callback.bind(context), 0);
 	return { dispose() { clearTimeout(handle); } };
 });
@@ -60,7 +60,7 @@ export namespace CancellationToken {
 class MutableToken implements CancellationToken {
 
 	private _isCancelled: boolean = false;
-	private _emitter: Emitter<any> | null = null;
+	private _emitter: Emitter<void> | null = null;
 
 	public cancel() {
 		if (!this._isCancelled) {
@@ -76,12 +76,12 @@ class MutableToken implements CancellationToken {
 		return this._isCancelled;
 	}
 
-	get onCancellationRequested(): Event<any> {
+	get onCancellationRequested(): Event<void> {
 		if (this._isCancelled) {
 			return shortcutEvent;
 		}
 		if (!this._emitter) {
-			this._emitter = new Emitter<any>();
+			this._emitter = new Emitter<void>();
 		}
 		return this._emitter.event;
 	}
@@ -138,5 +138,69 @@ export class CancellationTokenSource {
 			// actually dispose
 			this._token.dispose();
 		}
+	}
+}
+
+export function cancelOnDispose(store: DisposableStore): CancellationToken {
+	const source = new CancellationTokenSource();
+	store.add({ dispose() { source.cancel(); } });
+	return source.token;
+}
+
+/**
+ * A pool that aggregates multiple cancellation tokens. The pool's own token
+ * (accessible via `pool.token`) is cancelled only after every token added
+ * to the pool has been cancelled. Adding tokens after the pool token has
+ * been cancelled has no effect.
+ */
+export class CancellationTokenPool {
+
+	private readonly _source = new CancellationTokenSource();
+	private readonly _listeners = new DisposableStore();
+
+	private _total: number = 0;
+	private _cancelled: number = 0;
+	private _isDone: boolean = false;
+
+	get token(): CancellationToken {
+		return this._source.token;
+	}
+
+	/**
+	 * Add a token to the pool. If the token is already cancelled it is counted
+	 * immediately. Tokens added after the pool token has been cancelled are ignored.
+	 */
+	add(token: CancellationToken): void {
+		if (this._isDone) {
+			return;
+		}
+
+		this._total++;
+
+		if (token.isCancellationRequested) {
+			this._cancelled++;
+			this._check();
+			return;
+		}
+
+		const d = token.onCancellationRequested(() => {
+			d.dispose();
+			this._cancelled++;
+			this._check();
+		});
+		this._listeners.add(d);
+	}
+
+	private _check(): void {
+		if (!this._isDone && this._total > 0 && this._total === this._cancelled) {
+			this._isDone = true;
+			this._listeners.dispose();
+			this._source.cancel();
+		}
+	}
+
+	dispose(): void {
+		this._listeners.dispose();
+		this._source.dispose();
 	}
 }

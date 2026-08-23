@@ -1,0 +1,47 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            Read the embedded attachment and reply with only its exact contents.
+
+            <tagged_files>
+            * ${homedir}/user-data/agentSessionData/${uuid_0}/attachments/${uuid_1}/embedded.txt (1 lines)
+            </tagged_files>
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: view
+          input:
+            path: ${homedir}/user-data/agentSessionData/${uuid_0}/attachments/${uuid_1}/embedded.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            Read the embedded attachment and reply with only its exact contents.
+
+            <tagged_files>
+            * ${homedir}/user-data/agentSessionData/${uuid_0}/attachments/${uuid_1}/embedded.txt (1 lines)
+            </tagged_files>
+        - role: assistant
+          content:
+            - type: tool_use
+              name: view
+              input:
+                path: ${homedir}/user-data/agentSessionData/${uuid_0}/attachments/${uuid_1}/embedded.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 1. ATTACHMENT_EMBEDDED_VALUE
+    response:
+      content: ATTACHMENT_EMBEDDED_VALUE
+      stopReason: end_turn

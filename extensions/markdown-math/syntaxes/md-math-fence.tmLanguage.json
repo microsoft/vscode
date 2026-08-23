@@ -1,0 +1,28 @@
+{
+    "fileTypes": [],
+    "injectionSelector": "L:markup.fenced_code.block.markdown",
+    "patterns": [
+        {
+            "include": "#math-code-block"
+        }
+    ],
+    "repository": {
+        "math-code-block": {
+            "begin": "(?<=[`~])math(\\s+[^`~]*)?$",
+            "end": "(^|\\G)(?=\\s*[`~]{3,}\\s*$)",
+            "patterns": [
+                {
+                    "begin": "(^|\\G)(\\s*)(.*)",
+                    "while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+                    "contentName": "meta.embedded.math.markdown",
+                    "patterns": [
+                        {
+                            "include": "text.html.markdown.math#math"
+                        }
+                    ]
+                }
+            ]
+        }
+    },
+    "scopeName": "markdown.math.codeblock"
+}

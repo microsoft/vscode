@@ -1,0 +1,30 @@
+{
+	"screenshotDir": ".screenshots",
+	"sessions": [
+		{
+			"name": "current"
+		},
+		{
+			"name": "baseline",
+			"source": {
+				"worktree": {
+					"ref": "HEAD",
+					"install": {
+						"command": "echo 'noop'"
+					}
+				}
+			}
+		}
+	],
+	"compare": {
+		"baseline": "baseline",
+		"current": "current"
+	},
+	"vite": {
+		"hmr": {
+			"allowedPaths": [
+				"*.css"
+			]
+		}
+	}
+}

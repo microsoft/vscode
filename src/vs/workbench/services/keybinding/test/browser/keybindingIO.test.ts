@@ -2,15 +2,18 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { KeyChord, KeyCode, KeyMod, ScanCode } from 'vs/base/common/keyCodes';
-import { KeyCodeChord, decodeKeybinding, ScanCodeChord, Keybinding } from 'vs/base/common/keybindings';
-import { KeybindingParser } from 'vs/base/common/keybindingParser';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
-import { createUSLayoutResolvedKeybinding } from 'vs/platform/keybinding/test/common/keybindingsTestUtils';
+import assert from 'assert';
+import { KeyChord, KeyCode, KeyMod, ScanCode } from '../../../../../base/common/keyCodes.js';
+import { KeyCodeChord, decodeKeybinding, ScanCodeChord, Keybinding } from '../../../../../base/common/keybindings.js';
+import { KeybindingParser } from '../../../../../base/common/keybindingParser.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
+import { KeybindingIO, OutputBuilder } from '../../common/keybindingIO.js';
+import { createUSLayoutResolvedKeybinding } from '../../../../../platform/keybinding/test/common/keybindingsTestUtils.js';
+import { ResolvedKeybindingItem } from '../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('keybindingIO', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('serialize/deserialize', () => {
 
@@ -154,6 +157,33 @@ suite('keybindingIO', () => {
 		const strJSON = `[{ "key": "ctrl+k ctrl+f", "command": "firstcommand", "when": [], "args": { "text": "theText" } }]`;
 		const userKeybinding = <Object>JSON.parse(strJSON)[0];
 		const keybindingItem = KeybindingIO.readUserKeybindingItem(userKeybinding);
-		assert.strictEqual(keybindingItem.commandArgs.text, 'theText');
+		assert.strictEqual((keybindingItem.commandArgs as unknown as { text: string }).text, 'theText');
+	});
+
+	test('systemWide - read defaults to false when absent or invalid', () => {
+		const absent = KeybindingIO.readUserKeybindingItem(<Object>JSON.parse(`{ "key": "ctrl+cmd+a", "command": "firstcommand" }`));
+		assert.strictEqual(absent.systemWide, false);
+
+		const invalid = KeybindingIO.readUserKeybindingItem(<Object>JSON.parse(`{ "key": "ctrl+cmd+a", "command": "firstcommand", "systemWide": "yes" }`));
+		assert.strictEqual(invalid.systemWide, false);
+	});
+
+	test('systemWide - read parses boolean value', () => {
+		const item = KeybindingIO.readUserKeybindingItem(<Object>JSON.parse(`{ "key": "ctrl+cmd+a", "command": "firstcommand", "systemWide": true }`));
+		assert.strictEqual(item.systemWide, true);
+	});
+
+	test('systemWide - write/export preserves the flag (roundtrip)', () => {
+		const resolvedKeybinding = createUSLayoutResolvedKeybinding(KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyA, OperatingSystem.Macintosh)!;
+		const item = new ResolvedKeybindingItem(resolvedKeybinding, 'workbench.action.openAgentsWindow', undefined, undefined, false, null, false, /* systemWide */ true);
+
+		const out = new OutputBuilder();
+		KeybindingIO.writeKeybindingItem(out, item);
+		const serialized = out.toString();
+		assert.ok(serialized.includes('"systemWide": true'), `expected serialized keybinding to include systemWide, got: ${serialized}`);
+
+		const readBack = KeybindingIO.readUserKeybindingItem(<Object>JSON.parse(serialized));
+		assert.strictEqual(readBack.systemWide, true);
+		assert.strictEqual(readBack.command, 'workbench.action.openAgentsWindow');
 	});
 });

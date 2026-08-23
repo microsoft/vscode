@@ -3,19 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { InternalModelContentChangeEvent, ModelRawContentChangedEvent, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/textModelEvents';
-import { EncodedTokenizationResult, IState, TokenizationRegistry } from 'vs/editor/common/languages';
-import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { NullState } from 'vs/editor/common/languages/nullTokenize';
-import { createModelServices, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
-import { ILanguageService } from 'vs/editor/common/languages/language';
+import assert from 'assert';
+import { Disposable, DisposableStore, dispose } from '../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { EditOperation } from '../../../common/core/editOperation.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { MetadataConsts } from '../../../common/encodedTokenAttributes.js';
+import { EncodedTokenizationResult, IState, TokenizationRegistry } from '../../../common/languages.js';
+import { ILanguageService } from '../../../common/languages/language.js';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
+import { NullState } from '../../../common/languages/nullTokenize.js';
+import { TextModel } from '../../../common/model/textModel.js';
+import { InternalModelContentChangeEvent, ModelInjectedTextChangedEvent, ModelRawContentChangedEvent, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from '../../../common/textModelEvents.js';
+import { createModelServices, createTextModel, instantiateTextModel } from '../testTextModel.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import { IViewModel } from '../../../common/viewModel.js';
 
 // --------- utils
 
@@ -42,6 +45,8 @@ suite('Editor Model - Model', () => {
 	teardown(() => {
 		thisModel.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	// --------- insert text
 
@@ -95,25 +100,37 @@ suite('Editor Model - Model', () => {
 
 	// --------- insert text eventing
 
+	function withEventCapturing(callback: () => void): ModelRawContentChangedEvent | null {
+		let e: ModelRawContentChangedEvent | null = null;
+		const spyViewModel = new class extends mock<IViewModel>() {
+			override onDidChangeContentOrInjectedText(_e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent) {
+				if (e !== null || !(_e instanceof InternalModelContentChangeEvent)) {
+					assert.fail('Unexpected assertion error');
+				}
+				e = _e.rawContentChangedEvent;
+			}
+			override emitContentChangeEvent(e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): void { }
+		};
+		thisModel.registerViewModel(spyViewModel);
+		callback();
+		thisModel.unregisterViewModel(spyViewModel);
+		return e;
+	}
+
 	test('model insert empty text does not trigger eventing', () => {
-		thisModel.onDidChangeContentOrInjectedText((e) => {
-			assert.ok(false, 'was not expecting event');
+		const e = withEventCapturing(() => {
+			thisModel.applyEdits([EditOperation.insert(new Position(1, 1), '')]);
 		});
-		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), '')]);
+		assert.deepStrictEqual(e, null, 'was not expecting event');
 	});
 
 	test('model insert text without newline eventing', () => {
-		let e: ModelRawContentChangedEvent | null = null;
-		thisModel.onDidChangeContentOrInjectedText((_e) => {
-			if (e !== null || !(_e instanceof InternalModelContentChangeEvent)) {
-				assert.fail('Unexpected assertion error');
-			}
-			e = _e.rawContentChangedEvent;
+		const e = withEventCapturing(() => {
+			thisModel.applyEdits([EditOperation.insert(new Position(1, 1), 'foo ')]);
 		});
-		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), 'foo ')]);
 		assert.deepStrictEqual(e, new ModelRawContentChangedEvent(
 			[
-				new ModelRawLineChanged(1, 'foo My First Line', null)
+				new ModelRawLineChanged(1, 1)
 			],
 			2,
 			false,
@@ -122,18 +139,13 @@ suite('Editor Model - Model', () => {
 	});
 
 	test('model insert text with one newline eventing', () => {
-		let e: ModelRawContentChangedEvent | null = null;
-		thisModel.onDidChangeContentOrInjectedText((_e) => {
-			if (e !== null || !(_e instanceof InternalModelContentChangeEvent)) {
-				assert.fail('Unexpected assertion error');
-			}
-			e = _e.rawContentChangedEvent;
+		const e = withEventCapturing(() => {
+			thisModel.applyEdits([EditOperation.insert(new Position(1, 3), ' new line\nNo longer')]);
 		});
-		thisModel.applyEdits([EditOperation.insert(new Position(1, 3), ' new line\nNo longer')]);
 		assert.deepStrictEqual(e, new ModelRawContentChangedEvent(
 			[
-				new ModelRawLineChanged(1, 'My new line', null),
-				new ModelRawLinesInserted(2, 2, ['No longer First Line'], [null]),
+				new ModelRawLineChanged(1, 1),
+				new ModelRawLinesInserted(2, 2, 1),
 			],
 			2,
 			false,
@@ -192,24 +204,19 @@ suite('Editor Model - Model', () => {
 	// --------- delete text eventing
 
 	test('model delete empty text does not trigger eventing', () => {
-		thisModel.onDidChangeContentOrInjectedText((e) => {
-			assert.ok(false, 'was not expecting event');
+		const e = withEventCapturing(() => {
+			thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 1))]);
 		});
-		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 1))]);
+		assert.deepStrictEqual(e, null, 'was not expecting event');
 	});
 
 	test('model delete text from one line eventing', () => {
-		let e: ModelRawContentChangedEvent | null = null;
-		thisModel.onDidChangeContentOrInjectedText((_e) => {
-			if (e !== null || !(_e instanceof InternalModelContentChangeEvent)) {
-				assert.fail('Unexpected assertion error');
-			}
-			e = _e.rawContentChangedEvent;
+		const e = withEventCapturing(() => {
+			thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 2))]);
 		});
-		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 2))]);
 		assert.deepStrictEqual(e, new ModelRawContentChangedEvent(
 			[
-				new ModelRawLineChanged(1, 'y First Line', null),
+				new ModelRawLineChanged(1, 1),
 			],
 			2,
 			false,
@@ -218,17 +225,12 @@ suite('Editor Model - Model', () => {
 	});
 
 	test('model delete all text from a line eventing', () => {
-		let e: ModelRawContentChangedEvent | null = null;
-		thisModel.onDidChangeContentOrInjectedText((_e) => {
-			if (e !== null || !(_e instanceof InternalModelContentChangeEvent)) {
-				assert.fail('Unexpected assertion error');
-			}
-			e = _e.rawContentChangedEvent;
+		const e = withEventCapturing(() => {
+			thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 14))]);
 		});
-		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 14))]);
 		assert.deepStrictEqual(e, new ModelRawContentChangedEvent(
 			[
-				new ModelRawLineChanged(1, '', null),
+				new ModelRawLineChanged(1, 1),
 			],
 			2,
 			false,
@@ -237,18 +239,13 @@ suite('Editor Model - Model', () => {
 	});
 
 	test('model delete text from two lines eventing', () => {
-		let e: ModelRawContentChangedEvent | null = null;
-		thisModel.onDidChangeContentOrInjectedText((_e) => {
-			if (e !== null || !(_e instanceof InternalModelContentChangeEvent)) {
-				assert.fail('Unexpected assertion error');
-			}
-			e = _e.rawContentChangedEvent;
+		const e = withEventCapturing(() => {
+			thisModel.applyEdits([EditOperation.delete(new Range(1, 4, 2, 6))]);
 		});
-		thisModel.applyEdits([EditOperation.delete(new Range(1, 4, 2, 6))]);
 		assert.deepStrictEqual(e, new ModelRawContentChangedEvent(
 			[
-				new ModelRawLineChanged(1, 'My Second Line', null),
-				new ModelRawLinesDeleted(2, 2),
+				new ModelRawLineChanged(1, 1),
+				new ModelRawLinesDeleted(2, 2, 1),
 			],
 			2,
 			false,
@@ -257,18 +254,13 @@ suite('Editor Model - Model', () => {
 	});
 
 	test('model delete text from many lines eventing', () => {
-		let e: ModelRawContentChangedEvent | null = null;
-		thisModel.onDidChangeContentOrInjectedText((_e) => {
-			if (e !== null || !(_e instanceof InternalModelContentChangeEvent)) {
-				assert.fail('Unexpected assertion error');
-			}
-			e = _e.rawContentChangedEvent;
+		const e = withEventCapturing(() => {
+			thisModel.applyEdits([EditOperation.delete(new Range(1, 4, 3, 5))]);
 		});
-		thisModel.applyEdits([EditOperation.delete(new Range(1, 4, 3, 5))]);
 		assert.deepStrictEqual(e, new ModelRawContentChangedEvent(
 			[
-				new ModelRawLineChanged(1, 'My Third Line', null),
-				new ModelRawLinesDeleted(2, 3),
+				new ModelRawLineChanged(1, 1),
+				new ModelRawLinesDeleted(2, 3, 1),
 			],
 			2,
 			false,
@@ -308,14 +300,9 @@ suite('Editor Model - Model', () => {
 
 	// --------- setValue
 	test('setValue eventing', () => {
-		let e: ModelRawContentChangedEvent | null = null;
-		thisModel.onDidChangeContentOrInjectedText((_e) => {
-			if (e !== null || !(_e instanceof InternalModelContentChangeEvent)) {
-				assert.fail('Unexpected assertion error');
-			}
-			e = _e.rawContentChangedEvent;
+		const e = withEventCapturing(() => {
+			thisModel.setValue('new value');
 		});
-		thisModel.setValue('new value');
 		assert.deepStrictEqual(e, new ModelRawContentChangedEvent(
 			[
 				new ModelRawFlush()
@@ -356,6 +343,8 @@ suite('Editor Model - Model Line Separators', () => {
 	teardown(() => {
 		thisModel.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('model getValue', () => {
 		assert.strictEqual(thisModel.getValue(), 'My First Line\u2028\t\tMy Second Line\n    Third Line\u2028\n1');
@@ -414,7 +403,7 @@ suite('Editor Model - Words', () => {
 					for (let i = 0; i < tokens.length; i++) {
 						tokens[i] = tokensArr[i];
 					}
-					return new EncodedTokenizationResult(tokens, state);
+					return new EncodedTokenizationResult(tokens, [], state);
 				}
 			}));
 		}
@@ -444,6 +433,8 @@ suite('Editor Model - Words', () => {
 		dispose(disposables);
 		disposables = [];
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Get word at position', () => {
 		const text = ['This text has some  words. '];

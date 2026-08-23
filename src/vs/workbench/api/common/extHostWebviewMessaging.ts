@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import * as extHostProtocol from './extHost.protocol';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import * as extHostProtocol from './extHost.protocol.js';
 
 class ArrayBufferSet {
-	public readonly buffers: ArrayBuffer[] = [];
+	public readonly buffers: ArrayBufferLike[] = [];
 
-	public add(buffer: ArrayBuffer): number {
+	public add(buffer: ArrayBufferLike): number {
 		let index = this.buffers.indexOf(buffer);
 		if (index < 0) {
 			index = this.buffers.length;
@@ -20,7 +20,7 @@ class ArrayBufferSet {
 }
 
 export function serializeWebviewMessage(
-	message: any,
+	message: unknown,
 	options: { serializeBuffersForPostMessage?: boolean }
 ): { message: string; buffers: VSBuffer[] } {
 	if (options.serializeBuffersForPostMessage) {
@@ -30,15 +30,15 @@ export function serializeWebviewMessage(
 		const replacer = (_key: string, value: any) => {
 			if (value instanceof ArrayBuffer) {
 				const index = arrayBuffers.add(value);
-				return <extHostProtocol.WebviewMessageArrayBufferReference>{
+				return {
 					$$vscode_array_buffer_reference$$: true,
 					index,
-				};
+				} satisfies extHostProtocol.WebviewMessageArrayBufferReference;
 			} else if (ArrayBuffer.isView(value)) {
 				const type = getTypedArrayType(value);
 				if (type) {
 					const index = arrayBuffers.add(value.buffer);
-					return <extHostProtocol.WebviewMessageArrayBufferReference>{
+					return {
 						$$vscode_array_buffer_reference$$: true,
 						index,
 						view: {
@@ -46,7 +46,7 @@ export function serializeWebviewMessage(
 							byteLength: value.byteLength,
 							byteOffset: value.byteOffset,
 						}
-					};
+					} satisfies extHostProtocol.WebviewMessageArrayBufferReference;
 				}
 			}
 
@@ -83,7 +83,7 @@ function getTypedArrayType(value: ArrayBufferView): extHostProtocol.WebviewMessa
 	return undefined;
 }
 
-export function deserializeWebviewMessage(jsonMessage: string, buffers: VSBuffer[]): { message: any; arrayBuffers: ArrayBuffer[] } {
+export function deserializeWebviewMessage(jsonMessage: string, buffers: VSBuffer[]): { message: unknown; arrayBuffers: ArrayBuffer[] } {
 	const arrayBuffers: ArrayBuffer[] = buffers.map(buffer => {
 		const arrayBuffer = new ArrayBuffer(buffer.byteLength);
 		const uint8Array = new Uint8Array(arrayBuffer);
@@ -117,6 +117,6 @@ export function deserializeWebviewMessage(jsonMessage: string, buffers: VSBuffer
 		return value;
 	};
 
-	const message = JSON.parse(jsonMessage, reviver);
+	const message = JSON.parse(jsonMessage, reviver) as unknown;
 	return { message, arrayBuffers };
 }

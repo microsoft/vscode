@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Emitter } from 'vs/base/common/event';
-import { DisposableStore, dispose, IDisposable, markAsSingleton, ReferenceCollection, SafeDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite, throwIfDisposablesAreLeaked } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { Emitter } from '../../common/event.js';
+import { DisposableSet, DisposableStore, dispose, IDisposable, markAsSingleton, ReferenceCollection, thenIfNotDisposed, toDisposable } from '../../common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite, throwIfDisposablesAreLeaked } from './utils.js';
 
 class Disposable implements IDisposable {
 	isDisposed = false;
 	dispose() { this.isDisposed = true; }
 }
 
+// Leaks are allowed here since we test lifecycle stuff:
+// eslint-disable-next-line local/code-ensure-no-disposables-leak-in-test
 suite('Lifecycle', () => {
-
 	test('dispose single disposable', () => {
 		const disposable = new Disposable();
 
@@ -107,28 +108,11 @@ suite('Lifecycle', () => {
 		const setValues2 = dispose(setValues);
 		assert.ok(setValues === setValues2);
 	});
-
-	test('SafeDisposable, dispose', function () {
-		let disposed = 0;
-		const actual = () => disposed += 1;
-		const d = new SafeDisposable();
-		d.set(actual);
-		d.dispose();
-		assert.strictEqual(disposed, 1);
-	});
-
-	test('SafeDisposable, unset', function () {
-		let disposed = 0;
-		const actual = () => disposed += 1;
-		const d = new SafeDisposable();
-		d.set(actual);
-		d.unset();
-		d.dispose();
-		assert.strictEqual(disposed, 0);
-	});
 });
 
 suite('DisposableStore', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('dispose should call all child disposes even if a child throws on dispose', () => {
 		const disposedValues = new Set<number>();
 
@@ -172,9 +156,225 @@ suite('DisposableStore', () => {
 		assert.strictEqual((thrownError as AggregateError).errors[0].message, 'I am error 1');
 		assert.strictEqual((thrownError as AggregateError).errors[1].message, 'I am error 2');
 	});
+
+	test('delete should evict and dispose of the disposables', () => {
+		const disposedValues = new Set<number>();
+		const disposables: IDisposable[] = [
+			toDisposable(() => { disposedValues.add(1); }),
+			toDisposable(() => { disposedValues.add(2); })
+		];
+
+		const store = new DisposableStore();
+		store.add(disposables[0]);
+		store.add(disposables[1]);
+
+		store.delete(disposables[0]);
+
+		assert.ok(disposedValues.has(1));
+		assert.ok(!disposedValues.has(2));
+
+		store.dispose();
+
+		assert.ok(disposedValues.has(1));
+		assert.ok(disposedValues.has(2));
+	});
+
+	test('deleteAndLeak should evict and not dispose of the disposables', () => {
+		const disposedValues = new Set<number>();
+		const disposables: IDisposable[] = [
+			toDisposable(() => { disposedValues.add(1); }),
+			toDisposable(() => { disposedValues.add(2); })
+		];
+
+		const store = new DisposableStore();
+		store.add(disposables[0]);
+		store.add(disposables[1]);
+
+		store.deleteAndLeak(disposables[0]);
+
+		assert.ok(!disposedValues.has(1));
+		assert.ok(!disposedValues.has(2));
+
+		store.dispose();
+
+		assert.ok(!disposedValues.has(1));
+		assert.ok(disposedValues.has(2));
+
+		disposables[0].dispose();
+	});
+});
+
+suite('DisposableSet', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('dispose should dispose all values and mark as disposed', () => {
+		const disposedValues = new Set<number>();
+
+		const set = new DisposableSet<IDisposable>();
+		set.add(toDisposable(() => { disposedValues.add(1); }));
+		set.add(toDisposable(() => { disposedValues.add(2); }));
+		set.add(toDisposable(() => { disposedValues.add(3); }));
+
+		assert.strictEqual(set.size, 3);
+
+		set.dispose();
+
+		assert.ok(disposedValues.has(1));
+		assert.ok(disposedValues.has(2));
+		assert.ok(disposedValues.has(3));
+		assert.strictEqual(set.size, 0);
+	});
+
+	test('dispose should call all child disposes even if a child throws on dispose', () => {
+		const disposedValues = new Set<number>();
+
+		const set = new DisposableSet<IDisposable>();
+		set.add(toDisposable(() => { disposedValues.add(1); }));
+		set.add(toDisposable(() => { throw new Error('I am error'); }));
+		set.add(toDisposable(() => { disposedValues.add(3); }));
+
+		let thrownError: any;
+		try {
+			set.dispose();
+		} catch (e) {
+			thrownError = e;
+		}
+
+		assert.ok(disposedValues.has(1));
+		assert.ok(disposedValues.has(3));
+		assert.strictEqual(thrownError.message, 'I am error');
+	});
+
+	test('clearAndDisposeAll should dispose values but not mark as disposed', () => {
+		const disposedValues = new Set<number>();
+
+		const set = new DisposableSet<IDisposable>();
+		const d1 = toDisposable(() => { disposedValues.add(1); });
+		set.add(d1);
+
+		set.clearAndDisposeAll();
+
+		assert.ok(disposedValues.has(1));
+		assert.strictEqual(set.size, 0);
+
+		// Can still add new values
+		const d2 = toDisposable(() => { disposedValues.add(2); });
+		set.add(d2);
+		assert.strictEqual(set.size, 1);
+
+		set.dispose();
+		assert.ok(disposedValues.has(2));
+	});
+
+	test('has should return true if value exists', () => {
+		const set = new DisposableSet<IDisposable>();
+		const d = toDisposable(() => { });
+		set.add(d);
+
+		const other = toDisposable(() => { });
+		assert.ok(set.has(d));
+		assert.ok(!set.has(other));
+
+		set.dispose();
+		other.dispose();
+	});
+
+	test('deleteAndDispose should remove and dispose the value', () => {
+		const disposedValues = new Set<number>();
+
+		const set = new DisposableSet<IDisposable>();
+		const d1 = toDisposable(() => { disposedValues.add(1); });
+		const d2 = toDisposable(() => { disposedValues.add(2); });
+		set.add(d1);
+		set.add(d2);
+
+		set.deleteAndDispose(d1);
+
+		assert.ok(disposedValues.has(1));
+		assert.ok(!disposedValues.has(2));
+		assert.strictEqual(set.size, 1);
+		assert.ok(!set.has(d1));
+		assert.ok(set.has(d2));
+
+		set.dispose();
+		assert.ok(disposedValues.has(2));
+	});
+
+	test('deleteAndLeak should remove but not dispose the value', () => {
+		const disposedValues = new Set<number>();
+
+		const set = new DisposableSet<IDisposable>();
+		const d1 = toDisposable(() => { disposedValues.add(1); });
+		const d2 = toDisposable(() => { disposedValues.add(2); });
+		set.add(d1);
+		set.add(d2);
+
+		const leaked = set.deleteAndLeak(d1);
+
+		assert.strictEqual(leaked, d1);
+		assert.ok(!disposedValues.has(1));
+		assert.ok(!disposedValues.has(2));
+		assert.strictEqual(set.size, 1);
+
+		set.dispose();
+
+		assert.ok(!disposedValues.has(1));
+		assert.ok(disposedValues.has(2));
+
+		// Caller is responsible for disposing
+		d1.dispose();
+	});
+
+	test('deleteAndLeak should return undefined if value not in set', () => {
+		const set = new DisposableSet<IDisposable>();
+		const d = toDisposable(() => { });
+
+		const leaked = set.deleteAndLeak(d);
+
+		assert.strictEqual(leaked, undefined);
+
+		set.dispose();
+		d.dispose();
+	});
+
+	test('values should iterate over all values', () => {
+		const set = new DisposableSet<IDisposable>();
+		const d1 = toDisposable(() => { });
+		const d2 = toDisposable(() => { });
+		set.add(d1);
+		set.add(d2);
+
+		const values = [...set.values()];
+		assert.strictEqual(values.length, 2);
+		assert.ok(values.includes(d1));
+		assert.ok(values.includes(d2));
+
+		set.dispose();
+	});
+
+	test('Symbol.iterator should allow for-of iteration', () => {
+		const set = new DisposableSet<IDisposable>();
+		const d1 = toDisposable(() => { });
+		const d2 = toDisposable(() => { });
+		set.add(d1);
+		set.add(d2);
+
+		const values: IDisposable[] = [];
+		for (const v of set) {
+			values.push(v);
+		}
+
+		assert.strictEqual(values.length, 2);
+		assert.ok(values.includes(d1));
+		assert.ok(values.includes(d2));
+
+		set.dispose();
+	});
 });
 
 suite('Reference Collection', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	class Collection extends ReferenceCollection<number> {
 		private _count = 0;
 		get count() { return this._count; }
@@ -231,16 +431,16 @@ suite('No Leakage Utilities', () => {
 					eventEmitter.event(() => {
 						// noop
 					});
-				});
-			}, e => e.message.indexOf('These disposables were not disposed') !== -1);
+				}, false);
+			}, e => e.message.indexOf('undisposed disposables') !== -1);
 		});
 
 		test('throws if a disposable is not disposed', () => {
 			assertThrows(() => {
 				throwIfDisposablesAreLeaked(() => {
 					new DisposableStore();
-				});
-			}, e => e.message.indexOf('These disposables were not disposed') !== -1);
+				}, false);
+			}, e => e.message.indexOf('undisposed disposables') !== -1);
 		});
 
 		test('does not throw if all event subscriptions are cleaned up', () => {
@@ -275,6 +475,32 @@ suite('No Leakage Utilities', () => {
 
 		test('Basic Test', () => {
 			toDisposable(() => { }).dispose();
+		});
+	});
+
+	suite('thenIfNotDisposed', () => {
+		const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+		test('normal case', async () => {
+			let called = false;
+			store.add(thenIfNotDisposed(Promise.resolve(123), (result: number) => {
+				assert.strictEqual(result, 123);
+				called = true;
+			}));
+
+			await new Promise(resolve => setTimeout(resolve, 0));
+			assert.strictEqual(called, true);
+		});
+
+		test('disposed before promise resolves', async () => {
+			let called = false;
+			const disposable = thenIfNotDisposed(Promise.resolve(123), () => {
+				called = true;
+			});
+
+			disposable.dispose();
+			await new Promise(resolve => setTimeout(resolve, 0));
+			assert.strictEqual(called, false);
 		});
 	});
 });

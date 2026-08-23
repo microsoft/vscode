@@ -7,7 +7,7 @@ import { window, workspace, Disposable, TextDocument, Position, SnippetString, T
 import { Runtime } from './htmlClient';
 import { LanguageParticipants } from './languageParticipants';
 
-export function activateAutoInsertion(provider: (kind: 'autoQuote' | 'autoClose', document: TextDocument, position: Position) => Thenable<string>, languageParticipants: LanguageParticipants, runtime: Runtime): Disposable {
+export function activateAutoInsertion(provider: (kind: 'autoQuote' | 'autoClose', document: TextDocument, position: Position) => Thenable<string | null>, languageParticipants: LanguageParticipants, runtime: Runtime): Disposable {
 	const disposables: Disposable[] = [];
 	workspace.onDidChangeTextDocument(onDidChangeTextDocument, null, disposables);
 
@@ -56,12 +56,18 @@ export function activateAutoInsertion(provider: (kind: 'autoQuote' | 'autoClose'
 		}
 
 		const lastChange = contentChanges[contentChanges.length - 1];
-		const lastCharacter = lastChange.text[lastChange.text.length - 1];
-		if (isEnabled['autoQuote'] && lastChange.rangeLength === 0 && lastCharacter === '=') {
-			doAutoInsert('autoQuote', document, lastChange);
-		} else if (isEnabled['autoClose'] && lastChange.rangeLength === 0 && (lastCharacter === '>' || lastCharacter === '/')) {
-			doAutoInsert('autoClose', document, lastChange);
+		if (lastChange.rangeLength === 0 && isSingleLine(lastChange.text)) {
+			const lastCharacter = lastChange.text[lastChange.text.length - 1];
+			if (isEnabled['autoQuote'] && lastCharacter === '=') {
+				doAutoInsert('autoQuote', document, lastChange);
+			} else if (isEnabled['autoClose'] && (lastCharacter === '>' || lastCharacter === '/')) {
+				doAutoInsert('autoClose', document, lastChange);
+			}
 		}
+	}
+
+	function isSingleLine(text: string): boolean {
+		return !/\n/.test(text);
 	}
 
 	function doAutoInsert(kind: 'autoQuote' | 'autoClose', document: TextDocument, lastChange: TextDocumentContentChangeEvent) {

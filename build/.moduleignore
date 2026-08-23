@@ -20,6 +20,19 @@ fsevents/test/**
 @vscode/spdlog/*.yml
 !@vscode/spdlog/build/Release/*.node
 
+@vscode/deviceid/binding.gyp
+@vscode/deviceid/build/**
+@vscode/deviceid/deps/**
+@vscode/deviceid/src/**
+@vscode/deviceid/test/**
+@vscode/deviceid/*.yml
+!@vscode/deviceid/build/Release/*.node
+
+@vscode/fs-copyfile/binding.gyp
+@vscode/fs-copyfile/build/**
+@vscode/fs-copyfile/src/**
+!@vscode/fs-copyfile/build/Release/*.node
+
 @vscode/sqlite3/binding.gyp
 @vscode/sqlite3/benchmark/**
 @vscode/sqlite3/cloudformation/**
@@ -46,6 +59,14 @@ fsevents/test/**
 @vscode/windows-registry/build/**
 !@vscode/windows-registry/build/Release/*.node
 
+@vscode/tree-sitter-wasm/wasm/tree-sitter-*.wasm
+!@vscode/tree-sitter-wasm/wasm/tree-sitter-typescript.wasm
+!@vscode/tree-sitter-wasm/wasm/tree-sitter-regex.wasm
+!@vscode/tree-sitter-wasm/wasm/tree-sitter-ini.wasm
+!@vscode/tree-sitter-wasm/wasm/tree-sitter-css.wasm
+!@vscode/tree-sitter-wasm/wasm/tree-sitter-powershell.wasm
+!@vscode/tree-sitter-wasm/wasm/tree-sitter-bash.wasm
+
 native-keymap/binding.gyp
 native-keymap/build/**
 native-keymap/src/**
@@ -58,15 +79,16 @@ native-is-elevated/src/**
 native-is-elevated/deps/**
 !native-is-elevated/build/Release/*.node
 
-native-watchdog/binding.gyp
-native-watchdog/build/**
-native-watchdog/src/**
-!native-watchdog/build/Release/*.node
+@vscode/native-watchdog/binding.gyp
+@vscode/native-watchdog/build/**
+@vscode/native-watchdog/src/**
+!@vscode/native-watchdog/build/Release/*.node
 
-node-vsce-sign/**
-!node-vsce-sign/src/main.js
-!node-vsce-sign/package.json
-!node-vsce-sign/bin/**
+@vscode/vsce-sign/**
+!@vscode/vsce-sign/src/main.d.ts
+!@vscode/vsce-sign/src/main.js
+!@vscode/vsce-sign/package.json
+!@vscode/vsce-sign/bin/**
 
 windows-foreground-love/binding.gyp
 windows-foreground-love/build/**
@@ -79,12 +101,30 @@ kerberos/src/**
 kerberos/node_modules/**
 !kerberos/**/*.node
 
-keytar/binding.gyp
-keytar/build/**
-keytar/src/**
-keytar/script/**
-keytar/node_modules/**
-!keytar/**/*.node
+cpu-features/**
+
+# utf-8-validate and bufferutil are native modules pulled in by the websocket
+# package. They include prebuilds for multiple platforms which break cross-platform
+# bundling (rcedit fails on non-PE .node files). Both modules have pure JS fallbacks
+# that are sufficient for Node.js >= 18.14.0, so we strip all native artifacts.
+utf-8-validate/binding.gyp
+utf-8-validate/build/**
+utf-8-validate/prebuilds/**
+utf-8-validate/src/**
+
+bufferutil/binding.gyp
+bufferutil/build/**
+bufferutil/prebuilds/**
+bufferutil/src/**
+
+ssh2/lib/protocol/crypto/binding.gyp
+ssh2/lib/protocol/crypto/build/**
+ssh2/lib/protocol/crypto/src/**
+ssh2/util/**
+ssh2/install.js
+ssh2/.github/**
+ssh2/.eslint*
+ssh2/SFTP.md
 
 node-pty/binding.gyp
 node-pty/build/**
@@ -93,10 +133,13 @@ node-pty/lib/*.test.js
 node-pty/tools/**
 node-pty/deps/**
 node-pty/scripts/**
+node-pty/third_party/**
 !node-pty/build/Release/spawn-helper
 !node-pty/build/Release/*.exe
 !node-pty/build/Release/*.dll
 !node-pty/build/Release/*.node
+!node-pty/build/Release/conpty/conpty.dll
+!node-pty/build/Release/conpty/OpenConsole.exe
 
 @parcel/watcher/binding.gyp
 @parcel/watcher/build/**
@@ -104,23 +147,13 @@ node-pty/scripts/**
 @parcel/watcher/src/**
 !@parcel/watcher/build/Release/*.node
 
-vsda/build/**
-vsda/ci/**
-vsda/src/**
-vsda/.gitignore
-vsda/binding.gyp
-vsda/README.md
-vsda/SECURITY.md
-vsda/targets
+vsda/**
+!vsda/index.js
+!vsda/index.d.ts
+!vsda/package.json
 !vsda/build/Release/vsda.node
-
-vscode-encrypt/build/**
-vscode-encrypt/src/**
-vscode-encrypt/vendor/**
-vscode-encrypt/.gitignore
-vscode-encrypt/binding.gyp
-vscode-encrypt/README.md
-!vscode-encrypt/build/Release/vscode-encrypt-native.node
+!vsda/rust/web/**
+!vsda/rust/bundler/**
 
 @vscode/policy-watcher/build/**
 @vscode/policy-watcher/.husky/**
@@ -134,6 +167,7 @@ vscode-encrypt/README.md
 !@vscode/windows-ca-certs/package.json
 !@vscode/windows-ca-certs/**/*.node
 
+@vscode/node-addon-api/**/*
 node-addon-api/**/*
 prebuild-install/**/*
 
@@ -144,6 +178,9 @@ prebuild-install/**/*
 **/examples/**
 **/test/**
 **/tests/**
+
+# Signing artifacts
+**/_manifest/**
 
 **/History.md
 **/CHANGELOG.md
@@ -175,11 +212,69 @@ zone.js/dist/**
 !zone.js/dist/zone-node.js
 
 # https://github.com/xtermjs/xterm.js/issues/3137
-xterm/src/**
-xterm/tsconfig.all.json
+@xterm/xterm/src/**
+@xterm/xterm/tsconfig.all.json
 
 # https://github.com/xtermjs/xterm.js/issues/3138
-xterm-addon-*/src/**
-xterm-addon-*/fixtures/**
-xterm-addon-*/out/**
-xterm-addon-*/out-test/**
+@xterm/xterm-addon-*/src/**
+@xterm/xterm-addon-*/fixtures/**
+@xterm/xterm-addon-*/out/**
+@xterm/xterm-addon-*/out-test/**
+
+# @github/copilot - strip unneeded binaries and files
+@github/copilot/sdk/index.js
+@github/copilot/prebuilds/**
+@github/copilot/clipboard/**
+@github/copilot/ripgrep/**
+@github/copilot/pvrecorder/**
+@github/copilot/foundry-local-sdk/**
+@github/copilot/mxc-bin/**
+@github/copilot/sharp/**
+@github/copilot/**/keytar.node
+
+# os-theme is pulled in by @github/copilot but the CLI does not use its native addon.
+# See https://github.com/microsoft/vscode-engineering/issues/3087.
+@os-theme/**
+
+# @github/copilot platform binaries - not needed
+@github/copilot-darwin-arm64/**
+@github/copilot-darwin-x64/**
+@github/copilot-linux-arm64/**
+@github/copilot-linux-x64/**
+@github/copilot-linuxmusl-arm64/**
+@github/copilot-linuxmusl-x64/**
+@github/copilot-win32-arm64/**
+@github/copilot-win32-x64/**
+
+# @vscode/os-proxy-resolver platform binaries - selected target is re-added during packaging
+@vscode/os-proxy-resolver-darwin-arm64/**
+@vscode/os-proxy-resolver-darwin-x64/**
+@vscode/os-proxy-resolver-linux-arm-gnueabihf/**
+@vscode/os-proxy-resolver-linux-arm64-gnu/**
+@vscode/os-proxy-resolver-linux-arm64-musl/**
+@vscode/os-proxy-resolver-linux-x64-gnu/**
+@vscode/os-proxy-resolver-linux-x64-musl/**
+@vscode/os-proxy-resolver-win32-arm64-msvc/**
+@vscode/os-proxy-resolver-win32-x64-msvc/**
+
+# @github/copilot-sdk - strip the nested @github/copilot CLI runtime
+# The SDK only needs its own dist/ files; the CLI is resolved via cliPath at runtime
+@github/copilot-sdk/node_modules/@github/copilot/**
+@github/copilot-sdk/node_modules/@github/copilot-darwin-arm64/**
+@github/copilot-sdk/node_modules/@github/copilot-darwin-x64/**
+@github/copilot-sdk/node_modules/@github/copilot-linux-arm64/**
+@github/copilot-sdk/node_modules/@github/copilot-linux-x64/**
+@github/copilot-sdk/node_modules/@github/copilot-linuxmusl-arm64/**
+@github/copilot-sdk/node_modules/@github/copilot-linuxmusl-x64/**
+@github/copilot-sdk/node_modules/@github/copilot-win32-arm64/**
+@github/copilot-sdk/node_modules/@github/copilot-win32-x64/**
+
+# @github/copilot-sdk uses Koffi only for its in-process FFI transport.
+# VS Code uses RuntimeConnection.forStdio.
+koffi/**
+@koromix/koffi-*/**
+
+# es5-ext is quarantined protestware (sonatype-2022-2248). It is only consumed
+# in websocket's browser.js inside a try/catch with a globalThis fallback,
+# so it is unnecessary in the browsers/runtimes VS Code supports.
+es5-ext/**

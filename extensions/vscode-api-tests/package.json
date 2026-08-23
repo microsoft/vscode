@@ -5,53 +5,62 @@
   "publisher": "vscode",
   "license": "MIT",
   "enabledApiProposals": [
+    "activeComment",
     "authSession",
-    "contribViewsRemote",
+    "browser",
+    "environmentPower",
+    "chatParticipantPrivate",
+    "chatPromptFiles",
+    "chatProvider",
     "contribStatusBarItems",
+    "contribViewsRemote",
     "customEditorMove",
+    "defaultChatParticipant",
     "diffCommand",
     "documentFiltersExclusive",
-    "documentPaste",
+    "documentSyntaxHighlighting",
     "editorInsets",
+    "embeddings",
+    "envIsConnectionMetered",
     "extensionRuntime",
     "extensionsAny",
     "externalUriOpener",
     "fileSearchProvider",
+    "findFiles2",
     "findTextInFiles",
     "fsChunks",
-    "notebookCellExecutionState",
+    "interactive",
+    "languageStatusText",
+    "mcpServerDefinitions",
+    "nativeWindowHandle",
     "notebookDeprecated",
     "notebookLiveShare",
     "notebookMessaging",
     "notebookMime",
     "portsAttributes",
     "quickPickSortByLabel",
-    "readonlyMessage",
     "resolvers",
-    "saveEditor",
     "scmActionButton",
     "scmSelectedProvider",
     "scmTextDocument",
     "scmValidation",
     "taskPresentationGroup",
+    "telemetry",
     "terminalDataWriteEvent",
     "terminalDimensions",
-    "tunnels",
-    "envShellEvent",
-    "testCoverage",
     "testObserver",
     "textSearchProvider",
     "timeline",
     "tokenInformation",
-    "treeItemCheckbox",
-	"treeViewActiveItem",
+    "treeViewActiveItem",
     "treeViewReveal",
+    "tunnels",
     "workspaceTrust",
-    "telemetry",
-    "windowActivity",
-    "interactiveUserActions",
-    "envCollectionWorkspace",
-    "envCollectionOptions"
+    "inlineCompletionsAdditions",
+    "devDeviceId",
+    "languageModelProxy",
+    "agentSessionsWorkspace",
+    "linkPresentation"
   ],
   "private": true,
   "activationEvents": [],
@@ -61,6 +70,52 @@
   },
   "icon": "media/icon.png",
   "contributes": {
+    "languageModelChatProviders": [
+      {
+        "vendor": "test-lm-vendor",
+        "displayName": "Test LM Vendor"
+      },
+      {
+        "vendor": "copilot",
+        "displayName": "Test Copilot LM Vendor"
+      }
+    ],
+    "chatParticipants": [
+      {
+        "id": "api-test.participant",
+        "name": "participant",
+        "description": "test",
+        "isDefault": true,
+        "commands": [
+          {
+            "name": "hello",
+            "description": "Hello"
+          }
+        ],
+        "modes": [
+          "agent",
+          "ask",
+          "edit"
+        ]
+      },
+      {
+        "id": "api-test.participant2",
+        "name": "participant2",
+        "description": "test",
+        "commands": []
+      }
+    ],
+    "languageModelTools": [
+      {
+        "name": "requires_confirmation_tool",
+        "toolReferenceName": "requires_confirmation_tool",
+        "displayName": "Requires Confirmation Tool",
+        "modelDescription": "A noop tool to trigger confirmation.",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(files)",
+        "inputSchema": {}
+      }
+    ],
     "configuration": {
       "type": "object",
       "title": "Test Config",
@@ -83,6 +138,13 @@
         "farboo.get": {
           "type": "string",
           "default": "get-prop"
+        },
+        "integration-test.http.proxy": {
+          "type": "string"
+        },
+        "integration-test.http.proxyAuth": {
+          "type": "string",
+          "default": "get-prop"
         }
       }
     },
@@ -91,6 +153,11 @@
         {
           "id": "test.treeId",
           "name": "test-tree",
+          "when": "never"
+        },
+        {
+          "id": "test.treeSwitchUpdate",
+          "name": "test-tree-switch-update",
           "when": "never"
         }
       ]
@@ -165,6 +232,12 @@
         ]
       }
     ],
+    "interactiveSession": [
+      {
+        "id": "provider",
+        "label": "Provider"
+      }
+    ],
     "notebooks": [
       {
         "type": "notebookCoreTest",
@@ -210,11 +283,14 @@
   },
   "scripts": {
     "compile": "node ./node_modules/vscode/bin/compile -watch -p ./",
-    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-api-tests ./tsconfig.json"
+    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.mjs compile-extension:vscode-api-tests ./tsconfig.json"
   },
   "devDependencies": {
-    "@types/mocha": "^9.1.1",
-    "@types/node": "16.x"
+    "@types/mocha": "^10.0.10",
+    "@types/node": "24.x",
+    "@types/node-forge": "^1.3.11",
+    "node-forge": "^1.4.0",
+    "straightforward": "^4.2.2"
   },
   "repository": {
     "type": "git",

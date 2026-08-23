@@ -3,26 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { parseKeyboardLayoutDescription, areKeyboardLayoutsEqual, getKeyboardLayoutId, IKeyboardLayoutService, IKeyboardLayoutInfo } from 'vs/platform/keyboardLayout/common/keyboardLayout';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { KEYBOARD_LAYOUT_OPEN_PICKER } from 'vs/workbench/contrib/preferences/common/preferences';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
-import { QuickPickInput, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { IEditorPane } from 'vs/workbench/common/editor';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import * as nls from '../../../../nls.js';
+import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor } from '../../../services/statusbar/browser/statusbar.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { parseKeyboardLayoutDescription, areKeyboardLayoutsEqual, getKeyboardLayoutId, IKeyboardLayoutService, IKeyboardLayoutInfo } from '../../../../platform/keyboardLayout/common/keyboardLayout.js';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { KEYBOARD_LAYOUT_OPEN_PICKER } from '../common/preferences.js';
+import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import { QuickPickInput, IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { IEditorPane } from '../../../common/editor.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 
 export class KeyboardLayoutPickerContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.keyboardLayoutPicker';
+
 	private readonly pickerElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 
 	constructor(
@@ -79,8 +80,7 @@ export class KeyboardLayoutPickerContribution extends Disposable implements IWor
 	}
 }
 
-const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(KeyboardLayoutPickerContribution, LifecyclePhase.Starting);
+registerWorkbenchContribution2(KeyboardLayoutPickerContribution.ID, KeyboardLayoutPickerContribution, WorkbenchPhase.BlockStartup);
 
 interface LayoutQuickPickItem extends IQuickPickItem {
 	layout: IKeyboardLayoutInfo;
@@ -104,7 +104,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: KEYBOARD_LAYOUT_OPEN_PICKER,
-			title: { value: nls.localize('keyboard.chooseLayout', "Change Keyboard Layout"), original: 'Change Keyboard Layout' },
+			title: nls.localize2('keyboard.chooseLayout', "Change Keyboard Layout"),
 			f1: true
 		});
 	}
