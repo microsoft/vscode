@@ -11,6 +11,7 @@ import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
 import { CachedListVirtualDelegate, IListElementRenderDetails } from '../../../../../base/browser/ui/list/list.js';
+import { IStickyScrollNodeSourceRange } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { ITreeNode, ITreeRenderer } from '../../../../../base/browser/ui/tree/tree.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { coalesce, distinct } from '../../../../../base/common/arrays.js';
@@ -182,6 +183,7 @@ export interface IChatListItemTemplate {
 	readonly username: HTMLElement;
 	readonly detail: HTMLElement;
 	readonly value: HTMLElement;
+	stickyScrollSource?: HTMLElement;
 	readonly requestTimestampContainer: HTMLElement;
 	readonly contextKeyService: IContextKeyService;
 	readonly instantiationService: IInstantiationService;
@@ -579,6 +581,9 @@ export interface IChatRendererDelegate {
 	container: HTMLElement;
 	getListLength(): number;
 	currentChatMode(): ChatModeKind;
+	isStickyScrollEnabled(): boolean;
+	refreshStickyScroll(): void;
+	readonly stickyScrollTopPadding: number;
 	getEditingValue?(): string | undefined;
 
 	readonly onDidScroll?: Event<ScrollEvent>;
@@ -620,6 +625,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private readonly templateDataByRequestId = new Map<string, IChatListItemTemplate>();
 	private readonly responseTemplateDataByRequestId = new Map<string, IChatListItemTemplate>();
+	private readonly stickyScrollSourceRangesByRequestId = new Map<string, IStickyScrollNodeSourceRange | null>();
+	private readonly stickyScrollRequestContentById = new Map<string, { contentKey: string; hasContent: boolean }>();
+	private readonly pendingStickyScrollSourceRangeRefresh = this._register(new MutableDisposable<IDisposable>());
+	private readonly pendingStickyScrollStateRefresh = this._register(new MutableDisposable<IDisposable>());
 	private readonly templateDataByRow = new WeakMap<HTMLElement, IChatListItemTemplate>();
 
 	/** Track pending question carousels by session resource for auto-skip on chat submission */
@@ -769,6 +778,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 
+		if (isRequestVM(template.currentElement)) {
+			this.scheduleStickyScrollSourceRangeRefresh();
+		}
+
 		const height = measuredHeight ?? template.rowContainer.getBoundingClientRect().height;
 		if (height === 0 || !height) {
 			return;
@@ -838,6 +851,42 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return codeBlocks ?? [];
 	}
 
+	getStickyScrollSourceRange(element: ChatTreeItem, defaultRange: IStickyScrollNodeSourceRange): IStickyScrollNodeSourceRange | undefined {
+		if (!isRequestVM(element)
+			|| element.isSystemInitiated
+			|| !!element.confirmation
+			|| !this.requestHasStickyScrollContent(element)) {
+			return undefined;
+		}
+
+		const sourceRange = this.stickyScrollSourceRangesByRequestId.get(element.id);
+		if (sourceRange) {
+			return sourceRange;
+		}
+		return this.stickyScrollSourceRangesByRequestId.has(element.id) ? undefined : { ...defaultRange, estimated: true };
+	}
+
+	refreshStickyScrollSourceRanges(invalidateRejected = false): void {
+		if (!this.delegate.isStickyScrollEnabled()) {
+			this.stickyScrollSourceRangesByRequestId.clear();
+			return;
+		}
+
+		if (invalidateRejected) {
+			for (const [requestId, sourceRange] of this.stickyScrollSourceRangesByRequestId) {
+				if (sourceRange === null) {
+					this.stickyScrollSourceRangesByRequestId.delete(requestId);
+				}
+			}
+		}
+
+		for (const templateData of this.templateDataByRequestId.values()) {
+			if (isRequestVM(templateData.currentElement)) {
+				this.updateStickyScrollSourceRange(templateData.currentElement, templateData);
+			}
+		}
+	}
+
 	updateViewModel(viewModel: IChatViewModel | undefined): void {
 		this.viewModel = viewModel;
 		this._announcedToolProgressKeys.clear();
@@ -848,6 +897,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.focusedFileTreesByResponseId.clear();
 		this.responseTemplateDataByRequestId.clear();
 		this.templateDataByRequestId.clear();
+		this.stickyScrollSourceRangesByRequestId.clear();
+		this.stickyScrollRequestContentById.clear();
 
 		// Fire the viewModel update first so template listeners can dispose
 		// their rendered content parts and release pool items back. Only then
@@ -910,6 +961,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			for (const diffEditor of this._diffEditorPool.inUse()) {
 				diffEditor.layout(newWidth);
 			}
+			this.stickyScrollSourceRangesByRequestId.clear();
+			this.scheduleStickyScrollSourceRangeRefresh();
 		}
 	}
 
@@ -1193,6 +1246,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		} else if (isPendingDividerVM(templateData.currentElement)) {
 			dom.clearNode(templateData.value);
 		}
+		templateData.stickyScrollSource = undefined;
 
 		templateData.movedOutToolParts?.dispose();
 		templateData.movedOutToolParts = undefined;
@@ -1389,8 +1443,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const checkpointEnabled = this.configService.getValue<boolean>(ChatConfiguration.CheckpointsEnabled)
 			&& supportsForkOrRestoration;
 		const isPendingRequest = isRequestVM(element) && !!element.pendingKind;
+		const isStickyScrollRow = !!dom.findParentWithClass(templateData.rowContainer, 'monaco-tree-sticky-row');
 
-		templateData.checkpointContainer.classList.toggle('hidden', isResponseVM(element) || isPendingRequest || isSystemInitiatedRequest || !(checkpointEnabled));
+		templateData.checkpointContainer.classList.toggle('hidden', isStickyScrollRow || isResponseVM(element) || isPendingRequest || isSystemInitiatedRequest || !(checkpointEnabled));
 
 		// Force toolbars to synchronously re-evaluate after context key changes
 		// to avoid size measurement issues from the debounced menu update.
@@ -1432,10 +1487,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			templateData.elementDisposables.add(toDisposable(() => setGroupHover(false)));
 		}
 
-		const isStickyScrollRow = !!dom.findParentWithClass(templateData.rowContainer, 'monaco-tree-sticky-row');
-
 		// Only show restore container when we have a checkpoint and not editing, and not a pending request.
-		// Hide it in sticky scroll rows — only the checkpoint toolbar is shown there.
 		const shouldShowRestore = !isStickyScrollRow && this.viewModel?.model.checkpoint && !this.viewModel?.editing && (index === this.delegate.getListLength() - 1) && !isPendingRequest;
 		templateData.checkpointRestoreContainer.classList.toggle('hidden', !(shouldShowRestore && checkpointEnabled));
 
@@ -1526,6 +1578,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				this.renderChatResponseBasic(element, index, templateData);
 			} else if (isRequestVM(element)) {
 				this.renderChatRequest(element, index, templateData);
+				this.updateStickyScrollSourceRange(element, templateData);
 			}
 		}
 		templateData.renderedPartsMounted = true;
@@ -1976,6 +2029,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderChatRequest(element: IChatRequestViewModel, index: number, templateData: IChatListItemTemplate) {
+		templateData.stickyScrollSource = undefined;
 		templateData.rowContainer.classList.toggle('chat-response-loading', false);
 		templateData.rowContainer.classList.toggle('pending-request', !!element.pendingKind);
 		templateData.rowContainer.classList.toggle('system-initiated-request', !!element.isSystemInitiated);
@@ -2025,11 +2079,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const otherVariables = element.variables.filter(variable => !isExplicitFileOrImageVariableEntry(variable) && !isPasteVariableEntry(variable));
 		const isStickyAndEditing = !element.confirmation && isStickyScrollRow && element.id === this.viewModel?.editing?.id;
 		if (!element.confirmation && !isStickyAndEditing) {
-			const markdown = isChatFollowup(element.message) ?
-				element.message.message :
-				this.markdownDecorationsRenderer.convertParsedRequestToMarkdown(element.sessionResource, element.message);
-			const attachmentSummary = !element.messageText.trim() && !explicitFileOrImageVariables.length ? getExplicitFileOrImageAttachmentSummary(element.variables) : undefined;
-			const requestMarkdown = markdown.trim() ? markdown : attachmentSummary;
+			const requestMarkdown = this.getRequestMarkdown(element, explicitFileOrImageVariables);
 			if (requestMarkdown) {
 				content = [{ content: new MarkdownString(requestMarkdown), kind: 'markdownContent' }];
 			}
@@ -2045,27 +2095,29 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		dom.clearNode(templateData.value);
 		const isFirstRequest = this.viewModel?.model.getRequests()[0]?.id === element.id;
-		if (element.origin || (this.environmentService.isSessionsWindow && isFirstRequest)) {
+		if (!isStickyScrollRow && (element.origin || (this.environmentService.isSessionsWindow && isFirstRequest))) {
 			const requestOriginPart = this.instantiationService.createInstance(ChatRequestOriginPart, element.sessionResource, element.origin);
 			templateData.value.appendChild(requestOriginPart.domNode);
 			templateData.elementDisposables.add(requestOriginPart);
 		}
 		const parts: IChatContentPart[] = [];
-		const explicitImageAttachmentsPart = explicitImageVariables.length ? this.renderAttachments(explicitImageVariables, element.contentReferences, element.modelId, templateData, element.resolvedModelId) : undefined;
-		if (explicitImageAttachmentsPart?.domNode) {
-			explicitImageAttachmentsPart.domNode.classList.add('chat-request-attachment-cards', 'chat-request-image-attachments');
-			templateData.value.appendChild(explicitImageAttachmentsPart.domNode);
-			templateData.elementDisposables.add(explicitImageAttachmentsPart);
-		}
-		const explicitFileAttachmentsPart = explicitFileOrDirectoryVariables.length ? this.renderAttachments(explicitFileOrDirectoryVariables, element.contentReferences, element.modelId, templateData) : undefined;
-		if (explicitFileAttachmentsPart?.domNode) {
-			explicitFileAttachmentsPart.domNode.classList.add('chat-request-attachment-cards', 'chat-request-file-attachments');
-			explicitFileAttachmentsPart.domNode.style.display = 'flex';
-			explicitFileAttachmentsPart.domNode.style.flexDirection = 'column';
-			explicitFileAttachmentsPart.domNode.style.alignItems = 'flex-end';
-			explicitFileAttachmentsPart.domNode.style.flexWrap = 'nowrap';
-			templateData.value.appendChild(explicitFileAttachmentsPart.domNode);
-			templateData.elementDisposables.add(explicitFileAttachmentsPart);
+		if (!isStickyScrollRow) {
+			const explicitImageAttachmentsPart = explicitImageVariables.length ? this.renderAttachments(explicitImageVariables, element.contentReferences, element.modelId, templateData, element.resolvedModelId) : undefined;
+			if (explicitImageAttachmentsPart?.domNode) {
+				explicitImageAttachmentsPart.domNode.classList.add('chat-request-attachment-cards', 'chat-request-image-attachments');
+				templateData.value.appendChild(explicitImageAttachmentsPart.domNode);
+				templateData.elementDisposables.add(explicitImageAttachmentsPart);
+			}
+			const explicitFileAttachmentsPart = explicitFileOrDirectoryVariables.length ? this.renderAttachments(explicitFileOrDirectoryVariables, element.contentReferences, element.modelId, templateData) : undefined;
+			if (explicitFileAttachmentsPart?.domNode) {
+				explicitFileAttachmentsPart.domNode.classList.add('chat-request-attachment-cards', 'chat-request-file-attachments');
+				explicitFileAttachmentsPart.domNode.style.display = 'flex';
+				explicitFileAttachmentsPart.domNode.style.flexDirection = 'column';
+				explicitFileAttachmentsPart.domNode.style.alignItems = 'flex-end';
+				explicitFileAttachmentsPart.domNode.style.flexWrap = 'nowrap';
+				templateData.value.appendChild(explicitFileAttachmentsPart.domNode);
+				templateData.elementDisposables.add(explicitFileAttachmentsPart);
+			}
 		}
 		const contentContainer = templateData.value;
 
@@ -2117,6 +2169,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}));
 
 			contentContainer.appendChild(container);
+			templateData.stickyScrollSource = container;
 			const editingTextPart: IChatContentPart = {
 				domNode: container,
 				hasSameContent: other => other.kind === 'markdownContent',
@@ -2145,8 +2198,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			};
 			const newPart = this.renderChatContentPart(data, templateData, context);
 			if (newPart) {
+				if (data.kind === 'markdownContent' && newPart.domNode) {
+					templateData.stickyScrollSource ??= newPart.domNode;
+				}
+				if (isStickyScrollRow && data.kind === 'markdownContent' && newPart.domNode) {
+					const firstBlock = newPart.domNode.firstElementChild;
+					newPart.domNode.classList.toggle('chat-request-has-more', !!firstBlock?.nextElementSibling);
+				}
 
-				if (this.rendererOptions.renderDetectedCommandsWithRequest
+				if (!isStickyScrollRow
+					&& this.rendererOptions.renderDetectedCommandsWithRequest
 					&& !inlineSlashCommandRendered
 					&& element.agentOrSlashCommandDetected && element.slashCommand
 					&& data.kind === 'markdownContent' // TODO this is fishy but I didn't find a better way to render on the same inline as the MD request part
@@ -2173,7 +2234,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 		templateData.renderedParts = parts;
 
-		if (otherVariables.length) {
+		if (!isStickyScrollRow && otherVariables.length) {
 			const newPart = this.renderAttachments(otherVariables, element.contentReferences, element.modelId, templateData);
 			if (newPart.domNode) {
 				// p has a :last-child rule for margin
@@ -2182,7 +2243,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			templateData.elementDisposables.add(newPart);
 		}
 
-		if (!element.pendingKind && !element.confirmation && this.rendererOptions.renderStyle !== 'minimal' && templateData.value.childElementCount > 0) {
+		if (!isStickyScrollRow && !element.pendingKind && !element.confirmation && this.rendererOptions.renderStyle !== 'minimal' && templateData.value.childElementCount > 0) {
 			const timestamp = renderChatRequestTimestamp(templateData.requestTimestampContainer, element.requestTimestamp);
 			if (timestamp?.hoverText) {
 				templateData.elementDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), timestamp.element, timestamp.hoverText));
@@ -2218,6 +2279,112 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}));
 			}
 		}
+	}
+
+	private getRequestMarkdown(element: IChatRequestViewModel, explicitFileOrImageVariables = element.variables.filter(isExplicitFileOrImageVariableEntry)): string | undefined {
+		const markdown = isChatFollowup(element.message)
+			? element.message.message
+			: this.markdownDecorationsRenderer.convertParsedRequestToMarkdown(element.sessionResource, element.message);
+		const attachmentSummary = !element.messageText.trim() && !explicitFileOrImageVariables.length
+			? getExplicitFileOrImageAttachmentSummary(element.variables)
+			: undefined;
+		return markdown.trim() ? markdown : attachmentSummary;
+	}
+
+	private requestHasStickyScrollContent(element: IChatRequestViewModel): boolean {
+		const isEditing = element.id === this.viewModel?.editing?.id;
+		const editingValue = isEditing ? this.delegate.getEditingValue?.() ?? '' : undefined;
+		const contentKey = isEditing ? `editing:${editingValue}` : element.dataId;
+		const cached = this.stickyScrollRequestContentById.get(element.id);
+		if (cached?.contentKey === contentKey) {
+			return cached.hasContent;
+		}
+
+		const hasContent = isEditing ? !!editingValue?.trim() : !!this.getRequestMarkdown(element)?.trim();
+		this.stickyScrollRequestContentById.set(element.id, { contentKey, hasContent });
+		this.stickyScrollSourceRangesByRequestId.delete(element.id);
+		return hasContent;
+	}
+
+	private updateStickyScrollSourceRange(element: IChatRequestViewModel, templateData: IChatListItemTemplate): void {
+		if (!this.delegate.isStickyScrollEnabled()
+			|| templateData.currentElement !== element) {
+			return;
+		}
+
+		const stickyScrollRow = dom.findParentWithClass(templateData.rowContainer, 'monaco-tree-sticky-row');
+		const isStickyScrollRow = !!stickyScrollRow;
+		const requestBubble = templateData.stickyScrollSource;
+		if (!requestBubble?.textContent?.trim()) {
+			this.rejectStickyScrollSourceRange(element.id, isStickyScrollRow);
+			return;
+		}
+		if (isStickyScrollRow && !templateData.rowContainer.isConnected) {
+			templateData.elementDisposables.add(dom.scheduleAtNextAnimationFrame(dom.getWindow(templateData.rowContainer), () => {
+				if (templateData.currentElement === element && templateData.rowContainer.isConnected) {
+					this.updateStickyScrollSourceRange(element, templateData);
+				}
+			}));
+			return;
+		}
+
+		const requestBounds = requestBubble.getBoundingClientRect();
+		if (isStickyScrollRow) {
+			const stickyRowBounds = stickyScrollRow.getBoundingClientRect();
+			const visibleWidth = Math.min(requestBounds.right, stickyRowBounds.right) - Math.max(requestBounds.left, stickyRowBounds.left);
+			const visibleHeight = Math.min(requestBounds.bottom, stickyRowBounds.bottom) - Math.max(requestBounds.top, stickyRowBounds.top);
+			if (visibleHeight <= 0 || visibleWidth <= 0) {
+				this.rejectStickyScrollSourceRange(element.id, true);
+				return;
+			}
+
+			const previousRange = this.stickyScrollSourceRangesByRequestId.get(element.id);
+			const stickyNodeHeight = this.delegate.stickyScrollTopPadding + requestBounds.height;
+			if (!previousRange || previousRange.stickyNodeHeight !== stickyNodeHeight) {
+				this.stickyScrollSourceRangesByRequestId.set(element.id, {
+					start: previousRange?.start ?? 0,
+					end: previousRange?.end ?? this.delegate.stickyScrollTopPadding + requestBounds.height,
+					stickyNodeHeight,
+				});
+				this.scheduleStickyScrollStateRefresh();
+			}
+			return;
+		}
+
+		const rowBounds = templateData.rowContainer.getBoundingClientRect();
+		const start = Math.max(0, requestBounds.top - rowBounds.top - this.delegate.stickyScrollTopPadding);
+		const end = requestBounds.bottom - rowBounds.top;
+		if (requestBounds.height <= 0 || end <= start) {
+			return;
+		}
+
+		const stickyNodeHeight = this.stickyScrollSourceRangesByRequestId.get(element.id)?.stickyNodeHeight;
+		this.stickyScrollSourceRangesByRequestId.set(element.id, { start, end, stickyNodeHeight });
+	}
+
+	private rejectStickyScrollSourceRange(requestId: string, refreshStickyScroll: boolean): void {
+		const alreadyRejected = this.stickyScrollSourceRangesByRequestId.get(requestId) === null;
+		this.stickyScrollSourceRangesByRequestId.set(requestId, null);
+		if (refreshStickyScroll && !alreadyRejected) {
+			this.scheduleStickyScrollStateRefresh();
+		}
+	}
+
+	private scheduleStickyScrollSourceRangeRefresh(): void {
+		if (!this.delegate.isStickyScrollEnabled()) {
+			return;
+		}
+
+		this.pendingStickyScrollSourceRangeRefresh.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.delegate.container), () => {
+			this.refreshStickyScrollSourceRanges();
+			this.delegate.refreshStickyScroll();
+		});
+	}
+
+	private scheduleStickyScrollStateRefresh(): void {
+		this.pendingStickyScrollStateRefresh.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.delegate.container), () => {
+			this.delegate.refreshStickyScroll();
+		});
 	}
 
 	private renderSystemInitiatedRequest(element: IChatRequestViewModel, templateData: IChatListItemTemplate) {

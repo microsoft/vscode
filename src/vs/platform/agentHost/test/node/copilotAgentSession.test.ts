@@ -83,6 +83,7 @@ import { createTestGitHubEndpointService } from './testGitHubEndpointService.js'
 class MockCopilotSession {
 	readonly sessionId = 'test-session-1';
 	readonly sendRequests: unknown[] = [];
+	sendGate: Promise<void> | undefined;
 	readonly modeSetCalls: Array<{ mode: 'interactive' | 'plan' | 'autopilot' }> = [];
 	readonly permissionModeSetCalls: PermissionAllowAllMode[] = [];
 	permissionModeSetSuccess = true;
@@ -153,6 +154,7 @@ class MockCopilotSession {
 	disconnectCalls = 0;
 	disconnectGate: Promise<void> | undefined;
 	disconnectHook: (() => void) | undefined;
+	disconnectError: Error | undefined;
 	/**
 	 * Per-call gates, consumed in call order, for holding individual reads in flight.
 	 * Lets a test make an earlier-issued read resolve after a later one.
@@ -242,6 +244,7 @@ class MockCopilotSession {
 	async send(request: unknown) {
 		this.operationLog.push('send');
 		this.sendRequests.push(request);
+		await this.sendGate;
 		return `message-${this.sendRequests.length}`;
 	}
 	async abort() {
@@ -254,6 +257,9 @@ class MockCopilotSession {
 		this.disconnectCalls++;
 		this.disconnectHook?.();
 		await this.disconnectGate;
+		if (this.disconnectError) {
+			throw this.disconnectError;
+		}
 	}
 
 	readonly rpc = {
@@ -1081,6 +1087,47 @@ suite('CopilotAgentSession', () => {
 
 			assert.deepStrictEqual(events, ['session.compaction_start']);
 		});
+
+		test('reports a completed disconnect separately from a pending disconnect', async () => {
+			const disconnectGate = new DeferredPromise<void>();
+			const mockSession = new MockCopilotSession();
+			mockSession.disconnectGate = disconnectGate.p;
+			const wrapper = disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession));
+
+			const disconnect = wrapper.disconnect();
+			const pendingState = wrapper.lifecycleState;
+			disconnectGate.complete();
+			await disconnect;
+
+			assert.deepStrictEqual({
+				pendingState,
+				completedState: wrapper.lifecycleState,
+			}, {
+				pendingState: 'disconnecting',
+				completedState: 'disconnected',
+			});
+		});
+
+		test('returns to active and permits retry after disconnect rejects', async () => {
+			const mockSession = new MockCopilotSession();
+			mockSession.disconnectError = new Error('disconnect failed');
+			const wrapper = disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession));
+
+			await assert.rejects(wrapper.disconnect(), /disconnect failed/);
+			const rejectedState = wrapper.lifecycleState;
+			mockSession.disconnectError = undefined;
+			await wrapper.disconnect();
+
+			assert.deepStrictEqual({
+				rejectedState,
+				completedState: wrapper.lifecycleState,
+				disconnectCalls: mockSession.disconnectCalls,
+			}, {
+				rejectedState: 'active',
+				completedState: 'disconnected',
+				disconnectCalls: 2,
+			});
+		});
 	});
 
 	test('destroySession completes when shutdown arrives before the response', async () => {
@@ -1092,6 +1139,7 @@ suite('CopilotAgentSession', () => {
 				mockSession.disconnectHook = () => { void disconnectStarted.complete(); };
 			},
 		});
+
 		const destroy = session.destroySession();
 
 		await disconnectStarted.p;
@@ -1107,6 +1155,60 @@ suite('CopilotAgentSession', () => {
 		} finally {
 			disconnectGate.complete();
 		}
+	});
+
+	test('reports bounded provider lifecycle state for the active turn', async () => {
+		const sendGate = new DeferredPromise<void>();
+		const { session, mockSession } = await createAgentSession(disposables, {
+			configureMockSession: mockSession => {
+				mockSession.sendGate = sendGate.p;
+			},
+		});
+		session.resetTurnState('turn-1');
+
+		assert.deepStrictEqual(session.getTurnDiagnosticSnapshot('turn-1'), {
+			state: 'available',
+			providerCallState: 'notStarted',
+			providerTurnStarted: false,
+			providerSessionState: 'active',
+		});
+
+		const send = session.send('hello', undefined, 'turn-1');
+		while (mockSession.sendRequests.length === 0) {
+			await timeout(0);
+		}
+		assert.deepStrictEqual(session.getTurnDiagnosticSnapshot('turn-1'), {
+			state: 'available',
+			providerCallState: 'pending',
+			providerTurnStarted: false,
+			providerSessionState: 'active',
+		});
+
+		mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-1' });
+		assert.deepStrictEqual(session.getTurnDiagnosticSnapshot('turn-1'), {
+			state: 'available',
+			providerCallState: 'pending',
+			providerTurnStarted: true,
+			providerSessionState: 'active',
+		});
+
+		sendGate.complete();
+		await send;
+		mockSession.fire('session.shutdown', {
+			codeChanges: { filesModified: [], linesAdded: 0, linesRemoved: 0 },
+			modelMetrics: {},
+			sessionStartTime: 0,
+			shutdownType: 'routine',
+			totalApiDurationMs: 0,
+		});
+
+		assert.deepStrictEqual(session.getTurnDiagnosticSnapshot('turn-1'), {
+			state: 'available',
+			providerCallState: 'resolved',
+			providerTurnStarted: true,
+			providerSessionState: 'shutdown',
+		});
+		assert.strictEqual(session.getTurnDiagnosticSnapshot('other-turn'), undefined);
 	});
 
 	test('logs SDK events without wrapped handlers', async () => {
@@ -1924,6 +2026,8 @@ suite('CopilotAgentSession', () => {
 				_meta: {
 					copilotUsage: { totalNanoAiu: 250_000_000, sessionTotalNanoAiu: 250_000_000 },
 					turnTokenTotals: [{ model: 'claude-sonnet-4.6', inputTokens: 9000, cachedTokens: 0, outputTokens: 400 }],
+					directTurnTokenTotals: [{ model: 'claude-sonnet-4.6', inputTokens: 9000, cachedTokens: 0, outputTokens: 400 }],
+					directCopilotUsage: { totalNanoAiu: 250_000_000 },
 				},
 			},
 		});
@@ -1958,6 +2062,8 @@ suite('CopilotAgentSession', () => {
 				copilotUsage: { totalNanoAiu: 750_000_000, sessionTotalNanoAiu: 750_000_000 },
 				// The compaction call reported no tokens of its own, so only the model call shows.
 				turnTokenTotals: [{ model: 'claude-sonnet-4.6', inputTokens: 10, cachedTokens: 0, outputTokens: 20 }],
+				directTurnTokenTotals: [{ model: 'claude-sonnet-4.6', inputTokens: 10, cachedTokens: 0, outputTokens: 20 }],
+				directCopilotUsage: { totalNanoAiu: 750_000_000 },
 			},
 		});
 	});
@@ -2009,6 +2115,8 @@ suite('CopilotAgentSession', () => {
 				// The turn bills only its own call; the compaction is visible in the session total.
 				copilotUsage: { totalNanoAiu: 500_000_000, sessionTotalNanoAiu: 133_968_375_000 },
 				turnTokenTotals: [{ model: 'claude-opus-4.6', inputTokens: 10, cachedTokens: 0, outputTokens: 20 }],
+				directTurnTokenTotals: [{ model: 'claude-opus-4.6', inputTokens: 10, cachedTokens: 0, outputTokens: 20 }],
+				directCopilotUsage: { totalNanoAiu: 500_000_000 },
 			},
 		});
 	});
@@ -2036,6 +2144,8 @@ suite('CopilotAgentSession', () => {
 		assert.deepStrictEqual(usageActions.at(-1)?.usage._meta, {
 			copilotUsage: { totalNanoAiu: 1_000_000_000, sessionTotalNanoAiu: 3_000_000_000 },
 			turnTokenTotals: [{ model: 'claude-opus-4.6', inputTokens: 1, cachedTokens: 0, outputTokens: 1 }],
+			directTurnTokenTotals: [{ model: 'claude-opus-4.6', inputTokens: 1, cachedTokens: 0, outputTokens: 1 }],
+			directCopilotUsage: { totalNanoAiu: 1_000_000_000 },
 		});
 	});
 
@@ -2435,12 +2545,19 @@ suite('CopilotAgentSession', () => {
 				sendRequests: mockSession.sendRequests,
 				turnCompleteBeforeIdle: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete).length,
 				hasActiveTurn: session.hasActiveTurn,
+				diagnostics: session.getTurnDiagnosticSnapshot('turn-fleet'),
 			}, {
 				fleetStartCalls: [{ prompt: 'the full analysis' }],
 				commandInvokeCalls: [],
 				sendRequests: [],
 				turnCompleteBeforeIdle: 0,
 				hasActiveTurn: true,
+				diagnostics: {
+					state: 'available',
+					providerCallState: 'resolved',
+					providerTurnStarted: false,
+					providerSessionState: 'active',
+				},
 			});
 
 			mockSession.fire('assistant.message_delta', { deltaContent: 'Deploying fleet' } as SessionEventPayload<'assistant.message_delta'>['data']);
@@ -2841,6 +2958,8 @@ suite('CopilotAgentSession', () => {
 				cost: 2,
 				copilotUsage: { totalNanoAiu: 1_250_000_000, sessionTotalNanoAiu: 1_250_000_000 },
 				turnTokenTotals: [{ model: 'claude-sonnet-4.6', inputTokens: 40, cachedTokens: 5, outputTokens: 60 }],
+				directTurnTokenTotals: [{ model: 'claude-sonnet-4.6', inputTokens: 40, cachedTokens: 5, outputTokens: 60 }],
+				directCopilotUsage: { totalNanoAiu: 1_250_000_000 },
 			},
 		});
 	});
@@ -3065,6 +3184,7 @@ suite('CopilotAgentSession', () => {
 						cost: 2,
 						autoModeResolved,
 						turnTokenTotals: [{ model: 'claude-opus-4.8', inputTokens: 10, cachedTokens: 0, outputTokens: 20 }],
+						directTurnTokenTotals: [{ model: 'claude-opus-4.8', inputTokens: 10, cachedTokens: 0, outputTokens: 20 }],
 					},
 				},
 			],
@@ -3104,21 +3224,40 @@ suite('CopilotAgentSession', () => {
 
 		const usageSignals = signals.flatMap(signal =>
 			signal.kind === 'action' && signal.action.type === ActionType.ChatUsage
-				? [{ parentToolCallId: signal.parentToolCallId, turnTokenTotals: (signal.action.usage._meta as UsageInfoMeta | undefined)?.turnTokenTotals }]
+				? [{
+					parentToolCallId: signal.parentToolCallId,
+					turnTokenTotals: (signal.action.usage._meta as UsageInfoMeta | undefined)?.turnTokenTotals,
+					directTurnTokenTotals: (signal.action.usage._meta as UsageInfoMeta | undefined)?.directTurnTokenTotals,
+				}]
 				: []);
 
 		assert.deepStrictEqual(usageSignals, [
-			{ parentToolCallId: undefined, turnTokenTotals: [{ model: 'claude-opus-4.8', inputTokens: 10, cachedTokens: 4, outputTokens: 20 }] },
-			{ parentToolCallId: undefined, turnTokenTotals: [{ model: 'claude-opus-4.8', inputTokens: 110, cachedTokens: 4, outputTokens: 220 }] },
+			{
+				parentToolCallId: undefined,
+				turnTokenTotals: [{ model: 'claude-opus-4.8', inputTokens: 10, cachedTokens: 4, outputTokens: 20 }],
+				directTurnTokenTotals: [{ model: 'claude-opus-4.8', inputTokens: 10, cachedTokens: 4, outputTokens: 20 }],
+			},
+			{
+				parentToolCallId: undefined,
+				turnTokenTotals: [{ model: 'claude-opus-4.8', inputTokens: 110, cachedTokens: 4, outputTokens: 220 }],
+				directTurnTokenTotals: [{ model: 'claude-opus-4.8', inputTokens: 110, cachedTokens: 4, outputTokens: 220 }],
+			},
 			{
 				parentToolCallId: undefined,
 				turnTokenTotals: [
 					{ model: 'claude-opus-4.8', inputTokens: 110, cachedTokens: 4, outputTokens: 220 },
 					{ model: 'gpt-5.5', inputTokens: 5, cachedTokens: 0, outputTokens: 7 },
 				],
+				directTurnTokenTotals: [
+					{ model: 'claude-opus-4.8', inputTokens: 110, cachedTokens: 4, outputTokens: 220 },
+				],
 			},
 			// The subagent's own report describes just its component of the turn.
-			{ parentToolCallId: 'tc-subagent', turnTokenTotals: undefined },
+			{
+				parentToolCallId: 'tc-subagent',
+				turnTokenTotals: undefined,
+				directTurnTokenTotals: [{ model: 'gpt-5.5', inputTokens: 5, cachedTokens: 0, outputTokens: 7 }],
+			},
 		]);
 	});
 
@@ -3141,6 +3280,9 @@ suite('CopilotAgentSession', () => {
 
 		const usageActions = getActions(signals).filter(a => a.type === ActionType.ChatUsage) as ChatUsageAction[];
 		assert.deepStrictEqual((usageActions.at(-1)?.usage._meta as UsageInfoMeta | undefined)?.turnTokenTotals, [
+			{ model: 'claude-opus-4.8', inputTokens: 3, cachedTokens: 0, outputTokens: 4 },
+		]);
+		assert.deepStrictEqual((usageActions.at(-1)?.usage._meta as UsageInfoMeta | undefined)?.directTurnTokenTotals, [
 			{ model: 'claude-opus-4.8', inputTokens: 3, cachedTokens: 0, outputTokens: 4 },
 		]);
 	});
@@ -3195,6 +3337,7 @@ suite('CopilotAgentSession', () => {
 				inputTokens: signal.action.usage.inputTokens,
 				outputTokens: signal.action.usage.outputTokens,
 				totalNanoAiu: (signal.action.usage._meta as UsageInfoMeta | undefined)?.copilotUsage?.totalNanoAiu,
+				directNanoAiu: (signal.action.usage._meta as UsageInfoMeta | undefined)?.directCopilotUsage?.totalNanoAiu,
 			}];
 		});
 
@@ -3202,15 +3345,313 @@ suite('CopilotAgentSession', () => {
 		// its credits cover every call the turn caused (its own plus every subagent's).
 		// They land on the synchronous emit, so a turn ending mid-refresh cannot lose them.
 		assert.deepStrictEqual(usageSignals, [
-			{ parentToolCallId: undefined, model: 'claude-opus-4.8', inputTokens: 10, outputTokens: 20, totalNanoAiu: 500_000_000 },
-			{ parentToolCallId: undefined, model: 'claude-opus-4.8', inputTokens: 10, outputTokens: 20, totalNanoAiu: 500_000_000 },
-			{ parentToolCallId: undefined, model: 'claude-opus-4.8', inputTokens: 10, outputTokens: 20, totalNanoAiu: 700_000_000 },
-			{ parentToolCallId: 'tc-subagent', model: 'gpt-5.5', inputTokens: 5, outputTokens: 7, totalNanoAiu: 200_000_000 },
-			{ parentToolCallId: undefined, model: 'claude-opus-4.8', inputTokens: 10, outputTokens: 20, totalNanoAiu: 700_000_000 },
-			{ parentToolCallId: undefined, model: 'claude-opus-4.8', inputTokens: 10, outputTokens: 20, totalNanoAiu: 1_000_000_000 },
-			{ parentToolCallId: 'tc-subagent', model: 'gpt-5.5', inputTokens: 6, outputTokens: 8, totalNanoAiu: 500_000_000 },
-			{ parentToolCallId: undefined, model: 'claude-opus-4.8', inputTokens: 10, outputTokens: 20, totalNanoAiu: 1_000_000_000 },
+			{ parentToolCallId: undefined, model: 'claude-opus-4.8', inputTokens: 10, outputTokens: 20, totalNanoAiu: 500_000_000, directNanoAiu: 500_000_000 },
+			{ parentToolCallId: undefined, model: 'claude-opus-4.8', inputTokens: 10, outputTokens: 20, totalNanoAiu: 500_000_000, directNanoAiu: 500_000_000 },
+			{ parentToolCallId: undefined, model: 'claude-opus-4.8', inputTokens: 10, outputTokens: 20, totalNanoAiu: 700_000_000, directNanoAiu: 500_000_000 },
+			{ parentToolCallId: 'tc-subagent', model: 'gpt-5.5', inputTokens: 5, outputTokens: 7, totalNanoAiu: 200_000_000, directNanoAiu: 200_000_000 },
+			{ parentToolCallId: undefined, model: 'claude-opus-4.8', inputTokens: 10, outputTokens: 20, totalNanoAiu: 700_000_000, directNanoAiu: 500_000_000 },
+			{ parentToolCallId: undefined, model: 'claude-opus-4.8', inputTokens: 10, outputTokens: 20, totalNanoAiu: 1_000_000_000, directNanoAiu: 500_000_000 },
+			{ parentToolCallId: 'tc-subagent', model: 'gpt-5.5', inputTokens: 6, outputTokens: 8, totalNanoAiu: 500_000_000, directNanoAiu: 500_000_000 },
+			{ parentToolCallId: undefined, model: 'claude-opus-4.8', inputTokens: 10, outputTokens: 20, totalNanoAiu: 1_000_000_000, directNanoAiu: 500_000_000 },
 		]);
+	});
+
+	test('starts direct subagent usage over when a retained child resumes', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-1');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent',
+			agentName: 'explore',
+			agentDisplayName: 'Explore',
+			agentDescription: 'Explore tests',
+		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 5,
+			outputTokens: 7,
+			copilotUsage: { totalNanoAiu: 200_000_000, tokenDetails: [] },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'agent-1' });
+		mockSession.fire('subagent.completed', {
+			toolCallId: 'tc-subagent',
+			agentName: 'explore',
+			agentDisplayName: 'Explore',
+			durationMs: 1,
+			totalTokens: 12,
+			totalToolCalls: 0,
+		} as SessionEventPayload<'subagent.completed'>['data'], { agentId: 'agent-1' });
+
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 6,
+			outputTokens: 8,
+			copilotUsage: { totalNanoAiu: 300_000_000, tokenDetails: [] },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'agent-1' });
+
+		const childUsage = signals.filter((signal): signal is IAgentActionSignal =>
+			signal.kind === 'action'
+			&& signal.parentToolCallId === 'tc-subagent'
+			&& signal.action.type === ActionType.ChatUsage
+		);
+		const resumed = childUsage.at(-1)?.action;
+		assert.ok(resumed?.type === ActionType.ChatUsage);
+		const meta = resumed.usage._meta as UsageInfoMeta | undefined;
+		assert.deepStrictEqual(meta?.directTurnTokenTotals, [
+			{ model: 'gpt-5.5', inputTokens: 6, cachedTokens: 0, outputTokens: 8 },
+		]);
+		assert.deepStrictEqual(meta?.directCopilotUsage, { totalNanoAiu: 300_000_000 });
+	});
+
+	test('keeps direct subagent usage after the root turn completes', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-root');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-background',
+			agentName: 'explore',
+			agentDisplayName: 'Explore',
+			agentDescription: 'Background tests',
+		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-background' });
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 5,
+			outputTokens: 7,
+			copilotUsage: { totalNanoAiu: 200_000_000, tokenDetails: [] },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'agent-background' });
+		mockSession.fire('session.idle', { aborted: false } as SessionEventPayload<'session.idle'>['data']);
+
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 6,
+			outputTokens: 8,
+			copilotUsage: { totalNanoAiu: 300_000_000, tokenDetails: [] },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'agent-background' });
+
+		const childUsage = signals.filter((signal): signal is IAgentActionSignal =>
+			signal.kind === 'action'
+			&& signal.parentToolCallId === 'tc-background'
+			&& signal.action.type === ActionType.ChatUsage
+		);
+		const latest = childUsage.at(-1)?.action;
+		assert.ok(latest?.type === ActionType.ChatUsage);
+		const meta = latest.usage._meta as UsageInfoMeta | undefined;
+		assert.deepStrictEqual(meta?.directTurnTokenTotals, [
+			{ model: 'gpt-5.5', inputTokens: 11, cachedTokens: 0, outputTokens: 15 },
+		]);
+		assert.deepStrictEqual(meta?.directCopilotUsage, { totalNanoAiu: 500_000_000 });
+	});
+
+	test('does not fold an old background child into a newly active root', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-old-root');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-old-background',
+			agentName: 'explore',
+			agentDisplayName: 'Explore',
+			agentDescription: 'Background tests',
+		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-old-background' });
+		mockSession.fire('session.idle', { aborted: false } as SessionEventPayload<'session.idle'>['data']);
+
+		session.resetTurnState('turn-new-root');
+		mockSession.fire('assistant.usage', {
+			model: 'claude-opus-4.8',
+			inputTokens: 10,
+			outputTokens: 2,
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 100,
+			outputTokens: 20,
+		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'agent-old-background' });
+
+		const newRootUsage = signals.filter((signal): signal is IAgentActionSignal =>
+			signal.kind === 'action'
+			&& signal.parentToolCallId === undefined
+			&& signal.action.type === ActionType.ChatUsage
+			&& signal.action.turnId === 'turn-new-root'
+		).at(-1);
+		assert.ok(newRootUsage?.action.type === ActionType.ChatUsage);
+		const meta = newRootUsage.action.usage._meta as UsageInfoMeta | undefined;
+		assert.deepStrictEqual(meta?.turnTokenTotals, [
+			{ model: 'claude-opus-4.8', inputTokens: 10, cachedTokens: 0, outputTokens: 2 },
+		]);
+		assert.deepStrictEqual(meta?.directTurnTokenTotals, [
+			{ model: 'claude-opus-4.8', inputTokens: 10, cachedTokens: 0, outputTokens: 2 },
+		]);
+	});
+
+	test('keeps unmapped subagent usage in root inclusive totals without direct attribution', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-root');
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 100,
+			outputTokens: 20,
+			copilotUsage: { totalNanoAiu: 400_000_000, tokenDetails: [] },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'unknown-agent' });
+
+		const usageSignals = signals.filter((signal): signal is IAgentActionSignal =>
+			signal.kind === 'action' && signal.action.type === ActionType.ChatUsage
+		);
+		assert.strictEqual(usageSignals.some(signal => signal.parentToolCallId !== undefined), false);
+		const rootUsage = usageSignals.at(-1)?.action;
+		assert.ok(rootUsage?.type === ActionType.ChatUsage);
+		const meta = rootUsage.usage._meta as UsageInfoMeta | undefined;
+		assert.deepStrictEqual(meta?.turnTokenTotals, [
+			{ model: 'gpt-5.5', inputTokens: 100, cachedTokens: 0, outputTokens: 20 },
+		]);
+		assert.deepStrictEqual(meta?.copilotUsage, { totalNanoAiu: 400_000_000 });
+		assert.strictEqual(meta?.directTurnTokenTotals, undefined);
+		assert.strictEqual(meta?.directCopilotUsage, undefined);
+	});
+
+	test('routes legacy parentToolCallId usage to the child direct bucket', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-root');
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 9,
+			outputTokens: 3,
+			parentToolCallId: 'tc-legacy',
+			copilotUsage: { totalNanoAiu: 400_000_000, tokenDetails: [] },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+
+		const childUsage = signals.find((signal): signal is IAgentActionSignal =>
+			signal.kind === 'action'
+			&& signal.parentToolCallId === 'tc-legacy'
+			&& signal.action.type === ActionType.ChatUsage
+		);
+		assert.ok(childUsage?.action.type === ActionType.ChatUsage);
+		const meta = childUsage.action.usage._meta as UsageInfoMeta | undefined;
+		assert.deepStrictEqual(meta?.directTurnTokenTotals, [
+			{ model: 'gpt-5.5', inputTokens: 9, cachedTokens: 0, outputTokens: 3 },
+		]);
+		assert.deepStrictEqual(meta?.directCopilotUsage, { totalNanoAiu: 400_000_000 });
+		const rootUsage = signals.find((signal): signal is IAgentActionSignal =>
+			signal.kind === 'action'
+			&& signal.parentToolCallId === undefined
+			&& signal.action.type === ActionType.ChatUsage
+		);
+		assert.ok(rootUsage?.action.type === ActionType.ChatUsage);
+		const rootMeta = rootUsage.action.usage._meta as UsageInfoMeta | undefined;
+		assert.deepStrictEqual(rootMeta?.turnTokenTotals, [
+			{ model: 'gpt-5.5', inputTokens: 9, cachedTokens: 0, outputTokens: 3 },
+		]);
+		assert.deepStrictEqual(rootMeta?.copilotUsage, { totalNanoAiu: 400_000_000 });
+	});
+
+	test('does not fold an old background child legacy usage into a newly active root', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-old-root');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-legacy-bg',
+			agentName: 'explore',
+			agentDisplayName: 'Explore',
+			agentDescription: 'Background legacy tests',
+		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-legacy-bg' });
+		mockSession.fire('session.idle', { aborted: false } as SessionEventPayload<'session.idle'>['data']);
+
+		session.resetTurnState('turn-new-root');
+		mockSession.fire('assistant.usage', {
+			model: 'claude-opus-4.8',
+			inputTokens: 10,
+			outputTokens: 2,
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 100,
+			outputTokens: 20,
+			parentToolCallId: 'tc-legacy-bg',
+			copilotUsage: { totalNanoAiu: 400_000_000, tokenDetails: [] },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+
+		const newRootUsages = signals.filter((signal): signal is IAgentActionSignal =>
+			signal.kind === 'action'
+			&& signal.parentToolCallId === undefined
+			&& signal.action.type === ActionType.ChatUsage
+			&& signal.action.turnId === 'turn-new-root'
+		);
+		for (const signal of newRootUsages) {
+			assert.ok(signal.action.type === ActionType.ChatUsage);
+			const meta = signal.action.usage._meta as UsageInfoMeta | undefined;
+			assert.deepStrictEqual(meta?.turnTokenTotals, [
+				{ model: 'claude-opus-4.8', inputTokens: 10, cachedTokens: 0, outputTokens: 2 },
+			]);
+		}
+
+		const childUsage = signals.filter((signal): signal is IAgentActionSignal =>
+			signal.kind === 'action'
+			&& signal.parentToolCallId === 'tc-legacy-bg'
+			&& signal.action.type === ActionType.ChatUsage
+		).at(-1);
+		assert.ok(childUsage?.action.type === ActionType.ChatUsage);
+		const childMeta = childUsage.action.usage._meta as UsageInfoMeta | undefined;
+		assert.deepStrictEqual(childMeta?.directTurnTokenTotals, [
+			{ model: 'gpt-5.5', inputTokens: 100, cachedTokens: 0, outputTokens: 20 },
+		]);
+		assert.deepStrictEqual(childMeta?.directCopilotUsage, { totalNanoAiu: 400_000_000 });
+	});
+
+	test('attributes subagent compaction to the child direct bucket', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-root');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-compaction',
+			agentName: 'explore',
+			agentDisplayName: 'Explore',
+			agentDescription: 'Compaction tests',
+		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-compaction' });
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 5,
+			outputTokens: 7,
+			cacheReadTokens: 2,
+			cost: 3,
+			copilotUsage: { totalNanoAiu: 100_000_000, tokenDetails: [] },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'agent-compaction' });
+		mockSession.fire('session.compaction_complete', {
+			success: true,
+			tokensRemoved: 1_000,
+			compactionTokensUsed: {
+				model: 'gpt-5.5',
+				inputTokens: 40_000,
+				outputTokens: 500,
+				cacheReadTokens: 10_000,
+				copilotUsage: { totalNanoAiu: 5_000_000_000 },
+			},
+		} as unknown as SessionEventPayload<'session.compaction_complete'>['data'], { agentId: 'agent-compaction' });
+
+		const childUsage = signals.filter((signal): signal is IAgentActionSignal =>
+			signal.kind === 'action'
+			&& signal.parentToolCallId === 'tc-compaction'
+			&& signal.action.type === ActionType.ChatUsage
+		).at(-1);
+		assert.ok(childUsage?.action.type === ActionType.ChatUsage);
+		assert.deepStrictEqual({
+			model: childUsage.action.usage.model,
+			inputTokens: childUsage.action.usage.inputTokens,
+			outputTokens: childUsage.action.usage.outputTokens,
+			cacheReadTokens: childUsage.action.usage.cacheReadTokens,
+			cost: (childUsage.action.usage._meta as UsageInfoMeta | undefined)?.cost,
+		}, {
+			model: 'gpt-5.5',
+			inputTokens: 5,
+			outputTokens: 7,
+			cacheReadTokens: 2,
+			cost: 3,
+		});
+		const meta = childUsage.action.usage._meta as UsageInfoMeta | undefined;
+		assert.deepStrictEqual(meta?.directTurnTokenTotals, [
+			{ model: 'gpt-5.5', inputTokens: 40_005, cachedTokens: 10_002, outputTokens: 507 },
+		]);
+		assert.deepStrictEqual(meta?.directCopilotUsage, { totalNanoAiu: 5_100_000_000 });
+		assert.strictEqual(meta?.copilotUsage?.totalNanoAiu, 5_100_000_000);
 	});
 
 	test('forwards account quota snapshots on usage metadata', async () => {

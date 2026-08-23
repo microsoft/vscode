@@ -12,7 +12,8 @@
 	bottom: var(--prompt-timeline-bottom, 0);
 	width: var(--prompt-timeline-rail-width, 36px);
 	pointer-events: none;
-	z-index: 10;
+	/* Clear the tree sticky-scroll surface (13) and its native scrollbar (14). */
+	z-index: 15;
 }
 
 /* Anchors the rail overlay to the chat widget container (added/removed with the rail's lifecycle).

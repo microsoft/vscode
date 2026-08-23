@@ -5,7 +5,7 @@
 
 import { open, unlink, type FileHandle } from 'fs/promises';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
-import { DeferredPromise, disposableTimeout, Limiter, Promises, ResourceQueue } from '../../../base/common/async.js';
+import { Barrier, DeferredPromise, disposableTimeout, Limiter, Promises, ResourceQueue } from '../../../base/common/async.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
@@ -42,7 +42,7 @@ import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../common/me
 import { readChatSurfaceMeta, withChatSurfaceMeta } from '../common/meta/agentChatSurfaceMeta.js';
 import { buildBoundedSideChatSourceContext, getSideChatPartialResponse } from './agentPeerChats.js';
 import { AgentConfigurationService, getEffectiveWorkingDirectories } from './agentConfigurationService.js';
-import { AgentHostTerminalManager } from './agentHostTerminalManager.js';
+import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { ISessionDbUriFields, parseSessionDbUri } from '../common/sessionDbUri.js';
 import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
 import { resolveSessionRepositories } from './agentHostSessionRepositories.js';
@@ -81,7 +81,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostArtifactToolsConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
-import { AgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
+import { IAgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementWorktreeBinding } from './agentHostCustomizationEnablementService.js';
 import { SessionCoordinationService } from './sessionCoordination.js';
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
@@ -96,7 +96,6 @@ import { IAgentHostChangesetOperationService } from '../common/agentHostChangese
 const SESSION_GC_GRACE_MS = 30_000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const EXTERNAL_SESSION_MAX_AGE_MS = 30 * DAY_MS;
-const EXTERNAL_SESSION_PRUNE_DELAY_MS = 60_000;
 const RECENT_EXTERNAL_SESSION_LIMIT = 2;
 /** A catalog pass slower than this is logged at info, since it delays every session-list refresh. */
 const SLOW_LIST_SESSIONS_THRESHOLD_MS = 1_000;
@@ -381,7 +380,7 @@ export interface IAgentServiceCallbackBinder {
 
 export interface IAgentServiceCollaborators {
 	readonly gitHubEndpointService: IAgentHostGitHubEndpointService;
-	readonly customizationEnablementService: AgentHostCustomizationEnablementService;
+	readonly customizationEnablementService: IAgentHostCustomizationEnablementService & IAgentHostCustomizationEnablementWorktreeBinding;
 	readonly gitStateService: IAgentHostGitStateService;
 	readonly agentMergeController: AgentMergeController;
 	readonly checkpointService: IAgentHostCheckpointService;
@@ -390,7 +389,7 @@ export interface IAgentServiceCollaborators {
 	readonly changesets: IAgentHostChangesetService;
 	readonly changesetCoordinator: AgentHostChangesetCoordinator;
 	readonly completions: IAgentHostCompletions;
-	readonly terminalManager: AgentHostTerminalManager;
+	readonly terminalManager: IAgentHostTerminalManager;
 	readonly localTurns: AgentHostLocalTurns;
 	readonly sideEffects: AgentSideEffects;
 	readonly sessionCoordination: SessionCoordinationService;
@@ -460,8 +459,6 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private readonly _unpersistedChatBackings = new Set<string>();
 
-	get stateManager(): AgentHostStateManager { return this._stateManager; }
-
 	/** Registered providers keyed by their {@link AgentProvider} id. */
 	private readonly _providers = new Map<AgentProvider, IAgent>();
 	/** Maps each active session URI (toString) to its owning provider. */
@@ -509,14 +506,14 @@ export class AgentService extends Disposable implements IAgentService {
 	/** Owns session git-state probing and git-backed catalogue decoration. */
 	private readonly _gitStateService: IAgentHostGitStateService;
 	/** Manages PTY-backed terminals for the agent host protocol. */
-	private readonly _terminalManager: AgentHostTerminalManager;
+	private readonly _terminalManager: IAgentHostTerminalManager;
 	/** Persists host-injected `/rename` / `!command` turns for restore & fork/truncate. */
 	private readonly _localTurns: AgentHostLocalTurns;
 	/** Server-side host for the agent host's server tools. */
 	private readonly _serverToolHost: AgentServerToolHost;
 	private readonly _debugLogsCollector: AgentHostDebugLogsCollector | undefined;
 	private readonly _configurationService: AgentConfigurationService;
-	private readonly _customizationEnablementService: AgentHostCustomizationEnablementService;
+	private readonly _customizationEnablementService: IAgentHostCustomizationEnablementService & IAgentHostCustomizationEnablementWorktreeBinding;
 	/** Captures baseline / per-turn git checkpoints backing the changeset pipeline. */
 	private readonly _checkpointService: IAgentHostCheckpointService;
 	/**
@@ -533,10 +530,6 @@ export class AgentService extends Disposable implements IAgentService {
 	/** Pluggable completion item providers (e.g. workspace file completions, agent-specific @-mentions). */
 	private readonly _completions: IAgentHostCompletions;
 	private _skillCompletionProviderRegistered = false;
-	/** Backs {@link getNetworkDiagnosticsInfo} / {@link diagnosticsFetch}; wired via {@link setNetworkDiagnosticsService}. */
-	private _networkDiagnostics: INetworkDiagnosticsService | undefined;
-	private _editAttributionService: IAgentEditAttributionService | undefined;
-
 	/**
 	 * Authoritative server-side per-resource subscription refcount, keyed by
 	 * resource URI string and valued by the set of subscribed protocol
@@ -613,9 +606,10 @@ export class AgentService extends Disposable implements IAgentService {
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@INetworkDiagnosticsService private readonly _networkDiagnostics: INetworkDiagnosticsService,
+		@IAgentEditAttributionService private readonly _editAttributionService: IAgentEditAttributionService,
 	) {
 		super();
-		this._register(core.disposables);
 		this._authService = core.authenticationService;
 		this._orchestratorDatabase = core.orchestratorDatabase;
 		this._debugLogsCollector = core.debugLogsCollector;
@@ -714,15 +708,51 @@ export class AgentService extends Disposable implements IAgentService {
 				reason: AuthRequiredReason.Required,
 			});
 		}));
-		this._scheduleExternalSessionPrune();
+		this._editAttributionService.setEnabled(this._stateManager.rootState.config?.values[AgentHostEditTelemetryEnabledConfigKey] !== false);
+		this._runWhenStartupSettled('external session prune', () => this._pruneStaleExternalSessions());
+		this._register(core.disposables);
 	}
 
-	private _scheduleExternalSessionPrune(): void {
-		this._register(disposableTimeout(() => {
-			void this._pruneStaleExternalSessions().catch(error => {
-				this._logService.warn('[AgentService] Failed to prune stale external sessions', error);
-			});
-		}, EXTERNAL_SESSION_PRUNE_DELAY_MS));
+	/** Opens once startup settled: the host finished starting and the first listing was served. */
+	private readonly _startupSettled = new Barrier();
+	private _hostStartupComplete = false;
+	private _firstListingServed = false;
+	/** Serializes deferred work so background maintenance never overlaps. */
+	private _deferredWork = Promise.resolve();
+
+	/**
+	 * Signals that host startup finished. Deferred work runs once this and the
+	 * first session listing have both happened, so background maintenance never
+	 * competes with startup. Called by the process mains; the service owns no
+	 * ambient timer of its own.
+	 */
+	markStartupComplete(): void {
+		this._hostStartupComplete = true;
+		this._openStartupSettled();
+	}
+
+	private _openStartupSettled(): void {
+		if (this._hostStartupComplete && this._firstListingServed) {
+			this._startupSettled.open();
+		}
+	}
+
+	/**
+	 * Runs `work` once startup has settled, serialized behind any deferred work
+	 * queued before it. For maintenance that is fine to run late and must not
+	 * compete with startup — pruning stale external sessions, titling external
+	 * sessions a provider surfaced without a title, and similar.
+	 */
+	private _runWhenStartupSettled(name: string, work: () => Promise<void>): void {
+		this._deferredWork = this._deferredWork
+			.then(() => this._startupSettled.wait())
+			.then(() => this._store.isDisposed ? undefined : work())
+			.catch(error => this._logService.warn(`[AgentService] Deferred work '${name}' failed`, error));
+	}
+
+	/** Test surface: settles once all deferred work queued so far has run. */
+	async whenDeferredWorkSettled(): Promise<void> {
+		await this._deferredWork;
 	}
 
 	private async _pruneStaleExternalSessions(): Promise<void> {
@@ -763,6 +793,60 @@ export class AgentService extends Disposable implements IAgentService {
 			this._queueSessionListReconciliation();
 		}
 		this._logService.info(`[AgentService] pruned ${staleExternalSessions.length} stale external session row(s) older than ${EXTERNAL_SESSION_MAX_AGE_MS / DAY_MS} days`);
+	}
+
+	/** External sessions registered without a provider title, awaiting a generated one. */
+	private readonly _untitledExternalSessions = new Map<string, IAgentSessionMetadata>();
+	private _externalSessionTitlingQueued = false;
+
+	/**
+	 * Queues external sessions whose provider surfaced them without a title.
+	 * Titling is deferred past startup and capped at the
+	 * {@link RECENT_EXTERNAL_SESSION_LIMIT} most recently updated candidates, so
+	 * a large provider catalog cannot trigger a burst of model calls.
+	 */
+	private _scheduleExternalSessionTitles(sessions: readonly IAgentSessionMetadata[]): void {
+		for (const session of sessions) {
+			this._untitledExternalSessions.set(session.session.toString(), session);
+		}
+		if (this._externalSessionTitlingQueued) {
+			return;
+		}
+		this._externalSessionTitlingQueued = true;
+		this._runWhenStartupSettled('external session titles', () => {
+			this._externalSessionTitlingQueued = false;
+			return this._titleUntitledExternalSessions();
+		});
+	}
+
+	/** Titles the most recently updated queued sessions and drops the rest. */
+	private async _titleUntitledExternalSessions(): Promise<void> {
+		const candidates = [...this._untitledExternalSessions.values()]
+			.sort((a, b) => b.modifiedTime - a.modifiedTime)
+			.slice(0, RECENT_EXTERNAL_SESSION_LIMIT);
+		this._untitledExternalSessions.clear();
+		for (const candidate of candidates) {
+			try {
+				await this._generateExternalSessionTitle(candidate);
+			} catch (error) {
+				this._logService.warn(`[AgentService] Failed to title external session ${candidate.session.toString()}`, error);
+			}
+		}
+	}
+
+	/** Titles one external session from the first user prompt of its default chat. */
+	private async _generateExternalSessionTitle(metadata: IAgentSessionMetadata): Promise<void> {
+		const session = metadata.session;
+		const agent = this._findProviderForSession(session);
+		if (!agent) {
+			return;
+		}
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const turns = await agent.chats.getMessages(chat, this._chatContext(session, chat));
+		const prompt = turns[0]?.message.text.trim();
+		if (prompt) {
+			await this._sideEffects.generateExternalSessionTitle(session.toString(), prompt);
+		}
 	}
 
 	// ---- provider registration ----------------------------------------------
@@ -1503,6 +1587,7 @@ export class AgentService extends Disposable implements IAgentService {
 		let registeredExternal = false;
 		let alreadyRegistered = 0;
 		let registryChanged = false;
+		const untitledExternal: IAgentSessionMetadata[] = [];
 		const results = await Promise.all(chats.map(({ external, ...metadata }) => discoveryLimiter.queue(async () => {
 			const sessionMetadata = this._toSessionMetadata(metadata);
 			const session = sessionMetadata.session;
@@ -1533,6 +1618,9 @@ export class AgentService extends Disposable implements IAgentService {
 						await this._initializeExternalSessionReadState(session);
 					}
 					registeredKeys.add(session.toString());
+					if (external && !sessionMetadata.summary) {
+						untitledExternal.push(sessionMetadata);
+					}
 					if (external && !readSessionEhcliAdoptable(sessionMetadata._meta)) {
 						registeredExternal = true;
 					} else {
@@ -1553,6 +1641,9 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		if (registeredExternal) {
 			this._queueSessionListReconciliation();
+		}
+		if (untitledExternal.length > 0) {
+			this._scheduleExternalSessionTitles(untitledExternal);
 		}
 		this._logService.info(`[AgentService] discovery for provider ${provider.id}: ${chats.length} candidate(s) (${chats.filter(chat => chat.external).length} external), ${registered} registered, ${alreadyRegistered} already registered, ${suppressed} suppressed as subagent/chat backing, ${skippedAsStale} skipped as older than ${EXTERNAL_SESSION_MAX_AGE_MS / DAY_MS} days`);
 		return registered > 0;
@@ -1586,6 +1677,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return { session: s.session, provider: provider.id, startTime: s.startTime, external, source: external ? 'discovery' : 'restore' };
 		})));
 		let registeredExternal = false;
+		const untitledExternal: IAgentSessionMetadata[] = [];
 		for (let index = 0; index < identities.length; index++) {
 			const identity = identities[index];
 			if (!identity) {
@@ -1602,6 +1694,9 @@ export class AgentService extends Disposable implements IAgentService {
 					await this._initializeExternalSessionReadState(identity.session);
 				}
 				existing.set(identity.session.toString(), identity.external);
+				if (identity.external && !metadata.summary) {
+					untitledExternal.push(metadata);
+				}
 				if (identity.external && !readSessionEhcliAdoptable(metadata._meta)) {
 					registeredExternal = true;
 				} else {
@@ -1612,6 +1707,9 @@ export class AgentService extends Disposable implements IAgentService {
 		await this._sessionRegistry.markProviderBackfilled(provider.id);
 		if (registeredExternal) {
 			this._queueSessionListReconciliation();
+		}
+		if (untitledExternal.length > 0) {
+			this._scheduleExternalSessionTitles(untitledExternal);
 		}
 	}
 
@@ -1751,7 +1849,16 @@ export class AgentService extends Disposable implements IAgentService {
 				this._inFlightListSessions.delete(mode);
 			}
 		};
-		void promise.then(clear, clear);
+		void promise.then(
+			() => {
+				clear();
+				// Only a served listing ends startup: a failed one is retried, and
+				// deferred work must not compete with that retry.
+				this._firstListingServed = true;
+				this._openStartupSettled();
+			},
+			clear,
+		);
 		return [...await promise];
 	}
 
@@ -4322,7 +4429,7 @@ export class AgentService extends Disposable implements IAgentService {
 			this._configurationService.persistRootConfig();
 			const editTelemetryEnabled = action.config[AgentHostEditTelemetryEnabledConfigKey];
 			if (typeof editTelemetryEnabled === 'boolean') {
-				this._editAttributionService?.setEnabled(editTelemetryEnabled);
+				this._editAttributionService.setEnabled(editTelemetryEnabled);
 			}
 		}
 		this._sideEffects.handleAction(channel, action, clientId, clientContext);
@@ -4660,8 +4767,8 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			return readable;
 		})();
-		const registeredSession = (await this._listRegisteredSessions()).find(entry => entry.session.toString() === sessionStr);
-		const external = registeredSession?.external ?? false;
+		let registeredSession = (await this._listRegisteredSessions()).find(entry => entry.session.toString() === sessionStr);
+		let external = registeredSession?.external ?? false;
 		this._logService.trace(`[AgentService] restore: catalog and registry resolved for ${sessionStr} (registered=${!!registeredSession}, external=${external})`);
 
 		// Adopt-on-open for a surfaced un-adopted legacy Copilot CLI session, strictly gated on the live migrate setting (a no-op for native / already-adopted sessions).
@@ -4687,8 +4794,14 @@ export class AgentService extends Disposable implements IAgentService {
 		// created, hidden while `showExternalSessions` is `none`) would be
 		// materialized here and thereby claimed away from the extension host's list.
 		if (!registeredSession && migrateLegacyEnabled && agent.ensureChatAdopted && !adoption.eligible && !adoption.native) {
-			this._logService.info(`[AgentService] restore refused for unregistered ${sessionStr}: not an adoptable legacy chat (reason=${adoption.reason ?? 'unknown'})`);
-			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session is not an adoptable legacy chat: ${sessionStr}`);
+			// The registry was read before the deferred catalog wait, so absence is only authoritative once that catalog is readable (#331721).
+			await awaitCatalogReadable();
+			registeredSession = (await this._listRegisteredSessions()).find(entry => entry.session.toString() === sessionStr);
+			external = registeredSession?.external ?? external;
+			if (!registeredSession) {
+				this._logService.info(`[AgentService] restore refused for unregistered ${sessionStr}: not an adoptable legacy chat (reason=${adoption.reason ?? 'unknown'})`);
+				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session is not an adoptable legacy chat: ${sessionStr}`);
+			}
 		}
 
 		// From here the whole restore is wrapped so `migrated` is reported only
@@ -5773,15 +5886,15 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	prepareEditAttributionFlush(params: IPrepareEditAttributionFlushParams): Promise<IPreparedEditAttributionFlush | undefined> {
-		return this._editAttributionService?.prepareFlush(params) ?? Promise.resolve(undefined);
+		return this._editAttributionService.prepareFlush(params);
 	}
 
 	commitEditAttributionFlush(params: ICommitEditAttributionFlushParams): Promise<IEditAttributionFlushResult> {
-		return this._editAttributionService?.commitFlush(params) ?? Promise.resolve({ outcome: 'missing', agentModifiedCount: 0 });
+		return this._editAttributionService.commitFlush(params);
 	}
 
 	cancelEditAttributionFlush(params: ICancelEditAttributionFlushParams): Promise<IEditAttributionFlushResult> {
-		return this._editAttributionService?.cancelFlush(params) ?? Promise.resolve({ outcome: 'missing', agentModifiedCount: 0 });
+		return this._editAttributionService.cancelFlush(params);
 	}
 
 	async resourceWrite(params: ResourceWriteParams): Promise<ResourceWriteResult> {
@@ -6205,25 +6318,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	/**
-	 * Wire the network diagnostics service backing {@link getNetworkDiagnosticsInfo}
-	 * and {@link diagnosticsFetch}. A setter rather than a constructor argument
-	 * because the service depends on the agent-host proxy resolver, which the
-	 * remote server constructs lazily — after this service.
-	 */
-	setNetworkDiagnosticsService(service: INetworkDiagnosticsService): void {
-		this._networkDiagnostics = service;
-	}
-
-	setEditAttributionService(service: IAgentEditAttributionService): void {
-		this._editAttributionService = service;
-		service.setEnabled(this._stateManager.rootState.config?.values[AgentHostEditTelemetryEnabledConfigKey] !== false);
-	}
-
 	async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
-		if (!this._networkDiagnostics) {
-			throw new Error('Network diagnostics unavailable: service not wired');
-		}
 		const providers = [...this._providers.values()];
 		const contributions = await Promise.all(providers.map(async provider => {
 			try {
@@ -6270,9 +6365,6 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> {
-		if (!this._networkDiagnostics) {
-			throw new Error('Network diagnostics unavailable: service not wired');
-		}
 		return this._networkDiagnostics.fetch(url);
 	}
 
@@ -6713,6 +6805,9 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	override dispose(): void {
+		// Unblocks pending deferred work so its chain drains; the disposal guard
+		// in `_runWhenStartupSettled` keeps the work itself from running.
+		this._startupSettled.open();
 		for (const provider of this._providers.values()) {
 			provider.dispose();
 		}
