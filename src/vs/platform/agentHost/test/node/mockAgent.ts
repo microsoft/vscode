@@ -34,6 +34,10 @@ function mockProject(provider: AgentProvider) {
 	return { uri: URI.from({ scheme: 'mock-project', path: `/${provider}` }), displayName: `Agent ${provider}` };
 }
 
+function mockWorkspacePath(relativePath: string): string {
+	return join(process.env['VSCODE_AGENT_HOST_MOCK_WORKSPACE'] ?? process.cwd(), relativePath);
+}
+
 interface IMockSendMessageCall {
 	readonly session: URI;
 	readonly prompt: string;
@@ -55,6 +59,7 @@ export class MockAgent implements IAgent {
 	readonly onDidMaterializeChat = Event.None;
 	readonly onDidChangeChatData = Event.None;
 	readonly onDidSpawnChat = Event.None;
+	getTurnDiagnosticSnapshot?: IAgent['getTurnDiagnosticSnapshot'];
 	private readonly _onDidSendMessage = new Emitter<IMockSendMessageCall>();
 	readonly onDidSendMessage = this._onDidSendMessage.event;
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
@@ -710,7 +715,7 @@ export class ScriptedMockAgent implements IAgent {
 						this._onDidChatProgress.fire(s);
 					}
 					await timeout(5);
-					this._onDidChatProgress.fire(_pendingConfirmation(chat, 'tc-write-1', 'Write src/app.ts', { permissionKind: 'write', permissionPath: join(process.cwd(), 'src/app.ts') }));
+					this._onDidChatProgress.fire(_pendingConfirmation(chat, 'tc-write-1', 'Write src/app.ts', { permissionKind: 'write', permissionPath: mockWorkspacePath('src/app.ts') }));
 					// Auto-approved writes resolve immediately — complete the tool and turn
 					await timeout(10);
 					this._fireSequence([
@@ -729,7 +734,7 @@ export class ScriptedMockAgent implements IAgent {
 						this._onDidChatProgress.fire(s);
 					}
 					await timeout(5);
-					this._onDidChatProgress.fire(_pendingConfirmation(chat, 'tc-write-env-1', 'Write .env', { permissionKind: 'write', permissionPath: join(process.cwd(), '.env'), confirmationTitle: 'Write .env' }));
+					this._onDidChatProgress.fire(_pendingConfirmation(chat, 'tc-write-env-1', 'Write .env', { permissionKind: 'write', permissionPath: mockWorkspacePath('.env'), confirmationTitle: 'Write .env' }));
 				})();
 				this._pendingPermissions.set('tc-write-env-1', (approved) => {
 					if (approved) {
@@ -817,7 +822,7 @@ export class ScriptedMockAgent implements IAgent {
 						this._onDidChatProgress.fire(s);
 					}
 					await timeout(5);
-					this._onDidChatProgress.fire(_pendingConfirmation(chat, 'tc-orphan', 'Read file', { permissionKind: 'read', permissionPath: join(process.cwd(), 'file.ts') }));
+					this._onDidChatProgress.fire(_pendingConfirmation(chat, 'tc-orphan', 'Read file', { permissionKind: 'read', permissionPath: mockWorkspacePath('file.ts') }));
 				})();
 				this._pendingPermissions.set('tc-orphan', (approved) => {
 					if (approved) {

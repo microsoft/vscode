@@ -17,7 +17,7 @@ import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../common/state/sessionState.js';
 import { buildGitBlobUri } from './gitDiffContent.js';
-import { EMPTY_TREE_OBJECT, IAgentHostGitService, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress } from '../common/agentHostGitService.js';
+import { EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress } from '../common/agentHostGitService.js';
 import { LRUCache } from '../../../base/common/map.js';
 import { firstParallel, Limiter, SequencerByKey, timeout } from '../../../base/common/async.js';
 
@@ -151,26 +151,32 @@ export class AgentHostGitService implements IAgentHostGitService {
 			.map(line => URI.file(line.substring('worktree '.length)));
 	}
 
-	async addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string, track = false, onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void> {
-		const resolvedStartPoint = await this._resolveRemoteTrackingBranch(repositoryRoot, startPoint, track) ?? startPoint;
+	async addWorktree(repositoryRoot: URI, options: IAddWorktreeOptions): Promise<void> {
+		const resolvedCommitish = options.preferRemoteBranch
+			? await this._resolveRemoteTrackingBranch(repositoryRoot, options.commitish, options.track) ?? options.commitish
+			: options.commitish;
 
 		const args = ['-c', 'checkout.workers=0', 'worktree', 'add'];
 
-		if (!track) {
-			// Pass --no-track so the new agent branch never picks up upstream
-			// tracking from the start point (e.g. when starting from
-			// 'origin/main', without --no-track git would set the new branch's
-			// upstream to origin/main, which would mis-attribute pushes/pulls).
-			args.push('--no-track');
+		if (options.newBranchName) {
+			if (!options.track) {
+				// Pass --no-track so the new agent branch never picks up upstream
+				// tracking from the start point (e.g. when starting from
+				// 'origin/main', without --no-track git would set the new branch's
+				// upstream to origin/main, which would mis-attribute pushes/pulls).
+				args.push('--no-track');
+			}
+
+			args.push('-b', options.newBranchName);
 		}
 
-		args.push('-b', branchName, worktree.fsPath, resolvedStartPoint);
+		args.push(options.path.fsPath, resolvedCommitish);
 
 		// `git worktree add` forces progress reporting on its internal checkout
 		// even when stderr is a pipe, so `Updating files: N% (x/y)` can be
 		// parsed for live feedback. GIT_PROGRESS_DELAY=0 lifts git's default
 		// two-second suppression so the first sample arrives immediately.
-		const progressParser = onProgress ? new GitCheckoutProgressParser(onProgress) : undefined;
+		const progressParser = options.onProgress ? new GitCheckoutProgressParser(options.onProgress) : undefined;
 
 		await this._runGit(repositoryRoot, args, {
 			timeout: 180_000,

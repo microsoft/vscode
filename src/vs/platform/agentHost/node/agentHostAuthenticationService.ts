@@ -46,7 +46,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		this._logService.trace(`[AgentHostAuthenticationService] authenticate called: resource=${params.resource}`);
 		const providerList = [...providers];
 		// Multiple providers may share the same protected resource (e.g.
-		// both Copilot CLI and Claude consume the GitHub Copilot token).
+		// both Copilot CLI and Claude consume the Copilot-scoped OAuth credential).
 		// Fan out to every matching provider in parallel; the request is
 		// considered authenticated if at least one accepts. Provider
 		// failures are isolated -- one provider rejecting (e.g. proxy

@@ -446,7 +446,7 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 				{
 					id: SessionSectionToolbarMenuId,
 					group: 'navigation',
-					order: 1,
+					order: 0,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.enabled,
 						SessionSectionHasNonCloudRepositoryContext,
@@ -455,7 +455,7 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 				{
 					id: SessionSectionToolbarMenuId,
 					group: 'navigation',
-					order: 1,
+					order: 0,
 					when: ContextKeyExpr.and(
 						ContextKeyExpr.equals(SessionSectionTypeContext.key, 'workspace'),
 						ContextKeyExpr.or(
@@ -585,7 +585,7 @@ abstract class BaseArchiveSectionAction extends Action2 {
 			menu: [{
 				id: SessionSectionToolbarMenuId,
 				group: 'navigation',
-				order: 0,
+				order: 1,
 				// Not on Done itself, and not on the "Chats" (quick chats) section.
 				// Also not on Automations.
 				when: ContextKeyExpr.and(

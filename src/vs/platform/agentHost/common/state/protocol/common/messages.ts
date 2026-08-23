@@ -13,6 +13,7 @@ import type { CreateChatParams, DisposeChatParams } from '../channels-chat/comma
 import type { CreateTerminalParams, DisposeTerminalParams } from '../channels-terminal/commands.js';
 import type { CreateResourceWatchParams, CreateResourceWatchResult } from '../channels-resource-watch/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../channels-changeset/commands.js';
+import type { ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult, FetchAutomationRunsParams, FetchAutomationRunsResult } from '../channels-automation/commands.js';
 
 import type { ActionEnvelope } from './actions.js';
 import type { SessionAddedParams, SessionRemovedParams, SessionSummaryChangedParams, ProgressParams } from '../channels-root/notifications.js';
@@ -108,6 +109,9 @@ export interface CommandMap {
 	'sessionConfigCompletions': { params: SessionConfigCompletionsParams; result: SessionConfigCompletionsResult };
 	'completions': { params: CompletionsParams; result: CompletionsResult };
 	'invokeChangesetOperation': { params: InvokeChangesetOperationParams; result: InvokeChangesetOperationResult };
+	'listAutomationTriggerDefinitions': { params: ListAutomationTriggerDefinitionsParams; result: ListAutomationTriggerDefinitionsResult };
+	'runAutomation': { params: RunAutomationParams; result: RunAutomationResult };
+	'fetchAutomationRuns': { params: FetchAutomationRunsParams; result: FetchAutomationRunsResult };
 }
 
 /**
