@@ -29,9 +29,8 @@
 	background-color: color-mix(in srgb, var(--vscode-focusBorder) 6%, var(--vscode-editorWidget-background));
 	font-size: var(--vscode-chat-font-size-body-s);
 	font-family: var(--vscode-chat-font-family, inherit);
-	/* Duration of the working/progress border comet animation and its accent
-		color. The color defaults to the same token used by the chat input's
-		animated border; the CI (accent-orange) banner overrides it below. */
+	/* The standard banner follows the primary button accent; CI overrides the
+		progress color with its warning accent below. */
 	--session-input-banner-anim-duration: 4s;
 	--session-input-banner-working-border-color: var(--vscode-chat-inputWorkingBorderColor1);
 }
@@ -123,9 +122,8 @@
 	outline-offset: -1px;
 }
 
-/* Animated "border beam" shown around the banner while an action is running
-	(e.g. the CI "Fix Checks" action, which fetches check annotations before
-	submitting a prompt). This mirrors the chat input's working border: a bright
+/* Animated "border beam" shown around the banner while its chat model loads.
+	This mirrors the chat input's working border: a bright
 	comet travels around the perimeter leaving a short fading trail. The ring is
 	rendered as `::before` (sharp hairline) and `::after` (blurred glow) pseudo-
 	elements clipped to a hairline with a padding + inverted mask trick, so it

@@ -16,7 +16,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/comm
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
-import { ChatCompositeBar } from '../../browser/parts/chatCompositeBar.js';
+import { ChatCompositeBar, IChatCompositeBarDelegate } from '../../browser/parts/chatCompositeBar.js';
+import { getSessionChatDragData, isSessionChatDrag } from '../../browser/dnd.js';
 import { CLOSE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsPartService } from '../../services/sessions/browser/sessionsPartService.js';
@@ -52,7 +53,7 @@ function createChat(id: string, title: string, status: SessionStatus = SessionSt
 	}();
 }
 
-function createSession(chats: readonly IChat[], activeChat: IChat): IActiveSession {
+function createSession(chats: readonly IChat[], activeChat: IChat, isQuickChat = false): IActiveSession {
 	const resource = URI.parse('test-session://session');
 	return new class extends mock<IActiveSession>() {
 		override readonly sessionId = 'session';
@@ -68,6 +69,7 @@ function createSession(chats: readonly IChat[], activeChat: IChat): IActiveSessi
 		override readonly capabilities: IObservable<ISessionCapabilities> = constObservable({ supportsMultipleChats: true });
 		override readonly isCreated: IObservable<boolean> = constObservable(true);
 		override readonly isArchived: IObservable<boolean> = constObservable(false);
+		override readonly isQuickChat: IObservable<boolean> = constObservable(isQuickChat);
 	}();
 }
 
@@ -81,14 +83,14 @@ interface IChatCompositeBarHarness {
 	readonly tabs: readonly HTMLElement[];
 }
 
-function createHarness(disposables: Pick<DisposableStore, 'add'>): IChatCompositeBarHarness {
+function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { readonly isQuickChat?: boolean }): IChatCompositeBarHarness {
 	const store = disposables.add(new DisposableStore());
 	const instantiationService = workbenchInstantiationService(undefined, store);
 	const commandService = new TestCommandService();
 	const sessionsService = new TestSessionsService();
 	const mainChat = createChat('main', 'Main Chat');
 	const secondaryChat = createChat('secondary', 'Secondary Chat');
-	const session = createSession([mainChat, secondaryChat], mainChat);
+	const session = createSession([mainChat, secondaryChat], mainChat, options?.isQuickChat);
 
 	instantiationService.stub(ICommandService, commandService);
 	instantiationService.stub(ISessionsService, sessionsService);
@@ -102,7 +104,17 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>): IChatComposit
 	}());
 
 	const bar = store.add(instantiationService.createInstance(ChatCompositeBar));
-	bar.setSession(session);
+	const delegate: IChatCompositeBarDelegate = {
+		session,
+		chats: session.visibleChatTabs,
+		activeChatResource: constObservable(session.activeChat.get().resource.toString()),
+		mainChatResource: constObservable(session.mainChat.get().resource.toString()),
+		visible: session.shouldShowChatTabs,
+		showSessionActions: session.shouldShowChatTabs,
+		openChat: resource => { sessionsService.openChat(session, resource); },
+		newChat: () => { },
+	};
+	bar.setGroup(delegate);
 	const container = mainWindow.document.createElement('div');
 	container.appendChild(bar.element);
 	const tabs = Array.from(bar.element.querySelectorAll<HTMLElement>('.chat-composite-bar-tab'));
@@ -118,16 +130,26 @@ suite('Sessions - ChatCompositeBar', () => {
 
 		assert.deepStrictEqual({
 			tabs: tabs.map(tab => ({
-				hasFill: tab.querySelector(':scope > .chat-composite-bar-tab-fill') !== null,
-				hasLabel: tab.querySelector(':scope > .chat-composite-bar-tab-label') !== null,
+				hasSharedPresentation: tab.classList.contains('modern-ui-editor-tab'),
+				hasFill: tab.querySelector(':scope > .chat-composite-bar-tab-fill.modern-ui-editor-tab-fill') !== null,
+				hasLabel: tab.querySelector(':scope > .chat-composite-bar-tab-label.modern-ui-editor-tab-label') !== null,
 				hasActions: tab.querySelector(':scope > .chat-composite-bar-tab-actions') !== null,
+				ariaLabel: tab.getAttribute('aria-label'),
 			})),
+			hasMetadataRow: tabs[0].closest('.session-chat-tabs-bar')?.querySelector('.chat-composite-bar-meta-row') !== null,
 		}, {
 			tabs: [
-				{ hasFill: true, hasLabel: true, hasActions: false },
-				{ hasFill: true, hasLabel: true, hasActions: true },
+				{ hasSharedPresentation: true, hasFill: true, hasLabel: true, hasActions: false, ariaLabel: 'Main Chat, State: Completed' },
+				{ hasSharedPresentation: true, hasFill: true, hasLabel: true, hasActions: true, ariaLabel: 'Secondary Chat, State: Completed' },
 			],
+			hasMetadataRow: false,
 		});
+	});
+
+	test('hides New Chat for workspace-less sessions', () => {
+		const { bar } = createHarness(disposables, { isQuickChat: true });
+
+		assert.strictEqual(bar.element.querySelector('.chat-composite-bar-new-chat')?.classList.contains('hidden'), true);
 	});
 
 	test('middle-click closes the targeted inactive non-main chat', () => {
@@ -223,6 +245,34 @@ suite('Sessions - ChatCompositeBar', () => {
 			mouseDownDefaultPrevented: false,
 			mouseUpDefaultPrevented: false,
 			auxClickDefaultPrevented: false,
+		});
+	});
+
+	// Regression: a chat-tab drag must carry its group-move payload on the
+	// `dataTransfer` (readable by the chat-groups drop target), not on the shared
+	// LocalSelectionTransfer singleton. The singleton is also used by the
+	// chat-reference drag, and — being single-slot — the reference payload would
+	// otherwise clobber the group-move payload, so dragging a tab to split chats
+	// side by side silently did nothing. See the chat-groups DnD in
+	// chatGroupDropTarget.ts / chatGroupsView.ts.
+	test('dragging a chat tab carries the group-move payload on the dataTransfer', () => {
+		const { tabs, session } = createHarness(disposables);
+		const dataTransfer = new DataTransfer();
+		const dragStart = new DragEvent(EventType.DRAG_START, { bubbles: true, cancelable: true, dataTransfer });
+
+		tabs[1].dispatchEvent(dragStart);
+
+		const secondaryChat = session.visibleChatTabs.get()[1];
+		assert.deepStrictEqual({
+			isChatDrag: isSessionChatDrag(dragStart),
+			isSameSessionDrag: isSessionChatDrag(dragStart, session.sessionId),
+			isOtherSessionDrag: isSessionChatDrag(dragStart, 'other-session'),
+			payload: getSessionChatDragData(dragStart),
+		}, {
+			isChatDrag: true,
+			isSameSessionDrag: true,
+			isOtherSessionDrag: false,
+			payload: { sessionId: session.sessionId, resource: secondaryChat.resource.toString() },
 		});
 	});
 });

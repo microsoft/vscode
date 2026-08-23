@@ -321,7 +321,6 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			uri: customization.uri as ProtocolURI,
 			name: customization.displayName,
 			nonce: '1',
-			enabled: true,
 		}));
 		client.dispatch({
 			channel: sessionUri,
@@ -336,13 +335,17 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			},
 		});
 		await client.waitForNotification(n => isActionNotification(n, ActionType.SessionActiveClientSet) && getActionEnvelope(n).channel === sessionUri, NOTIFICATION_TIMEOUT_MS);
+		const customizationsSettled = client.waitForNotification(n => isSettledCustomizationsNotification(n, sessionUri), NOTIFICATION_TIMEOUT_MS);
 		client.clearReceived();
 		dispatchTurn(client, sessionUri, turnId, 'hello', 2);
-		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), NOTIFICATION_TIMEOUT_MS);
-		await client.waitForNotification(
-			n => isActionNotification(n, ActionType.SessionReady) && getActionEnvelope(n).channel === sessionUri,
-			NOTIFICATION_TIMEOUT_MS,
-		);
+		await Promise.all([
+			client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), NOTIFICATION_TIMEOUT_MS),
+			client.waitForNotification(
+				n => isActionNotification(n, ActionType.SessionReady) && getActionEnvelope(n).channel === sessionUri,
+				NOTIFICATION_TIMEOUT_MS,
+			),
+			customizationsSettled,
+		]);
 
 		return await fetchSessionWithChat(client, sessionUri);
 	}
@@ -351,7 +354,13 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 		// Filter out skills shipped inside the Copilot CLI package (node_modules/@github/copilot-<target>/builtin/<skill>),
 		// e.g. `customize-cloud-agent` and `github-pr-media`. These vary with the bundled CLI version and are not part of
 		// the workspace/user customizations under test.
-		return !(customization.type === CustomizationType.Directory && customization.contents === CustomizationType.Skill && /\/builtin\/[^/]+$/.test(customization.uri));
+		const isBuiltInSkill = customization.type === CustomizationType.Directory
+			&& customization.contents === CustomizationType.Skill
+			&& /\/builtin\/[^/]+$/.test(customization.uri);
+		const isBuiltInGitHubMcpServer = customization.type === CustomizationType.McpServer
+			&& customization.uri.startsWith('mcp-top-level:copilotcli:')
+			&& customization.uri.endsWith(':github-mcp-server');
+		return !isBuiltInSkill && !isBuiltInGitHubMcpServer;
 	};
 
 	async function runEmptyWorkspaceCustomizationsTest(discoveryMode: SessionCustomizationDiscoveryMode): Promise<void> {

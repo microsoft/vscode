@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { LRUCache } from '../../../../../../base/common/map.js';
 import { constObservable, derived, derivedOpts, IObservable, mapObservableArrayCached, observableFromEvent } from '../../../../../../base/common/observable.js';
 import { getComparisonKey, isEqual, isEqualOrParent } from '../../../../../../base/common/resources.js';
 import { isDefined } from '../../../../../../base/common/types.js';
@@ -14,6 +15,7 @@ import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/f
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import {
 	buildDefaultChatUri,
+	ChangesetStatus,
 	FileEditKind,
 	ResponsePartKind,
 	StateComponents,
@@ -31,6 +33,7 @@ import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingServic
 import { IChatResponseFileChangesProvider, IChatResponseFileEdit } from '../../chatResponseFileChangesService.js';
 
 const SUBSCRIPTION_OWNER = 'AgentHostResponseFileChangesProvider';
+const REQUEST_CACHE_CAPACITY = 1000;
 
 function uriArrayEquals(a: readonly URI[], b: readonly URI[]): boolean {
 	return a.length === b.length && a.every((uri, index) => isEqual(uri, b[index]));
@@ -67,13 +70,14 @@ function getToolCallFileEdits(toolCall: ToolCallState): ISessionFileDiff[] {
  */
 export class AgentHostResponseFileChangesProvider extends Disposable implements IChatResponseFileChangesProvider {
 
-	private readonly _perRequest = new Map<string, IObservable<readonly IEditSessionEntryDiff[]>>();
-	private readonly _perRequestFileEdits = new Map<string, IObservable<readonly IChatResponseFileEdit[]>>();
+	private readonly _perRequest = new LRUCache<string, IObservable<readonly IEditSessionEntryDiff[]>>(REQUEST_CACHE_CAPACITY);
+	private readonly _perRequestFileEdits = new LRUCache<string, IObservable<readonly IChatResponseFileEdit[]>>(REQUEST_CACHE_CAPACITY);
 
 	constructor(
 		private readonly _connection: IAgentConnection,
 		private readonly _connectionAuthority: string,
 		private readonly _resolveBackendSession: (sessionResource: URI) => URI | undefined,
+		private readonly _resolveBackendChat?: (sessionResource: URI) => URI | undefined,
 	) {
 		super();
 	}
@@ -84,10 +88,11 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 			return undefined;
 		}
 
-		const key = `${backendSession.toString()}\0${requestId}`;
+		const backendChat = this._resolveBackendChat?.(sessionResource);
+		const key = `${backendSession.toString()}\0${backendChat?.toString() ?? ''}\0${requestId}`;
 		let obs = this._perRequest.get(key);
 		if (!obs) {
-			obs = this._createDiffsObservable(backendSession, requestId);
+			obs = this._createDiffsObservable(backendSession, backendChat, requestId);
 			this._perRequest.set(key, obs);
 		}
 		return obs;
@@ -99,16 +104,17 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 			return undefined;
 		}
 
-		const key = `${backendSession.toString()}\0${requestId}`;
+		const backendChat = this._resolveBackendChat?.(sessionResource);
+		const key = `${backendSession.toString()}\0${backendChat?.toString() ?? ''}\0${requestId}`;
 		let obs = this._perRequestFileEdits.get(key);
 		if (!obs) {
-			obs = this._createFileEditDiffsObservable(backendSession, requestId);
+			obs = this._createFileEditDiffsObservable(backendSession, backendChat, requestId);
 			this._perRequestFileEdits.set(key, obs);
 		}
 		return obs;
 	}
 
-	private _createDiffsObservable(backendSession: URI, requestId: string): IObservable<readonly IEditSessionEntryDiff[]> {
+	private _createDiffsObservable(backendSession: URI, backendChat: URI | undefined, requestId: string): IObservable<readonly IEditSessionEntryDiff[]> {
 		// Resolve the per-turn changeset URI, but only when the agent actually
 		// advertises a `turn` changeset in its catalogue. Agents that don't
 		// support per-turn changesets never produce a turn-changeset URI, so
@@ -128,23 +134,30 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		});
 
 		const changesetStateObs = this._subscribe<ChangesetState>(StateComponents.Changeset, turnChangesetUriObs);
+		const responseFileEditsObs = this._createFileEditDiffsObservable(backendSession, backendChat, requestId);
 
 		return derived(reader => {
-			const changesetState = changesetStateObs.read(reader).read(reader);
-			if (!changesetState || changesetState instanceof Error) {
+			if (!turnChangesetUriObs.read(reader)) {
 				return [];
 			}
-			return changesetState.files
-				.map(file => this._changesetFileToEntryDiff(file))
-				.filter(isDefined);
+			const changesetState = changesetStateObs.read(reader).read(reader);
+			if (changesetState && !(changesetState instanceof Error) && changesetState.status === ChangesetStatus.Ready) {
+				return changesetState.files
+					.map(file => this._changesetFileToEntryDiff(file))
+					.filter(isDefined);
+			}
+			return responseFileEditsObs.read(reader);
 		});
 	}
 
-	private _createFileEditDiffsObservable(backendSession: URI, requestId: string): IObservable<readonly IChatResponseFileEdit[]> {
+	private _createFileEditDiffsObservable(backendSession: URI, backendChat: URI | undefined, requestId: string): IObservable<readonly IChatResponseFileEdit[]> {
 		const sessionStateObs = this._subscribe<SessionState>(StateComponents.Session, constObservable(backendSession));
 		const defaultChatUri = URI.parse(buildDefaultChatUri(backendSession.toString()));
 
 		const chatUrisObs = derivedOpts<readonly URI[]>({ equalsFn: uriArrayEquals }, reader => {
+			if (backendChat) {
+				return [backendChat];
+			}
 			const sessionState = sessionStateObs.read(reader).read(reader);
 			if (!sessionState || sessionState instanceof Error) {
 				return [defaultChatUri];
@@ -152,7 +165,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 
 			const uris = new Map<string, URI>();
 			uris.set(defaultChatUri.toString(), defaultChatUri);
-			for (const chat of sessionState.chats) {
+			for (const chat of sessionState.chats ?? []) {
 				const uri = URI.parse(chat.resource);
 				uris.set(uri.toString(), uri);
 			}
@@ -293,6 +306,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 			originalURI,
 			modifiedURI,
 			modifiedSnapshotURI,
+			isDeleted: normalized.kind === FileEditKind.Delete,
 			added: file.edit.diff?.added ?? 0,
 			removed: file.edit.diff?.removed ?? 0,
 			quitEarly: false,

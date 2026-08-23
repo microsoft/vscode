@@ -255,10 +255,9 @@ export interface ISSHConnectResult {
 }
 
 /**
- * How OpenSSH should react to an unknown or changed host key, as reported by
- * `ssh -G` (`stricthostkeychecking`). We honor the user's real SSH config here
- * rather than introducing a parallel VS Code setting, so the escape hatch for
- * users who genuinely cannot use verification stays where they expect it.
+ * How OpenSSH should react to an unknown or changed host key. `ssh -G`
+ * canonicalizes `yes` to `true` and `no`/`off` to `false`, which the resolved
+ * config parser normalizes back to this policy representation.
  */
 export type SSHStrictHostKeyChecking = 'ask' | 'accept-new' | 'yes' | 'no' | 'off';
 
@@ -285,7 +284,7 @@ export interface ISSHResolvedConfig {
 	readonly userKnownHostsFiles: string[];
 	/** `GlobalKnownHostsFile` paths, e.g. `/etc/ssh/ssh_known_hosts`. */
 	readonly globalKnownHostsFiles: string[];
-	/** Resolved `StrictHostKeyChecking`, when it is a value we recognize. */
+	/** Resolved and normalized `StrictHostKeyChecking`, when recognized. */
 	readonly strictHostKeyChecking: SSHStrictHostKeyChecking | undefined;
 }
 

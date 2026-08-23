@@ -8,6 +8,7 @@ import { Action, SubmenuAction } from '../../../../../base/common/actions.js';
 import { Event } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AgentHostCodexAgentEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../../platform/agentHost/common/agentService.js';
+import { CODEX_AGENT_PROVIDER_ID } from '../../../../../platform/agentHost/common/agent.js';
 import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 import { OpenOptions } from '../../../../../platform/opener/common/opener.js';
 import { ICodexAccountService, createCodexAccountMenuActions, hasSignedInCodexChatGPTAccount, openCodexAuthUrl, shouldShowCodexAccount } from '../../browser/codexAccountService.js';
@@ -18,6 +19,7 @@ suite('CodexAccountService', () => {
 	function service(status: ICodexAccountService['account']['status'], email?: string): ICodexAccountService & { signInCalls: number; signOutCalls: number } {
 		return {
 			_serviceBrand: undefined,
+			agent: CODEX_AGENT_PROVIDER_ID,
 			account: { status, email },
 			onDidChangeAccount: Event.None,
 			signInCalls: 0,
@@ -62,10 +64,20 @@ suite('CodexAccountService', () => {
 		const accountService = service('unknown');
 		const actions = createCodexAccountMenuActions(accountService);
 		assert.ok(actions[0] instanceof Action);
-		disposables.add(actions[0]);
+		disposables.add(actions[0] as Action);
 		assert.strictEqual(actions[0].label, 'Sign in to ChatGPT');
 		await actions[0].run();
 		assert.strictEqual(accountService.signInCalls, 1);
+	});
+
+	test('shows download status instead of sign-in while the Codex binary is downloading', () => {
+		const accountService = service('downloading');
+		const actions = createCodexAccountMenuActions(accountService);
+		disposables.add(actions[0] as Action);
+
+		assert.deepStrictEqual(actions.map(action => ({ label: action.label, enabled: action.enabled })), [
+			{ label: 'Downloading Codex agent…', enabled: false },
+		]);
 	});
 
 	test('hides signed-in and sign-in actions when the account surface is unavailable', () => {

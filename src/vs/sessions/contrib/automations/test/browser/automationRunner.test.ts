@@ -143,7 +143,7 @@ suite('AutomationRunner', () => {
 		const runs = service.runs.get();
 		assert.strictEqual(runs.length, 1);
 		assert.strictEqual(runs[0].status, 'completed');
-		assert.strictEqual(runs[0].sessionResource, 'vscode-chat-session://test/s1');
+		assert.strictEqual(runs[0].sessionResource?.toString(), 'vscode-chat-session://test/s1');
 		assert.strictEqual(runs[0].trigger, 'schedule');
 		assert.strictEqual(runs[0].leaderWindowId, 99);
 	});
@@ -163,7 +163,7 @@ suite('AutomationRunner', () => {
 		await dispatchPromise;
 		assert.deepStrictEqual(service.runs.get().map(run => ({
 			status: run.status,
-			sessionResource: run.sessionResource,
+			sessionResource: run.sessionResource?.toString(),
 			completedAt: run.completedAt,
 		})), [{
 			status: 'running',
@@ -226,7 +226,7 @@ suite('AutomationRunner', () => {
 		const run = service.runs.get()[0];
 		assert.deepStrictEqual({
 			status: run.status,
-			sessionResource: run.sessionResource,
+			sessionResource: run.sessionResource?.toString(),
 			errorMessage: run.errorMessage,
 			hasCompletedAt: run.completedAt !== undefined,
 		}, {
@@ -396,7 +396,7 @@ suite('AutomationRunner', () => {
 		assert.strictEqual(runs.length, 1);
 		assert.strictEqual(runs[0].status, 'failed');
 		assert.strictEqual(runs[0].errorMessage, 'Cancelled');
-		assert.strictEqual(runs[0].sessionResource, 'vscode-chat-session://test/s-mid');
+		assert.strictEqual(runs[0].sessionResource?.toString(), 'vscode-chat-session://test/s-mid');
 		cts.dispose();
 	});
 
@@ -416,7 +416,7 @@ suite('AutomationRunner', () => {
 		const run = service.runs.get()[0];
 		assert.deepStrictEqual({
 			status: run.status,
-			sessionResource: run.sessionResource,
+			sessionResource: run.sessionResource?.toString(),
 			errorMessage: run.errorMessage,
 		}, {
 			status: 'failed',

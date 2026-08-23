@@ -1,9 +1,14 @@
 # Layout Controller — Per-Session Layout State
 
+> **Specification change gate:** A bug fix that restores an existing rule belongs
+> in a regression test, not this document. Update this specification only when
+> the intended layout state machine or persistence contract changes.
+
 This document specifies how the session layout controllers manage workbench layout as the user
-switches between sessions. The implementation is split across three files, each with its own
-file-level spec. Each spec states the behaviour as numbered **scenario rules** (and keeps the *how* in
-a separate "Implementation notes" section); the code and tests reference these rules by tag:
+switches between sessions. The classic and mobile implementation is split across three files, each
+with its own file-level spec. Each spec states the behaviour as numbered **scenario rules** (and
+keeps the *how* in a separate "Implementation notes" section); the code and tests reference these
+rules by tag:
 
 | File | Spec | Rules |
 |------|------|-------|
@@ -17,7 +22,17 @@ management; `MobileLayoutController` (web phone) omits it. `contrib/layout/brows
 contributes the correct controller per platform (and registers the experimental responsive-sidebar
 setting); it is imported from `sessions.desktop.main.ts` (desktop) and `sessions.web.main.ts` (web).
 
-It is the detailed companion to [LAYOUT.md §10 Per-Session Layout State](LAYOUT.md#10-per-session-layout-state).
+`SinglePaneLayoutController` is a sibling of `LayoutController`: it extends
+`BaseLayoutController` and composes exactly three lifecycle strategies for New,
+Existing, and Quick Chat sessions. Shared tab, detail, and visibility mechanics
+live in coordinators rather than separate contribution controllers.
+Single-pane policy stays in that controller, its strategies, or its
+coordinators rather than being injected into editor-part construction; in
+particular, editor-part construction must not acquire `ISessionsService`,
+because the Sessions service graph already depends on editor parts.
+
+It is the detailed companion to the
+[layout-controller boundary](LAYOUT.md#layout-controller-boundary).
 
 ---
 
@@ -25,8 +40,8 @@ It is the detailed companion to [LAYOUT.md §10 Per-Session Layout State](LAYOUT
 
 The Agents window keeps a single **active session** but lets the user move between many.
 Each session owns its editor working set and bottom-panel visibility. The classic layout also keeps
-auxiliary-bar and editor-part visibility per session. The single-pane layout keeps shared
-editor/detail profiles for New Sessions and Existing Sessions.
+auxiliary-bar and editor-part visibility per session. The single-pane layout keeps a shared
+Editor/Details profile for Existing Sessions; New Sessions use a one-time Editor opening rule.
 
 `LayoutController` owns three independent pieces of per-session state, all keyed by session
 resource (`URI`) and persisted to workspace storage:
@@ -70,22 +85,34 @@ cleared — they survive multi-session mode.
 Skipped entirely on mobile web (`isWeb && isMobile`) to avoid disruptive auto-expand on narrow viewports.
 
 > **Docked detail panel (experimental).** With `sessions.layout.singlePaneDetailPanel` enabled, the auxiliary
-> bar is docked inside the editor part rather than being a grid column (see [LAYOUT.md](../LAYOUT.md) §5).
-> `SinglePaneSidePaneVisibilityStrategy` persists New Sessions and Existing Sessions
-> `{ editorVisible, auxiliaryBarVisible }` profiles under `sessions.singlePane.sidePaneVisibility`.
-> Switching types applies the matching profile; submitting preserves the current composition and seeds
-> the Existing profile from it. Quick chats
-> temporarily suppress the side pane without changing either profile. The per-session rules below apply
+> bar is docked inside the editor part rather than being a grid column (see
+> [Editor presentation](LAYOUT.md#editor-presentation)).
+> `SinglePaneExistingSessionStrategy` persists one shared Existing Session Editor/Details profile
+> (via `SinglePaneVisibilityProfileStore`) under `sessions.singlePane.sidePaneVisibility`.
+> New Sessions do not apply or capture an Editor
+> profile; submitting preserves Editor visibility and seeds the Existing profile. `SinglePaneQuickChatStrategy`
+> shares the Existing profile's overall side-pane visibility when Quick Chat has a saved editor
+> working set, mapping any visible composition to Editor-only because Quick Chat has no Details.
+> Opening the first editor or changing visibility in an editor-bearing Quick Chat updates that
+> shared profile, even before the chat has a saved working set. A Quick Chat
+> without editors hides the side pane transiently without changing the profile, so navigating away
+> restores the shared visibility.
+> The per-session rules below apply
 > to the classic layout only.
 > The docked detail panel opens at a 300px preferred width unless the user explicitly resized it; cached editor
 > node sizes and temporary sidebar-collapse growth are not allowed to widen the first/opened detail-only pane.
 > Docked sash collapse is also expressed through the same visibility API: the left grid sash hides editor content
 > when the editor node reaches the detail width, and the middle docked sash hides the auxiliary bar when the raw
 > dragged detail width reaches ~0.
-> Single-pane also keeps new-session views Files-first: when an uncreated workspace session is entered,
-> `SinglePaneLayoutController` hides the editor content once under editor-auto-visibility
-> suppression so the editor tab bar and Files detail panel remain visible. Later user reveals are respected.
-> The shared new-session hide memory (`sessions.newSessionViewState`) remains unchanged.
+> Single-pane also keeps new-session views Files-first without owning side-pane visibility: when an
+> uncreated workspace session is entered and its restored editor set contains only Empty Files,
+> `SinglePaneNewSessionStrategy` hides Editor once under editor-auto-visibility suppression. Auxiliary
+> Bar visibility is unchanged. A completed Toggle Side Panel reopen is a separate transition: after
+> managed tabs settle, a sole Empty Files input produces dock-only Files. Closing the last non-Empty
+> input is a third, authoritative transition that restores Empty Files and the exact pre-close visibility.
+> New, Existing, and Quick Chat share one `SinglePaneDetailPanelCoordinator` for Changes/Files
+> content selection and context publication. Auxiliary Bar visibility is not shared: each lifecycle
+> strategy applies its own visibility rules before publishing its content target.
 
 ### 3.1 Switching away — capture
 
@@ -315,8 +342,8 @@ does, causing the aux bar to fall back to the default-visible logic (§3.2) on t
 - `_loadState` reads `sessions.newSessionViewState` and `sessions.layoutState`; if the latter is
   absent it performs a one-time migration from the legacy `sessions.workingSets` key and then removes
   it. Corrupted data is dropped defensively.
-- Single-pane editor working sets use `sessions.singlePane.layoutState`; its New/Existing editor/detail
-  profiles are written immediately to `sessions.singlePane.sidePaneVisibility`.
+- Single-pane editor working sets use `sessions.singlePane.layoutState`; the Existing Session
+  editor/detail profile is written immediately to `sessions.singlePane.sidePaneVisibility`.
 
 ---
 
@@ -325,41 +352,10 @@ does, causing the aux bar to fall back to the default-visible logic (§3.2) on t
 - **Observables, not events**, drive all session-switch logic.
 - **Multiple visible sessions** disable per-session view/panel sync and clear that state (working
   sets preserved).
-- **In the classic layout, the side pane is never auto-opened for existing sessions on restore** — it opens automatically as
-  the new-session default (§3.2 step 2) and stays visible when an already-visible new session is
-  submitted (§3.3). A created session with no explicit "visible" choice stays closed until the user
-  opens it.
-- **In single-pane, editor/detail visibility is shared by lifecycle type** — New Sessions and Existing
-  Sessions restore independent profiles; quick chats only suppress the pane temporarily while a single
-  session is visible. With multiple visible sessions, the focused session may reveal parts from its
-  matching profile, but it never automatically hides parts it does not use. This restores an existing
-  session's open side pane without letting a quick chat hide a pane used by another session.
-- **In the classic desktop layout, the sessions sidebar is auto-managed on a small window ([D7])** — when the main container is
-  1800px wide or narrower and both the editor and auxiliary bar are open, the sidebar is hidden; it is shown
-  again once either closes or the window widens, unless the user closed it themselves. Suspended while
-  multiple sessions are visible, and switching sessions never auto-hides the sidebar: the base-controller
-  restore epoch (`_withSessionLayoutRestore` / `_isRestoringSessionLayout`) wraps both the aux-bar restore
-  and the editor working-set apply (`_applyWorkingSet`), so the side-pane / editor reveals a switch causes
-  re-baseline the state instead of triggering an auto-hide. Gated by the
-  experimental setting `sessions.layout.autoCollapseSessionsSidebar` (default on in non-stable builds). See
-  [desktopSessionLayoutController.md](contrib/layout/browser/desktopSessionLayoutController.md) D7.
-- **In single-pane, the Sessions sidebar is always explicit** — opening/closing Details or opening an
-  editor never hides or shows the sidebar.
 - Working-set save/apply waits for **workspace folders** to catch up with the active session.
-- **An empty auxiliary bar is hidden (desktop, [D10])** — when the aux bar has no active view container
-  (e.g. a workspace-less quick chat where Changes/Files are gated off), the `AUXILIARYBAR_PART` is kept
-  hidden instead of showing an empty column, updating reactively as the active session flips — including
-  when the part itself becomes visible (a bare toggle / restore that shows the column before a container
-  opens), so the detail toggle never reads "on" over a blank panel. The empty-part hide runs under
-  `suppressEditorPartAutoVisibility()` so it never resurrects the editor as a side effect, and the docked
-  host never force-opens a `hideIfEmpty` container with no active views. The controller only hides an empty
-  aux bar (reveals stay with D3/D8), and **Toggle Side Panel** only reveals the part that has content —
-  never an empty aux bar, and is **disabled entirely for quick chats**
-  (`IsQuickChatSessionContext.negate()`). Invariant: `partVisibility.auxiliaryBar`
-  (⇒ `AuxiliaryBarVisibleContext` ⇒ the detail toggle) is true iff the docked detail panel is rendered with
-  an active view container.
-- **Single-pane new-session views are Files-first (desktop, [D11])** — when an uncreated workspace
-  session is entered in single-pane mode (single session visible, not maximized, not a quick chat), the
-  editor content is hidden once under `suppressEditorPartAutoVisibility()`. D3b keeps the Files detail
-  panel active unless the shared new-session side pane state says it is hidden; later user editor reveals
-  are respected until the controller exits and re-enters a new-session resource.
+- Classic desktop behavior is owned by rules `D1`-`D11` in
+  [desktopSessionLayoutController.md](contrib/layout/browser/desktopSessionLayoutController.md).
+- Mobile behavior is owned by rules `M1`-`M2` in
+  [mobileSessionLayoutController.md](contrib/layout/browser/mobileSessionLayoutController.md).
+- Single-pane visibility and detail selection are owned by
+  [SINGLE_PANE_SCENARIOS.md](SINGLE_PANE_SCENARIOS.md) and the strategy tests.

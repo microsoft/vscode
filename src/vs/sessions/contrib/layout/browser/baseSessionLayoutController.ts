@@ -36,7 +36,7 @@ import { IPaneCompositePartService } from '../../../../workbench/services/paneco
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';
-import { SessionsWelcomeVisibleContext, IsQuickChatSessionContext, CustomViewVisibleContext } from '../../../common/contextkeys.js';
+import { SessionsWelcomeVisibleContext, CustomViewVisibleContext, IsQuickChatSessionContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { logSidePanelToggle } from '../../../common/sessionsTelemetry.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 import { IChangesViewService } from '../../changes/common/changesViewService.js';
@@ -396,10 +396,10 @@ export abstract class BaseLayoutController extends Disposable {
 					},
 					category: Categories.View,
 					f1: true,
-					// A quick chat has no side pane (Round 20 hides the empty aux bar
-					// and the chat is full-width), so toggling it is meaningless. A custom
-					// view replaces the side pane entirely.
-					precondition: ContextKeyExpr.and(IsQuickChatSessionContext.negate(), CustomViewVisibleContext.negate()),
+					precondition: ContextKeyExpr.and(
+						ContextKeyExpr.or(IsQuickChatSessionContext.negate(), SinglePaneLayoutEnabledContext),
+						CustomViewVisibleContext.negate()
+					),
 					keybinding: {
 						weight: KeybindingWeight.SessionsContrib,
 						primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyB
@@ -408,7 +408,7 @@ export abstract class BaseLayoutController extends Disposable {
 						{
 							id: Menus.TitleBarSessionMenu,
 							group: 'navigation',
-							order: 11, // After Open in VS Code (7), Run Script (8), and Open Terminal (10)
+							order: 11, // After Open in VS Code (7), Run Script (8), and Toggle Panel (10)
 							when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
 						}
 					]
@@ -544,6 +544,9 @@ export abstract class BaseLayoutController extends Disposable {
 	protected _shouldHideEditorPartOnApply(_editorPartHidden: boolean): boolean {
 		return false;
 	}
+
+	/** Hook invoked before a session working set is queued for application. */
+	protected _onWillApplyWorkingSet(_workingSet: IEditorWorkingSet | 'empty'): void { }
 
 	// --- Editor part reveal ---
 
@@ -682,6 +685,7 @@ export abstract class BaseLayoutController extends Disposable {
 		const workingSet: IEditorWorkingSet | 'empty' = sessionResource
 			? (this._workingSets.get(sessionResource) ?? 'empty')
 			: 'empty';
+		this._onWillApplyWorkingSet(workingSet);
 
 		return this._workingSetSequencer.queue(async () => {
 			// When multiple sessions are visible, applying a working set must never

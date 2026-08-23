@@ -15,7 +15,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { NullLogService } from '../../../log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
-import { COPILOT_ALLOW_MANAGED_HOOKS_ONLY_KEY, COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_MODEL_KEY, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY, managedModelValue, normalizeManagedSettings, RawManagedSettingsData } from '../../common/copilotManagedSettings.js';
+import { COPILOT_ALLOW_MANAGED_HOOKS_ONLY_KEY, COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_MODEL_KEY, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, managedModelValue, normalizeManagedSettings, RawManagedSettingsData } from '../../common/copilotManagedSettings.js';
 import { FileManagedSettingsService } from '../../common/fileManagedSettingsService.js';
 import { FileManagedSettingsChannelClient } from '../../common/fileManagedSettingsIpc.js';
 
@@ -127,6 +127,29 @@ suite('normalizeManagedSettings', () => {
 		});
 		assert.strictEqual(COPILOT_MODEL_KEY, 'permissions.model');
 		assert.strictEqual(managedModelValue()({ managedSettings: result }), 'auto');
+	});
+
+	test('carries the top-level model setting as the `model` bag key', () => {
+		const result = normalizeManagedSettings({
+			model: 'auto'
+		});
+		assert.deepStrictEqual(result, {
+			'model': 'auto'
+		});
+		assert.strictEqual(COPILOT_TOP_LEVEL_MODEL_KEY, 'model');
+		assert.strictEqual(managedModelValue()({ managedSettings: result }), 'auto');
+	});
+
+	test('keeps top-level and legacy model keys distinct, with the top-level value winning', () => {
+		const result = normalizeManagedSettings({
+			model: 'opus',
+			permissions: { model: 'gemini' }
+		});
+		assert.deepStrictEqual(result, {
+			'model': 'opus',
+			'permissions.model': 'gemini'
+		});
+		assert.strictEqual(managedModelValue()({ managedSettings: result }), 'opus');
 	});
 
 	test('handles empty object', () => {

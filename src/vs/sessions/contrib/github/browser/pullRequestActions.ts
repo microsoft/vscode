@@ -22,16 +22,18 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
+import { IURLService } from '../../../../platform/url/common/url.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
+import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { Menus } from '../../../browser/menus.js';
-import { SessionHeaderMetaActionViewItem } from '../../../browser/parts/sessionHeaderMetaActionViewItem.js';
+import { ChatPillActionViewItem } from '../../../../workbench/browser/chatPills.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { SessionHasPullRequestContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { IGitHubPullRequestRef, ISession } from '../../../services/sessions/common/session.js';
-import { computePullRequestIcon, GitHubPullRequestState, IGitHubPullRequest, IPullRequestIconStatus } from '../common/types.js';
+import { computePullRequestIcon, GitHubPullRequestState, IGitHubPullRequest, IPullRequestIconStatus, OPEN_PULL_REQUEST_ACTION_ID } from '../common/types.js';
 import { IGitHubService } from './githubService.js';
 import { GitHubReferenceList, IGitHubReferenceListEntry } from './githubReferenceList.js';
 import { createPullRequestHoverElement } from './pullRequestHover.js';
@@ -52,13 +54,22 @@ interface IPullRequestIdentity {
 }
 
 interface IPullRequestListEntry extends IGitHubReferenceListEntry {
+	readonly owner: string;
+	readonly repo: string;
 	readonly uri: URI;
 }
 
 // --- Open Pull Request action
 
+const githubPullRequestsExtensionId = 'github.vscode-pull-request-github';
+const openPullRequestWebviewPath = '/open-pull-request-webview';
+
+class PullRequestActionContext {
+	constructor(readonly pullRequest: IGitHubPullRequestRef) { }
+}
+
 class OpenPullRequestAction extends Action2 {
-	static readonly ID = 'workbench.agentSessions.action.openPullRequest';
+	static readonly ID = OPEN_PULL_REQUEST_ACTION_ID;
 
 	constructor() {
 		super({
@@ -66,9 +77,7 @@ class OpenPullRequestAction extends Action2 {
 			title: localize2('agentSessions.openPullRequest', "Open Pull Request"),
 			icon: Codicon.gitPullRequest,
 			f1: false,
-			// Pull request pill shown in the session header meta row
-			// (vs/sessions/browser/parts/sessionHeader.ts). Rendered with a
-			// custom action view item that summarizes the session's PRs.
+			// Metadata pill that summarizes the session's pull requests.
 			menu: [{
 				id: Menus.SessionHeaderMeta,
 				group: 'navigation',
@@ -83,25 +92,57 @@ class OpenPullRequestAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, session?: IActiveSession | ISession | ISession[]): Promise<void> {
-		const openerService = accessor.get(IOpenerService);
+	override async run(accessor: ServicesAccessor, sessionOrContext?: IActiveSession | ISession | ISession[] | PullRequestActionContext): Promise<void> {
 		const sessionsService = accessor.get(ISessionsService);
 
-		const targetSession = (Array.isArray(session) ? session[0] : session) ?? sessionsService.activeSession.get();
-		const pullRequestUri = getSessionPullRequestUri(targetSession);
-		if (!pullRequestUri) {
+		const target = (Array.isArray(sessionOrContext) ? sessionOrContext[0] : sessionOrContext) ?? sessionsService.activeSession.get();
+		const pullRequest = target instanceof PullRequestActionContext ? target.pullRequest : getSessionPullRequest(target);
+		if (!pullRequest) {
 			return;
 		}
 
-		await openerService.open(pullRequestUri, { openExternal: true });
+		const extensionService = accessor.get(IExtensionService);
+		const urlService = accessor.get(IURLService);
+		const openerService = accessor.get(IOpenerService);
+		if (await extensionService.getExtension(githubPullRequestsExtensionId)) {
+			const uri = urlService.create({
+				authority: githubPullRequestsExtensionId,
+				path: openPullRequestWebviewPath,
+				query: JSON.stringify({
+					owner: pullRequest.owner,
+					repo: pullRequest.repo,
+					pullRequestNumber: pullRequest.number,
+				}),
+			});
+			if (await urlService.open(uri, { trusted: true })) {
+				return;
+			}
+		}
+
+		await openerService.open(pullRequest.uri, { openExternal: true });
 	}
 }
 registerAction2(OpenPullRequestAction);
 
 // --- Copy Pull Request URL action
 
-function getSessionPullRequestUri(session: ISession | undefined): URI | undefined {
-	return session?.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get()?.pullRequest?.uri;
+function getSessionPullRequest(session: ISession | undefined): IGitHubPullRequestRef | undefined {
+	const gitHubInfo = session?.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get();
+	const pullRequestRef = gitHubInfo?.pullRequests?.[0];
+	if (pullRequestRef) {
+		return pullRequestRef;
+	}
+	if (!gitHubInfo?.pullRequest) {
+		return undefined;
+	}
+
+	return {
+		owner: gitHubInfo.owner,
+		repo: gitHubInfo.repo,
+		number: gitHubInfo.pullRequest.number,
+		uri: gitHubInfo.pullRequest.uri,
+		icon: gitHubInfo.pullRequest.icon,
+	};
 }
 
 class CopyPullRequestUrlAction extends Action2 {
@@ -126,12 +167,12 @@ class CopyPullRequestUrlAction extends Action2 {
 		const sessionsService = accessor.get(ISessionsService);
 
 		const targetSession = (Array.isArray(session) ? session[0] : session) ?? sessionsService.activeSession.get();
-		const pullRequestUri = getSessionPullRequestUri(targetSession);
-		if (!pullRequestUri) {
+		const pullRequest = getSessionPullRequest(targetSession);
+		if (!pullRequest) {
 			return;
 		}
 
-		await clipboardService.writeText(pullRequestUri.toString(true));
+		await clipboardService.writeText(pullRequest.uri.toString(true));
 	}
 }
 registerAction2(CopyPullRequestUrlAction);
@@ -141,7 +182,7 @@ registerAction2(CopyPullRequestUrlAction);
 /**
  * Renders the session's pull requests as a single header pill and opens a picker for history.
  */
-export class OpenPullRequestActionViewItem extends SessionHeaderMetaActionViewItem {
+export class OpenPullRequestActionViewItem extends ChatPillActionViewItem {
 
 	private readonly _pullRequestRefsObs: IObservable<readonly IGitHubPullRequestRef[]>;
 	private readonly _pullRequestIdentitiesObs: IObservable<readonly IPullRequestIdentity[]>;
@@ -250,7 +291,16 @@ export class OpenPullRequestActionViewItem extends SessionHeaderMetaActionViewIt
 		}));
 	}
 
+	protected override hasOpenDropdown(): boolean {
+		return !!this._pullRequestList;
+	}
+
 	protected override onDidClickButton(): void {
+		if (this.hasOpenDropdown()) {
+			this._hoverService.hideHover(true);
+			return;
+		}
+
 		const pullRequests = this._pullRequestsObs.get();
 		if (pullRequests.length > 1) {
 			this._showPullRequestPicker(pullRequests);
@@ -262,7 +312,7 @@ export class OpenPullRequestActionViewItem extends SessionHeaderMetaActionViewIt
 
 	protected override getIconElement(): HTMLElement | undefined {
 		const icon = this._pullRequestsObs.get()[0]?.icon ?? Codicon.gitPullRequest;
-		const iconElement = $(`span.chat-composite-bar-meta-item-icon${ThemeIcon.asCSSSelector(icon)}`);
+		const iconElement = $(`span.chat-pill-icon${ThemeIcon.asCSSSelector(icon)}`, { 'aria-hidden': 'true' });
 		if (icon.color) {
 			// Inline `!important` wins over `button.css`'s `.monaco-text-button .codicon
 			// { color: inherit !important }`, so the glyph reflects the live PR state color.
@@ -319,7 +369,7 @@ export class OpenPullRequestActionViewItem extends SessionHeaderMetaActionViewIt
 
 		const list = new GitHubReferenceList(this._getPullRequestListEntries(pullRequests), entry => {
 			this._hoverService.hideHover();
-			this._openerService.open(entry.uri, { openExternal: true });
+			this.actionRunner.run(this._action, new PullRequestActionContext(entry));
 		});
 		list.element.onkeydown = event => {
 			if (event.key === 'Escape') {
@@ -354,6 +404,8 @@ export class OpenPullRequestActionViewItem extends SessionHeaderMetaActionViewIt
 
 	private _getPullRequestListEntries(pullRequests: readonly IResolvedSessionPullRequest[]): readonly IPullRequestListEntry[] {
 		return pullRequests.map(({ ref, pullRequest, icon, status }) => ({
+			owner: ref.owner,
+			repo: ref.repo,
 			number: ref.number,
 			title: pullRequest?.title,
 			icon,
@@ -402,9 +454,7 @@ function getPullRequestAriaLabel(ref: IGitHubPullRequestRef, pullRequest: IGitHu
 }
 
 /**
- * Registers the {@link OpenPullRequestActionViewItem} for the open-pull-request action in the
- * session header meta toolbar. Registering it here (rather than in the core session header)
- * keeps the rendering of the GitHub-owned action co-located with the action itself.
+ * Registers the {@link OpenPullRequestActionViewItem} for the pull-request metadata pill.
  */
 class OpenPullRequestActionViewItemContribution extends Disposable implements IWorkbenchContribution {
 
@@ -415,11 +465,7 @@ class OpenPullRequestActionViewItemContribution extends Disposable implements IW
 	) {
 		super();
 
-		// The action view item service only notifies toolbars of a factory via
-		// the event passed to register(), not on registration itself. A session
-		// header restored with an existing pull request may create its meta
-		// toolbar before this contribution runs, so announce the factory once
-		// right after registering to make those toolbars re-render and pick it up.
+		// Announce the factory after registration so existing metadata pills re-render.
 		const onDidRegister = this._register(new Emitter<void>());
 		this._register(actionViewItemService.register(Menus.SessionHeaderMeta, OpenPullRequestAction.ID, (action, options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {

@@ -17,6 +17,7 @@ import './agentsVoiceColors.js'; // Register custom voice theme colors
  */
 export const AGENTS_VOICE_CONNECTED = new RawContextKey<boolean>('agentsVoiceConnected', false);
 export const AGENTS_VOICE_CONNECTING = new RawContextKey<boolean>('agentsVoiceConnecting', false);
+export const AGENTS_VOICE_RECONNECTING = new RawContextKey<boolean>('agentsVoiceReconnecting', false);
 export const AGENTS_VOICE_LISTENING = new RawContextKey<boolean>('agentsVoiceListening', false);
 /**
  * True when the current Copilot entitlement permits Voice Mode. This is a single

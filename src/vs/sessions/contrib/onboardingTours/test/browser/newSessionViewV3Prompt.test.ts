@@ -22,7 +22,7 @@ import { NullWorkbenchAssignmentService } from '../../../../../workbench/service
 import { GITHUB_REMOTE_FILE_SCHEME, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { INewSessionComposerService } from '../../../chat/browser/newSessionComposerService.js';
+import { INewSessionComposerService, INewSessionPromptOptionsController, NewSessionPromptOptionsState } from '../../../chat/browser/newSessionComposerService.js';
 import { GitHubAuthenticationError } from '../../../github/browser/githubApiClient.js';
 import { IGitHubRecentUserWork } from '../../../github/browser/fetchers/githubRecentUserWorkFetcher.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -64,32 +64,37 @@ type TestGitHubRequest =
 suite('NewSessionViewV3Prompt', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('selects the newest candidate in priority order', () => {
+	test('selects the newest actionable pull request and prioritizes conflicts on the same pull request', () => {
 		const reviewPullRequest = pullRequest('Review', '2026-08-07T12:00:00Z', undefined, '2026-08-07T09:00:00Z', '2026-08-07T10:00:00Z');
 		const recentFailure = pullRequest('Recent failure', '2026-08-07T11:00:00Z', 'FAILURE');
 		const olderFailure = pullRequest('Older failure', '2026-08-07T10:00:00Z', 'ERROR');
+		const conflictedFailure = pullRequest('Conflicted failure', '2026-08-07T13:00:00Z', 'FAILURE', undefined, undefined, 2, true);
 		const recentIssue = issue('Recent issue', '2026-08-07T13:00:00Z');
 		const olderIssue = issue('Older issue', '2026-08-07T08:00:00Z');
 
 		assert.deepStrictEqual({
-			ci: selectNewSessionViewV3GitHubCandidate({ pullRequests: [olderFailure, reviewPullRequest, recentFailure], issues: [recentIssue] }),
+			conflict: selectNewSessionViewV3GitHubCandidate({ pullRequests: [recentFailure, conflictedFailure], issues: [] }),
+			reviewOverCi: selectNewSessionViewV3GitHubCandidate({ pullRequests: [olderFailure, reviewPullRequest, recentFailure], issues: [recentIssue] }),
 			review: selectNewSessionViewV3GitHubCandidate({ pullRequests: [reviewPullRequest], issues: [recentIssue] }),
 			issue: selectNewSessionViewV3GitHubCandidate({ pullRequests: [], issues: [olderIssue, recentIssue] }),
 			none: selectNewSessionViewV3GitHubCandidate({ pullRequests: [pullRequest('Addressed', '2026-08-07T14:00:00Z', undefined, '2026-08-07T11:00:00Z', '2026-08-07T10:00:00Z')], issues: [] }),
 		}, {
-			ci: { title: 'Recent failure', url: 'https://github.com/o/r/pull/Recent%20failure', strategy: 'githubCiFailure' },
-			review: { title: 'Review', url: 'https://github.com/o/r/pull/Review', strategy: 'githubReviewComments' },
-			issue: { title: 'Recent issue', url: 'https://github.com/o/r/issues/Recent%20issue', strategy: 'githubIssue' },
+			conflict: { number: 2, title: 'Conflicted failure', url: 'https://github.com/o/r/pull/Conflicted%20failure', strategy: 'githubMergeConflict' },
+			reviewOverCi: { number: 1, title: 'Review', url: 'https://github.com/o/r/pull/Review', strategy: 'githubReviewComments' },
+			review: { number: 1, title: 'Review', url: 'https://github.com/o/r/pull/Review', strategy: 'githubReviewComments' },
+			issue: { number: 1, title: 'Recent issue', url: 'https://github.com/o/r/issues/Recent%20issue', strategy: 'githubIssue' },
 			none: undefined,
 		});
 	});
 
 	test('uses prompt treatments only as a complete pair and permits literal prompts', async () => {
 		const complete = await runPrompt({
+			'onb.newSessionViewV3.variation': 'prompt',
 			'onb.newSessionViewV3.promptTemplate': 'Inspect this project and suggest the next task.',
 			'onb.newSessionViewV3.placeholder': '[custom task]',
 		});
 		const incomplete = await runPrompt({
+			'onb.newSessionViewV3.variation': 'prompt',
 			'onb.newSessionViewV3.promptTemplate': 'Please complete {0}.',
 		});
 
@@ -104,6 +109,62 @@ suite('NewSessionViewV3Prompt', () => {
 				placeholder: '[describe the coding task]',
 			},
 		});
+	});
+
+	test('uses prompt options as the default variation', async () => {
+		const result = await runPrompt({});
+
+		assert.deepStrictEqual({
+			animation: result.animation,
+			states: summarizePromptOptionStates(result.promptOptionStates),
+			telemetry: result.telemetry,
+		}, {
+			animation: undefined,
+			states: [
+				{ kind: 'loading' },
+				{
+					kind: 'resolved',
+					options: [
+						{ title: 'Implement a feature', description: 'Describe what you want to build', icon: { id: 'lightbulb-sparkle-autofix', color: undefined } },
+						{ title: 'Fix a bug', description: 'Describe the unexpected behavior', icon: { id: 'bug', color: undefined } },
+						{ title: 'Fix CI', description: 'Describe a failing check or paste a link', icon: { id: 'run-errors', color: undefined } },
+					],
+				},
+			],
+			telemetry: [{
+				name: 'onboarding.promptStrategy',
+				data: {
+					scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+					configuredVariation: 'options',
+					effectiveStrategy: 'options',
+					fallbackReason: 'noCandidate',
+					shown: true,
+				},
+			}],
+		});
+	});
+
+	test('uses concise task-specific standard prompts', async () => {
+		const result = await runPrompt({});
+		const resolvedState = result.promptOptionStates.find(state => state.kind === 'resolved');
+
+		assert.deepStrictEqual(resolvedState?.options.map(option => ({
+			prompt: option.prompt,
+			placeholder: option.placeholder,
+		})), [
+			{
+				prompt: 'Help me implement [describe the feature] in this project. Ask me questions if anything is unclear regarding the intended behaviour.',
+				placeholder: '[describe the feature]',
+			},
+			{
+				prompt: 'Help me fix [describe the bug] in this project. Ask me questions if anything is unclear regarding the bug or the intended behaviour.',
+				placeholder: '[describe the bug]',
+			},
+			{
+				prompt: 'Help me fix the failing CI for [describe the CI failure or paste a link] in this project. Ask me questions if anything is unclear regarding the CI failure or how it should be fixed.',
+				placeholder: '[describe the CI failure or paste a link]',
+			},
+		]);
 	});
 
 	test('developer override selects a GitHub CI prompt and reports telemetry', async () => {
@@ -139,6 +200,39 @@ suite('NewSessionViewV3Prompt', () => {
 		});
 	});
 
+	test('developer override classifies a conflicted PR separately from failing CI', async () => {
+		const result = await runPrompt({
+			'onb.newSessionViewV3.variation': 'prompt',
+		}, {
+			[ONBOARDING_DEVELOPER_MODE_CONFIG]: { [NEW_SESSION_VIEW_V3_TOUR_ID]: true },
+			[ONBOARDING_DEVELOPER_MODE_VARIATIONS_CONFIG]: { [NEW_SESSION_VIEW_V3_TOUR_ID]: 'githubPrompt' },
+		}, {
+			pullRequests: [pullRequest('Resolve me', '2026-08-07T12:00:00Z', 'FAILURE', undefined, undefined, 42, true)],
+			issues: [],
+		});
+
+		assert.deepStrictEqual({
+			animation: result.animation,
+			telemetry: result.telemetry,
+		}, {
+			animation: {
+				prompt: 'The following pull request has merge conflicts: "Resolve me" (https://github.com/o/r/pull/Resolve%20me). Resolve the conflicts and update the pull request.',
+				durationMs: 2_500,
+				placeholder: '',
+			},
+			telemetry: [{
+				name: 'onboarding.promptStrategy',
+				data: {
+					scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+					configuredVariation: 'githubPrompt',
+					effectiveStrategy: 'githubMergeConflict',
+					fallbackReason: 'none',
+					shown: true,
+				},
+			}],
+		});
+	});
+
 	test('falls back to the prompt variation when silent GitHub authentication is unavailable', async () => {
 		const result = await runPrompt({
 			'onb.newSessionViewV3.variation': 'githubPrompt',
@@ -159,6 +253,175 @@ suite('NewSessionViewV3Prompt', () => {
 					scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
 					configuredVariation: 'githubPrompt',
 					effectiveStrategy: 'prompt',
+					fallbackReason: 'noAuthentication',
+					shown: true,
+				},
+			}],
+		});
+	});
+
+	test('shows loading skeletons and resolves issue-first GitHub prompt options', async () => {
+		const result = await runPrompt(
+			{ 'onb.newSessionViewV3.variation': 'options' },
+			{},
+			{
+				issues: [
+					issue('Older assigned issue', '2026-08-07T11:00:00Z', 12),
+					issue('Newest assigned issue', '2026-08-07T14:00:00Z', 14),
+					issue('Third assigned issue', '2026-08-07T10:00:00Z', 10),
+				],
+				pullRequests: [
+					pullRequest('Conflicted PR', '2026-08-07T14:30:00Z', 'FAILURE', undefined, undefined, 20, true),
+					pullRequest('CI is failing', '2026-08-07T13:00:00Z', 'FAILURE', undefined, undefined, 21),
+					pullRequest('Review feedback', '2026-08-07T12:00:00Z', undefined, '2026-08-07T09:00:00Z', '2026-08-07T10:00:00Z', 22),
+				],
+			},
+		);
+
+		assert.deepStrictEqual({
+			animation: result.animation,
+			states: summarizePromptOptionStates(result.promptOptionStates),
+			telemetry: result.telemetry,
+		}, {
+			animation: undefined,
+			states: [
+				{ kind: 'loading' },
+				{
+					kind: 'resolved',
+					options: [
+						{ title: 'Tackle issue #14', description: 'Newest assigned issue', icon: { id: 'issue-opened', color: 'charts.green' } },
+						{ title: 'Tackle issue #12', description: 'Older assigned issue', icon: { id: 'issue-opened', color: 'charts.green' } },
+						{ title: 'Resolve conflicts #20', description: 'Conflicted PR', icon: { id: 'git-pull-request-error', color: 'charts.orange' } },
+					],
+				},
+			],
+			telemetry: [{
+				name: 'onboarding.promptStrategy',
+				data: {
+					scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+					configuredVariation: 'options',
+					effectiveStrategy: 'options',
+					fallbackReason: 'none',
+					shown: true,
+				},
+			}],
+		});
+	});
+
+	test('reports privacy-safe prompt option selections and closure', async () => {
+		const result = await runPrompt(
+			{ 'onb.newSessionViewV3.variation': 'options' },
+			{},
+			{
+				issues: [issue('Private issue title', '2026-08-07T14:00:00Z', 14)],
+				pullRequests: [
+					pullRequest('Private CI title', '2026-08-07T13:00:00Z', 'FAILURE', undefined, undefined, 21),
+					pullRequest('Private review title', '2026-08-07T12:00:00Z', undefined, '2026-08-07T09:00:00Z', '2026-08-07T10:00:00Z', 22),
+				],
+			},
+			{ promptOptionInteractions: [0, 1, 2, 'close'] },
+		);
+
+		assert.deepStrictEqual(result.telemetry.filter(event => event.name === 'onboarding.promptOptionInteraction'), [
+			{
+				name: 'onboarding.promptOptionInteraction',
+				data: {
+					scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+					interaction: 'selected',
+					option: 'githubIssue',
+				},
+			},
+			{
+				name: 'onboarding.promptOptionInteraction',
+				data: {
+					scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+					interaction: 'selected',
+					option: 'githubPRCI',
+				},
+			},
+			{
+				name: 'onboarding.promptOptionInteraction',
+				data: {
+					scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+					interaction: 'selected',
+					option: 'githubPRComments',
+				},
+			},
+			{
+				name: 'onboarding.promptOptionInteraction',
+				data: {
+					scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+					interaction: 'closed',
+					option: 'none',
+				},
+			},
+		]);
+	});
+
+	test('fills missing prompt options from the fixed standard order after a partial timeout', async () => {
+		const result = await runPrompt(
+			{ 'onb.newSessionViewV3.variation': 'options' },
+			{},
+			{ pullRequests: [], issues: [issue('Ready issue', '2026-08-07T13:00:00Z', 7)] },
+			{ pullRequestLookupNeverResolves: true },
+		);
+
+		assert.deepStrictEqual({
+			states: summarizePromptOptionStates(result.promptOptionStates),
+			telemetry: result.telemetry,
+		}, {
+			states: [
+				{ kind: 'loading' },
+				{
+					kind: 'resolved',
+					options: [
+						{ title: 'Tackle issue #7', description: 'Ready issue', icon: { id: 'issue-opened', color: 'charts.green' } },
+						{ title: 'Implement a feature', description: 'Describe what you want to build', icon: { id: 'lightbulb-sparkle-autofix', color: undefined } },
+						{ title: 'Fix a bug', description: 'Describe the unexpected behavior', icon: { id: 'bug', color: undefined } },
+					],
+				},
+			],
+			telemetry: [{
+				name: 'onboarding.promptStrategy',
+				data: {
+					scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+					configuredVariation: 'options',
+					effectiveStrategy: 'options',
+					fallbackReason: 'timeout',
+					shown: true,
+				},
+			}],
+		});
+	});
+
+	test('uses all standard prompt options when GitHub authentication is unavailable', async () => {
+		const result = await runPrompt(
+			{ 'onb.newSessionViewV3.variation': 'options' },
+			{},
+			new GitHubAuthenticationError(),
+		);
+
+		assert.deepStrictEqual({
+			states: summarizePromptOptionStates(result.promptOptionStates),
+			telemetry: result.telemetry,
+		}, {
+			states: [
+				{ kind: 'loading' },
+				{
+					kind: 'resolved',
+					options: [
+						{ title: 'Implement a feature', description: 'Describe what you want to build', icon: { id: 'lightbulb-sparkle-autofix', color: undefined } },
+						{ title: 'Fix a bug', description: 'Describe the unexpected behavior', icon: { id: 'bug', color: undefined } },
+						{ title: 'Fix CI', description: 'Describe a failing check or paste a link', icon: { id: 'run-errors', color: undefined } },
+					],
+				},
+			],
+			telemetry: [{
+				name: 'onboarding.promptStrategy',
+				data: {
+					scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+					configuredVariation: 'options',
+					effectiveStrategy: 'options',
 					fallbackReason: 'noAuthentication',
 					shown: true,
 				},
@@ -257,6 +520,39 @@ suite('NewSessionViewV3Prompt', () => {
 		]);
 	});
 
+	test('resolves the repository from a configured GitHub Enterprise remote', async () => {
+		const result = await runPrompt(
+			{ 'onb.newSessionViewV3.variation': 'githubPrompt' },
+			{},
+			{ pullRequests: [], issues: [issue('Enterprise issue', '2026-08-07T13:00:00Z', 7)] },
+			{
+				includeGitHubInfo: false,
+				gitRemoteUrl: 'git@ghe.example.com:enterprise/project.git',
+				enterpriseHost: 'ghe.example.com',
+			},
+		);
+
+		assert.deepStrictEqual(result.gitHubRequests, [
+			{ kind: 'issues', owner: 'enterprise', repo: 'project' },
+			{ kind: 'pullRequests', owner: 'enterprise', repo: 'project' },
+			{ kind: 'issueLinkage', owner: 'enterprise', repo: 'project', issueNumbers: [7] },
+		]);
+	});
+
+	test('does not query hostless metadata or github.com remotes through GitHub Enterprise', async () => {
+		const result = await runPrompt(
+			{ 'onb.newSessionViewV3.variation': 'githubPrompt' },
+			{},
+			{ pullRequests: [], issues: [issue('Public issue', '2026-08-07T13:00:00Z')] },
+			{
+				gitRemoteUrl: 'git@github.com:public/project.git',
+				enterpriseHost: 'ghe.example.com',
+			},
+		);
+
+		assert.deepStrictEqual(result.gitHubRequests, []);
+	});
+
 	test('waits for Agent Host git metadata instead of requiring the Git extension', async () => {
 		const workspace = observableValue('workspace', createWorkspace(URI.file('C:\\repo'), 'r', false));
 		const activeSession = new class extends mock<IActiveSession>() {
@@ -279,6 +575,7 @@ suite('NewSessionViewV3Prompt', () => {
 						prompt = text;
 						return true;
 					},
+					showPromptOptions: () => true,
 				});
 			}(),
 			new class extends mock<IGitService>() {
@@ -335,6 +632,7 @@ suite('NewSessionViewV3Prompt', () => {
 						prompt = text;
 						return true;
 					},
+					showPromptOptions: () => true,
 				});
 			}(),
 			new class extends mock<IGitService>() { }(),
@@ -377,13 +675,24 @@ async function runPrompt(
 	treatments: Partial<Record<string, string>>,
 	configuration: Record<string, object> = {},
 	gitHubResult: IGitHubRecentUserWork | Error = { pullRequests: [], issues: [] },
-	options: { readonly workspaceUri?: URI; readonly includeGitHubInfo?: boolean; readonly gitRemoteUrl?: string; readonly pullRequestLookupNeverResolves?: boolean; readonly issueLinkageLookupNeverResolves?: boolean } = {},
+	options: {
+		readonly workspaceUri?: URI;
+		readonly includeGitHubInfo?: boolean;
+		readonly gitRemoteUrl?: string;
+		readonly enterpriseHost?: string;
+		readonly pullRequestLookupNeverResolves?: boolean;
+		readonly issueLinkageLookupNeverResolves?: boolean;
+		readonly promptOptionInteractions?: readonly (number | 'close')[];
+	} = {},
 ): Promise<{
 	readonly animation: { readonly prompt: string; readonly durationMs: number; readonly placeholder: string } | undefined;
+	readonly promptOptionStates: readonly NewSessionPromptOptionsState[];
 	readonly telemetry: readonly { readonly name: string; readonly data: object | undefined }[];
 	readonly gitHubRequests: readonly TestGitHubRequest[];
 }> {
 	let animation: { prompt: string; durationMs: number; placeholder: string } | undefined;
+	const promptOptionStates: NewSessionPromptOptionsState[] = [];
+	let promptOptionsController: INewSessionPromptOptionsController | undefined;
 	const workspaceUri = options.workspaceUri ?? URI.file('C:\\repo');
 	const workspace = createWorkspace(workspaceUri, 'r', options.includeGitHubInfo !== false);
 	const activeSession = createSession(workspace);
@@ -396,10 +705,28 @@ async function runPrompt(
 				animation = { prompt, durationMs, placeholder };
 				return true;
 			},
+			showPromptOptions: (state: NewSessionPromptOptionsState | undefined) => {
+				if (state) {
+					promptOptionStates.push(state);
+				}
+				return true;
+			},
+			setPromptOptionsController: (controller: INewSessionPromptOptionsController) => promptOptionsController = controller,
+			refreshPromptOptions: async (token: CancellationToken) => {
+				const controller = promptOptionsController;
+				if (!controller) {
+					return false;
+				}
+				promptOptionStates.push({ kind: 'loading' });
+				const state = await controller.resolve(token);
+				promptOptionStates.push(state);
+				return true;
+			},
 		});
 	}();
 	const gitHubService = new class extends mock<IGitHubService>() {
 		readonly requests: TestGitHubRequest[] = [];
+		override readonly enterpriseHost = options.enterpriseHost;
 		override async getRecentAssignedIssues(owner: string, repo: string) {
 			this.requests.push({ kind: 'issues', owner, repo });
 			if (gitHubResult instanceof Error) {
@@ -464,15 +791,34 @@ async function runPrompt(
 	);
 
 	await runner.run(CancellationToken.None);
-	return { animation, telemetry: telemetryService.events, gitHubRequests: gitHubService.requests };
+	if (options.promptOptionInteractions?.length) {
+		const controller = promptOptionsController;
+		const resolvedState = [...promptOptionStates].reverse().find(state => state.kind === 'resolved');
+		if (!controller || !resolvedState) {
+			throw new Error('Prompt option interactions require resolved prompt options.');
+		}
+		for (const interaction of options.promptOptionInteractions) {
+			if (interaction === 'close') {
+				controller.onDidClose();
+				continue;
+			}
+			const option = resolvedState.options[interaction];
+			if (!option) {
+				throw new Error(`Prompt option ${interaction} was not resolved.`);
+			}
+			controller.onDidSelectOption(option);
+		}
+	}
+	return { animation, promptOptionStates, telemetry: telemetryService.events, gitHubRequests: gitHubService.requests };
 }
 
-function pullRequest(title: string, updatedAt: string, statusCheckRollupState?: string, latestCommitAt?: string, latestCommentAt?: string, number = 1) {
+function pullRequest(title: string, updatedAt: string, statusCheckRollupState?: string, latestCommitAt?: string, latestCommentAt?: string, number = 1, hasMergeConflicts = false) {
 	return {
 		number,
 		title,
 		url: `https://github.com/o/r/pull/${encodeURIComponent(title)}`,
 		updatedAt,
+		hasMergeConflicts,
 		statusCheckRollupState,
 		latestCommitAt,
 		reviewThreads: latestCommentAt ? [{ isResolved: false, latestCommentAt }] : [],
@@ -517,4 +863,17 @@ function createSession(workspace: ISessionWorkspace): IActiveSession {
 		override readonly isCreated = constObservable(false);
 		override readonly workspace = constObservable(workspace);
 	}();
+}
+
+function summarizePromptOptionStates(states: readonly NewSessionPromptOptionsState[]): object[] {
+	return states.map(state => state.kind === 'loading'
+		? { kind: state.kind }
+		: {
+			kind: state.kind,
+			options: state.options.map(option => ({
+				title: option.titleDetail ? `${option.title} ${option.titleDetail}` : option.title,
+				description: option.description,
+				icon: option.icon ? { id: option.icon.id, color: option.icon.color?.id } : undefined,
+			})),
+		});
 }

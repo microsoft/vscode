@@ -33,7 +33,7 @@ exchanges:
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: 'Failed to execute with arguments: {"path":"${workdir}/denied.txt","file_text":"DENIED_CONTENT","command":"create"} due to error: Error: host effect requestPermission failed: Error: permission host returned malformed payload: unknown variant `denied-interactively-by-user`, expected one of `approve-once`, `approve-for-session`, `approve-for-location`, `reject`, `user-not-available`, `approved`'
+              content: 'The user rejected this tool call. User feedback: The user denied permission.'
     response:
       content: denied
       stopReason: end_turn

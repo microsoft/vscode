@@ -361,8 +361,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private async computeListPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IPromptPath[]> {
 		const allowStandalone = !this.areStandalonePromptFilesBlocked(type);
 		const prompts = await Promise.all([
-			allowStandalone ? this.fileLocator.listFiles(type, PromptsStorage.user, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.user, type } satisfies IUserPromptPath))) : [],
-			allowStandalone ? this.fileLocator.listFiles(type, PromptsStorage.local, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.local, type } satisfies ILocalPromptPath))) : [],
+			allowStandalone ? this.fileLocator.listFilesWithSource(type, PromptsStorage.user, token).then(files => files.map(file => ({ ...file, storage: PromptsStorage.user, type } satisfies IUserPromptPath))) : [],
+			allowStandalone ? this.fileLocator.listFilesWithSource(type, PromptsStorage.local, token).then(files => files.map(file => ({ ...file, storage: PromptsStorage.local, type } satisfies ILocalPromptPath))) : [],
 			this.getExtensionPromptFiles(type, token),
 			this._pluginPromptFilesByType.get(type) ?? [],
 			this.getBuiltinPromptFiles(type, token),
@@ -399,17 +399,17 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 
-	public async listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly IPromptPath[]> {
+	public async listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken, root?: URI): Promise<readonly IPromptPath[]> {
 		let promptPaths: readonly IPromptPath[];
 		switch (storage) {
 			case PromptsStorage.extension:
 				promptPaths = await this.getExtensionPromptFiles(type, token);
 				break;
 			case PromptsStorage.local:
-				promptPaths = this.areStandalonePromptFilesBlocked(type) ? [] : await this.fileLocator.listFiles(type, PromptsStorage.local, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.local, type } satisfies ILocalPromptPath)));
+				promptPaths = this.areStandalonePromptFilesBlocked(type) ? [] : await this.fileLocator.listFilesWithSource(type, PromptsStorage.local, token, root).then(files => files.map(file => ({ ...file, storage: PromptsStorage.local, type } satisfies ILocalPromptPath)));
 				break;
 			case PromptsStorage.user:
-				promptPaths = this.areStandalonePromptFilesBlocked(type) ? [] : await this.fileLocator.listFiles(type, PromptsStorage.user, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.user, type } satisfies IUserPromptPath)));
+				promptPaths = this.areStandalonePromptFilesBlocked(type) ? [] : await this.fileLocator.listFilesWithSource(type, PromptsStorage.user, token).then(files => files.map(file => ({ ...file, storage: PromptsStorage.user, type } satisfies IUserPromptPath)));
 				break;
 			case PromptsStorage.plugin:
 				promptPaths = this._pluginPromptFilesByType.get(type) ?? [];
@@ -558,7 +558,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 				const userInvocable = parsedPromptFile?.header?.userInvocable;
 				return { status: 'loaded', promptPath: this.withPromptPathMetadata(promptPath, name, description), argumentHint, userInvocable } satisfies ISlashCommandDiscoveryResult;
 			} catch (e) {
-				this.logger.error(`[computeSlashCommandDiscoveryInfo] Failed to parse prompt file for slash command: ${promptPath.uri}`, e instanceof Error ? e.message : String(e));
+				if (!isCancellationError(e)) {
+					this.logger.error(`[computeSlashCommandDiscoveryInfo] Failed to parse prompt file for slash command: ${promptPath.uri}`, e instanceof Error ? e.message : String(e));
+				}
 				return { status: 'skipped', skipReason: 'parse-error', errorMessage: e instanceof Error ? e.message : String(e), promptPath } satisfies ISlashCommandDiscoveryResult;
 			}
 		}));

@@ -50,6 +50,16 @@ export const agentsPanelBorder = registerColor(
 	localize('agentsPanel.border', 'Border color of the card panels (chat, files, terminal) in the agent sessions window.')
 );
 
+export const agentsCardBorder = registerColor(
+	'agentsCard.border', agentsPanelBorder,
+	localize('agentsCard.border', 'Border color of the floating content card (sessions grid and custom view grid) in the agent sessions window.')
+);
+
+export const agentsBottomPanelBorder = registerColor(
+	'agentsBottomPanel.border', agentsPanelBorder,
+	localize('agentsBottomPanel.border', 'Border color of the bottom panel in the agent sessions window.')
+);
+
 // ============================================================================
 // Gradient background tint
 // ============================================================================

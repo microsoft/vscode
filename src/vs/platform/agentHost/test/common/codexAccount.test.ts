@@ -41,4 +41,13 @@ suite('Codex account metadata', () => {
 		assert.strictEqual(account.status, 'signedIn');
 		assert.strictEqual(account.rateLimit, undefined);
 	});
+
+	test('reads the downloading account state', () => {
+		const account = readCodexAccountInfo({
+			agents: [],
+			_meta: { [CODEX_ACCOUNT_META_KEY]: { status: 'downloading' } },
+		});
+
+		assert.strictEqual(account.status, 'downloading');
+	});
 });

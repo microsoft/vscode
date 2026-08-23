@@ -61,7 +61,7 @@ export function buildUnavailableStateItems(options: IBuildModelPickerItemsOption
 	}
 	if (setupRequired) {
 		const enabled = !!options.actions.onRequestSetup;
-		return [
+		const items: IActionListItem<IActionWidgetDropdownAction>[] = [
 			{ kind: ActionListItemKind.Header, label: localize('chat.modelPicker.setupRequired', "Sign in to use Copilot") },
 			{
 				item: {
@@ -80,6 +80,20 @@ export function buildUnavailableStateItems(options: IBuildModelPickerItemsOption
 				hideIcon: false,
 			},
 		];
+		if (options.presentation.showManageModelsInSetupRequired && options.manageModelsAction) {
+			items.push(
+				{ kind: ActionListItemKind.Separator },
+				{
+					item: options.manageModelsAction,
+					kind: ActionListItemKind.Action,
+					label: options.manageModelsAction.label,
+					group: { title: '', icon: Codicon.blank },
+					hideIcon: false,
+					showAlways: true,
+				}
+			);
+		}
+		return items;
 	}
 	if (options.models.length > 0) {
 		return undefined;

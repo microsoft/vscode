@@ -16,22 +16,30 @@ data the SDK accepts directly.
   shared identity text, the `fullSystemPrompt` / `sectionOverrides` builders, and
   `describeSystemMessageConfig` (the one-line log summary).
 - `toolInstructions.ts` — the model-agnostic `tool_instructions` layer: gated
-  one-line nudges (`TOOL_INSTRUCTION_LINES`) composed into the SDK's
-  `tool_instructions` section. The browser line is the one registered today.
+  or unconditional one-line nudges (`TOOL_INSTRUCTION_LINES`) composed into the
+  SDK's `tool_instructions` section.
 - `anthropicPrompt.ts` — example per-model contributor (Claude Opus 4.8).
 - `allPrompts.ts` — side-effect import hub; importing it registers every
   contributor into the shared `agentHostPromptRegistry`.
 
 ## How the system message is built
 
-`resolveSystemMessageConfig(model, context)` runs two steps:
+`resolveSystemMessageConfig(model, context)` layers, in order:
 
-1. **`_resolveModelConfig`** — picks the per-model (or default) config. Falls
-   back to `COPILOT_AGENT_HOST_SYSTEM_MESSAGE` when there's no model, no matching
-   contributor, or the contributor opts out for this `context`.
-2. **`_withUniversalSections`** — layers the model-agnostic sections (currently
-   just `tool_instructions`) on top, **composing** with — never clobbering — any
-   per-model override for that section.
+1. **Base** — **`_resolveModelConfig`** picks the per-model (or default)
+   config. Falls back to `COPILOT_AGENT_HOST_SYSTEM_MESSAGE` when there's no
+   model, no matching contributor, or the contributor opts out for this
+   `context`. A contributor's `customize` config gets the default sections
+   composed **underneath** it (`withDefaultSections`), so a contributor only
+   overrides the sections it names — the default `identity` survives unless
+   explicitly overridden.
+2. **`_withUniversalSections`** — layers the model-agnostic tool instructions on
+   top, **composing** with — never clobbering — any per-model override for that
+   section. For a `replace` base the lines are appended after the replacement
+   content instead.
+3. **Workspaceless scratch + file-link contract** — appended as trailing
+   `content` for every mode, including `replace`, so a full replacement owns the
+   prompt body but not the host's response-format plumbing.
 
 > **Launch-time freeze.** The SDK accepts a system message only at session
 > create/resume; there is no mid-session update. The prompt is resolved once per
@@ -44,12 +52,13 @@ There are two ways to customize, and a model can use both at once.
 
 ## Lever 1 — universal, all models (`toolInstructions.ts`)
 
-Guidance for a tool that should apply to **every** model whenever that tool is in
-the session. This is what the browser line does.
+Guidance that should apply to **every** model. A line can be unconditional for
+host-wide behavior such as reading offloaded tool output, or gated on a client
+tool as the browser line is.
 
 1. Write a `ToolInstructionLine` — a function `(hasTool) => string | undefined`
-   that returns one sentence (no surrounding newlines) when its tool is present,
-   or `undefined` to contribute nothing.
+   that returns one sentence (no surrounding newlines), or `undefined` when its
+   gate does not apply.
 2. Add it to `TOOL_INSTRUCTION_LINES`.
 
 ```ts
@@ -58,7 +67,7 @@ const exampleToolInstructions: ToolInstructionLine = hasTool =>
 		? 'One sentence of guidance, shown only when that tool is present.'
 		: undefined;
 
-const TOOL_INSTRUCTION_LINES: readonly ToolInstructionLine[] = [browserToolInstructions, exampleToolInstructions];
+const TOOL_INSTRUCTION_LINES: readonly ToolInstructionLine[] = [largeOutputToolInstructions, browserToolInstructions, exampleToolInstructions];
 ```
 
 **Caveat — `hasTool` sees CLIENT tools only.** It is `context.hasClientTool`,
@@ -117,13 +126,14 @@ it. Use `anthropicPrompt.ts` as the template.
 A contributor provides EITHER:
 
 - `resolveSectionOverrides` → `{ mode: 'customize' }` — overrides named sections,
-  keeps the SDK foundation prompt and its guardrails. **Prefer this.**
-- `resolveFullSystemPrompt` → `{ mode: 'replace' }` — owns the entire prompt and
-  **drops all SDK guardrails (including safety)**. Only for callers that truly
-  own the whole prompt. A replace contributor bypasses Lever 1, so it must inline
-  any universal guidance itself (`universalToolInstructions(hasTool)` renders the
-  same gated lines; add a small replace-mode helper alongside it when the first
-  such contributor lands).
+  keeps the SDK foundation prompt and its guardrails. **Prefer this.** The
+  default sections are composed underneath, so there's no need to re-state the
+  identity.
+- `resolveFullSystemPrompt` → `{ mode: 'replace' }` — owns the entire prompt
+  body and **drops all SDK guardrails (including safety)**. Only for callers
+  that truly own the whole prompt. The registry still appends the universal
+  layers (tool instructions, workspaceless guidance, file-link contract) after
+  the replacement content.
 
 ```ts
 class MyModelPrompt implements IAgentHostPrompt {
@@ -143,14 +153,51 @@ precedence) or by `familyPrefixes` (model-id `startsWith`). The registry resolve
 **exactly one** contributor per model (first match wins) — base + version
 layering is a known follow-up.
 
+## Related — per-model experimentation knobs (`copilotCliConfig.ts`)
+
+`chat.agentHost.copilot.modelCapabilityOverrides` entries (keyed by model id; `'*'`
+matches every model, a specific entry wins field-by-field) carry the non-prompt
+experimentation knobs the launcher applies: `family` (prompt and tool-profile
+alias, so a preview model resolves through another family's contributor),
+`reasoningEffort` (wins over the model picker's thinking level; set it on the
+`'*'` entry to pin every model, re-applied on session resume and mid-session
+model change),
+`availableTools`/`excludedTools` (SDK tool filters; applied on launch and
+resume, but not on a mid-session model change — and enforced against every
+SDK-registered tool, including the host's shell and server tools, not just the
+forwarded client tools),
+and `modelCapabilities` (per-property overrides passed through to the SDK's
+`modelCapabilities` field — e.g. vision support, token limits — applied on
+every launch and resume).
+
+`family` is host-side only: it selects the prompt contributor and the
+tool-search capability gate, and the model id sent to the runtime is unchanged,
+so the session still runs on the selected model. That is the point — a preview
+model can be evaluated against a known family's prompt and tool profile while
+still hitting its own endpoint.
+
+The runtime keeps its *own* per-model config (system-prompt parts, capabilities,
+reasoning-effort profile) keyed off the model id it receives, so an aliased
+session gets the real model's runtime config with the family's host overrides
+layered on top. Aliasing the runtime's half too would need
+`COPILOT_MODEL_FAMILY`, which is process-scoped and would leak across every
+session in the window.
+
+> **Security note.** The setting is application-scoped (not workspace-
+> configurable) and forwarded to the agent host; entries must still never carry
+> content that reaches the prompt or the host filesystem directly (e.g. a
+> prompt-file path). Prompt experiments are code-managed: add a contributor
+> (Lever 2) gated on its own opt-in setting, like `anthropicPrompt.ts` with
+> `chat.agentHost.opus48Prompt.enabled`.
+
 ## Reference
 
 - **Modes** (`SystemMessageConfig.mode`): `append` (foundation + text, default),
   `customize` (override named sections), `replace` (own the whole prompt, no
   guardrails).
-- **Sections** (`SystemMessageSection`): `identity`, `tone`, `tool_efficiency`,
-  `environment_context`, `code_change_rules`, `guidelines`, `safety`,
-  `tool_instructions`, `custom_instructions`, `runtime_instructions`,
+- **Sections** (`SystemMessageSection`): `preamble`, `identity`, `tone`,
+  `tool_efficiency`, `environment_context`, `code_change_rules`, `guidelines`,
+  `safety`, `tool_instructions`, `custom_instructions`, `runtime_instructions`,
   `last_instructions`.
 - **Override actions** (`SectionOverride.action`): `replace`, `append`,
   `prepend`, `remove`, or a `(content: string) => string` transform.
@@ -158,8 +205,8 @@ layering is a known follow-up.
 ## Gotchas
 
 - **Empty overrides = no override.** `resolveSectionOverrides` returning `{}`
-  (or `undefined`) falls back to the default message rather than emitting an
-  empty customize config that would drop the default identity.
+  (or `undefined`) falls back to the default message — equivalent to composing
+  nothing over the defaults, kept explicit to avoid pointless object churn.
 - **Don't mutate the shared default.** `COPILOT_AGENT_HOST_SYSTEM_MESSAGE` is a
   shared constant; layering spreads into a fresh object, preserving any other
   customize-mode fields (e.g. `content`). Keep it that way.

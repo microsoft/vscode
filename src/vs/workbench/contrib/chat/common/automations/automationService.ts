@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IObservable } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ChatPermissionLevel } from '../constants.js';
-import { IAutomation, IAutomationRun, AutomationRunTrigger, IAutomationSchedule, AutomationTarget } from './automation.js';
+import { IAutomationDescriptor, IAutomationRun, AutomationRunTrigger, IAutomationSchedule, AutomationTarget } from './automation.js';
 
 export const IAutomationService = createDecorator<IAutomationService>('automationService');
 export const ConfigureAutomationToolReferenceName = 'configureAutomation';
@@ -49,15 +50,15 @@ export interface IUpdateAutomationOptions {
  * `current` is absent when the automation was deleted before the update committed.
  */
 export type IGuardedAutomationUpdateResult =
-	| { readonly kind: 'updated'; readonly automation: IAutomation }
-	| { readonly kind: 'conflict'; readonly current: IAutomation | undefined };
+	| { readonly kind: 'updated'; readonly automation: IAutomationDescriptor }
+	| { readonly kind: 'conflict'; readonly current: IAutomationDescriptor | undefined };
 
 /**
  * Returns the canonical editable state used by optimistic automation updates.
  * Runtime-only timestamps are intentionally excluded. Workspace URIs use their
  * canonical serialized form so any mismatch fails closed as a conflict.
  */
-export function serializeAutomationEditableState(automation: IAutomation): string {
+export function serializeAutomationEditableState(automation: IAutomationDescriptor): string {
 	const target = automation.target.kind === 'quickChat'
 		? {
 			kind: automation.target.kind,
@@ -93,7 +94,7 @@ export function serializeAutomationEditableState(automation: IAutomation): strin
 /** Patch for `updateRun`. Absent fields are unchanged. */
 export interface IUpdateAutomationRunOptions {
 	readonly status?: IAutomationRun['status'];
-	readonly sessionResource?: string;
+	readonly sessionResource?: URI;
 	readonly completedAt?: string;
 	readonly errorMessage?: string;
 }
@@ -111,30 +112,28 @@ export interface IAutomationRunClaim {
  * mutation point. Scheduler, runner, and UI all flow through it to keep
  * cross-window propagation, persistence, and observables consistent.
  */
-export interface IAutomationService {
-	readonly _serviceBrand: undefined;
-
+export interface IAutomationStore {
 	/** All defined automations, newest first. */
-	readonly automations: IObservable<readonly IAutomation[]>;
+	readonly automations: IObservable<readonly IAutomationDescriptor[]>;
 
 	/** All recorded runs across all automations, newest first. */
 	readonly runs: IObservable<readonly IAutomationRun[]>;
 
 	/** Snapshot accessor (no observable dependency). */
-	getAutomation(id: string): IAutomation | undefined;
+	getAutomation(id: string): IAutomationDescriptor | undefined;
 
 	/** Runs for a single automation, newest first. */
 	runsFor(automationId: string): IObservable<readonly IAutomationRun[]>;
 
 	/** Creates and persists an automation after validating the complete definition. */
-	createAutomation(options: ICreateAutomationOptions, mutationGuard?: AutomationMutationGuard): Promise<IAutomation>;
+	createAutomation(options: ICreateAutomationOptions, mutationGuard?: AutomationMutationGuard): Promise<IAutomationDescriptor>;
 	/** Applies a patch to the latest automation state; throws when `id` does not exist. */
-	updateAutomation(id: string, patch: IUpdateAutomationOptions): Promise<IAutomation>;
+	updateAutomation(id: string, patch: IUpdateAutomationOptions): Promise<IAutomationDescriptor>;
 	/**
 	 * Applies `patch` only when the current editable fields still match `expected`.
 	 * Runtime timestamps may change without conflicting, so reviewed edits preserve scheduler progress.
 	 */
-	updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomation, mutationGuard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult>;
+	updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomationDescriptor, mutationGuard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult>;
 	/** Deletes an automation and its retained run history; missing IDs are ignored. */
 	deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard): Promise<void>;
 
@@ -157,4 +156,12 @@ export interface IAutomationService {
 
 	/** Marks all stuck (`pending`/`running`) runs failed. Called on startup to recover from crashes. */
 	markStaleRunsFailed(reason: string): Promise<void>;
+}
+
+export interface IAutomationService extends IAutomationStore {
+	readonly _serviceBrand: undefined;
+	/** Starts leader-scoped stale-run recovery and includes provider stores added while active. */
+	startStaleRunRecovery(reason: string): Promise<void>;
+	/** Stops leader-scoped stale-run recovery. */
+	stopStaleRunRecovery(): void;
 }

@@ -13,7 +13,10 @@ suite('NewSessionComposerService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function composer(): INewSessionComposer {
-		return { animatePrompt: async (_text, _durationMs, _placeholder, _token: CancellationToken) => true };
+		return {
+			animatePrompt: async (_text, _durationMs, _placeholder, _token: CancellationToken) => true,
+			showPromptOptions: () => true,
+		};
 	}
 
 	test('tracks the newest mounted composer and falls back when it is disposed', () => {

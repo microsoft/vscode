@@ -53,18 +53,23 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		this.editorLabel = this._register(this.instantiationService.createInstance(ResourceLabel, labelContainer, {})).element;
 		this._register(addDisposableListener(this.editorLabel.element, EventType.CLICK, e => this.onTitleLabelClick(e)));
 
-		// Breadcrumbs
-		this.breadcrumbsControlFactory = this._register(this.instantiationService.createInstance(BreadcrumbsControlFactory, labelContainer, this.groupView, {
-			showFileIcons: false,
-			showSymbolIcons: true,
-			showDecorationColors: false,
-			widgetStyles: { ...defaultBreadcrumbsWidgetStyles, breadcrumbsBackground: Color.transparent.toString() },
-			showPlaceholder: false,
-			dragEditor: true,
-		}));
-		this._register(this.breadcrumbsControlFactory.onDidEnablementChange(() => this.handleBreadcrumbsEnablementChange()));
+		if (!this.breadcrumbsInHeader) {
+			this.breadcrumbsControlFactory = this._register(this.instantiationService.createInstance(BreadcrumbsControlFactory, labelContainer, this.groupView, {
+				showFileIcons: false,
+				showSymbolIcons: true,
+				showDecorationColors: false,
+				widgetStyles: { ...defaultBreadcrumbsWidgetStyles, breadcrumbsBackground: Color.transparent.toString() },
+				showPlaceholder: false,
+				dragEditor: true,
+			}));
+			this._register(this.breadcrumbsControlFactory.onDidEnablementChange(() => this.handleBreadcrumbsEnablementChange()));
+		}
 		titleContainer.classList.toggle('breadcrumbs', Boolean(this.breadcrumbsControl));
 		this._register(toDisposable(() => titleContainer.classList.remove('breadcrumbs'))); // important to remove because the container is a shared dom node
+
+		if (this.menuIds?.tabsBarAddTab) {
+			this.createAddTabControl(labelContainer, this.menuIds.tabsBarAddTab);
+		}
 
 		// Create editor actions toolbar
 		this.createEditorActionsToolBar(titleContainer, ['title-actions']);
@@ -300,7 +305,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 			// Editor Label
 			const { labelFormat } = this.groupsView.partOptions;
 			let description: string;
-			if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
+			if (this.breadcrumbsInHeader || this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
 				description = ''; // hide description when showing breadcrumbs
 			} else if (labelFormat === 'default' && !isGroupActive) {
 				description = ''; // hide description when group is not active and style is 'default'

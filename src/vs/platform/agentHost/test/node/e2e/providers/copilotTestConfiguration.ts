@@ -25,6 +25,7 @@ export const COPILOT_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsTruncateE2E: true,
 	supportsWorktreeIncludeFilesE2E: true,
 	supportsPausedTurnCancellationE2E: true,
+	fileToolDenialReplayUnstableOnLinux: true,
 	// The shared suite runs by default in deterministic replay mode (tokenless,
 	// against committed fixtures). Recording new fixtures is opt-in via
 	// `AGENT_HOST_REPLAY_RECORD=1`. The Copilot CLI is always present (dev dep).

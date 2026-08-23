@@ -24,7 +24,8 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AgentsVoiceStorageKeys } from '../../../agentsVoice/common/agentsVoice.js';
 import { CONFIGURE_DICTATION_INSTRUCTIONS_ACTION_ID } from '../actions/configureVoiceInstructionsAction.js';
-import { ChatInputOnboarding, ChatInputOnboardingCard, IChatInputOnboardingBanner } from '../widget/input/chatInputOnboarding.js';
+import { ChatInputOnboarding, IChatInputOnboardingBanner, IChatInputOnboardingHostOptions } from '../widget/input/chatInputOnboarding.js';
+import { ChatInputNoticeVariant, ChatInputNoticeWidget } from '../widget/input/chatInputNoticeWidget.js';
 import './media/dictationOnboarding.css';
 
 /**
@@ -543,11 +544,8 @@ export interface IDictationOnboardingBannerOptions {
  * The card runs alongside the first dictation, so it explains the feature
  * without delaying the action the user invoked.
  */
-export class DictationOnboardingBanner extends Disposable implements IChatInputOnboardingBanner {
+export class DictationOnboardingBanner extends ChatInputNoticeWidget implements IChatInputOnboardingBanner {
 
-	readonly domNode: HTMLElement;
-
-	private readonly card: ChatInputOnboardingCard;
 	private readonly preview: MicrophonePreview | undefined;
 	private readonly waveform: MicrophoneWaveform;
 	private readonly hint: HTMLElement | undefined;
@@ -569,28 +567,26 @@ export class DictationOnboardingBanner extends Disposable implements IChatInputO
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
-		super();
-
-		this.card = this._register(new ChatInputOnboardingCard({
+		super({
 			container: bannerOptions.container,
+			variant: ChatInputNoticeVariant.Onboarding,
 			className: 'dictation-onboarding-banner',
 			ariaLabel: localize('dictation.onboarding.region', "Dictation introduction"),
 			ariaDescription: bannerOptions.previewMicrophone
 				? localize('dictation.onboarding.regionDescription.preview', "Say anything to check your microphone.")
 				: localize('dictation.onboarding.regionDescription', "Speak and it becomes text."),
 			onEscape: () => this.dismiss('escape'),
-		}));
-		this.domNode = this.card.domNode;
+		});
 
 		const header = dom.append(this.domNode, dom.$('.dictation-onboarding-header'));
-		const title = dom.append(header, dom.$('.dictation-onboarding-title'));
+		const title = dom.append(header, dom.$('.chat-input-notice-title.dictation-onboarding-title'));
 		title.textContent = localize('dictation.onboarding.title', "Dictation");
 		this.renderDescription(header);
 
 		this.renderClose();
 
 		const device = dom.append(this.domNode, dom.$('.dictation-onboarding-device'));
-		this.pickerContainer = dom.append(device, dom.$('.dictation-onboarding-picker'));
+		this.pickerContainer = dom.append(device, dom.$('.chat-input-notice-picker.dictation-onboarding-picker'));
 		this.options = [{
 			deviceId: SYSTEM_DEFAULT_DEVICE_ID,
 			label: localize('dictation.onboarding.systemDefault', "System default"),
@@ -629,8 +625,22 @@ export class DictationOnboardingBanner extends Disposable implements IChatInputO
 		this.logAction('shown');
 	}
 
-	announce(): void {
-		this.card.announce();
+	/**
+	 * Stops the waveform and releases the microphone while the card is put away
+	 * for a notification, so an invisible introduction never holds the microphone
+	 * open or keeps painting.
+	 */
+	override setVisible(visible: boolean): void {
+		super.setVisible(visible);
+		if (visible) {
+			this.waveform.start();
+			if (this.preview) {
+				void this.startPreview();
+			}
+		} else {
+			this.waveform.stop();
+			this.preview?.releaseMicrophone();
+		}
 	}
 
 	/**
@@ -643,7 +653,7 @@ export class DictationOnboardingBanner extends Disposable implements IChatInputO
 	 * sentence natural instead of having fixed phrases concatenated on.
 	 */
 	private renderDescription(container: HTMLElement): void {
-		const description = dom.append(container, dom.$('.dictation-onboarding-description'));
+		const description = dom.append(container, dom.$('.chat-input-notice-description.dictation-onboarding-description'));
 		const text = localize({
 			key: 'dictation.onboarding.description',
 			comment: ['Preserve the double square brackets: they mark the text that becomes a link. Keep both links, in this order - the first opens settings, the second opens the customization file.'],
@@ -816,10 +826,9 @@ export class DictationOnboardingBanner extends Disposable implements IChatInputO
 	}
 
 	private renderClose(): void {
-		this.card.addAction({
+		this.addDismissAction({
 			className: 'dictation-onboarding-close',
 			ariaLabel: localize('dictation.onboarding.close', "Close the introduction"),
-			icon: Codicon.close,
 			onActivate: () => this.dismiss('close'),
 		});
 	}
@@ -861,12 +870,8 @@ export interface IDictationOnboardingService {
 	/**
 	 * Register a container that can host the card (a chat input). The most
 	 * recently focused host wins when the card is shown.
-	 *
-	 * @param container the element the card is appended to.
-	 * @param focusRoot the element whose focus marks this host as the active one
-	 * (typically the chat input part the container lives in).
 	 */
-	registerHost(container: HTMLElement, focusRoot: HTMLElement, tipContainer?: HTMLElement, onDidChangeVisible?: (visible: boolean) => void): IDisposable;
+	registerHost(options: IChatInputOnboardingHostOptions): IDisposable;
 
 	/**
 	 * Show the card alongside the user's first dictation. Dictation starts
@@ -907,12 +912,11 @@ export class DictationOnboardingService extends Disposable implements IDictation
 
 		this.onboarding = this._register(this.instantiationService.createInstance(ChatInputOnboarding, {
 			storageKey: DICTATION_INTRO_SHOWN_KEY,
-			hostClass: 'has-dictation-onboarding',
 		}));
 	}
 
-	registerHost(container: HTMLElement, focusRoot: HTMLElement, tipContainer?: HTMLElement, onDidChangeVisible?: (visible: boolean) => void): IDisposable {
-		return this.onboarding.registerHost(container, focusRoot, undefined, tipContainer, onDidChangeVisible);
+	registerHost(options: IChatInputOnboardingHostOptions): IDisposable {
+		return this.onboarding.registerHost(options);
 	}
 
 	showIfNeeded(): boolean {

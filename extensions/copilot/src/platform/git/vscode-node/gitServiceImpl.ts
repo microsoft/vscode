@@ -210,6 +210,11 @@ export class GitServiceImpl extends Disposable implements IGitService {
 			return remotes;
 		}
 
+		if (uri.scheme !== 'file') {
+			this.logService.trace(`[GitServiceImpl][getRepositoryFetchUrls] No open repository found for non-file URI`);
+			return undefined;
+		}
+
 		try {
 			const uriStat = await vscode.workspace.fs.stat(uri);
 			if (uriStat.type !== vscode.FileType.Directory) {

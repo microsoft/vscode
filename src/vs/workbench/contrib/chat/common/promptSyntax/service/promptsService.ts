@@ -121,6 +121,20 @@ export enum PromptsStorage {
 }
 
 /**
+ * Whether the AI Customizations UI offers Enable/Disable affordances for a
+ * customization with the given type and storage — and therefore whether a user
+ * who disables it can turn it back on again.
+ *
+ * Gate any behaviour that *hides* a customization because it is in
+ * {@link IPromptsService.getDisabledPromptFiles} on this predicate; that store
+ * is shared with surfaces that own a separate unhide affordance. See
+ * "Enabling and Disabling Built-in Skills" in `src/vs/sessions/AI_CUSTOMIZATIONS.md`.
+ */
+export function isUserToggleableCustomization(type: PromptsType, storage: PromptsStorage): boolean {
+	return type === PromptsType.skill && storage === PromptsStorage.builtIn;
+}
+
+/**
  * Represents a prompt path with its type.
  * This is used for both prompt files and prompt source folders.
  */
@@ -615,9 +629,9 @@ export interface IPromptsService extends IDisposable {
 	listPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IPromptPath[]>;
 
 	/**
-	 * List all available prompt files.
+	 * Lists all available prompt files from a storage location. For local storage, root scopes relative locations; it is ignored for other storages, and without it the current workspace folders are used.
 	 */
-	listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly IPromptPath[]>;
+	listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken, root?: URI): Promise<readonly IPromptPath[]>;
 
 	/**
 	 * Get a list of prompt source folders based on the provided prompt type.

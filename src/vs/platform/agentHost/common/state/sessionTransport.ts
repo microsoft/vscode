@@ -15,6 +15,9 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import type { AgentHostClientConnectionKind, AgentHostTransportKind } from '../agentHostTelemetry.js';
 import type { ProtocolMessage, AhpServerNotification, JsonRpcNotification, JsonRpcParseErrorResponse, JsonRpcResponse, JsonRpcRequest } from './sessionProtocol.js';
 
+/** Signals that reconnecting the transport cannot recover the connection. */
+export class NonReconnectableTransportError extends Error { }
+
 /**
  * A bidirectional transport for protocol messages. Implementations handle
  * serialization, framing, and connection management.

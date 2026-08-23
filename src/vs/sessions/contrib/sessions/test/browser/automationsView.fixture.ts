@@ -6,6 +6,8 @@
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { ExtUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IActionViewItemFactory, IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
@@ -15,21 +17,32 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { IAutomation, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogService } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { CustomViewNode } from '../../../../browser/parts/customViewNode.js';
 import { CustomViewService, ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
+import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
+import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { AUTOMATIONS_CUSTOM_VIEW_ID, AutomationsCustomViewContribution } from '../../browser/views/automationsView.js';
+import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../browser/automationsConstants.js';
+import { AutomationsCustomViewContribution } from '../../browser/views/automationsView.js';
 
 const WORKSPACE = URI.parse('file:///workspaces/vscode');
+const ITestAgentSessionsService = createDecorator<object>('agentSessions');
 
 class FixtureActionViewItemService extends Disposable implements IActionViewItemService {
 
@@ -63,10 +76,10 @@ class FixtureActionViewItemService extends Disposable implements IActionViewItem
 
 class FixtureAutomationService extends mock<IAutomationService>() {
 
-	override readonly automations: IObservable<readonly IAutomation[]>;
+	override readonly automations: IObservable<readonly IAutomationDescriptor[]>;
 	override readonly runs: IObservable<readonly IAutomationRun[]>;
 
-	constructor(automations: readonly IAutomation[], runs: readonly IAutomationRun[]) {
+	constructor(automations: readonly IAutomationDescriptor[], runs: readonly IAutomationRun[]) {
 		super();
 		this.automations = constObservable(automations);
 		this.runs = constObservable(runs);
@@ -79,6 +92,7 @@ class FixtureSessionsManagementService extends mock<ISessionsManagementService>(
 
 	private readonly sessions = new Map<string, ISession>();
 	override readonly onDidDeleteSession = Event.None;
+	override readonly onDidChangeSessions = Event.None;
 
 	constructor(runs: readonly IAutomationRun[]) {
 		super();
@@ -86,12 +100,42 @@ class FixtureSessionsManagementService extends mock<ISessionsManagementService>(
 			if (!run.sessionResource) {
 				continue;
 			}
-			const resource = URI.parse(run.sessionResource);
-			this.sessions.set(run.sessionResource, upcastPartial<ISession>({
+			const resource = run.sessionResource;
+			this.sessions.set(run.sessionResource.toString(), upcastPartial<ISession>({
 				resource,
 				sessionId: `fixture-session-${index + 1}`,
+				providerId: 'fixture',
+				sessionType: 'fixture',
+				icon: Codicon.account,
+				createdAt: new Date(run.startedAt),
+				workspace: constObservable({
+					uri: WORKSPACE,
+					label: 'vscode',
+					icon: Codicon.folder,
+					folders: [],
+					requiresWorkspaceTrust: false,
+					isVirtualWorkspace: false,
+				}),
+				isQuickChat: constObservable(false),
+				title: constObservable(`Run ${index + 1}`),
+				updatedAt: constObservable(new Date(run.completedAt ?? run.startedAt)),
 				isRead: constObservable(index !== 0),
 				capabilities: constObservable({ supportsMultipleChats: false, supportsDelete: true }),
+				status: constObservable(run.status === 'failed'
+					? SessionStatus.Error
+					: run.status === 'completed'
+						? SessionStatus.Completed
+						: SessionStatus.InProgress),
+				changesets: constObservable([]),
+				changes: constObservable([]),
+				modelId: constObservable(undefined),
+				mode: constObservable(undefined),
+				loading: constObservable(false),
+				isArchived: constObservable(false),
+				description: constObservable(undefined),
+				lastTurnEnd: constObservable(undefined),
+				chats: constObservable<readonly IChat[]>([]),
+				mainChat: constObservable(new class extends mock<IChat>() { }()),
 			}));
 		}
 	}
@@ -100,11 +144,15 @@ class FixtureSessionsManagementService extends mock<ISessionsManagementService>(
 		return this.sessions.get(resource.toString());
 	}
 
+	override getSessions(): ISession[] {
+		return [...this.sessions.values()];
+	}
+
 	override async markAllRead(): Promise<void> { }
 }
 
 interface IAutomationsFixtureData {
-	readonly automations: readonly IAutomation[];
+	readonly automations: readonly IAutomationDescriptor[];
 	readonly runs: readonly IAutomationRun[];
 }
 
@@ -136,10 +184,9 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 	});
 	const contextKeyService = new ContextKeyService(configurationService);
 	const actionViewItemService = new FixtureActionViewItemService();
-	const customViewService = new CustomViewService(new NullLogService());
+	const customViewService = ctx.disposableStore.add(new CustomViewService(new NullLogService(), ctx.disposableStore.add(new InMemoryStorageService())));
 	const automationService = new FixtureAutomationService(data.automations, data.runs);
 	const sessionsManagementService = new FixtureSessionsManagementService(data.runs);
-	ChatAutomationsEnabledContext.bindTo(contextKeyService).set(true);
 	ChatAutomationsEnabledContext.bindTo(contextKeyService).set(true);
 
 	const instantiationService = createEditorServices(ctx.disposableStore, {
@@ -147,17 +194,45 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
 			reg.defineInstance(IActionViewItemService, actionViewItemService);
+			reg.define(IListService, ListService);
+			reg.define(IMarkdownRendererService, MarkdownRendererService);
 			reg.define(IMenuService, MenuService);
 			reg.defineInstance(IConfigurationService, configurationService);
 			reg.defineInstance(IContextKeyService, contextKeyService);
+			reg.defineInstance(IUriIdentityService, new class extends mock<IUriIdentityService>() {
+				override readonly extUri = new ExtUri(() => true);
+			}());
 			reg.defineInstance(IAutomationService, automationService);
 			reg.defineInstance(IAutomationRunner, new class extends mock<IAutomationRunner>() { }());
 			reg.defineInstance(IAutomationDialogService, new class extends mock<IAutomationDialogService>() { }());
 			reg.defineInstance(ICustomViewService, customViewService);
 			reg.defineInstance(ISessionsManagementService, sessionsManagementService);
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
+				override readonly visibleSessions = constObservable([]);
+				override readonly activeSession = constObservable(undefined);
 				override async openSession(): Promise<void> { }
 			}());
+			reg.defineInstance(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
+				override readonly onDidChange = Event.None;
+				override isSessionPinned(): boolean { return false; }
+				override getStatusIcon() { return Codicon.circleSmallFilled; }
+			}());
+			reg.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+				override readonly onDidChangeProviders = Event.None;
+				override getProviders() { return []; }
+			}());
+			reg.defineInstance(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() {
+				override readonly pendingResponseVersion = constObservable(0);
+				override hasPendingResponse() { return false; }
+			}());
+			reg.defineInstance(IChatService, new class extends mock<IChatService>() {
+				override readonly chatModels = constObservable([]);
+			}());
+			reg.defineInstance(ITestAgentSessionsService, {
+				model: {
+					observeSession: () => constObservable(undefined),
+				},
+			});
 		},
 	});
 
@@ -188,7 +263,7 @@ function createPopulatedData(): IAutomationsFixtureData {
 	yesterday.setDate(today.getDate() - 1);
 	yesterday.setHours(15, 30, 0, 0);
 
-	const automations: readonly IAutomation[] = [
+	const automations: readonly IAutomationDescriptor[] = [
 		createAutomation({
 			id: 'daily-review',
 			name: 'Daily code review',
@@ -212,6 +287,7 @@ function createPopulatedData(): IAutomationsFixtureData {
 	];
 
 	const runs: readonly IAutomationRun[] = [
+		createRun('daily-review-starting', 'daily-review', 'pending', today, undefined, false),
 		createRun('daily-review-run', 'daily-review', 'completed', today),
 		createRun('dependency-audit-run', 'dependency-audit', 'running', today),
 		createRun('issue-triage-run', 'issue-triage', 'failed', yesterday, 'The repository could not be reached.', false),
@@ -220,7 +296,7 @@ function createPopulatedData(): IAutomationsFixtureData {
 	return { automations, runs };
 }
 
-function createAutomation(overrides: Partial<IAutomation>): IAutomation {
+function createAutomation(overrides: Partial<IAutomationDescriptor>): IAutomationDescriptor {
 	const now = new Date().toISOString();
 	return {
 		id: 'automation',
@@ -241,7 +317,7 @@ function createRun(id: string, automationId: string, status: IAutomationRun['sta
 		automationId,
 		status,
 		trigger: 'schedule',
-		sessionResource: hasSession ? URI.parse(`vscode-chat-session://fixture/${id}`).toString() : undefined,
+		sessionResource: hasSession ? URI.parse(`vscode-chat-session://fixture/${id}`) : undefined,
 		startedAt: startedAt.toISOString(),
 		completedAt: status === 'completed' || status === 'failed' ? startedAt.toISOString() : undefined,
 		errorMessage,

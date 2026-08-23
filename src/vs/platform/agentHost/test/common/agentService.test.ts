@@ -7,7 +7,8 @@ import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
-import { AgentHostByokModelsEnabledEnvVar, AgentHostCodexAgentEnabledSettingId, AgentSession, AgentHostOTelEnvVars, buildAgentHostOTelEnv, buildAgentSdkEnv, CodexPreferAgentHostEditorSettingId, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, isAgentEnabled, protectedResourcesRequireGitHubCopilotSignIn, readAgentHostOTelPolicySettings, sanitizeAgentHostOTelPolicySettings, shouldSurfaceLocalAgentHostProvider } from '../../common/agentService.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, protectedResourcesRequireGitHubCopilotSignIn } from '../../common/agent.js';
+import { AgentHostCodexAgentEnabledSettingId, AgentHostOTelEnvVars, buildAgentHostOTelEnv, CodexPreferAgentHostEditorSettingId, isAgentEnabled, readAgentHostOTelPolicySettings, sanitizeAgentHostOTelPolicySettings, shouldSurfaceLocalAgentHostProvider } from '../../common/agentService.js';
 import type { ProtectedResourceMetadata } from '../../common/state/protocol/state.js';
 import { buildChatUri, buildDefaultChatUri, resolveChatUri } from '../../common/state/sessionState.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
@@ -299,31 +300,6 @@ suite('resolveChatUri', () => {
 	test('peer chat is addressed by its own URI', () => {
 		const peer = URI.parse(buildChatUri(session, 'peer-42'));
 		assert.strictEqual(resolveChatUri(session, peer).toString(), peer.toString());
-	});
-});
-
-suite('buildAgentSdkEnv (BYOK gate forwarding)', () => {
-
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('forwards byokModelsEnabled=true as the enable env var', () => {
-		const env = buildAgentSdkEnv({ byokModelsEnabled: true }, {});
-		assert.strictEqual(env[AgentHostByokModelsEnabledEnvVar], 'true');
-	});
-
-	test('forwards byokModelsEnabled=false as the disable env var', () => {
-		const env = buildAgentSdkEnv({ byokModelsEnabled: false }, {});
-		assert.strictEqual(env[AgentHostByokModelsEnabledEnvVar], 'false');
-	});
-
-	test('omits the env var when byokModelsEnabled is undefined', () => {
-		const env = buildAgentSdkEnv({}, {});
-		assert.strictEqual(env[AgentHostByokModelsEnabledEnvVar], undefined);
-	});
-
-	test('lets an inherited env var win over the setting (developer override)', () => {
-		const env = buildAgentSdkEnv({ byokModelsEnabled: true }, { [AgentHostByokModelsEnabledEnvVar]: 'false' });
-		assert.strictEqual(env[AgentHostByokModelsEnabledEnvVar], undefined);
 	});
 });
 

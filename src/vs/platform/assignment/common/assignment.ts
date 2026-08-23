@@ -174,7 +174,7 @@ function trimVersionSuffix(version: string): string {
 
 /**
  * Formats an ISO release date into the `yyyymmddHH` form the experimentation backend
- * expects (10 digits, fits within int32). Returns an empty string when unavailable.
+ * expects (10 digits: yyyymmddHH). Returns an empty string when unavailable.
  */
 function formatReleaseDate(iso: string): string {
 	if (!iso) {
@@ -252,7 +252,7 @@ export class VSCodeCoreAssignmentsFilterProvider implements IExperimentationFilt
 	}
 }
 
-export function getInternalOrg(organisations: string[] | undefined): 'vscode' | 'github' | 'microsoft' | undefined {
+export function getInternalOrg(organisations: readonly string[] | undefined): 'vscode' | 'github' | 'microsoft' | undefined {
 	const isVSCodeInternal = organisations?.includes('Visual-Studio-Code');
 	const isGitHubInternal = organisations?.includes('github');
 	const isMicrosoftInternal = organisations?.includes('microsoft') || organisations?.includes('ms-copilot') || organisations?.includes('MicrosoftCopilot');
