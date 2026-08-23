@@ -77,4 +77,4 @@ This table is updated after every measured optimization.
 |---|---|---|
 | `57fba0f1fde` | Isolated baseline and dashboard | 45-62 s end to end; 21-43 PW calls |
 | `0cf9811efae` | Batched checked driver, adaptive waits, recorder | 15.38-15.91 s; 1 automation process |
-| Pending | Faster launch, state-specific waits, per-trial fixtures | 14.87-15.37 s median; 3/3 on both surfaces |
+| `0b87e78adc5` | Faster launch, state-specific waits, per-trial fixtures | 14.87-15.37 s median; 3/3 on both surfaces |
