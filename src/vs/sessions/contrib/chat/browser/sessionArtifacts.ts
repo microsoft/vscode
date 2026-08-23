@@ -66,7 +66,12 @@ function artifactValueKey(artifact: ISessionArtifact): string {
 	return (artifact.link?.toString() ?? artifact.commitHash ?? artifact.id).toLowerCase();
 }
 
-function artifactLocation(uri: URI, label: string): Pick<IChatPillEntry, 'ariaDescription' | 'ariaLabel' | 'hover' | 'tooltip'> {
+/**
+ * The location details shown for an artifact: its URI/link as the hover beside
+ * the dropdown row, the plain-text screen reader description, and the tooltip,
+ * while the accessible name stays the action the entry performs.
+ */
+export function sessionArtifactLocation(uri: URI, label: string): Pick<IChatPillEntry, 'ariaDescription' | 'ariaLabel' | 'hover' | 'tooltip'> {
 	const value = uri.toString(true);
 	return {
 		ariaDescription: value,
@@ -88,7 +93,7 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions): 
 		}
 		const uri = artifact.uri;
 		const label = basename(uri);
-		return { id: artifact.id, label, resource: uri, ...artifactLocation(uri, label), open: () => actions.openResource(uri) };
+		return { id: artifact.id, label, resource: uri, ...sessionArtifactLocation(uri, label), open: () => actions.openResource(uri) };
 	}
 
 	const icon = artifactIcons.get(artifact.kind) ?? Codicon.archive;
@@ -105,7 +110,7 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions): 
 				run: () => actions.copy(artifact.commitHash!),
 			})]
 			: [];
-		return { id: artifact.id, label: artifact.label, icon, toolbarActions: copyAction, ...artifactLocation(link, artifact.label), open: () => actions.openExternal(link) };
+		return { id: artifact.id, label: artifact.label, icon, toolbarActions: copyAction, ...sessionArtifactLocation(link, artifact.label), open: () => actions.openExternal(link) };
 	}
 
 	if (artifact.kind === SessionArtifactKind.Resource) {
@@ -113,14 +118,14 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions): 
 			return undefined;
 		}
 		const uri = artifact.uri;
-		return { id: artifact.id, label: artifact.label, icon, ...artifactLocation(uri, artifact.label), open: () => actions.openResource(uri) };
+		return { id: artifact.id, label: artifact.label, icon, ...sessionArtifactLocation(uri, artifact.label), open: () => actions.openResource(uri) };
 	}
 
 	if (!artifact.link) {
 		return undefined;
 	}
 	const link = artifact.link;
-	return { id: artifact.id, label: artifact.label, icon, ...artifactLocation(link, artifact.label), open: () => actions.openExternal(link) };
+	return { id: artifact.id, label: artifact.label, icon, ...sessionArtifactLocation(link, artifact.label), open: () => actions.openExternal(link) };
 }
 
 /**
@@ -164,7 +169,7 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 		}
 		const entries = entriesByKind.get(SessionArtifactKind.File) ?? [];
 		const label = basename(file.uri);
-		entries.push({ id: file.uri.toString(), label, resource: file.uri, ...artifactLocation(file.uri, label), open: () => actions.openResource(file.uri) });
+		entries.push({ id: file.uri.toString(), label, resource: file.uri, ...sessionArtifactLocation(file.uri, label), open: () => actions.openResource(file.uri) });
 		entriesByKind.set(SessionArtifactKind.File, entries);
 	}
 
@@ -179,7 +184,7 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 						id: uri.toString(),
 						label,
 						resource: uri,
-						...artifactLocation(uri, label),
+						...sessionArtifactLocation(uri, label),
 						...(imageCarouselEnabled
 							? {
 								ariaLabel: localize('sessionArtifacts.openImage', "Open {0} in Images Preview", label),

@@ -10,7 +10,7 @@ import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
 import type { AnnotationsAction } from '../../common/state/sessionActions.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
-import { parseChatUri, type Annotation, type AnnotationsState, type StringOrMarkdown, type TextRange, type ToolDefinition } from '../../common/state/sessionState.js';
+import { parseChatUri, type Annotation, type AnnotationOrigin, type AnnotationsState, type StringOrMarkdown, type TextRange, type ToolDefinition } from '../../common/state/sessionState.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
 import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } from './agentServerToolHost.js';
 
@@ -454,7 +454,7 @@ export interface IFeedbackToolOutcome {
  *
  * @throws if {@link toolName} is unknown or the arguments are invalid.
  */
-export function applyFeedbackTool(state: AnnotationsState, sessionResource: string, toolName: string, rawArgs: unknown): IFeedbackToolOutcome {
+export function applyFeedbackTool(state: AnnotationsState, sessionResource: string, toolName: string, rawArgs: unknown, origin: AnnotationOrigin = { session: sessionResource }): IFeedbackToolOutcome {
 	switch (toolName) {
 		case addCommentToolName: {
 			const { resourceUri, range, text } = getAddCommentArgs(rawArgs);
@@ -464,7 +464,7 @@ export function applyFeedbackTool(state: AnnotationsState, sessionResource: stri
 			const meta: IFeedbackAnnotationMeta = { kind: 'codeReview', state: 'created', sessionResource };
 			const annotation: Annotation = {
 				id,
-				turnId: '',
+				origin,
 				resource: resourceUri,
 				range: toTextRange(range),
 				resolved: false,
@@ -665,7 +665,12 @@ export const feedbackServerToolGroup: IServerToolGroup = {
 	},
 	execute(stateManager, context, toolName, rawArgs): string {
 		const { mainSessionUri, annotationsUri, state } = getFeedbackToolState(stateManager, context.chatUri);
-		const outcome = applyFeedbackTool(state, mainSessionUri, toolName, rawArgs);
+		const turnId = stateManager.getChatState(context.chatUri)?.activeTurn?.id;
+		const outcome = applyFeedbackTool(state, mainSessionUri, toolName, rawArgs, {
+			session: mainSessionUri,
+			chat: context.chatUri,
+			...(turnId ? { turnId } : {}),
+		});
 		for (const action of outcome.actions) {
 			stateManager.dispatchServerAction(annotationsUri, action);
 		}
