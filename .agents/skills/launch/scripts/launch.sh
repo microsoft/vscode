@@ -63,18 +63,54 @@ if [[ ! -d "$SOURCE_UDD" ]]; then
 	exit 2
 fi
 
-pick_port() {
-	node -e '
-		const net = require("net");
-		const s = net.createServer();
-		s.listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => console.log(p)); });
-	'
-}
+PORTS=$(node <<'NODE'
+const net = require('net');
 
-CDP_PORT=$(pick_port)
-EXTHOST_PORT=$(pick_port)
-MAIN_PORT=$(pick_port)
-AGENTHOST_PORT=$(pick_port)
+const servers = Array.from({ length: 4 }, () => net.createServer());
+const listen = server => new Promise((resolve, reject) => {
+	server.once('error', reject);
+	server.listen(0, '127.0.0.1', () => {
+		server.removeListener('error', reject);
+		resolve();
+	});
+});
+const close = server => new Promise((resolve, reject) => {
+	server.close(error => error ? reject(error) : resolve());
+});
+
+(async () => {
+	try {
+		const results = await Promise.allSettled(servers.map(listen));
+		const failure = results.find(result => result.status === 'rejected');
+		if (failure) {
+			throw failure.reason;
+		}
+
+		const ports = servers.map(server => server.address().port);
+		if (new Set(ports).size !== servers.length) {
+			throw new Error(`Allocated duplicate ports: ${ports.join(', ')}`);
+		}
+
+		await Promise.all(servers.map(close));
+		console.log(ports.join(' '));
+	} finally {
+		await Promise.allSettled(servers.filter(server => server.listening).map(close));
+	}
+})().catch(error => {
+	console.error('[launch.sh] failed to allocate debug ports:', error);
+	process.exitCode = 1;
+});
+NODE
+)
+read -r -a DEBUG_PORTS <<< "$PORTS"
+if (( ${#DEBUG_PORTS[@]} != 4 )); then
+	echo "[launch.sh] expected four debug ports, got: $PORTS" >&2
+	exit 1
+fi
+CDP_PORT=${DEBUG_PORTS[0]}
+EXTHOST_PORT=${DEBUG_PORTS[1]}
+MAIN_PORT=${DEBUG_PORTS[2]}
+AGENTHOST_PORT=${DEBUG_PORTS[3]}
 
 STAMP=$(date +%Y%m%d-%H%M%S)-$$
 # mktemp fills in the X's only when they trail the template; elsewhere they stay literal.
