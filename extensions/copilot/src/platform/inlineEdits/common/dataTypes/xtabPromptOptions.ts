@@ -66,12 +66,20 @@ export type LanguageContextOptions = {
 export type NeighborFilesOptions = {
 	readonly enabled: boolean;
 	readonly maxTokens: number;
+	/**
+	 * Whether to include language-service "related" (non-open-tab) files in the
+	 * neighbor-files context. NES has its own language-context implementation, so
+	 * this can be turned off to avoid redundant context. When `false`, only
+	 * open-tab neighbors are considered.
+	 */
+	readonly includeRelatedFiles: boolean;
 };
 
 export namespace NeighborFilesOptions {
 	export const VALIDATOR: IValidator<Partial<NeighborFilesOptions>> = vObj({
 		'enabled': vBoolean(),
 		'maxTokens': vNumber(),
+		'includeRelatedFiles': vBoolean(),
 	});
 }
 
@@ -81,6 +89,20 @@ export type DiffHistoryOptions = {
 	readonly onlyForDocsInPrompt: boolean;
 	readonly useRelativePaths: boolean;
 };
+
+export enum RejectedEditsMemoryMode {
+	DiffWithTags = 'diffWithTags', // This is currently the only mode, so it is used by default but defined as a string for future extensibility.
+}
+
+export type PromptMemoryOptions = {
+	readonly rejectedEdits?: RejectedEditsMemoryMode;
+};
+
+export namespace PromptMemoryOptions {
+	export const VALIDATOR: IValidator<PromptMemoryOptions> = vObj({
+		'rejectedEdits': vUnion(vEnum(RejectedEditsMemoryMode.DiffWithTags), vUndefined()),
+	});
+}
 
 /**
  * Parts that are rendered by the global-budget cascade and listed in `order`.
@@ -470,6 +492,8 @@ export namespace EditIntent {
 	}
 }
 
+export type EagernessPrompt = 'aggressionHighLow';
+
 export type PromptOptions = {
 	readonly promptingStrategy: PromptingStrategy | undefined /* default */;
 	readonly currentFile: CurrentFileOptions;
@@ -478,8 +502,10 @@ export type PromptOptions = {
 	readonly languageContext: LanguageContextOptions;
 	readonly neighborFiles: NeighborFilesOptions;
 	readonly diffHistory: DiffHistoryOptions;
+	readonly memory: PromptMemoryOptions | undefined;
 	readonly includePostScript: boolean;
 	readonly lintOptions: LintOptions | undefined;
+	readonly eagernessPrompt: EagernessPrompt | undefined;
 	/**
 	 * When set, parts share a single pool of `totalTokens` and unused budget from
 	 * earlier parts in `order` cascades to later parts. When `undefined`, each
@@ -536,12 +562,25 @@ export function isPromptingStrategy(value: string): value is PromptingStrategy {
 	return (Object.values(PromptingStrategy) as string[]).includes(value);
 }
 
-export function isAggressivenessStrategy(strategy: PromptingStrategy | undefined): boolean {
-	return strategy === PromptingStrategy.XtabAggressiveness
-		|| strategy === PromptingStrategy.Xtab275Aggressiveness
-		|| strategy === PromptingStrategy.Xtab275AggressivenessHighLow
-		|| strategy === PromptingStrategy.Xtab275EditIntent
-		|| strategy === PromptingStrategy.Xtab275EditIntentShort;
+export function isEagernessPrompt(options: PromptOptions): boolean {
+	if (options.promptingStrategy === undefined) {
+		return false;
+	}
+	return (options.eagernessPrompt !== undefined && [
+		PromptingStrategy.PatchBased02,
+		PromptingStrategy.PatchBased02WithRecentLineNumbers,
+		PromptingStrategy.PatchBased02WithoutRecentLineNumbers,
+	].includes(options.promptingStrategy)) // eagerness prompt option is only supported for patch-based strategies
+		|| [PromptingStrategy.XtabAggressiveness,
+		PromptingStrategy.Xtab275Aggressiveness,
+		PromptingStrategy.Xtab275AggressivenessHighLow,
+		PromptingStrategy.Xtab275EditIntent,
+		PromptingStrategy.Xtab275EditIntentShort,
+		].includes(options.promptingStrategy); // first-class aggressiveness strategies
+}
+
+export function isRejectedEditMemoryEnabled(options: { readonly memory?: PromptMemoryOptions }): boolean {
+	return options.memory?.rejectedEdits === RejectedEditsMemoryMode.DiffWithTags;
 }
 
 export enum ResponseFormat {
@@ -587,6 +626,7 @@ export namespace ResponseFormat {
 
 export const DEFAULT_OPTIONS: PromptOptions = {
 	promptingStrategy: undefined,
+	eagernessPrompt: undefined,
 	currentFile: {
 		maxTokens: 1500,
 		includeTags: true,
@@ -614,6 +654,7 @@ export const DEFAULT_OPTIONS: PromptOptions = {
 	neighborFiles: {
 		enabled: false,
 		maxTokens: 1000,
+		includeRelatedFiles: true,
 	},
 	diffHistory: {
 		nEntries: 25,
@@ -621,6 +662,7 @@ export const DEFAULT_OPTIONS: PromptOptions = {
 		onlyForDocsInPrompt: false,
 		useRelativePaths: false,
 	},
+	memory: undefined,
 	lintOptions: undefined,
 	includePostScript: true,
 };
@@ -644,10 +686,12 @@ export const LANGUAGE_CONTEXT_ENABLED_LANGUAGES: LanguageContextLanguages = {
 export interface ModelConfiguration {
 	modelName: string;
 	promptingStrategy: PromptingStrategy | undefined /* default */;
+	eagernessPrompt?: EagernessPrompt;
 	includeTagsInCurrentFile: boolean;
 	includePostScript?: boolean;
 	currentFile?: Partial<CurrentFileOptions>;
 	recentlyViewedDocuments?: Partial<RecentlyViewedDocumentsOptions>;
+	memory?: PromptMemoryOptions;
 	lintOptions: Partial<LintOptions> | undefined;
 	supportsNextCursorLinePrediction?: boolean;
 	/** Whether import-only edits are allowed. `undefined` is treated as {@link ImportChanges.None}. */
@@ -712,10 +756,12 @@ export const LINT_OPTIONS_VALIDATOR: IValidator<Partial<LintOptions>> = vObj({
 export const MODEL_CONFIGURATION_VALIDATOR: IValidator<ModelConfiguration> = vObj({
 	'modelName': vRequired(vString()),
 	'promptingStrategy': vUnion(vEnum(...Object.values(PromptingStrategy)), vUndefined()),
+	'eagernessPrompt': vUnion(vEnum<EagernessPrompt[]>('aggressionHighLow'), vUndefined()),
 	'includeTagsInCurrentFile': vRequired(vBoolean()),
 	'includePostScript': vUnion(vBoolean(), vUndefined()),
 	'currentFile': vUnion(CurrentFileOptions.VALIDATOR, vUndefined()),
 	'recentlyViewedDocuments': vUnion(RecentlyViewedDocumentsOptions.VALIDATOR, vUndefined()),
+	'memory': vUnion(PromptMemoryOptions.VALIDATOR, vUndefined()),
 	'lintOptions': vUnion(LINT_OPTIONS_VALIDATOR, vUndefined()),
 	'supportsNextCursorLinePrediction': vUnion(vBoolean(), vUndefined()),
 	'allowImportChanges': vUnion(ImportChanges.VALIDATOR, vUndefined()),

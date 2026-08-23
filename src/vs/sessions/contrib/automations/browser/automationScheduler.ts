@@ -5,6 +5,7 @@
 
 import { IntervalTimer, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
 import { stringHash } from '../../../../base/common/hash.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
@@ -13,10 +14,11 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
-import { IAutomation } from '../../../../workbench/contrib/chat/common/automations/automation.js';
+import { IAutomationDescriptor } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationRunner } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_AUTOMATIONS_RUN_TIMEOUT_MINUTES_SETTING, DEFAULT_AUTOMATIONS_RUN_TIMEOUT_MINUTES } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { AutomationLeaderElection, IAutomationLeaderElection } from './automationLeaderElection.js';
 
 export const DEFAULT_SCHEDULER_TICK_MS = 60_000;
@@ -33,6 +35,7 @@ export interface IAutomationSchedulerCoreOptions {
 	readonly disableAutoTick?: boolean;
 	readonly isFeatureEnabled?: () => boolean;
 	readonly getRunTimeoutMs?: () => number;
+	readonly onDidChangeTargetAvailability?: Event<void>;
 }
 
 export class AutomationSchedulerCore extends Disposable {
@@ -72,6 +75,7 @@ export class AutomationSchedulerCore extends Disposable {
 			const isLeader = this._leader.isLeader.read(reader);
 			if (!isLeader) {
 				this._didStartupForCurrentLeadership = false;
+				this.automationService.stopStaleRunRecovery();
 				return;
 			}
 			this.kickoffPendingRuns(() => this.tickOnce(true));
@@ -81,6 +85,11 @@ export class AutomationSchedulerCore extends Disposable {
 			this._timer.cancelAndSet(() => {
 				this.kickoffPendingRuns(() => this.tickOnce(false));
 			}, this._tickIntervalMs);
+		}
+		if (options.onDidChangeTargetAvailability) {
+			this._register(options.onDidChangeTargetAvailability(() => {
+				this.kickoffPendingRuns(() => this.tickOnce(false));
+			}));
 		}
 	}
 
@@ -116,7 +125,7 @@ export class AutomationSchedulerCore extends Disposable {
 
 		if (!this._didStartupForCurrentLeadership) {
 			this._didStartupForCurrentLeadership = true;
-			await this.automationService.markStaleRunsFailed(CRASH_RECOVERY_REASON);
+			await this.automationService.startStaleRunRecovery(CRASH_RECOVERY_REASON);
 			await this.dispatchDue('catch_up');
 			if (isLeadershipTransition) {
 				return;
@@ -143,7 +152,7 @@ export class AutomationSchedulerCore extends Disposable {
 		}
 	}
 
-	private async runOneWithTimeout(automation: IAutomation, trigger: 'schedule' | 'catch_up', leaderWindowId: number): Promise<void> {
+	private async runOneWithTimeout(automation: IAutomationDescriptor, trigger: 'schedule' | 'catch_up', leaderWindowId: number): Promise<void> {
 		const timeoutMs = this._getRunTimeoutMs();
 		const perRunCts = new CancellationTokenSource(this._runCts.token);
 		try {
@@ -158,7 +167,6 @@ export class AutomationSchedulerCore extends Disposable {
 				timeoutMs,
 				() => {
 					timedOut = true;
-					this.logService.warn(`[AutomationScheduler] runOnce for automation ${automation.id} timed out after ${timeoutMs}ms.`);
 				},
 			);
 
@@ -170,14 +178,21 @@ export class AutomationSchedulerCore extends Disposable {
 			try {
 				const active = this.automationService.getActiveRunFor(automation.id);
 				if (active) {
-					await this.automationService.updateRun(active.id, {
+					const updated = await this.automationService.updateRun(active.id, {
 						status: 'failed',
 						errorMessage: localize('automation.timedOut', "Timed out after {0} minute(s).", Math.round(timeoutMs / 60_000)),
 						completedAt: this._now().toISOString(),
 					});
+					if (updated) {
+						this.logService.warn(`[AutomationScheduler] automation ${automation.id} timed out after ${timeoutMs}ms; marked run ${active.id} failed (previousStatus=${active.status}, session=${updated.sessionResource?.toString() ?? '(none)'}).`);
+					} else {
+						this.logService.warn(`[AutomationScheduler] automation ${automation.id} timed out after ${timeoutMs}ms, but active run ${active.id} disappeared before it could be marked failed (previousStatus=${active.status}, session=${active.sessionResource?.toString() ?? '(none)'}).`);
+					}
+				} else {
+					this.logService.warn(`[AutomationScheduler] automation ${automation.id} timed out after ${timeoutMs}ms with no active run recorded.`);
 				}
 			} catch (err) {
-				this.logService.warn('[AutomationScheduler] failed to mark timed-out run as failed', err);
+				this.logService.warn(`[AutomationScheduler] automation ${automation.id} timed out after ${timeoutMs}ms and failed to mark its active run as failed.`, err);
 			}
 			perRunCts.cancel();
 		} finally {
@@ -186,6 +201,7 @@ export class AutomationSchedulerCore extends Disposable {
 	}
 
 	override dispose(): void {
+		this.automationService.stopStaleRunRecovery();
 		this._runCts.cancel();
 		super.dispose();
 	}
@@ -204,6 +220,7 @@ export class AutomationScheduler extends Disposable implements IWorkbenchContrib
 		@IStorageService private readonly _storageService: IStorageService,
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
 		if (this._isEnabled()) {
@@ -237,11 +254,12 @@ export class AutomationScheduler extends Disposable implements IWorkbenchContrib
 					: DEFAULT_AUTOMATIONS_RUN_TIMEOUT_MINUTES;
 				return sane * 60_000;
 			},
+			onDidChangeTargetAvailability: this._sessionsManagementService.onDidChangeSessionTypes,
 		});
 	}
 }
 
-function isDue(automation: IAutomation, now: Date): boolean {
+function isDue(automation: IAutomationDescriptor, now: Date): boolean {
 	if (!automation.enabled || !automation.nextRunAt) {
 		return false;
 	}

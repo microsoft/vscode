@@ -43,17 +43,19 @@
 }
 
 .sessions-pr-hover-description {
-	display: -webkit-box;
-	-webkit-box-orient: vertical;
-	-webkit-line-clamp: 3;
-	line-clamp: 3;
-	overflow: hidden;
 	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size160) 0 var(--vscode-spacing-size160);
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-editorHoverWidget-border);
 	font-size: var(--vscode-agents-fontSize-body1);
 	line-height: 1.4;
 	color: var(--vscode-descriptionForeground);
 	overflow-wrap: anywhere;
+}
+
+.sessions-pr-hover-description-content {
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 3;
+	overflow: hidden;
 }
 
 .sessions-pr-hover-branches {

@@ -16,6 +16,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { isCustomizationEnabled } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { buildDefaultChatUri, CustomizationType, readUsageInfoMeta, StateComponents, type ChatState, type ChildCustomization, type Customization, type UsageInfo } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
@@ -24,13 +25,13 @@ import { IPathService } from '../../../../services/path/common/pathService.js';
 import { ChatDebugHookResult, ChatDebugLogLevel, IChatDebugCustomizationLogEntry, IChatDebugEvent, IChatDebugFileEntry, IChatDebugLogProvider, IChatDebugMessageSection, IChatDebugModelTurnEvent, IChatDebugResolvedEventContent, IChatDebugService } from '../../common/chatDebugService.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
 import { AgentHostAgentDebugLogEnabledSettingId, AgentHostAgentDebugLogMaxEventsSettingId } from '../../common/promptSyntax/promptTypes.js';
-import { COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME, getCopilotCliSessionRawId, resolveEventsUri } from '../copilotCliEventsUri.js';
+import { buildLocalSessionStateUri, COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME, getCopilotCliSessionRawId, resolveEventsUri } from '../copilotCliEventsUri.js';
 import { AgentHostCustomizationRecorder, AgentHostUsageRecorder, buildAgentHostCustomizationsUri, buildAgentHostUsageUri, readAgentHostCustomizationsSnapshot, readAgentHostUsageRecords, type IAgentHostUsageRecord } from './agentHostUsageSidecar.js';
 
 /**
  * One record in an Agent Host Copilot CLI `events.jsonl` stream. The CLI
  * writes a line-delimited JSON log of the session under
- * `~/.copilot/session-state/<id>/events.jsonl`. Every record shares the same
+ * `<COPILOT_HOME>/session-state/<id>/events.jsonl`. Every record shares the same
  * envelope. Note that `parentId` is **not** a logical parent: the SDK defines
  * it as the chronologically preceding event in the session (a flat linked chain
  * over every event), not the user → model-turn → tool-call hierarchy. The
@@ -549,7 +550,7 @@ export class AgentHostChatDebugContribution extends Disposable implements IWorkb
 
 	private async _discoverLocalSessions(token: CancellationToken): Promise<{ uri: URI; title?: string }[]> {
 		const userHome = this._pathService.userHome({ preferLocal: true });
-		const sessionStateDir = joinPath(userHome, '.copilot', 'session-state');
+		const sessionStateDir = buildLocalSessionStateUri(userHome);
 
 		let stat;
 		try {
@@ -1162,7 +1163,9 @@ function flattenCustomizations(customizations: readonly Customization[]): IFlatC
 			type: c.type,
 			name: c.name,
 			uri: c.uri,
-			enabled: (c as { enabled?: boolean }).enabled !== false,
+			enabled: c.type === CustomizationType.McpServer
+				? isCustomizationEnabled(c)
+				: c.enabled !== false,
 			description: (c as { description?: string }).description,
 		});
 	};
@@ -1529,7 +1532,7 @@ function lastIndexOfNewline(buffer: VSBuffer): number {
  * the session id.
  */
 function fallbackSessionTitle(sessionId: string): string {
-	return localize('agentHost.debug.untitledSession', "Copilot CLI Session {0}", sessionId.slice(0, 8));
+	return localize('agentHost.debug.untitledSession', "Copilot Session {0}", sessionId.slice(0, 8));
 }
 
 /** Derives a session title from the first user message in an events stream. */

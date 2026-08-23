@@ -41,6 +41,26 @@ suite('Chat variable entries', () => {
 		assert.strictEqual(getExplicitFileOrImageAttachmentSummary([workspaceEntry, implicitEntry, promptEntry]), undefined);
 	});
 
+	test('round trips element image data through export serialization', () => {
+		const entry: IChatRequestVariableEntry = {
+			kind: 'element',
+			id: 'element',
+			name: 'button',
+			value: 'Element: button',
+			imageData: new Uint8Array([1, 2, 3]),
+			imageMimeType: 'image/jpeg',
+		};
+
+		const restored = IChatRequestVariableEntry.fromExport(IChatRequestVariableEntry.toExport(entry));
+
+		assert.deepStrictEqual(
+			restored.kind === 'element' && restored.imageData instanceof Uint8Array
+				? { ...restored, imageData: Array.from(restored.imageData) }
+				: restored,
+			{ ...entry, imageData: [1, 2, 3] }
+		);
+	});
+
 	suite('resolveChatContextIcon', () => {
 		const light = URI.file('/icons/light.svg');
 		const dark = URI.file('/icons/dark.svg');

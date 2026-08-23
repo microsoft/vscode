@@ -139,12 +139,6 @@ configurationRegistry.registerConfiguration({
 				nls.localize('search.mode.newEditor', "Search in a new search editor."),
 			]
 		},
-		'search.useRipgrep': {
-			type: 'boolean',
-			description: nls.localize('useRipgrep', "This setting is deprecated and now falls back on \"search.usePCRE2\"."),
-			deprecationMessage: nls.localize('useRipgrepDeprecated', "Deprecated. Consider \"search.usePCRE2\" for advanced regex feature support."),
-			default: true
-		},
 		'search.useIgnoreFiles': {
 			type: 'boolean',
 			markdownDescription: nls.localize('useIgnoreFiles', "Controls whether to use `.gitignore` and `.ignore` files when searching for files."),
@@ -230,12 +224,6 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: false,
 			description: nls.localize('search.showLineNumbers', "Controls whether to show line numbers for search results."),
-		},
-		'search.usePCRE2': {
-			type: 'boolean',
-			default: false,
-			description: nls.localize('search.usePCRE2', "Whether to use the PCRE2 regex engine in text search. This enables using some advanced regex features like lookahead and backreferences. However, not all PCRE2 features are supported - only features that are also supported by JavaScript."),
-			deprecationMessage: nls.localize('usePCRE2Deprecated', "Deprecated. PCRE2 will be used automatically when using regex features that are only supported by PCRE2."),
 		},
 		'search.actionsPosition': {
 			type: 'string',

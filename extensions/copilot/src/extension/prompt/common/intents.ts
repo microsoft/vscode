@@ -139,6 +139,11 @@ export interface IBuildPromptContext {
 	readonly parentModelCallId?: string;
 }
 
+/** Returns the subagent invocation that owns tools emitted from this prompt context. */
+export function getSubAgentInvocationId(context: IBuildPromptContext): string | undefined {
+	return context.tools?.subAgentInvocationId ?? context.request?.subAgentInvocationId;
+}
+
 export const IBuildPromptContext = createServiceIdentifier<IBuildPromptContext>('IBuildPromptContext');
 
 export enum WorkingSetEntryState {

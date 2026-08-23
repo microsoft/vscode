@@ -4994,6 +4994,12 @@ export interface ISuggestOptions {
 	 */
 	showInlineDetails?: boolean;
 	/**
+	 * Grow the suggest widget's preferred width to fit the inline detail text so it
+	 * is not truncated. Defaults to false.
+	 * @internal
+	 */
+	fitWidthToDetails?: boolean;
+	/**
 	 * Show method-suggestions.
 	 */
 	showMethods?: boolean;
@@ -5131,6 +5137,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 			preview: false,
 			previewMode: 'subwordSmart',
 			showInlineDetails: true,
+			fitWidthToDetails: false,
 			showMethods: true,
 			showFunctions: true,
 			showConstructors: true,
@@ -5401,6 +5408,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 			preview: boolean(input.preview, this.defaultValue.preview),
 			previewMode: stringSet(input.previewMode, this.defaultValue.previewMode, ['prefix', 'subword', 'subwordSmart']),
 			showInlineDetails: boolean(input.showInlineDetails, this.defaultValue.showInlineDetails),
+			fitWidthToDetails: boolean(input.fitWidthToDetails, this.defaultValue.fitWidthToDetails),
 			showMethods: boolean(input.showMethods, this.defaultValue.showMethods),
 			showFunctions: boolean(input.showFunctions, this.defaultValue.showFunctions),
 			showConstructors: boolean(input.showConstructors, this.defaultValue.showConstructors),

@@ -26,7 +26,7 @@ import { IWorkbenchUIElementFactory } from './workbenchUIElementFactory.js';
 export class MultiDiffEditorWidget extends Disposable {
 	private readonly _dimension = observableValue<Dimension | undefined>(this, undefined);
 	private readonly _viewModel = observableValue<MultiDiffEditorViewModel | undefined>(this, undefined);
-	private readonly _renderSideBySide = observableValue<boolean | undefined>(this, undefined);
+	private readonly _diffLayoutOptions = observableValue<IDiffEditorOptions | undefined>(this, undefined);
 
 	private readonly _widgetImpl = derived(this, (reader) => {
 		readHotReloadableExport(DiffEditorItemTemplate, reader);
@@ -36,7 +36,7 @@ export class MultiDiffEditorWidget extends Disposable {
 			this._dimension,
 			this._viewModel,
 			this._workbenchUIElementFactory,
-			this._renderSideBySide,
+			this._diffLayoutOptions,
 			this._diffEditorOptions,
 		));
 	});
@@ -61,6 +61,15 @@ export class MultiDiffEditorWidget extends Disposable {
 	}
 
 	public setViewModel(viewModel: MultiDiffEditorViewModel | undefined, options?: { readonly preserveFocus?: boolean; readonly viewState?: IMultiDiffEditorViewState }): void {
+		// `MultiDiffEditor.clearInput()` awaits `super.clearInput()` before it
+		// calls `setViewModel(undefined)`; during that await the editor pane and
+		// its scoped instantiation service can be disposed. Once this widget is
+		// disposed the `_widgetImpl` derived is no longer observed, so reading it
+		// here would re-create the impl via `createInstance` on the disposed
+		// instantiation service and throw. Bail out instead.
+		if (this._store.isDisposed) {
+			return;
+		}
 		// An editor opened with `preserveFocus` (e.g. restored in the background
 		// or on a session switch) must not have its automatic first-change
 		// selection steal keyboard focus from elsewhere (such as the chat input).
@@ -89,14 +98,18 @@ export class MultiDiffEditorWidget extends Disposable {
 	/**
 	 * Overrides whether the embedded diffs render side by side (`true`) or inline
 	 * (`false`) as editor-local state, independent of the
-	 * `diffEditor.renderSideBySide` setting. When left unset the setting applies.
+	 * `diffEditor.renderSideBySide` setting. Responsive inline fallback is disabled
+	 * unless explicitly enabled.
 	 */
-	public setRenderSideBySide(renderSideBySide: boolean): void {
-		this._renderSideBySide.set(renderSideBySide, undefined);
+	public setRenderSideBySide(renderSideBySide: boolean, options?: { readonly useInlineViewWhenSpaceIsLimited?: boolean }): void {
+		this._diffLayoutOptions.set({
+			renderSideBySide,
+			useInlineViewWhenSpaceIsLimited: options?.useInlineViewWhenSpaceIsLimited ?? false,
+		}, undefined);
 	}
 
 	public toggleRenderSideBySide(): void {
-		this._renderSideBySide.set(!(this._renderSideBySide.get() ?? true), undefined);
+		this.setRenderSideBySide(!(this._diffLayoutOptions.get()?.renderSideBySide ?? true));
 	}
 
 	private readonly _activeControl = derived(this, (reader) => this._widgetImpl.read(reader).activeControl.read(reader));

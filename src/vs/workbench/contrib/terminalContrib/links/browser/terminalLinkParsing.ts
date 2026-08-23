@@ -267,6 +267,11 @@ function detectLinksViaSuffix(line: string): IParsedLink[] {
 	// 1: Detect link suffixes on the line
 	const suffixes = detectLinkSuffixes(line);
 	for (const suffix of suffixes) {
+		// Ignore suffixes followed by `/` so numeric Git diff prefixes such as `1/` are parsed as paths.
+		const suffixEndIndex = suffix.suffix.index + suffix.suffix.text.length;
+		if (line[suffixEndIndex] === '/') {
+			continue;
+		}
 		const beforeSuffix = line.substring(0, suffix.suffix.index);
 		const possiblePathMatch = beforeSuffix.match(linkWithSuffixPathCharacters);
 		if (possiblePathMatch && possiblePathMatch.index !== undefined && possiblePathMatch.groups?.path) {
@@ -370,10 +375,11 @@ export const winDrivePrefix = '(?:\\\\\\\\\\?\\\\|file:\\/\\/\\/)?[a-zA-Z]:';
 const winLocalLinkClause = '(?:(?:' + `(?:${winDrivePrefix}|${RegexPathConstants.WinOtherPathPrefix})` + '|(?:' + RegexPathConstants.WinExcludedStartPathCharactersClause + RegexPathConstants.WinExcludedPathCharactersClause + '*))?(?:' + RegexPathConstants.WinPathSeparatorClause + '(?:' + RegexPathConstants.WinExcludedPathCharactersClause + ')+)+)';
 
 /**
- * A regex clause that matches the a/, b/, etc. prefixes used in git diffs.
- * These may be other characters when the diff.mnemonicPrefix config option is enabled.
+ * A regex clause that matches the known single-character prefixes used in git diffs.
+ * When diff.mnemonicPrefix is enabled, Git uses mnemonic letter prefixes and uses 1/ and 2/
+ * for `git diff --no-index`.
  */
-const diffFilePrefix = '[abciow]\\/';
+const diffFilePrefix = '[abciow12]\\/';
 
 /**
  * A regex that matches git diff lines with filenames, such as `--- a/foo`, `+++ b/foo`.
@@ -398,7 +404,7 @@ function detectPathsNoSuffix(line: string, os: OperatingSystem): IParsedLink[] {
 			break;
 		}
 
-		// Adjust the link range to exclude a/ and b/ if it looks like a git diff
+		// Adjust the link range to exclude a known Git diff prefix
 		if (
 			// --- a/foo/bar
 			// +++ b/foo/bar

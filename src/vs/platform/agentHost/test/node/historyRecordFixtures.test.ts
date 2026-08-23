@@ -7,12 +7,12 @@ import assert from 'assert';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentSession } from '../../common/agentService.js';
-import { FileEditKind, MessageKind, ResponsePartKind, ToolResultContentType } from '../../common/state/sessionState.js';
+import { AgentSession } from '../../common/agent.js';
+import { FileEditKind, MessageKind, ResponsePartKind, ToolResultContentType, buildChatUri } from '../../common/state/sessionState.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
-import { parseSessionDbUri } from '../../node/shared/fileEditTracker.js';
+import { parseSessionDbUri } from '../../common/sessionDbUri.js';
 import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
-import { mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';
+import { mapSessionEvents as mapSessionEventsWithRouting } from '../../node/copilot/mapSessionEvents.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
 
 suite('mapSessionEventsToHistoryRecords', () => {
@@ -20,6 +20,10 @@ suite('mapSessionEventsToHistoryRecords', () => {
 	const disposables = new DisposableStore();
 	let db: SessionDatabase | undefined;
 	const session = AgentSession.uri('copilot', 'test-session');
+
+	function mapSessionEvents(session: URI, db: undefined, events: Parameters<typeof mapSessionEventsWithRouting>[2]) {
+		return mapSessionEventsWithRouting(session, db, events, URI.parse(buildChatUri(session, 'default')));
+	}
 
 	teardown(async () => {
 		disposables.clear();
@@ -313,7 +317,7 @@ suite('mapSessionEventsToHistoryRecords', () => {
 				{
 					type: 'skill.invoked',
 					id: 'evt-42',
-					data: { name: 'plan', path: '/abs/repo/skills/plan/SKILL.md' },
+					data: { name: 'plan', path: '/abs/repo/skills/plan/SKILL.md', content: '' },
 				},
 				{
 					type: 'user.message',
@@ -342,7 +346,7 @@ suite('mapSessionEventsToHistoryRecords', () => {
 					toolCallId: 'synth-skill-evt-42',
 					toolName: 'skill',
 					displayName: 'Read Skill',
-					invocationMessage: { markdown: 'Reading skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
+					invocationMessage: { markdown: 'Read skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
 				},
 				skillComplete: {
 					session,
@@ -372,7 +376,7 @@ suite('mapSessionEventsToHistoryRecords', () => {
 		}
 
 		function getStart(events: ReturnType<typeof mapSessionEventsToHistoryRecords> extends Promise<infer R> ? R : never) {
-			return events[0] as { toolInput: string; toolArguments?: string };
+			return events[0] as { toolInput: string };
 		}
 
 		test('strips redundant bash cd prefix matching workingDirectory', async () => {
@@ -381,7 +385,6 @@ suite('mapSessionEventsToHistoryRecords', () => {
 			], cwd);
 			const start = getStart(result);
 			assert.strictEqual(start.toolInput, 'ls -la');
-			assert.deepStrictEqual(JSON.parse(start.toolArguments!), { command: 'ls -la' });
 		});
 
 		test('leaves command unchanged when cd dir does not match', async () => {
@@ -408,8 +411,7 @@ suite('mapSessionEventsToHistoryRecords', () => {
 				},
 			], cwd);
 			const start = getStart(result);
-			// edit tool's toolInput is derived from filePath, not command — but toolArguments preserves original
-			assert.deepStrictEqual(JSON.parse(start.toolArguments!), { command: 'cd /workspace/proj && ls' });
+			assert.strictEqual(start.toolInput, '{\n  "command": "cd /workspace/proj && ls"\n}');
 		});
 
 		test('handles trailing slash on workingDirectory', async () => {

@@ -22,12 +22,14 @@ import {
 	createAndSubscribeSession,
 	defaultChatChannel,
 	dispatchTurnStarted,
+	getAgentHostE2ETestTimeout,
 	getActionEnvelope,
 	IServerHandle,
 	isActionNotification,
 	startServer,
+	stopServer,
 	TestProtocolClient,
-} from './testHelpers.js';
+} from '../serverIntegrationTestHelpers.js';
 
 suite('Protocol WebSocket — Client Tools', function () {
 
@@ -35,12 +37,13 @@ suite('Protocol WebSocket — Client Tools', function () {
 	let client: TestProtocolClient;
 
 	suiteSetup(async function () {
-		this.timeout(15_000);
+		this.timeout(getAgentHostE2ETestTimeout(15_000, 60_000));
 		server = await startServer();
 	});
 
-	suiteTeardown(function () {
-		server.process.kill();
+	suiteTeardown(async function () {
+		this.timeout(getAgentHostE2ETestTimeout(20_000, 50_000));
+		await stopServer(server);
 	});
 
 	setup(async function () {

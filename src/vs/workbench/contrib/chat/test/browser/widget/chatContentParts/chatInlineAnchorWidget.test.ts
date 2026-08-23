@@ -78,6 +78,52 @@ suite('ChatInlineAnchorWidget Metadata Validation', () => {
 		assert.strictEqual((await opened.p).toString(), resource.toString());
 	});
 
+	test('wraps the resource opener in trackOpen', async () => {
+		const resource = URI.file('/workspace/package.json');
+		const element = createTestElement('', resource.toString());
+		const calls: string[] = [];
+		const tracked = new DeferredPromise<void>();
+		renderFileWidgets(element, instantiationService, mockAnchorService, disposables, {
+			openResource: async () => {
+				calls.push('open');
+				return true;
+			},
+			trackOpen: async open => {
+				calls.push('before');
+				await open();
+				calls.push('after');
+				tracked.complete();
+			},
+		});
+
+		element.querySelector<HTMLElement>('.chat-inline-anchor-widget')?.click();
+		await tracked.p;
+
+		assert.deepStrictEqual(calls, ['before', 'open', 'after']);
+	});
+
+	test('trackOpen observes a failing resource opener', async () => {
+		const resource = URI.file('/workspace/package.json');
+		const element = createTestElement('', resource.toString());
+		const error = new Error('cannot open');
+		const failure = new DeferredPromise<unknown>();
+		renderFileWidgets(element, instantiationService, mockAnchorService, disposables, {
+			openResource: () => Promise.reject(error),
+			trackOpen: async open => {
+				try {
+					await open();
+					failure.complete(undefined);
+				} catch (e) {
+					failure.complete(e);
+				}
+			},
+		});
+
+		element.querySelector<HTMLElement>('.chat-inline-anchor-widget')?.click();
+
+		assert.strictEqual(await failure.p, error);
+	});
+
 	test('renders widget for empty vscode-agent-host link in chat query title', () => {
 		const container = mainWindow.document.createElement('div');
 		const titlePart = disposables.add(instantiationService.createInstance(

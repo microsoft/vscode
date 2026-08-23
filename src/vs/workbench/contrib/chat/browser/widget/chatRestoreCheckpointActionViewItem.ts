@@ -19,12 +19,8 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 
 /**
- * Action view item for the "Restore Checkpoint" action that adds an inline
- * confirmation affordance: when the current request (and the requests after it)
- * have edits that would be discarded, the first click does not restore but
- * instead turns the button into a "Confirm" button with an adjacent "Cancel"
- * button. A second click on "Confirm" runs the restore, while "Cancel" (or
- * losing focus / pressing Escape) reverts the button to its default state.
+ * Action view item for checkpoint actions that adds an inline confirmation
+ * affordance before discarding edits.
  *
  * This gives a lightweight, in-place warning for sessions (such as agent host
  * sessions) where the modal removal-confirmation dialog does not apply.
@@ -39,6 +35,8 @@ export class ChatRestoreCheckpointActionViewItem extends MenuEntryActionViewItem
 		action: MenuItemAction,
 		options: IMenuEntryActionViewItemOptions | undefined,
 		private readonly _needsConfirmation: (context: unknown) => boolean,
+		private readonly _cancelLabel: string,
+		private readonly _confirmTooltip: string,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@INotificationService notificationService: INotificationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -60,9 +58,8 @@ export class ChatRestoreCheckpointActionViewItem extends MenuEntryActionViewItem
 		// cancel the inline confirmation.
 		cancelButton.tabIndex = -1;
 		dom.reset(cancelButton, ...renderLabelWithIcons(`$(close)`));
-		const cancelLabel = localize('chat.restoreCheckpoint.cancelTooltip', "Cancel restoring this checkpoint");
-		cancelButton.title = cancelLabel;
-		cancelButton.setAttribute('aria-label', cancelLabel);
+		cancelButton.title = this._cancelLabel;
+		cancelButton.setAttribute('aria-label', this._cancelLabel);
 		this._register(dom.addDisposableListener(cancelButton, dom.EventType.CLICK, e => {
 			dom.EventHelper.stop(e, true);
 			this._setConfirming(false);
@@ -158,7 +155,7 @@ export class ChatRestoreCheckpointActionViewItem extends MenuEntryActionViewItem
 
 	protected override getTooltip(): string {
 		if (this._confirming) {
-			return localize('chat.restoreCheckpoint.confirmTooltip', "Confirm restoring this checkpoint and discarding later edits");
+			return this._confirmTooltip;
 		}
 		return super.getTooltip();
 	}

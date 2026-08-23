@@ -8,7 +8,6 @@ import type * as http from 'http';
 import * as net from 'net';
 import { createRequire } from 'node:module';
 import { performance } from 'perf_hooks';
-import * as url from 'url';
 import { VSBuffer } from '../../base/common/buffer.js';
 import { CharCode } from '../../base/common/charCode.js';
 import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from '../../base/common/errors.js';
@@ -41,6 +40,16 @@ import { IServerLifetimeService } from './serverLifetimeService.js';
 import { setupServerServices, SocketServer } from './serverServices.js';
 import { CacheControl, serveError, serveFile, WebClientServer } from './webClientServer.js';
 const require = createRequire(import.meta.url);
+
+function parseRequestUrl(requestUrl: string): URL | undefined {
+	try {
+		return requestUrl.startsWith('/')
+			? new URL(`http://localhost${requestUrl}`)
+			: new URL(requestUrl);
+	} catch {
+		return undefined;
+	}
+}
 
 declare namespace vsda {
 	// the signer is a native module that for historical reasons uses a lower case class name
@@ -112,7 +121,10 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 			return serveError(req, res, 400, `Bad request.`);
 		}
 
-		const parsedUrl = url.parse(req.url, true);
+		const parsedUrl = parseRequestUrl(req.url);
+		if (!parsedUrl) {
+			return serveError(req, res, 400, `Bad request.`);
+		}
 		let pathname = parsedUrl.pathname;
 
 		if (!pathname) {
@@ -141,7 +153,7 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 			return void res.end('OK');
 		}
 
-		if (!httpRequestHasValidConnectionToken(this._connectionToken, req, parsedUrl)) {
+		if (!httpRequestHasValidConnectionToken(this._connectionToken, req, parsedUrl.searchParams)) {
 			// invalid connection token
 			return serveError(req, res, 403, `Forbidden.`);
 		}
@@ -149,10 +161,11 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 		if (pathname === '/vscode-remote-resource') {
 			// Handle HTTP requests for resources rendered in the rich client (images, fonts, etc.)
 			// These resources could be files shipped with extensions or even workspace files.
-			const desiredPath = parsedUrl.query['path'];
-			if (typeof desiredPath !== 'string') {
+			const desiredPaths = parsedUrl.searchParams.getAll('path');
+			if (desiredPaths.length !== 1) {
 				return serveError(req, res, 400, `Bad request.`);
 			}
+			const desiredPath = desiredPaths[0];
 
 			let filePath: string;
 			try {
@@ -195,14 +208,21 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 		let skipWebSocketFrames = false;
 
 		if (req.url) {
-			const query = url.parse(req.url, true).query;
-			if (typeof query.reconnectionToken === 'string') {
-				reconnectionToken = query.reconnectionToken;
+			const parsedUrl = parseRequestUrl(req.url);
+			if (!parsedUrl) {
+				this._logService.warn('WebSocket connection rejected: invalid request URL');
+				socket.end('HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n');
+				return;
 			}
-			if (query.reconnection === 'true') {
+			const query = parsedUrl.searchParams;
+			const reconnectionTokens = query.getAll('reconnectionToken');
+			if (reconnectionTokens.length === 1) {
+				reconnectionToken = reconnectionTokens[0];
+			}
+			if (query.getAll('reconnection').length === 1 && query.get('reconnection') === 'true') {
 				isReconnection = true;
 			}
-			if (query.skipWebSocketFrames === 'true') {
+			if (query.getAll('skipWebSocketFrames').length === 1 && query.get('skipWebSocketFrames') === 'true') {
 				skipWebSocketFrames = true;
 			}
 		}

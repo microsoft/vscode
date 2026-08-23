@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import type { Terminal } from '@xterm/xterm';
+import { importAMDNodeModule } from '../../../../../../../amdX.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
@@ -12,12 +14,17 @@ import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../../base/test/common/timeTravelScheduler.js';
 import { timeout } from '../../../../../../../base/common/async.js';
+import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IAccessibleViewService } from '../../../../../../../platform/accessibility/browser/accessibleView.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { DiffEditorPool, EditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
-import { ChatTerminalThinkingCollapsibleWrapper } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolProgressPart.js';
+import { ChatTerminalThinkingCollapsibleWrapper, ChatTerminalToolOutputSection } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolProgressPart.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { TerminalToolAutoExpand, TerminalToolAutoExpandTimeout } from '../../../../browser/widget/chatContentParts/toolInvocationParts/terminalToolAutoExpand.js';
+import { ITerminalConfigurationService, ITerminalService, type IDetachedXTermOptions } from '../../../../../terminal/browser/terminal.js';
+import type { ITerminalFont } from '../../../../../terminal/common/terminal.js';
+import { createFakeDetachedTerminal } from '../../../../../terminal/test/browser/chatTerminalMirrorTestUtils.js';
 
 suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -94,9 +101,9 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 				terminalContent,
 				context,
 				false,
+				false,
+				false,
 				true,
-				false,
-				false,
 				undefined,
 			));
 			mainWindow.document.body.appendChild(part.domNode);
@@ -117,12 +124,14 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 				initiallyInert,
 				expandedInert: animationContent.inert,
 				containsTerminal: animationContent.contains(terminalContent),
+				hasShowLink: !!part.domNode.querySelector('.chat-terminal-show-link'),
 			}, {
 				hasAnimationClass: true,
 				animationDisplay: 'grid',
 				initiallyInert: true,
 				expandedInert: false,
 				containsTerminal: true,
+				hasShowLink: false,
 			});
 		});
 	});
@@ -325,4 +334,110 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 		assert.strictEqual(isExpanded, true, 'Should expand exactly once after first data');
 		onCommandFinished.fire(undefined);
 	}));
+});
+
+suite('ChatTerminalToolOutputSection layout', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	// Mounts the real section with the real snapshot mirror over a faked detached terminal,
+	// so the asserted heights are what actually reaches the DOM. Regression coverage for the
+	// sliced-last-row symptom of #328299: the box height must derive from the mirror's
+	// painted cell height, not the configuration-font estimate.
+	let instantiationService: TestInstantiationService;
+	let XTermBaseCtor: typeof Terminal;
+	let fakes: ReturnType<typeof createFakeDetachedTerminal>[];
+	let mirrorFont: ITerminalFont;
+	let container: HTMLElement;
+
+	setup(async () => {
+		instantiationService = workbenchInstantiationService(undefined, store);
+		XTermBaseCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
+		fakes = [];
+		// Mirror metrics deliberately differ from the config estimate below so the tests can
+		// tell which source the layout used
+		mirrorFont = { fontFamily: 'monospace', fontSize: 12, letterSpacing: 0, lineHeight: 1, charWidth: 10, charHeight: 20 };
+		instantiationService.stub(ITerminalService, {
+			createDetachedTerminal: async (options: IDetachedXTermOptions) => {
+				const fake = createFakeDetachedTerminal(XTermBaseCtor, options, mirrorFont);
+				fakes.push(fake);
+				return fake.instance;
+			}
+		} as Partial<ITerminalService>);
+		instantiationService.stub(ITerminalConfigurationService, {
+			getFont: () => ({ fontFamily: 'monospace', fontSize: 10, letterSpacing: 0, lineHeight: 1, charWidth: 6, charHeight: 10 })
+		} as Partial<ITerminalConfigurationService>);
+		instantiationService.stub(IAccessibleViewService, {
+			getOpenAriaHint: () => null
+		} as Partial<IAccessibleViewService>);
+		container = mainWindow.document.createElement('div');
+		container.style.width = '800px';
+		mainWindow.document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+	});
+
+	function createSection(output: { text: string } | undefined): ChatTerminalToolOutputSection {
+		const section = store.add(instantiationService.createInstance(
+			ChatTerminalToolOutputSection,
+			async () => undefined,
+			() => undefined,
+			() => undefined,
+			() => output,
+			() => 'echo test',
+			() => undefined,
+			() => false,
+			false,
+		));
+		container.appendChild(section.domNode);
+		return section;
+	}
+
+	function boxHeight(section: ChatTerminalToolOutputSection): string {
+		const scrollable = section.domNode.querySelector('.monaco-scrollable-element') as HTMLElement | null;
+		return scrollable?.style.height ?? '';
+	}
+
+	/** The expected box height for `rows` rows: rows × rowHeight plus the body's real padding. */
+	function expectedHeight(section: ChatTerminalToolOutputSection, rows: number, rowHeight: number): string {
+		const body = section.domNode.querySelector('.chat-terminal-output-body') as HTMLElement;
+		const style = mainWindow.getComputedStyle(body);
+		const padding = (Number.parseFloat(style.paddingTop) || 0) + (Number.parseFloat(style.paddingBottom) || 0);
+		return `${rows * rowHeight + padding}px`;
+	}
+
+	test('box height uses the mirror row height, not the config estimate', async () => {
+		const section = createSection({ text: 'l1\r\nl2\r\nl3' });
+		await section.toggle(true);
+		assert.strictEqual(boxHeight(section), expectedHeight(section, 3, 20));
+	});
+
+	test('falls back to the config-font estimate while mirror metrics are unavailable', async () => {
+		mirrorFont = { ...mirrorFont, charHeight: 0 };
+		const section = createSection({ text: 'l1\r\nl2\r\nl3' });
+		await section.toggle(true);
+		assert.strictEqual(boxHeight(section), expectedHeight(section, 3, 10));
+	});
+
+	test('relayouts when the mirror announces changed cell metrics', async () => {
+		const section = createSection({ text: 'l1\r\nl2\r\nl3' });
+		await section.toggle(true);
+		assert.strictEqual(boxHeight(section), expectedHeight(section, 3, 20));
+
+		// Simulate the renderer reporting different metrics (first render replacing the
+		// estimate, or a DPR change): mutate the font the fake reports, then open the raw
+		// terminal so xterm fires a real render event
+		mirrorFont.charHeight = 30;
+		const fake = fakes[0];
+		const renderFired = new Promise<void>(resolve => {
+			const listener = fake.raw.onRender(() => {
+				listener.dispose();
+				resolve();
+			});
+		});
+		const host = mainWindow.document.createElement('div');
+		container.appendChild(host);
+		fake.raw.open(host);
+		await renderFired;
+
+		assert.strictEqual(boxHeight(section), expectedHeight(section, 3, 30));
+	});
 });
