@@ -39,7 +39,7 @@ import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFac
 import { NewChatWidget } from './newChatWidget.js';
 import { NewChatInSessionWidget } from './newChatInSessionWidget.js';
 import { SessionInputBanners } from '../../sessionInputBanners/browser/sessionInputBanners.js';
-import { SessionChatInputToolbar } from './sessionChatInputToolbar.js';
+import { SESSION_CHAT_INPUT_TOOLBAR_HEIGHT, SessionChatInputToolbar } from './sessionChatInputToolbar.js';
 import { ResponseSelectionSideChatController } from './responseSelectionSideChatController.js';
 import { ISessionChatPillsDebugService } from './sessionChatInputToolbarDebug.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
@@ -228,6 +228,7 @@ export class ChatView extends AbstractChatView {
 				inputEditorMinLines: 2,
 				isSessionsWindow: true,
 				enableFind: true,
+				persistentContentHeight: SESSION_CHAT_INPUT_TOOLBAR_HEIGHT,
 				renderGettingStartedTip: () => shouldShowSessionChatTip(this._currentSessionObs.get()?.status.get()),
 			},
 			this._buildStyles(this._isActive)

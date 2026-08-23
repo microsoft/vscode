@@ -2363,8 +2363,22 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex-direction: column;
 }
 
-.interactive-session .interactive-input-part:not(.chat-input-hidden) > .chat-input-persistent-content {
+.interactive-session:not(.chat-floating-persistent-content) .interactive-input-part:not(.chat-input-hidden) > .chat-input-persistent-content {
 	display: contents;
+}
+
+/* Opted in via `IChatWidgetViewOptions.persistentContentHeight`: the content
+	floats above the input so the transcript scrolls underneath it, landing where
+	it sat in flow (the input part's `padding-top` and flex `gap` are both 4px). */
+.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content {
+	position: absolute;
+	inset-inline: 0;
+	bottom: 100%;
+	/* Match the input part's own horizontal padding. */
+	padding-inline: inherit;
+	box-sizing: border-box;
+	/* Clicks fall through to the transcript; the pills opt back in. */
+	pointer-events: none;
 }
 
 .interactive-session .interactive-input-part.chat-input-hidden > :not(.chat-input-persistent-content, .chat-tool-confirmation-carousel-container) {
@@ -3948,7 +3962,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-scroll-down {
 	display: none;
 	position: absolute;
-	bottom: 7px;
+	/* Clear any content floating above the input. */
+	bottom: calc(7px + var(--vscode-chat-persistent-content-height, 0px));
 	right: 12px;
 	border-radius: var(--vscode-cornerRadius-circle);
 	width: var(--vscode-spacing-size280);
@@ -4673,6 +4688,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	cursor: default;
 }
 
+/* Scrim the content floating above the input along with the composer. */
+.chat-input-overlay.disabled {
+	top: calc(-1 * var(--vscode-chat-persistent-content-height, 0px));
+}
+
 .interactive-session .focused-input-dom {
 	position: absolute;
 	top: -50000px;
@@ -4699,6 +4719,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin: 0 0 0 0;
 	/* Keep standard padding with space for title */
 	padding: 32px 16px 8px 16px;
+	/* Grow the box, not the margin (which the layout measurement excludes), to
+		clear the content floating above the input. */
+	padding-bottom: calc(8px + var(--vscode-chat-persistent-content-height, 0px));
 	/* Left align buttons to match standard welcome view */
 	justify-content: flex-start;
 	/* Ensure flex layout is properly applied */

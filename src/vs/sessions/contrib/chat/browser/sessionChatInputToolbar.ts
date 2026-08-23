@@ -85,6 +85,13 @@ export function getSessionChatPillKindForAction(actionId: string): SessionChatPi
 	}
 }
 
+/**
+ * The row's rendered height, reserved below the transcript by its host because
+ * the row floats over it. Derived from the row's `2px`/`6px` padding here plus a
+ * 22px `.monaco-text-button.small` pill; keep in sync if either changes.
+ */
+export const SESSION_CHAT_INPUT_TOOLBAR_HEIGHT = 30;
+
 /** A toolbar for session metadata, active-turn status, and background activity. */
 export class SessionChatInputToolbar extends Disposable {
 
@@ -298,11 +305,10 @@ export class SessionChatInputToolbar extends Disposable {
 
 		this._register(autorun(reader => {
 			const anyVisible = pills.isVisible.read(reader);
-			// Keep the (empty) row present while hidden pills have data so its
-			// context menu stays reachable and they can be shown again.
+			// Stay rendered while hidden pills have data: in read-only chats the
+			// input part is only kept alive by a non-hidden persistent child.
 			const anyHidden = kindsWithData.read(reader).size > 0;
 			this.element.classList.toggle('hidden', !anyVisible && !anyHidden);
-			this.element.classList.toggle('empty', !anyVisible);
 			this._scrollable.scanDomNode();
 		}));
 	}
