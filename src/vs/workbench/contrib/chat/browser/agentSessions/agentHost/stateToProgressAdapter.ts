@@ -1311,9 +1311,6 @@ export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTur
 				break;
 			case ResponsePartKind.ContentRef:
 				break;
-			case ResponsePartKind.InputRequest:
-				parts.push(inputRequestResponsePartToProgress(rp, connectionAuthority, resourceUris));
-				break;
 		}
 	}
 
