@@ -597,7 +597,7 @@ try {
 
 	$process = Start-Code $codeBat $launchArgs.ToArray() $logFile
 	Write-LaunchError "[launch.ps1] waiting for CDP on port $cdpPort (timeout 90s)..."
-	$waitForCdp = Join-Path $PSScriptRoot 'waitForCdp.mjs'
+	$waitForCdp = Join-Path $PSScriptRoot 'waitForCdp.ts'
 	$readyMs = & $node $waitForCdp $process.Id $cdpPort
 	$readyStatus = $LASTEXITCODE
 	if ($readyStatus -eq 0) {

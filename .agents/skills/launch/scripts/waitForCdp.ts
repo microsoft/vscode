@@ -19,23 +19,23 @@ if (!Number.isInteger(pid) || pid <= 0 || !Number.isInteger(port) || port <= 0 |
 
 const start = performance.now();
 
-function isProcessRunning() {
+function isProcessRunning(): boolean {
 	try {
 		process.kill(pid, 0);
 		return true;
 	} catch (error) {
-		if (error?.code === 'ESRCH') {
+		if ((error as NodeJS.ErrnoException).code === 'ESRCH') {
 			return false;
 		}
 		throw error;
 	}
 }
 
-function probe(requestTimeoutMs) {
-	return new Promise(resolve => {
+function probe(requestTimeoutMs: number): Promise<boolean> {
+	return new Promise<boolean>(resolve => {
 		let settled = false;
-		let timer;
-		const finish = ready => {
+		let timer: NodeJS.Timeout;
+		const finish = (ready: boolean) => {
 			if (!settled) {
 				settled = true;
 				clearTimeout(timer);
@@ -45,7 +45,7 @@ function probe(requestTimeoutMs) {
 		};
 		const request = http.get({ host: '127.0.0.1', port, path: '/json/version' }, response => {
 			response.resume();
-			finish(response.statusCode >= 200 && response.statusCode < 400);
+			finish(response.statusCode !== undefined && response.statusCode >= 200 && response.statusCode < 400);
 		});
 		timer = setTimeout(() => finish(false), requestTimeoutMs);
 		request.on('error', () => finish(false));

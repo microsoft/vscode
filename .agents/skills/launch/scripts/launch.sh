@@ -259,7 +259,7 @@ disown $PID 2>/dev/null || true
 # immediately. If code.sh dies or we time out, dump the log so the failure is
 # visible.
 echo "[launch.sh] waiting for CDP on port $CDP_PORT (timeout 90s)..." >&2
-WAIT_FOR_CDP="$(cd "$(dirname "$0")" && pwd)/waitForCdp.mjs"
+WAIT_FOR_CDP="$(cd "$(dirname "$0")" && pwd)/waitForCdp.ts"
 if READY_MS=$(node "$WAIT_FOR_CDP" "$PID" "$CDP_PORT"); then
 	echo "[launch.sh] CDP ready after ${READY_MS}ms" >&2
 else
